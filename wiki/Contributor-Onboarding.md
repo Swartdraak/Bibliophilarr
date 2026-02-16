@@ -2,8 +2,9 @@
 
 ## Prerequisites
 
-- .NET SDK
-- Node.js + Yarn
+- .NET SDK 6.0+
+- Node.js 20.x
+- Yarn 1.22.x
 - Git
 
 ## Fast path

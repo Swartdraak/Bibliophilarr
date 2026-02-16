@@ -17,12 +17,12 @@ on:
       - 'yarn.lock'
       - '.github/workflows/ci-frontend.yml'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
 
     steps:
       - name: Checkout
