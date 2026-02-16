@@ -1,36 +1,50 @@
-# Announcement: Retirement of Readarr
+# Bibliophilarr - Reviving the Readarr Project
 
-We would like to announce that the [Readarr project](<https://github.com/Readarr/Readarr>) has been retired. This difficult decision was made due to a combination of factors: the project's metadata has become unusable, we no longer have the time to remake or repair it, and the community effort to transition to using Open Library as the source has stalled without much progress.
+## 🎉 Announcement: Project Revival & Active Development
 
-Third-party metadata mirrors exist, but as we're not involved with them at all, we cannot provide support for them. Use of them is entirely at your own risk. The most popular mirror appears to be [rreading-glasses](<https://github.com/blampe/rreading-glasses>).
+**Bibliophilarr** is a community-driven fork of the [Readarr project](<https://github.com/Readarr/Readarr>), which was retired by the original maintainers due to metadata provider issues. We are actively working to revive and improve this project by migrating away from proprietary metadata sources to fully open-source, sustainable alternatives.
 
-Without anyone to take over Readarr development, we expect it to wither away, so we still encourage you to seek alternatives to Readarr.
+### What's Different?
+- **Active Development**: This fork is under active development with a clear roadmap
+- **FOSS Metadata**: Transitioning to Free and Open Source Software (FOSS) metadata providers
+- **Community-Driven**: Open to contributions and community input
+- **Sustainable Future**: Building on reliable, open infrastructure
 
-## Key Points:
-- **Effective Immediately**: The retirement takes effect immediately. Please stay tuned for any possible further communications.
-- **Support Window**: We will provide support during a brief transition period to help with troubleshooting non metadata related issues.
-- **Alternative Solutions**: Users are encouraged to explore and adopt any other possible solutions as alternatives to Readarr.
-- **Opportunities for Revival**: We are open to someone taking over and revitalizing the project. If you are interested, please get in touch.
-- **Gratitude**: We extend our deepest gratitude to all the contributors and community members who supported Readarr over the years.
+### Current Status: Planning & Architecture Phase
+We are currently developing a comprehensive migration plan to replace Goodreads with sustainable FOSS alternatives including:
+- **Open Library** (primary provider)
+- **Inventaire.io** (secondary provider)
+- **Additional fallback providers** for robustness
 
-Thank you for being part of the Readarr journey. For any inquiries or assistance during this transition, please contact our team.
+📋 See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for detailed technical scaffold and roadmap.
 
-Sincerely,  
-The Servarr Team
+### Original Readarr Retirement Notice
+The original Readarr project was retired due to metadata provider issues. The Servarr team announced:
+> "The retirement takes effect immediately... the project's metadata has become unusable, we no longer have the time to remake or repair it, and the community effort to transition to using Open Library as the source has stalled without much progress."
 
-# Readarr
+**We're picking up where they left off!** This fork aims to complete the Open Library migration and establish a sustainable, FOSS-based future for book and audiobook management.
+
+---
+
+# Bibliophilarr
+
+> **Note**: The badges below reference the original Readarr project infrastructure and may not reflect the current state of Bibliophilarr. We are working on establishing our own build and community infrastructure.
 
 [![Build Status](https://dev.azure.com/Readarr/Readarr/_apis/build/status/Readarr.Readarr?branchName=develop)](https://dev.azure.com/Readarr/Readarr/_build/latest?definitionId=1&branchName=develop)
 [![Translated](https://translate.servarr.com/widgets/servarr/-/readarr/svg-badge.svg)](https://translate.servarr.com/engage/readarr/?utm_source=widget)
 [![Docker Pulls](https://img.shields.io/docker/pulls/hotio/readarr)](https://wiki.servarr.com/readarr/installation#docker)
-[![Donors on Open Collective](https://opencollective.com/Readarr/backers/badge.svg)](#backers)
-[![Sponsors on Open Collective](https://opencollective.com/Readarr/sponsors/badge.svg)](#sponsors)
-[![Mega Sponsors on Open Collective](https://opencollective.com/Readarr/megasponsors/badge.svg)](#mega-sponsors)
 
-### Readarr is currently in beta testing and is generally still in a work in progress. Features may be broken, incomplete, or cause spontaneous combustion
+### ⚠️ Bibliophilarr is under active development and currently in a transitional state. We are working on migrating to FOSS metadata providers.
 
-Readarr is an ebook and audiobook collection manager for Usenet and BitTorrent users. It can monitor multiple RSS feeds for new books from your favorite authors and will grab, sort, and rename them.
-Note that only one type of a given book is supported. If you want both an audiobook and ebook of a given book you will need multiple instances.
+Bibliophilarr (formerly Readarr) is an ebook and audiobook collection manager for Usenet and BitTorrent users. It can monitor multiple RSS feeds for new books from your favorite authors and will grab, sort, and rename them.
+
+**Note**: Only one type of a given book is supported per instance. If you want both an audiobook and ebook of a given book, you will need multiple instances.
+
+## What We're Working On
+- 🔄 **Metadata Migration**: Transitioning from Goodreads to FOSS providers (Open Library, Inventaire)
+- 🏗️ **Infrastructure**: Building a robust multi-provider metadata architecture
+- 🧪 **Testing**: Comprehensive testing framework for metadata providers
+- 📚 **Documentation**: Updated guides for the new metadata system
 
 ## Major Features Include
 
@@ -46,51 +60,34 @@ Note that only one type of a given book is supported. If you want both an audiob
 * Full integration with Calibre (add to library, conversion) (Requires Calibre Content Server)
 * And a beautiful UI
 
-## Support
+## Support & Community
 
-[![Wiki](https://img.shields.io/badge/servarr-wiki-181717.svg?maxAge=60)](https://wiki.servarr.com/readarr)
-[![Discord](https://img.shields.io/badge/discord-chat-7289DA.svg?maxAge=60)](https://readarr.com/discord)
+**Note**: This is a community fork. For support:
+- **GitHub Issues**: Bug reports and feature requests for Bibliophilarr
+- **Discord**: Community discussion and support (coming soon)
+- **Wiki**: Documentation (being updated for new metadata system)
 
-Note: GitHub Issues are for Bugs and Feature Requests Only
-
-[![GitHub - Bugs and Feature Requests Only](https://img.shields.io/badge/github-issues-red.svg?maxAge=60)](https://github.com/Readarr/Readarr/issues)
+For the original Readarr project, refer to the [Servarr Wiki](https://wiki.servarr.com/readarr) (may contain outdated information).
 
 ## Contributors & Developers
 
-[API Documentation](https://readarr.com/docs/api/)
+This is a community fork building on the excellent work of the original Readarr team and contributors.
 
-This project exists thanks to all the people who contribute.
-- [Contribute (GitHub)](CONTRIBUTING.md)
-- [Contribution (Wiki Article)](https://wiki.servarr.com/readarr/contributing)
+### Contributing to Bibliophilarr
+We welcome contributions! Areas where we especially need help:
+- **Metadata Provider Implementation**: Help implement Open Library and other FOSS providers
+- **Testing**: Test metadata retrieval and edge cases
+- **Documentation**: Update docs for the new metadata system
+- **UI/UX**: Improve the user experience for provider selection and configuration
 
-[![Contributors List](https://opencollective.com/Readarr/contributors.svg?width=890&button=false)](https://github.com/Readarr/Readarr/graphs/contributors)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the technical roadmap.
 
-## Backers
-
-Thank you to all our backers! 🙏 [Become a backer](https://opencollective.com/Readarr#backer)
-
-[![Backers List](https://opencollective.com/Readarr/backers.svg?width=890)](https://opencollective.com/Readarr#backer)
-
-## Sponsors
-
-Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [Become a sponsor](https://opencollective.com/readarr#sponsor)
-
-[![Sponsors List](https://opencollective.com/Readarr/sponsors.svg?width=890)](https://opencollective.com/readarr#sponsor)
-
-## Mega Sponsors
-
-[![Mega Sponsors List](https://opencollective.com/Readarr/tiers/mega-sponsor.svg?width=890)](https://opencollective.com/readarr#mega-sponsor)
-
-## DigitalOcean
-
-This project is also supported by DigitalOcean
-<p>
-  <a href="https://www.digitalocean.com/">
-    <img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/SVG/DO_Logo_horizontal_blue.svg" width="201px">
-  </a>
-</p>
+### Original Readarr Contributors
+This project exists thanks to all the people who contributed to the original Readarr project.
 
 ### License
 
 * [GNU GPL v3](http://www.gnu.org/licenses/gpl.html)
-* Copyright 2010-2022
+* Copyright 2010-2024
+* Original Readarr by Servarr Team
+* Bibliophilarr fork maintained by the community
