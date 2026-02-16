@@ -1,0 +1,45 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - '.github/workflows/ci-frontend.yml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'frontend/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - '.github/workflows/ci-frontend.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Build
+        run: yarn build

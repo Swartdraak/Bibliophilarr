@@ -60,6 +60,15 @@ Bibliophilarr (formerly Readarr) is an ebook and audiobook collection manager fo
 * Full integration with Calibre (add to library, conversion) (Requires Calibre Content Server)
 * And a beautiful UI
 
+
+## Project Operations
+
+To support the revival effort, we now maintain repository operation blueprints:
+- [MCP Server Recommendations](docs/operations/MCP_SERVER_RECOMMENDATIONS.md)
+- [Repository Tags and Labels](docs/operations/REPOSITORY_TAGS.md)
+- [GitHub Projects Blueprint](docs/operations/GITHUB_PROJECTS_BLUEPRINT.md)
+- [Wiki Home](wiki/Home.md)
+
 ## Support & Community
 
 **Note**: This is a community fork. For support:
