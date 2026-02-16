@@ -15,6 +15,56 @@ MCP servers can give contributors faster, safer context retrieval and less manua
 
 ---
 
+## Setup
+
+### Prerequisites
+
+- An MCP-compatible assistant or IDE (e.g., Claude Desktop, Cline, or other MCP clients)
+- Access tokens for services where required (GitHub PAT for `github` server)
+
+### Configuration
+
+MCP servers are typically configured in your MCP client's settings file. For example, in Claude Desktop, edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows).
+
+Example minimal config for priority servers:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_github_pat_here"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/Bibliophilarr"]
+    },
+    "git": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git", "/path/to/Bibliophilarr"]
+    }
+  }
+}
+```
+
+### Security notes
+
+- Store GitHub PATs securely; use fine-grained tokens with minimal required scopes (`repo`, `read:org` for private repos).
+- For `filesystem` and `git` servers, only grant access to your local Bibliophilarr checkout directory.
+- Review each server's official documentation for security best practices and configuration options.
+
+### Official MCP server references
+
+- [MCP GitHub Server](https://github.com/modelcontextprotocol/servers/tree/main/src/github)
+- [MCP Filesystem Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)
+- [MCP Git Server](https://github.com/modelcontextprotocol/servers/tree/main/src/git)
+- [Full MCP Server Registry](https://github.com/modelcontextprotocol/servers)
+
+---
+
 ## Priority 1 (install first)
 
 ### 1) `github`

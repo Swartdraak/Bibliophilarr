@@ -13,8 +13,11 @@ on:
       - '**/*.md'
       - '.github/workflows/docs-validation.yml'
 
+permissions:
+  contents: read
+
 jobs:
-  markdown-link-check:
+  markdown-lint:
     runs-on: ubuntu-latest
 
     steps:
