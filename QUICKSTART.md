@@ -21,7 +21,7 @@ The immediate priority is completing the planning phase and setting up infrastru
 
 ### Prerequisites
 
-- .NET 6.0+ SDK
+- .NET 8.0+ SDK (LTS)
 - Node.js 20.x and Yarn 1.22.x
 - Git
 
