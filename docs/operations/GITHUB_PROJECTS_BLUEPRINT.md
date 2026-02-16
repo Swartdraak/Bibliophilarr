@@ -7,6 +7,7 @@ This blueprint defines recommended GitHub Projects for Bibliophilarr's current r
 **Purpose:** Track the Goodreads-to-FOSS migration as a multi-phase delivery program.
 
 **Suggested fields**
+
 - `Status` (Backlog, Ready, In Progress, Blocked, In Review, Done)
 - `Phase` (P1..P10 aligned with migration plan)
 - `Provider` (Open Library, Inventaire, Google Books, Internal)
@@ -15,6 +16,7 @@ This blueprint defines recommended GitHub Projects for Bibliophilarr's current r
 - `Target Release` (v0.x milestones)
 
 **Views**
+
 - Kanban by Status
 - Table grouped by Phase
 - Board grouped by Provider
@@ -25,12 +27,14 @@ This blueprint defines recommended GitHub Projects for Bibliophilarr's current r
 **Purpose:** Improve test confidence, build speed, and deployment hygiene.
 
 **Suggested fields**
+
 - `Pipeline` (Backend, Frontend, Docs, Release)
 - `Status`
 - `Priority`
 - `Owner`
 
 **Views**
+
 - Kanban by Status
 - Table by Pipeline + cycle time
 
@@ -39,11 +43,13 @@ This blueprint defines recommended GitHub Projects for Bibliophilarr's current r
 **Purpose:** Organize onboarding docs, migration guides, and contributor enablement.
 
 **Suggested fields**
+
 - `Doc Type` (Wiki, How-to, Reference, Tutorial)
 - `Audience` (User, Contributor, Maintainer)
 - `Status`
 
 **Views**
+
 - Kanban by Status
 - Table by Audience
 

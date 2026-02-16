@@ -1,0 +1,22 @@
+{
+  "config": {
+    "default": true,
+    "MD001": false,
+    "MD004": false,
+    "MD013": false,
+    "MD022": {
+      "lines_above": 1,
+      "lines_below": 1
+    },
+    "MD024": false,
+    "MD025": false,
+    "MD032": {
+      "lists": true
+    },
+    "MD033": false,
+    "MD036": false,
+    "MD040": false,
+    "MD041": false,
+    "MD060": false
+  }
+}

@@ -30,6 +30,7 @@ Use up to 20 highly discoverable topics:
 ## 2) Suggested Issue/PR Labels
 
 ### Type labels
+
 - `type: bug`
 - `type: feature`
 - `type: docs`
@@ -38,6 +39,7 @@ Use up to 20 highly discoverable topics:
 - `type: chore`
 
 ### Area labels
+
 - `area: metadata`
 - `area: open-library`
 - `area: inventaire`
@@ -50,12 +52,14 @@ Use up to 20 highly discoverable topics:
 - `area: docs`
 
 ### Priority labels
+
 - `priority: p0`
 - `priority: p1`
 - `priority: p2`
 - `priority: p3`
 
 ### Status/workflow labels
+
 - `status: needs-triage`
 - `status: ready`
 - `status: blocked`
@@ -64,6 +68,7 @@ Use up to 20 highly discoverable topics:
 - `status: waiting-feedback`
 
 ### Community labels
+
 - `good-first-issue`
 - `help-wanted`
 - `needs-repro`
