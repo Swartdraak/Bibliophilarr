@@ -218,7 +218,7 @@ namespace NzbDrone.Core.MetadataSource
                 score += 5;
             }
 
-            if (edition.PageCount.HasValue && edition.PageCount.Value > 0)
+            if (edition.PageCount > 0)
             {
                 score += 5;
             }

@@ -42,7 +42,7 @@ namespace NzbDrone.Core.MetadataSource
         /// <summary>
         /// Get providers that support a specific capability
         /// </summary>
-        /// <param name="capability">Capability to check (e.g., "BookSearch", "ISBNLookup")</param>
+        /// <param name="capability">Capability property name on IMetadataProvider (e.g., "SupportsBookSearch", "SupportsISBNLookup")</param>
         /// <returns>List of providers supporting the capability</returns>
         List<IMetadataProvider> GetProvidersWithCapability(string capability);
 
