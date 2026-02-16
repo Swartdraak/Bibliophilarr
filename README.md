@@ -72,6 +72,7 @@ To support the revival effort, we now maintain repository operation blueprints:
 - [MCP Server Recommendations](docs/operations/MCP_SERVER_RECOMMENDATIONS.md)
 - [Repository Tags and Labels](docs/operations/REPOSITORY_TAGS.md)
 - [GitHub Projects Blueprint](docs/operations/GITHUB_PROJECTS_BLUEPRINT.md)
+- [.NET Modernization Project](docs/operations/DOTNET_MODERNIZATION.md) - **HIGH PRIORITY**
 - [Wiki Home](wiki/Home.md)
 
 ## Support & Community
