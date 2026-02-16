@@ -20,7 +20,8 @@ The immediate priority is completing the planning phase and setting up infrastru
 ## 🚀 Quick Setup
 
 ### Prerequisites
-- .NET 6.0+ SDK
+
+- .NET 8.0+ SDK (LTS)
 - Node.js 20.x and Yarn 1.22.x
 - Git
 
@@ -58,18 +59,21 @@ dotnet test
 ## 💡 Easy First Contributions
 
 ### Documentation
+
 - Fix typos or improve clarity
 - Add examples to MIGRATION_PLAN.md
 - Create diagrams for architecture
 - Write user guides
 
 ### Research
+
 - Test Open Library API and document findings
 - Compare metadata quality across providers
 - Document edge cases in book identification
 - Research ISBN mapping strategies
 
 ### Planning
+
 - Review and provide feedback on MIGRATION_PLAN.md
 - Suggest improvements to architecture
 - Identify potential issues
@@ -112,12 +116,12 @@ src/NzbDrone.Core/MetadataSource/
 ### Understanding Metadata Providers
 
 1. **Open Library**
-   - Docs: https://openlibrary.org/developers/api
-   - Try it: https://openlibrary.org/search.json?q=foundation+asimov
-   
+   - Docs: <https://openlibrary.org/developers/api>
+   - Try it: <https://openlibrary.org/search.json?q=foundation+asimov>
+
 2. **Inventaire**
-   - Docs: https://api.inventaire.io/
-   - Try it: https://inventaire.io/api/search?types=works&search=foundation
+   - Docs: <https://api.inventaire.io/>
+   - Try it: <https://inventaire.io/api/search?types=works&search=foundation>
 
 3. **Current Implementation**
    - Read `src/NzbDrone.Core/MetadataSource/BookInfo/BookInfoProxy.cs`
@@ -139,7 +143,7 @@ src/NzbDrone.Core/MetadataSource/
 6. 👉 Make your contribution!
 7. 👉 Open a pull request
 
-## 🎉 Welcome!
+## 🎉 Welcome
 
 Thank you for contributing to Bibliophilarr! Every contribution, no matter how small, helps revive this project and build a sustainable future for book management.
 

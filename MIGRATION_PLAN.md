@@ -5,6 +5,7 @@
 This document outlines the comprehensive technical plan for migrating Bibliophilarr (formerly Readarr) from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
 ## Table of Contents
+
 - [Current State](#current-state)
 - [Goals](#goals)
 - [FOSS Metadata Provider Options](#foss-metadata-provider-options)
@@ -21,6 +22,7 @@ This document outlines the comprehensive technical plan for migrating Bibliophil
 ## Current State
 
 ### Existing Architecture
+
 Bibliophilarr currently uses a two-tier metadata system:
 
 1. **BookInfoProxy** (Primary Provider)
@@ -36,6 +38,7 @@ Bibliophilarr currently uses a two-tier metadata system:
    - Deprecated but still in use
 
 ### Problems with Current System
+
 - **Goodreads API**: Deprecated and unreliable
 - **Proprietary Dependency**: Not community maintainable
 - **Single Point of Failure**: No fallback options
@@ -44,7 +47,9 @@ Bibliophilarr currently uses a two-tier metadata system:
 - **Rate Limiting**: Restrictive API quotas
 
 ### Foreign ID System
+
 Currently uses Goodreads IDs as `ForeignAuthorId` and `ForeignBookId` throughout the codebase:
+
 - Database schema uses these IDs
 - User libraries are tagged with Goodreads IDs
 - Import/export relies on Goodreads identification
@@ -54,6 +59,7 @@ Currently uses Goodreads IDs as `ForeignAuthorId` and `ForeignBookId` throughout
 ## Goals
 
 ### Primary Goals
+
 1. **Complete FOSS Migration**: Replace all Goodreads dependencies with FOSS providers
 2. **Multi-Provider Support**: Implement fallback and aggregation strategies
 3. **Data Preservation**: Maintain existing user libraries without data loss
@@ -61,6 +67,7 @@ Currently uses Goodreads IDs as `ForeignAuthorId` and `ForeignBookId` throughout
 5. **Improved Reliability**: Multiple sources prevent single point of failure
 
 ### Secondary Goals
+
 1. **Better Metadata Quality**: Aggregate data from multiple sources
 2. **Community Contribution**: Enable users to improve metadata
 3. **Extensibility**: Easy to add new providers
@@ -72,9 +79,11 @@ Currently uses Goodreads IDs as `ForeignAuthorId` and `ForeignBookId` throughout
 ## FOSS Metadata Provider Options
 
 ### Primary Provider: Open Library
-**URL**: https://openlibrary.org/
+
+**URL**: <https://openlibrary.org/>
 
 **Pros:**
+
 - ✅ Fully open source (AGPL)
 - ✅ Comprehensive coverage (20M+ books)
 - ✅ Active development by Internet Archive
@@ -86,12 +95,14 @@ Currently uses Goodreads IDs as `ForeignAuthorId` and `ForeignBookId` throughout
 - ✅ Supports multiple editions per work
 
 **Cons:**
+
 - ⚠️ Rate limiting (100 req/5min for unregistered, more with account)
 - ⚠️ Variable metadata quality
 - ⚠️ Some books may be missing
 - ⚠️ API can be slow at times
 
 **API Endpoints:**
+
 ```
 Search: /search.json?q={query}&author={author}
 Work: /works/{OLID}.json
@@ -102,9 +113,11 @@ Covers: https://covers.openlibrary.org/b/id/{ID}-{SIZE}.jpg
 ```
 
 ### Secondary Provider: Inventaire
-**URL**: https://inventaire.io/
+
+**URL**: <https://inventaire.io/>
 
 **Pros:**
+
 - ✅ Fully open source (AGPL)
 - ✅ Built on Wikidata
 - ✅ Active community
@@ -113,11 +126,13 @@ Covers: https://covers.openlibrary.org/b/id/{ID}-{SIZE}.jpg
 - ✅ GraphQL API
 
 **Cons:**
+
 - ⚠️ Smaller catalog than Open Library
 - ⚠️ Less mature API
 - ⚠️ May lack some popular titles
 
 **API Endpoints:**
+
 ```
 Search: /api/search?types=works&search={query}
 Entity: /api/entities?action=by-uris&uris={uri}
@@ -125,9 +140,11 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
 ```
 
 ### Tertiary Provider: Google Books API
-**URL**: https://developers.google.com/books
+
+**URL**: <https://developers.google.com/books>
 
 **Pros:**
+
 - ✅ Comprehensive coverage
 - ✅ High quality metadata
 - ✅ Good search capabilities
@@ -135,6 +152,7 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
 - ✅ Cover images
 
 **Cons:**
+
 - ⚠️ Not open source
 - ⚠️ Requires API key
 - ⚠️ Rate limiting (1000 req/day free tier)
@@ -146,11 +164,13 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
 ### Additional Data Sources
 
 #### MusicBrainz BookBrainz (Future Consideration)
+
 - Still in development
 - Community-driven book database
 - Would be ideal when mature
 
 #### ISBN Database Services
+
 - ISBN.org (official ISBN registry)
 - ISBNdb.com (freemium, requires key)
 - Use for ISBN → metadata resolution
@@ -296,9 +316,11 @@ public class MetadataCacheManager
 ## Implementation Phases
 
 ### Phase 1: Foundation & Documentation ✓
+
 **Status**: Current Phase
 
 **Tasks:**
+
 - [x] Document current architecture
 - [x] Research FOSS alternatives
 - [x] Create migration plan
@@ -306,6 +328,7 @@ public class MetadataCacheManager
 - [x] Set up project roadmap
 
 **Deliverables:**
+
 - MIGRATION_PLAN.md (this document)
 - Updated README.md
 - Contributor guidelines for metadata work
@@ -313,6 +336,7 @@ public class MetadataCacheManager
 ### Phase 2: Infrastructure Setup
 
 **Tasks:**
+
 1. Create new provider interfaces
 2. Implement provider registry system
 3. Build metadata quality scorer
@@ -320,6 +344,7 @@ public class MetadataCacheManager
 5. Set up monitoring/logging for providers
 
 **Deliverables:**
+
 - `IMetadataProviderV2` interface hierarchy
 - `MetadataProviderRegistry` service
 - `MetadataQualityScorer` implementation
@@ -328,6 +353,7 @@ public class MetadataCacheManager
 ### Phase 3: Open Library Provider Implementation
 
 **Tasks:**
+
 1. Implement Open Library API client
 2. Map Open Library data to Bibliophilarr models
 3. Implement search functionality
@@ -338,6 +364,7 @@ public class MetadataCacheManager
 8. Comprehensive testing
 
 **API Mapping:**
+
 ```
 Open Library Work → Bibliophilarr Book
 Open Library Edition → Bibliophilarr Edition
@@ -345,6 +372,7 @@ Open Library Author → Bibliophilarr Author
 ```
 
 **Implementation Files:**
+
 ```
 src/NzbDrone.Core/MetadataSource/OpenLibrary/
   ├── OpenLibraryProvider.cs
@@ -361,6 +389,7 @@ src/NzbDrone.Core/MetadataSource/OpenLibrary/
 ### Phase 4: Inventaire Provider Implementation
 
 **Tasks:**
+
 1. Implement Inventaire API client
 2. Map Inventaire/Wikidata entities
 3. Implement search functionality
@@ -368,6 +397,7 @@ src/NzbDrone.Core/MetadataSource/OpenLibrary/
 5. Testing and validation
 
 **Implementation Files:**
+
 ```
 src/NzbDrone.Core/MetadataSource/Inventaire/
   ├── InventaireProvider.cs
@@ -379,6 +409,7 @@ src/NzbDrone.Core/MetadataSource/Inventaire/
 ### Phase 5: Provider Aggregation Layer
 
 **Tasks:**
+
 1. Implement metadata aggregator
 2. Create provider selection strategy
 3. Build fallback logic
@@ -387,6 +418,7 @@ src/NzbDrone.Core/MetadataSource/Inventaire/
 6. Create provider health monitoring
 
 **Key Components:**
+
 ```csharp
 public class MetadataAggregator
 {
@@ -424,6 +456,7 @@ public class MetadataAggregator
 ### Phase 6: Database Migration
 
 **Tasks:**
+
 1. Add new identifier columns to database
 2. Create ID mapping tables
 3. Implement migration scripts
@@ -431,6 +464,7 @@ public class MetadataAggregator
 5. Create rollback procedures
 
 **Schema Changes:**
+
 ```sql
 -- Add new identifier columns
 ALTER TABLE Books ADD COLUMN OpenLibraryWorkId TEXT;
@@ -463,6 +497,7 @@ CREATE INDEX IX_Authors_OpenLibraryAuthorId ON Authors(OpenLibraryAuthorId);
 ### Phase 7: Migration Tools
 
 **Tasks:**
+
 1. Create Goodreads → ISBN mapper
 2. Build bulk metadata updater
 3. Implement conflict resolver
@@ -470,6 +505,7 @@ CREATE INDEX IX_Authors_OpenLibraryAuthorId ON Authors(OpenLibraryAuthorId);
 5. Build rollback tool
 
 **Migration Tool:**
+
 ```csharp
 public class LibraryMigrationService
 {
@@ -514,6 +550,7 @@ public class LibraryMigrationService
 ### Phase 8: UI/UX Updates
 
 **Tasks:**
+
 1. Add provider selection in settings
 2. Display metadata source attribution
 3. Show provider status/health
@@ -522,6 +559,7 @@ public class LibraryMigrationService
 6. Add migration progress UI
 
 **Settings UI:**
+
 ```
 Settings → Metadata
   ├── Primary Provider: [Open Library ▼]
@@ -538,6 +576,7 @@ Settings → Metadata
 ### Phase 9: Testing & Quality Assurance
 
 **Tasks:**
+
 1. Unit tests for each provider
 2. Integration tests with real APIs
 3. Performance benchmarking
@@ -546,6 +585,7 @@ Settings → Metadata
 6. User acceptance testing
 
 **Test Coverage:**
+
 - Provider implementations: >90%
 - Aggregation logic: 100%
 - Migration tools: >85%
@@ -554,6 +594,7 @@ Settings → Metadata
 ### Phase 10: Documentation & Release
 
 **Tasks:**
+
 1. User migration guide
 2. API documentation
 3. Provider comparison docs
@@ -569,6 +610,7 @@ Settings → Metadata
 ### Open Library Implementation Details
 
 #### Search Endpoint
+
 ```
 GET /search.json?q={query}&author={author}&title={title}
 
@@ -590,6 +632,7 @@ Response:
 ```
 
 #### Work Endpoint
+
 ```
 GET /works/{OLID}.json
 
@@ -606,6 +649,7 @@ Response:
 ```
 
 #### ISBN Lookup
+
 ```
 GET /isbn/{ISBN}.json
 
@@ -706,24 +750,28 @@ public class MetadataQualityScorer
 ## Testing Strategy
 
 ### Unit Testing
+
 - Test each provider independently with mocked HTTP responses
 - Test data mapping/transformation logic
 - Test rate limiting logic
 - Test error handling
 
 ### Integration Testing
+
 - Test against real provider APIs (with caching to avoid rate limits)
 - Test provider fallback scenarios
 - Test metadata aggregation
 - Test database migrations
 
 ### Performance Testing
+
 - Benchmark search performance
 - Test with libraries of varying sizes (100, 1000, 10000+ books)
 - Measure cache effectiveness
 - Test concurrent request handling
 
 ### User Acceptance Testing
+
 - Beta release to community
 - Migration of real user libraries
 - Feedback collection
@@ -789,10 +837,12 @@ public class MigrationReport
 ## Risks and Mitigations
 
 ### Risk 1: Open Library Rate Limiting
+
 **Impact**: High  
 **Probability**: Medium
 
 **Mitigation:**
+
 - Implement aggressive caching (7-day default)
 - Use batch API calls where possible
 - Implement exponential backoff
@@ -800,10 +850,12 @@ public class MigrationReport
 - Consider hosting a local Open Library mirror for large instances
 
 ### Risk 2: Incomplete Metadata Coverage
+
 **Impact**: Medium  
 **Probability**: Medium
 
 **Mitigation:**
+
 - Multiple provider fallback
 - Allow manual metadata entry
 - Preserve Goodreads data as read-only reference
@@ -811,10 +863,12 @@ public class MigrationReport
 - Gradual migration with user validation
 
 ### Risk 3: ISBN Mapping Failures
+
 **Impact**: High  
 **Probability**: Medium
 
 **Mitigation:**
+
 - Extract ISBNs from ebook file metadata
 - Use title/author fuzzy matching
 - Manual user mapping tools
@@ -822,10 +876,12 @@ public class MigrationReport
 - Keep Goodreads IDs as legacy reference
 
 ### Risk 4: Performance Degradation
+
 **Impact**: Medium  
 **Probability**: Low
 
 **Mitigation:**
+
 - Comprehensive performance testing
 - Efficient caching strategy
 - Background metadata updates
@@ -833,10 +889,12 @@ public class MigrationReport
 - Connection pooling and keep-alive
 
 ### Risk 5: Provider API Changes
+
 **Impact**: Medium  
 **Probability**: Low
 
 **Mitigation:**
+
 - Version provider implementations
 - Comprehensive integration tests
 - Monitor provider announcements
@@ -844,10 +902,12 @@ public class MigrationReport
 - Multiple provider redundancy
 
 ### Risk 6: Data Quality Issues
+
 **Impact**: Medium  
 **Probability**: High
 
 **Mitigation:**
+
 - Metadata quality scoring
 - Multiple source verification
 - User reporting tools
@@ -859,42 +919,49 @@ public class MigrationReport
 ## Timeline and Milestones
 
 ### Milestone 1: Foundation (Current - Week 4)
+
 - ✅ Repository analysis
 - ✅ Migration plan creation
 - 🔄 Documentation updates
 - 🔄 Community engagement
 
 ### Milestone 2: Infrastructure (Week 5-8)
+
 - Provider interfaces
 - Testing framework
 - Quality scoring system
 - Monitoring/logging
 
 ### Milestone 3: Open Library Provider (Week 9-14)
+
 - Complete implementation
 - Comprehensive testing
 - Performance optimization
 - Documentation
 
 ### Milestone 4: Multi-Provider Support (Week 15-18)
+
 - Inventaire implementation
 - Aggregation layer
 - Fallback logic
 - Provider management UI
 
 ### Milestone 5: Migration Tools (Week 19-22)
+
 - Database migration
 - ID mapping tools
 - Bulk updater
 - User migration guide
 
 ### Milestone 6: Beta Release (Week 23-26)
+
 - Community testing
 - Bug fixes
 - Performance tuning
 - Documentation updates
 
 ### Milestone 7: Stable Release (Week 31-34)
+
 - Final testing
 - Production deployment
 - Goodreads deprecation
@@ -919,17 +986,20 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 ## References
 
 ### FOSS Metadata Resources
+
 - [Open Library API](https://openlibrary.org/developers/api)
 - [Inventaire API](https://api.inventaire.io/)
 - [Open Library Data Dumps](https://openlibrary.org/developers/dumps)
 - [BookBrainz](https://bookbrainz.org/) (future consideration)
 
 ### Technical Resources
+
 - [ISBN Standards](https://www.isbn-international.org/)
 - [ISNI (Author Identifiers)](https://isni.org/)
 - [VIAF (Authority Files)](https://viaf.org/)
 
 ### Community
+
 - [GitHub Discussions](https://github.com/Swartdraak/Bibliophilarr/discussions)
 - Discord Community (coming soon)
 

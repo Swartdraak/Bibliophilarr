@@ -1,0 +1,43 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - '.github/workflows/ci-backend.yml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/**'
+      - '.github/workflows/ci-backend.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Readarr.sln -p:Platform=Posix
+
+      - name: Build
+        run: dotnet build Readarr.sln --configuration Release --no-restore -p:Platform=Posix
+
+      - name: Test
+        run: dotnet test Readarr.sln --configuration Release --no-build --verbosity minimal -p:Platform=Posix
