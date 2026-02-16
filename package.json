@@ -1,7 +1,7 @@
 {
-  "name": "readarr",
+  "name": "bibliophilarr",
   "version": "1.0.0",
-  "description": "Readarr",
+  "description": "Bibliophilarr - Community fork of Readarr with FOSS metadata providers",
   "scripts": {
     "build": "webpack --config ./frontend/build/webpack.config.js",
     "prebuild": "yarn clean",
@@ -15,9 +15,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/Readarr/Readarr.git"
+    "url": "git://github.com/Swartdraak/Bibliophilarr.git"
   },
-  "author": "Team Readarr",
+  "author": "Bibliophilarr Community (forked from Team Readarr)",
   "license": "GPL-3.0",
   "readmeFilename": "readme.md",
   "main": "index.ts",
