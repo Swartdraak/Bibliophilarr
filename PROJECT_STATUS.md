@@ -13,6 +13,7 @@ Bibliophilarr is a community-driven fork of Readarr, revived after the original 
 ## What Has Been Done ✅
 
 ### Documentation (Phase 1) - COMPLETE
+
 - ✅ **README.md**: Updated to reflect active development status
   - Announces project revival and community focus
   - Explains FOSS metadata migration
@@ -56,6 +57,7 @@ Bibliophilarr is a community-driven fork of Readarr, revived after the original 
   - Author attribution updated
 
 ### Architecture Analysis
+
 - ✅ Comprehensive codebase exploration
 - ✅ Metadata provider architecture documented
 - ✅ Current Goodreads dependencies identified
@@ -63,6 +65,7 @@ Bibliophilarr is a community-driven fork of Readarr, revived after the original 
 - ✅ Testing infrastructure understood
 
 ### Research
+
 - ✅ **FOSS Metadata Providers Evaluated:**
   - Open Library (primary choice - 20M+ books, AGPL)
   - Inventaire.io (secondary - Wikidata-based, AGPL)
@@ -76,12 +79,14 @@ Bibliophilarr is a community-driven fork of Readarr, revived after the original 
 ## What Needs to Be Done 📋
 
 ### Immediate Next Steps (Phase 1 Completion)
+
 - [ ] Community engagement and recruitment
 - [ ] Set up Discord or communication channel
 - [ ] Create GitHub project board for task tracking
 - [ ] Set up continuous integration for documentation
 
 ### Phase 2: Infrastructure (Weeks 5-8)
+
 - [ ] Design provider interface v2
 - [ ] Implement provider registry
 - [ ] Build metadata quality scorer
@@ -89,6 +94,7 @@ Bibliophilarr is a community-driven fork of Readarr, revived after the original 
 - [ ] Set up monitoring/logging
 
 ### Phase 3: Open Library Provider (Weeks 9-14)
+
 - [ ] Implement Open Library API client
 - [ ] Map Open Library data to Bibliophilarr models
 - [ ] Search functionality
@@ -99,11 +105,13 @@ Bibliophilarr is a community-driven fork of Readarr, revived after the original 
 - [ ] Comprehensive testing
 
 ### Subsequent Phases
+
 See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 
 ## Key Decisions Made
 
 ### Architecture
+
 1. **Multi-provider approach** with fallback and aggregation
 2. **Open Library as primary provider** due to size, license, and features
 3. **Inventaire as secondary** for additional coverage
@@ -111,18 +119,21 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 5. **ISBN as primary external identifier** (more universal than provider-specific IDs)
 
 ### Database
+
 1. **Extend existing schema** rather than complete rewrite
 2. **Add multiple identifier columns** for each provider
 3. **Maintain Goodreads IDs** for backward compatibility during migration
 4. **Create mapping table** for ID resolution
 
 ### Migration Strategy
+
 1. **Gradual migration** - not forced on users immediately
 2. **Multiple ID mapping strategies** (ISBN from files, title/author matching, etc.)
 3. **User control** - allow manual overrides and provider selection
 4. **Backward compatibility** - support existing Goodreads-based libraries
 
 ### Quality Assurance
+
 1. **Metadata quality scoring** to compare provider results
 2. **Multi-provider aggregation** for best possible metadata
 3. **User reporting tools** for metadata issues
@@ -131,6 +142,7 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 ## Current Challenges
 
 ### Technical
+
 - Rate limiting with Open Library (100 req/5min default)
 - ISBN mapping for existing Goodreads-based libraries
 - Handling books without ISBNs
@@ -138,12 +150,14 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 - Metadata quality variance
 
 ### Community
+
 - Need contributors, especially C# developers
 - Need beta testers with various library sizes
 - Documentation needs ongoing maintenance
 - Community communication channels needed
 
 ### Timeline
+
 - Ambitious 30+ week timeline
 - Dependent on volunteer contributions
 - May need adjustment based on resources
@@ -151,24 +165,28 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 ## Success Metrics
 
 ### Phase 1 (Current) ✅
+
 - [x] Comprehensive documentation created
 - [x] Architecture understood
 - [x] FOSS providers researched
 - [x] Implementation plan defined
 
 ### Phase 2 (Next)
+
 - [ ] Provider interfaces implemented
 - [ ] Testing framework operational
 - [ ] Quality scoring functional
 - [ ] Can load and manage multiple providers
 
 ### Phase 3
+
 - [ ] Open Library provider fully functional
 - [ ] Performance acceptable (< 1s for searches)
 - [ ] 90%+ test coverage
 - [ ] Can replace Goodreads for basic operations
 
 ### Final Success (v1.0)
+
 - [ ] Multiple FOSS providers working
 - [ ] User libraries successfully migrated
 - [ ] Better metadata quality than Goodreads
@@ -178,6 +196,7 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 ## Resources
 
 ### Documentation
+
 - [README.md](README.md) - Project overview
 - [MIGRATION_PLAN.md](MIGRATION_PLAN.md) - Detailed technical plan
 - [ROADMAP.md](ROADMAP.md) - High-level roadmap
@@ -185,19 +204,22 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 - [QUICKSTART.md](QUICKSTART.md) - Quick start for contributors
 
 ### External Resources
+
 - [Open Library API](https://openlibrary.org/developers/api)
 - [Inventaire API](https://api.inventaire.io/)
 - [Original Readarr](https://github.com/Readarr/Readarr)
 - [Servarr Wiki](https://wiki.servarr.com/readarr)
 
 ### Repository
-- **GitHub**: https://github.com/Swartdraak/Bibliophilarr
-- **Issues**: https://github.com/Swartdraak/Bibliophilarr/issues
-- **Discussions**: https://github.com/Swartdraak/Bibliophilarr/discussions
+
+- **GitHub**: <https://github.com/Swartdraak/Bibliophilarr>
+- **Issues**: <https://github.com/Swartdraak/Bibliophilarr/issues>
+- **Discussions**: <https://github.com/Swartdraak/Bibliophilarr/discussions>
 
 ## How to Help
 
 We need:
+
 1. **Developers** (C#, TypeScript/React) - Implement providers
 2. **Testers** - Test with real libraries
 3. **Writers** - Improve documentation
@@ -211,6 +233,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
 ## Summary
 
 **Bibliophilarr Phase 1 is substantially complete.** We have:
+
 - Clear understanding of the current architecture
 - Comprehensive technical plan for migration
 - Research on FOSS alternatives
