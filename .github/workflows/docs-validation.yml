@@ -17,7 +17,8 @@ permissions:
   contents: read
 
 jobs:
-  markdown-lint:
+  markdown-link-check:
+    name: Markdown lint
     runs-on: ubuntu-latest
 
     steps:
