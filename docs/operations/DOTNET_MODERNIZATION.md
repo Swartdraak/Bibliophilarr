@@ -106,10 +106,20 @@ severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
 
 #### 1. Update .csproj Files
 
-Find all project files:
+Find and update all project files (cross-platform safe sed usage):
 
 ```bash
-find src -name "*.csproj" -exec sed -i 's/<TargetFrameworks>net6.0<\/TargetFrameworks>/<TargetFrameworks>net8.0<\/TargetFrameworks>/g' {} \;
+# Update all .csproj files and create .bak backups (works on Linux and macOS)
+find src -name "*.csproj" -type f -print0 \
+  | xargs -0 sed -i.bak \
+    -e 's/<TargetFrameworks>net6\.0<\/TargetFrameworks>/<TargetFrameworks>net8.0<\/TargetFrameworks>/g' \
+    -e 's/<TargetFramework>net6\.0<\/TargetFramework>/<TargetFramework>net8.0<\/TargetFramework>/g' \
+    -e 's/<TargetFramework>net6\.0-windows<\/TargetFramework>/<TargetFramework>net8.0-windows<\/TargetFramework>/g'
+
+# Clean up backup files
+find src -name "*.csproj.bak" -delete
+
+# Note for macOS users with BSD sed: use sed -i '' instead of sed -i.bak
 ```
 
 #### 2. Create/Update global.json
@@ -117,12 +127,14 @@ find src -name "*.csproj" -exec sed -i 's/<TargetFrameworks>net6.0<\/TargetFrame
 ```json
 {
   "sdk": {
-    "version": "8.0.0",
-    "rollForward": "latestMinor",
+    "version": "8.0.100",
+    "rollForward": "latestFeature",
     "allowPrerelease": false
   }
 }
 ```
+
+**Note**: Using `8.0.100` (feature band) instead of `8.0.0` with `rollForward: "latestFeature"` allows automatic updates to newer feature bands and patches while staying on .NET 8, ensuring security updates are automatically applied.
 
 #### 3. Update CI Workflow
 
@@ -137,10 +149,13 @@ Update `.github/workflows/ci-backend.yml`:
 
 #### 4. Update Vulnerable Package
 
-Update `SixLabors.ImageSharp` to latest secure version in project files or through NuGet:
+Update `SixLabors.ImageSharp` to the latest secure version in project files or through NuGet.
+Before running this command, confirm the current patched version on [NuGet.org](https://www.nuget.org/packages/SixLabors.ImageSharp)
+or in the [GitHub security advisory](https://github.com/advisories/GHSA-rxmq-m78w-7wmc):
 
 ```bash
-dotnet add package SixLabors.ImageSharp --version 3.1.8  # or latest secure version
+# Replace X.Y.Z with the latest secure version from NuGet or the security advisory
+dotnet add package SixLabors.ImageSharp --version X.Y.Z
 ```
 
 #### 5. Test Locally
