@@ -17,6 +17,7 @@ This document provides a high-level overview of the Bibliophilarr project roadma
 We are currently in the early stages of reviving the project after the original Readarr retirement. Our immediate focus is on planning the migration away from Goodreads to sustainable FOSS alternatives.
 
 ### ✅ Completed
+
 - Repository analysis and architecture review
 - Research of FOSS metadata providers
 - Comprehensive migration plan documentation
@@ -24,11 +25,13 @@ We are currently in the early stages of reviving the project after the original 
 - Community engagement setup
 
 ### 🔄 In Progress
+
 - Documentation updates
 - Community building
 - Development environment setup
 
 ### 📋 Next Steps
+
 - Complete Phase 1 documentation
 - Begin infrastructure development for multi-provider system
 - Set up automated testing for metadata providers
@@ -38,10 +41,12 @@ We are currently in the early stages of reviving the project after the original 
 ## Roadmap Phases
 
 ### Phase 1: Foundation & Documentation (Current)
+
 **Timeline**: Weeks 1-4  
 **Status**: 🔄 In Progress (75%)
 
 **Goals:**
+
 - ✅ Analyze existing codebase and architecture
 - ✅ Research and evaluate FOSS metadata alternatives
 - ✅ Create comprehensive migration plan
@@ -49,6 +54,7 @@ We are currently in the early stages of reviving the project after the original 
 - 🔄 Engage community and recruit contributors
 
 **Key Deliverables:**
+
 - ✅ MIGRATION_PLAN.md
 - ✅ Updated README.md
 - ✅ Updated CONTRIBUTING.md
@@ -58,10 +64,12 @@ We are currently in the early stages of reviving the project after the original 
 ---
 
 ### Phase 2: Infrastructure Setup
+
 **Timeline**: Weeks 5-8  
 **Status**: ⏳ Not Started
 
 **Goals:**
+
 - Design and implement multi-provider architecture
 - Create provider interfaces and abstractions
 - Build metadata quality scoring system
@@ -69,6 +77,7 @@ We are currently in the early stages of reviving the project after the original 
 - Implement monitoring and logging
 
 **Key Deliverables:**
+
 - Provider interface hierarchy (`IMetadataProviderV2`)
 - Provider registry and management system
 - Quality scoring algorithms
@@ -76,6 +85,7 @@ We are currently in the early stages of reviving the project after the original 
 - Logging and monitoring infrastructure
 
 **Success Criteria:**
+
 - All interfaces defined and documented
 - Testing framework operational
 - Provider registry can dynamically load providers
@@ -83,10 +93,12 @@ We are currently in the early stages of reviving the project after the original 
 ---
 
 ### Phase 3: Open Library Provider
+
 **Timeline**: Weeks 9-14  
 **Status**: ⏳ Not Started
 
 **Goals:**
+
 - Complete Open Library API integration
 - Implement all search and retrieval functions
 - Handle rate limiting and caching
@@ -94,6 +106,7 @@ We are currently in the early stages of reviving the project after the original 
 - Comprehensive testing
 
 **Key Deliverables:**
+
 - Full Open Library provider implementation
 - Search by title, author, ISBN, ASIN
 - Author information retrieval
@@ -102,6 +115,7 @@ We are currently in the early stages of reviving the project after the original 
 - Performance benchmarks
 
 **Success Criteria:**
+
 - All metadata operations functional via Open Library
 - Performance meets or exceeds Goodreads
 - Comprehensive test suite passes
@@ -110,10 +124,12 @@ We are currently in the early stages of reviving the project after the original 
 ---
 
 ### Phase 4: Multi-Provider Support
+
 **Timeline**: Weeks 15-18  
 **Status**: ⏳ Not Started
 
 **Goals:**
+
 - Implement Inventaire provider as secondary source
 - Build provider aggregation layer
 - Create fallback and redundancy logic
@@ -121,6 +137,7 @@ We are currently in the early stages of reviving the project after the original 
 - Add Google Books as tertiary fallback
 
 **Key Deliverables:**
+
 - Inventaire provider implementation
 - Metadata aggregation service
 - Intelligent fallback logic
@@ -128,6 +145,7 @@ We are currently in the early stages of reviving the project after the original 
 - Provider selection UI
 
 **Success Criteria:**
+
 - Multiple providers working in harmony
 - Automatic fallback on provider failure
 - Improved metadata quality from aggregation
@@ -136,10 +154,12 @@ We are currently in the early stages of reviving the project after the original 
 ---
 
 ### Phase 5: Database Migration
+
 **Timeline**: Weeks 19-22  
 **Status**: ⏳ Not Started
 
 **Goals:**
+
 - Update database schema for multi-provider IDs
 - Implement ID mapping system
 - Create migration scripts
@@ -147,6 +167,7 @@ We are currently in the early stages of reviving the project after the original 
 - Ensure backward compatibility
 
 **Key Deliverables:**
+
 - Updated database schema
 - Migration scripts and tools
 - ID mapping database
@@ -154,6 +175,7 @@ We are currently in the early stages of reviving the project after the original 
 - Migration testing with various library sizes
 
 **Success Criteria:**
+
 - Existing libraries can be migrated without data loss
 - New identifier system is robust and extensible
 - Backward compatibility maintained
@@ -162,10 +184,12 @@ We are currently in the early stages of reviving the project after the original 
 ---
 
 ### Phase 6: Migration Tools & User Experience
+
 **Timeline**: Weeks 23-26  
 **Status**: ⏳ Not Started
 
 **Goals:**
+
 - Build user-friendly migration tools
 - Create migration progress UI
 - Implement metadata conflict resolution
@@ -173,6 +197,7 @@ We are currently in the early stages of reviving the project after the original 
 - Comprehensive user documentation
 
 **Key Deliverables:**
+
 - Automated migration tool
 - Migration progress dashboard
 - Conflict resolution UI
@@ -181,6 +206,7 @@ We are currently in the early stages of reviving the project after the original 
 - Video tutorials
 
 **Success Criteria:**
+
 - Average user can migrate library with minimal effort
 - Migration progress is clear and trackable
 - Edge cases have manual resolution options
@@ -189,10 +215,12 @@ We are currently in the early stages of reviving the project after the original 
 ---
 
 ### Phase 7: Beta Release
+
 **Timeline**: Weeks 27-30  
 **Status**: ⏳ Not Started
 
 **Goals:**
+
 - Release beta version to community
 - Gather feedback and usage data
 - Fix bugs and address issues
@@ -200,6 +228,7 @@ We are currently in the early stages of reviving the project after the original 
 - Expand documentation
 
 **Key Deliverables:**
+
 - Beta release announcement
 - Bug tracking and resolution
 - Performance improvements
@@ -207,6 +236,7 @@ We are currently in the early stages of reviving the project after the original 
 - Community support channels
 
 **Success Criteria:**
+
 - No critical bugs in beta
 - Positive community feedback
 - Successful migration stories
@@ -215,10 +245,12 @@ We are currently in the early stages of reviving the project after the original 
 ---
 
 ### Phase 8: Stable Release (v1.0)
+
 **Timeline**: Weeks 31-34  
 **Status**: ⏳ Not Started
 
 **Goals:**
+
 - Final testing and QA
 - Production-ready release
 - Official deprecation of Goodreads
@@ -226,6 +258,7 @@ We are currently in the early stages of reviving the project after the original 
 - Celebrate success! 🎉
 
 **Key Deliverables:**
+
 - Stable v1.0 release
 - Complete documentation
 - Release announcement
@@ -233,6 +266,7 @@ We are currently in the early stages of reviving the project after the original 
 - Community celebration
 
 **Success Criteria:**
+
 - Stable, production-ready release
 - All critical functionality working
 - Documentation complete
@@ -244,6 +278,7 @@ We are currently in the early stages of reviving the project after the original 
 ## Long-Term Vision (Post v1.0)
 
 ### Future Enhancements
+
 - **BookBrainz Integration**: When mature, add MusicBrainz's book database
 - **Local Metadata Mirror**: Option to host local Open Library mirror
 - **Community Metadata**: Allow users to contribute metadata improvements
@@ -253,6 +288,7 @@ We are currently in the early stages of reviving the project after the original 
 - **Plugin System**: Allow third-party metadata providers
 
 ### Maintenance & Growth
+
 - **Regular Updates**: Keep dependencies current
 - **Community Growth**: Build contributor base
 - **Documentation**: Maintain comprehensive docs
@@ -266,21 +302,25 @@ We are currently in the early stages of reviving the project after the original 
 We need contributors in several areas:
 
 ### 🔨 Development
+
 - **Backend (C#)**: Provider implementations, API integration
 - **Frontend (React)**: UI for settings, migration tools
 - **Testing**: Write tests, test with real libraries
 
 ### 📝 Documentation  
+
 - **User Guides**: Help users understand new features
 - **API Docs**: Document provider interfaces
 - **Tutorials**: Create video and written tutorials
 
 ### 🧪 Testing
+
 - **Beta Testing**: Test with your library
 - **Bug Reports**: Report issues clearly
 - **Edge Cases**: Test unusual scenarios
 
 ### 💬 Community
+
 - **Support**: Help other users
 - **Feedback**: Share your experience
 - **Advocacy**: Spread the word
