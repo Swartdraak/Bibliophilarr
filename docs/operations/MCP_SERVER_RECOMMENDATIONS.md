@@ -15,6 +15,61 @@ MCP servers can give contributors faster, safer context retrieval and less manua
 
 ---
 
+## Setup
+
+### Prerequisites
+
+- An MCP-compatible assistant or IDE (e.g., Claude Desktop, Cline, or other MCP clients)
+- Access tokens for services where required (GitHub PAT for `github` server)
+
+### Configuration
+
+MCP servers are typically configured in your MCP client's settings file. For example, in Claude Desktop, edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows).
+
+**⚠️ IMPORTANT: Never commit configuration files containing tokens or credentials to version control.**
+
+Example minimal config for priority servers (with version pinning for security):
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@0.5.0"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "<use-environment-variable-or-secure-storage>"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@0.5.1", "/path/to/Bibliophilarr"]
+    },
+    "git": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git@0.5.0", "/path/to/Bibliophilarr"]
+    }
+  }
+}
+```
+
+### Security notes
+
+- **Never commit configuration files with tokens** - keep credentials out of git and use environment variables or secure credential storage.
+- Store GitHub PATs securely; use fine-grained tokens with minimal required scopes (`repo`, `read:org` for private repos).
+- **Pin MCP server versions** to specific, audited releases (e.g., `@0.5.0`) instead of using mutable latest versions via `npx -y` without version constraints. This reduces supply-chain risk.
+- For `filesystem` and `git` servers, only grant access to your local Bibliophilarr checkout directory.
+- Review each server's official documentation for security best practices and configuration options.
+- Periodically audit and update pinned versions to address security vulnerabilities while maintaining deterministic behavior.
+
+### Official MCP server references
+
+- [MCP GitHub Server](https://github.com/modelcontextprotocol/servers/tree/main/src/github)
+- [MCP Filesystem Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)
+- [MCP Git Server](https://github.com/modelcontextprotocol/servers/tree/main/src/git)
+- [Full MCP Server Registry](https://github.com/modelcontextprotocol/servers)
+
+---
+
 ## Priority 1 (install first)
 
 ### 1) `github`
