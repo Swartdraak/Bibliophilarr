@@ -155,7 +155,7 @@ See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the complete technical roadmap.
 ## 🐛 Reporting Issues
 
 ### Bug Reports
-Use the [Bug Report template](.github/ISSUE_TEMPLATE/bug-report.yml)
+Use the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.yml)
 
 Include:
 - Clear description of the issue
@@ -165,7 +165,7 @@ Include:
 - Logs if available
 
 ### Feature Requests
-Use the [Feature Request template](.github/ISSUE_TEMPLATE/feature-request.yml)
+Use the [Feature Request template](.github/ISSUE_TEMPLATE/feature_request.yml)
 
 Include:
 - Clear use case

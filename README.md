@@ -28,12 +28,11 @@ The original Readarr project was retired due to metadata provider issues. The Se
 
 # Bibliophilarr
 
+> **Note**: The badges below reference the original Readarr project infrastructure and may not reflect the current state of Bibliophilarr. We are working on establishing our own build and community infrastructure.
+
 [![Build Status](https://dev.azure.com/Readarr/Readarr/_apis/build/status/Readarr.Readarr?branchName=develop)](https://dev.azure.com/Readarr/Readarr/_build/latest?definitionId=1&branchName=develop)
 [![Translated](https://translate.servarr.com/widgets/servarr/-/readarr/svg-badge.svg)](https://translate.servarr.com/engage/readarr/?utm_source=widget)
 [![Docker Pulls](https://img.shields.io/docker/pulls/hotio/readarr)](https://wiki.servarr.com/readarr/installation#docker)
-[![Donors on Open Collective](https://opencollective.com/Readarr/backers/badge.svg)](#backers)
-[![Sponsors on Open Collective](https://opencollective.com/Readarr/sponsors/badge.svg)](#sponsors)
-[![Mega Sponsors on Open Collective](https://opencollective.com/Readarr/megasponsors/badge.svg)](#mega-sponsors)
 
 ### ⚠️ Bibliophilarr is under active development and currently in a transitional state. We are working on migrating to FOSS metadata providers.
 
@@ -63,11 +62,9 @@ Bibliophilarr (formerly Readarr) is an ebook and audiobook collection manager fo
 
 ## Support & Community
 
-[![Discord](https://img.shields.io/badge/discord-chat-7289DA.svg?maxAge=60)](https://discord.gg/bibliophilarr)
-
 **Note**: This is a community fork. For support:
 - **GitHub Issues**: Bug reports and feature requests for Bibliophilarr
-- **Discord**: Community discussion and support
+- **Discord**: Community discussion and support (coming soon)
 - **Wiki**: Documentation (being updated for new metadata system)
 
 For the original Readarr project, refer to the [Servarr Wiki](https://wiki.servarr.com/readarr) (may contain outdated information).

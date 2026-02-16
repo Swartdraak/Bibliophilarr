@@ -302,8 +302,8 @@ public class MetadataCacheManager
 - [x] Document current architecture
 - [x] Research FOSS alternatives
 - [x] Create migration plan
-- [ ] Update README and contributing guides
-- [ ] Set up project roadmap
+- [x] Update README and contributing guides
+- [x] Set up project roadmap
 
 **Deliverables:**
 - MIGRATION_PLAN.md (this document)
@@ -894,7 +894,7 @@ public class MigrationReport
 - Performance tuning
 - Documentation updates
 
-### Milestone 7: Stable Release (Week 27-30)
+### Milestone 7: Stable Release (Week 31-34)
 - Final testing
 - Production deployment
 - Goodreads deprecation
@@ -931,7 +931,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ### Community
 - [GitHub Discussions](https://github.com/Swartdraak/Bibliophilarr/discussions)
-- [Discord Community](https://discord.gg/bibliophilarr)
+- Discord Community (coming soon)
 
 ---
 
