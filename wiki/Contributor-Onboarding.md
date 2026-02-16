@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- .NET SDK 6.0+
+- .NET SDK 8.0+ (LTS)
 - Node.js 20.x
 - Yarn 1.22.x
 - Git

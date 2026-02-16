@@ -25,9 +25,11 @@ namespace NzbDrone.Common.Disk
         {
         }
 
+#pragma warning disable SYSLIB0051 // Type or member is obsolete
         protected DestinationAlreadyExistsException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
         }
+#pragma warning restore SYSLIB0051 // Type or member is obsolete
     }
 }
