@@ -57,7 +57,7 @@ namespace NzbDrone.Core.MetadataSource
         /// <param name="isbn">ISBN-10 or ISBN-13</param>
         /// <param name="options">Search options</param>
         /// <returns>List of matching books (typically 0 or 1 results)</returns>
-        Task<List<Book>> SearchByISBNAsync(string isbn, BookSearchOptions options = null);
+        Task<List<Book>> SearchByIsbnAsync(string isbn, BookSearchOptions options = null);
 
         /// <summary>
         /// Search for books by ASIN
@@ -65,7 +65,7 @@ namespace NzbDrone.Core.MetadataSource
         /// <param name="asin">Amazon Standard Identification Number</param>
         /// <param name="options">Search options</param>
         /// <returns>List of matching books (typically 0 or 1 results)</returns>
-        Task<List<Book>> SearchByASINAsync(string asin, BookSearchOptions options = null);
+        Task<List<Book>> SearchByAsinAsync(string asin, BookSearchOptions options = null);
 
         /// <summary>
         /// Search for books by provider-specific identifier
@@ -82,13 +82,13 @@ namespace NzbDrone.Core.MetadataSource
         List<Book> SearchForNewBook(string title, string author = null, BookSearchOptions options = null);
 
         /// <summary>
-        /// Synchronous version of SearchByISBNAsync for backward compatibility
+        /// Synchronous version of SearchByIsbnAsync for backward compatibility
         /// </summary>
-        List<Book> SearchByISBN(string isbn, BookSearchOptions options = null);
+        List<Book> SearchByIsbn(string isbn, BookSearchOptions options = null);
 
         /// <summary>
-        /// Synchronous version of SearchByASINAsync for backward compatibility
+        /// Synchronous version of SearchByAsinAsync for backward compatibility
         /// </summary>
-        List<Book> SearchByASIN(string asin, BookSearchOptions options = null);
+        List<Book> SearchByAsin(string asin, BookSearchOptions options = null);
     }
 }

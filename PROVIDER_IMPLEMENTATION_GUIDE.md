@@ -279,8 +279,9 @@ public async Task<List<Book>> SearchForNewBookAsync(string title, string author 
             url += $"&author={Uri.EscapeDataString(author)}";
         }
         
-        // Make request
-        var response = await _httpClient.GetAsync<SearchResponse>(url);
+        // Make request (IHttpClient expects an HttpRequest instance)
+        var request = new HttpRequest(url);
+        var response = await _httpClient.GetAsync<SearchResponse>(request);
         
         // Map to Book objects
         var books = MapSearchResponseToBooks(response, options);
@@ -310,7 +311,7 @@ public List<Book> SearchForNewBook(string title, string author = null, BookSearc
 ### Step 6: Implement ISBN Lookup
 
 ```csharp
-public async Task<List<Book>> SearchByISBNAsync(string isbn, BookSearchOptions options = null)
+public async Task<List<Book>> SearchByIsbnAsync(string isbn, BookSearchOptions options = null)
 {
     options ??= new BookSearchOptions();
     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -323,7 +324,8 @@ public async Task<List<Book>> SearchByISBNAsync(string isbn, BookSearchOptions o
         isbn = isbn.Replace("-", "").Replace(" ", "");
         
         var url = $"{_baseUrl}/isbn/{isbn}.json";
-        var response = await _httpClient.GetAsync<EditionResponse>(url);
+        var request = new HttpRequest(url);
+        var response = await _httpClient.GetAsync<EditionResponse>(request);
         
         var book = MapEditionResponseToBook(response, options);
         
@@ -332,7 +334,7 @@ public async Task<List<Book>> SearchByISBNAsync(string isbn, BookSearchOptions o
         
         return new List<Book> { book };
     }
-    catch (NotFoundException)
+    catch (HttpException ex) when (ex.Response?.StatusCode == HttpStatusCode.NotFound)
     {
         // ISBN not found is not an error
         stopwatch.Stop();
@@ -397,18 +399,15 @@ public class MetadataQualityScorer : IMetadataQualityScorer
 Register your provider with the registry:
 
 ```csharp
-public class ProviderModule : Module
-{
-    protected override void Load(ContainerBuilder builder)
-    {
-        builder.RegisterType<OpenLibraryProvider>()
-            .As<ISearchForNewBookV2>()
-            .As<ISearchForNewAuthorV2>()
-            .As<IProvideBookInfoV2>()
-            .As<IProvideAuthorInfoV2>()
-            .SingleInstance();
-    }
-}
+// In your module or service registration (using the actual DI container)
+// Note: This project uses DryIoc. Actual registration patterns should follow
+// existing examples in the codebase (e.g., NzbDrone.Core/Datastore/Extensions/CompositionExtensions.cs)
+
+// Example registration (adapt to actual DI setup):
+services.AddSingleton<ISearchForNewBookV2, OpenLibraryProvider>();
+services.AddSingleton<ISearchForNewAuthorV2, OpenLibraryProvider>();
+services.AddSingleton<IProvideBookInfoV2, OpenLibraryProvider>();
+services.AddSingleton<IProvideAuthorInfoV2, OpenLibraryProvider>();
 ```
 
 The registry will automatically discover and manage providers based on their interface implementations.
@@ -560,21 +559,24 @@ private async Task WaitForRateLimitAsync()
 Handle errors gracefully and update health status:
 
 ```csharp
+using System.Net;
+using NzbDrone.Common.Http;
+
 try
 {
     // Make API call
 }
-catch (HttpException ex) when (ex.StatusCode == 404)
+catch (HttpException ex) when (ex.Response?.StatusCode == HttpStatusCode.NotFound)
 {
     // Not found is not an error
     return new List<Book>();
 }
-catch (HttpException ex) when (ex.StatusCode == 429)
+catch (HttpException ex) when (ex.Response?.StatusCode == HttpStatusCode.TooManyRequests)
 {
     // Rate limited - wait and retry
     _logger.Warn("Rate limited by provider, waiting...");
     await Task.Delay(TimeSpan.FromMinutes(1));
-    throw new TemporaryProviderException("Rate limited", ex);
+    throw; // Re-throw for retry logic or transient handling upstream
 }
 catch (Exception ex)
 {
@@ -742,8 +744,8 @@ public class MinimalProvider : ISearchForNewBookV2
 
 - [Open Library API Documentation](https://openlibrary.org/developers/api)
 - [Inventaire API Documentation](https://api.inventaire.io/)
-- [MIGRATION_PLAN.md](../MIGRATION_PLAN.md) - Complete migration plan
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines
+- [MIGRATION_PLAN.md](MIGRATION_PLAN.md) - Complete migration plan
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 
 ---
 

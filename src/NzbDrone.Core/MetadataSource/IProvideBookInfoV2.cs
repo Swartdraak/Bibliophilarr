@@ -46,7 +46,7 @@ namespace NzbDrone.Core.MetadataSource
         /// <param name="isbn">ISBN-10 or ISBN-13</param>
         /// <param name="options">Retrieval options</param>
         /// <returns>Tuple containing foreign ID, book, and author metadata list</returns>
-        Task<Tuple<string, Book, List<AuthorMetadata>>> GetBookInfoByISBNAsync(string isbn, BookInfoOptions options = null);
+        Task<Tuple<string, Book, List<AuthorMetadata>>> GetBookInfoByIsbnAsync(string isbn, BookInfoOptions options = null);
 
         /// <summary>
         /// Get book information by any supported identifier type

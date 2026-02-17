@@ -37,12 +37,12 @@ namespace NzbDrone.Core.MetadataSource
         /// <summary>
         /// Whether this provider supports ISBN-based lookups
         /// </summary>
-        bool SupportsISBNLookup { get; }
+        bool SupportsIsbnLookup { get; }
 
         /// <summary>
         /// Whether this provider supports ASIN-based lookups
         /// </summary>
-        bool SupportsASINLookup { get; }
+        bool SupportsAsinLookup { get; }
 
         /// <summary>
         /// Whether this provider provides series information

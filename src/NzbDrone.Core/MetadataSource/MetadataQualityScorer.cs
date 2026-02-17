@@ -127,12 +127,6 @@ namespace NzbDrone.Core.MetadataSource
             if (author.Books?.Value?.Any() == true)
             {
                 score += 15;
-                
-                // Bonus for having multiple books
-                if (author.Books.Value.Count >= 5)
-                {
-                    score += 5;
-                }
             }
 
             // Important fields (20 points total)
@@ -200,11 +194,11 @@ namespace NzbDrone.Core.MetadataSource
 
             if (!string.IsNullOrWhiteSpace(edition.Isbn13))
             {
-                score += 15;
+                score += 20;
             }
             else if (edition.Asin.IsNotNullOrWhiteSpace())
             {
-                score += 10; // ASIN is less universal than ISBN
+                score += 15; // ASIN is less universal than ISBN
             }
 
             // Important fields (25 points total)
