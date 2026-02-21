@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
@@ -25,6 +26,11 @@ namespace NzbDrone.Core.MetadataSource.Registry
         /// <inheritdoc/>
         public void Register(IMetadataProvider provider)
         {
+            if (provider == null)
+            {
+                throw new ArgumentNullException(nameof(provider));
+            }
+
             lock (_lock)
             {
                 _logger.Debug("Registering metadata provider: {0} (priority {1})", provider.ProviderName, provider.Priority);

@@ -8,12 +8,13 @@ namespace NzbDrone.Core.MetadataSource.Scoring
     /// Scores metadata completeness for books and authors on a 0–100 scale.
     ///
     /// Book scoring examines the work-level fields on <see cref="Book"/> and the
-    /// best-populated edition from <see cref="Book.Editions"/> (when loaded).
+    /// first monitored edition from <see cref="Book.Editions"/> (when loaded), or
+    /// the first edition if none are monitored.
     /// Author scoring examines fields on <see cref="AuthorMetadata"/> via the
     /// <see cref="Author.Metadata"/> lazy property (when loaded).
     ///
-    /// Neither score throws if lazy-loaded relations are absent; it simply
-    /// awards zero points for fields that cannot be read.
+    /// Lazy-loaded relations that have not yet been loaded are treated as absent
+    /// (zero points awarded) to keep scoring side-effect-free and avoid implicit DB reads.
     /// </summary>
     public class MetadataQualityScorer : IMetadataQualityScorer
     {
@@ -54,7 +55,9 @@ namespace NzbDrone.Core.MetadataSource.Scoring
                 score += BookTitleWeight;
             }
 
-            if (book.AuthorMetadata?.Value?.Name.IsNotNullOrWhiteSpace() == true)
+            if (book.AuthorMetadata != null &&
+                book.AuthorMetadata.IsLoaded &&
+                book.AuthorMetadata.Value?.Name.IsNotNullOrWhiteSpace() == true)
             {
                 score += BookAuthorWeight;
             }
@@ -69,10 +72,15 @@ namespace NzbDrone.Core.MetadataSource.Scoring
                 score += BookReleaseDateWeight;
             }
 
-            // Edition-level fields (use the first monitored edition, or any edition)
-            var edition = book.Editions?.Value?
-                .FirstOrDefault(e => e.Monitored)
-                ?? book.Editions?.Value?.FirstOrDefault();
+            // Edition-level fields (use the first monitored edition, or the first edition)
+            var edition = (Edition)null;
+
+            if (book.Editions?.IsLoaded == true)
+            {
+                var editions = book.Editions.Value;
+                edition = editions?.FirstOrDefault(e => e.Monitored)
+                          ?? editions?.FirstOrDefault();
+            }
 
             if (edition != null)
             {
@@ -118,7 +126,12 @@ namespace NzbDrone.Core.MetadataSource.Scoring
                 return 0;
             }
 
-            var meta = author.Metadata?.Value;
+            if (author.Metadata == null || !author.Metadata.IsLoaded)
+            {
+                return 0;
+            }
+
+            var meta = author.Metadata.Value;
             if (meta == null)
             {
                 return 0;
