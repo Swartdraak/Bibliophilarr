@@ -1,8 +1,8 @@
 # Project Status Summary
 
-**Last Updated**: February 16, 2024  
+**Last Updated**: February 21, 2026  
 **Project**: Bibliophilarr (formerly Readarr)  
-**Current Phase**: Phase 1 - Foundation & Documentation
+**Current Phase**: Phase 2 - Infrastructure Setup
 
 ---
 
@@ -76,6 +76,22 @@ Bibliophilarr is a community-driven fork of Readarr, revived after the original 
 - ✅ **Provider Capabilities Documented**
 - ✅ **Rate Limiting Strategies Defined**
 
+### Infrastructure (Phase 2) - In Progress
+
+- ✅ **Provider Interface Hierarchy**
+  - `IMetadataProvider` base interface (priority, capability flags, rate-limit info)
+  - `ISearchForNewBookV2` async search interface (ISBN, ASIN, generic identifier lookup)
+  - `IProvideAuthorInfoV2` async author interface
+  - All under `src/NzbDrone.Core/MetadataSource/`
+
+- ✅ **Provider Registry** (`src/NzbDrone.Core/MetadataSource/Registry/`)
+  - `IMetadataProviderRegistry` + thread-safe `MetadataProviderRegistry`
+  - Priority-ordered provider selection; enabled/disabled filtering
+
+- ✅ **Metadata Quality Scorer** (`src/NzbDrone.Core/MetadataSource/Scoring/`)
+  - `IMetadataQualityScorer` + `MetadataQualityScorer` (0–100 score on books and authors)
+  - 12 unit tests passing (`MetadataQualityScorerFixture`)
+
 ## What Needs to Be Done 📋
 
 ### Immediate Next Steps (Phase 1 Completion)
@@ -87,11 +103,11 @@ Bibliophilarr is a community-driven fork of Readarr, revived after the original 
 
 ### Phase 2: Infrastructure (Weeks 5-8)
 
-- [ ] Design provider interface v2
-- [ ] Implement provider registry
-- [ ] Build metadata quality scorer
-- [ ] Create testing framework
-- [ ] Set up monitoring/logging
+- [x] Design provider interface v2 (`IMetadataProvider`, `ISearchForNewBookV2`, `IProvideAuthorInfoV2`)
+- [x] Implement provider registry (`IMetadataProviderRegistry` + `MetadataProviderRegistry`)
+- [x] Build metadata quality scorer (`IMetadataQualityScorer` + `MetadataQualityScorer`, unit tested)
+- [ ] Create testing framework for providers (fixtures / mocked HTTP clients)
+- [ ] Set up monitoring/logging for provider calls
 
 ### Phase 3: Open Library Provider (Weeks 9-14)
 
@@ -173,9 +189,9 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 
 ### Phase 2 (Next)
 
-- [ ] Provider interfaces implemented
+- [x] Provider interfaces implemented
+- [x] Quality scoring functional
 - [ ] Testing framework operational
-- [ ] Quality scoring functional
 - [ ] Can load and manage multiple providers
 
 ### Phase 3
