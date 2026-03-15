@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -61,6 +62,8 @@ namespace NzbDrone.Host
                 var appMode = GetApplicationMode(startupContext);
                 var config = GetConfiguration(startupContext);
 
+                RejectLegacyConfigurationKeys(config);
+
                 switch (appMode)
                 {
                     case ApplicationModes.Service:
@@ -101,12 +104,12 @@ namespace NzbDrone.Host
                             })
                             .ConfigureServices(services =>
                             {
-                                ConfigureOptionsWithAliases<PostgresOptions>(services, config, "Postgres");
-                                ConfigureOptionsWithAliases<AppOptions>(services, config, "App");
-                                ConfigureOptionsWithAliases<AuthOptions>(services, config, "Auth");
-                                ConfigureOptionsWithAliases<ServerOptions>(services, config, "Server");
-                                ConfigureOptionsWithAliases<LogOptions>(services, config, "Log");
-                                ConfigureOptionsWithAliases<UpdateOptions>(services, config, "Update");
+                                ConfigureOptions<PostgresOptions>(services, config, "Postgres");
+                                ConfigureOptions<AppOptions>(services, config, "App");
+                                ConfigureOptions<AuthOptions>(services, config, "Auth");
+                                ConfigureOptions<ServerOptions>(services, config, "Server");
+                                ConfigureOptions<LogOptions>(services, config, "Log");
+                                ConfigureOptions<UpdateOptions>(services, config, "Update");
                             }).Build();
 
                         break;
@@ -137,24 +140,19 @@ namespace NzbDrone.Host
         public static IHostBuilder CreateConsoleHostBuilder(string[] args, StartupContext context)
         {
             var config = GetConfiguration(context);
+            RejectLegacyConfigurationKeys(config);
 
             var bindAddress = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.BindAddress)}")
-                              ?? config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.BindAddress)}")
                               ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
             var port = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.Port)}")
-                       ?? config.GetValue<int?>($"Readarr:Server:{nameof(ServerOptions.Port)}")
                        ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
             var sslPort = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.SslPort)}")
-                          ?? config.GetValue<int?>($"Readarr:Server:{nameof(ServerOptions.SslPort)}")
                           ?? config.GetValue(nameof(ConfigFileProvider.SslPort), 6868);
             var enableSsl = config.GetValue<bool?>($"Bibliophilarr:Server:{nameof(ServerOptions.EnableSsl)}")
-                            ?? config.GetValue<bool?>($"Readarr:Server:{nameof(ServerOptions.EnableSsl)}")
                             ?? config.GetValue(nameof(ConfigFileProvider.EnableSsl), false);
             var sslCertPath = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.SslCertPath)}")
-                              ?? config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.SslCertPath)}")
                               ?? config.GetValue<string>(nameof(ConfigFileProvider.SslCertPath));
             var sslCertPassword = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.SslCertPassword)}")
-                                  ?? config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.SslCertPassword)}")
                                   ?? config.GetValue<string>(nameof(ConfigFileProvider.SslCertPassword));
 
             var urls = new List<string> { BuildUrl("http", bindAddress, port) };
@@ -177,12 +175,12 @@ namespace NzbDrone.Host
                 })
                 .ConfigureServices(services =>
                 {
-                    ConfigureOptionsWithAliases<PostgresOptions>(services, config, "Postgres");
-                    ConfigureOptionsWithAliases<AppOptions>(services, config, "App");
-                    ConfigureOptionsWithAliases<AuthOptions>(services, config, "Auth");
-                    ConfigureOptionsWithAliases<ServerOptions>(services, config, "Server");
-                    ConfigureOptionsWithAliases<LogOptions>(services, config, "Log");
-                    ConfigureOptionsWithAliases<UpdateOptions>(services, config, "Update");
+                    ConfigureOptions<PostgresOptions>(services, config, "Postgres");
+                    ConfigureOptions<AppOptions>(services, config, "App");
+                    ConfigureOptions<AuthOptions>(services, config, "Auth");
+                    ConfigureOptions<ServerOptions>(services, config, "Server");
+                    ConfigureOptions<LogOptions>(services, config, "Log");
+                    ConfigureOptions<UpdateOptions>(services, config, "Update");
                 })
                 .ConfigureWebHost(builder =>
                 {
@@ -276,11 +274,32 @@ namespace NzbDrone.Host
             return $"{scheme}://{bindAddress}:{port}";
         }
 
-        private static void ConfigureOptionsWithAliases<T>(IServiceCollection services, IConfiguration config, string sectionName)
+        private static void ConfigureOptions<T>(IServiceCollection services, IConfiguration config, string sectionName)
             where T : class
         {
-            services.Configure<T>(config.GetSection($"Readarr:{sectionName}"));
-            services.PostConfigure<T>(options => config.GetSection($"Bibliophilarr:{sectionName}").Bind(options));
+            services.Configure<T>(config.GetSection($"Bibliophilarr:{sectionName}"));
+        }
+
+        private static void RejectLegacyConfigurationKeys(IConfiguration config)
+        {
+            var legacyKeys = config.AsEnumerable()
+                .Where(kv => kv.Key.StartsWith("Readarr:", StringComparison.OrdinalIgnoreCase))
+                .Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
+                .Select(kv => kv.Key)
+                .Distinct()
+                .OrderBy(k => k)
+                .ToList();
+
+            if (legacyKeys.Count == 0)
+            {
+                return;
+            }
+
+            var keyList = string.Join(", ", legacyKeys);
+
+            Logger.Error("Legacy configuration keys are no longer supported: {0}", keyList);
+
+            throw new ReadarrStartupException($"Legacy configuration keys are no longer supported. Rename to Bibliophilarr:* keys: {keyList}");
         }
 
         private static X509Certificate2 ValidateSslCertificate(string cert, string password)

@@ -30,6 +30,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Legacy Brand Audit
+        run: ../scripts/legacy-brand-audit.sh --output ../_artifacts/legacy-brand-audit
+
+      - name: Upload Legacy Brand Audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-brand-audit
+          path: _artifacts/legacy-brand-audit
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:

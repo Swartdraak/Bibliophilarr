@@ -106,7 +106,8 @@ namespace NzbDrone.Test.Common
                     _nzbDroneProcess.Refresh();
                     if (_nzbDroneProcess.HasExited)
                     {
-                        var log = File.ReadAllLines(Path.Combine(AppData, "logs", "readarr.trace.txt"));
+                        var logFileName = $"{BuildInfo.AppName.ToLowerInvariant()}.trace.txt";
+                        var log = File.ReadAllLines(Path.Combine(AppData, "logs", logFileName));
                         var output = log.Join(Environment.NewLine);
                         TestContext.Progress.WriteLine("Process has exited prematurely: ExitCode={0} Output:\n{1}", _nzbDroneProcess.ExitCode, output);
                     }
@@ -147,14 +148,6 @@ namespace NzbDrone.Test.Common
             StringDictionary envVars = new ();
             if (PostgresOptions?.Host != null)
             {
-                envVars.Add("Readarr__Postgres__Host", PostgresOptions.Host);
-                envVars.Add("Readarr__Postgres__Port", PostgresOptions.Port.ToString());
-                envVars.Add("Readarr__Postgres__User", PostgresOptions.User);
-                envVars.Add("Readarr__Postgres__Password", PostgresOptions.Password);
-                envVars.Add("Readarr__Postgres__MainDb", PostgresOptions.MainDb);
-                envVars.Add("Readarr__Postgres__LogDb", PostgresOptions.LogDb);
-                envVars.Add("Readarr__Postgres__CacheDb", PostgresOptions.CacheDb);
-
                 envVars.Add("Bibliophilarr__Postgres__Host", PostgresOptions.Host);
                 envVars.Add("Bibliophilarr__Postgres__Port", PostgresOptions.Port.ToString());
                 envVars.Add("Bibliophilarr__Postgres__User", PostgresOptions.User);
