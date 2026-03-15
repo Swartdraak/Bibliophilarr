@@ -84,13 +84,13 @@ Exit criteria:
 Execution status (2026-03-15):
 
 - Completed for the API/HTTP module pair:
-	- `src/Readarr.Api.V1` -> `src/Bibliophilarr.Api.V1`
-	- `src/Readarr.Http` -> `src/Bibliophilarr.Http`
+  - `src/Readarr.Api.V1` -> `src/Bibliophilarr.Api.V1`
+  - `src/Readarr.Http` -> `src/Bibliophilarr.Http`
 - Project files renamed and all solution/project references updated.
 - Namespace/import replacement applied for `Readarr.Api.V1` and `Readarr.Http` tokens.
 - Post-phase audit baseline:
-	- content matches: `1088`
-	- path matches: `36`
+  - content matches: `1088`
+  - path matches: `36`
 
 ### Phase 3: Core/Test/Frontend Residuals
 

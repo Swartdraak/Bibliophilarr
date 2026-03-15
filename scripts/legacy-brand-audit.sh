@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+initial_pwd="$(pwd)"
 output_dir="${repo_root}/_artifacts/legacy-brand-audit"
 enforce_zero="false"
 
@@ -21,6 +22,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$output_dir" != /* ]]; then
+  output_dir="${initial_pwd}/${output_dir#./}"
+fi
 
 mkdir -p "$output_dir"
 
