@@ -69,7 +69,8 @@ cp .env.example .env
 Notes:
 
 - `.env` is ignored by git and should stay local.
-- PostgreSQL keys use the current application prefix (`Readarr__Postgres__*`) for runtime compatibility.
+- PostgreSQL keys support both `Bibliophilarr__Postgres__*` and `Readarr__Postgres__*`.
+- Prefer `Bibliophilarr__Postgres__*`; keep `Readarr__Postgres__*` only for migration compatibility.
 - Leave PostgreSQL values unset to run with default SQLite settings.
 
 ## Release-Oriented Local Checks

@@ -155,6 +155,14 @@ namespace NzbDrone.Test.Common
                 envVars.Add("Readarr__Postgres__LogDb", PostgresOptions.LogDb);
                 envVars.Add("Readarr__Postgres__CacheDb", PostgresOptions.CacheDb);
 
+                envVars.Add("Bibliophilarr__Postgres__Host", PostgresOptions.Host);
+                envVars.Add("Bibliophilarr__Postgres__Port", PostgresOptions.Port.ToString());
+                envVars.Add("Bibliophilarr__Postgres__User", PostgresOptions.User);
+                envVars.Add("Bibliophilarr__Postgres__Password", PostgresOptions.Password);
+                envVars.Add("Bibliophilarr__Postgres__MainDb", PostgresOptions.MainDb);
+                envVars.Add("Bibliophilarr__Postgres__LogDb", PostgresOptions.LogDb);
+                envVars.Add("Bibliophilarr__Postgres__CacheDb", PostgresOptions.CacheDb);
+
                 TestContext.Progress.WriteLine("Using env vars:\n{0}", envVars.ToJson());
             }
 

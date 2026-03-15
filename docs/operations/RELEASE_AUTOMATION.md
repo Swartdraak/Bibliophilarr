@@ -100,6 +100,13 @@ gh workflow run "Bibliophilarr npm Publish" \
 |---|---|---|---|---|
 | `NPM_TOKEN` | GitHub Actions secret | Yes (npm publish) | `.github/workflows/npm-publish.yml` | npm access token with publish permissions for `bibliophilarr` package. |
 | `GITHUB_TOKEN` | Built-in Actions token | Auto | `.github/workflows/release.yml`, `.github/workflows/docker-image.yml`, `.github/workflows/branch-bootstrap.yml` | Used for release creation, branch API operations, and GHCR auth. |
+| `Bibliophilarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL host key during rename migration. |
+| `Bibliophilarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL port key during rename migration. |
+| `Bibliophilarr__Postgres__User` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL user key during rename migration. |
+| `Bibliophilarr__Postgres__Password` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL password key during rename migration. |
+| `Bibliophilarr__Postgres__MainDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL main DB key during rename migration. |
+| `Bibliophilarr__Postgres__LogDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL log DB key during rename migration. |
+| `Bibliophilarr__Postgres__CacheDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL cache DB key during rename migration. |
 | `Readarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Keep compatibility prefix during migration; set only for PostgreSQL mode. |
 | `Readarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Default `5432` in PostgreSQL mode. |
 | `Readarr__Postgres__User` | Runtime env var | Optional | app runtime/tests | PostgreSQL user. |

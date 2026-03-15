@@ -100,12 +100,12 @@ namespace NzbDrone.Host
                             })
                             .ConfigureServices(services =>
                             {
-                                services.Configure<PostgresOptions>(config.GetSection("Readarr:Postgres"));
-                                services.Configure<AppOptions>(config.GetSection("Readarr:App"));
-                                services.Configure<AuthOptions>(config.GetSection("Readarr:Auth"));
-                                services.Configure<ServerOptions>(config.GetSection("Readarr:Server"));
-                                services.Configure<LogOptions>(config.GetSection("Readarr:Log"));
-                                services.Configure<UpdateOptions>(config.GetSection("Readarr:Update"));
+                                ConfigureOptionsWithAliases<PostgresOptions>(services, config, "Postgres");
+                                ConfigureOptionsWithAliases<AppOptions>(services, config, "App");
+                                ConfigureOptionsWithAliases<AuthOptions>(services, config, "Auth");
+                                ConfigureOptionsWithAliases<ServerOptions>(services, config, "Server");
+                                ConfigureOptionsWithAliases<LogOptions>(services, config, "Log");
+                                ConfigureOptionsWithAliases<UpdateOptions>(services, config, "Update");
                             }).Build();
 
                         break;
@@ -137,12 +137,24 @@ namespace NzbDrone.Host
         {
             var config = GetConfiguration(context);
 
-            var bindAddress = config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.BindAddress)}") ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
-            var port = config.GetValue<int?>($"Readarr:Server:{nameof(ServerOptions.Port)}") ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
-            var sslPort = config.GetValue<int?>($"Readarr:Server:{nameof(ServerOptions.SslPort)}") ?? config.GetValue(nameof(ConfigFileProvider.SslPort), 6868);
-            var enableSsl = config.GetValue<bool?>($"Readarr:Server:{nameof(ServerOptions.EnableSsl)}") ?? config.GetValue(nameof(ConfigFileProvider.EnableSsl), false);
-            var sslCertPath = config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.SslCertPath)}") ?? config.GetValue<string>(nameof(ConfigFileProvider.SslCertPath));
-            var sslCertPassword = config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.SslCertPassword)}") ?? config.GetValue<string>(nameof(ConfigFileProvider.SslCertPassword));
+            var bindAddress = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.BindAddress)}")
+                              ?? config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.BindAddress)}")
+                              ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
+            var port = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.Port)}")
+                       ?? config.GetValue<int?>($"Readarr:Server:{nameof(ServerOptions.Port)}")
+                       ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
+            var sslPort = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.SslPort)}")
+                          ?? config.GetValue<int?>($"Readarr:Server:{nameof(ServerOptions.SslPort)}")
+                          ?? config.GetValue(nameof(ConfigFileProvider.SslPort), 6868);
+            var enableSsl = config.GetValue<bool?>($"Bibliophilarr:Server:{nameof(ServerOptions.EnableSsl)}")
+                            ?? config.GetValue<bool?>($"Readarr:Server:{nameof(ServerOptions.EnableSsl)}")
+                            ?? config.GetValue(nameof(ConfigFileProvider.EnableSsl), false);
+            var sslCertPath = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.SslCertPath)}")
+                              ?? config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.SslCertPath)}")
+                              ?? config.GetValue<string>(nameof(ConfigFileProvider.SslCertPath));
+            var sslCertPassword = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.SslCertPassword)}")
+                                  ?? config.GetValue<string>($"Readarr:Server:{nameof(ServerOptions.SslCertPassword)}")
+                                  ?? config.GetValue<string>(nameof(ConfigFileProvider.SslCertPassword));
 
             var urls = new List<string> { BuildUrl("http", bindAddress, port) };
 
@@ -164,12 +176,12 @@ namespace NzbDrone.Host
                 })
                 .ConfigureServices(services =>
                 {
-                    services.Configure<PostgresOptions>(config.GetSection("Readarr:Postgres"));
-                    services.Configure<AppOptions>(config.GetSection("Readarr:App"));
-                    services.Configure<AuthOptions>(config.GetSection("Readarr:Auth"));
-                    services.Configure<ServerOptions>(config.GetSection("Readarr:Server"));
-                    services.Configure<LogOptions>(config.GetSection("Readarr:Log"));
-                    services.Configure<UpdateOptions>(config.GetSection("Readarr:Update"));
+                    ConfigureOptionsWithAliases<PostgresOptions>(services, config, "Postgres");
+                    ConfigureOptionsWithAliases<AppOptions>(services, config, "App");
+                    ConfigureOptionsWithAliases<AuthOptions>(services, config, "Auth");
+                    ConfigureOptionsWithAliases<ServerOptions>(services, config, "Server");
+                    ConfigureOptionsWithAliases<LogOptions>(services, config, "Log");
+                    ConfigureOptionsWithAliases<UpdateOptions>(services, config, "Update");
                 })
                 .ConfigureWebHost(builder =>
                 {
@@ -261,6 +273,13 @@ namespace NzbDrone.Host
         private static string BuildUrl(string scheme, string bindAddress, int port)
         {
             return $"{scheme}://{bindAddress}:{port}";
+        }
+
+        private static void ConfigureOptionsWithAliases<T>(IServiceCollection services, IConfiguration config, string sectionName)
+            where T : class
+        {
+            services.Configure<T>(config.GetSection($"Readarr:{sectionName}"));
+            services.PostConfigure<T>(options => config.GetSection($"Bibliophilarr:{sectionName}").Bind(options));
         }
 
         private static X509Certificate2 ValidateSslCertificate(string cert, string password)
