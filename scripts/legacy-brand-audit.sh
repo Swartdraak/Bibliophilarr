@@ -29,9 +29,10 @@ legacy_lower="${legacy_title,,}"
 legacy_upper="${legacy_title^^}"
 legacy_regex="${legacy_title}|${legacy_lower}|${legacy_upper}"
 
+content_matches_file="$output_dir/content-matches.txt"
+path_matches_file="$output_dir/path-matches.txt"
+
 if command -v rg >/dev/null 2>&1; then
-  content_matches_file="$output_dir/content-matches.txt"
-  path_matches_file="$output_dir/path-matches.txt"
 
   (
     cd "$repo_root"
@@ -46,8 +47,20 @@ if command -v rg >/dev/null 2>&1; then
     rg --files . | rg -n "$legacy_regex" > "$path_matches_file" || true
   )
 else
-  echo "ripgrep (rg) is required for this audit" >&2
-  exit 2
+  (
+    cd "$repo_root"
+
+    find . -type f \
+      ! -path './.git/*' \
+      ! -path './node_modules/*' \
+      ! -path '*/bin/*' \
+      ! -path '*/obj/*' \
+      -print0 | xargs -0 grep -nE "$legacy_regex" > "$content_matches_file" || true
+
+    find . -type f \
+      ! -path './.git/*' \
+      -print | sed 's|^./||' | grep -nE "$legacy_regex" > "$path_matches_file" || true
+  )
 fi
 
 total_content_matches="$(wc -l < "$content_matches_file" | tr -d ' ')"
