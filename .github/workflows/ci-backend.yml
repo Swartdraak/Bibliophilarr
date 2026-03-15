@@ -45,6 +45,21 @@ jobs:
           -p:Platform=Posix
 
       - name: Test
-        run: >-
-          dotnet test Readarr.sln --configuration Release --no-build
-          --verbosity minimal -p:Platform=Posix
+        run: |
+          dotnet test NzbDrone.Common.Test/Readarr.Common.Test.csproj \
+            --configuration Release \
+            --no-build \
+            -p:Platform=Posix \
+            --verbosity minimal
+
+          dotnet test NzbDrone.Host.Test/Readarr.Host.Test.csproj \
+            --configuration Release \
+            --no-build \
+            -p:Platform=Posix \
+            --verbosity minimal
+
+          dotnet test NzbDrone.Api.Test/Readarr.Api.Test.csproj \
+            --configuration Release \
+            --no-build \
+            -p:Platform=Posix \
+            --verbosity minimal
