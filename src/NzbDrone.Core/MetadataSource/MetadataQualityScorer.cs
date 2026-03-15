@@ -22,7 +22,7 @@ namespace NzbDrone.Core.MetadataSource
                 return 0;
             }
 
-            int score = 0;
+            var score = 0;
 
             // Essential fields (60 points total)
             if (!string.IsNullOrWhiteSpace(book.Title))
@@ -54,7 +54,7 @@ namespace NzbDrone.Core.MetadataSource
             if (book.Editions?.Value?.Any() == true)
             {
                 score += 5;
-                
+
                 // Bonus for multiple editions
                 if (book.Editions.Value.Count > 1)
                 {
@@ -107,7 +107,7 @@ namespace NzbDrone.Core.MetadataSource
                 return 0;
             }
 
-            int score = 0;
+            var score = 0;
 
             // Essential fields (60 points total)
             if (author.Metadata?.Value != null && !string.IsNullOrWhiteSpace(author.Metadata.Value.Name))
@@ -179,7 +179,7 @@ namespace NzbDrone.Core.MetadataSource
                 return 0;
             }
 
-            int score = 0;
+            var score = 0;
 
             // Essential fields (60 points total)
             if (!string.IsNullOrWhiteSpace(edition.Title))

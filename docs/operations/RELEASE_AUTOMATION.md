@@ -75,23 +75,23 @@ gh workflow run "Branch Bootstrap" --repo <owner>/Bibliophilarr
 
 # Release workflow (manual)
 gh workflow run "Bibliophilarr Release" \
-	--repo <owner>/Bibliophilarr \
-	-f tag=v0.1.0 -f draft=true
+  --repo <owner>/Bibliophilarr \
+  -f tag=v0.1.0 -f draft=true
 
 # Docker image workflow (build only)
 gh workflow run "Bibliophilarr Docker Image" \
-	--repo <owner>/Bibliophilarr \
-	-f push=false
+  --repo <owner>/Bibliophilarr \
+  -f push=false
 
 # Docker image workflow (build + push)
 gh workflow run "Bibliophilarr Docker Image" \
-	--repo <owner>/Bibliophilarr \
-	-f push=true
+  --repo <owner>/Bibliophilarr \
+  -f push=true
 
 # npm publish workflow
 gh workflow run "Bibliophilarr npm Publish" \
-	--repo <owner>/Bibliophilarr \
-	-f version=0.1.0
+  --repo <owner>/Bibliophilarr \
+  -f version=0.1.0
 ```
 
 ## Secrets and variables matrix
