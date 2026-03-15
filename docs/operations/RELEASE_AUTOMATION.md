@@ -65,6 +65,56 @@ Trigger model:
 
 For GHCR publishing, `GITHUB_TOKEN` is used by default.
 
+## Workflow dispatch commands (GitHub CLI)
+
+Prerequisite: authenticated `gh` session (`gh auth login`) or `GH_TOKEN` set.
+
+```bash
+# Branch bootstrap (idempotent)
+gh workflow run "Branch Bootstrap" --repo <owner>/Bibliophilarr
+
+# Release workflow (manual)
+gh workflow run "Bibliophilarr Release" \
+	--repo <owner>/Bibliophilarr \
+	-f tag=v0.1.0 -f draft=true
+
+# Docker image workflow (build only)
+gh workflow run "Bibliophilarr Docker Image" \
+	--repo <owner>/Bibliophilarr \
+	-f push=false
+
+# Docker image workflow (build + push)
+gh workflow run "Bibliophilarr Docker Image" \
+	--repo <owner>/Bibliophilarr \
+	-f push=true
+
+# npm publish workflow
+gh workflow run "Bibliophilarr npm Publish" \
+	--repo <owner>/Bibliophilarr \
+	-f version=0.1.0
+```
+
+## Secrets and variables matrix
+
+| Name | Scope | Required | Used by | Notes |
+|---|---|---|---|---|
+| `NPM_TOKEN` | GitHub Actions secret | Yes (npm publish) | `.github/workflows/npm-publish.yml` | npm access token with publish permissions for `bibliophilarr` package. |
+| `GITHUB_TOKEN` | Built-in Actions token | Auto | `.github/workflows/release.yml`, `.github/workflows/docker-image.yml`, `.github/workflows/branch-bootstrap.yml` | Used for release creation, branch API operations, and GHCR auth. |
+| `Readarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Keep compatibility prefix during migration; set only for PostgreSQL mode. |
+| `Readarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Default `5432` in PostgreSQL mode. |
+| `Readarr__Postgres__User` | Runtime env var | Optional | app runtime/tests | PostgreSQL user. |
+| `Readarr__Postgres__Password` | Runtime env var | Optional | app runtime/tests | PostgreSQL password. |
+| `Readarr__Postgres__MainDb` | Runtime env var | Optional | app runtime/tests | Main database name. |
+| `Readarr__Postgres__LogDb` | Runtime env var | Optional | app runtime/tests | Log database name. |
+| `Readarr__Postgres__CacheDb` | Runtime env var | Optional | app runtime/tests | Cache database name. |
+| `ASPNETCORE_URLS` | Runtime env var | Optional | Docker/local run | Defaults to `http://+:8787` in container flow. |
+| `BIBLIOPHILARR_OWNER` | Runtime env var | Optional | npm launcher | Defaults to `Swartdraak`. |
+| `BIBLIOPHILARR_REPO` | Runtime env var | Optional | npm launcher | Defaults to `Bibliophilarr`. |
+| `BIBLIOPHILARR_VERSION` | Runtime env var | Optional | npm launcher | Defaults to `latest`. |
+| `SENTRY_AUTH_TOKEN` | Runtime/CI env var | Optional | Azure pipeline | Only needed if Sentry upload/release steps are used. |
+| `SENTRY_ORG` | Runtime/CI env var | Optional | Azure pipeline | Sentry org identifier. |
+| `SENTRY_URL` | Runtime/CI env var | Optional | Azure pipeline | Self-hosted Sentry base URL if applicable. |
+
 ## Release procedure
 
 1. Merge validated changes to `main`.

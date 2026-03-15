@@ -59,6 +59,19 @@ dotnet test
 # The app will be available at http://localhost:8787
 ```
 
+### Environment Configuration
+
+```bash
+# From repository root
+cp .env.example .env
+```
+
+Notes:
+
+- `.env` is ignored by git and should stay local.
+- PostgreSQL keys use the current application prefix (`Readarr__Postgres__*`) for runtime compatibility.
+- Leave PostgreSQL values unset to run with default SQLite settings.
+
 ## Release-Oriented Local Checks
 
 ```bash

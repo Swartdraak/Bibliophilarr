@@ -153,3 +153,8 @@ _temp_*/**/*
 
 # API doc generation
 .config/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
