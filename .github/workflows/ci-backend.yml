@@ -32,6 +32,7 @@ jobs:
 
       - name: Legacy Brand Audit
         run: |
+          # Strict zero enforcement is active only on dedicated rename lanes.
           if [[ "${GITHUB_REF_NAME}" == rename/* ]]; then
             echo "Running strict legacy brand audit for rename lane"
             ../scripts/legacy-brand-audit.sh --output ../_artifacts/legacy-brand-audit --enforce-zero
