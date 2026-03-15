@@ -1,4 +1,4 @@
-name: Frontend CI
+name: Bibliophilarr Frontend CI
 
 on:
   pull_request:
@@ -11,6 +11,9 @@ on:
     branches:
       - main
       - develop
+      - staging
+      - release
+      - hotfix
     paths:
       - 'frontend/**'
       - 'package.json'

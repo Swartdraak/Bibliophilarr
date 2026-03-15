@@ -32,6 +32,9 @@ The immediate priority is completing the planning phase and setting up infrastru
 git clone https://github.com/YOUR_USERNAME/Bibliophilarr.git
 cd Bibliophilarr
 
+# Initialize local branch lanes used by automation
+./scripts/init-branch-schema.sh
+
 # Build backend
 cd src
 dotnet restore
@@ -55,6 +58,23 @@ dotnet test
 
 # The app will be available at http://localhost:8787
 ```
+
+## Release-Oriented Local Checks
+
+```bash
+# Build release artifacts for linux-x64
+./build.sh --backend -r linux-x64 -f net8.0
+./build.sh --frontend
+./build.sh --packages -r linux-x64 -f net8.0
+
+# Build production container image
+docker build -t bibliophilarr:local .
+docker run --rm -d -p 8787:8787 --name bibliophilarr-local bibliophilarr:local
+docker logs bibliophilarr-local | tail -n 100
+docker rm -f bibliophilarr-local
+```
+
+See [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md) for full release workflow usage.
 
 ## 💡 Easy First Contributions
 

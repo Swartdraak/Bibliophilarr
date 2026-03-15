@@ -8,7 +8,7 @@
 
 ## Overview
 
-Bibliophilarr is a community-driven fork of Readarr, revived after the original project was retired due to metadata provider issues. We are migrating from proprietary Goodreads metadata to Free and Open Source Software (FOSS) alternatives.
+Bibliophilarr is a community-driven project focused on sustainable metadata and reliable automation. We are migrating from proprietary Goodreads metadata to Free and Open Source Software (FOSS) alternatives.
 
 ## What Has Been Done ✅
 
@@ -292,8 +292,6 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 ### External Resources
 - [Open Library API](https://openlibrary.org/developers/api)
 - [Inventaire API](https://api.inventaire.io/)
-- [Original Readarr](https://github.com/Readarr/Readarr)
-- [Servarr Wiki](https://wiki.servarr.com/readarr)
 
 ### Repository
 - **GitHub**: https://github.com/Swartdraak/Bibliophilarr

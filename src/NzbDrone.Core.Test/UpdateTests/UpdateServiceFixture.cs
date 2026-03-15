@@ -36,7 +36,7 @@ namespace NzbDrone.Core.Test.UpdateTests
                 _updatePackage = new UpdatePackage
                 {
                     FileName = "Readarr.develop.0.6.2.883.tar.gz",
-                    Url = "https://github.com/readarr/Readarr/releases/download/v0.6.2.883/Readarr.develop.0.6.2.883.linux.tar.gz",
+                    Url = "https://github.com/Swartdraak/Bibliophilarr/releases/download/v0.6.2.883/Readarr.develop.0.6.2.883.linux.tar.gz",
                     Version = new Version("0.6.2.883")
                 };
             }
@@ -45,7 +45,7 @@ namespace NzbDrone.Core.Test.UpdateTests
                 _updatePackage = new UpdatePackage
                 {
                     FileName = "Readarr.develop.0.6.2.883.zip",
-                    Url = "https://github.com/readarr/Readarr/releases/download/v0.6.2.883/Readarr.develop.0.6.2.883.windows.zip",
+                    Url = "https://github.com/Swartdraak/Bibliophilarr/releases/download/v0.6.2.883/Readarr.develop.0.6.2.883.windows.zip",
                     Version = new Version("0.6.2.883")
                 };
             }

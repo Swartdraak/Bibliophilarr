@@ -14,7 +14,7 @@ This document provides a high-level overview of the Bibliophilarr project roadma
 
 ## Current Status: Planning & Foundation Phase
 
-We are currently in the early stages of reviving the project after the original Readarr retirement. Our immediate focus is on planning the migration away from Goodreads to sustainable FOSS alternatives.
+We are currently in the early stages of scaling the revived project for long-term sustainability. Our immediate focus is on planning the migration away from Goodreads to sustainable FOSS alternatives.
 
 ### ✅ Completed
 - Repository analysis and architecture review

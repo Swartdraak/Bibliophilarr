@@ -95,7 +95,7 @@ function MetadataProvider(props) {
                   type={inputTypes.SELECT}
                   name="writeBookTags"
                   helpTextWarning={translate('WriteBookTagsHelpTextWarning')}
-                  helpLink="https://wiki.servarr.com/readarr/settings#write-metadata-to-book-files"
+                  helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#write-metadata-to-book-files"
                   values={writeBookTagOptions}
                   onChange={onInputChange}
                   {...settings.writeBookTags}
@@ -140,7 +140,7 @@ function MetadataProvider(props) {
                   type={inputTypes.SELECT}
                   name="writeAudioTags"
                   helpTextWarning={translate('WriteBookTagsHelpTextWarning')}
-                  helpLink="https://wiki.servarr.com/readarr/settings#write-metadata-to-audio-files"
+                  helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#write-metadata-to-audio-files"
                   values={writeAudioTagOptions}
                   onChange={onInputChange}
                   {...settings.writeAudioTags}

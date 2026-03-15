@@ -70,7 +70,7 @@ class DevelopmentSettings extends Component {
                       type={inputTypes.TEXT}
                       name="metadataSource"
                       helpText={translate('MetadataSourceHelpText')}
-                      helpLink="https://wiki.servarr.com/readarr/settings#metadata"
+                      helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#metadata"
                       onChange={onInputChange}
                       {...settings.metadataSource}
                     />

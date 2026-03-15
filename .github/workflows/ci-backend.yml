@@ -1,4 +1,4 @@
-name: Backend CI
+name: Bibliophilarr Backend CI
 
 on:
   pull_request:
@@ -9,6 +9,9 @@ on:
     branches:
       - main
       - develop
+      - staging
+      - release
+      - hotfix
     paths:
       - 'src/**'
       - '.github/workflows/ci-backend.yml'
@@ -37,7 +40,11 @@ jobs:
         run: dotnet restore Readarr.sln -p:Platform=Posix
 
       - name: Build
-        run: dotnet build Readarr.sln --configuration Release --no-restore -p:Platform=Posix
+        run: >-
+          dotnet build Readarr.sln --configuration Release --no-restore
+          -p:Platform=Posix
 
       - name: Test
-        run: dotnet test Readarr.sln --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+        run: >-
+          dotnet test Readarr.sln --configuration Release --no-build
+          --verbosity minimal -p:Platform=Posix

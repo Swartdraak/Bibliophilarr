@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines the comprehensive technical plan for migrating Bibliophilarr (formerly Readarr) from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
+This document outlines the comprehensive technical plan for migrating Bibliophilarr from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
 ## Table of Contents
 - [Current State](#current-state)

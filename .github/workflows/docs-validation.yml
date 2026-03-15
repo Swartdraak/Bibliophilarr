@@ -1,4 +1,4 @@
-name: Docs Validation
+name: Bibliophilarr Docs Validation
 
 on:
   pull_request:
@@ -9,6 +9,9 @@ on:
     branches:
       - main
       - develop
+      - staging
+      - release
+      - hotfix
     paths:
       - '**/*.md'
       - '.github/workflows/docs-validation.yml'

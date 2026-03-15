@@ -203,11 +203,6 @@ Include:
 
 ## 📚 Additional Resources
 
-### Original Readarr Resources
-
-- [Servarr Wiki](https://wiki.servarr.com/readarr) (may contain outdated info)
-- [Original Contributing Guide](https://wiki.servarr.com/readarr/contributing)
-
 ### Bibliophilarr-Specific Resources
 
 - [MIGRATION_PLAN.md](MIGRATION_PLAN.md) - Technical roadmap
