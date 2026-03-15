@@ -6,6 +6,10 @@
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 
+    <!-- Rename migration knobs: keep internal binary compatibility while allowing staged rename. -->
+    <AppInternalName Condition="'$(AppInternalName)'==''">Readarr</AppInternalName>
+    <AppUpdateName>$(AppInternalName).Update</AppUpdateName>
+
     <PlatformTarget>AnyCPU</PlatformTarget>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
     <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64;linux-musl-x64;linux-arm;linux-musl-arm;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
@@ -17,13 +21,13 @@
     <ReadarrOutputType Condition="$(MSBuildProjectName.Contains('.Test'))">Test</ReadarrOutputType>
     <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='ServiceInstall'">Exe</ReadarrOutputType>
     <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='ServiceUninstall'">Exe</ReadarrOutputType>
-    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='Readarr'">Exe</ReadarrOutputType>
-    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='Readarr.Console'">Exe</ReadarrOutputType>
-    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='Readarr.Update'">Update</ReadarrOutputType>
+    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='$(AppInternalName)'">Exe</ReadarrOutputType>
+    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='$(AppInternalName).Console'">Exe</ReadarrOutputType>
+    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='$(AppUpdateName)'">Update</ReadarrOutputType>
 
     <!-- Specifies whether it's one of our own libraries -->
     <ReadarrProject>false</ReadarrProject>
-    <ReadarrProject Condition="$(MSBuildProjectName.StartsWith('Readarr'))">true</ReadarrProject>
+    <ReadarrProject Condition="$(MSBuildProjectName.StartsWith('$(AppInternalName)'))">true</ReadarrProject>
     <ReadarrProject Condition="$(MSBuildProjectName.StartsWith('ServiceInstall'))">true</ReadarrProject>
     <ReadarrProject Condition="$(MSBuildProjectName.StartsWith('ServiceUninstall'))">true</ReadarrProject>
 
@@ -49,7 +53,7 @@
     <!-- Output to _output and _tests respectively -->
     <OutputPath Condition="'$(ReadarrProject)'=='true'">$(ReadarrRootDir)_output\</OutputPath>
     <OutputPath Condition="'$(ReadarrOutputType)'=='Test'">$(ReadarrRootDir)_tests\</OutputPath>
-    <OutputPath Condition="'$(ReadarrOutputType)'=='Update'">$(ReadarrRootDir)_output\Readarr.Update\</OutputPath>
+    <OutputPath Condition="'$(ReadarrOutputType)'=='Update'">$(ReadarrRootDir)_output\$(AppUpdateName)\</OutputPath>
 
     <!-- Paths relative to project file for better readability -->
     <EnableBaseIntermediateOutputPathMismatchWarning>false</EnableBaseIntermediateOutputPathMismatchWarning>
@@ -96,7 +100,7 @@
 
   <PropertyGroup>
     <!-- For now keep the NzbDrone namespace -->
-    <RootNamespace Condition="'$(ReadarrProject)'=='true'">$(MSBuildProjectName.Replace('Readarr','NzbDrone'))</RootNamespace>
+    <RootNamespace Condition="'$(ReadarrProject)'=='true'">$(MSBuildProjectName.Replace('$(AppInternalName)','NzbDrone'))</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TestProject)'!='true'">
@@ -119,6 +123,7 @@
     <!-- Upload PDBs to Sentry, enabling stack traces with line numbers and file paths
       without the need to deploy the application with PDBs -->
     <SentryUploadSymbols>true</SentryUploadSymbols>
+    <SentryUploadSymbols Condition="'$(SentryAuthToken)'=='' and '$([System.Environment]::GetEnvironmentVariable(&quot;SENTRY_AUTH_TOKEN&quot;))'==''">false</SentryUploadSymbols>
 
     <!-- Source Link settings -->
     <!-- https://github.com/dotnet/sourcelink/blob/main/docs/README.md#publishrepositoryurl -->

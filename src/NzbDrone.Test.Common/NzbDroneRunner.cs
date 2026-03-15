@@ -45,14 +45,15 @@ namespace NzbDrone.Test.Common
 
             GenerateConfigFile(enableAuth);
 
+            var appName = BuildInfo.AppName;
             string readarrConsoleExe;
             if (OsInfo.IsWindows)
             {
-                readarrConsoleExe = "Readarr.Console.exe";
+                readarrConsoleExe = $"{appName}.Console.exe";
             }
             else
             {
-                readarrConsoleExe = "Readarr";
+                readarrConsoleExe = appName;
             }
 
             _startupLog = new List<string>();
@@ -71,7 +72,7 @@ namespace NzbDrone.Test.Common
 
                 if (_nzbDroneProcess.HasExited)
                 {
-                    TestContext.Progress.WriteLine("Readarr has exited unexpectedly");
+                    TestContext.Progress.WriteLine("{0} has exited unexpectedly", appName);
                     Thread.Sleep(2000);
                     var output = _startupLog.Join(Environment.NewLine);
                     Assert.Fail("Process has exited: ExitCode={0} Output={1}", _nzbDroneProcess.ExitCode, output);
@@ -86,11 +87,11 @@ namespace NzbDrone.Test.Common
                 if (statusCall.ResponseStatus == ResponseStatus.Completed)
                 {
                     _startupLog = null;
-                    TestContext.Progress.WriteLine($"Readarr {Port} is started. Running Tests");
+                    TestContext.Progress.WriteLine("{0} {1} is started. Running Tests", appName, Port);
                     return;
                 }
 
-                TestContext.Progress.WriteLine("Waiting for Readarr to start. Response Status : {0}  [{1}] {2}", statusCall.ResponseStatus, statusCall.StatusDescription, statusCall.ErrorException.Message);
+                TestContext.Progress.WriteLine("Waiting for {0} to start. Response Status : {1}  [{2}] {3}", appName, statusCall.ResponseStatus, statusCall.StatusDescription, statusCall.ErrorException.Message);
 
                 Thread.Sleep(500);
             }
