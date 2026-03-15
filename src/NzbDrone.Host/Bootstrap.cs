@@ -41,8 +41,8 @@ namespace NzbDrone.Host
             "Readarr.Host",
             "Readarr.Core",
             "Readarr.SignalR",
-            "Readarr.Api.V1",
-            "Readarr.Http"
+            "Bibliophilarr.Api.V1",
+            "Bibliophilarr.Http"
         };
 
         public static void Start(string[] args, Action<IHostBuilder> trayCallback = null)

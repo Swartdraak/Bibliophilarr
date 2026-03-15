@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
+using Bibliophilarr.Api.V1.Indexers;
 using FluentAssertions;
 using NUnit.Framework;
-using Readarr.Api.V1.Indexers;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {

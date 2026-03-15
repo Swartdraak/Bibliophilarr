@@ -1,7 +1,7 @@
+using Bibliophilarr.Api.V1.Author;
+using Bibliophilarr.Api.V1.Blocklist;
 using FluentAssertions;
 using NUnit.Framework;
-using Readarr.Api.V1.Author;
-using Readarr.Api.V1.Blocklist;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {

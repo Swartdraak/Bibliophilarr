@@ -8,6 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Core\Readarr.Core.csproj" />
     <ProjectReference Include="..\NzbDrone.Test.Common\Readarr.Test.Common.csproj" />
-    <ProjectReference Include="..\Readarr.Http\Readarr.Http.csproj" />
+    <ProjectReference Include="..\Bibliophilarr.Http\Bibliophilarr.Http.csproj" />
   </ItemGroup>
 </Project>

@@ -81,6 +81,17 @@ Exit criteria:
 - No project, folder, or namespace names include legacy token.
 - Build and targeted tests pass with renamed API/HTTP projects.
 
+Execution status (2026-03-15):
+
+- Completed for the API/HTTP module pair:
+	- `src/Readarr.Api.V1` -> `src/Bibliophilarr.Api.V1`
+	- `src/Readarr.Http` -> `src/Bibliophilarr.Http`
+- Project files renamed and all solution/project references updated.
+- Namespace/import replacement applied for `Readarr.Api.V1` and `Readarr.Http` tokens.
+- Post-phase audit baseline:
+	- content matches: `1088`
+	- path matches: `36`
+
 ### Phase 3: Core/Test/Frontend Residuals
 
 Scope:
@@ -117,6 +128,11 @@ Exit criteria:
 - CI fail-fast on any non-zero reintroduction.
 
 ## CI Gate Plan
+
+Current state:
+
+- `rename/*` branches run strict audit mode with `--enforce-zero` in backend CI.
+- Non-rename branches run visibility mode and publish audit artifacts.
 
 1. Immediately: run audit in CI and publish artifact (visibility gate).
 2. Mid-migration: enforce non-increasing threshold per branch lane.

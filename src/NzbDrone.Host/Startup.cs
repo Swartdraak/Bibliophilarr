@@ -1,6 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Bibliophilarr.Api.V1.System;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.Authentication;
+using Bibliophilarr.Http.ClientSchema;
+using Bibliophilarr.Http.ErrorManagement;
+using Bibliophilarr.Http.Frontend;
+using Bibliophilarr.Http.Middleware;
 using DryIoc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -24,13 +31,6 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Host.AccessControl;
 using NzbDrone.Http.Authentication;
 using NzbDrone.SignalR;
-using Readarr.Api.V1.System;
-using Readarr.Http;
-using Readarr.Http.Authentication;
-using Readarr.Http.ClientSchema;
-using Readarr.Http.ErrorManagement;
-using Readarr.Http.Frontend;
-using Readarr.Http.Middleware;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace NzbDrone.Host
@@ -51,7 +51,7 @@ namespace NzbDrone.Host
                 b.ClearProviders();
                 b.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
                 b.AddFilter("Microsoft.AspNetCore", Microsoft.Extensions.Logging.LogLevel.Warning);
-                b.AddFilter("Readarr.Http.Authentication", LogLevel.Information);
+                b.AddFilter("Bibliophilarr.Http.Authentication", LogLevel.Information);
                 b.AddFilter("Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager", LogLevel.Error);
                 b.AddNLog();
             });

@@ -7,7 +7,7 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Readarr.Api.V1\Readarr.Api.V1.csproj" />
+    <ProjectReference Include="..\Bibliophilarr.Api.V1\Bibliophilarr.Api.V1.csproj" />
     <ProjectReference Include="..\NzbDrone.Test.Common\Readarr.Test.Common.csproj" />
   </ItemGroup>
 </Project>

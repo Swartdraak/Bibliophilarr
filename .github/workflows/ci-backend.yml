@@ -31,7 +31,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Legacy Brand Audit
-        run: ../scripts/legacy-brand-audit.sh --output ../_artifacts/legacy-brand-audit
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == rename/* ]]; then
+            echo "Running strict legacy brand audit for rename lane"
+            ../scripts/legacy-brand-audit.sh --output ../_artifacts/legacy-brand-audit --enforce-zero
+          else
+            echo "Running visibility-only legacy brand audit"
+            ../scripts/legacy-brand-audit.sh --output ../_artifacts/legacy-brand-audit
+          fi
 
       - name: Upload Legacy Brand Audit
         if: always()
