@@ -30,7 +30,7 @@
     "BackupNow": "Zálohovať teraz",
     "AlreadyInYourLibrary": "Už vo vašej knižnici",
     "AlternateTitles": "Alternatívny názov",
-    "AnalyticsEnabledHelpText": "Odosielajte anonymné informácie o používaní a chybách na servery Readarru. To zahŕňa informácie o vašom prehliadači, ktoré stránky {appName} WebUI používate, hlásenia chýb a taktiež verziu operačného systému a spúšťacieho prostredia. Tieto informácie použijeme k uprednostňovaniu funkcií a oprav chýb.",
+    "AnalyticsEnabledHelpText": "Odosielajte anonymné informácie o používaní a chybách na servery {appName}u. To zahŕňa informácie o vašom prehliadači, ktoré stránky {appName} WebUI používate, hlásenia chýb a taktiež verziu operačného systému a spúšťacieho prostredia. Tieto informácie použijeme k uprednostňovaniu funkcií a oprav chýb.",
     "AppDataDirectory": "Priečinok AppData",
     "ApplyTags": "Použiť značky",
     "Authentication": "Overenie",

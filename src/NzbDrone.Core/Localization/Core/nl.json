@@ -577,7 +577,7 @@
     "ManualImportSelectEdition": "Manuele import - Selecteer Film",
     "Database": "Databasis",
     "AddNewItem": "Voeg nieuwe toe",
-    "AddImportListExclusionHelpText": "Voorkom dat Readarr het boek toevoegt met Import Lijsten of Auteur Verversing",
+    "AddImportListExclusionHelpText": "Voorkom dat {appName} het boek toevoegt met Import Lijsten of Auteur Verversing",
     "AllAuthorBooks": "Alle boeken van deze auteur",
     "AllExpandedCollapseAll": "Klap alles in",
     "AllExpandedExpandAll": "Klap alles uit",

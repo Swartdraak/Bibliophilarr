@@ -559,7 +559,7 @@
     "UserAgentProvidedByTheAppThatCalledTheAPI": "User-Agent, предоставленный приложением, вызвавшим API",
     "UpdateAvailable": "Доступно новое обновление",
     "AddedAuthorSettings": "Добавленные Авторские Настройки",
-    "AddImportListExclusionHelpText": "Предотвратить добавление книги в Readarr с помощью списков импорта или обновления автора",
+    "AddImportListExclusionHelpText": "Предотвратить добавление книги в {appName} с помощью списков импорта или обновления автора",
     "AllExpandedCollapseAll": "Свернуть Все",
     "AddMissing": "Добавить отсутствующие",
     "AddNewItem": "Добавить Новый Элемент",
