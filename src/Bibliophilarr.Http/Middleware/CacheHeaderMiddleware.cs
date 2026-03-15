@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Bibliophilarr.Http.Extensions;
+using Microsoft.AspNetCore.Http;
 
 namespace Bibliophilarr.Http.Middleware
 {

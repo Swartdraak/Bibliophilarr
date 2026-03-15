@@ -1,6 +1,6 @@
+using Bibliophilarr.Http;
 using FluentValidation;
 using NzbDrone.Core.Download;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.DownloadClient
 {

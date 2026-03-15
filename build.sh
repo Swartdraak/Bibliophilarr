@@ -8,12 +8,12 @@ testPackageFolder='_tests'
 artifactsFolder="_artifacts";
 
 # Rename migration knobs.
-APP_INTERNAL_NAME="${APP_INTERNAL_NAME:-Readarr}"
+APP_INTERNAL_NAME="${APP_INTERNAL_NAME:-Bibliophilarr}"
 APP_UPDATE_NAME="${APP_INTERNAL_NAME}.Update"
 APP_WINDOWS_NAME="${APP_INTERNAL_NAME}.Windows"
 APP_MONO_NAME="${APP_INTERNAL_NAME}.Mono"
 APP_MAC_APP_NAME="${APP_INTERNAL_NAME}.app"
-APP_SOLUTION_NAME="${APP_SOLUTION_NAME:-Readarr}"
+APP_SOLUTION_NAME="${APP_SOLUTION_NAME:-Bibliophilarr}"
 
 ProgressStart()
 {
@@ -27,7 +27,7 @@ ProgressEnd()
 
 UpdateVersionNumber()
 {
-    local appVersion="${BIBLIOPHILARRVERSION:-$READARRVERSION}"
+    local appVersion="${BIBLIOPHILARRVERSION:-$BIBLIOPHILARRVERSION}"
     if [ "$appVersion" != "" ]; then
         echo "Updating Version Info"
         sed -i'' -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>$appVersion<\/AssemblyVersion>/g" src/Directory.Build.props
@@ -257,7 +257,7 @@ BuildInstaller()
     local framework="$1"
     local runtime="$2"
     
-    ./_inno/ISCC.exe distribution/windows/setup/readarr.iss "//DFramework=$framework" "//DRuntime=$runtime"
+    ./_inno/ISCC.exe distribution/windows/setup/bibliophilarr.iss "//DFramework=$framework" "//DRuntime=$runtime"
 }
 
 InstallInno()

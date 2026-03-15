@@ -44,12 +44,12 @@ namespace NzbDrone.Core.Notifications.Plex.Server
                     .Sections
                     .Where(d => d.Type == "artist")
                     .Select(s => new PlexSection
-                                 {
-                                     Id = s.Id,
-                                     Language = s.Language,
-                                     Locations = s.Locations,
-                                     Type = s.Type
-                                 })
+                    {
+                        Id = s.Id,
+                        Language = s.Language,
+                        Locations = s.Locations,
+                        Type = s.Type
+                    })
                     .ToList();
             }
 

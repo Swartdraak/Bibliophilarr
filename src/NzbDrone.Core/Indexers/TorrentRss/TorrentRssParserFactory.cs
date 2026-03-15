@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Serializer;

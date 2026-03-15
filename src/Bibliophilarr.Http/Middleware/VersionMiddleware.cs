@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Http;
 using NzbDrone.Common.EnvironmentInfo;
-using Bibliophilarr.Http.Extensions;
 
 namespace Bibliophilarr.Http.Middleware
 {

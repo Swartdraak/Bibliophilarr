@@ -1,9 +1,0 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFrameworks>net8.0</TargetFrameworks>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\NzbDrone.Test.Common\Readarr.Test.Common.csproj" />
-    <ProjectReference Include="..\NzbDrone.Update\Readarr.Update.csproj" />
-  </ItemGroup>
-</Project>

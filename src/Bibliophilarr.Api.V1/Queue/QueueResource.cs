@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using NzbDrone.Common.Extensions;
-using NzbDrone.Core.Download.TrackedDownloads;
-using NzbDrone.Core.Indexers;
-using NzbDrone.Core.Qualities;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Api.V1.CustomFormats;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.Indexers;
+using NzbDrone.Core.Qualities;
 
 namespace Bibliophilarr.Api.V1.Queue
 {

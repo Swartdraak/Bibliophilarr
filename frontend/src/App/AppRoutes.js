@@ -56,7 +56,7 @@ function AppRoutes(props) {
       />
 
       {
-        window.Readarr.urlBase &&
+        window.Bibliophilarr.urlBase &&
           <Route
             exact={true}
             path="/"

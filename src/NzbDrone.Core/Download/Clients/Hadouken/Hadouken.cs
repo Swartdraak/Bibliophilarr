@@ -173,9 +173,9 @@ namespace NzbDrone.Core.Download.Clients.Hadouken
             catch (Exception ex)
             {
                 return new NzbDroneValidationFailure("Host", "Unable to connect to Hadouken")
-                       {
-                           DetailedDescription = ex.Message
-                       };
+                {
+                    DetailedDescription = ex.Message
+                };
             }
 
             return null;

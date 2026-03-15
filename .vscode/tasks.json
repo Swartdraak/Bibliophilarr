@@ -8,7 +8,7 @@
       "args": [
         "msbuild",
         "-restore",
-        "${workspaceFolder}/src/Readarr.sln",
+        "${workspaceFolder}/src/Bibliophilarr.sln",
         "-p:GenerateFullPaths=true",
         "-p:Configuration=Debug",
         "-p:Platform=Posix",
@@ -22,7 +22,7 @@
       "type": "process",
       "args": [
         "publish",
-        "${workspaceFolder}/src/Readarr.sln",
+        "${workspaceFolder}/src/Bibliophilarr.sln",
         "-property:GenerateFullPaths=true",
         "-consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -36,7 +36,7 @@
         "watch",
         "run",
         "--project",
-        "${workspaceFolder}/src/Readarr.sln"
+        "${workspaceFolder}/src/Bibliophilarr.sln"
       ],
       "problemMatcher": "$msCompile"
     }

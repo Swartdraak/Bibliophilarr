@@ -1,5 +1,5 @@
-using Newtonsoft.Json;
 using Bibliophilarr.Http.REST;
+using Newtonsoft.Json;
 
 namespace Bibliophilarr.Api.V1.Indexers
 {

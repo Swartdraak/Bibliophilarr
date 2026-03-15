@@ -28,7 +28,7 @@ namespace NzbDrone.Core.HealthCheck
 
         public ServerSideNotificationService(IHttpClient client,
                                              IConfigFileProvider configFileProvider,
-                                             IReadarrCloudRequestBuilder cloudRequestBuilder,
+                                             IBibliophilarrCloudRequestBuilder cloudRequestBuilder,
                                              ICacheManager cacheManager,
                                              Logger logger)
         {

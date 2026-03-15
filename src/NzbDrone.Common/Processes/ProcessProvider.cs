@@ -35,8 +35,8 @@ namespace NzbDrone.Common.Processes
     {
         private readonly Logger _logger;
 
-        public static readonly string READARR_PROCESS_NAME = AppIdentity.InternalName;
-        public static readonly string READARR_CONSOLE_PROCESS_NAME = AppIdentity.ConsoleProcessName;
+        public static readonly string BIBLIOPHILARR_PROCESS_NAME = AppIdentity.InternalName;
+        public static readonly string BIBLIOPHILARR_CONSOLE_PROCESS_NAME = AppIdentity.ConsoleProcessName;
 
         public ProcessProvider(Logger logger)
         {

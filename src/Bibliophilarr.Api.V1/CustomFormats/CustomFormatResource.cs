@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
-using NzbDrone.Core.CustomFormats;
 using Bibliophilarr.Http.ClientSchema;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.CustomFormats;
 
 namespace Bibliophilarr.Api.V1.CustomFormats
 {

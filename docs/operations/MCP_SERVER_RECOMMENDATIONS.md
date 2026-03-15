@@ -118,7 +118,7 @@ Example minimal config for priority servers (with version pinning for security):
 
 **Best use in this repo**
 
-- Working with `src/Readarr.Api.V1/openapi.json` for endpoint discovery and contract checks.
+- Working with `src/Bibliophilarr.Api.V1/openapi.json` for endpoint discovery and contract checks.
 
 ---
 

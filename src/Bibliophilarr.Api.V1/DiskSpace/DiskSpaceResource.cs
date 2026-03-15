@@ -1,4 +1,4 @@
-﻿using Bibliophilarr.Http.REST;
+using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.DiskSpace
 {

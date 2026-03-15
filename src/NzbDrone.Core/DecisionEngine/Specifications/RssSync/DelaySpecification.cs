@@ -83,8 +83,8 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
 
                 if (isBestInProfile && isPreferredProtocol)
                 {
-                _logger.Debug("Quality is highest in profile for preferred protocol, will not delay");
-                return Decision.Accept();
+                    _logger.Debug("Quality is highest in profile for preferred protocol, will not delay");
+                    return Decision.Accept();
                 }
             }
 

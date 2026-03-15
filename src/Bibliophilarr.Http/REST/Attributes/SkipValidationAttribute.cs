@@ -12,6 +12,6 @@ namespace NzbDrone.Http.REST.Attributes
         }
 
         public bool Skip { get; }
-        public bool SkipShared { get;  }
+        public bool SkipShared { get; }
     }
 }

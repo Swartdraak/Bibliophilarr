@@ -54,7 +54,7 @@ class AddDownloadClientModalContent extends Component {
 
                 <Alert kind={kinds.INFO}>
                   <div>
-                    {translate('ReadarrSupportsAnyDownloadClient')}
+                    {translate('BibliophilarrSupportsAnyDownloadClient')}
                   </div>
                   <div>
                     {translate('ForMoreInformationOnTheIndividualDownloadClientsClickOnTheInfoButtons')}

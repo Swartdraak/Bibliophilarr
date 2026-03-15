@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.1",
   "info": {
-    "title": "Readarr",
-    "description": "Readarr API docs",
+    "title": "Bibliophilarr",
+    "description": "Bibliophilarr API docs",
     "license": {
       "name": "GPL-3.0",
       "url": "https://github.com/Swartdraak/Bibliophilarr/blob/develop/LICENSE.md"
@@ -1376,7 +1376,7 @@
         }
       }
     },
-    "/feed/v1/calendar/readarr.ics": {
+    "/feed/v1/calendar/bibliophilarr.ics": {
       "get": {
         "tags": [
           "CalendarFeed"

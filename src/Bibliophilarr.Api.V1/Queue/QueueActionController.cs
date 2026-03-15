@@ -1,9 +1,9 @@
 using System.Threading.Tasks;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.Pending;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Queue
 {

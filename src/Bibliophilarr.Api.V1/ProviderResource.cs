@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using NzbDrone.Common.Reflection;
-using NzbDrone.Core.ThingiProvider;
 using Bibliophilarr.Http.ClientSchema;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Common.Reflection;
+using NzbDrone.Core.ThingiProvider;
 
 namespace Bibliophilarr.Api.V1
 {
@@ -38,7 +38,7 @@ namespace Bibliophilarr.Api.V1
                 Tags = definition.Tags,
                 Fields = SchemaBuilder.ToSchema(definition.Settings),
 
-                //readarr/supported is an disambagation page. the # should be a header on the page with appropiate details/link
+                //bibliophilarr/supported is an disambagation page. the # should be a header on the page with appropiate details/link
                 InfoLink = string.Format("https://github.com/Swartdraak/Bibliophilarr/wiki/supported#{0}",
                     definition.Implementation.ToLower())
             };

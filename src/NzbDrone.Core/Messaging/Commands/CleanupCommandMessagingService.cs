@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Messaging.Commands
+namespace NzbDrone.Core.Messaging.Commands
 {
     public class CleanupCommandMessagingService : IExecute<MessagingCleanupCommand>
     {

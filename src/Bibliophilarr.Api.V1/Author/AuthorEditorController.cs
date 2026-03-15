@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Messaging.Commands;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Author
 {

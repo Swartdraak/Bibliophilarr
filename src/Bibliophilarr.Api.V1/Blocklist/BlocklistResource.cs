@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using NzbDrone.Core.CustomFormats;
-using NzbDrone.Core.Indexers;
-using NzbDrone.Core.Qualities;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.CustomFormats;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.CustomFormats;
+using NzbDrone.Core.Indexers;
+using NzbDrone.Core.Qualities;
 
 namespace Bibliophilarr.Api.V1.Blocklist
 {

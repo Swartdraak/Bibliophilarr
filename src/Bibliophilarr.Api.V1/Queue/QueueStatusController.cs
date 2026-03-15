@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.TPL;
 using NzbDrone.Core.Datastore.Events;
@@ -8,8 +10,6 @@ using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Queue;
 using NzbDrone.SignalR;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Queue
 {

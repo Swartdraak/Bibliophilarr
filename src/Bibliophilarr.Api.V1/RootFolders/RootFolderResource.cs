@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http.REST;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
 using NzbDrone.Core.RootFolders;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.RootFolders
 {

@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Organizer
+namespace NzbDrone.Core.Organizer
 {
     public class BasicNamingConfig
     {

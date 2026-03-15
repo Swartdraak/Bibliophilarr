@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using Bibliophilarr.Http.ClientSchema;
 using FluentValidation;
 using FluentValidation.Internal;
-using Bibliophilarr.Http.ClientSchema;
 
 namespace Bibliophilarr.Http.REST
 {

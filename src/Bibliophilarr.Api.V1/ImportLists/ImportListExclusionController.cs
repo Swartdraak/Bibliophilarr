@@ -1,11 +1,11 @@
 using System.Collections.Generic;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.Validation;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.ImportLists
 {

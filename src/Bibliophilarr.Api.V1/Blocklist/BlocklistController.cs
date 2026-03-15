@@ -1,10 +1,10 @@
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Blocklisting;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.Extensions;
 
 namespace Bibliophilarr.Api.V1.Blocklist
 {

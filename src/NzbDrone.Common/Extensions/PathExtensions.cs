@@ -12,8 +12,8 @@ namespace NzbDrone.Common.Extensions
     public static class PathExtensions
     {
         private const string APP_CONFIG_FILE = "config.xml";
-        private const string DB = "readarr.db";
-        private const string DB_RESTORE = "readarr.restore";
+        private const string DB = "bibliophilarr.db";
+        private const string DB_RESTORE = "bibliophilarr.restore";
         private const string LOG_DB = "logs.db";
         private const string CACHE_DB = "cache.db";
         private const string NLOG_CONFIG_FILE = "nlog.config";

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Bibliophilarr.Http.Exceptions
 {

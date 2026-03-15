@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
-using NzbDrone.Core.HealthCheck;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.HealthCheck;
 
 namespace Bibliophilarr.Api.V1.Health
 {

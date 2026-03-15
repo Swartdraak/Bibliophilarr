@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.IO;
+using Bibliophilarr.Http;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Logs
 {

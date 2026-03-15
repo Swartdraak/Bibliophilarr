@@ -283,9 +283,9 @@ namespace NzbDrone.Integration.Test
             return result;
         }
 
-        public void EnsureNoAuthor(string readarrId, string authorTitle)
+        public void EnsureNoAuthor(string bibliophilarrId, string authorTitle)
         {
-            var result = Author.All().FirstOrDefault(v => v.ForeignAuthorId == readarrId);
+            var result = Author.All().FirstOrDefault(v => v.ForeignAuthorId == bibliophilarrId);
 
             if (result != null)
             {

@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.Download.Pending;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Queue;
 using NzbDrone.SignalR;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Queue
 {
@@ -38,7 +38,7 @@ namespace Bibliophilarr.Api.V1.Queue
         }
 
         [HttpGet]
-        public List<QueueResource> GetQueue(int? authorId, [FromQuery]List<int> bookIds, bool includeAuthor = false, bool includeBook = true)
+        public List<QueueResource> GetQueue(int? authorId, [FromQuery] List<int> bookIds, bool includeAuthor = false, bool includeBook = true)
         {
             var queue = _queueService.GetQueue();
             var pending = _pendingReleaseService.GetPendingQueue();

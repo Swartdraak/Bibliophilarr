@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Crypto;
 using NzbDrone.Common.Disk;
@@ -8,8 +10,6 @@ using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Backup;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.System.Backup
 {
@@ -37,14 +37,14 @@ namespace Bibliophilarr.Api.V1.System.Backup
             var backups = _backupService.GetBackups();
 
             return backups.Select(b => new BackupResource
-                {
-                    Id = GetBackupId(b),
-                    Name = b.Name,
-                    Path = $"/backup/{b.Type.ToString().ToLower()}/{b.Name}",
-                    Type = b.Type,
-                    Size = b.Size,
-                    Time = b.Time
-                })
+            {
+                Id = GetBackupId(b),
+                Name = b.Name,
+                Path = $"/backup/{b.Type.ToString().ToLower()}/{b.Name}",
+                Type = b.Type,
+                Size = b.Size,
+                Time = b.Time
+            })
                 .OrderByDescending(b => b.Time)
                 .ToList();
         }
@@ -110,7 +110,7 @@ namespace Bibliophilarr.Api.V1.System.Backup
                 throw new UnsupportedMediaTypeException($"Invalid extension, must be one of: {ValidExtensions.Join(", ")}");
             }
 
-            var path = Path.Combine(_appFolderInfo.TempFolder, $"readarr_backup_restore{extension}");
+            var path = Path.Combine(_appFolderInfo.TempFolder, $"bibliophilarr_backup_restore{extension}");
 
             _diskProvider.SaveStream(file.OpenReadStream(), path);
             _backupService.Restore(path);

@@ -123,7 +123,7 @@ Bibliophilarr/
 │   │   ├── MetadataSource/      # 🎯 Metadata providers (our focus!)
 │   │   ├── Books/               # Book and author models
 │   │   └── ...
-│   ├── Readarr.Api.V1/          # REST API
+│   ├── Bibliophilarr.Api.V1/          # REST API
 │   └── ...
 ├── frontend/                     # React UI
 ├── MIGRATION_PLAN.md            # 📋 Detailed technical plan

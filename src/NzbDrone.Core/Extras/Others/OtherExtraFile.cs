@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.Extras.Files;
+using NzbDrone.Core.Extras.Files;
 
 namespace NzbDrone.Core.Extras.Others
 {

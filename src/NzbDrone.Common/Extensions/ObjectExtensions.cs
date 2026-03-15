@@ -1,4 +1,4 @@
-﻿using NzbDrone.Common.Serializer;
+using NzbDrone.Common.Serializer;
 
 namespace NzbDrone.Common.Extensions
 {

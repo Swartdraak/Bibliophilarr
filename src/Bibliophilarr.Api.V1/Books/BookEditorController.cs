@@ -1,7 +1,7 @@
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Messaging.Commands;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Books
 {

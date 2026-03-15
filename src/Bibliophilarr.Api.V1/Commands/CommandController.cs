@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
+using Bibliophilarr.Http.Validation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Composition;
 using NzbDrone.Common.Serializer;
@@ -13,9 +16,6 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.ProgressMessaging;
 using NzbDrone.Http.REST.Attributes;
 using NzbDrone.SignalR;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
-using Bibliophilarr.Http.Validation;
 
 namespace Bibliophilarr.Api.V1.Commands
 {

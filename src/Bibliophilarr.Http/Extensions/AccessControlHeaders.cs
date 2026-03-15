@@ -1,4 +1,4 @@
-﻿namespace Bibliophilarr.Http.Extensions
+namespace Bibliophilarr.Http.Extensions
 {
     public static class AccessControlHeaders
     {

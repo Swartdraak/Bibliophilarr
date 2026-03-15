@@ -1,11 +1,11 @@
 using System.IO;
 using System.Text.RegularExpressions;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.MediaCovers
 {

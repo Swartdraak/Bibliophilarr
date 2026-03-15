@@ -1,15 +1,15 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http.Extensions;
+using Bibliophilarr.Http.Frontend.Mappers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
-using Bibliophilarr.Http.Extensions;
-using Bibliophilarr.Http.Frontend.Mappers;
 
 namespace Bibliophilarr.Http.Frontend
 {
-    [Authorize(Policy="UI")]
+    [Authorize(Policy = "UI")]
     [ApiController]
     public class StaticResourceController : Controller
     {

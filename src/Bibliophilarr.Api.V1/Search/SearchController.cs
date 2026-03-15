@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Api.V1.Author;
+using Bibliophilarr.Api.V1.Books;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
-using Bibliophilarr.Api.V1.Author;
-using Bibliophilarr.Api.V1.Books;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Search
 {

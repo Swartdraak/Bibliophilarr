@@ -1,11 +1,11 @@
 using System.Collections.Generic;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
+using Bibliophilarr.Http.Validation;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Profiles.Delay;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
-using Bibliophilarr.Http.Validation;
 
 namespace Bibliophilarr.Api.V1.Profiles.Delay
 {

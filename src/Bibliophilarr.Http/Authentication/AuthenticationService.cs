@@ -1,8 +1,8 @@
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Http;
 using NLog;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
-using Bibliophilarr.Http.Extensions;
 
 namespace Bibliophilarr.Http.Authentication
 {

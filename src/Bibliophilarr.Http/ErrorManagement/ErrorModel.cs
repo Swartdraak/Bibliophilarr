@@ -1,8 +1,8 @@
 using System.Net;
 using System.Threading.Tasks;
+using Bibliophilarr.Http.Exceptions;
 using Microsoft.AspNetCore.Http;
 using NzbDrone.Common.Serializer;
-using Bibliophilarr.Http.Exceptions;
 
 namespace Bibliophilarr.Http.ErrorManagement
 {

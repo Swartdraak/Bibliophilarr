@@ -1,4 +1,4 @@
-﻿namespace Bibliophilarr.Http.ClientSchema
+namespace Bibliophilarr.Http.ClientSchema
 {
     public class SelectOption
     {

@@ -107,13 +107,13 @@ gh workflow run "Bibliophilarr npm Publish" \
 | `Bibliophilarr__Postgres__MainDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL main DB key during rename migration. |
 | `Bibliophilarr__Postgres__LogDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL log DB key during rename migration. |
 | `Bibliophilarr__Postgres__CacheDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL cache DB key during rename migration. |
-| `Readarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Keep compatibility prefix during migration; set only for PostgreSQL mode. |
-| `Readarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Default `5432` in PostgreSQL mode. |
-| `Readarr__Postgres__User` | Runtime env var | Optional | app runtime/tests | PostgreSQL user. |
-| `Readarr__Postgres__Password` | Runtime env var | Optional | app runtime/tests | PostgreSQL password. |
-| `Readarr__Postgres__MainDb` | Runtime env var | Optional | app runtime/tests | Main database name. |
-| `Readarr__Postgres__LogDb` | Runtime env var | Optional | app runtime/tests | Log database name. |
-| `Readarr__Postgres__CacheDb` | Runtime env var | Optional | app runtime/tests | Cache database name. |
+| `Bibliophilarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Keep compatibility prefix during migration; set only for PostgreSQL mode. |
+| `Bibliophilarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Default `5432` in PostgreSQL mode. |
+| `Bibliophilarr__Postgres__User` | Runtime env var | Optional | app runtime/tests | PostgreSQL user. |
+| `Bibliophilarr__Postgres__Password` | Runtime env var | Optional | app runtime/tests | PostgreSQL password. |
+| `Bibliophilarr__Postgres__MainDb` | Runtime env var | Optional | app runtime/tests | Main database name. |
+| `Bibliophilarr__Postgres__LogDb` | Runtime env var | Optional | app runtime/tests | Log database name. |
+| `Bibliophilarr__Postgres__CacheDb` | Runtime env var | Optional | app runtime/tests | Cache database name. |
 | `ASPNETCORE_URLS` | Runtime env var | Optional | Docker/local run | Defaults to `http://+:8787` in container flow. |
 | `BIBLIOPHILARR_OWNER` | Runtime env var | Optional | npm launcher | Defaults to `Swartdraak`. |
 | `BIBLIOPHILARR_REPO` | Runtime env var | Optional | npm launcher | Defaults to `Bibliophilarr`. |

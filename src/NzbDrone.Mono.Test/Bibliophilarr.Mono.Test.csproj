@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Mono.Posix.NETStandard" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NzbDrone.Common.Test\Bibliophilarr.Common.Test.csproj" />
+    <ProjectReference Include="..\NzbDrone.Test.Common\Bibliophilarr.Test.Common.csproj" />
+    <ProjectReference Include="..\NzbDrone.Mono\Bibliophilarr.Mono.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Files\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

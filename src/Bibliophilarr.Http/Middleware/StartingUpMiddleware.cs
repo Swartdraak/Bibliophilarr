@@ -1,9 +1,9 @@
 using System.Text;
 using System.Threading.Tasks;
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Http;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Serializer;
-using Bibliophilarr.Http.Extensions;
 
 namespace Bibliophilarr.Http.Middleware
 {
@@ -11,7 +11,7 @@ namespace Bibliophilarr.Http.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly IRuntimeInfo _runtimeInfo;
-        private static readonly string MESSAGE = "Readarr is starting up, please try again later";
+        private static readonly string MESSAGE = "Bibliophilarr is starting up, please try again later";
 
         public StartingUpMiddleware(RequestDelegate next, IRuntimeInfo runtimeInfo)
         {

@@ -1,6 +1,6 @@
 using System;
-using NzbDrone.Core.Instrumentation;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Instrumentation;
 
 namespace Bibliophilarr.Api.V1.Logs
 {

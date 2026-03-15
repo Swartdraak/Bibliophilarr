@@ -1,4 +1,4 @@
-﻿using NzbDrone.Common.Messaging;
+using NzbDrone.Common.Messaging;
 using NzbDrone.Core.Download;
 
 namespace NzbDrone.Core.Indexers

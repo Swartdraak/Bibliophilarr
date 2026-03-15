@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.HealthCheck;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.SignalR;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Health
 {

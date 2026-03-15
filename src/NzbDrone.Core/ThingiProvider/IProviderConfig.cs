@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.Validation;
+using NzbDrone.Core.Validation;
 
 namespace NzbDrone.Core.ThingiProvider
 {

@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Api.V1.Author;
+using Bibliophilarr.Api.V1.Books;
+using Bibliophilarr.Http.REST;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
-using Bibliophilarr.Api.V1.Author;
-using Bibliophilarr.Api.V1.Books;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.ManualImport
 {

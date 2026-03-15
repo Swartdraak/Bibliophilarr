@@ -5,12 +5,12 @@ using System.Data.SQLite;
 using System.Linq;
 using System.Net;
 using System.Threading;
+using global::Sentry;
 using NLog;
 using NLog.Common;
 using NLog.Targets;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
-using Sentry;
 
 namespace NzbDrone.Common.Instrumentation.Sentry
 {

@@ -1,5 +1,7 @@
 using System.IO;
 using System.Threading.Tasks;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.Validation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Internal;
@@ -8,8 +10,6 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Lifecycle;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.Validation;
 
 namespace Bibliophilarr.Api.V1.System
 {

@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
-using NzbDrone.Common.Extensions;
-using NzbDrone.Core.Parser;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http;
+using Microsoft.AspNetCore.Mvc;
+using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Parser;
 
 namespace Bibliophilarr.Api.V1.Parse
 {

@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Profiles.Quality
 {

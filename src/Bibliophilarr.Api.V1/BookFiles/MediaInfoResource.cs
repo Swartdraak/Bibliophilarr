@@ -1,6 +1,6 @@
+using Bibliophilarr.Http.REST;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Parser.Model;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.BookFiles
 {

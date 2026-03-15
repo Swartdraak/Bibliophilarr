@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.AspNetCore.Mvc;
-using NzbDrone.Core.Languages;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.REST;
+using Microsoft.AspNetCore.Mvc;
+using NzbDrone.Core.Languages;
 
 namespace Bibliophilarr.Api.V1.Languages
 {

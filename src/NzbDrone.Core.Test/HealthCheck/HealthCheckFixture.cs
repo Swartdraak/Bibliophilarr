@@ -10,9 +10,9 @@ namespace NzbDrone.Core.Test.HealthCheck
     {
         private const string WikiRoot = "https://wiki.servarr.com/";
 
-        [TestCase("I blew up because of some weird user mistake", null, WikiRoot + "readarr/system#i-blew-up-because-of-some-weird-user-mistake")]
-        [TestCase("I blew up because of some weird user mistake", "#my-health-check", WikiRoot + "readarr/system#my-health-check")]
-        [TestCase("I blew up because of some weird user mistake", "custom-page#my-health-check", WikiRoot + "readarr/custom-page#my-health-check")]
+        [TestCase("I blew up because of some weird user mistake", null, WikiRoot + "bibliophilarr/system#i-blew-up-because-of-some-weird-user-mistake")]
+        [TestCase("I blew up because of some weird user mistake", "#my-health-check", WikiRoot + "bibliophilarr/system#my-health-check")]
+        [TestCase("I blew up because of some weird user mistake", "custom-page#my-health-check", WikiRoot + "bibliophilarr/custom-page#my-health-check")]
         public void should_format_wiki_url(string message, string wikiFragment, string expectedUrl)
         {
             var subject = new NzbDrone.Core.HealthCheck.HealthCheck(typeof(HealthCheckBase), HealthCheckResult.Warning, message, wikiFragment);

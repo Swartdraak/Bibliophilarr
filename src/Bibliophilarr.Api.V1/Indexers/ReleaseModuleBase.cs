@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.DecisionEngine;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Indexers
 {

@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Download
+namespace NzbDrone.Core.Download
 {
     public enum DownloadItemStatus
     {

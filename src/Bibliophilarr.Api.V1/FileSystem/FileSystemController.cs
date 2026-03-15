@@ -1,8 +1,8 @@
 using System.Linq;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.MediaFiles;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.FileSystem
 {

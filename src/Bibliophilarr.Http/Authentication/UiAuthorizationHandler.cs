@@ -1,5 +1,6 @@
 using System.Net;
 using System.Threading.Tasks;
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using NzbDrone.Common.Extensions;
@@ -7,7 +8,6 @@ using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Configuration.Events;
 using NzbDrone.Core.Messaging.Events;
-using Bibliophilarr.Http.Extensions;
 
 namespace NzbDrone.Http.Authentication
 {

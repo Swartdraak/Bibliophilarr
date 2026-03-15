@@ -1,7 +1,7 @@
 using System.Linq;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Books;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Bookshelf
 {

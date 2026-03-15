@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Notifications.Slack.Payloads
+namespace NzbDrone.Core.Notifications.Slack.Payloads
 {
     public class Attachment
     {

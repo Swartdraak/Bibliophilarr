@@ -2,6 +2,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
@@ -11,8 +13,6 @@ using NzbDrone.Core.Update;
 using NzbDrone.Core.Validation;
 using NzbDrone.Core.Validation.Paths;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Config
 {
@@ -39,7 +39,7 @@ namespace Bibliophilarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.Port).ValidPort();
 
             SharedValidator.RuleFor(c => c.UrlBase).ValidUrlBase();
-            SharedValidator.RuleFor(c => c.InstanceName).ContainsReadarr().When(c => c.InstanceName.IsNotNullOrWhiteSpace());
+            SharedValidator.RuleFor(c => c.InstanceName).ContainsBibliophilarr().When(c => c.InstanceName.IsNotNullOrWhiteSpace());
 
             SharedValidator.RuleFor(c => c.Username).NotEmpty().When(c => c.AuthenticationMethod == AuthenticationType.Basic ||
                                                                           c.AuthenticationMethod == AuthenticationType.Forms);

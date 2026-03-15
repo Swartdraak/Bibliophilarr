@@ -46,24 +46,24 @@ namespace NzbDrone.Test.Common
             GenerateConfigFile(enableAuth);
 
             var appName = BuildInfo.AppName;
-            string readarrConsoleExe;
+            string bibliophilarrConsoleExe;
             if (OsInfo.IsWindows)
             {
-                readarrConsoleExe = $"{appName}.Console.exe";
+                bibliophilarrConsoleExe = $"{appName}.Console.exe";
             }
             else
             {
-                readarrConsoleExe = appName;
+                bibliophilarrConsoleExe = appName;
             }
 
             _startupLog = new List<string>();
             if (BuildInfo.IsDebug)
             {
-                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "_output", "net8.0", readarrConsoleExe));
+                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "_output", "net8.0", bibliophilarrConsoleExe));
             }
             else
             {
-                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "bin", readarrConsoleExe));
+                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "bin", bibliophilarrConsoleExe));
             }
 
             while (true)
@@ -132,8 +132,8 @@ namespace NzbDrone.Test.Common
                     _processProvider.Kill(_nzbDroneProcess.Id);
                 }
 
-                _processProvider.KillAll(ProcessProvider.READARR_CONSOLE_PROCESS_NAME);
-                _processProvider.KillAll(ProcessProvider.READARR_PROCESS_NAME);
+                _processProvider.KillAll(ProcessProvider.BIBLIOPHILARR_CONSOLE_PROCESS_NAME);
+                _processProvider.KillAll(ProcessProvider.BIBLIOPHILARR_PROCESS_NAME);
             }
             catch (InvalidOperationException)
             {

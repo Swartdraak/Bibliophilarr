@@ -1,7 +1,7 @@
 using System;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Notifications;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Notifications
 {

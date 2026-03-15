@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Common.Extensions;

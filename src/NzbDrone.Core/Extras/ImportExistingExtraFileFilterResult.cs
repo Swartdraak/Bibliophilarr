@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using NzbDrone.Core.Extras.Files;
 
 namespace NzbDrone.Core.Extras

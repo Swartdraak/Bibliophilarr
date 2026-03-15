@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Books
 {

@@ -123,7 +123,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
-        [Ignore("Pending readarr fix")]
+        [Ignore("Pending bibliophilarr fix")]
         public void should_import_if_existing_file_doesnt_exist_in_db()
         {
             _localTrack.Book = Builder<Book>.CreateNew()

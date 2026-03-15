@@ -280,7 +280,7 @@ namespace NzbDrone.Core.Notifications.CustomScript
         private static void AddScriptVariable(StringDictionary environmentVariables, string key, string value)
         {
             environmentVariables.Add($"Bibliophilarr_{key}", value);
-            environmentVariables.Add($"Readarr_{key}", value);
+            environmentVariables.Add($"Bibliophilarr_{key}", value);
         }
 
         private ProcessOutput ExecuteScript(StringDictionary environmentVariables)

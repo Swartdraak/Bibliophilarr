@@ -24,7 +24,7 @@ import LoadingPage from './LoadingPage';
 import Page from './Page';
 
 function testLocalStorage() {
-  const key = 'readarrTest';
+  const key = 'bibliophilarrTest';
 
   try {
     localStorage.setItem(key, key);

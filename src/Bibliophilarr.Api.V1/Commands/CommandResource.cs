@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
+using Bibliophilarr.Http.REST;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Messaging.Commands;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Commands
 {

@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Datastore.Events;
@@ -6,8 +8,6 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Tags;
 using NzbDrone.Http.REST.Attributes;
 using NzbDrone.SignalR;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Tags
 {

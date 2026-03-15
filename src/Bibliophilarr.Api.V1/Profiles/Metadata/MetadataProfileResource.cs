@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using NzbDrone.Core.Profiles.Metadata;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Profiles.Metadata;
 
 namespace Bibliophilarr.Api.V1.Profiles.Metadata
 {

@@ -100,8 +100,8 @@ namespace NzbDrone.Host
                 c.SwaggerDoc("v1", new OpenApiInfo
                 {
                     Version = "1.0.0",
-                    Title = "Readarr",
-                    Description = "Readarr API docs",
+                    Title = "Bibliophilarr",
+                    Description = "Bibliophilarr API docs",
                     License = new OpenApiLicense
                     {
                         Name = "GPL-3.0",
@@ -210,7 +210,7 @@ namespace NzbDrone.Host
                               IRuntimeInfo runtimeInfo,
                               IFirewallAdapter firewallAdapter,
                               IEventAggregator eventAggregator,
-                              ReadarrErrorPipeline errorHandler)
+                              BibliophilarrErrorPipeline errorHandler)
         {
             initializeLogger.Initialize();
             appFolderFactory.Register();

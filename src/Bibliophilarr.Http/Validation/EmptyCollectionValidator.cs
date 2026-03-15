@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using FluentValidation.Validators;
 using NzbDrone.Common.Extensions;
 

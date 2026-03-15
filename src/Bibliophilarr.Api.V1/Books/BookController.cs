@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Bibliophilarr.Http;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
@@ -18,7 +19,6 @@ using NzbDrone.Core.Validation;
 using NzbDrone.Core.Validation.Paths;
 using NzbDrone.Http.REST.Attributes;
 using NzbDrone.SignalR;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Books
 {
@@ -62,10 +62,10 @@ namespace Bibliophilarr.Api.V1.Books
         }
 
         [HttpGet]
-        public List<BookResource> GetBooks([FromQuery]int? authorId,
-            [FromQuery]List<int> bookIds,
-            [FromQuery]string titleSlug,
-            [FromQuery]bool includeAllAuthorBooks = false)
+        public List<BookResource> GetBooks([FromQuery] int? authorId,
+            [FromQuery] List<int> bookIds,
+            [FromQuery] string titleSlug,
+            [FromQuery] bool includeAllAuthorBooks = false)
         {
             if (!authorId.HasValue && !bookIds.Any() && titleSlug.IsNullOrWhiteSpace())
             {
@@ -181,7 +181,7 @@ namespace Bibliophilarr.Api.V1.Books
         }
 
         [HttpPut("monitor")]
-        public IActionResult SetBooksMonitored([FromBody]BooksMonitoredResource resource)
+        public IActionResult SetBooksMonitored([FromBody] BooksMonitoredResource resource)
         {
             _bookService.SetMonitored(resource.BookIds, resource.Monitored);
 

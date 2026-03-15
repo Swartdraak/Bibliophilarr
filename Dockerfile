@@ -22,8 +22,8 @@ WORKDIR /app
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
     ASPNETCORE_URLS=http://+:8787
 
-COPY --from=build /src/_artifacts/linux-x64/net8.0/Readarr/ /app/
+COPY --from=build /src/_artifacts/linux-x64/net8.0/Bibliophilarr/ /app/
 
 EXPOSE 8787
 
-ENTRYPOINT ["./Readarr"]
+ENTRYPOINT ["./Bibliophilarr"]

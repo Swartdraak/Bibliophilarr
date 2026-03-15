@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using NzbDrone.Core.Update;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Update;
 
 namespace Bibliophilarr.Api.V1.Update
 {

@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http.REST;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Profiles.Delay;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Profiles.Delay
 {

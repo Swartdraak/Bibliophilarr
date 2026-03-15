@@ -38,9 +38,9 @@ namespace NzbDrone.Host
 
         public static readonly List<string> ASSEMBLIES = new List<string>
         {
-            "Readarr.Host",
-            "Readarr.Core",
-            "Readarr.SignalR",
+            "Bibliophilarr.Host",
+            "Bibliophilarr.Core",
+            "Bibliophilarr.SignalR",
             "Bibliophilarr.Api.V1",
             "Bibliophilarr.Http"
         };
@@ -67,62 +67,62 @@ namespace NzbDrone.Host
                 switch (appMode)
                 {
                     case ApplicationModes.Service:
-                    {
-                        Logger.Debug("Service selected");
-
-                        CreateConsoleHostBuilder(args, startupContext).UseWindowsService().Build().Run();
-                        break;
-                    }
-
-                    case ApplicationModes.Interactive:
-                    {
-                        Logger.Debug(trayCallback != null ? "Tray selected" : "Console selected");
-                        var builder = CreateConsoleHostBuilder(args, startupContext);
-
-                        if (trayCallback != null)
                         {
-                            trayCallback(builder);
+                            Logger.Debug("Service selected");
+
+                            CreateConsoleHostBuilder(args, startupContext).UseWindowsService().Build().Run();
+                            break;
                         }
 
-                        builder.Build().Run();
-                        break;
-                    }
+                    case ApplicationModes.Interactive:
+                        {
+                            Logger.Debug(trayCallback != null ? "Tray selected" : "Console selected");
+                            var builder = CreateConsoleHostBuilder(args, startupContext);
+
+                            if (trayCallback != null)
+                            {
+                                trayCallback(builder);
+                            }
+
+                            builder.Build().Run();
+                            break;
+                        }
 
                     // Utility mode
                     default:
-                    {
-                        new HostBuilder()
-                            .UseServiceProviderFactory(new DryIocServiceProviderFactory(new Container(rules => rules.WithNzbDroneRules())))
-                            .ConfigureContainer<IContainer>(c =>
-                            {
-                                c.AutoAddServices(Bootstrap.ASSEMBLIES)
-                                    .AddNzbDroneLogger()
-                                    .AddDatabase()
-                                    .AddStartupContext(startupContext)
-                                    .Resolve<UtilityModeRouter>()
-                                    .Route(appMode);
-                            })
-                            .ConfigureServices(services =>
-                            {
-                                ConfigureOptions<PostgresOptions>(services, config, "Postgres");
-                                ConfigureOptions<AppOptions>(services, config, "App");
-                                ConfigureOptions<AuthOptions>(services, config, "Auth");
-                                ConfigureOptions<ServerOptions>(services, config, "Server");
-                                ConfigureOptions<LogOptions>(services, config, "Log");
-                                ConfigureOptions<UpdateOptions>(services, config, "Update");
-                            }).Build();
+                        {
+                            new HostBuilder()
+                                .UseServiceProviderFactory(new DryIocServiceProviderFactory(new Container(rules => rules.WithNzbDroneRules())))
+                                .ConfigureContainer<IContainer>(c =>
+                                {
+                                    c.AutoAddServices(Bootstrap.ASSEMBLIES)
+                                        .AddNzbDroneLogger()
+                                        .AddDatabase()
+                                        .AddStartupContext(startupContext)
+                                        .Resolve<UtilityModeRouter>()
+                                        .Route(appMode);
+                                })
+                                .ConfigureServices(services =>
+                                {
+                                    ConfigureOptions<PostgresOptions>(services, config, "Postgres");
+                                    ConfigureOptions<AppOptions>(services, config, "App");
+                                    ConfigureOptions<AuthOptions>(services, config, "Auth");
+                                    ConfigureOptions<ServerOptions>(services, config, "Server");
+                                    ConfigureOptions<LogOptions>(services, config, "Log");
+                                    ConfigureOptions<UpdateOptions>(services, config, "Update");
+                                }).Build();
 
-                        break;
-                    }
+                            break;
+                        }
                 }
             }
             catch (InvalidConfigFileException ex)
             {
-                throw new ReadarrStartupException(ex);
+                throw new BibliophilarrStartupException(ex);
             }
             catch (AccessDeniedConfigFileException ex)
             {
-                throw new ReadarrStartupException(ex);
+                throw new BibliophilarrStartupException(ex);
             }
             catch (TerminateApplicationException ex)
             {
@@ -265,7 +265,7 @@ namespace NzbDrone.Host
             {
                 Logger.Error(ex, ex.Message);
 
-                throw new InvalidConfigFileException($"{configPath} is corrupt or invalid. Please delete the config file and Readarr will recreate it.", ex);
+                throw new InvalidConfigFileException($"{configPath} is corrupt or invalid. Please delete the config file and Bibliophilarr will recreate it.", ex);
             }
         }
 
@@ -283,7 +283,7 @@ namespace NzbDrone.Host
         private static void RejectLegacyConfigurationKeys(IConfiguration config)
         {
             var legacyKeys = config.AsEnumerable()
-                .Where(kv => kv.Key.StartsWith("Readarr:", StringComparison.OrdinalIgnoreCase))
+                .Where(kv => kv.Key.StartsWith("Bibliophilarr:", StringComparison.OrdinalIgnoreCase))
                 .Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
                 .Select(kv => kv.Key)
                 .Distinct()
@@ -299,7 +299,7 @@ namespace NzbDrone.Host
 
             Logger.Error("Legacy configuration keys are no longer supported: {0}", keyList);
 
-            throw new ReadarrStartupException($"Legacy configuration keys are no longer supported. Rename to Bibliophilarr:* keys: {keyList}");
+            throw new BibliophilarrStartupException($"Legacy configuration keys are no longer supported. Rename to Bibliophilarr:* keys: {keyList}");
         }
 
         private static X509Certificate2 ValidateSslCertificate(string cert, string password)
@@ -314,11 +314,11 @@ namespace NzbDrone.Host
             {
                 if (ex.HResult == 0x2 || ex.HResult == 0x2006D080)
                 {
-                    throw new ReadarrStartupException(ex,
+                    throw new BibliophilarrStartupException(ex,
                         $"The SSL certificate file {cert} does not exist");
                 }
 
-                throw new ReadarrStartupException(ex);
+                throw new BibliophilarrStartupException(ex);
             }
 
             return certificate;

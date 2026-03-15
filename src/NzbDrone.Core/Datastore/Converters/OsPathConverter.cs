@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data;
 using Dapper;
 using NzbDrone.Common.Disk;
@@ -9,7 +9,7 @@ namespace NzbDrone.Core.Datastore.Converters
     {
         public override void SetValue(IDbDataParameter parameter, OsPath value)
         {
-            parameter.Value =  value.FullPath;
+            parameter.Value = value.FullPath;
         }
 
         public override OsPath Parse(object value)

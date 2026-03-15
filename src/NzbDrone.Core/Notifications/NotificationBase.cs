@@ -22,17 +22,17 @@ namespace NzbDrone.Core.Notifications
         protected const string BOOK_RETAGGED_TITLE = "Book File Tags Updated";
         protected const string APPLICATION_UPDATE_TITLE = "Application Updated";
 
-        protected const string BOOK_GRABBED_TITLE_BRANDED = "Readarr - " + BOOK_GRABBED_TITLE;
-        protected const string BOOK_DOWNLOADED_TITLE_BRANDED = "Readarr - " + BOOK_DOWNLOADED_TITLE;
-        protected const string AUTHOR_ADDED_TITLE_BRANDED = "Readarr - " + AUTHOR_ADDED_TITLE;
-        protected const string AUTHOR_DELETED_TITlE_BRANDED = "Readarr - " + AUTHOR_DELETED_TITLE;
-        protected const string BOOK_DELETED_TITLE_BRANDED = "Readarr - " + BOOK_DELETED_TITLE;
-        protected const string BOOK_FILE_DELETED_TITLE_BRANDED = "Readarr - " + BOOK_FILE_DELETED_TITLE;
-        protected const string HEALTH_ISSUE_TITLE_BRANDED = "Readarr - " + HEALTH_ISSUE_TITLE;
-        protected const string DOWNLOAD_FAILURE_TITLE_BRANDED = "Readarr - " + DOWNLOAD_FAILURE_TITLE;
-        protected const string IMPORT_FAILURE_TITLE_BRANDED = "Readarr - " + IMPORT_FAILURE_TITLE;
-        protected const string BOOK_RETAGGED_TITLE_BRANDED = "Readarr - " + BOOK_RETAGGED_TITLE;
-        protected const string APPLICATION_UPDATE_TITLE_BRANDED = "Readarr - " + APPLICATION_UPDATE_TITLE;
+        protected const string BOOK_GRABBED_TITLE_BRANDED = "Bibliophilarr - " + BOOK_GRABBED_TITLE;
+        protected const string BOOK_DOWNLOADED_TITLE_BRANDED = "Bibliophilarr - " + BOOK_DOWNLOADED_TITLE;
+        protected const string AUTHOR_ADDED_TITLE_BRANDED = "Bibliophilarr - " + AUTHOR_ADDED_TITLE;
+        protected const string AUTHOR_DELETED_TITlE_BRANDED = "Bibliophilarr - " + AUTHOR_DELETED_TITLE;
+        protected const string BOOK_DELETED_TITLE_BRANDED = "Bibliophilarr - " + BOOK_DELETED_TITLE;
+        protected const string BOOK_FILE_DELETED_TITLE_BRANDED = "Bibliophilarr - " + BOOK_FILE_DELETED_TITLE;
+        protected const string HEALTH_ISSUE_TITLE_BRANDED = "Bibliophilarr - " + HEALTH_ISSUE_TITLE;
+        protected const string DOWNLOAD_FAILURE_TITLE_BRANDED = "Bibliophilarr - " + DOWNLOAD_FAILURE_TITLE;
+        protected const string IMPORT_FAILURE_TITLE_BRANDED = "Bibliophilarr - " + IMPORT_FAILURE_TITLE;
+        protected const string BOOK_RETAGGED_TITLE_BRANDED = "Bibliophilarr - " + BOOK_RETAGGED_TITLE;
+        protected const string APPLICATION_UPDATE_TITLE_BRANDED = "Bibliophilarr - " + APPLICATION_UPDATE_TITLE;
 
         public abstract string Name { get; }
 

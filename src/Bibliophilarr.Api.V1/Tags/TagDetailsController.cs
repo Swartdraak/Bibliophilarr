@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using Microsoft.AspNetCore.Mvc;
-using NzbDrone.Core.Tags;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.REST;
+using Microsoft.AspNetCore.Mvc;
+using NzbDrone.Core.Tags;
 
 namespace Bibliophilarr.Api.V1.Tags
 {

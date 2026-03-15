@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
-using NzbDrone.Core.Tags;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Tags;
 
 namespace Bibliophilarr.Api.V1.Tags
 {

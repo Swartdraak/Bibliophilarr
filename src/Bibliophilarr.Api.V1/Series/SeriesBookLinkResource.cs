@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using NzbDrone.Core.Books;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Books;
 
 namespace Bibliophilarr.Api.V1.Series
 {

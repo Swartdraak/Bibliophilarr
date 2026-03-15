@@ -1,13 +1,13 @@
 using System.Linq;
 using System.Reflection;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Validation;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.REST;
 
 namespace Prowlarr.Api.V1.Config
 {

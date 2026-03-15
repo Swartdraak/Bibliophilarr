@@ -27,7 +27,7 @@ namespace NzbDrone.Common.EnvironmentInfo
             if (entry != null)
             {
                 ExecutingApplication = entry.FileName;
-                IsWindowsTray = OsInfo.IsWindows && entry.ModuleName == $"{ProcessProvider.READARR_PROCESS_NAME}.exe";
+                IsWindowsTray = OsInfo.IsWindows && entry.ModuleName == $"{ProcessProvider.BIBLIOPHILARR_PROCESS_NAME}.exe";
             }
         }
 
@@ -90,7 +90,7 @@ namespace NzbDrone.Common.EnvironmentInfo
             {
                 if (OsInfo.IsWindows)
                 {
-                    return IsUserInteractive && Process.GetCurrentProcess().ProcessName.Equals(ProcessProvider.READARR_PROCESS_NAME, StringComparison.InvariantCultureIgnoreCase);
+                    return IsUserInteractive && Process.GetCurrentProcess().ProcessName.Equals(ProcessProvider.BIBLIOPHILARR_PROCESS_NAME, StringComparison.InvariantCultureIgnoreCase);
                 }
 
                 return false;

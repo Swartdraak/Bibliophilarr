@@ -8,7 +8,7 @@ namespace NzbDrone.Core.Indexers.Newznab
     {
         public static List<FieldSelectOption> GetFieldSelectOptions(List<NewznabCategory> categories)
         {
-            // Ignore categories not relevant for Readarr
+            // Ignore categories not relevant for Bibliophilarr
             var ignoreCategories = new[] { 1000, 2000, 4000, 5000, 6000 };
 
             // And maybe relevant for specific users

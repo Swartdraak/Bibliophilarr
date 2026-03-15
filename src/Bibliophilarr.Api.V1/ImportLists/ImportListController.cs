@@ -1,7 +1,7 @@
+using Bibliophilarr.Http;
 using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.Validation;
 using NzbDrone.Core.Validation.Paths;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.ImportLists
 {

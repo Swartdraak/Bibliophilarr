@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Api.V1.Author;
+using Bibliophilarr.Http.REST;
 using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.SignalR;
-using Bibliophilarr.Api.V1.Author;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Books
 {

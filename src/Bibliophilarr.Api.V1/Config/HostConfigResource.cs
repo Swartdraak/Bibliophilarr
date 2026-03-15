@@ -1,9 +1,9 @@
+using Bibliophilarr.Http.REST;
 using NzbDrone.Common.Http.Proxy;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Security;
 using NzbDrone.Core.Update;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Config
 {

@@ -43,7 +43,7 @@ namespace NzbDrone.Core.Download.Clients.Aria2
 
         public NzbDroneValidationResult Validate()
         {
-                return new NzbDroneValidationResult(Validator.Validate(this));
-            }
+            return new NzbDroneValidationResult(Validator.Validate(this));
+        }
     }
 }

@@ -1,3 +1,6 @@
+using Bibliophilarr.Api.V1.Books;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
@@ -5,9 +8,6 @@ using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.SignalR;
-using Bibliophilarr.Api.V1.Books;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.Extensions;
 
 namespace Bibliophilarr.Api.V1.Wanted
 {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http.Validation;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +9,6 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http.Validation;
 
 namespace Bibliophilarr.Http.REST
 {

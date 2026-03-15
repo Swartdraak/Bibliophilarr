@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using NzbDrone.Core.CustomFormats;
 using Bibliophilarr.Http.ClientSchema;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.CustomFormats;
 
 namespace Bibliophilarr.Api.V1.CustomFormats
 {

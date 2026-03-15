@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Common.Http
+namespace NzbDrone.Common.Http
 {
     public sealed class HttpAccept
     {

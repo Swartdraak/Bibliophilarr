@@ -1,8 +1,8 @@
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Instrumentation;
-using Bibliophilarr.Http;
-using Bibliophilarr.Http.Extensions;
 
 namespace Bibliophilarr.Api.V1.Logs
 {

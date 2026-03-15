@@ -2,11 +2,11 @@ using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Bibliophilarr.Http.ErrorManagement;
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Http;
 using NLog;
 using NzbDrone.Common.Extensions;
-using Bibliophilarr.Http.ErrorManagement;
-using Bibliophilarr.Http.Extensions;
 
 namespace Bibliophilarr.Http.Middleware
 {
@@ -16,11 +16,11 @@ namespace Bibliophilarr.Http.Middleware
         private static readonly Logger _loggerApi = LogManager.GetLogger("Api");
         private static int _requestSequenceID;
 
-        private readonly ReadarrErrorPipeline _errorHandler;
+        private readonly BibliophilarrErrorPipeline _errorHandler;
         private readonly RequestDelegate _next;
 
         public LoggingMiddleware(RequestDelegate next,
-            ReadarrErrorPipeline errorHandler)
+            BibliophilarrErrorPipeline errorHandler)
         {
             _next = next;
             _errorHandler = errorHandler;

@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Update;
 using NzbDrone.Core.Update.History;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Update
 {

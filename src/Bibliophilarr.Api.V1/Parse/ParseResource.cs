@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using NzbDrone.Core.Parser.Model;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Parser.Model;
 
 namespace Bibliophilarr.Api.V1.Parse
 {

@@ -1,7 +1,7 @@
-using FluentValidation;
-using NzbDrone.Core.Configuration;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.Validation;
+using FluentValidation;
+using NzbDrone.Core.Configuration;
 
 namespace Bibliophilarr.Api.V1.Config
 {

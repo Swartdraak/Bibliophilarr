@@ -1,5 +1,5 @@
-using NzbDrone.Core.Configuration;
 using Bibliophilarr.Http;
+using NzbDrone.Core.Configuration;
 
 namespace Bibliophilarr.Api.V1.Config
 {

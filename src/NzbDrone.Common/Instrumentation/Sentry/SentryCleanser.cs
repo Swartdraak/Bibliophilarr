@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using Sentry;
+using global::Sentry;
 
 namespace NzbDrone.Common.Instrumentation.Sentry
 {

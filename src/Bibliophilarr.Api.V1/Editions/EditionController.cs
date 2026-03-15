@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using Microsoft.AspNetCore.Mvc;
-using NzbDrone.Core.Books;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http;
+using Microsoft.AspNetCore.Mvc;
+using NzbDrone.Core.Books;
 
 namespace NzbDrone.Api.V1.Editions
 {
@@ -17,7 +17,7 @@ namespace NzbDrone.Api.V1.Editions
         }
 
         [HttpGet]
-        public List<EditionResource> GetEditions([FromQuery]List<int> bookId)
+        public List<EditionResource> GetEditions([FromQuery] List<int> bookId)
         {
             var editions = _editionService.GetEditionsByBook(bookId);
 

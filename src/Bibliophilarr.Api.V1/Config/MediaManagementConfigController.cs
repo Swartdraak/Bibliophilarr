@@ -1,9 +1,9 @@
+using Bibliophilarr.Http;
 using FluentValidation;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Validation;
 using NzbDrone.Core.Validation.Paths;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Config
 {

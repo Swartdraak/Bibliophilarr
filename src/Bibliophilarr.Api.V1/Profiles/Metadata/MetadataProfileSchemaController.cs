@@ -1,6 +1,6 @@
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Profiles.Metadata;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Profiles.Metadata
 {

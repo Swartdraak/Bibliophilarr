@@ -1,11 +1,11 @@
 using System.Linq;
 using System.Reflection;
+using Bibliophilarr.Http;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Languages;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Config
 {

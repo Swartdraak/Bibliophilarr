@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,6 @@ using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Parser.Model;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Indexers
 {

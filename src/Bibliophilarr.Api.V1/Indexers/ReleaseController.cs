@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Bibliophilarr.Http;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
@@ -15,7 +16,6 @@ using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Validation;
-using Bibliophilarr.Http;
 using HttpStatusCode = System.Net.HttpStatusCode;
 
 namespace Bibliophilarr.Api.V1.Indexers

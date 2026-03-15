@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO.Compression;
 using System.Threading.Tasks;
 using System.Xml.Linq;

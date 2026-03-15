@@ -1,7 +1,7 @@
+using Bibliophilarr.Http.REST;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Qualities;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Config
 {

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.DiskSpace;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.DiskSpace
 {

@@ -4,9 +4,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bibliophilarr.Http\Bibliophilarr.Http.csproj" />
-    <ProjectReference Include="..\NzbDrone.Common\Readarr.Common.csproj" />
-    <ProjectReference Include="..\NzbDrone.Core\Readarr.Core.csproj" />
-    <ProjectReference Include="..\NzbDrone.SignalR\Readarr.SignalR.csproj" />
+    <ProjectReference Include="..\NzbDrone.Common\Bibliophilarr.Common.csproj" />
+    <ProjectReference Include="..\NzbDrone.Core\Bibliophilarr.Core.csproj" />
+    <ProjectReference Include="..\NzbDrone.SignalR\Bibliophilarr.SignalR.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FluentValidation" />

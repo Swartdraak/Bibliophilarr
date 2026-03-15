@@ -18,7 +18,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Setup(s => s.MetadataSource)
                 .Returns("");
 
-            Mocker.GetMock<IReadarrCloudRequestBuilder>()
+            Mocker.GetMock<IBibliophilarrCloudRequestBuilder>()
                 .Setup(s => s.Metadata)
                 .Returns(new HttpRequestBuilder("https://api.bookinfo.club/v1/{route}").CreateFactory());
         }
@@ -27,7 +27,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         {
             Mocker.GetMock<IConfigService>()
                 .Setup(s => s.MetadataSource)
-                .Returns("http://api.readarr.com/api/testing/");
+                .Returns("http://api.bibliophilarr.com/api/testing/");
         }
 
         [TestCase]

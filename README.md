@@ -2,7 +2,7 @@
 
 ## 🎉 Announcement: Project Revival & Active Development
 
-**Bibliophilarr** is a community-driven continuation inspired by the original Readarr effort, focused on sustainable metadata and long-term maintainability. We are actively improving the project by migrating away from proprietary metadata sources to fully open-source alternatives.
+**Bibliophilarr** is a community-driven continuation inspired by the original Bibliophilarr effort, focused on sustainable metadata and long-term maintainability. We are actively improving the project by migrating away from proprietary metadata sources to fully open-source alternatives.
 
 ### What's Different?
 
@@ -23,7 +23,7 @@ We are currently developing a comprehensive migration plan to replace Goodreads 
 
 ### Project Lineage
 
-Bibliophilarr acknowledges and respects the original Readarr contributors. This project now follows its own roadmap, automation, and release process under the Bibliophilarr repository.
+Bibliophilarr acknowledges and respects the original Bibliophilarr contributors. This project now follows its own roadmap, automation, and release process under the Bibliophilarr repository.
 
 ---
 

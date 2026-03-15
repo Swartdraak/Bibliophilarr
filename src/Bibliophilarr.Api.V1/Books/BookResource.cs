@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Api.V1.Author;
+using Bibliophilarr.Http.REST;
 using Newtonsoft.Json;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
-using Bibliophilarr.Api.V1.Author;
-using Bibliophilarr.Http.REST;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Bibliophilarr.Api.V1.Books

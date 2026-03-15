@@ -1,6 +1,6 @@
 using System;
-using NzbDrone.Core.Datastore.Events;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Datastore.Events;
 
 namespace Bibliophilarr.Http
 {

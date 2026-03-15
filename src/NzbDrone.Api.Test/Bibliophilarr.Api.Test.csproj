@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NBuilder" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NzbDrone.Core\Bibliophilarr.Core.csproj" />
+    <ProjectReference Include="..\NzbDrone.Test.Common\Bibliophilarr.Test.Common.csproj" />
+    <ProjectReference Include="..\Bibliophilarr.Http\Bibliophilarr.Http.csproj" />
+  </ItemGroup>
+</Project>

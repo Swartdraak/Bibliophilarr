@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using FluentAssertions;
 using Mono.Unix;
 using NUnit.Framework;

@@ -72,7 +72,7 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
                 .With(e => e.Part = 1)
                 .With(e => e.PartCount = 1)
                 .With(e => e.Quality = new QualityModel(Quality.MP3))
-                .With(e => e.ReleaseGroup = "ReadarrTest")
+                .With(e => e.ReleaseGroup = "BibliophilarrTest")
                 .With(e => e.MediaInfo = new Parser.Model.MediaInfoModel
                 {
                     AudioBitrate = 320,
@@ -624,19 +624,19 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
         }
 
         [Test]
-        public void should_use_Readarr_as_release_group_when_not_available()
+        public void should_use_Bibliophilarr_as_release_group_when_not_available()
         {
             _trackFile.ReleaseGroup = null;
             _namingConfig.StandardBookFormat = "{Release Group}";
 
             Subject.BuildBookFileName(_author, _edition, _trackFile)
-                   .Should().Be("Readarr");
+                   .Should().Be("Bibliophilarr");
         }
 
         [TestCase("{Book Title}{-Release Group}", "Hybrid Theory")]
         [TestCase("{Book Title}{ Release Group}", "Hybrid Theory")]
         [TestCase("{Book Title}{ [Release Group]}", "Hybrid Theory")]
-        public void should_not_use_Readarr_as_release_group_if_pattern_has_separator(string pattern, string expectedFileName)
+        public void should_not_use_Bibliophilarr_as_release_group_if_pattern_has_separator(string pattern, string expectedFileName)
         {
             _trackFile.ReleaseGroup = null;
             _namingConfig.StandardBookFormat = pattern;

@@ -2,7 +2,7 @@
 
 ## Mission Context
 
-Bibliophilarr is a community-driven fork of Readarr focused on replacing fragile/proprietary metadata dependencies with sustainable FOSS providers (especially Open Library and Inventaire), while preserving reliability for ebook/audiobook library management.
+Bibliophilarr is a community-driven fork of Bibliophilarr focused on replacing fragile/proprietary metadata dependencies with sustainable FOSS providers (especially Open Library and Inventaire), while preserving reliability for ebook/audiobook library management.
 
 When generating plans, code, tests, or docs:
 

@@ -1,8 +1,8 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.StaticFiles;
-using Bibliophilarr.Http.Extensions;
 
 namespace Bibliophilarr.Http.Middleware
 {

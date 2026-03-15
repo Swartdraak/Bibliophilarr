@@ -298,7 +298,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
                 catch (HttpException ex)
                 {
                     _logger.Warn(ex);
-                    throw new BookInfoException("Search for '{0}' failed. Unable to communicate with ReadarrAPI, returning status code: {1}.", ex, query, ex.Response.StatusCode);
+                    throw new BookInfoException("Search for '{0}' failed. Unable to communicate with BibliophilarrAPI, returning status code: {1}.", ex, query, ex.Response.StatusCode);
                 }
                 catch (Exception e)
                 {

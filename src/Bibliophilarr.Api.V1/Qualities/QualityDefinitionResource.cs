@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
-using NzbDrone.Core.Qualities;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Qualities;
 
 namespace Bibliophilarr.Api.V1.Qualities
 {

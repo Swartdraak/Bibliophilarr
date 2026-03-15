@@ -7,7 +7,7 @@ This file proposes both **GitHub repository topics** and **issue/PR labels** tai
 Use up to 20 highly discoverable topics:
 
 - `bibliophilarr`
-- `readarr-fork`
+- `bibliophilarr-fork`
 - `book-management`
 - `audiobook-management`
 - `metadata`

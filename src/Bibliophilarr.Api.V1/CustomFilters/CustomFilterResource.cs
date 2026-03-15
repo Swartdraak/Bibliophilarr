@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
+using Bibliophilarr.Http.REST;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.CustomFilters;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.CustomFilters
 {

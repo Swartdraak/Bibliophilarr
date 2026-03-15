@@ -91,7 +91,7 @@ $hoverScale: 1.05;
   left: 10px;
   z-index: 3;
   border-radius: 4px;
-  background-color: var(--readarrRed);
+  background-color: var(--bibliophilarrRed);
   color: var(--white);
   font-size: $smallFontSize;
   opacity: 0;

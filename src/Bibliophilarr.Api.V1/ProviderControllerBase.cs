@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http.REST;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +9,6 @@ using NzbDrone.Common.Serializer;
 using NzbDrone.Core.ThingiProvider;
 using NzbDrone.Core.Validation;
 using NzbDrone.Http.REST.Attributes;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1
 {

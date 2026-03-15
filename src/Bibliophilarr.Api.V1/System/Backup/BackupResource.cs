@@ -1,6 +1,6 @@
 using System;
-using NzbDrone.Core.Backup;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Backup;
 
 namespace Bibliophilarr.Api.V1.System.Backup
 {

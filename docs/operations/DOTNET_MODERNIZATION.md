@@ -166,11 +166,11 @@ dotnet add package SixLabors.ImageSharp --version X.Y.Z
 
 # Build the solution
 cd src
-dotnet restore Readarr.sln
-dotnet build Readarr.sln --configuration Release
+dotnet restore Bibliophilarr.sln
+dotnet build Bibliophilarr.sln --configuration Release
 
 # Run tests
-dotnet test Readarr.sln --configuration Release
+dotnet test Bibliophilarr.sln --configuration Release
 ```
 
 ### Risk Assessment

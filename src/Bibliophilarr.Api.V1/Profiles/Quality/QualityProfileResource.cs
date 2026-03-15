@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http.REST;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Profiles;
 using NzbDrone.Core.Profiles.Qualities;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.Profiles.Quality
 {

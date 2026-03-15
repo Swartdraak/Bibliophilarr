@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.HealthCheck;
+using NzbDrone.Core.HealthCheck;
 
 namespace NzbDrone.Core.Notifications.Webhook
 {

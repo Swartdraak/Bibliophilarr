@@ -14,9 +14,9 @@ namespace NzbDrone.Core.MetadataSource
     {
         private readonly IConfigService _configService;
 
-        private readonly IReadarrCloudRequestBuilder _defaultRequestFactory;
+        private readonly IBibliophilarrCloudRequestBuilder _defaultRequestFactory;
 
-        public MetadataRequestBuilder(IConfigService configService, IReadarrCloudRequestBuilder defaultRequestBuilder)
+        public MetadataRequestBuilder(IConfigService configService, IBibliophilarrCloudRequestBuilder defaultRequestBuilder)
         {
             _configService = configService;
             _defaultRequestFactory = defaultRequestBuilder;

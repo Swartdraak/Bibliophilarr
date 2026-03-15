@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using NzbDrone.Core.ImportLists.Exclusions;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.ImportLists.Exclusions;
 
 namespace Bibliophilarr.Api.V1.ImportLists
 {

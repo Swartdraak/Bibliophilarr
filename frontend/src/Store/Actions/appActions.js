@@ -36,7 +36,7 @@ export const defaultState = {
   messages: {
     items: []
   },
-  version: window.Readarr.version,
+  version: window.Bibliophilarr.version,
   isUpdated: false,
   isConnected: true,
   isReconnecting: false,

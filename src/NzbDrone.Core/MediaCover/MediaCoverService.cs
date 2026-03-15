@@ -87,7 +87,7 @@ namespace NzbDrone.Core.MediaCover
         {
             if (entityId == 0)
             {
-                // Author isn't in Readarr yet, map via a proxy to circument referrer issues
+                // Author isn't in Bibliophilarr yet, map via a proxy to circument referrer issues
                 foreach (var mediaCover in covers)
                 {
                     mediaCover.RemoteUrl = mediaCover.Url;

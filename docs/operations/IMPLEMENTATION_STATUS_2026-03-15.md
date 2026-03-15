@@ -4,10 +4,10 @@
 
 This checkpoint completed the requested automation and release foundation work:
 
-1. Upstream Readarr audit and gap map
+1. Upstream Bibliophilarr audit and gap map
 2. Branch schema and branch bootstrap automation
 3. External repo decoupling actions in local git and core operational links
-4. Readarr-to-Bibliophilarr rename pass in ops/docs/workflow/user-facing surfaces
+4. Bibliophilarr-to-Bibliophilarr rename pass in ops/docs/workflow/user-facing surfaces
 5. GitHub Actions release workflow set
 6. Docker production image and publish workflow
 7. npm launcher distribution strategy and package scaffold
@@ -16,7 +16,7 @@ This checkpoint completed the requested automation and release foundation work:
 
 A structured upstream audit was created outside this repository to avoid accidental commit:
 
-- `/home/swartdraak/local-audits/bibliophilarr/2026-03-14-upstream-readarr-audit.md`
+- `/home/swartdraak/local-audits/bibliophilarr/2026-03-14-upstream-bibliophilarr-audit.md`
 
 ## Key implementation artifacts
 
@@ -32,7 +32,7 @@ A structured upstream audit was created outside this repository to avoid acciden
 
 ## Validation outcomes
 
-- Backend build: successful (`dotnet msbuild -restore src/Readarr.sln ...`)
+- Backend build: successful (`dotnet msbuild -restore src/Bibliophilarr.sln ...`)
 - Frontend build: successful (`yarn build`)
 - Workflow YAML lint: successful (custom GitHub-friendly yamllint config)
 - npm launcher package: successful (`npm pack` in `npm/bibliophilarr-launcher`)
@@ -41,12 +41,12 @@ A structured upstream audit was created outside this repository to avoid acciden
 
 ## Notes on naming and dependencies
 
-- Internal assembly/solution/project names remain `Readarr*` where required for build/runtime compatibility.
+- Internal assembly/solution/project names remain `Bibliophilarr*` where required for build/runtime compatibility.
 - User-facing and operational references were moved toward Bibliophilarr-owned resources.
 - Runtime dependency on Servarr-specific package feeds was removed by switching to upstream packages and applying database-aware migration compatibility fixes.
 
 ## Remaining follow-up candidates
 
-- Full C# namespace/project rename from `Readarr` to `Bibliophilarr` as a staged migration.
+- Full C# namespace/project rename from `Bibliophilarr` to `Bibliophilarr` as a staged migration.
 - Replace remaining legacy/archival references in non-critical historical files if desired.
 - Add release signing/notarization for macOS and Windows installer artifacts.

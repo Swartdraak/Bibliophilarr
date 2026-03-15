@@ -1,10 +1,10 @@
 using System;
 using System.Linq;
+using Bibliophilarr.Http.REST;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
-using Bibliophilarr.Http.REST;
 
 namespace Bibliophilarr.Api.V1.BookFiles
 {

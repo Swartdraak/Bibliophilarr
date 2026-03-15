@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.Download;
+using NzbDrone.Core.Download;
 using NzbDrone.Core.Indexers;
 
 namespace Bibliophilarr.Api.V1.DownloadClient

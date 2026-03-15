@@ -4,7 +4,7 @@ TYPE=$2
 COVERAGE=$3
 WHERE="Category!=ManualTest"
 TEST_PATTERN="*Test.dll"
-FILES=( "Readarr.Api.Test.dll" "Readarr.Automation.Test.dll" "Readarr.Common.Test.dll" "Readarr.Core.Test.dll" "Readarr.Host.Test.dll" "Readarr.Integration.Test.dll" "Readarr.Libraries.Test.dll" "Readarr.Mono.Test.dll" "Readarr.Update.Test.dll" "Readarr.Windows.Test.dll" )
+FILES=( "Bibliophilarr.Api.Test.dll" "Bibliophilarr.Automation.Test.dll" "Bibliophilarr.Common.Test.dll" "Bibliophilarr.Core.Test.dll" "Bibliophilarr.Host.Test.dll" "Bibliophilarr.Integration.Test.dll" "Bibliophilarr.Libraries.Test.dll" "Bibliophilarr.Mono.Test.dll" "Bibliophilarr.Update.Test.dll" "Bibliophilarr.Windows.Test.dll" )
 ASSMEBLIES=""
 TEST_LOG_FILE="TestLog.txt"
 
@@ -20,7 +20,7 @@ fi
 rm -f "$TEST_LOG_FILE"
 
 # Uncomment to log test output to a file instead of the console
-export READARR_TESTS_LOG_OUTPUT="File"
+export BIBLIOPHILARR_TESTS_LOG_OUTPUT="File"
 
 VSTEST_PARAMS="--logger:nunit;LogFilePath=TestResult.xml"
 
@@ -35,10 +35,10 @@ if [ "$PLATFORM" = "Mac" ]; then
 fi
 
 if [ "$PLATFORM" = "Windows" ]; then
-  mkdir -p "$ProgramData/Readarr"
+  mkdir -p "$ProgramData/Bibliophilarr"
   WHERE="$WHERE&Category!=LINUX"
 elif [ "$PLATFORM" = "Linux" ] || [ "$PLATFORM" = "Mac" ] ; then
-  mkdir -p ~/.config/Readarr
+  mkdir -p ~/.config/Bibliophilarr
   WHERE="$WHERE&Category!=WINDOWS"
 else
   echo "Platform must be provided as first arguement: Windows, Linux or Mac"

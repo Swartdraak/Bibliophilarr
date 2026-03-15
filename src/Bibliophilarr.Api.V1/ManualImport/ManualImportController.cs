@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
 using NzbDrone.Core.Qualities;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.ManualImport
 {

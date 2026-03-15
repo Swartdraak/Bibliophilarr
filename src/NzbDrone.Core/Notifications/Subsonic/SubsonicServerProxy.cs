@@ -85,7 +85,7 @@ namespace NzbDrone.Core.Notifications.Subsonic
             {
                 client.AddQueryParam("u", settings.Username)
                       .AddQueryParam("p", settings.Password)
-                      .AddQueryParam("c", "Readarr")
+                      .AddQueryParam("c", "Bibliophilarr")
                       .AddQueryParam("v", "1.15.0");
             }
 

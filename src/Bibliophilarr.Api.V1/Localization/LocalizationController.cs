@@ -1,8 +1,8 @@
 using System.Text.Json;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Localization;
-using Bibliophilarr.Http;
 
 namespace Bibliophilarr.Api.V1.Localization
 {

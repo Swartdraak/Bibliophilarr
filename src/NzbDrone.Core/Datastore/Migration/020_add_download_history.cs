@@ -85,7 +85,7 @@ namespace NzbDrone.Core.Datastore.Migration
                         using (var updateCmd = conn.CreateCommand())
                         {
                             updateCmd.Transaction = tran;
-                            if (conn.GetType().FullName ==  "Npgsql.NpgsqlConnection")
+                            if (conn.GetType().FullName == "Npgsql.NpgsqlConnection")
                             {
                                 updateCmd.CommandText = @"INSERT INTO ""DownloadHistory"" (""EventType"", ""AuthorId"", ""DownloadId"", ""SourceTitle"", ""Date"", ""Protocol"", ""Data"") VALUES ($1, $2, $3, $4, $5, $6, $7)";
                             }

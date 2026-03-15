@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using NzbDrone.Common.Exceptions;
 
 namespace NzbDrone.Core.Exceptions

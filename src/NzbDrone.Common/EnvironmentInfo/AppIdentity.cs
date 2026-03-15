@@ -6,7 +6,7 @@ namespace NzbDrone.Common.EnvironmentInfo
     {
         public static string InternalName { get; } =
             string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("APP_INTERNAL_NAME"))
-                ? "Readarr"
+                ? "Bibliophilarr"
                 : Environment.GetEnvironmentVariable("APP_INTERNAL_NAME");
 
         public static string DisplayName { get; } =
