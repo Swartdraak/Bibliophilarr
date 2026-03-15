@@ -48,7 +48,8 @@ namespace NzbDrone.Host
         {
             try
             {
-                Logger.Info("Starting Readarr - {0} - Version {1}",
+                Logger.Info("Starting {0} - {1} - Version {2}",
+                            BuildInfo.AppName,
                             Environment.ProcessPath,
                             Assembly.GetExecutingAssembly().GetName().Version);
 

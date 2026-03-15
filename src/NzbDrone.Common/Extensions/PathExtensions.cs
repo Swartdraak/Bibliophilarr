@@ -17,13 +17,13 @@ namespace NzbDrone.Common.Extensions
         private const string LOG_DB = "logs.db";
         private const string CACHE_DB = "cache.db";
         private const string NLOG_CONFIG_FILE = "nlog.config";
-        private const string UPDATE_CLIENT_EXE_NAME = "Readarr.Update";
+        private static readonly string UPDATE_CLIENT_EXE_NAME = AppIdentity.UpdateProcessName;
 
-        private static readonly string UPDATE_SANDBOX_FOLDER_NAME = "readarr_update" + Path.DirectorySeparatorChar;
-        private static readonly string UPDATE_PACKAGE_FOLDER_NAME = "Readarr" + Path.DirectorySeparatorChar;
-        private static readonly string UPDATE_BACKUP_FOLDER_NAME = "readarr_backup" + Path.DirectorySeparatorChar;
-        private static readonly string UPDATE_BACKUP_APPDATA_FOLDER_NAME = "readarr_appdata_backup" + Path.DirectorySeparatorChar;
-        private static readonly string UPDATE_CLIENT_FOLDER_NAME = "Readarr.Update" + Path.DirectorySeparatorChar;
+        private static readonly string UPDATE_SANDBOX_FOLDER_NAME = AppIdentity.UpdateSandboxFolderName + Path.DirectorySeparatorChar;
+        private static readonly string UPDATE_PACKAGE_FOLDER_NAME = AppIdentity.UpdatePackageFolderName + Path.DirectorySeparatorChar;
+        private static readonly string UPDATE_BACKUP_FOLDER_NAME = AppIdentity.UpdateBackupFolderName + Path.DirectorySeparatorChar;
+        private static readonly string UPDATE_BACKUP_APPDATA_FOLDER_NAME = AppIdentity.UpdateBackupAppDataFolderName + Path.DirectorySeparatorChar;
+        private static readonly string UPDATE_CLIENT_FOLDER_NAME = AppIdentity.UpdateProcessName + Path.DirectorySeparatorChar;
         private static readonly string UPDATE_LOG_FOLDER_NAME = "UpdateLogs" + Path.DirectorySeparatorChar;
 
         private static readonly Regex PARENT_PATH_END_SLASH_REGEX = new Regex(@"(?<!:)\\$", RegexOptions.Compiled);
