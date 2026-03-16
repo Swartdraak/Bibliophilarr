@@ -10,6 +10,13 @@ namespace Bibliophilarr.Api.V1.Config
         public WriteBookTagsType WriteBookTags { get; set; }
         public bool UpdateCovers { get; set; }
         public bool EmbedMetadata { get; set; }
+        public bool EnableGoogleBooksFallback { get; set; }
+        public string GoogleBooksApiKey { get; set; }
+        public bool EnableHardcoverFallback { get; set; }
+        public string HardcoverApiToken { get; set; }
+        public int HardcoverRequestTimeoutSeconds { get; set; }
+        public string MetadataAuthorAliases { get; set; }
+        public string MetadataTitleStripPatterns { get; set; }
     }
 
     public static class MetadataProviderConfigResourceMapper
@@ -22,7 +29,14 @@ namespace Bibliophilarr.Api.V1.Config
                 ScrubAudioTags = model.ScrubAudioTags,
                 WriteBookTags = model.WriteBookTags,
                 UpdateCovers = model.UpdateCovers,
-                EmbedMetadata = model.EmbedMetadata
+                EmbedMetadata = model.EmbedMetadata,
+                EnableGoogleBooksFallback = model.EnableGoogleBooksFallback,
+                GoogleBooksApiKey = model.GoogleBooksApiKey,
+                EnableHardcoverFallback = model.EnableHardcoverFallback,
+                HardcoverApiToken = model.HardcoverApiToken,
+                HardcoverRequestTimeoutSeconds = model.HardcoverRequestTimeoutSeconds,
+                MetadataAuthorAliases = model.MetadataAuthorAliases,
+                MetadataTitleStripPatterns = model.MetadataTitleStripPatterns
             };
         }
     }

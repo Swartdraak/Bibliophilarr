@@ -1,0 +1,114 @@
+using Bibliophilarr.Api.V1.Config;
+using FluentAssertions;
+using FluentValidation;
+using Moq;
+using NUnit.Framework;
+using NzbDrone.Core.Configuration;
+
+namespace NzbDrone.Api.Test.Config
+{
+    [TestFixture]
+    public class MetadataProviderConfigFixture
+    {
+        private static IConfigService BuildConfigService(
+            bool enableHardcover = true,
+            string hardcoverToken = "raw-jwt-token",
+            int hardcoverTimeout = 30,
+            bool enableGoogleBooks = false,
+            string googleBooksKey = "")
+        {
+            var mock = new Mock<IConfigService>();
+            mock.SetupGet(x => x.EnableHardcoverFallback).Returns(enableHardcover);
+            mock.SetupGet(x => x.HardcoverApiToken).Returns(hardcoverToken);
+            mock.SetupGet(x => x.HardcoverRequestTimeoutSeconds).Returns(hardcoverTimeout);
+            mock.SetupGet(x => x.EnableGoogleBooksFallback).Returns(enableGoogleBooks);
+            mock.SetupGet(x => x.GoogleBooksApiKey).Returns(googleBooksKey);
+            mock.SetupGet(x => x.MetadataAuthorAliases).Returns(string.Empty);
+            mock.SetupGet(x => x.MetadataTitleStripPatterns).Returns(string.Empty);
+            return mock.Object;
+        }
+
+        private static InlineValidator<MetadataProviderConfigResource> BuildTimeoutValidator()
+        {
+            var v = new InlineValidator<MetadataProviderConfigResource>();
+            v.RuleFor(c => c.HardcoverRequestTimeoutSeconds)
+                .InclusiveBetween(0, 120)
+                .WithMessage("Hardcover request timeout must be between 0 and 120 seconds");
+            return v;
+        }
+
+        [Test]
+        public void mapper_should_include_hardcover_enable_flag()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(enableHardcover: true));
+            resource.EnableHardcoverFallback.Should().BeTrue();
+        }
+
+        [Test]
+        public void mapper_should_round_trip_hardcover_api_token_with_bearer_prefix()
+        {
+            const string stored = "Bearer eyJhbGciOiJIUzI1NiJ9.test.sig";
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(hardcoverToken: stored));
+            resource.HardcoverApiToken.Should().Be(stored);
+        }
+
+        [Test]
+        public void mapper_should_round_trip_hardcover_api_token_without_bearer_prefix()
+        {
+            const string stored = "plain-jwt-token";
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(hardcoverToken: stored));
+            resource.HardcoverApiToken.Should().Be(stored);
+        }
+
+        [Test]
+        public void mapper_should_round_trip_hardcover_request_timeout_seconds()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(hardcoverTimeout: 45));
+            resource.HardcoverRequestTimeoutSeconds.Should().Be(45);
+        }
+
+        [Test]
+        public void mapper_should_map_zero_timeout_as_disabled()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(hardcoverTimeout: 0));
+            resource.HardcoverRequestTimeoutSeconds.Should().Be(0);
+        }
+
+        [Test]
+        public void mapper_should_map_hardcover_disabled_state()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(enableHardcover: false));
+            resource.EnableHardcoverFallback.Should().BeFalse();
+        }
+
+        [Test]
+        public void validation_should_accept_timeout_of_zero()
+        {
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource { HardcoverRequestTimeoutSeconds = 0 });
+            result.IsValid.Should().BeTrue();
+        }
+
+        [Test]
+        public void validation_should_accept_timeout_at_max_boundary()
+        {
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource { HardcoverRequestTimeoutSeconds = 120 });
+            result.IsValid.Should().BeTrue();
+        }
+
+        [Test]
+        public void validation_should_reject_timeout_above_maximum()
+        {
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource { HardcoverRequestTimeoutSeconds = 121 });
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(e => e.PropertyName == "HardcoverRequestTimeoutSeconds");
+        }
+
+        [Test]
+        public void validation_should_reject_negative_timeout()
+        {
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource { HardcoverRequestTimeoutSeconds = -1 });
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(e => e.PropertyName == "HardcoverRequestTimeoutSeconds");
+        }
+    }
+}

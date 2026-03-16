@@ -6,8 +6,12 @@
     <PackageReference Include="NBuilder" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Core\Bibliophilarr.Core.csproj" />
     <ProjectReference Include="..\NzbDrone.Test.Common\Bibliophilarr.Test.Common.csproj" />
     <ProjectReference Include="..\Bibliophilarr.Http\Bibliophilarr.Http.csproj" />
+    <ProjectReference Include="..\Bibliophilarr.Api.V1\Bibliophilarr.Api.V1.csproj" />
   </ItemGroup>
 </Project>

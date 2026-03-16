@@ -304,6 +304,55 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("EmbedMetadata", value); }
         }
 
+        public bool EnableGoogleBooksFallback
+        {
+            get { return GetValueBoolean("EnableGoogleBooksFallback", true); }
+
+            set { SetValue("EnableGoogleBooksFallback", value); }
+        }
+
+        public string GoogleBooksApiKey
+        {
+            get { return GetValue("GoogleBooksApiKey", string.Empty); }
+
+            set { SetValue("GoogleBooksApiKey", value); }
+        }
+
+        public bool EnableHardcoverFallback
+        {
+            get { return GetValueBoolean("EnableHardcoverFallback", true); }
+
+            set { SetValue("EnableHardcoverFallback", value); }
+        }
+
+        public string HardcoverApiToken
+        {
+            get { return GetValue("HardcoverApiToken", string.Empty); }
+
+            set { SetValue("HardcoverApiToken", value); }
+        }
+
+        public int HardcoverRequestTimeoutSeconds
+        {
+            get { return GetValueInt("HardcoverRequestTimeoutSeconds", 0); }
+
+            set { SetValue("HardcoverRequestTimeoutSeconds", value); }
+        }
+
+        public string MetadataAuthorAliases
+        {
+            get { return GetValue("MetadataAuthorAliases", string.Empty); }
+
+            set { SetValue("MetadataAuthorAliases", value); }
+        }
+
+        public string MetadataTitleStripPatterns
+        {
+            get { return GetValue("MetadataTitleStripPatterns", string.Empty); }
+
+            set { SetValue("MetadataTitleStripPatterns", value); }
+        }
+
         public int FirstDayOfWeek
         {
             get { return GetValueInt("FirstDayOfWeek", (int)CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek); }
