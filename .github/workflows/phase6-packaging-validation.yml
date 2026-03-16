@@ -136,23 +136,23 @@ jobs:
         if: matrix.install_type == 'npm'
         run: |
           set -e
+          workspace_dir="${GITHUB_WORKSPACE}"
           cd npm/bibliophilarr-launcher
-          npm pack > ../../_artifacts/phase6-packaging/npm/npm-pack.log
+          npm pack > "${workspace_dir}/_artifacts/phase6-packaging/npm/npm-pack.log"
           pkg="$(ls -1 *.tgz | head -n 1)"
           cd /tmp
           rm -rf bibliophilarr-npm-install
           mkdir -p bibliophilarr-npm-install
           cd bibliophilarr-npm-install
           npm init -y > \
-            /opt/Bibliophilarr/_artifacts/phase6-packaging/npm/npm-init.log 2>&1
-          npm_log=/opt/Bibliophilarr/_artifacts/phase6-packaging/npm/npm-install.log
+            "${workspace_dir}/_artifacts/phase6-packaging/npm/npm-init.log" 2>&1
+          npm_log="${workspace_dir}/_artifacts/phase6-packaging/npm/npm-install.log"
           npm install \
-            "/opt/Bibliophilarr/npm/bibliophilarr-launcher/${pkg}" \
+            "${workspace_dir}/npm/bibliophilarr-launcher/${pkg}" \
             > "${npm_log}" 2>&1
-          launcher_log=/opt/Bibliophilarr/_artifacts/phase6-packaging/npm/
-          launcher_log+="launcher-help.log"
-          chmod +x /opt/Bibliophilarr/scripts/test_npm_launcher_cache_seed.sh
-          /opt/Bibliophilarr/scripts/test_npm_launcher_cache_seed.sh \
+          launcher_log="${workspace_dir}/_artifacts/phase6-packaging/npm/launcher-help.log"
+          chmod +x "${workspace_dir}/scripts/test_npm_launcher_cache_seed.sh"
+          "${workspace_dir}/scripts/test_npm_launcher_cache_seed.sh" \
             ./node_modules/.bin/bibliophilarr \
             "${NPM_TEST_TAG}" \
             "${launcher_log}"
