@@ -1,6 +1,7 @@
+---
 name: Weekly Replay Report
 
-on:
+"on":
   schedule:
     - cron: '0 3 * * 1'
   workflow_dispatch:
@@ -16,6 +17,8 @@ jobs:
       REPLAY_ROOT: tests/fixtures/replay-cohort
       REPLAY_SAMPLE_SIZE: "64"
       REPLAY_SAMPLE_SEED: "20260316"
+      REPLAY_REASON_BASELINE: >-
+        tests/fixtures/replay-cohort/reason-distribution-baseline.json
 
     steps:
       - name: Checkout
@@ -42,9 +45,14 @@ jobs:
         id: guard
         continue-on-error: true
         run: |
-          report_json="${{ steps.prep.outputs.report_dir }}/bibliophilarr-live-sample-2026-03-16_live_enrichment_report.json"
+          report_json="${{ steps.prep.outputs.report_dir }}/"
+          report_json+="bibliophilarr-live-sample-2026-03-16_live_enrichment_report.json"
           if [[ ! -f "${report_json}" ]]; then
-            report_json="$(find "${{ steps.prep.outputs.report_dir }}" -maxdepth 1 -name '*_live_enrichment_report.json' | head -n 1)"
+            report_json="$(find \
+              "${{ steps.prep.outputs.report_dir }}" \
+              -maxdepth 1 \
+              -name '*_live_enrichment_report.json' \
+              | head -n 1)"
           fi
 
           if [[ -z "${report_json}" || ! -f "${report_json}" ]]; then
@@ -55,19 +63,29 @@ jobs:
           python3 scripts/replay_regression_guard.py \
             --report "${report_json}" \
             --thresholds tests/fixtures/replay-cohort/expected-thresholds.json \
-            --summary-out "${{ steps.prep.outputs.report_dir }}/replay-guard-summary.json"
+            --summary-out \
+            "${{ steps.prep.outputs.report_dir }}/replay-guard-summary.json"
+
+          baseline_copy="${{ steps.prep.outputs.report_dir }}/"
+          baseline_copy+="reason-distribution-baseline.json"
+          cp "${REPLAY_REASON_BASELINE}" "${baseline_copy}"
 
           echo "report_status=checked" >> "$GITHUB_OUTPUT"
 
-      - name: Open regression issue
-        if: steps.guard.outcome == 'failure'
+      - name: Open or update regression issue
+        if: >-
+          steps.guard.outcome == 'failure'
         uses: actions/github-script@v7
         env:
           REPORT_DIR: ${{ steps.prep.outputs.report_dir }}
         with:
           script: |
             const fs = require('fs');
-            const path = `${process.env.GITHUB_WORKSPACE}/${process.env.REPORT_DIR}/replay-guard-summary.json`;
+            const path = [
+              process.env.GITHUB_WORKSPACE,
+              process.env.REPORT_DIR,
+              'replay-guard-summary.json'
+            ].join('/');
             let summaryText = 'Replay guard failed before summary generation.';
 
             if (fs.existsSync(path)) {
@@ -86,19 +104,63 @@ jobs:
               ].join('\n');
             }
 
-            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const runUrl = [
+              'https://github.com',
+              context.repo.owner,
+              context.repo.repo,
+              'actions/runs',
+              String(context.runId)
+            ].join('/');
+            const title = [
+              'Weekly replay regression detected',
+              `(${new Date().toISOString().slice(0, 10)})`
+            ].join(' ');
+            const body = [
+              'Automated weekly replay regression guard failed.',
+              '',
+              summaryText,
+              '',
+              `Workflow run: ${runUrl}`
+            ].join('\n');
+
+            const existingIssues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+              }
+            );
+
+            const existing = existingIssues.find((issue) =>
+              !issue.pull_request &&
+              issue.title.startsWith('Weekly replay regression detected')
+            );
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: [
+                  'Another weekly replay regression was detected.',
+                  '',
+                  body
+                ].join('\n')
+              });
+
+              core.info(
+                `Updated existing replay regression issue #${existing.number}`
+              );
+              return;
+            }
 
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `Weekly replay regression detected (${new Date().toISOString().slice(0, 10)})`,
-              body: [
-                'Automated weekly replay regression guard failed.',
-                '',
-                summaryText,
-                '',
-                `Workflow run: ${runUrl}`
-              ].join('\n')
+              title,
+              body
             });
 
       - name: Fail when replay thresholds regress

@@ -1,6 +1,7 @@
+---
 name: Staging Smoke Metadata Telemetry
 
-on:
+"on":
   workflow_dispatch:
 
 permissions:
@@ -24,25 +25,35 @@ jobs:
         working-directory: src
         run: |
           dotnet restore Bibliophilarr.sln -p:Platform=Posix
-          dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Posix
+          dotnet build Bibliophilarr.sln --configuration Release \
+            --no-restore -p:Platform=Posix
 
       - name: Prepare isolated appdata with high-verbosity profile
         run: |
           mkdir -p /tmp/bibliophilarr-smoke
-          cp tests/profiles/packaging-high-verbosity.config.xml /tmp/bibliophilarr-smoke/config.xml
-          sed -i 's#<Port>8787</Port>#<Port>8793</Port>#' /tmp/bibliophilarr-smoke/config.xml
-          sed -i 's#<ApiKey>packaging-ci-key</ApiKey>#<ApiKey>smoke-ci-key</ApiKey>#' /tmp/bibliophilarr-smoke/config.xml
+          cp tests/profiles/packaging-high-verbosity.config.xml \
+            /tmp/bibliophilarr-smoke/config.xml
+          sed -i 's#<Port>8787</Port>#<Port>8793</Port>#' \
+            /tmp/bibliophilarr-smoke/config.xml
+          api_key_pattern='s#<ApiKey>packaging-ci-key</ApiKey>#'
+          api_key_pattern+='<ApiKey>smoke-ci-key</ApiKey>#'
+          sed -i "${api_key_pattern}" /tmp/bibliophilarr-smoke/config.xml
 
       - name: Start service
         run: |
           mkdir -p _artifacts/staging-smoke
-          DOTNET_CLI_TELEMETRY_OPTOUT=1 timeout 180s ./_output/net8.0/Bibliophilarr /data=/tmp/bibliophilarr-smoke /nobrowser /nosingleinstancecheck > _artifacts/staging-smoke/service.log 2>&1 &
+          DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+            timeout 180s ./_output/net8.0/Bibliophilarr \
+            /data=/tmp/bibliophilarr-smoke \
+            /nobrowser /nosingleinstancecheck \
+            > _artifacts/staging-smoke/service.log 2>&1 &
           echo $! > _artifacts/staging-smoke/service.pid
 
       - name: Wait for health endpoint
         run: |
           for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8793/ping" || true)
+            code=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://127.0.0.1:8793/ping" || true)
             if [ "$code" = "200" ]; then
               exit 0
             fi
@@ -53,8 +64,12 @@ jobs:
 
       - name: Validate telemetry endpoints
         run: |
-          curl -f -sS -H "X-Api-Key: smoke-ci-key" "http://127.0.0.1:8793/api/v1/metadata/providers/health" > _artifacts/staging-smoke/providers-health.json
-          curl -f -sS -H "X-Api-Key: smoke-ci-key" "http://127.0.0.1:8793/api/v1/metadata/conflicts/telemetry" > _artifacts/staging-smoke/conflict-telemetry.json
+          curl -f -sS -H "X-Api-Key: smoke-ci-key" \
+            "http://127.0.0.1:8793/api/v1/metadata/providers/health" \
+            > _artifacts/staging-smoke/providers-health.json
+          curl -f -sS -H "X-Api-Key: smoke-ci-key" \
+            "http://127.0.0.1:8793/api/v1/metadata/conflicts/telemetry" \
+            > _artifacts/staging-smoke/conflict-telemetry.json
 
       - name: Stop service
         if: always()

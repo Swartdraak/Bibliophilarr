@@ -66,10 +66,6 @@ namespace NzbDrone.Integration.Test
             indexer.Name = "NewznabTest";
             indexer.Protocol = Core.Indexers.DownloadProtocol.Usenet;
 
-            // Change Console Log Level to Debug so we get more details.
-            var config = HostConfig.Get(1);
-            config.ConsoleLogLevel = "Debug";
-            HostConfig.Put(config);
         }
 
         protected override void StopTestTarget()

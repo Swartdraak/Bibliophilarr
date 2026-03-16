@@ -13,6 +13,7 @@ Enable `EnableMetadataConflictStrategyVariants` in a controlled non-production s
 - Docs validation is green.
 - Provider health endpoint is reachable at `GET /api/v1/metadata/providers/health`.
 - Conflict telemetry endpoint is reachable at `GET /api/v1/metadata/conflicts/telemetry`.
+- Protected branches that can change the rollout flag require the `Staging Smoke Metadata Telemetry / smoke-metadata-telemetry` status check before merge.
 
 ## Staging Rollout Steps
 
@@ -68,3 +69,4 @@ Gate outcomes:
 
 Follow-up required:
 - Run same bounded replay against curated non-empty fixture cohort (`tests/fixtures/replay-cohort`) in CI for meaningful accepted/unresolved trend tracking.
+- Enforce `Staging Smoke Metadata Telemetry / smoke-metadata-telemetry` as a required status check before any further rollout-flag changes on `develop` or release branches.

@@ -19,6 +19,11 @@ Matrix lanes:
 - `docker`
 - `npm`
 
+npm lane details:
+- installs the packed launcher tarball into an isolated temp project
+- seeds the launcher cache for a pinned smoke tag (`v0.0.0-phase6-smoke` by default)
+- executes `bibliophilarr --help` to validate the concrete launcher invocation path without requiring a published release asset during CI
+
 ## High-Verbosity Test Profile
 
 Profile file:
