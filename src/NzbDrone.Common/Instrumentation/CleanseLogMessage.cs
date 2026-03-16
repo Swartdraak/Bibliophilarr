@@ -49,6 +49,11 @@ namespace NzbDrone.Common.Instrumentation
             // Good Reads
             new Regex(@"(?<=""(token|tokensecret)"":\s)""(?<secret>[^""]+?)""", RegexOptions.Compiled | RegexOptions.IgnoreCase),
 
+            // Bearer authorization headers
+            new Regex(@"(?<prefix>\bauthorization\b\s*:\s*Bearer\s+)(?<secret>[^\s,;\""']+)", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+            new Regex(@"(?<prefix>\bauthorization\b\s*=\s*Bearer\s+)(?<secret>[^\s,;\""']+)", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+            new Regex(@"(?<prefix>\""authorization\""\s*:\s*\""Bearer\s+)(?<secret>[^\""]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+
             // Webhooks
             // Notifiarr
             new Regex(@"api/v[0-9]/notification/bibliophilarr/(?<secret>[\w-]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase),

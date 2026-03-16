@@ -93,6 +93,11 @@ namespace NzbDrone.Common.Test.InstrumentationTests
         [TestCase(@"https://api.telegram.org/bot1234567890:mySecret/sendmessage: chat_id=123456&parse_mode=HTML&text=<text>")]
         [TestCase(@"https://api.telegram.org/bot1234567890:mySecret/")]
 
+        // Authorization bearer headers
+        [TestCase(@"Authorization: Bearer mySecret")]
+        [TestCase(@"authorization=Bearer mySecret")]
+        [TestCase(@"{""authorization"":""Bearer mySecret""}")]
+
         public void should_clean_message(string message)
         {
             var cleansedMessage = CleanseLogMessage.Cleanse(message);
