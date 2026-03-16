@@ -75,14 +75,14 @@ Unknown-share quality gate:
 ## Taxonomy Triage Decision Tree
 
 1. Is `unknownShareThresholdExceeded=true`?
-  - yes: review `unknown` samples first; classify recurring signatures into an existing or new category.
-  - no: proceed with normal per-category trend review.
+yes: review `unknown` samples first; classify recurring signatures into an existing or new category.
+no: proceed with normal per-category trend review.
 2. Is one category dominating unexpectedly?
-  - yes: verify lane-specific context (binary/docker/npm) before filing regressions.
-  - no: track as baseline variation.
+yes: verify lane-specific context (binary/docker/npm) before filing regressions.
+no: track as baseline variation.
 3. Are unknown samples mostly environmental noise (e.g. runner DNS jitter)?
-  - yes: add ignore/normalization patterns with fixture evidence.
-  - no: treat as genuine taxonomy gap and update `scripts/packaging_error_taxonomy.py`.
+yes: add ignore/normalization patterns with fixture evidence.
+no: treat as genuine taxonomy gap and update `scripts/packaging_error_taxonomy.py`.
 
 False-positive handling guidance:
 - require at least one deterministic fixture line for any new pattern before merging.
