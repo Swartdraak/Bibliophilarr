@@ -60,9 +60,38 @@ Categories:
 - `bind-conflict`
 - `startup-failure`
 - `dependency-or-build`
+- `unknown`
+
+Deterministic fixture baseline:
+- fixture logs: `tests/fixtures/packaging-taxonomy/logs`
+- expected counts: `tests/fixtures/packaging-taxonomy/expected-taxonomy-counts.json`
+- verifier: `scripts/test_packaging_error_taxonomy.py`
+
+Unknown-share quality gate:
+- workflow input: `max_unknown_share` (default `0.75`)
+- taxonomy step fails when `unknownShare > maxUnknownShare`
+- goal: block low-signal taxonomy reports before they become noisy operationally
+
+## Taxonomy Triage Decision Tree
+
+1. Is `unknownShareThresholdExceeded=true`?
+	- yes: review `unknown` samples first; classify recurring signatures into an existing or new category.
+	- no: proceed with normal per-category trend review.
+2. Is one category dominating unexpectedly?
+	- yes: verify lane-specific context (binary/docker/npm) before filing regressions.
+	- no: track as baseline variation.
+3. Are unknown samples mostly environmental noise (e.g. runner DNS jitter)?
+	- yes: add ignore/normalization patterns with fixture evidence.
+	- no: treat as genuine taxonomy gap and update `scripts/packaging_error_taxonomy.py`.
+
+False-positive handling guidance:
+- require at least one deterministic fixture line for any new pattern before merging.
+- prefer specific regex fragments over broad `error|failed` catch-alls.
+- if a pattern causes reclassification churn, keep old and new samples in fixtures until stable for 2 runs.
 
 ## Operational Notes
 
 - The matrix is intentionally workflow-dispatch first.
 - Keep `fail-fast=false` to preserve evidence from all lanes.
 - Promote to scheduled runs after lane stability is demonstrated.
+- npm cache-seed execution behavior is validated via `scripts/test_npm_launcher_cache_seed.sh`.

@@ -9,6 +9,11 @@ name: Phase 6 Packaging Validation
           Pinned launcher tag used for cache-seeded invocation validation.
         required: false
         default: v0.0.0-phase6-smoke
+      max_unknown_share:
+        description: >-
+          Maximum allowed unknown taxonomy share (0-1) before failing.
+        required: false
+        default: "0.75"
 
 permissions:
   contents: read
@@ -19,6 +24,8 @@ jobs:
     env:
       NPM_TEST_TAG: >-
         ${{ github.event.inputs.npm_test_tag || 'v0.0.0-phase6-smoke' }}
+      MAX_UNKNOWN_SHARE: >-
+        ${{ github.event.inputs.max_unknown_share || '0.75' }}
     strategy:
       fail-fast: false
       matrix:
@@ -40,6 +47,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Verify taxonomy fixtures
+        run: |
+          python3 scripts/test_packaging_error_taxonomy.py
 
       - name: Prepare artifact workspace
         run: |
@@ -124,23 +135,12 @@ jobs:
           npm install \
             "/opt/Bibliophilarr/npm/bibliophilarr-launcher/${pkg}" \
             > "${npm_log}" 2>&1
-          install_root="$HOME/.cache/bibliophilarr/"
-          install_root+="${NPM_TEST_TAG}-linux-x64/Readarr"
-          mkdir -p "${install_root}"
-          cat <<'EOF' > "${install_root}/Readarr"
-          #!/usr/bin/env bash
-          printf 'Bibliophilarr launcher smoke stub %s\n' \
-            "${BIBLIOPHILARR_VERSION}"
-          echo "args:$*"
-          EOF
-          chmod +x "${install_root}/Readarr"
           launcher_log=/opt/Bibliophilarr/_artifacts/phase6-packaging/npm/
           launcher_log+="launcher-help.log"
-          BIBLIOPHILARR_VERSION="${NPM_TEST_TAG}" \
-            timeout 120s ./node_modules/.bin/bibliophilarr --help \
-            > "${launcher_log}" \
-            2>&1
-          grep -q "Bibliophilarr launcher smoke stub ${NPM_TEST_TAG}" \
+          chmod +x /opt/Bibliophilarr/scripts/test_npm_launcher_cache_seed.sh
+          /opt/Bibliophilarr/scripts/test_npm_launcher_cache_seed.sh \
+            ./node_modules/.bin/bibliophilarr \
+            "${NPM_TEST_TAG}" \
             "${launcher_log}"
 
       - name: Build error taxonomy summary
@@ -148,6 +148,7 @@ jobs:
         run: |
           python3 scripts/packaging_error_taxonomy.py \
             --input-dir _artifacts/phase6-packaging/${{ matrix.install_type }} \
+            --max-unknown-share "${MAX_UNKNOWN_SHARE}" \
             --json-out \
             _artifacts/phase6-packaging/${{ matrix.install_type }}/
             error-taxonomy.json \

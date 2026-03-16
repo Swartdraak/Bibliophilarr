@@ -8,6 +8,11 @@ import json
 import re
 from pathlib import Path
 
+SIGNAL_PATTERN = re.compile(
+    r"error|failed|failure|exception|timeout|timed out|fatal|forbidden|unauthorized|bind",
+    re.IGNORECASE,
+)
+
 PATTERNS = {
     "network-timeout": re.compile(r"timeout|timed out|request timeout", re.IGNORECASE),
     "auth-failure": re.compile(r"401|unauthorized|forbidden|api key", re.IGNORECASE),
@@ -19,14 +24,29 @@ PATTERNS = {
 
 def classify(text: str) -> dict:
     counts = {key: 0 for key in PATTERNS}
+    counts["unknown"] = 0
     samples = {key: [] for key in PATTERNS}
+    samples["unknown"] = []
 
     for line in text.splitlines():
+        normalized = line.strip()
+        if normalized.startswith("--- FILE:"):
+            continue
+
+        matched = False
+
         for category, pattern in PATTERNS.items():
-            if pattern.search(line):
+            if pattern.search(normalized):
                 counts[category] += 1
                 if len(samples[category]) < 5:
-                    samples[category].append(line.strip())
+                    samples[category].append(normalized)
+                matched = True
+                break
+
+        if not matched and SIGNAL_PATTERN.search(normalized):
+            counts["unknown"] += 1
+            if len(samples["unknown"]) < 5:
+                samples["unknown"].append(normalized)
 
     return {"counts": counts, "samples": samples}
 
@@ -36,6 +56,12 @@ def main() -> int:
     parser.add_argument("--input-dir", type=Path, required=True, help="Directory containing log files")
     parser.add_argument("--json-out", type=Path, required=True, help="Output JSON summary")
     parser.add_argument("--md-out", type=Path, required=True, help="Output Markdown summary")
+    parser.add_argument(
+        "--max-unknown-share",
+        type=float,
+        default=1.0,
+        help="Fail when unknown signal share exceeds this threshold (0-1)",
+    )
     args = parser.parse_args()
 
     logs = []
@@ -50,6 +76,16 @@ def main() -> int:
 
     summary = classify("\n".join(joined))
     summary["logFiles"] = [str(p) for p in logs]
+
+    total_signals = sum(summary["counts"].values())
+    unknown_count = summary["counts"]["unknown"]
+    unknown_share = (unknown_count / total_signals) if total_signals else 0.0
+    threshold_exceeded = unknown_share > args.max_unknown_share
+
+    summary["totalSignals"] = total_signals
+    summary["unknownShare"] = unknown_share
+    summary["maxUnknownShare"] = args.max_unknown_share
+    summary["unknownShareThresholdExceeded"] = threshold_exceeded
 
     args.json_out.parent.mkdir(parents=True, exist_ok=True)
     args.md_out.parent.mkdir(parents=True, exist_ok=True)
@@ -66,6 +102,13 @@ def main() -> int:
         md_lines.append(f"- {category}: {count}")
 
     md_lines.append("")
+    md_lines.append("## Quality")
+    md_lines.append("")
+    md_lines.append(f"- total-signals: {total_signals}")
+    md_lines.append(f"- unknown-share: {unknown_share:.4f}")
+    md_lines.append(f"- max-unknown-share: {args.max_unknown_share:.4f}")
+    md_lines.append(f"- threshold-exceeded: {str(threshold_exceeded).lower()}")
+    md_lines.append("")
     md_lines.append("## Samples")
 
     for category, lines in summary["samples"].items():
@@ -78,6 +121,14 @@ def main() -> int:
             md_lines.append(f"- {line}")
 
     args.md_out.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
+
+    if threshold_exceeded:
+        print(
+            "FAIL: unknown taxonomy share %.4f exceeds max %.4f"
+            % (unknown_share, args.max_unknown_share)
+        )
+        return 1
+
     return 0
 
 
