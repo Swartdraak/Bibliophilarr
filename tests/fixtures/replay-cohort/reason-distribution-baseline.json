@@ -1,0 +1,27 @@
+{
+  "status": "provisional",
+  "observedRuns": 1,
+  "reviewAfterRuns": 3,
+  "expectedReasonDistribution": {
+    "quality-score": {
+      "count": 0,
+      "share": 0.0
+    },
+    "tie-break": {
+      "count": 0,
+      "share": 0.0
+    },
+    "preferred-provider": {
+      "count": 0,
+      "share": 0.0
+    },
+    "no-candidates": {
+      "count": 0,
+      "share": 0.0
+    }
+  },
+  "notes": [
+    "Populate with observed weekly replay counts once 2-3 scheduled runs have completed.",
+    "Keep this file stable between runs so trend-review diffs stay actionable during rollout."
+  ]
+}

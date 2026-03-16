@@ -36,7 +36,35 @@ curl -s "http://localhost:8787/api/v1/metadata/conflicts/telemetry" | jq
 Expected outcome:
 - JSON array with one entry per provider
 - includes health status, success/failure timing, rate-limit window usage, retry-after and cooldown data
-- conflict telemetry export includes total decisions plus counts by reason and selected provider
+- conflict telemetry export includes total decisions plus counts by reason, selected provider, and per-field winner counters (`field:provider`)
+
+## Post-Merge Baseline Snapshot (PR #15)
+
+Capture timestamp:
+- 2026-03-16T19:10Z
+
+Execution notes:
+- isolated local instance launched with explicit appdata override and dedicated port 8790
+- authenticated calls used `X-Api-Key` from instance config
+
+HTTP results:
+- `GET /api/v1/metadata/providers/health` => `200 OK`
+- `GET /api/v1/metadata/conflicts/telemetry` => `200 OK`
+
+Conflict telemetry baseline payload:
+
+```json
+{
+  "totalDecisions": 0,
+  "decisionsByReason": {},
+  "decisionsByProvider": {},
+  "fieldSelectionsByProvider": {}
+}
+```
+
+Interpretation:
+- Gate 2 baseline starts at zero conflict decisions for this isolated run
+- subsequent staged-rollout checks should compare drift from this baseline and watch for sustained `no-candidates`
 
 ## Provider Telemetry Field Interpretation
 
@@ -88,6 +116,57 @@ Decision reasons to track:
 
 These examples assume log ingestion from application logs (Loki or Elastic style parsing).
 
+## Dashboard-Ready JSON Snippets
+
+Use these normalized payloads when importing endpoint snapshots into Grafana Infinity, Elastic ingest pipelines, or a custom JSON-to-metrics bridge.
+
+Conflict telemetry snapshot seed:
+
+```json
+{
+  "name": "bibliophilarr-conflict-telemetry",
+  "path": "/api/v1/metadata/conflicts/telemetry",
+  "method": "GET",
+  "headers": {
+    "X-Api-Key": "${BIBLIOPHILARR_API_KEY}"
+  },
+  "fields": [
+    "totalDecisions",
+    "decisionsByReason.quality-score",
+    "decisionsByReason.tie-break",
+    "decisionsByReason.preferred-provider",
+    "decisionsByReason.no-candidates",
+    "fieldSelectionsByProvider.title:Inventaire",
+    "fieldSelectionsByProvider.cover-links:OpenLibrary"
+  ]
+}
+```
+
+Provider health snapshot seed:
+
+```json
+{
+  "name": "bibliophilarr-provider-health",
+  "path": "/api/v1/metadata/providers/health",
+  "method": "GET",
+  "headers": {
+    "X-Api-Key": "${BIBLIOPHILARR_API_KEY}"
+  },
+  "fields": [
+    "[].provider",
+    "[].health",
+    "[].successRate",
+    "[].averageResponseTimeMs",
+    "[].rateLimitUsageRatio",
+    "[].retryAfterRemainingSeconds"
+  ]
+}
+```
+
+Operational note:
+- Keep these snippets under source control and adjust only when endpoint contracts change.
+- For Grafana JSON API style imports, map dotted keys to explicit JSONPath selectors in the datasource configuration.
+
 ### 1) Conflict decisions by reason over time
 
 Filter line contains:
@@ -110,6 +189,24 @@ Group by:
 Expected use:
 - detect provider dominance shifts after provider outages, rate limiting, or data quality changes
 
+### 2b) Per-field winner drift
+
+Source:
+- `GET /api/v1/metadata/conflicts/telemetry`
+- field: `fieldSelectionsByProvider`
+
+Track keys over time:
+- `title:*`
+- `subtitle:*`
+- `author-identity:*`
+- `identifiers:*`
+- `publication-date:*`
+- `language:*`
+- `cover-links:*`
+
+Expected use:
+- detect subtle field-level provider drift even when top-level selected provider looks stable
+
 ### 3) Timeout trend by provider
 
 Filter line contains:
@@ -131,6 +228,38 @@ Compute:
 
 Expected use:
 - identify need for fallback dampening or query pacing adjustments
+
+### 5) No-candidates spike monitor
+
+Source:
+- `GET /api/v1/metadata/conflicts/telemetry`
+- field: `decisionsByReason.no-candidates`
+
+Expected use:
+- alert on sharp increases in unresolved conflict decisions caused by upstream provider degradation, mapping regressions, or identifier quality regressions
+
+## Replay Threshold Baseline Review
+
+Current threshold file:
+- `tests/fixtures/replay-cohort/expected-thresholds.json`
+
+Current reason baseline file:
+- `tests/fixtures/replay-cohort/reason-distribution-baseline.json`
+
+Current status:
+- thresholds remain provisional because only the initial curated cohort run exists
+- do not tighten `maxUnresolvedRatio` or `maxNoCandidateShare` until 2-3 weekly scheduled runs have completed
+
+Review procedure after 2-3 runs:
+1. compare the last 3 `replay-guard-summary.json` artifacts
+2. update `reason-distribution-baseline.json` with observed counts and shares for the dominant reasons
+3. tighten `expected-thresholds.json` only when the weekly variance is small enough to avoid noisy issue creation
+
+Risk:
+- tightening thresholds before enough weekly observations will create low-signal regression issues
+
+Mitigation:
+- keep the issue automation active, but treat the baseline file as manual-review guidance until the third run is recorded
 
 ## Validation Commands
 

@@ -59,4 +59,51 @@ Post (2026-03-16 sampled replay):
 
 1. Add explicit cover winner fields to enrichment report payload (`selected_cover_provider`, `selected_cover_url`).
 2. Use replay mode flags `--sample-size` and `--sample-seed` for bounded random sampling directly in script.
-3. Add periodic replay report diff in CI against curated fixture data.
+3. Added periodic replay workflow in CI (`.github/workflows/weekly-replay-report.yml`) with weekly cron + artifact upload.
+
+## Controlled Rollout Validation (Flag Enabled)
+
+Staging-like local cohort:
+- feature flag state: `EnableMetadataConflictStrategyVariants=true`
+- replay command:
+
+```bash
+python3 scripts/live_provider_enrich_missing_metadata.py \
+  --root /tmp/bibliophilarr-live-sample-2026-03-16 \
+  --sample-size 64 \
+  --sample-seed 20260316 \
+  --report-dir _artifacts/live-provider-enrich-2026-03-16-rollout-flag-on
+```
+
+Observed output:
+- discovered targets before sampling: `0`
+- accepted: `0`
+- unresolved: `0`
+
+Quality gate interpretation:
+- no accepted/unresolved regression observed against baseline because no pending targets were present in cohort
+- for meaningful ratio comparison, rerun this command against a non-empty curated fixture cohort in CI
+
+## Curated Non-Empty Cohort Validation
+
+Fixture root:
+- `tests/fixtures/replay-cohort`
+
+Execution:
+
+```bash
+python3 scripts/live_provider_enrich_missing_metadata.py \
+  --root tests/fixtures/replay-cohort \
+  --sample-size 64 \
+  --sample-seed 20260316 \
+  --report-dir _artifacts/live-provider-enrich-2026-03-16-curated-cohort
+```
+
+Observed output:
+- discovered targets before sampling: `4`
+- accepted: `1`
+- unresolved: `3`
+
+Threshold guard:
+- `python3 scripts/replay_regression_guard.py --report ... --thresholds tests/fixtures/replay-cohort/expected-thresholds.json --summary-out ...`
+- status: `passed`

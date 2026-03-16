@@ -657,5 +657,7 @@
     "AddRootFolder": "เพิ่มโฟลเดอร์รูท",
     "AddNewAuthorRootFolderHelpText": "โฟลเดอร์ย่อย \"{0}\" จะถูกสร้างขึ้นโดยอัตโนมัติ",
     "EnableInventaireFallback": "Enable Inventaire Fallback",
-    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Enable Experimental Conflict Strategy Variants",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Enable alternate tie-break behavior for metadata conflict resolution (staging rollout only)."
 }

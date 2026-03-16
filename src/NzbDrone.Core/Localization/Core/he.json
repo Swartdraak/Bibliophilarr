@@ -691,5 +691,7 @@
     "AddNewAuthorRootFolderHelpText": "תיקיית המשנה '{0}' תיווצר באופן אוטומטי",
     "AddRootFolder": "הוסף תיקיית שורש",
     "EnableInventaireFallback": "Enable Inventaire Fallback",
-    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Enable Experimental Conflict Strategy Variants",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Enable alternate tie-break behavior for metadata conflict resolution (staging rollout only)."
 }

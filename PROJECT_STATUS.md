@@ -2,13 +2,29 @@
 
 **Last Updated**: March 16, 2026  
 **Project**: Bibliophilarr (formerly Bibliophilarr)  
-**Current Phase**: Phase 2 - Infrastructure Setup (90% Complete)
+**Current Phase**: Phase 5 - Inventaire/OpenLibrary Consolidation (Slice 1-4 In Progress)
 
 ---
 
 ## Overview
 
 Bibliophilarr is a community-driven project focused on sustainable metadata and reliable automation. We are migrating from proprietary Goodreads metadata to Free and Open Source Software (FOSS) alternatives.
+
+## Latest Delivery Update (2026-03-16) ✅
+
+- ✅ PR #15 merged into `develop` (merge commit `31512e026`)
+- ✅ Conflict telemetry export endpoint delivered and verified post-merge
+- ✅ Post-merge Gate 2 baseline captured from isolated authenticated local run:
+  - `GET /api/v1/metadata/providers/health` returned `200 OK`
+  - `GET /api/v1/metadata/conflicts/telemetry` returned `200 OK` with zeroed counters
+- ✅ Weekly replay CI workflow added: `.github/workflows/weekly-replay-report.yml`
+- ✅ Weekly replay workflow extended with explicit regression thresholds and auto-issue creation on failure
+- ✅ Curated non-empty replay fixture cohort added (`tests/fixtures/replay-cohort`) and validated (`discovered=4, accepted=1, unresolved=3`)
+- ✅ Staging smoke workflow added for authenticated telemetry endpoint validation (`.github/workflows/staging-smoke-metadata-telemetry.yml`)
+- ✅ Phase 6 packaging validation matrix started (`.github/workflows/phase6-packaging-validation.yml`) with high-verbosity profile and artifact taxonomy reporting
+- ✅ Metadata conflict strategy localization expanded across remaining locale files
+- ✅ GitHub Project board created and populated with current issue + phase milestones:
+  - https://github.com/users/Swartdraak/projects/1
 
 ## What Has Been Done ✅
 
@@ -180,7 +196,7 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 
 ## What Needs to Be Done 📋
 
-### Current Focus: Phase 2 Infrastructure (10% Remaining)
+### Current Focus: Phase 5 Consolidation and Controlled Rollout
 
 #### Provider Registry Implementation 🔄
 - [x] Create MetadataProviderRegistry service class
@@ -255,7 +271,7 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 ### Phase 1 Remaining Tasks
 - [ ] Community engagement and recruitment
 - [ ] Set up Discord or communication channel
-- [ ] Create GitHub project board for task tracking
+- [x] Create GitHub project board for task tracking
 - [ ] Set up continuous integration for documentation
 
 ### Phase 2: Infrastructure (Weeks 5-8)
@@ -275,38 +291,18 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Rate limiting
 - [x] Comprehensive testing
 
-## Recommended Next 10 Steps (Post-Phase 4 Runtime Wiring)
+## Recommended Next 10 Steps (Post-Merge, Phase 5)
 
-1. Finalize PR #15 reviewer packet and merge readiness
-  - Validate with `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter "FullyQualifiedName~MetadataAggregatorConflictIntegrationFixture|FullyQualifiedName~MetadataConflictResolutionPolicyFixture|FullyQualifiedName~CandidateServiceFallbackOrderingIntegrationFixture"` and `yarn build`.
-  - Operational impact: ensures conflict-policy runtime behavior is reviewed with explicit evidence before merge.
-2. Add metadata aggregator health endpoint details to API docs
-  - Document current provider-health API usage and expected telemetry interpretation in operations docs.
-  - Mitigation: if metrics become noisy, keep endpoint contract stable and tune telemetry thresholds only.
-3. Add integration coverage for provider timeout + retry interaction in runtime aggregator
-  - Add fixture cases for transient 408/429/503 during aggregation to confirm deterministic fallback.
-  - Rollback: disable provider-specific retry extension and use existing cooldown path.
-4. Add regression tests for mixed identifier routing in `MetadataAggregator`
-  - Validate `isbn`, `asin`, and custom identifier fallback path behavior.
-  - Assumption: providers may partially implement identifier capabilities.
-5. Introduce feature-flag guard for conflict policy strategy variants
-  - Keep conservative default while enabling controlled rollout of alternate tie-break behavior.
-  - Mitigation: instant fallback to default policy on unexpected ranking outcomes.
-6. Expand localization from fallback English to translated strings for high-traffic locales
-  - Start with `de`, `fr`, `es`, `pt_BR`, `ru`, `zh_CN` for user-facing settings clarity.
-  - Validation: UI settings page key resolution and snapshot check per locale.
-7. Add structured dashboard queries for conflict telemetry counters
-  - Track decision reasons (`quality-score`, `tie-break`, `preferred-provider`, `no-candidates`) over time.
-  - Operational impact: faster diagnosis when provider data quality drifts.
-8. Run live sampled `/media` enrichment replay with runtime policy enabled
-  - Compare winner provider distribution and cover completeness before/after conflict-policy wiring.
-  - Rollback: revert to previous provider precedence ordering if regressions exceed threshold.
-9. Harden provider precedence configuration persistence
-  - Add API/UI tests for save-load-apply semantics when precedence values change at runtime.
-  - Risk: stale cache or ordering drift across restarts; mitigation via explicit reload tests.
-10. Prepare Phase 5 implementation plan slice (Inventaire/OpenLibrary consolidation)
-  - Define acceptance criteria for source-of-truth fields, merge behavior, and observability gates.
-  - Deliverable: small, mergeable increments with test evidence per slice.
+1. Land the current Phase 5 slice branch as a PR with test evidence and rollback notes.
+2. Add API tests for `fieldSelectionsByProvider` in conflict telemetry endpoint contract assertions.
+3. Add a focused fixture cohort with known conflicts to make rollout replay ratio checks non-zero and deterministic.
+4. Enable weekly replay workflow review automation (triage artifact + create issue on regression thresholds).
+5. Add dashboard queries for per-field winner drift (`title:*`, `cover-links:*`, `identifiers:*`).
+6. Extend persistence tests to cover save-load-apply of provider priorities after multiple sequential updates.
+7. Add staging smoke tests that hit both telemetry endpoints with API key auth after startup.
+8. Finalize rollout checklist execution in staging and capture gate evidence in operations docs.
+9. Begin packaging validation track: binary install, Docker image, and npm package installation checks.
+10. Define Phase 6 entry criteria and freeze a release-candidate validation matrix.
 
 ### Subsequent Phases
 See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.

@@ -35,12 +35,56 @@ namespace NzbDrone.Core.MetadataSource
         public int CandidateCount { get; set; }
         public List<string> EvaluatedProviders { get; set; }
         public Dictionary<string, int> ProviderScores { get; set; }
+        public Dictionary<string, string> FieldSelections { get; set; }
 
         public MetadataConflictResolutionDecision()
         {
             EvaluatedProviders = new List<string>();
             ProviderScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            FieldSelections = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             ResolvedAtUtc = DateTime.UtcNow;
+        }
+    }
+
+    public enum MetadataConflictField
+    {
+        Title,
+        Subtitle,
+        AuthorIdentity,
+        Identifiers,
+        PublicationDate,
+        Language,
+        CoverLinks
+    }
+
+    public class MetadataFieldPrecedenceMatrix
+    {
+        public Dictionary<MetadataConflictField, IReadOnlyList<string>> ProviderOrderByField { get; }
+
+        public MetadataFieldPrecedenceMatrix(Dictionary<MetadataConflictField, IReadOnlyList<string>> providerOrderByField)
+        {
+            ProviderOrderByField = providerOrderByField ?? new Dictionary<MetadataConflictField, IReadOnlyList<string>>();
+        }
+
+        public IReadOnlyList<string> GetProviderOrder(MetadataConflictField field)
+        {
+            return ProviderOrderByField.TryGetValue(field, out var order)
+                ? order
+                : Array.Empty<string>();
+        }
+
+        public static MetadataFieldPrecedenceMatrix CreateDefault()
+        {
+            return new MetadataFieldPrecedenceMatrix(new Dictionary<MetadataConflictField, IReadOnlyList<string>>
+            {
+                [MetadataConflictField.Title] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" },
+                [MetadataConflictField.Subtitle] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
+                [MetadataConflictField.AuthorIdentity] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" },
+                [MetadataConflictField.Identifiers] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
+                [MetadataConflictField.PublicationDate] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
+                [MetadataConflictField.Language] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
+                [MetadataConflictField.CoverLinks] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" }
+            });
         }
     }
 
@@ -70,6 +114,8 @@ namespace NzbDrone.Core.MetadataSource
             ["Hardcover"] = 40,
             ["Goodreads"] = 90
         };
+
+        private static readonly MetadataFieldPrecedenceMatrix FieldPrecedenceMatrix = MetadataFieldPrecedenceMatrix.CreateDefault();
 
         public MetadataConflictResolutionDecision ResolveBookConflict(IEnumerable<MetadataProviderBookCandidate> candidates, string preferredProvider = null)
         {
@@ -103,7 +149,7 @@ namespace NzbDrone.Core.MetadataSource
 
                 if (preferred != null)
                 {
-                    return FinalizeAndEmit(decision, preferred, "preferred-provider", null, false);
+                    return FinalizeAndEmit(decision, normalized, preferred, "preferred-provider", null, false);
                 }
             }
 
@@ -112,7 +158,7 @@ namespace NzbDrone.Core.MetadataSource
 
             if (topCandidates.Count == 1)
             {
-                return FinalizeAndEmit(decision, topCandidates[0], "quality-score", null, false);
+                return FinalizeAndEmit(decision, normalized, topCandidates[0], "quality-score", null, false);
             }
 
             if (_configService.EnableMetadataConflictStrategyVariants)
@@ -122,7 +168,7 @@ namespace NzbDrone.Core.MetadataSource
                     .ThenBy(c => c.ProviderName, StringComparer.OrdinalIgnoreCase)
                     .First();
 
-                return FinalizeAndEmit(decision, selectedByVariant, "tie-break", "experimental-provider-precedence-only", true);
+                return FinalizeAndEmit(decision, normalized, selectedByVariant, "tie-break", "experimental-provider-precedence-only", true);
             }
 
             var withCover = topCandidates.Where(c => c.HasCover).ToList();
@@ -133,7 +179,7 @@ namespace NzbDrone.Core.MetadataSource
                     .ThenBy(c => c.ProviderName, StringComparer.OrdinalIgnoreCase)
                     .First();
 
-                return FinalizeAndEmit(decision, selectedWithCover, "tie-break", "cover-availability-then-provider-precedence", true);
+                return FinalizeAndEmit(decision, normalized, selectedWithCover, "tie-break", "cover-availability-then-provider-precedence", true);
             }
 
             var selected = topCandidates
@@ -141,18 +187,113 @@ namespace NzbDrone.Core.MetadataSource
                 .ThenBy(c => c.ProviderName, StringComparer.OrdinalIgnoreCase)
                 .First();
 
-            return FinalizeAndEmit(decision, selected, "tie-break", "provider-precedence", true);
+            return FinalizeAndEmit(decision, normalized, selected, "tie-break", "provider-precedence", true);
         }
 
         private MetadataConflictResolutionDecision FinalizeAndEmit(MetadataConflictResolutionDecision decision,
+                                                                   List<MetadataProviderBookCandidate> allCandidates,
                                                                    MetadataProviderBookCandidate selected,
                                                                    string resolutionReason,
                                                                    string tieBreakReason,
                                                                    bool usedProviderPrecedence)
         {
             var finalized = FinalizeDecision(decision, selected, resolutionReason, tieBreakReason, usedProviderPrecedence);
+
+            if (selected != null)
+            {
+                finalized.FieldSelections = ResolveFieldSelections(allCandidates, selected);
+            }
+
             EmitDecisionTelemetry(finalized, "resolve-book-conflict");
             return finalized;
+        }
+
+        private static Dictionary<string, string> ResolveFieldSelections(List<MetadataProviderBookCandidate> allCandidates,
+                                                                          MetadataProviderBookCandidate selected)
+        {
+            var selections = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var candidates = (allCandidates ?? new List<MetadataProviderBookCandidate>())
+                .Where(c => c != null && c.Book != null && c.ProviderName.IsNotNullOrWhiteSpace())
+                .ToList();
+
+            if (!candidates.Any() || selected == null)
+            {
+                return selections;
+            }
+
+            selections[GetFieldKey(MetadataConflictField.Title)] = SelectProviderForField(candidates, selected, MetadataConflictField.Title, c => c.Book?.Title.IsNotNullOrWhiteSpace() == true);
+            selections[GetFieldKey(MetadataConflictField.Subtitle)] = SelectProviderForField(candidates, selected, MetadataConflictField.Subtitle, c => GetPrimaryEdition(c.Book)?.Disambiguation.IsNotNullOrWhiteSpace() == true);
+            selections[GetFieldKey(MetadataConflictField.AuthorIdentity)] = SelectProviderForField(candidates, selected, MetadataConflictField.AuthorIdentity, c => c.Book?.AuthorMetadata?.Value?.ForeignAuthorId.IsNotNullOrWhiteSpace() == true || c.Book?.AuthorMetadata?.Value?.Name.IsNotNullOrWhiteSpace() == true);
+            selections[GetFieldKey(MetadataConflictField.Identifiers)] = SelectProviderForField(candidates, selected, MetadataConflictField.Identifiers, c => HasIdentifiers(c.Book));
+            selections[GetFieldKey(MetadataConflictField.PublicationDate)] = SelectProviderForField(candidates, selected, MetadataConflictField.PublicationDate, c => HasPublicationDate(c.Book));
+            selections[GetFieldKey(MetadataConflictField.Language)] = SelectProviderForField(candidates, selected, MetadataConflictField.Language, c => GetPrimaryEdition(c.Book)?.Language.IsNotNullOrWhiteSpace() == true);
+            selections[GetFieldKey(MetadataConflictField.CoverLinks)] = SelectProviderForField(candidates, selected, MetadataConflictField.CoverLinks, c => c.HasCover);
+
+            return selections;
+        }
+
+        private static string SelectProviderForField(List<MetadataProviderBookCandidate> candidates,
+                                                     MetadataProviderBookCandidate selected,
+                                                     MetadataConflictField field,
+                                                     Func<MetadataProviderBookCandidate, bool> hasFieldValue)
+        {
+            var withValue = candidates.Where(hasFieldValue).ToList();
+            if (!withValue.Any())
+            {
+                return selected.ProviderName;
+            }
+
+            var preferredOrder = FieldPrecedenceMatrix.GetProviderOrder(field);
+            if (preferredOrder.Any())
+            {
+                foreach (var providerName in preferredOrder)
+                {
+                    var exact = withValue.FirstOrDefault(c => c.ProviderName.Equals(providerName, StringComparison.OrdinalIgnoreCase));
+                    if (exact != null)
+                    {
+                        return exact.ProviderName;
+                    }
+                }
+            }
+
+            return withValue
+                .OrderBy(c => GetProviderPrecedence(c.ProviderName))
+                .ThenBy(c => c.ProviderName, StringComparer.OrdinalIgnoreCase)
+                .First()
+                .ProviderName;
+        }
+
+        private static Edition GetPrimaryEdition(Book book)
+        {
+            return book?.Editions?.Value?.FirstOrDefault();
+        }
+
+        private static bool HasIdentifiers(Book book)
+        {
+            var edition = GetPrimaryEdition(book);
+            return book?.ForeignBookId.IsNotNullOrWhiteSpace() == true ||
+                   edition?.Isbn13.IsNotNullOrWhiteSpace() == true ||
+                   edition?.Asin.IsNotNullOrWhiteSpace() == true;
+        }
+
+        private static bool HasPublicationDate(Book book)
+        {
+            return book?.ReleaseDate != null || GetPrimaryEdition(book)?.ReleaseDate != null;
+        }
+
+        private static string GetFieldKey(MetadataConflictField field)
+        {
+            return field switch
+            {
+                MetadataConflictField.Title => "title",
+                MetadataConflictField.Subtitle => "subtitle",
+                MetadataConflictField.AuthorIdentity => "author-identity",
+                MetadataConflictField.Identifiers => "identifiers",
+                MetadataConflictField.PublicationDate => "publication-date",
+                MetadataConflictField.Language => "language",
+                MetadataConflictField.CoverLinks => "cover-links",
+                _ => "unknown"
+            };
         }
 
         private void EmitDecisionTelemetry(MetadataConflictResolutionDecision decision, string operation)

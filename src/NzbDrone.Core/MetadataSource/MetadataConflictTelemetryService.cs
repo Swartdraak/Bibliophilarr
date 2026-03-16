@@ -20,10 +20,13 @@ namespace NzbDrone.Core.MetadataSource
 
         public Dictionary<string, int> DecisionsByProvider { get; set; }
 
+        public Dictionary<string, int> FieldSelectionsByProvider { get; set; }
+
         public MetadataConflictTelemetrySnapshot()
         {
             DecisionsByReason = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             DecisionsByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            FieldSelectionsByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -31,12 +34,14 @@ namespace NzbDrone.Core.MetadataSource
     {
         private readonly ConcurrentDictionary<string, int> _decisionsByReason;
         private readonly ConcurrentDictionary<string, int> _decisionsByProvider;
+        private readonly ConcurrentDictionary<string, int> _fieldSelectionsByProvider;
         private readonly Logger _logger;
 
         public MetadataConflictTelemetryService(Logger logger)
         {
             _decisionsByReason = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             _decisionsByProvider = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            _fieldSelectionsByProvider = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             _logger = logger;
         }
 
@@ -53,13 +58,22 @@ namespace NzbDrone.Core.MetadataSource
             _decisionsByReason.AddOrUpdate(reason, 1, (_, current) => current + 1);
             _decisionsByProvider.AddOrUpdate(provider, 1, (_, current) => current + 1);
 
+            foreach (var selection in decision.FieldSelections ?? new Dictionary<string, string>())
+            {
+                var field = selection.Key ?? "unknown";
+                var winner = selection.Value ?? "none";
+                var key = $"{field}:{winner}";
+                _fieldSelectionsByProvider.AddOrUpdate(key, 1, (_, current) => current + 1);
+            }
+
             _logger.Debug(
-                "Metadata conflict telemetry: operation={0}, provider={1}, reason={2}, tieBreak={3}, candidateCount={4}",
+                "Metadata conflict telemetry: operation={0}, provider={1}, reason={2}, tieBreak={3}, candidateCount={4}, fieldSelections={5}",
                 operation,
                 provider,
                 reason,
                 decision.TieBreakReason ?? "none",
-                decision.CandidateCount);
+                decision.CandidateCount,
+                decision.FieldSelections?.Count ?? 0);
         }
 
         public MetadataConflictTelemetrySnapshot GetSnapshot()
@@ -78,6 +92,11 @@ namespace NzbDrone.Core.MetadataSource
             foreach (var pair in _decisionsByProvider)
             {
                 snapshot.DecisionsByProvider[pair.Key] = pair.Value;
+            }
+
+            foreach (var pair in _fieldSelectionsByProvider)
+            {
+                snapshot.FieldSelectionsByProvider[pair.Key] = pair.Value;
             }
 
             return snapshot;
