@@ -73,6 +73,56 @@ namespace NzbDrone.Core.MetadataSource
         /// </summary>
         public DateTime LastChecked { get; set; }
 
+        /// <summary>
+        /// Total number of search operations recorded for this provider (cumulative)
+        /// </summary>
+        public int TotalSearches { get; set; }
+
+        /// <summary>
+        /// Number of searches that returned zero results (cumulative)
+        /// </summary>
+        public int EmptyResultCount { get; set; }
+
+        /// <summary>
+        /// Number of requests that timed out (cumulative)
+        /// </summary>
+        public int TimeoutCount { get; set; }
+
+        /// <summary>
+        /// Number of requests observed in the active provider rate-limit window
+        /// </summary>
+        public int RateLimitWindowRequests { get; set; }
+
+        /// <summary>
+        /// Maximum requests allowed in the active provider rate-limit window
+        /// </summary>
+        public int RateLimitWindowLimit { get; set; }
+
+        /// <summary>
+        /// Remaining requests before the provider rate-limit window is exhausted
+        /// </summary>
+        public int RateLimitRemaining { get; set; }
+
+        /// <summary>
+        /// Usage ratio within the active provider rate-limit window (0.0 to 1.0+)
+        /// </summary>
+        public double RateLimitUsageRatio { get; set; }
+
+        /// <summary>
+        /// True when provider usage is close to rate-limit exhaustion
+        /// </summary>
+        public bool IsRateLimitNearCeiling { get; set; }
+
+        /// <summary>
+        /// Retry-After/cooldown remaining in seconds when rate-limited or cooling down
+        /// </summary>
+        public int RetryAfterRemainingSeconds { get; set; }
+
+        /// <summary>
+        /// UTC timestamp when current provider cooldown expires
+        /// </summary>
+        public DateTime? CooldownUntilUtc { get; set; }
+
         public ProviderHealthStatus()
         {
             Health = ProviderHealth.Unknown;

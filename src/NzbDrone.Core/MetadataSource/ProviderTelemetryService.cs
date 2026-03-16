@@ -5,9 +5,11 @@ namespace NzbDrone.Core.MetadataSource
 {
     public interface IProviderTelemetryService
     {
-        void RecordSuccess(string providerName, string operation, double responseTimeMs);
+        void RecordSuccess(string providerName, string operation, double responseTimeMs, int resultCount = 0);
 
         void RecordFailure(string providerName, string operation, Exception exception);
+
+        void RecordTimeout(string providerName, string operation);
 
         void RecordHealthChange(string providerName, ProviderHealth previousHealth, ProviderHealthStatus current);
     }
@@ -23,13 +25,14 @@ namespace NzbDrone.Core.MetadataSource
             _logger = logger;
         }
 
-        public void RecordSuccess(string providerName, string operation, double responseTimeMs)
+        public void RecordSuccess(string providerName, string operation, double responseTimeMs, int resultCount = 0)
         {
             _logger.Debug(
-                "Provider '{0}' succeeded: operation={1}, responseMs={2:F0}",
+                "Provider '{0}' succeeded: operation={1}, responseMs={2:F0}, resultCount={3}",
                 providerName,
                 operation,
-                responseTimeMs);
+                responseTimeMs,
+                resultCount);
 
             var existing = GetOrDefault(providerName);
 
@@ -41,7 +44,17 @@ namespace NzbDrone.Core.MetadataSource
                 ConsecutiveFailures = 0,
                 LastSuccess = DateTime.UtcNow,
                 LastFailure = existing?.LastFailure,
-                LastChecked = DateTime.UtcNow
+                LastChecked = DateTime.UtcNow,
+                TotalSearches = (existing?.TotalSearches ?? 0) + 1,
+                EmptyResultCount = (existing?.EmptyResultCount ?? 0) + (resultCount == 0 ? 1 : 0),
+                TimeoutCount = existing?.TimeoutCount ?? 0,
+                RateLimitWindowRequests = existing?.RateLimitWindowRequests ?? 0,
+                RateLimitWindowLimit = existing?.RateLimitWindowLimit ?? 0,
+                RateLimitRemaining = existing?.RateLimitRemaining ?? 0,
+                RateLimitUsageRatio = existing?.RateLimitUsageRatio ?? 0,
+                IsRateLimitNearCeiling = existing?.IsRateLimitNearCeiling ?? false,
+                RetryAfterRemainingSeconds = existing?.RetryAfterRemainingSeconds ?? 0,
+                CooldownUntilUtc = existing?.CooldownUntilUtc
             };
 
             _registry.UpdateProviderHealth(providerName, updated);
@@ -74,7 +87,61 @@ namespace NzbDrone.Core.MetadataSource
                 LastSuccess = existing?.LastSuccess,
                 LastFailure = DateTime.UtcNow,
                 LastErrorMessage = exception?.Message,
-                LastChecked = DateTime.UtcNow
+                LastChecked = DateTime.UtcNow,
+                TotalSearches = existing?.TotalSearches ?? 0,
+                EmptyResultCount = existing?.EmptyResultCount ?? 0,
+                TimeoutCount = existing?.TimeoutCount ?? 0,
+                RateLimitWindowRequests = existing?.RateLimitWindowRequests ?? 0,
+                RateLimitWindowLimit = existing?.RateLimitWindowLimit ?? 0,
+                RateLimitRemaining = existing?.RateLimitRemaining ?? 0,
+                RateLimitUsageRatio = existing?.RateLimitUsageRatio ?? 0,
+                IsRateLimitNearCeiling = existing?.IsRateLimitNearCeiling ?? false,
+                RetryAfterRemainingSeconds = existing?.RetryAfterRemainingSeconds ?? 0,
+                CooldownUntilUtc = existing?.CooldownUntilUtc
+            };
+
+            if (existing != null && existing.Health != newHealth)
+            {
+                RecordHealthChange(providerName, existing.Health, updated);
+            }
+
+            _registry.UpdateProviderHealth(providerName, updated);
+        }
+
+        public void RecordTimeout(string providerName, string operation)
+        {
+            _logger.Warn("Provider '{0}' timed out: operation={1}", providerName, operation);
+
+            var existing = GetOrDefault(providerName);
+            var consecutiveFailures = (existing?.ConsecutiveFailures ?? 0) + 1;
+            var successRate = ComputeNewSuccessRate(existing?.SuccessRate ?? 1.0, false);
+
+            var newHealth = consecutiveFailures >= 5
+                ? ProviderHealth.Unhealthy
+                : consecutiveFailures >= 2
+                    ? ProviderHealth.Degraded
+                    : ProviderHealth.Healthy;
+
+            var updated = new ProviderHealthStatus
+            {
+                Health = newHealth,
+                SuccessRate = successRate,
+                AverageResponseTimeMs = existing?.AverageResponseTimeMs ?? 0,
+                ConsecutiveFailures = consecutiveFailures,
+                LastSuccess = existing?.LastSuccess,
+                LastFailure = DateTime.UtcNow,
+                LastErrorMessage = "Request timed out",
+                LastChecked = DateTime.UtcNow,
+                TotalSearches = existing?.TotalSearches ?? 0,
+                EmptyResultCount = existing?.EmptyResultCount ?? 0,
+                TimeoutCount = (existing?.TimeoutCount ?? 0) + 1,
+                RateLimitWindowRequests = existing?.RateLimitWindowRequests ?? 0,
+                RateLimitWindowLimit = existing?.RateLimitWindowLimit ?? 0,
+                RateLimitRemaining = existing?.RateLimitRemaining ?? 0,
+                RateLimitUsageRatio = existing?.RateLimitUsageRatio ?? 0,
+                IsRateLimitNearCeiling = existing?.IsRateLimitNearCeiling ?? false,
+                RetryAfterRemainingSeconds = existing?.RetryAfterRemainingSeconds ?? 0,
+                CooldownUntilUtc = existing?.CooldownUntilUtc
             };
 
             if (existing != null && existing.Health != newHealth)
