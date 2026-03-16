@@ -161,14 +161,10 @@ jobs:
         if: always()
         run: |
           python3 scripts/packaging_error_taxonomy.py \
-            --input-dir _artifacts/phase6-packaging/${{ matrix.install_type }} \
+            --input-dir "_artifacts/phase6-packaging/${{ matrix.install_type }}" \
             --max-unknown-share "${MAX_UNKNOWN_SHARE}" \
-            --json-out \
-            _artifacts/phase6-packaging/${{ matrix.install_type }}/
-            error-taxonomy.json \
-            --md-out \
-            _artifacts/phase6-packaging/${{ matrix.install_type }}/
-            error-taxonomy.md
+            --json-out "_artifacts/phase6-packaging/${{ matrix.install_type }}/error-taxonomy.json" \
+            --md-out "_artifacts/phase6-packaging/${{ matrix.install_type }}/error-taxonomy.md"
 
       - name: Upload packaging artifacts
         if: always()

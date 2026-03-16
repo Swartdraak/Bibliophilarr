@@ -68,7 +68,7 @@ Categories:
 - `unknown`
 
 Deterministic fixture baseline:
-- fixture logs: `tests/fixtures/packaging-taxonomy/logs`
+- fixture text samples: `tests/fixtures/packaging-taxonomy/logs` (`*.txt` tracked)
 - expected counts: `tests/fixtures/packaging-taxonomy/expected-taxonomy-counts.json`
 - verifier: `scripts/test_packaging_error_taxonomy.py`
 
