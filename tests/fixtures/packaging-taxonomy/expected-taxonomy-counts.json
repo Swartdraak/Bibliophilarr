@@ -1,0 +1,11 @@
+{
+  "counts": {
+    "network-timeout": 1,
+    "auth-failure": 1,
+    "bind-conflict": 1,
+    "startup-failure": 1,
+    "dependency-or-build": 1,
+    "unknown": 1
+  },
+  "maxUnknownShare": 0.2
+}
