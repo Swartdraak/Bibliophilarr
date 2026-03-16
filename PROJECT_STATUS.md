@@ -211,6 +211,9 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Add Inventaire fallback provider with deterministic ordering ahead of Google Books and Hardcover
 - [x] Add Open Library author-detail retrieval path (`LookupAuthorByKey`) and cover image mapping for search/ISBN flows
 - [x] Add targeted fallback/cover integration tests (Inventaire, Open Library, Google Books)
+- [x] Add Inventaire fallback localization keys in English resources (`EnableInventaireFallback`, help text)
+- [x] Add integration-style mixed-provider cover precedence test through import candidate flow
+- [x] Start metadata aggregation conflict-resolution policy slice with precedence/tie-break/observability model + unit tests
 
 #### Monitoring & Logging 🔄
 - [x] Add structured logging for provider operations (ProviderTelemetryService)

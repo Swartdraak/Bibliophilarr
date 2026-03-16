@@ -343,6 +343,8 @@
   "EnableAutomaticSearch": "Enable Automatic Search",
   "EnableColorImpairedMode": "Enable Color-Impaired Mode",
   "EnableColorImpairedModeHelpText": "Altered style to allow color-impaired users to better distinguish color coded information",
+  "EnableInventaireFallback": "Enable Inventaire Fallback",
+  "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover.",
   "EnableHardcoverFallback": "Enable Hardcover Fallback",
   "EnableHardcoverFallbackHelpText": "Use Hardcover as a tertiary metadata fallback provider after primary and secondary lookups are exhausted.",
   "EnableCompletedDownloadHandlingHelpText": "Automatically import completed downloads from download client",
