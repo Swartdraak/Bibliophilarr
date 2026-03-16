@@ -41,6 +41,11 @@ The following are pending because this environment is currently unauthenticated 
    - `Staging Smoke Metadata Telemetry / smoke-metadata-telemetry`
 3. Open the dedicated Phase 6 PR from the hardening branch to `develop`
 
+Default-branch dispatch note:
+- GitHub manual workflow dispatch resolves workflow files from the repository default branch (`main`).
+- Because staging smoke is maintained on `develop`, dispatch by file path from CLI can return `404 workflow not found on the default branch`.
+- Mitigation in this phase: run staging smoke on `pull_request` and `push` to `develop` so required-check evidence is produced without manual dispatch.
+
 ## Authenticated Execution Commands
 
 ```bash
