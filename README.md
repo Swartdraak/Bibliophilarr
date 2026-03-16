@@ -68,7 +68,10 @@ To support the revival effort, we now maintain repository operation blueprints:
 - [MCP Server Recommendations](docs/operations/MCP_SERVER_RECOMMENDATIONS.md)
 - [Repository Tags and Labels](docs/operations/REPOSITORY_TAGS.md)
 - [GitHub Projects Blueprint](docs/operations/GITHUB_PROJECTS_BLUEPRINT.md)
+- [Bibliophilarr Delivery Board](https://github.com/users/Swartdraak/projects/1)
 - [.NET Modernization Project](docs/operations/DOTNET_MODERNIZATION.md) - **HIGH PRIORITY**
+- [Phase 6 Packaging Validation Matrix](docs/operations/phase6-packaging-validation-matrix-2026-03-16.md)
+- [Conflict Strategy Staged Rollout Checklist](docs/operations/conflict-strategy-staged-rollout-checklist-2026-03-16.md)
 - [Branch Strategy](docs/operations/BRANCH_STRATEGY.md)
 - [Release Automation](docs/operations/RELEASE_AUTOMATION.md)
 - [Wiki Home](wiki/Home.md)

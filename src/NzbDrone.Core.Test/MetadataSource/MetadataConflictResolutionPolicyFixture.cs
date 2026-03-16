@@ -87,6 +87,64 @@ namespace NzbDrone.Core.Test.MetadataSource
             decision.UsedProviderPrecedence.Should().BeTrue();
         }
 
+        [Test]
+        public void should_apply_field_precedence_matrix_for_overlapping_provider_fields()
+        {
+            var inventaire = BuildCandidate("Inventaire", 90, true);
+            inventaire.Book.Title = "Dune (Inventaire)";
+            inventaire.Book.AuthorMetadata.Value.ForeignAuthorId = "inv:author:1";
+            inventaire.Book.ReleaseDate = null;
+            inventaire.Book.Editions.Value[0].Language = "fr";
+            inventaire.Book.Editions.Value[0].Disambiguation = string.Empty;
+            inventaire.Book.Editions.Value[0].Isbn13 = string.Empty;
+
+            var openLibrary = BuildCandidate("OpenLibrary", 90, true);
+            openLibrary.Book.Title = "Dune (OpenLibrary)";
+            openLibrary.Book.AuthorMetadata.Value.ForeignAuthorId = "ol:author:1";
+            openLibrary.Book.ReleaseDate = new System.DateTime(1965, 8, 1);
+            openLibrary.Book.Editions.Value[0].Language = "en";
+            openLibrary.Book.Editions.Value[0].Disambiguation = "Ace edition";
+            openLibrary.Book.Editions.Value[0].Isbn13 = "9780441172719";
+
+            var decision = Subject.ResolveBookConflict(new List<MetadataProviderBookCandidate>
+            {
+                inventaire,
+                openLibrary
+            });
+
+            decision.FieldSelections["title"].Should().Be("Inventaire");
+            decision.FieldSelections["subtitle"].Should().Be("OpenLibrary");
+            decision.FieldSelections["author-identity"].Should().Be("Inventaire");
+            decision.FieldSelections["identifiers"].Should().Be("OpenLibrary");
+            decision.FieldSelections["publication-date"].Should().Be("OpenLibrary");
+            decision.FieldSelections["language"].Should().Be("OpenLibrary");
+            decision.FieldSelections["cover-links"].Should().Be("Inventaire");
+        }
+
+        [Test]
+        public void should_fallback_to_selected_provider_when_identifier_values_are_missing()
+        {
+            var inventaire = BuildCandidate("Inventaire", 90, true);
+            var openLibrary = BuildCandidate("OpenLibrary", 90, true);
+
+            inventaire.Book.ForeignBookId = null;
+            inventaire.Book.Editions.Value[0].Isbn13 = null;
+            inventaire.Book.Editions.Value[0].Asin = null;
+
+            openLibrary.Book.ForeignBookId = null;
+            openLibrary.Book.Editions.Value[0].Isbn13 = null;
+            openLibrary.Book.Editions.Value[0].Asin = null;
+
+            var decision = Subject.ResolveBookConflict(new List<MetadataProviderBookCandidate>
+            {
+                inventaire,
+                openLibrary
+            });
+
+            decision.SelectedProvider.Should().Be("OpenLibrary");
+            decision.FieldSelections["identifiers"].Should().Be("OpenLibrary");
+        }
+
         private static MetadataProviderBookCandidate BuildCandidate(string provider, int score, bool withCover)
         {
             var book = new Book

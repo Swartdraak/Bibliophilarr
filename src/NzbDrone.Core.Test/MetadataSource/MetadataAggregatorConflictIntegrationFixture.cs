@@ -51,6 +51,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             snapshot.TotalDecisions.Should().Be(1);
             snapshot.DecisionsByReason.Should().ContainKey("tie-break");
             snapshot.DecisionsByProvider["Inventaire"].Should().Be(1);
+            snapshot.FieldSelectionsByProvider.Should().ContainKey("title:Inventaire");
         }
 
         [Test]

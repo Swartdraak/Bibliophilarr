@@ -36,7 +36,35 @@ curl -s "http://localhost:8787/api/v1/metadata/conflicts/telemetry" | jq
 Expected outcome:
 - JSON array with one entry per provider
 - includes health status, success/failure timing, rate-limit window usage, retry-after and cooldown data
-- conflict telemetry export includes total decisions plus counts by reason and selected provider
+- conflict telemetry export includes total decisions plus counts by reason, selected provider, and per-field winner counters (`field:provider`)
+
+## Post-Merge Baseline Snapshot (PR #15)
+
+Capture timestamp:
+- 2026-03-16T19:10Z
+
+Execution notes:
+- isolated local instance launched with explicit appdata override and dedicated port 8790
+- authenticated calls used `X-Api-Key` from instance config
+
+HTTP results:
+- `GET /api/v1/metadata/providers/health` => `200 OK`
+- `GET /api/v1/metadata/conflicts/telemetry` => `200 OK`
+
+Conflict telemetry baseline payload:
+
+```json
+{
+  "totalDecisions": 0,
+  "decisionsByReason": {},
+  "decisionsByProvider": {},
+  "fieldSelectionsByProvider": {}
+}
+```
+
+Interpretation:
+- Gate 2 baseline starts at zero conflict decisions for this isolated run
+- subsequent staged-rollout checks should compare drift from this baseline and watch for sustained `no-candidates`
 
 ## Provider Telemetry Field Interpretation
 
@@ -110,6 +138,24 @@ Group by:
 Expected use:
 - detect provider dominance shifts after provider outages, rate limiting, or data quality changes
 
+### 2b) Per-field winner drift
+
+Source:
+- `GET /api/v1/metadata/conflicts/telemetry`
+- field: `fieldSelectionsByProvider`
+
+Track keys over time:
+- `title:*`
+- `subtitle:*`
+- `author-identity:*`
+- `identifiers:*`
+- `publication-date:*`
+- `language:*`
+- `cover-links:*`
+
+Expected use:
+- detect subtle field-level provider drift even when top-level selected provider looks stable
+
 ### 3) Timeout trend by provider
 
 Filter line contains:
@@ -131,6 +177,15 @@ Compute:
 
 Expected use:
 - identify need for fallback dampening or query pacing adjustments
+
+### 5) No-candidates spike monitor
+
+Source:
+- `GET /api/v1/metadata/conflicts/telemetry`
+- field: `decisionsByReason.no-candidates`
+
+Expected use:
+- alert on sharp increases in unresolved conflict decisions caused by upstream provider degradation, mapping regressions, or identifier quality regressions
 
 ## Validation Commands
 

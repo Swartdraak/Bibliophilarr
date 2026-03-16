@@ -784,5 +784,7 @@
     "AddNewAuthorRootFolderHelpText": "'{folder}' 하위 폴더가 자동으로 생성됩니다",
     "AddRootFolder": "루트 폴더 추가",
     "EnableInventaireFallback": "Enable Inventaire Fallback",
-    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Enable Experimental Conflict Strategy Variants",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Enable alternate tie-break behavior for metadata conflict resolution (staging rollout only)."
 }

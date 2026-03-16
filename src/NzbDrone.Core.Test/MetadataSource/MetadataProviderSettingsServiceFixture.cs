@@ -4,6 +4,9 @@ using FluentAssertions;
 using Moq;
 using NLog;
 using NUnit.Framework;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
 
 namespace NzbDrone.Core.Test.MetadataSource
@@ -54,6 +57,73 @@ namespace NzbDrone.Core.Test.MetadataSource
             stored[0].Priority.Should().Be(7);
         }
 
+        [Test]
+        public void should_apply_persisted_provider_settings_and_conflict_flag_after_registry_recreation()
+        {
+            var stored = new List<MetadataProviderSettings>();
+            var repository = BuildRepository(stored);
+            var service = new MetadataProviderSettingsService(repository.Object, LogManager.GetCurrentClassLogger());
+
+            service.SaveProviderPriority("Inventaire", 5);
+            service.SaveProviderEnabled("Inventaire", true);
+            service.SaveProviderPriority("GoogleBooks", 25);
+            service.SaveProviderEnabled("GoogleBooks", true);
+
+            var persistedConflictVariantFlag = true;
+            var configService = new Mock<IConfigService>();
+            configService.SetupGet(x => x.EnableMetadataConflictStrategyVariants).Returns(() => persistedConflictVariantFlag);
+
+            var firstRegistry = BuildRegistry();
+            service.ApplyPersistedSettings(firstRegistry);
+            var firstDecision = ResolveTieBreak(configService.Object);
+
+            var secondRegistry = BuildRegistry();
+            service.ApplyPersistedSettings(secondRegistry);
+            var secondDecision = ResolveTieBreak(configService.Object);
+
+            firstRegistry.GetBookSearchProviders().Select(x => x.ProviderName)
+                .Should().ContainInOrder("Inventaire", "OpenLibrary", "GoogleBooks");
+            secondRegistry.GetBookSearchProviders().Select(x => x.ProviderName)
+                .Should().ContainInOrder("Inventaire", "OpenLibrary", "GoogleBooks");
+
+            firstDecision.TieBreakReason.Should().Be("experimental-provider-precedence-only");
+            secondDecision.TieBreakReason.Should().Be("experimental-provider-precedence-only");
+            firstDecision.SelectedProvider.Should().Be("Inventaire");
+            secondDecision.SelectedProvider.Should().Be("Inventaire");
+        }
+
+        [Test]
+        public void should_persist_multiple_sequential_priority_edits_across_restart_cycles()
+        {
+            var stored = new List<MetadataProviderSettings>();
+            var repository = BuildRepository(stored);
+            var service = new MetadataProviderSettingsService(repository.Object, LogManager.GetCurrentClassLogger());
+
+            service.SaveProviderPriority("OpenLibrary", 15);
+            service.SaveProviderPriority("Inventaire", 25);
+
+            var firstRegistry = BuildRegistry();
+            service.ApplyPersistedSettings(firstRegistry);
+            firstRegistry.GetBookSearchProviders().Select(x => x.ProviderName)
+                .Should().ContainInOrder("OpenLibrary", "Inventaire", "GoogleBooks");
+
+            service.SaveProviderPriority("Inventaire", 5);
+            service.SaveProviderPriority("GoogleBooks", 35);
+
+            var secondRegistry = BuildRegistry();
+            service.ApplyPersistedSettings(secondRegistry);
+            secondRegistry.GetBookSearchProviders().Select(x => x.ProviderName)
+                .Should().ContainInOrder("Inventaire", "OpenLibrary", "GoogleBooks");
+
+            service.SaveProviderPriority("OpenLibrary", 3);
+            service.SaveProviderPriority("Inventaire", 12);
+
+            var thirdRegistry = BuildRegistry();
+            service.ApplyPersistedSettings(thirdRegistry);
+            thirdRegistry.GetBookSearchProviders().Select(x => x.ProviderName)
+                .Should().ContainInOrder("OpenLibrary", "Inventaire", "GoogleBooks");
+        }
+
         private static Mock<IMetadataProviderSettingsRepository> BuildRepository(List<MetadataProviderSettings> stored)
         {
             var repository = new Mock<IMetadataProviderSettingsRepository>();
@@ -86,6 +156,66 @@ namespace NzbDrone.Core.Test.MetadataSource
                 new TestBookSearchProvider("Inventaire", 20, true),
                 new TestBookSearchProvider("GoogleBooks", 30, true)
             });
+        }
+
+        private static MetadataConflictResolutionDecision ResolveTieBreak(IConfigService configService)
+        {
+            var logger = LogManager.GetCurrentClassLogger();
+            var telemetry = new MetadataConflictTelemetryService(logger);
+            var policy = new MetadataConflictResolutionPolicy(telemetry, logger, configService);
+
+            return policy.ResolveBookConflict(new List<MetadataProviderBookCandidate>
+            {
+                BuildCandidate("GoogleBooks", 90, true),
+                BuildCandidate("Inventaire", 90, false)
+            });
+        }
+
+        private static MetadataProviderBookCandidate BuildCandidate(string provider, int score, bool withCover)
+        {
+            var author = new AuthorMetadata
+            {
+                ForeignAuthorId = provider + ":author",
+                Name = "Author",
+                SortName = "Author",
+                NameLastFirst = "Author",
+                SortNameLastFirst = "Author"
+            };
+
+            var book = new Book
+            {
+                ForeignBookId = provider + ":book",
+                Title = provider + " Title",
+                CleanTitle = provider + " Title",
+                AuthorMetadata = author,
+                Ratings = new Ratings()
+            };
+
+            var edition = new Edition
+            {
+                ForeignEditionId = provider + ":edition",
+                Title = provider + " Edition",
+                Book = book,
+                Ratings = new Ratings()
+            };
+
+            if (withCover)
+            {
+                edition.Images.Add(new MediaCover.MediaCover
+                {
+                    CoverType = MediaCoverTypes.Cover,
+                    Url = "https://covers.example/" + provider + ".jpg"
+                });
+            }
+
+            book.Editions = new List<Edition> { edition };
+
+            return new MetadataProviderBookCandidate
+            {
+                ProviderName = provider,
+                Book = book,
+                QualityScore = score
+            };
         }
 
         private class TestBookSearchProvider : ISearchForNewBookV2

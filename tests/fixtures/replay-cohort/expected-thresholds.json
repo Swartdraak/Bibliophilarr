@@ -1,0 +1,6 @@
+{
+  "minimumDiscoveredTargets": 4,
+  "maxUnresolvedRatio": 1.0,
+  "maxNoCandidateShare": 1.0,
+  "minAcceptedCount": 0
+}

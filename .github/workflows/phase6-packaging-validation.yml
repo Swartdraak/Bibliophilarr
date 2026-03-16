@@ -1,0 +1,107 @@
+name: Phase 6 Packaging Validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packaging-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        install_type: [binary, docker, npm]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        if: matrix.install_type == 'binary'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Setup Node
+        if: matrix.install_type == 'npm'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare artifact workspace
+        run: |
+          mkdir -p _artifacts/phase6-packaging/${{ matrix.install_type }}
+
+      - name: Binary install path validation
+        if: matrix.install_type == 'binary'
+        run: |
+          set -e
+          dotnet msbuild -restore src/Bibliophilarr.sln -p:Platform=Posix -p:Configuration=Release -consoleloggerparameters:NoSummary
+          mkdir -p /tmp/bibliophilarr-packaging-binary
+          cp tests/profiles/packaging-high-verbosity.config.xml /tmp/bibliophilarr-packaging-binary/config.xml
+          sed -i 's#<Port>8787</Port>#<Port>8794</Port>#' /tmp/bibliophilarr-packaging-binary/config.xml
+          sed -i 's#<ApiKey>packaging-ci-key</ApiKey>#<ApiKey>binary-ci-key</ApiKey>#' /tmp/bibliophilarr-packaging-binary/config.xml
+          timeout 240s ./_output/net8.0/Bibliophilarr /data=/tmp/bibliophilarr-packaging-binary /nobrowser /nosingleinstancecheck > _artifacts/phase6-packaging/binary/service.log 2>&1 &
+          app_pid=$!
+          echo "$app_pid" > _artifacts/phase6-packaging/binary/service.pid
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8794/ping" || true)
+            if [ "$code" = "200" ]; then
+              break
+            fi
+            sleep 2
+          done
+          curl -f -sS -H "X-Api-Key: binary-ci-key" "http://127.0.0.1:8794/api/v1/metadata/providers/health" > _artifacts/phase6-packaging/binary/providers-health.json
+          curl -f -sS -H "X-Api-Key: binary-ci-key" "http://127.0.0.1:8794/api/v1/metadata/conflicts/telemetry" > _artifacts/phase6-packaging/binary/conflict-telemetry.json
+          kill "$app_pid" || true
+
+      - name: Docker install path validation
+        if: matrix.install_type == 'docker'
+        run: |
+          set -e
+          docker build -t bibliophilarr:phase6-test . > _artifacts/phase6-packaging/docker/docker-build.log 2>&1
+          docker run -d --name bibliophilarr-phase6 -p 18787:8787 bibliophilarr:phase6-test > _artifacts/phase6-packaging/docker/container-id.txt
+          for i in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:18787/ping" || true)
+            if [ "$code" = "200" ]; then
+              break
+            fi
+            sleep 2
+          done
+          curl -f -sS "http://127.0.0.1:18787/ping" > _artifacts/phase6-packaging/docker/ping.txt
+          docker logs bibliophilarr-phase6 > _artifacts/phase6-packaging/docker/container.log 2>&1 || true
+          docker rm -f bibliophilarr-phase6 || true
+
+      - name: npm install path validation
+        if: matrix.install_type == 'npm'
+        run: |
+          set -e
+          cd npm/bibliophilarr-launcher
+          npm pack > ../../_artifacts/phase6-packaging/npm/npm-pack.log
+          pkg="$(ls -1 *.tgz | head -n 1)"
+          cd /tmp
+          rm -rf bibliophilarr-npm-install
+          mkdir -p bibliophilarr-npm-install
+          cd bibliophilarr-npm-install
+          npm init -y > /opt/Bibliophilarr/_artifacts/phase6-packaging/npm/npm-init.log 2>&1
+          npm install "/opt/Bibliophilarr/npm/bibliophilarr-launcher/${pkg}" > /opt/Bibliophilarr/_artifacts/phase6-packaging/npm/npm-install.log 2>&1
+          timeout 120s ./node_modules/.bin/bibliophilarr --help > /opt/Bibliophilarr/_artifacts/phase6-packaging/npm/launcher-help.log 2>&1 || true
+
+      - name: Build error taxonomy summary
+        if: always()
+        run: |
+          python3 scripts/packaging_error_taxonomy.py \
+            --input-dir _artifacts/phase6-packaging/${{ matrix.install_type }} \
+            --json-out _artifacts/phase6-packaging/${{ matrix.install_type }}/error-taxonomy.json \
+            --md-out _artifacts/phase6-packaging/${{ matrix.install_type }}/error-taxonomy.md
+
+      - name: Upload packaging artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6-packaging-${{ matrix.install_type }}
+          retention-days: 21
+          path: _artifacts/phase6-packaging/${{ matrix.install_type }}
