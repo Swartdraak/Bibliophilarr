@@ -34,9 +34,16 @@ Enable low-touch, highly automated release management for a solo maintainer.
 - Docker workflow publishes images to GHCR on release tags.
 - npm workflow publishes launcher package from `npm/bibliophilarr-launcher`.
 
+## Required check strategy
+
+- Branch protection on `develop`, `staging`, and `main` should require only checks that are emitted on every PR targeting that branch.
+- Do not path-filter required workflows at the trigger level. If a gate is required for merges, the workflow must always report a terminal status so docs-only and operations-only PRs are not blocked waiting on a missing check.
+- Prefer a consistently emitted required check over conditional required-check lists. If runtime cost becomes a problem later, keep the workflow trigger unconditional and optimize inside the workflow.
+
 ## Safety model for solo maintenance
 
 - Prefer automated checks over manual review requirements.
+- `develop` should not require approving reviews for merge. Green PRs merge based on required automated checks so the solo-maintainer flow does not depend on a second reviewer.
 - Keep deployment actions gated by semantic version tags.
 - Use draft release first, then publish after smoke validation.
 - Keep rollback simple: retag previous known-good release and redeploy.
