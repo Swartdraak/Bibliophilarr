@@ -21,6 +21,10 @@ PATTERNS = {
     "dependency-or-build": re.compile(r"failed|error\s+cs\d+|npm err|yarn error|docker build", re.IGNORECASE),
 }
 
+IGNORE_PATTERNS = [
+    re.compile(r'^"test":\s+"echo \\"Error: no test specified\\" && exit 1"$', re.IGNORECASE),
+]
+
 
 def classify(text: str) -> dict:
     counts = {key: 0 for key in PATTERNS}
@@ -31,6 +35,9 @@ def classify(text: str) -> dict:
     for line in text.splitlines():
         normalized = line.strip()
         if normalized.startswith("--- FILE:"):
+            continue
+
+        if any(pattern.search(normalized) for pattern in IGNORE_PATTERNS):
             continue
 
         matched = False
