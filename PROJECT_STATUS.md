@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 15, 2026  
+**Last Updated**: March 16, 2026  
 **Project**: Bibliophilarr (formerly Bibliophilarr)  
 **Current Phase**: Phase 2 - Infrastructure Setup (90% Complete)
 
@@ -156,6 +156,16 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - ✅ **API Comparison Matrix Created**
 - ✅ **Provider Capabilities Documented**
 - ✅ **Rate Limiting Strategies Defined**
+
+### Security Remediation ✅
+- ✅ Merged focused security PR [#12](https://github.com/Swartdraak/Bibliophilarr/pull/12) into `develop`
+  - Branch: `security/dependabot-8-alerts-2026-03-16`
+  - Merge commit: `c5656a492`
+- ✅ Replaced legacy PostCSS plugin chain using `postcss-color-function` with `@csstools/postcss-color-function`
+- ✅ Regenerated `yarn.lock` and validated frontend build success after dependency updates
+- 🔄 Dependabot API still reports 8 open npm alerts immediately post-merge
+  - Current lock entries are pinned at/above advisory patch levels
+  - Next action: wait for GitHub dependency graph reprocessing and re-run alert query
 
 ## What Needs to Be Done 📋
 

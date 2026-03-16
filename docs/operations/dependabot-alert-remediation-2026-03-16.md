@@ -51,6 +51,21 @@ Validated lockfile entries for flagged packages:
 - `serialize-javascript` -> `7.0.3`
 - No `postcss@^6.0.23` entry remains
 
+### Post-Merge Verification
+
+- PR merged to `develop`: https://github.com/Swartdraak/Bibliophilarr/pull/12
+- Merge commit on default branch: `c5656a492`
+- Immediate `dependabot/alerts?state=open` API recheck still reports 8 alerts.
+
+Observed behavior suggests GitHub Dependabot processing lag or lockfile interpretation lag.
+Re-run command used for verification:
+
+```bash
+GH_TOKEN="$GITHUB_TOKEN" gh api \
+  -H "Accept: application/vnd.github+json" \
+  "/repos/Swartdraak/Bibliophilarr/dependabot/alerts?state=open&per_page=100"
+```
+
 ## Operational Impact
 
 - No backend/runtime service behavior changes.
