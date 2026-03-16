@@ -26,6 +26,14 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - ✅ GitHub Project board created and populated with current issue + phase milestones:
   - https://github.com/users/Swartdraak/projects/1
 
+## Latest Operational Update (2026-03-16)
+
+- Phase 5 ops automation branch was merged into `develop` with merge commit `2175a1d7a`.
+- Dedicated Phase 6 hardening branch was created:
+  - `phase6/hardening-packaging-taxonomy-2026-03-16`
+- Pending authenticated GitHub operations are tracked in:
+  - `docs/operations/phase6-hardening-pr-bootstrap-2026-03-16.md`
+
 ## What Has Been Done ✅
 
 ### Phase 1: Documentation - COMPLETE ✅
