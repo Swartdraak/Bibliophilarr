@@ -1122,5 +1122,7 @@
     "AddRootFolder": "Afegeix una carpeta arrel",
     "Book": "Llibre",
     "AddNewBook": "Afegeix nou llibre",
-    "AddNewAuthor": "Afegeix nou autor"
+    "AddNewAuthor": "Afegeix nou autor",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

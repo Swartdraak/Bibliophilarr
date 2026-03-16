@@ -760,5 +760,7 @@
     "DownloadClientDelugeSettingsDirectoryCompletedHelpText": "Nepovinné - umístění kam přesunout dokončená stahování, pokud ponecháte prázné, použije se výchozí umístění Deluge",
     "DownloadClientDelugeSettingsDirectoryHelpText": "Nepovinné - umístění stahovaných souborů, pokud ponecháte prázné, použije se výchozí umístění Deluge",
     "AddNewAuthorRootFolderHelpText": "Podsložka '{folder}' bude vytvořena automaticky",
-    "AddRootFolder": "Přidat kořenový adresář"
+    "AddRootFolder": "Přidat kořenový adresář",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

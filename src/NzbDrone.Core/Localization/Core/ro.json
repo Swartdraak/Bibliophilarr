@@ -674,5 +674,7 @@
     "UpdateAppDirectlyLoadError": "Imposibil de actualizat direct {appName},",
     "Unknown": "Necunoscut",
     "AddRootFolder": "Adăugați folderul rădăcină",
-    "AddNewAuthorRootFolderHelpText": "Subfolderul „{0}” va fi creat automat"
+    "AddNewAuthorRootFolderHelpText": "Subfolderul „{0}” va fi creat automat",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

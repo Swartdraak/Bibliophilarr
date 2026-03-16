@@ -69,6 +69,8 @@ function MetadataProvider(props) {
     validationWarnings
   } = props;
 
+  const conflictStrategyVariantsEnabled = hasSettings && settings.enableMetadataConflictStrategyVariants.value;
+
   return (
 
     <div>
@@ -168,6 +170,18 @@ function MetadataProvider(props) {
 
             <FieldSet legend={translate('MetadataQueryNormalization')}>
               <FormGroup>
+                <FormLabel>{translate('EnableInventaireFallback')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableInventaireFallback"
+                  helpText={translate('EnableInventaireFallbackHelpText')}
+                  onChange={onInputChange}
+                  {...settings.enableInventaireFallback}
+                />
+              </FormGroup>
+
+              <FormGroup>
                 <FormLabel>{translate('EnableHardcoverFallback')}</FormLabel>
 
                 <FormInputGroup
@@ -203,6 +217,27 @@ function MetadataProvider(props) {
                   onChange={onInputChange}
                   {...settings.hardcoverRequestTimeoutSeconds}
                 />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>{translate('EnableMetadataConflictStrategyVariants')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableMetadataConflictStrategyVariants"
+                  helpText={translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                  helpTextWarning={translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                  onChange={onInputChange}
+                  {...settings.enableMetadataConflictStrategyVariants}
+                />
+
+                {
+                  conflictStrategyVariantsEnabled ?
+                    <Alert kind={kinds.WARNING}>
+                      {translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                    </Alert> :
+                    null
+                }
               </FormGroup>
 
               <FormGroup>

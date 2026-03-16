@@ -1122,5 +1122,9 @@
     "AddNewBook": "Añadir Nuevo Libro",
     "AddNewAuthor": "Añadir Nuevo Autor",
     "AddNewAuthorRootFolderHelpText": "La subcarpeta '{folder}' será creada automáticamente",
-    "AddRootFolder": "Añadir Carpeta Raíz"
+    "AddRootFolder": "Añadir Carpeta Raíz",
+    "EnableInventaireFallback": "Activar respaldo de Inventaire",
+    "EnableInventaireFallbackHelpText": "Usar Inventaire como proveedor de respaldo de metadatos de tercer nivel antes de Google Books y Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Activar variantes experimentales de estrategia de conflicto",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Habilita variantes experimentales de desempate para la resolucion de conflictos de metadatos. Desactivalo para forzar el comportamiento estable predeterminado."
 }

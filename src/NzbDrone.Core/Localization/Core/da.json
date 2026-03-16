@@ -673,5 +673,7 @@
     "MetadataProfile": "metadataprofil",
     "Unknown": "Ukendt",
     "AddRootFolder": "Tilføj rodmappe",
-    "AddNewAuthorRootFolderHelpText": "Undermappen '{0}' oprettes automatisk"
+    "AddNewAuthorRootFolderHelpText": "Undermappen '{0}' oprettes automatisk",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

@@ -96,6 +96,15 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
         {
             _logger.Debug("Getting Author details GoodreadsId of {0}", foreignAuthorId);
 
+            if (IsOpenLibraryAuthorId(foreignAuthorId) && _openLibrarySearchProxy != null)
+            {
+                var openLibraryAuthor = _openLibrarySearchProxy.LookupAuthorByKey(foreignAuthorId);
+                if (openLibraryAuthor != null)
+                {
+                    return openLibraryAuthor;
+                }
+            }
+
             try
             {
                 if (useCache)
@@ -1019,6 +1028,11 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
         private static int GetAuthorId(WorkResource b)
         {
             return b.Books.OrderByDescending(x => x.RatingCount * x.AverageRating).FirstOrDefault(x => x.Contributors.Any())?.Contributors.First().ForeignId ?? 0;
+        }
+
+        private static bool IsOpenLibraryAuthorId(string foreignAuthorId)
+        {
+            return foreignAuthorId.IsNotNullOrWhiteSpace() && foreignAuthorId.StartsWith("openlibrary:author:", StringComparison.InvariantCultureIgnoreCase);
         }
     }
 }

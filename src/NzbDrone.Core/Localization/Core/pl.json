@@ -720,5 +720,7 @@
     "UpdateAppDirectlyLoadError": "Nie można bezpośrednio zaktualizować {appName},",
     "DockerUpdater": "zaktualizuj kontener Dockera, aby otrzymać aktualizację",
     "AddNewAuthorRootFolderHelpText": "Podfolder „{0}” zostanie utworzony automatycznie",
-    "AddRootFolder": "Dodaj folder główny"
+    "AddRootFolder": "Dodaj folder główny",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

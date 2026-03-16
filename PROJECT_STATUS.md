@@ -167,6 +167,7 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
   - Removed `resolutions` overrides and remediated chains at source (`rimraf`, `webpack`, `postcss-url` removal)
 - ✅ Replaced legacy PostCSS plugin chain using `postcss-color-function` with `@csstools/postcss-color-function`
 - ✅ Regenerated `yarn.lock` and validated frontend build success after dependency updates
+- ✅ Removed accidental local `.env.bak.*` secret backup from workspace and added `.gitignore` guard (`.env.bak*`) while keeping `.env` local-only and `.env.example` tracked
 - 🔄 Dependabot API still reports 8 open npm alerts after PR #12 and PR #13 merges
   - Rechecked immediately and after delay via GitHub API on `develop`
   - Local lock graph now resolves at/above patched ranges:
@@ -207,6 +208,18 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Expose Hardcover fallback controls in metadata settings UI (enable, token, timeout override)
 - [x] Add API-level integration tests for metadata config save/load round-trip (mapper + validation, 10 tests)
 - [x] Add provider resilience tests for Hardcover execution path (408, 503, 429, empty-result — 4 tests)
+- [x] Add Inventaire fallback provider with deterministic ordering ahead of Google Books and Hardcover
+- [x] Add Open Library author-detail retrieval path (`LookupAuthorByKey`) and cover image mapping for search/ISBN flows
+- [x] Add targeted fallback/cover integration tests (Inventaire, Open Library, Google Books)
+- [x] Add Inventaire fallback localization keys in English resources (`EnableInventaireFallback`, help text)
+- [x] Add integration-style mixed-provider cover precedence test through import candidate flow
+- [x] Start metadata aggregation conflict-resolution policy slice with precedence/tie-break/observability model + unit tests
+- [x] Wire metadata conflict policy into runtime aggregation execution paths (`MetadataAggregator`) with provider telemetry integration
+- [x] Add runtime integration fixture for aggregator conflict selection + telemetry snapshot assertions
+- [x] Expand Inventaire fallback localization keys across all non-English locale resources
+- [x] Add runtime aggregator transient-behavior integration coverage for 408/429/503 handling paths
+- [x] Add runtime aggregator identifier-routing regression tests (`isbn`, `asin`, custom identifier)
+- [x] Add provider settings persistence regression tests for save-load-apply behavior across registry recreation
 
 #### Monitoring & Logging 🔄
 - [x] Add structured logging for provider operations (ProviderTelemetryService)
@@ -216,6 +229,9 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Add operational telemetry counters: TotalSearches, EmptyResultCount, TimeoutCount per provider
 - [x] Implement rate limit tracking and warnings (window usage, near-ceiling signal, retry-after remaining)
 - [x] Add tertiary fallback provider dampening using provider health, cooldowns, and rate-limit metadata
+- [x] Add metadata conflict decision telemetry service (reason/provider/tie-break counters) with structured policy logs
+- [x] Document metadata provider health endpoint usage and telemetry interpretation runbook
+- [x] Add dashboard query definitions for conflict telemetry reason/provider drift monitoring
 
 #### Platform and Runtime ✅
 - [x] Audit all backend project targets and confirm .NET 8-only targeting (`net8.0` / `net8.0-windows`)
@@ -233,6 +249,8 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Reduced false-positive import matches with format-aware embedded tag confidence weighting
 - [x] Quarantined unresolved media under root-local excluded paths (`/media/audiobooks/_dupes/unidentified`, `/media/ebooks/_dupes/unidentified`)
 - [x] Revalidated active libraries with post-quarantine `0` organization actions and `0` enrichment targets
+- [x] Run sampled live media enrichment replay and compare pre/post provider winner outcomes (post sample had `0` pending targets)
+- [x] Prepare Phase 5 Inventaire/OpenLibrary consolidation slice plan with acceptance criteria and rollout gates
 
 ### Phase 1 Remaining Tasks
 - [ ] Community engagement and recruitment
@@ -252,10 +270,43 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Map Open Library data to Bibliophilarr models (search result mapping)
 - [x] Search functionality (primary search path in BookInfoProxy)
 - [x] ISBN/ASIN lookup
-- [ ] Author information retrieval
-- [ ] Cover image handling
+- [x] Author information retrieval
+- [x] Cover image handling
 - [x] Rate limiting
 - [x] Comprehensive testing
+
+## Recommended Next 10 Steps (Post-Phase 4 Runtime Wiring)
+
+1. Finalize PR #15 reviewer packet and merge readiness
+  - Validate with `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter "FullyQualifiedName~MetadataAggregatorConflictIntegrationFixture|FullyQualifiedName~MetadataConflictResolutionPolicyFixture|FullyQualifiedName~CandidateServiceFallbackOrderingIntegrationFixture"` and `yarn build`.
+  - Operational impact: ensures conflict-policy runtime behavior is reviewed with explicit evidence before merge.
+2. Add metadata aggregator health endpoint details to API docs
+  - Document current provider-health API usage and expected telemetry interpretation in operations docs.
+  - Mitigation: if metrics become noisy, keep endpoint contract stable and tune telemetry thresholds only.
+3. Add integration coverage for provider timeout + retry interaction in runtime aggregator
+  - Add fixture cases for transient 408/429/503 during aggregation to confirm deterministic fallback.
+  - Rollback: disable provider-specific retry extension and use existing cooldown path.
+4. Add regression tests for mixed identifier routing in `MetadataAggregator`
+  - Validate `isbn`, `asin`, and custom identifier fallback path behavior.
+  - Assumption: providers may partially implement identifier capabilities.
+5. Introduce feature-flag guard for conflict policy strategy variants
+  - Keep conservative default while enabling controlled rollout of alternate tie-break behavior.
+  - Mitigation: instant fallback to default policy on unexpected ranking outcomes.
+6. Expand localization from fallback English to translated strings for high-traffic locales
+  - Start with `de`, `fr`, `es`, `pt_BR`, `ru`, `zh_CN` for user-facing settings clarity.
+  - Validation: UI settings page key resolution and snapshot check per locale.
+7. Add structured dashboard queries for conflict telemetry counters
+  - Track decision reasons (`quality-score`, `tie-break`, `preferred-provider`, `no-candidates`) over time.
+  - Operational impact: faster diagnosis when provider data quality drifts.
+8. Run live sampled `/media` enrichment replay with runtime policy enabled
+  - Compare winner provider distribution and cover completeness before/after conflict-policy wiring.
+  - Rollback: revert to previous provider precedence ordering if regressions exceed threshold.
+9. Harden provider precedence configuration persistence
+  - Add API/UI tests for save-load-apply semantics when precedence values change at runtime.
+  - Risk: stale cache or ordering drift across restarts; mitigation via explicit reload tests.
+10. Prepare Phase 5 implementation plan slice (Inventaire/OpenLibrary consolidation)
+  - Define acceptance criteria for source-of-truth fields, merge behavior, and observability gates.
+  - Deliverable: small, mergeable increments with test evidence per slice.
 
 ### Subsequent Phases
 See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
@@ -334,6 +385,10 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 - `dotnet msbuild -restore /opt/Bibliophilarr/src/Bibliophilarr.sln -p:GenerateFullPaths=true -p:Configuration=Debug -p:Platform=Posix -consoleloggerparameters:NoSummary;ForceNoAlign` -> Passed
 - `dotnet test /opt/Bibliophilarr/src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Debug --filter "FullyQualifiedName~MetadataProviderRegistryFixture|FullyQualifiedName~MetadataQualityScorerFixture"` -> Passed (13/13)
 - Analyzer stabilization completed for `SA1200` and `SA1000` issues introduced by broad rename cleanup
+
+### Latest Validation (March 16, 2026)
+- `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter "FullyQualifiedName~MetadataSource.CandidateServiceFallbackOrderingIntegrationFixture|FullyQualifiedName~MetadataSource.InventaireFallbackSearchProviderFixture|FullyQualifiedName~MetadataSource.OpenLibrary.OpenLibrarySearchProxyFixture|FullyQualifiedName~MetadataSource.BookInfo.BookInfoProxyOpenLibraryFixture|FullyQualifiedName~MetadataSource.GoogleBooksFallbackSearchProviderFixture"` -> Passed (11/11)
+- `dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --filter "FullyQualifiedName~Config.MetadataProviderConfigFixture"` -> Passed (12/12)
 
 #### In Progress ⏳
 - [ ] Provider registry implementation

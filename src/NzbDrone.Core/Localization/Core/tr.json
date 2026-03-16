@@ -867,5 +867,7 @@
     "LastSearched": "Son Aranan",
     "Unknown": "Bilinmeyen",
     "AddNewAuthorRootFolderHelpText": "'{0}' alt klasörü otomatik olarak oluşturulacak",
-    "AddRootFolder": "Kök Klasör Ekle"
+    "AddRootFolder": "Kök Klasör Ekle",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

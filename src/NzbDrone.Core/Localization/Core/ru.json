@@ -884,5 +884,9 @@
     "WhySearchesCouldBeFailing": "Нажмите здесь, чтобы найти причину ошибок писка",
     "LastSearched": "Искали недавно",
     "AddRootFolder": "Добавить корневой каталог",
-    "AddNewAuthorRootFolderHelpText": "Подпапка \"{folder}\" будет создана автоматически"
+    "AddNewAuthorRootFolderHelpText": "Подпапка \"{folder}\" будет создана автоматически",
+    "EnableInventaireFallback": "Включить резерв Inventaire",
+    "EnableInventaireFallbackHelpText": "Использовать Inventaire как третичный резервный источник метаданных перед Google Books и Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Включить экспериментальные варианты стратегии конфликтов",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Включает экспериментальные варианты разрешения ничьих при конфликте метаданных. Отключите, чтобы использовать стабильное поведение по умолчанию."
 }

@@ -967,5 +967,7 @@
     "AddNewAuthorRootFolderHelpText": "A subpasta \"{0}\" será criada automaticamente",
     "AddRootFolder": "Adicionar pasta raiz",
     "ThereWasAnErrorLoadingThisItem": "Houve um erro ao carregar este item",
-    "ThereWasAnErrorLoadingThisPage": "Houve um erro ao carregar esta página"
+    "ThereWasAnErrorLoadingThisPage": "Houve um erro ao carregar esta página",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

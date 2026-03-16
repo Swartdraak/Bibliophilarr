@@ -654,5 +654,7 @@
     "UnmappedFiles": "Ókortlagðar möppur",
     "UpdateAppDirectlyLoadError": "Ekki er hægt að uppfæra {appName} beint,",
     "AddNewAuthorRootFolderHelpText": "„{0}“ undirmöppan verður búin til sjálfkrafa",
-    "AddRootFolder": "Bæta við rótarmöppu"
+    "AddRootFolder": "Bæta við rótarmöppu",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

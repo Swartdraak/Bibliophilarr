@@ -230,5 +230,7 @@
     "Clone": "Zatvori",
     "BuiltIn": "Ugrađeno",
     "AptUpdater": "Koristi apt kako bi instalirao ažuriranje",
-    "AddRootFolder": "Dodaj Korijensku Mapu"
+    "AddRootFolder": "Dodaj Korijensku Mapu",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

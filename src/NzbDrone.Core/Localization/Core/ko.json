@@ -782,5 +782,7 @@
     "IgnoreDownloadsHint": "{appName}가 이러한 다운로드를 더 이상 처리하지 않도록 중지합니다",
     "InstallMajorVersionUpdateMessageLink": "상세 내용은 [{domain}]({url})을 확인하세요.",
     "AddNewAuthorRootFolderHelpText": "'{folder}' 하위 폴더가 자동으로 생성됩니다",
-    "AddRootFolder": "루트 폴더 추가"
+    "AddRootFolder": "루트 폴더 추가",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

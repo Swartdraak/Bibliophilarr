@@ -653,5 +653,7 @@
     "ExternalUpdater": "{appName}は、外部更新メカニズムを使用するように構成されています",
     "OnLatestVersion": "{appName}の最新バージョンはすでにインストールされています",
     "AddRootFolder": "ルートフォルダを追加する",
-    "AddNewAuthorRootFolderHelpText": "'{0}'サブフォルダは自動的に作成されます"
+    "AddNewAuthorRootFolderHelpText": "'{0}'サブフォルダは自動的に作成されます",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

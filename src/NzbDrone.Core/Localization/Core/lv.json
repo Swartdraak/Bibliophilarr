@@ -3,5 +3,7 @@
     "About": "Par",
     "Activity": "Aktivitāte",
     "New": "Jauns",
-    "ExportCustomFormat": "Pievienot Pielāgotu Formātu"
+    "ExportCustomFormat": "Pievienot Pielāgotu Formātu",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

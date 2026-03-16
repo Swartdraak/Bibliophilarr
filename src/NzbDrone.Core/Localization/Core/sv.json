@@ -884,5 +884,7 @@
     "Script": "Skript",
     "UpdateAppDirectlyLoadError": "Det går inte att uppdatera {appName} direkt,",
     "AddNewAuthorRootFolderHelpText": "Mappen \"{folder}\" kommer skapas automatiskt",
-    "AddRootFolder": "Lägg till rotmapp"
+    "AddRootFolder": "Lägg till rotmapp",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

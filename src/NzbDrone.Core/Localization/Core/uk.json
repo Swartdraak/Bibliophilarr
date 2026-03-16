@@ -860,5 +860,7 @@
     "OnDownloadFailureHelpText": "При помилці завантаження",
     "WriteAudioTags": "Тегувати аудіофайли метаданими",
     "SearchForNewItems": "Пошук нових елементів",
-    "WriteAudioTagsScrub": "Очистити існуючі теги"
+    "WriteAudioTagsScrub": "Очистити існуючі теги",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

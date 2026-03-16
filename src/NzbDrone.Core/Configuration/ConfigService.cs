@@ -304,6 +304,13 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("EmbedMetadata", value); }
         }
 
+        public bool EnableInventaireFallback
+        {
+            get { return GetValueBoolean("EnableInventaireFallback", true); }
+
+            set { SetValue("EnableInventaireFallback", value); }
+        }
+
         public bool EnableGoogleBooksFallback
         {
             get { return GetValueBoolean("EnableGoogleBooksFallback", true); }
@@ -337,6 +344,13 @@ namespace NzbDrone.Core.Configuration
             get { return GetValueInt("HardcoverRequestTimeoutSeconds", 0); }
 
             set { SetValue("HardcoverRequestTimeoutSeconds", value); }
+        }
+
+        public bool EnableMetadataConflictStrategyVariants
+        {
+            get { return GetValueBoolean("EnableMetadataConflictStrategyVariants", false); }
+
+            set { SetValue("EnableMetadataConflictStrategyVariants", value); }
         }
 
         public string MetadataAuthorAliases

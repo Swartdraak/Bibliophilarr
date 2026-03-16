@@ -72,11 +72,13 @@ namespace NzbDrone.Core.Configuration
         WriteBookTagsType WriteBookTags { get; set; }
         bool UpdateCovers { get; set; }
         bool EmbedMetadata { get; set; }
+        bool EnableInventaireFallback { get; set; }
         bool EnableGoogleBooksFallback { get; set; }
         string GoogleBooksApiKey { get; set; }
         bool EnableHardcoverFallback { get; set; }
         string HardcoverApiToken { get; set; }
         int HardcoverRequestTimeoutSeconds { get; set; }
+        bool EnableMetadataConflictStrategyVariants { get; set; }
         string MetadataAuthorAliases { get; set; }
         string MetadataTitleStripPatterns { get; set; }
 

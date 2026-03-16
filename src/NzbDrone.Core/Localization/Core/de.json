@@ -1120,5 +1120,9 @@
     "LastSearched": "Letzte Suche",
     "Unknown": "Unbekannt",
     "AddRootFolder": "Stammverzeichnis hinzufügen",
-    "AddNewAuthorRootFolderHelpText": "'{folder}' Unterordner wird automatisch erstellt werden"
+    "AddNewAuthorRootFolderHelpText": "'{folder}' Unterordner wird automatisch erstellt werden",
+    "EnableInventaireFallback": "Inventaire-Fallback aktivieren",
+    "EnableInventaireFallbackHelpText": "Inventaire als tertiären Metadaten-Fallback vor Google Books und Hardcover verwenden.",
+    "EnableMetadataConflictStrategyVariants": "Experimentelle Konfliktstrategien aktivieren",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Aktiviert experimentelle Varianten zur Konfliktauflösung in der Metadatenaggregation. Deaktivieren, um das stabile Standard-Tie-Break-Verhalten zu erzwingen."
 }

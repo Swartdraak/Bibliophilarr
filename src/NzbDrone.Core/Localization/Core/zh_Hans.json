@@ -3,5 +3,7 @@
     "About": "关于",
     "Username": "用户名",
     "Activity": "111",
-    "Actions": "Actions"
+    "Actions": "Actions",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

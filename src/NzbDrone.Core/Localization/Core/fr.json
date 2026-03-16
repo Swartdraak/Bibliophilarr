@@ -1120,5 +1120,9 @@
     "LastSearched": "Dernière recherche",
     "Unknown": "Inconnu",
     "AddNewAuthorRootFolderHelpText": "Le sous-dossier « {folder} » sera créé automatiquement",
-    "AddRootFolder": "Ajouter un dossier racine"
+    "AddRootFolder": "Ajouter un dossier racine",
+    "EnableInventaireFallback": "Activer le secours Inventaire",
+    "EnableInventaireFallbackHelpText": "Utiliser Inventaire comme fournisseur de secours de metadonnees de troisieme niveau avant Google Books et Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Activer les variantes experimentales de strategie de conflit",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Active les variantes experimentales de departage pour la resolution des conflits de metadonnees. Desactivez pour imposer le comportement stable par defaut."
 }

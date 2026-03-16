@@ -1,5 +1,7 @@
 {
     "About": "সম্পর্কিত",
     "Actions": "ক্রিয়াকাণ্ড",
-    "Activity": "কার্যকলাপ"
+    "Activity": "কার্যকলাপ",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

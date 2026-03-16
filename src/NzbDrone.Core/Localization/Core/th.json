@@ -655,5 +655,7 @@
     "AptUpdater": "ใช้ apt เพื่อติดตั้งการอัปเดต",
     "OnLatestVersion": "มีการติดตั้ง {appName} เวอร์ชันล่าสุดแล้ว",
     "AddRootFolder": "เพิ่มโฟลเดอร์รูท",
-    "AddNewAuthorRootFolderHelpText": "โฟลเดอร์ย่อย \"{0}\" จะถูกสร้างขึ้นโดยอัตโนมัติ"
+    "AddNewAuthorRootFolderHelpText": "โฟลเดอร์ย่อย \"{0}\" จะถูกสร้างขึ้นโดยอัตโนมัติ",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

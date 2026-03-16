@@ -781,5 +781,7 @@
     "CountIndexersSelected": "{selectedCount} indexeerder(s) geselecteerd",
     "Continuing": "Doorgaan",
     "ContinuingAllBooksDownloaded": "Doorgaan (Alle boeken gedownload)",
-    "StatusEndedContinuing": "Doorgaan"
+    "StatusEndedContinuing": "Doorgaan",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

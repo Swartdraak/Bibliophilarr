@@ -6,6 +6,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.MediaCover;
 
 namespace NzbDrone.Core.MetadataSource.GoogleBooks
 {
@@ -145,6 +146,20 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 Ratings = new Ratings()
             };
 
+            var coverUrl = volume.ImageLinks?.Large
+                           ?? volume.ImageLinks?.Medium
+                           ?? volume.ImageLinks?.Thumbnail
+                           ?? volume.ImageLinks?.SmallThumbnail;
+
+            if (coverUrl.IsNotNullOrWhiteSpace())
+            {
+                edition.Images.Add(new MediaCover.MediaCover
+                {
+                    Url = coverUrl,
+                    CoverType = MediaCoverTypes.Cover
+                });
+            }
+
             book.Editions = new List<Edition> { edition };
 
             return book;
@@ -198,6 +213,15 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
         public string Language { get; set; }
         public string PrintType { get; set; }
         public List<GoogleBooksIndustryIdentifierResource> IndustryIdentifiers { get; set; }
+        public GoogleBooksImageLinksResource ImageLinks { get; set; }
+    }
+
+    public class GoogleBooksImageLinksResource
+    {
+        public string SmallThumbnail { get; set; }
+        public string Thumbnail { get; set; }
+        public string Medium { get; set; }
+        public string Large { get; set; }
     }
 
     public class GoogleBooksIndustryIdentifierResource

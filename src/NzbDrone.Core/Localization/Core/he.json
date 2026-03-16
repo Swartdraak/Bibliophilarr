@@ -689,5 +689,7 @@
     "UpdateAppDirectlyLoadError": "לא ניתן לעדכן את {appName} ישירות,",
     "Clone": "סגור",
     "AddNewAuthorRootFolderHelpText": "תיקיית המשנה '{0}' תיווצר באופן אוטומטי",
-    "AddRootFolder": "הוסף תיקיית שורש"
+    "AddRootFolder": "הוסף תיקיית שורש",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

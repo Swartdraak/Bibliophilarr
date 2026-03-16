@@ -106,5 +106,7 @@
     "AptUpdater": "Gunakan apt untuk memasang pembaruan",
     "Clone": "Tutup",
     "CurrentlyInstalled": "Saat Ini Terpasang",
-    "EnableSSL": "Aktifkan RSS"
+    "EnableSSL": "Aktifkan RSS",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

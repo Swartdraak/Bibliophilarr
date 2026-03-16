@@ -1022,5 +1022,7 @@
     "ExternalUpdater": "Το {appName} έχει ρυθμιστεί να χρησιμοποιεί έναν εξωτερικό μηχανισμό ενημέρωσης",
     "InstallLatest": "Εγκατάσταση πιο πρόσφατου",
     "AddNewAuthorRootFolderHelpText": "Ο υποφάκελος \"{0}\" θα δημιουργηθεί αυτόματα",
-    "AddRootFolder": "Προσθήκη φακέλου ρίζας"
+    "AddRootFolder": "Προσθήκη φακέλου ρίζας",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }
