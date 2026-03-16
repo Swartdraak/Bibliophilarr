@@ -43,6 +43,7 @@ Enable low-touch, highly automated release management for a solo maintainer.
 ## Safety model for solo maintenance
 
 - Prefer automated checks over manual review requirements.
+- `develop` should not require approving reviews for merge. Green PRs merge based on required automated checks so the solo-maintainer flow does not depend on a second reviewer.
 - Keep deployment actions gated by semantic version tags.
 - Use draft release first, then publish after smoke validation.
 - Keep rollback simple: retag previous known-good release and redeploy.

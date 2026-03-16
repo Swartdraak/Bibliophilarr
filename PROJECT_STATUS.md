@@ -34,6 +34,7 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - Develop branch protection was corrected so green PRs can merge without admin override:
   - kept required backend gate as `build-test`
   - removed trigger-level path filtering from `.github/workflows/ci-backend.yml` so the required check is emitted on every PR and protected-branch push
+  - removed the lingering `required_approving_review_count=1` policy from `develop` to align branch protection with the documented automated solo-maintainer workflow
 - Pending authenticated GitHub operations are tracked in:
   - `docs/operations/phase6-hardening-pr-bootstrap-2026-03-16.md`
 
