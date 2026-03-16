@@ -345,6 +345,8 @@
   "EnableColorImpairedModeHelpText": "Altered style to allow color-impaired users to better distinguish color coded information",
   "EnableInventaireFallback": "Enable Inventaire Fallback",
   "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover.",
+  "EnableMetadataConflictStrategyVariants": "Enable Experimental Conflict Strategy Variants",
+  "EnableMetadataConflictStrategyVariantsHelpText": "Enable experimental tie-break strategy variants for metadata conflict resolution. Disable to enforce stable default tie-break behavior.",
   "EnableHardcoverFallback": "Enable Hardcover Fallback",
   "EnableHardcoverFallbackHelpText": "Use Hardcover as a tertiary metadata fallback provider after primary and secondary lookups are exhausted.",
   "EnableCompletedDownloadHandlingHelpText": "Automatically import completed downloads from download client",

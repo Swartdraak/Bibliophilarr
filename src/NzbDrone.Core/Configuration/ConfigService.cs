@@ -346,6 +346,13 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("HardcoverRequestTimeoutSeconds", value); }
         }
 
+        public bool EnableMetadataConflictStrategyVariants
+        {
+            get { return GetValueBoolean("EnableMetadataConflictStrategyVariants", false); }
+
+            set { SetValue("EnableMetadataConflictStrategyVariants", value); }
+        }
+
         public string MetadataAuthorAliases
         {
             get { return GetValue("MetadataAuthorAliases", string.Empty); }

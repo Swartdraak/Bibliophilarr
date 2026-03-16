@@ -218,6 +218,18 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
+                <FormLabel>{translate('EnableMetadataConflictStrategyVariants')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableMetadataConflictStrategyVariants"
+                  helpText={translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                  onChange={onInputChange}
+                  {...settings.enableMetadataConflictStrategyVariants}
+                />
+              </FormGroup>
+
+              <FormGroup>
                 <FormLabel>{translate('MetadataAuthorAliases')}</FormLabel>
 
                 <FormInputGroup

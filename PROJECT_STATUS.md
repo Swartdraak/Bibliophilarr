@@ -217,6 +217,9 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Wire metadata conflict policy into runtime aggregation execution paths (`MetadataAggregator`) with provider telemetry integration
 - [x] Add runtime integration fixture for aggregator conflict selection + telemetry snapshot assertions
 - [x] Expand Inventaire fallback localization keys across all non-English locale resources
+- [x] Add runtime aggregator transient-behavior integration coverage for 408/429/503 handling paths
+- [x] Add runtime aggregator identifier-routing regression tests (`isbn`, `asin`, custom identifier)
+- [x] Add provider settings persistence regression tests for save-load-apply behavior across registry recreation
 
 #### Monitoring & Logging 🔄
 - [x] Add structured logging for provider operations (ProviderTelemetryService)
@@ -227,6 +230,8 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Implement rate limit tracking and warnings (window usage, near-ceiling signal, retry-after remaining)
 - [x] Add tertiary fallback provider dampening using provider health, cooldowns, and rate-limit metadata
 - [x] Add metadata conflict decision telemetry service (reason/provider/tie-break counters) with structured policy logs
+- [x] Document metadata provider health endpoint usage and telemetry interpretation runbook
+- [x] Add dashboard query definitions for conflict telemetry reason/provider drift monitoring
 
 #### Platform and Runtime ✅
 - [x] Audit all backend project targets and confirm .NET 8-only targeting (`net8.0` / `net8.0-windows`)
@@ -244,6 +249,8 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Reduced false-positive import matches with format-aware embedded tag confidence weighting
 - [x] Quarantined unresolved media under root-local excluded paths (`/media/audiobooks/_dupes/unidentified`, `/media/ebooks/_dupes/unidentified`)
 - [x] Revalidated active libraries with post-quarantine `0` organization actions and `0` enrichment targets
+- [x] Run sampled live media enrichment replay and compare pre/post provider winner outcomes (post sample had `0` pending targets)
+- [x] Prepare Phase 5 Inventaire/OpenLibrary consolidation slice plan with acceptance criteria and rollout gates
 
 ### Phase 1 Remaining Tasks
 - [ ] Community engagement and recruitment

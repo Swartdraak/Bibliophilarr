@@ -16,6 +16,7 @@ namespace Bibliophilarr.Api.V1.Config
         public bool EnableHardcoverFallback { get; set; }
         public string HardcoverApiToken { get; set; }
         public int HardcoverRequestTimeoutSeconds { get; set; }
+        public bool EnableMetadataConflictStrategyVariants { get; set; }
         public string MetadataAuthorAliases { get; set; }
         public string MetadataTitleStripPatterns { get; set; }
     }
@@ -37,6 +38,7 @@ namespace Bibliophilarr.Api.V1.Config
                 EnableHardcoverFallback = model.EnableHardcoverFallback,
                 HardcoverApiToken = model.HardcoverApiToken,
                 HardcoverRequestTimeoutSeconds = model.HardcoverRequestTimeoutSeconds,
+                EnableMetadataConflictStrategyVariants = model.EnableMetadataConflictStrategyVariants,
                 MetadataAuthorAliases = model.MetadataAuthorAliases,
                 MetadataTitleStripPatterns = model.MetadataTitleStripPatterns
             };

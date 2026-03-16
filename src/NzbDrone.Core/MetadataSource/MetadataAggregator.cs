@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 
 namespace NzbDrone.Core.MetadataSource
@@ -34,10 +36,10 @@ namespace NzbDrone.Core.MetadataSource
             foreach (var provider in _providerRegistry.GetBookSearchProviders().Take(Math.Max(1, options.MaxProviders)))
             {
                 result.QueriedProviders.Add(provider.ProviderName);
+                var watch = Stopwatch.StartNew();
 
                 try
                 {
-                    var watch = Stopwatch.StartNew();
                     var books = await SearchByIdentifierAsync(provider, identifierType, identifier, BuildBookSearchOptions(options));
                     watch.Stop();
 
@@ -62,6 +64,12 @@ namespace NzbDrone.Core.MetadataSource
                             break;
                         }
                     }
+                }
+                catch (HttpException ex) when (IsTransientProviderStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    result.FailedProviders[provider.ProviderName] = ex.Message;
+                    RecordTransientTelemetry(provider.ProviderName, "aggregator-book-metadata", ex);
                 }
                 catch (Exception ex)
                 {
@@ -88,9 +96,10 @@ namespace NzbDrone.Core.MetadataSource
 
             foreach (var provider in _providerRegistry.GetBookSearchProviders().Take(Math.Max(1, options.MaxProviders)))
             {
+                var watch = Stopwatch.StartNew();
+
                 try
                 {
-                    var watch = Stopwatch.StartNew();
                     var results = await provider.SearchForNewBookAsync(title, author, BuildBookSearchOptions(options));
                     watch.Stop();
 
@@ -116,6 +125,11 @@ namespace NzbDrone.Core.MetadataSource
                     {
                         break;
                     }
+                }
+                catch (HttpException ex) when (IsTransientProviderStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    RecordTransientTelemetry(provider.ProviderName, "aggregator-search-books", ex);
                 }
                 catch (Exception ex)
                 {
@@ -151,10 +165,10 @@ namespace NzbDrone.Core.MetadataSource
             foreach (var provider in _providerRegistry.GetAuthorInfoProviders().Take(Math.Max(1, options.MaxProviders)))
             {
                 result.QueriedProviders.Add(provider.ProviderName);
+                var watch = Stopwatch.StartNew();
 
                 try
                 {
-                    var watch = Stopwatch.StartNew();
                     var author = await provider.GetAuthorInfoByIdentifierAsync(identifierType, identifier, new AuthorInfoOptions { UseCache = true });
                     watch.Stop();
 
@@ -168,6 +182,12 @@ namespace NzbDrone.Core.MetadataSource
                         result.QualityScore = score;
                         return result;
                     }
+                }
+                catch (HttpException ex) when (IsTransientProviderStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    result.FailedProviders[provider.ProviderName] = ex.Message;
+                    RecordTransientTelemetry(provider.ProviderName, "aggregator-author-metadata", ex);
                 }
                 catch (Exception ex)
                 {
@@ -186,9 +206,10 @@ namespace NzbDrone.Core.MetadataSource
 
             foreach (var provider in _providerRegistry.GetAuthorSearchProviders().Take(Math.Max(1, options.MaxProviders)))
             {
+                var watch = Stopwatch.StartNew();
+
                 try
                 {
-                    var watch = Stopwatch.StartNew();
                     var providerResults = await provider.SearchForNewAuthorAsync(name, new AuthorSearchOptions { UseCache = true });
                     watch.Stop();
 
@@ -201,6 +222,11 @@ namespace NzbDrone.Core.MetadataSource
                     {
                         break;
                     }
+                }
+                catch (HttpException ex) when (IsTransientProviderStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    RecordTransientTelemetry(provider.ProviderName, "aggregator-search-authors", ex);
                 }
                 catch (Exception ex)
                 {
@@ -268,6 +294,29 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             return await provider.SearchByIdentifierAsync(type, identifier, options);
+        }
+
+        private void RecordTransientTelemetry(string providerName, string operation, HttpException exception)
+        {
+            if (exception?.Response?.StatusCode == HttpStatusCode.RequestTimeout)
+            {
+                _providerTelemetryService.RecordTimeout(providerName, operation);
+                return;
+            }
+
+            _providerTelemetryService.RecordFailure(providerName, operation, exception);
+        }
+
+        private static bool IsTransientProviderStatus(HttpStatusCode? statusCode)
+        {
+            if (!statusCode.HasValue)
+            {
+                return false;
+            }
+
+            return statusCode == HttpStatusCode.RequestTimeout ||
+                   statusCode == HttpStatusCode.TooManyRequests ||
+                   statusCode == HttpStatusCode.ServiceUnavailable;
         }
     }
 }

@@ -1121,6 +1121,8 @@
     "Unknown": "未知",
     "AddNewAuthorRootFolderHelpText": "将自动创建 '{folder}' 子文件夹",
     "AddRootFolder": "添加根目录",
-    "EnableInventaireFallback": "Enable Inventaire Fallback",
-    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
+    "EnableInventaireFallback": "启用 Inventaire 回退",
+    "EnableInventaireFallbackHelpText": "在 Google Books 和 Hardcover 之前，将 Inventaire 用作第三级元数据回退提供方。",
+    "EnableMetadataConflictStrategyVariants": "启用实验性冲突策略变体",
+    "EnableMetadataConflictStrategyVariantsHelpText": "启用用于元数据冲突决策的实验性平局策略变体。禁用后将强制使用稳定的默认平局策略。"
 }

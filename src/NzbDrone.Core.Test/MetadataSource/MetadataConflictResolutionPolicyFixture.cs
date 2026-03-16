@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
@@ -65,6 +66,25 @@ namespace NzbDrone.Core.Test.MetadataSource
             decision.ResolutionReason.Should().Be("no-candidates");
             decision.EvaluatedProviders.Should().BeEmpty();
             decision.ProviderScores.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_use_experimental_tie_break_only_when_feature_flag_is_enabled()
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.EnableMetadataConflictStrategyVariants)
+                .Returns(true);
+
+            var decision = Subject.ResolveBookConflict(new List<MetadataProviderBookCandidate>
+            {
+                BuildCandidate("GoogleBooks", 90, true),
+                BuildCandidate("Inventaire", 90, false)
+            });
+
+            decision.SelectedProvider.Should().Be("Inventaire");
+            decision.ResolutionReason.Should().Be("tie-break");
+            decision.TieBreakReason.Should().Be("experimental-provider-precedence-only");
+            decision.UsedProviderPrecedence.Should().BeTrue();
         }
 
         private static MetadataProviderBookCandidate BuildCandidate(string provider, int score, bool withCover)

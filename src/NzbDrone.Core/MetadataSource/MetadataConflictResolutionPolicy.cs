@@ -4,6 +4,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -52,11 +53,13 @@ namespace NzbDrone.Core.MetadataSource
     {
         private readonly IMetadataConflictTelemetryService _telemetryService;
         private readonly Logger _logger;
+        private readonly IConfigService _configService;
 
-        public MetadataConflictResolutionPolicy(IMetadataConflictTelemetryService telemetryService, Logger logger)
+        public MetadataConflictResolutionPolicy(IMetadataConflictTelemetryService telemetryService, Logger logger, IConfigService configService)
         {
             _telemetryService = telemetryService;
             _logger = logger;
+            _configService = configService;
         }
 
         private static readonly Dictionary<string, int> ProviderPrecedence = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
@@ -110,6 +113,16 @@ namespace NzbDrone.Core.MetadataSource
             if (topCandidates.Count == 1)
             {
                 return FinalizeAndEmit(decision, topCandidates[0], "quality-score", null, false);
+            }
+
+            if (_configService.EnableMetadataConflictStrategyVariants)
+            {
+                var selectedByVariant = topCandidates
+                    .OrderBy(c => GetProviderPrecedence(c.ProviderName))
+                    .ThenBy(c => c.ProviderName, StringComparer.OrdinalIgnoreCase)
+                    .First();
+
+                return FinalizeAndEmit(decision, selectedByVariant, "tie-break", "experimental-provider-precedence-only", true);
             }
 
             var withCover = topCandidates.Where(c => c.HasCover).ToList();

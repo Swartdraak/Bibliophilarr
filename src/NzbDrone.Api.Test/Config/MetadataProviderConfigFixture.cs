@@ -16,7 +16,8 @@ namespace NzbDrone.Api.Test.Config
             int hardcoverTimeout = 30,
             bool enableGoogleBooks = false,
             string googleBooksKey = "",
-            bool enableInventaire = true)
+            bool enableInventaire = true,
+            bool enableConflictStrategyVariants = false)
         {
             var mock = new Mock<IConfigService>();
             mock.SetupGet(x => x.EnableHardcoverFallback).Returns(enableHardcover);
@@ -25,6 +26,7 @@ namespace NzbDrone.Api.Test.Config
             mock.SetupGet(x => x.EnableInventaireFallback).Returns(enableInventaire);
             mock.SetupGet(x => x.EnableGoogleBooksFallback).Returns(enableGoogleBooks);
             mock.SetupGet(x => x.GoogleBooksApiKey).Returns(googleBooksKey);
+            mock.SetupGet(x => x.EnableMetadataConflictStrategyVariants).Returns(enableConflictStrategyVariants);
             mock.SetupGet(x => x.MetadataAuthorAliases).Returns(string.Empty);
             mock.SetupGet(x => x.MetadataTitleStripPatterns).Returns(string.Empty);
             return mock.Object;
@@ -95,6 +97,20 @@ namespace NzbDrone.Api.Test.Config
         {
             var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(enableHardcover: false));
             resource.EnableHardcoverFallback.Should().BeFalse();
+        }
+
+        [Test]
+        public void mapper_should_include_conflict_strategy_variant_flag()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(enableConflictStrategyVariants: true));
+            resource.EnableMetadataConflictStrategyVariants.Should().BeTrue();
+        }
+
+        [Test]
+        public void mapper_should_map_conflict_strategy_variant_disabled_state()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(enableConflictStrategyVariants: false));
+            resource.EnableMetadataConflictStrategyVariants.Should().BeFalse();
         }
 
         [Test]

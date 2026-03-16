@@ -1121,6 +1121,8 @@
     "Unknown": "Inconnu",
     "AddNewAuthorRootFolderHelpText": "Le sous-dossier « {folder} » sera créé automatiquement",
     "AddRootFolder": "Ajouter un dossier racine",
-    "EnableInventaireFallback": "Enable Inventaire Fallback",
-    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
+    "EnableInventaireFallback": "Activer le secours Inventaire",
+    "EnableInventaireFallbackHelpText": "Utiliser Inventaire comme fournisseur de secours de metadonnees de troisieme niveau avant Google Books et Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Activer les variantes experimentales de strategie de conflit",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Active les variantes experimentales de departage pour la resolution des conflits de metadonnees. Desactivez pour imposer le comportement stable par defaut."
 }

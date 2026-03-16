@@ -1123,6 +1123,8 @@
     "AddNewAuthorRootFolderHelpText": "A subpasta \"{folder}\" será criada automaticamente",
     "AddNewBook": "Adicionar Novo Livro",
     "AddNewAuthor": "Adicionar Novo Autor",
-    "EnableInventaireFallback": "Enable Inventaire Fallback",
-    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
+    "EnableInventaireFallback": "Ativar fallback do Inventaire",
+    "EnableInventaireFallbackHelpText": "Usar o Inventaire como provedor terciario de fallback de metadados antes do Google Books e do Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Ativar variantes experimentais de estrategia de conflito",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Ativa variantes experimentais de desempate para resolucao de conflitos de metadados. Desative para aplicar o comportamento estavel padrao."
 }
