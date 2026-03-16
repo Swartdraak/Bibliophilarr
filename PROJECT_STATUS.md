@@ -214,6 +214,9 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Add Inventaire fallback localization keys in English resources (`EnableInventaireFallback`, help text)
 - [x] Add integration-style mixed-provider cover precedence test through import candidate flow
 - [x] Start metadata aggregation conflict-resolution policy slice with precedence/tie-break/observability model + unit tests
+- [x] Wire metadata conflict policy into runtime aggregation execution paths (`MetadataAggregator`) with provider telemetry integration
+- [x] Add runtime integration fixture for aggregator conflict selection + telemetry snapshot assertions
+- [x] Expand Inventaire fallback localization keys across all non-English locale resources
 
 #### Monitoring & Logging 🔄
 - [x] Add structured logging for provider operations (ProviderTelemetryService)
@@ -223,6 +226,7 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Add operational telemetry counters: TotalSearches, EmptyResultCount, TimeoutCount per provider
 - [x] Implement rate limit tracking and warnings (window usage, near-ceiling signal, retry-after remaining)
 - [x] Add tertiary fallback provider dampening using provider health, cooldowns, and rate-limit metadata
+- [x] Add metadata conflict decision telemetry service (reason/provider/tie-break counters) with structured policy logs
 
 #### Platform and Runtime ✅
 - [x] Audit all backend project targets and confirm .NET 8-only targeting (`net8.0` / `net8.0-windows`)

@@ -1122,5 +1122,7 @@
     "AddRootFolder": "Adicionar pasta raiz",
     "AddNewAuthorRootFolderHelpText": "A subpasta \"{folder}\" será criada automaticamente",
     "AddNewBook": "Adicionar Novo Livro",
-    "AddNewAuthor": "Adicionar Novo Autor"
+    "AddNewAuthor": "Adicionar Novo Autor",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

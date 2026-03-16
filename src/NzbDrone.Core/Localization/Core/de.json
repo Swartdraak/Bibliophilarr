@@ -1120,5 +1120,7 @@
     "LastSearched": "Letzte Suche",
     "Unknown": "Unbekannt",
     "AddRootFolder": "Stammverzeichnis hinzufügen",
-    "AddNewAuthorRootFolderHelpText": "'{folder}' Unterordner wird automatisch erstellt werden"
+    "AddNewAuthorRootFolderHelpText": "'{folder}' Unterordner wird automatisch erstellt werden",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

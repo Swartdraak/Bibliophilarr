@@ -8,5 +8,7 @@
     "Actions": "اقدامات",
     "Docker": "Docker",
     "Torrents": "تورنت ها",
-    "Activity": "فعالیت"
+    "Activity": "فعالیت",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

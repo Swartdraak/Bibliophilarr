@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 
@@ -30,6 +31,7 @@ namespace NzbDrone.Core.MetadataSource
         public bool SelectedHasCover { get; set; }
         public bool UsedProviderPrecedence { get; set; }
         public DateTime ResolvedAtUtc { get; set; }
+        public int CandidateCount { get; set; }
         public List<string> EvaluatedProviders { get; set; }
         public Dictionary<string, int> ProviderScores { get; set; }
 
@@ -48,6 +50,15 @@ namespace NzbDrone.Core.MetadataSource
 
     public class MetadataConflictResolutionPolicy : IMetadataConflictResolutionPolicy
     {
+        private readonly IMetadataConflictTelemetryService _telemetryService;
+        private readonly Logger _logger;
+
+        public MetadataConflictResolutionPolicy(IMetadataConflictTelemetryService telemetryService, Logger logger)
+        {
+            _telemetryService = telemetryService;
+            _logger = logger;
+        }
+
         private static readonly Dictionary<string, int> ProviderPrecedence = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
             ["OpenLibrary"] = 10,
@@ -67,9 +78,12 @@ namespace NzbDrone.Core.MetadataSource
             if (!normalized.Any())
             {
                 decision.ResolutionReason = "no-candidates";
+                decision.CandidateCount = 0;
+                EmitDecisionTelemetry(decision, "resolve-book-conflict");
                 return decision;
             }
 
+            decision.CandidateCount = normalized.Count;
             decision.EvaluatedProviders = normalized.Select(c => c.ProviderName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             foreach (var candidate in normalized)
             {
@@ -86,7 +100,7 @@ namespace NzbDrone.Core.MetadataSource
 
                 if (preferred != null)
                 {
-                    return FinalizeDecision(decision, preferred, "preferred-provider", null, false);
+                    return FinalizeAndEmit(decision, preferred, "preferred-provider", null, false);
                 }
             }
 
@@ -95,7 +109,7 @@ namespace NzbDrone.Core.MetadataSource
 
             if (topCandidates.Count == 1)
             {
-                return FinalizeDecision(decision, topCandidates[0], "quality-score", null, false);
+                return FinalizeAndEmit(decision, topCandidates[0], "quality-score", null, false);
             }
 
             var withCover = topCandidates.Where(c => c.HasCover).ToList();
@@ -106,7 +120,7 @@ namespace NzbDrone.Core.MetadataSource
                     .ThenBy(c => c.ProviderName, StringComparer.OrdinalIgnoreCase)
                     .First();
 
-                return FinalizeDecision(decision, selectedWithCover, "tie-break", "cover-availability-then-provider-precedence", true);
+                return FinalizeAndEmit(decision, selectedWithCover, "tie-break", "cover-availability-then-provider-precedence", true);
             }
 
             var selected = topCandidates
@@ -114,7 +128,36 @@ namespace NzbDrone.Core.MetadataSource
                 .ThenBy(c => c.ProviderName, StringComparer.OrdinalIgnoreCase)
                 .First();
 
-            return FinalizeDecision(decision, selected, "tie-break", "provider-precedence", true);
+            return FinalizeAndEmit(decision, selected, "tie-break", "provider-precedence", true);
+        }
+
+        private MetadataConflictResolutionDecision FinalizeAndEmit(MetadataConflictResolutionDecision decision,
+                                                                   MetadataProviderBookCandidate selected,
+                                                                   string resolutionReason,
+                                                                   string tieBreakReason,
+                                                                   bool usedProviderPrecedence)
+        {
+            var finalized = FinalizeDecision(decision, selected, resolutionReason, tieBreakReason, usedProviderPrecedence);
+            EmitDecisionTelemetry(finalized, "resolve-book-conflict");
+            return finalized;
+        }
+
+        private void EmitDecisionTelemetry(MetadataConflictResolutionDecision decision, string operation)
+        {
+            _telemetryService.RecordDecision(operation, decision);
+
+            var scoreSummary = decision.ProviderScores == null || decision.ProviderScores.Count == 0
+                ? "none"
+                : string.Join(",", decision.ProviderScores.OrderBy(x => x.Key).Select(x => $"{x.Key}:{x.Value}"));
+
+            _logger.Info(
+                "Metadata conflict decision: operation={0}, selectedProvider={1}, reason={2}, tieBreak={3}, candidateCount={4}, scores={5}",
+                operation,
+                decision.SelectedProvider ?? "none",
+                decision.ResolutionReason ?? "none",
+                decision.TieBreakReason ?? "none",
+                decision.CandidateCount,
+                scoreSummary);
         }
 
         private static MetadataConflictResolutionDecision FinalizeDecision(MetadataConflictResolutionDecision decision,

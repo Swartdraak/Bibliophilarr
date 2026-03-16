@@ -660,5 +660,7 @@
     "WhySearchesCouldBeFailing": "Nhấp vào đây để tìm hiểu lý do tại sao tìm kiếm thất bại",
     "Unknown": "Không rõ",
     "AddNewAuthorRootFolderHelpText": "Thư mục con '{0}' sẽ được tạo tự động",
-    "AddRootFolder": "Thêm thư mục gốc"
+    "AddRootFolder": "Thêm thư mục gốc",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

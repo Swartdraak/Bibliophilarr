@@ -1120,5 +1120,7 @@
     "LastSearched": "最近搜索",
     "Unknown": "未知",
     "AddNewAuthorRootFolderHelpText": "将自动创建 '{folder}' 子文件夹",
-    "AddRootFolder": "添加根目录"
+    "AddRootFolder": "添加根目录",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

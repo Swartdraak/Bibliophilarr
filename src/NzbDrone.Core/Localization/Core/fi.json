@@ -1122,5 +1122,7 @@
     "AddNewAuthorRootFolderHelpText": "Alikansio \"{folder}\" luodaan automaattisesti.",
     "AddRootFolder": "Lisää juurikansio",
     "AddNewBook": "Lisää uusi kirja",
-    "AddNewAuthor": "Lisää uusi kirjailija"
+    "AddNewAuthor": "Lisää uusi kirjailija",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

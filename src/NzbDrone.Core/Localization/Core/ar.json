@@ -655,5 +655,7 @@
     "Clone": "قريب",
     "BuiltIn": "مدمج",
     "AddNewAuthorRootFolderHelpText": "سيتم إنشاء المجلد الفرعي \"{folder}\" تلقائيًا",
-    "AddRootFolder": "إضافة مجلد جذر"
+    "AddRootFolder": "إضافة مجلد جذر",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

@@ -1087,5 +1087,7 @@
     "UpdateAppDirectlyLoadError": "Nem lehetséges közvetlenül frissíteni a {appName}-t",
     "Unknown": "Ismeretlen",
     "AddNewAuthorRootFolderHelpText": "A „{folder}” almappa automatikusan létrejön",
-    "AddRootFolder": "Gyökérmappa hozzáadása"
+    "AddRootFolder": "Gyökérmappa hozzáadása",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

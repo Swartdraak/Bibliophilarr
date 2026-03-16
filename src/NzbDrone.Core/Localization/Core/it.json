@@ -917,5 +917,7 @@
     "AddNewAuthorRootFolderHelpText": "La sottocartella '{0}' verrà creata automaticamente",
     "AddRootFolder": "Aggiungi Cartella Radice",
     "AddNewBook": "Aggiungi nuovo libro",
-    "AddNewAuthor": "Aggiungi nuovo autore"
+    "AddNewAuthor": "Aggiungi nuovo autore",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }

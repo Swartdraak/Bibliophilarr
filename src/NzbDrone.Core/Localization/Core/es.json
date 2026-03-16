@@ -1122,5 +1122,7 @@
     "AddNewBook": "Añadir Nuevo Libro",
     "AddNewAuthor": "Añadir Nuevo Autor",
     "AddNewAuthorRootFolderHelpText": "La subcarpeta '{folder}' será creada automáticamente",
-    "AddRootFolder": "Añadir Carpeta Raíz"
+    "AddRootFolder": "Añadir Carpeta Raíz",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover."
 }
