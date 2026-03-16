@@ -17,22 +17,26 @@ Document runtime usage of metadata provider health and telemetry signals for ope
 
 Endpoint:
 - `GET /api/v1/metadata/providers/health`
+- `GET /api/v1/metadata/conflicts/telemetry`
 
 Controller source:
 - `src/Bibliophilarr.Api.V1/Metadata/ProviderHealthController.cs`
 
 Mapped resource:
 - `src/Bibliophilarr.Api.V1/Metadata/ProviderHealthResource.cs`
+- `src/Bibliophilarr.Api.V1/Metadata/MetadataConflictTelemetryResource.cs`
 
 Example call:
 
 ```bash
 curl -s "http://localhost:8787/api/v1/metadata/providers/health" | jq
+curl -s "http://localhost:8787/api/v1/metadata/conflicts/telemetry" | jq
 ```
 
 Expected outcome:
 - JSON array with one entry per provider
 - includes health status, success/failure timing, rate-limit window usage, retry-after and cooldown data
+- conflict telemetry export includes total decisions plus counts by reason and selected provider
 
 ## Provider Telemetry Field Interpretation
 
@@ -65,6 +69,7 @@ Operational guidance:
 Conflict telemetry source:
 - `src/NzbDrone.Core/MetadataSource/MetadataConflictTelemetryService.cs`
 - `src/NzbDrone.Core/MetadataSource/MetadataConflictResolutionPolicy.cs`
+- `src/Bibliophilarr.Api.V1/Metadata/MetadataConflictTelemetryController.cs`
 
 Conflict signals emitted:
 - decision reason

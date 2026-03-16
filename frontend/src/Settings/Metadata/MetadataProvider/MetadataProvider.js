@@ -69,6 +69,8 @@ function MetadataProvider(props) {
     validationWarnings
   } = props;
 
+  const conflictStrategyVariantsEnabled = hasSettings && settings.enableMetadataConflictStrategyVariants.value;
+
   return (
 
     <div>
@@ -224,9 +226,18 @@ function MetadataProvider(props) {
                   type={inputTypes.CHECK}
                   name="enableMetadataConflictStrategyVariants"
                   helpText={translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                  helpTextWarning={translate('EnableMetadataConflictStrategyVariantsHelpText')}
                   onChange={onInputChange}
                   {...settings.enableMetadataConflictStrategyVariants}
                 />
+
+                {
+                  conflictStrategyVariantsEnabled ?
+                    <Alert kind={kinds.WARNING}>
+                      {translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                    </Alert> :
+                    null
+                }
               </FormGroup>
 
               <FormGroup>

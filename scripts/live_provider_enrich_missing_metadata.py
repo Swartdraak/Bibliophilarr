@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import subprocess
 from dataclasses import asdict, dataclass
@@ -433,6 +434,42 @@ def provider_matches_from_googlebooks(data: Dict[str, Any]) -> List[ProviderMatc
     return matches
 
 
+def extract_cover_details(match: Optional[ProviderMatch]) -> Tuple[Optional[str], Optional[str]]:
+    if match is None:
+        return None, None
+
+    if match.provider == "openlibrary":
+        raw = match.raw or {}
+        cover_id = raw.get("cover_i")
+        if cover_id:
+            return match.provider, f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg"
+
+        cover_edition_key = raw.get("cover_edition_key")
+        if cover_edition_key:
+            return match.provider, f"https://covers.openlibrary.org/b/olid/{cover_edition_key}-L.jpg"
+
+        edition_keys = raw.get("edition_key") or []
+        if edition_keys:
+            return match.provider, f"https://covers.openlibrary.org/b/olid/{edition_keys[0]}-L.jpg"
+
+    if match.provider == "inventaire":
+        raw = match.raw or {}
+        cover = raw.get("cover") or raw.get("image")
+        if isinstance(cover, dict):
+            cover = cover.get("url") or cover.get("href")
+        if isinstance(cover, str) and cover.strip():
+            return match.provider, cover.strip()
+
+    if match.provider == "googlebooks":
+        image_links = ((match.raw or {}).get("volumeInfo") or {}).get("imageLinks") or {}
+        for key in ["extraLarge", "large", "medium", "small", "thumbnail", "smallThumbnail"]:
+            cover_url = image_links.get(key)
+            if cover_url:
+                return match.provider, cover_url
+
+    return None, None
+
+
 def binary_available(binary: str) -> bool:
     for directory in os.environ.get("PATH", "").split(os.pathsep):
         candidate = Path(directory) / binary
@@ -505,7 +542,7 @@ def extract_embedded_tags(file_path: Path) -> Tuple[Optional[str], Optional[str]
     return None, None, "none"
 
 
-def discover_targets(root: Path) -> List[FolderCandidate]:
+def discover_targets(root: Path, sample_size: Optional[int] = None, sample_seed: Optional[int] = None) -> Tuple[List[FolderCandidate], int]:
     targets: List[FolderCandidate] = []
     quarantine_markers = {"_dupes", "_unidentified"}
 
@@ -569,7 +606,14 @@ def discover_targets(root: Path) -> List[FolderCandidate]:
             )
         )
 
-    return targets
+    targets.sort(key=lambda candidate: candidate.folder)
+    discovered_count = len(targets)
+
+    if sample_size is not None and sample_size > 0 and discovered_count > sample_size:
+        sampler = random.Random(sample_seed if sample_seed is not None else str(root))
+        targets = sorted(sampler.sample(targets, sample_size), key=lambda candidate: candidate.folder)
+
+    return targets, discovered_count
 
 
 def title_similarity(local_title: Optional[str], provider_title: Optional[str]) -> float:
@@ -676,6 +720,8 @@ def query_plan(candidate: FolderCandidate) -> List[Tuple[str, str, str]]:
 
 
 def write_metadata_json(folder: Path, match: ProviderMatch, confidence: float, accepted_by: str, attempts: List[QueryAttempt], candidate: FolderCandidate) -> None:
+    selected_cover_provider, selected_cover_url = extract_cover_details(match)
+
     metadata = {
         "title": match.title,
         "authors": [match.author] if match.author else [],
@@ -684,6 +730,8 @@ def write_metadata_json(folder: Path, match: ProviderMatch, confidence: float, a
         "provider_key": match.key,
         "provider_confidence": round(confidence, 4),
         "provider_acceptance_strategy": accepted_by,
+        "selected_cover_provider": selected_cover_provider,
+        "selected_cover_url": selected_cover_url,
         "provider_attempts": [asdict(attempt) for attempt in attempts],
         "first_publish_year": match.first_publish_year,
         "local_identity_source": candidate.local_identity_source,
@@ -694,8 +742,8 @@ def write_metadata_json(folder: Path, match: ProviderMatch, confidence: float, a
     (folder / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
 
-def enrich_root(root: Path, report_dir: Path) -> Dict[str, Any]:
-    targets = discover_targets(root)
+def enrich_root(root: Path, report_dir: Path, sample_size: Optional[int] = None, sample_seed: Optional[int] = None) -> Dict[str, Any]:
+    targets, discovered_count = discover_targets(root, sample_size=sample_size, sample_seed=sample_seed)
     report_dir.mkdir(parents=True, exist_ok=True)
 
     accepted = []
@@ -775,6 +823,7 @@ def enrich_root(root: Path, report_dir: Path) -> Dict[str, Any]:
 
         folder = Path(candidate.folder)
         if accepted_match is not None:
+            selected_cover_provider, selected_cover_url = extract_cover_details(accepted_match)
             write_metadata_json(folder, accepted_match, accepted_confidence, accepted_strategy, attempts, candidate)
             accepted.append(
                 {
@@ -786,6 +835,8 @@ def enrich_root(root: Path, report_dir: Path) -> Dict[str, Any]:
                         "title": accepted_match.title,
                         "author": accepted_match.author,
                         "key": accepted_match.key,
+                        "selected_cover_provider": selected_cover_provider,
+                        "selected_cover_url": selected_cover_url,
                     },
                     "attempts": [asdict(attempt) for attempt in attempts],
                 }
@@ -801,9 +852,12 @@ def enrich_root(root: Path, report_dir: Path) -> Dict[str, Any]:
     summary = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "root": str(root),
+        "discovered_targets": discovered_count,
         "targets": len(targets),
         "accepted": len(accepted),
         "unresolved": len(unresolved),
+        "sample_size_requested": sample_size,
+        "sample_seed": sample_seed,
         "providers": ["openlibrary", "inventaire", "googlebooks"],
         "ffprobe_available": binary_available("ffprobe"),
         "mutagen_available": MutagenFile is not None,
@@ -818,9 +872,12 @@ def enrich_root(root: Path, report_dir: Path) -> Dict[str, Any]:
         f"# Live Provider Enrichment Report: {root}",
         "",
         f"- Timestamp (UTC): {summary['timestamp_utc']}",
+        f"- Discovered targets before sampling: {summary['discovered_targets']}",
         f"- Targets: {summary['targets']}",
         f"- Accepted: {summary['accepted']}",
         f"- Unresolved: {summary['unresolved']}",
+        f"- Sample size requested: {summary['sample_size_requested']}",
+        f"- Sample seed: {summary['sample_seed']}",
         f"- Providers: {', '.join(summary['providers'])}",
         f"- ffprobe available: {summary['ffprobe_available']}",
         f"- mutagen available: {summary['mutagen_available']}",
@@ -836,6 +893,8 @@ def enrich_root(root: Path, report_dir: Path) -> Dict[str, Any]:
             lines.append(f"  - local source: {item['candidate']['local_identity_source']}")
             lines.append(f"  - provider match: {item['match']['title']} / {item['match']['author']}")
             lines.append(f"  - provider: {item['match']['provider']}")
+            lines.append(f"  - cover provider: {item['match']['selected_cover_provider']}")
+            lines.append(f"  - cover url: {item['match']['selected_cover_url']}")
             lines.append(f"  - strategy: {item['accepted_strategy']}")
             lines.append(f"  - confidence: {item['confidence']}")
     else:
@@ -859,9 +918,12 @@ def enrich_root(root: Path, report_dir: Path) -> Dict[str, Any]:
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     print(f"Root: {root}")
+    print(f"Discovered targets before sampling: {summary['discovered_targets']}")
     print(f"Targets: {summary['targets']}")
     print(f"Accepted: {summary['accepted']}")
     print(f"Unresolved: {summary['unresolved']}")
+    print(f"Sample size requested: {summary['sample_size_requested']}")
+    print(f"Sample seed: {summary['sample_seed']}")
     print(f"Providers: {', '.join(summary['providers'])}")
     print(f"Report JSON: {json_path}")
     print(f"Report MD: {md_path}")
@@ -873,9 +935,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Enrich missing media metadata via live provider responses")
     parser.add_argument("--root", required=True)
     parser.add_argument("--report-dir", default="/opt/Bibliophilarr/_artifacts/live-provider-enrich")
+    parser.add_argument("--sample-size", type=int, default=None)
+    parser.add_argument("--sample-seed", type=int, default=None)
     args = parser.parse_args()
 
-    enrich_root(Path(args.root), Path(args.report_dir))
+    enrich_root(Path(args.root), Path(args.report_dir), sample_size=args.sample_size, sample_seed=args.sample_seed)
     return 0
 
 

@@ -9,6 +9,7 @@ using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MetadataSource;
 
 namespace NzbDrone.Core.Test.MetadataSource
@@ -133,11 +134,133 @@ namespace NzbDrone.Core.Test.MetadataSource
             tracker.IdentifierCalls.Should().Be(expectedIdentifierCalls);
         }
 
+        [Test]
+        [TestCase(HttpStatusCode.RequestTimeout)]
+        [TestCase(HttpStatusCode.TooManyRequests)]
+        [TestCase(HttpStatusCode.ServiceUnavailable)]
+        public async Task should_handle_transient_http_errors_without_failing_author_metadata(HttpStatusCode statusCode)
+        {
+            var fallbackAuthor = BuildAuthor("inventaire:author:transient", "Frank Herbert");
+            var registry = new MetadataProviderRegistry(new IMetadataProvider[]
+            {
+                new FakeAuthorInfoProvider("OpenLibrary", 10, true, (_, _) => throw CreateHttpException(statusCode)),
+                new FakeAuthorInfoProvider("Inventaire", 20, true, (_, _) => fallbackAuthor)
+            });
+
+            var logger = LogManager.GetLogger("MetadataAggregatorAuthorTransientFixture");
+            var configService = new Mock<IConfigService>();
+            configService.SetupGet(x => x.EnableMetadataConflictStrategyVariants).Returns(false);
+            var conflictTelemetry = new MetadataConflictTelemetryService(logger);
+            var conflictPolicy = new MetadataConflictResolutionPolicy(conflictTelemetry, logger, configService.Object);
+            var providerTelemetry = new ProviderTelemetryService(registry, logger);
+            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry);
+
+            var result = await aggregator.GetAuthorMetadataAsync("OL23919A", "openlibrary", new AggregationOptions
+            {
+                Strategy = AggregationStrategy.BestQuality,
+                StopOnFirstSuccess = false,
+                MaxProviders = 5
+            });
+
+            result.Result.Should().NotBeNull();
+            result.Result.ForeignAuthorId.Should().Be("inventaire:author:transient");
+            result.ProviderName.Should().Be("Inventaire");
+
+            var health = registry.GetProvidersHealthStatus();
+            health.Should().ContainKey("OpenLibrary");
+
+            if (statusCode == HttpStatusCode.RequestTimeout)
+            {
+                health["OpenLibrary"].TimeoutCount.Should().Be(1);
+                health["OpenLibrary"].ConsecutiveFailures.Should().Be(1);
+            }
+            else
+            {
+                health["OpenLibrary"].ConsecutiveFailures.Should().Be(1);
+                health["OpenLibrary"].LastErrorMessage.Should().Contain(((int)statusCode).ToString());
+            }
+        }
+
+        [Test]
+        [TestCase(HttpStatusCode.RequestTimeout)]
+        [TestCase(HttpStatusCode.TooManyRequests)]
+        [TestCase(HttpStatusCode.ServiceUnavailable)]
+        public async Task should_handle_transient_http_errors_without_failing_author_search(HttpStatusCode statusCode)
+        {
+            var fallbackAuthor = BuildAuthor("inventaire:author:search", "Frank Herbert");
+            var registry = new MetadataProviderRegistry(new IMetadataProvider[]
+            {
+                new FakeAuthorSearchProvider("OpenLibrary", 10, true, _ => throw CreateHttpException(statusCode)),
+                new FakeAuthorSearchProvider("Inventaire", 20, true, _ => new List<Author> { fallbackAuthor })
+            });
+
+            var logger = LogManager.GetLogger("MetadataAggregatorAuthorSearchTransientFixture");
+            var configService = new Mock<IConfigService>();
+            configService.SetupGet(x => x.EnableMetadataConflictStrategyVariants).Returns(false);
+            var conflictTelemetry = new MetadataConflictTelemetryService(logger);
+            var conflictPolicy = new MetadataConflictResolutionPolicy(conflictTelemetry, logger, configService.Object);
+            var providerTelemetry = new ProviderTelemetryService(registry, logger);
+            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry);
+
+            var results = await aggregator.SearchAuthorsAsync("Frank Herbert", new AggregationOptions
+            {
+                Strategy = AggregationStrategy.BestQuality,
+                StopOnFirstSuccess = false,
+                MaxProviders = 5
+            });
+
+            results.Should().ContainSingle();
+            results[0].ForeignAuthorId.Should().Be("inventaire:author:search");
+
+            var health = registry.GetProvidersHealthStatus();
+            health.Should().ContainKey("OpenLibrary");
+
+            if (statusCode == HttpStatusCode.RequestTimeout)
+            {
+                health["OpenLibrary"].TimeoutCount.Should().Be(1);
+                health["OpenLibrary"].ConsecutiveFailures.Should().Be(1);
+            }
+            else
+            {
+                health["OpenLibrary"].ConsecutiveFailures.Should().Be(1);
+                health["OpenLibrary"].LastErrorMessage.Should().Contain(((int)statusCode).ToString());
+            }
+        }
+
         private static HttpException CreateHttpException(HttpStatusCode statusCode)
         {
             var request = new HttpRequest("https://provider.test/search");
             var response = new HttpResponse(request, new HttpHeader(), "transient error", statusCode);
             return new HttpException(request, response);
+        }
+
+        private static Author BuildAuthor(string authorId, string name)
+        {
+            var metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = authorId,
+                Name = name,
+                SortName = name,
+                NameLastFirst = name,
+                SortNameLastFirst = name,
+                Overview = "Science fiction author"
+            };
+
+            var books = new List<Book>
+            {
+                BuildBook(authorId + ":book", "Representative Work", authorId, withCover: false)
+            };
+
+            return new Author
+            {
+                AuthorMetadataId = metadata.Id,
+                CleanName = name,
+                ForeignAuthorId = authorId,
+                Name = name,
+                Monitored = true,
+                Metadata = new LazyLoaded<AuthorMetadata>(metadata),
+                Books = new LazyLoaded<List<Book>>(books)
+            };
         }
 
         private static Book BuildBook(string bookId, string title, string authorId, bool withCover)
@@ -326,6 +449,118 @@ namespace NzbDrone.Core.Test.MetadataSource
             public List<Book> SearchByAsin(string asin, BookSearchOptions options = null)
             {
                 return new List<Book>();
+            }
+        }
+
+        private class FakeAuthorInfoProvider : IProvideAuthorInfoV2
+        {
+            private readonly Func<string, string, Author> _lookup;
+
+            public FakeAuthorInfoProvider(string providerName, int priority, bool isEnabled, Func<string, string, Author> lookup)
+            {
+                ProviderName = providerName;
+                Priority = priority;
+                IsEnabled = isEnabled;
+                _lookup = lookup;
+            }
+
+            public string ProviderName { get; }
+            public int Priority { get; }
+            public bool IsEnabled { get; }
+            public bool SupportsBookSearch => false;
+            public bool SupportsAuthorSearch => false;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsAsinLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsListInfo => false;
+            public bool SupportsCoverImages => false;
+            public bool SupportsBookInfo => false;
+            public bool SupportsAuthorInfo => true;
+
+            public ProviderRateLimitInfo GetRateLimitInfo()
+            {
+                return new ProviderRateLimitInfo();
+            }
+
+            public ProviderHealthStatus GetHealthStatus()
+            {
+                return new ProviderHealthStatus();
+            }
+
+            public Task<Author> GetAuthorInfoAsync(string providerId, AuthorInfoOptions options = null)
+            {
+                return Task.FromResult(_lookup("providerId", providerId));
+            }
+
+            public Task<Author> GetAuthorInfoByIdentifierAsync(string identifierType, string identifier, AuthorInfoOptions options = null)
+            {
+                return Task.FromResult(_lookup(identifierType, identifier));
+            }
+
+            public Task<HashSet<string>> GetChangedAuthorsAsync(DateTime startTime)
+            {
+                return Task.FromResult(new HashSet<string>());
+            }
+
+            public Author GetAuthorInfo(string providerId, AuthorInfoOptions options = null)
+            {
+                return _lookup("providerId", providerId);
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                return new HashSet<string>();
+            }
+        }
+
+        private class FakeAuthorSearchProvider : ISearchForNewAuthorV2
+        {
+            private readonly Func<string, List<Author>> _search;
+
+            public FakeAuthorSearchProvider(string providerName, int priority, bool isEnabled, Func<string, List<Author>> search)
+            {
+                ProviderName = providerName;
+                Priority = priority;
+                IsEnabled = isEnabled;
+                _search = search;
+            }
+
+            public string ProviderName { get; }
+            public int Priority { get; }
+            public bool IsEnabled { get; }
+            public bool SupportsBookSearch => false;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsAsinLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsListInfo => false;
+            public bool SupportsCoverImages => false;
+            public bool SupportsBookInfo => false;
+            public bool SupportsAuthorInfo => false;
+
+            public ProviderRateLimitInfo GetRateLimitInfo()
+            {
+                return new ProviderRateLimitInfo();
+            }
+
+            public ProviderHealthStatus GetHealthStatus()
+            {
+                return new ProviderHealthStatus();
+            }
+
+            public Task<List<Author>> SearchForNewAuthorAsync(string name, AuthorSearchOptions options = null)
+            {
+                return Task.FromResult(_search(name));
+            }
+
+            public Task<Author> SearchByIdentifierAsync(string identifierType, string identifier, AuthorSearchOptions options = null)
+            {
+                return Task.FromResult<Author>(null);
+            }
+
+            public List<Author> SearchForNewAuthor(string name, AuthorSearchOptions options = null)
+            {
+                return _search(name);
             }
         }
     }

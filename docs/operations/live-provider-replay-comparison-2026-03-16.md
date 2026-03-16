@@ -23,6 +23,8 @@ Sample root used:
 ```bash
 python3 scripts/live_provider_enrich_missing_metadata.py \
   --root /tmp/bibliophilarr-live-sample-2026-03-16 \
+  --sample-size 16 \
+  --sample-seed 20260316 \
   --report-dir _artifacts/live-provider-enrich-2026-03-16-runtime-policy-sample
 ```
 
@@ -50,11 +52,11 @@ Post (2026-03-16 sampled replay):
 
 ## Known Limitation
 
-- Current enrichment report schema does not explicitly store cover winner fields.
-- Cover outcome here is a proxy based on discovered image entries in local metadata files for accepted matches.
+- Current enrichment report schema now stores `selected_cover_provider` and `selected_cover_url` for accepted matches.
+- Cover outcome can be analyzed directly from the replay JSON without inferring from local metadata file image entries.
 
 ## Follow-up
 
 1. Add explicit cover winner fields to enrichment report payload (`selected_cover_provider`, `selected_cover_url`).
-2. Add replay mode flag for bounded random sampling directly in script to avoid symlink sampling workarounds.
+2. Use replay mode flags `--sample-size` and `--sample-seed` for bounded random sampling directly in script.
 3. Add periodic replay report diff in CI against curated fixture data.
