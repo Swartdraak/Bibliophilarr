@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -25,7 +27,11 @@ def main() -> int:
 
     module = load_module(script_path)
     joined = []
-    for path in sorted((fixture_root / "logs").glob("*.log")):
+    fixture_logs = sorted((fixture_root / "logs").glob("*.txt"))
+    if not fixture_logs:
+        fixture_logs = sorted((fixture_root / "logs").glob("*.log"))
+
+    for path in fixture_logs:
         joined.append(path.read_text(encoding="utf-8"))
 
     summary = module.classify("\n".join(joined))
@@ -47,21 +53,26 @@ def main() -> int:
     json_out = out_dir / "taxonomy.json"
     md_out = out_dir / "taxonomy.md"
 
-    subprocess.run(
-        [
-            "python3",
-            str(script_path),
-            "--input-dir",
-            str(fixture_root / "logs"),
-            "--max-unknown-share",
-            str(expected["maxUnknownShare"]),
-            "--json-out",
-            str(json_out),
-            "--md-out",
-            str(md_out),
-        ],
-        check=True,
-    )
+    with tempfile.TemporaryDirectory() as fixture_tmp:
+        fixture_input_dir = Path(fixture_tmp)
+        for path in fixture_logs:
+            shutil.copy(path, fixture_input_dir / path.name)
+
+        subprocess.run(
+            [
+                "python3",
+                str(script_path),
+                "--input-dir",
+                str(fixture_input_dir),
+                "--max-unknown-share",
+                str(expected["maxUnknownShare"]),
+                "--json-out",
+                str(json_out),
+                "--md-out",
+                str(md_out),
+            ],
+            check=True,
+        )
 
     generated = json.loads(json_out.read_text(encoding="utf-8"))
     for category, expected_count in expected["counts"].items():
