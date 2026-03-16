@@ -178,13 +178,41 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [ ] Write tests for aggregation logic
 - [ ] Document testing patterns and examples
 - [x] Write unit tests for MetadataProviderRegistry
+- [x] Run random /media provider pull validation (75 files, app-style query format) and document findings
+- [x] Validate live-provider enrichment against real `/media` gaps with iterative Open Library + Inventaire fallback
+- [x] Add and test core query normalization service (alias expansion + title strip patterns via config)
+- [x] Add full fallback-order integration coverage from primary search through tertiary provider
+- [x] Add targeted tests for tertiary provider cooldown/backoff and confidence-aware title scoring
+- [x] Add second in-app fallback provider (Hardcover GraphQL) with deterministic test coverage
+- [x] Expose Hardcover fallback controls in metadata settings UI (enable, token, timeout override)
+- [x] Add API-level integration tests for metadata config save/load round-trip (mapper + validation, 10 tests)
+- [x] Add provider resilience tests for Hardcover execution path (408, 503, 429, empty-result — 4 tests)
 
 #### Monitoring & Logging 🔄
 - [x] Add structured logging for provider operations (ProviderTelemetryService)
 - [x] Create provider performance metrics (EMA response time + success rate)
 - [x] Add error tracking (consecutive failure counting + health promotion)
-- [ ] Create provider health check endpoints (API layer — Phase 3)
-- [ ] Implement rate limit tracking and warnings
+- [x] Create provider health check endpoints — GET /api/v1/metadata/providers/health
+- [x] Add operational telemetry counters: TotalSearches, EmptyResultCount, TimeoutCount per provider
+- [x] Implement rate limit tracking and warnings (window usage, near-ceiling signal, retry-after remaining)
+- [x] Add tertiary fallback provider dampening using provider health, cooldowns, and rate-limit metadata
+
+#### Platform and Runtime ✅
+- [x] Audit all backend project targets and confirm .NET 8-only targeting (`net8.0` / `net8.0-windows`)
+- [x] Migrate residual script framework default from `net6.0` to `net8.0` (`docs.sh`)
+- [x] Update workspace publish task to include explicit `-f net8.0`
+- [x] Run full core test suite on `net8.0` and capture failing fixture set for follow-up triage
+
+#### Real-World Ingest Validation ✅
+- [x] Full scan and iterative organization completed for `/media/audiobooks` and `/media/ebooks`
+- [x] Embedded audiobook tag extraction validated with `ffprobe` and `mutagen` fallback support
+- [x] Added alias normalization and subtitle/series stripping to live enrichment workflow
+- [x] Confirmed final organizer convergence with `0` remaining proposed actions after provider-assisted remediation
+- [x] Promoted ingest hardening into production code: tertiary Google Books fallback, reusable normalization config, and ffprobe import fallback path
+- [x] Exposed normalization controls in the metadata settings UI with API-side validation
+- [x] Reduced false-positive import matches with format-aware embedded tag confidence weighting
+- [x] Quarantined unresolved media under root-local excluded paths (`/media/audiobooks/_dupes/unidentified`, `/media/ebooks/_dupes/unidentified`)
+- [x] Revalidated active libraries with post-quarantine `0` organization actions and `0` enrichment targets
 
 ### Phase 1 Remaining Tasks
 - [ ] Community engagement and recruitment
@@ -200,9 +228,9 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Set up monitoring/logging (ProviderTelemetryService)
 
 ### Phase 3: Open Library Provider (Weeks 9-14)
-- [ ] Implement Open Library API client
-- [ ] Map Open Library data to Bibliophilarr models
-- [ ] Search functionality
+- [x] Implement Open Library API client
+- [x] Map Open Library data to Bibliophilarr models (search result mapping)
+- [x] Search functionality (primary search path in BookInfoProxy)
 - [ ] ISBN/ASIN lookup
 - [ ] Author information retrieval
 - [ ] Cover image handling

@@ -1,8 +1,8 @@
 # Metadata Provider Implementation Guide
 
-**Version**: 1.0  
-**Last Updated**: February 16, 2026  
-**Status**: Phase 2 - Infrastructure
+**Version**: 1.1  
+**Last Updated**: March 16, 2026  
+**Status**: Phase 2-3 Transition
 
 ---
 
@@ -20,6 +20,7 @@ This guide provides comprehensive instructions for implementing metadata provide
 6. [Testing Your Provider](#testing-your-provider)
 7. [Best Practices](#best-practices)
 8. [Examples](#examples)
+9. [Current Fallback Providers](#current-fallback-providers)
 
 ---
 
@@ -727,6 +728,76 @@ public class MinimalProvider : ISearchForNewBookV2
     private Book MapBook(BookResponse response) { /* ... */ }
 }
 ```
+
+---
+
+## Current Provider Search Paths
+
+### Open Library primary search
+
+The primary in-app search path in `BookInfoProxy` now uses Open Library first for general title/author queries.
+
+- Client: `OpenLibrarySearchProxy` (`https://openlibrary.org/search.json`)
+- Behavior:
+    - Executes query-driven search (`q`, `limit=10`) and maps docs to `Book`/`Edition` candidates.
+    - On empty/error results, gracefully falls back to Goodreads search path.
+    - Does not require API keys for baseline usage.
+
+### Fallback providers
+
+The import-identification fallback chain includes provider-specific providers that implement `IBookSearchFallbackProvider`.
+
+### Google Books fallback
+
+- Provider name: `GoogleBooks`
+- Endpoint: `https://www.googleapis.com/books/v1/volumes`
+- Config keys:
+    - `EnableGoogleBooksFallback` (bool)
+    - `GoogleBooksApiKey` (string, optional)
+- Behavior:
+    - If disabled, provider returns no results.
+    - If enabled with API key, requests include `key` query parameter.
+
+### Hardcover fallback
+
+- Provider name: `Hardcover`
+- Endpoint: `https://api.hardcover.app/v1/graphql`
+- Auth header: `authorization: Bearer <token>`
+- Config keys:
+    - `EnableHardcoverFallback` (bool)
+    - `HardcoverApiToken` (string)
+    - `HardcoverRequestTimeoutSeconds` (int, optional)
+- Behavior:
+    - Provider is gated by both enable flag and token presence.
+    - Accepts either raw JWT token or `Bearer <token>` value in config.
+    - Uses GraphQL search with combined title/author query text.
+    - Optional request timeout override is applied when timeout seconds > 0.
+    - Maps contributors and editions into `Book` + `Edition` candidates.
+
+### Operational observability and log safety
+
+- Health endpoint: `GET /api/v1/metadata/providers/health`
+- Exposed rate-limit observability fields include:
+    - `RateLimitWindowRequests`
+    - `RateLimitWindowLimit`
+    - `RateLimitRemaining`
+    - `RateLimitUsageRatio`
+    - `IsRateLimitNearCeiling`
+    - `RetryAfterRemainingSeconds`
+    - `CooldownUntilUtc`
+- Log sanitization now masks bearer authorization headers before log artifact sharing.
+
+### Local environment keys
+
+For local, non-release workflows, `.env` can include:
+
+- `GOOGLE_BOOKS_API_KEY`
+- `HARDCOVER_API_TOKEN`
+- `OPENALEX_API_KEY`
+- `OPENALEX_DAILY_BUDGET_USD=1`
+- `OPENALEX_MAILTO`
+
+Keep real API credentials in local `.env` only and never commit secret values.
 
 ---
 

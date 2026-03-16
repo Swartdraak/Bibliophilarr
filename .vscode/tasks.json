@@ -23,6 +23,8 @@
       "args": [
         "publish",
         "${workspaceFolder}/src/Bibliophilarr.sln",
+        "-f",
+        "net8.0",
         "-property:GenerateFullPaths=true",
         "-consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
