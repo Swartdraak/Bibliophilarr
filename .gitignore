@@ -136,6 +136,8 @@ artifacts/
 
 #VS outout folders
 bin
+!npm/bibliophilarr-launcher/bin/
+!npm/bibliophilarr-launcher/bin/bibliophilarr.js
 obj
 output/*
 
