@@ -2,6 +2,20 @@
 name: Phase 6 Packaging Validation
 
 "on":
+  schedule:
+    - cron: '0 4 * * 2'
+  push:
+    branches:
+      - develop
+      - staging
+    paths:
+      - '.github/workflows/phase6-packaging-validation.yml'
+      - 'scripts/packaging_error_taxonomy.py'
+      - 'scripts/test_packaging_error_taxonomy.py'
+      - 'scripts/test_npm_launcher_cache_seed.sh'
+      - 'tests/fixtures/packaging-taxonomy/**'
+      - 'tests/profiles/packaging-high-verbosity.config.xml'
+      - 'npm/bibliophilarr-launcher/**'
   workflow_dispatch:
     inputs:
       npm_test_tag:

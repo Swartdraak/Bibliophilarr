@@ -14,6 +14,11 @@ Start Phase 6 packaging validation across:
 Primary workflow:
 - `.github/workflows/phase6-packaging-validation.yml`
 
+Trigger model:
+- weekly schedule (`Tue 04:00 UTC`)
+- push to `develop` and `staging` for packaging-relevant paths
+- manual workflow dispatch for targeted validation
+
 Matrix lanes:
 - `binary`
 - `docker`
@@ -91,7 +96,7 @@ False-positive handling guidance:
 
 ## Operational Notes
 
-- The matrix is intentionally workflow-dispatch first.
+- The matrix now runs on schedule and packaging-path pushes for continuous signal.
 - Keep `fail-fast=false` to preserve evidence from all lanes.
-- Promote to scheduled runs after lane stability is demonstrated.
+- Use workflow-dispatch for ad-hoc reruns with custom `npm_test_tag` or `max_unknown_share`.
 - npm cache-seed execution behavior is validated via `scripts/test_npm_launcher_cache_seed.sh`.

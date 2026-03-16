@@ -1,6 +1,12 @@
 name: Bibliophilarr Backend CI
 
 on:
+  workflow_dispatch:
+    inputs:
+      run_full_suite:
+        description: 'Run extended backend test suite'
+        required: false
+        default: 'false'
   pull_request:
   push:
     branches:
@@ -64,6 +70,39 @@ jobs:
             -p:Platform=Posix \
             --verbosity minimal
 
+  full-test-suite:
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.run_full_suite == 'true' ||
+      github.ref_name == 'main' ||
+      github.ref_name == 'staging' ||
+      contains(github.event.pull_request.labels.*.name, 'full-backend-ci')
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
+
+      - name: Build
+        run: >-
+          dotnet build Bibliophilarr.sln --configuration Release --no-restore
+          -p:Platform=Posix
+
+      - name: Extended backend tests
+        run: |
           dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj \
             --configuration Release \
             --no-build \

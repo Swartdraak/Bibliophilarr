@@ -2,9 +2,6 @@ name: Bibliophilarr Docs Validation
 
 on:
   pull_request:
-    paths:
-      - '**/*.md'
-      - '.github/workflows/docs-validation.yml'
   push:
     branches:
       - main
@@ -12,9 +9,6 @@ on:
       - staging
       - release
       - hotfix
-    paths:
-      - '**/*.md'
-      - '.github/workflows/docs-validation.yml'
 
 permissions:
   contents: read
