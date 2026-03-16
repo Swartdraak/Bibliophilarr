@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: February 16, 2024
+**Last Updated**: March 16, 2026
 
 This document provides a high-level overview of the Bibliophilarr project roadmap. For detailed technical specifications, see [MIGRATION_PLAN.md](MIGRATION_PLAN.md).
 
@@ -12,26 +12,26 @@ This document provides a high-level overview of the Bibliophilarr project roadma
 
 ---
 
-## Current Status: Planning & Foundation Phase
+## Current Status: Phase 5 Consolidation + Phase 6 Hardening
 
-We are currently in the early stages of scaling the revived project for long-term sustainability. Our immediate focus is on planning the migration away from Goodreads to sustainable FOSS alternatives.
+The project has moved beyond foundation planning into operational hardening and rollout readiness. The immediate focus is provider-consolidation stability, deterministic CI gates, and packaging/release validation.
 
 ### ✅ Completed
-- Repository analysis and architecture review
-- Research of FOSS metadata providers
-- Comprehensive migration plan documentation
-- Updated README and contributing guidelines
-- Community engagement setup
+- Phase 1 documentation foundation
+- Phase 2 provider interfaces, registry, telemetry, and persistence
+- Phase 3/4 Open Library + fallback provider runtime integration slices
+- Phase 5 telemetry endpoints and replay/ops automation slices
+- Required-check emission hardening on develop with deterministic branch-protection operations
 
 ### 🔄 In Progress
-- Documentation updates
-- Community building
-- Development environment setup
+- Phase 5 provider-consolidation stabilization in active rollout lanes
+- Phase 6 packaging matrix hardening (binary/docker/npm)
+- Branch policy audit and release-readiness operational automation
 
 ### 📋 Next Steps
-- Complete Phase 1 documentation
-- Begin infrastructure development for multi-provider system
-- Set up automated testing for metadata providers
+- Expand protected-branch parity (develop/staging/main) with policy-as-code
+- Continue scheduled packaging validation and drift triage
+- Reduce dependency-security reporting lag through lockfile-vs-alert triage automation
 
 ---
 
@@ -85,9 +85,9 @@ We are currently in the early stages of scaling the revived project for long-ter
 
 ---
 
-### Phase 3: Open Library Provider
+### Phase 3: Open Library Provider ✅
 **Timeline**: Weeks 9-14  
-**Status**: ⏳ Not Started
+**Status**: ✅ Delivered in slices
 
 **Goals:**
 - Complete Open Library API integration
@@ -112,9 +112,9 @@ We are currently in the early stages of scaling the revived project for long-ter
 
 ---
 
-### Phase 4: Multi-Provider Support
+### Phase 4: Multi-Provider Support ✅
 **Timeline**: Weeks 15-18  
-**Status**: ⏳ Not Started
+**Status**: ✅ Delivered in slices
 
 **Goals:**
 - Implement Inventaire provider as secondary source
@@ -138,9 +138,9 @@ We are currently in the early stages of scaling the revived project for long-ter
 
 ---
 
-### Phase 5: Database Migration
+### Phase 5: Consolidation and Rollout Controls
 **Timeline**: Weeks 19-22  
-**Status**: ⏳ Not Started
+**Status**: 🔄 In Progress
 
 **Goals:**
 - Update database schema for multi-provider IDs
@@ -164,9 +164,9 @@ We are currently in the early stages of scaling the revived project for long-ter
 
 ---
 
-### Phase 6: Migration Tools & User Experience
+### Phase 6: Packaging and Operational Hardening
 **Timeline**: Weeks 23-26  
-**Status**: ⏳ Not Started
+**Status**: 🔄 In Progress
 
 **Goals:**
 - Build user-friendly migration tools

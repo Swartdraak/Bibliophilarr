@@ -12,6 +12,28 @@ Deliver installable and update-capable Bibliophilarr artifacts with minimal manu
 
 ## Workflows
 
+### 0) Release readiness report
+
+File: `.github/workflows/release-readiness-report.yml`
+
+Responsibilities:
+
+- Snapshot protected-branch policy and review-count parity
+- Report latest backend/docs/smoke/packaging workflow outcomes
+- Summarize dependency security drift from Dependabot open-alert state
+- Publish markdown/json artifacts for operator review
+
+Trigger model:
+
+- Daily schedule
+- Manual dispatch
+
+Supporting scripts:
+
+- `scripts/release_readiness_report.py`
+- `scripts/dependabot_lockfile_triage.py`
+- `scripts/audit_branch_protection.py`
+
 ### 1) Release workflow
 
 File: `.github/workflows/release.yml`
@@ -59,6 +81,21 @@ Trigger model:
 - Published GitHub release
 - Manual dispatch with explicit version
 
+### 4) Branch policy audit workflow
+
+File: `.github/workflows/branch-policy-audit.yml`
+
+Responsibilities:
+
+- Detect required-check drift between branch protection and emitted CI contexts
+- Confirm protected-branch review-count parity
+- Upload machine-readable and markdown audit artifacts
+
+Trigger model:
+
+- Weekly schedule
+- Manual dispatch
+
 ## Required repository secrets
 
 - `NPM_TOKEN`: npm registry publish token
@@ -72,6 +109,12 @@ Prerequisite: authenticated `gh` session (`gh auth login`) or `GH_TOKEN` set.
 ```bash
 # Branch bootstrap (idempotent)
 gh workflow run "Branch Bootstrap" --repo <owner>/Bibliophilarr
+
+# Branch policy audit
+gh workflow run "Branch Policy Audit" --repo <owner>/Bibliophilarr
+
+# Release readiness report
+gh workflow run "Release Readiness Report" --repo <owner>/Bibliophilarr
 
 # Release workflow (manual)
 gh workflow run "Bibliophilarr Release" \
@@ -92,6 +135,11 @@ gh workflow run "Bibliophilarr Docker Image" \
 gh workflow run "Bibliophilarr npm Publish" \
   --repo <owner>/Bibliophilarr \
   -f version=0.1.0
+
+# Required-check emission smoke sandbox
+gh workflow run "Required Check Emission Smoke" \
+  --repo <owner>/Bibliophilarr \
+  -f base_branch=develop
 ```
 
 ## Secrets and variables matrix
@@ -145,3 +193,10 @@ gh workflow run "Bibliophilarr npm Publish" \
 - Repoint deployment to prior image tag and prior release assets.
 - Retag known-good commit and rerun release workflow.
 - Keep release as draft until smoke checks pass.
+
+## Merge reliability note
+
+If `gh pr merge` returns policy-prohibited despite green checks and `MERGEABLE`, use:
+
+- `scripts/merge_pr_reliably.sh`
+- `docs/operations/gh-pr-merge-cli-mismatch-2026-03-16.md`

@@ -90,6 +90,22 @@ GH_TOKEN="$GITHUB_TOKEN" gh api \
   "/repos/Swartdraak/Bibliophilarr/dependabot/alerts?state=open&per_page=100"
 ```
 
+Automated triage support added:
+
+- `scripts/dependabot_lockfile_triage.py`
+- `.github/workflows/release-readiness-report.yml` (artifact: `dependabot-triage.md`)
+
+Example run:
+
+```bash
+python3 scripts/dependabot_lockfile_triage.py \
+  --owner Swartdraak \
+  --repo Bibliophilarr \
+  --lockfile yarn.lock \
+  --md-out _artifacts/release-readiness/dependabot-triage.md \
+  --json-out _artifacts/release-readiness/dependabot-triage.json
+```
+
 ## Operational Impact
 
 - No backend/runtime service behavior changes.

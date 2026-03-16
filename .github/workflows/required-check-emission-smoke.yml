@@ -1,0 +1,111 @@
+name: Required Check Emission Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_branch:
+        description: Target branch for sandbox PR
+        required: false
+        default: develop
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  docs-only-pr-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.base_branch || 'develop' }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create docs-only sandbox PR and verify required checks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_BRANCH: ${{ github.event.inputs.base_branch || 'develop' }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          ts="$(date -u +%Y%m%d%H%M%S)"
+          sandbox_branch="ci/sandbox-required-check-smoke-${ts}"
+          sandbox_file="docs/operations/_sandbox-required-check-smoke-${ts}.md"
+
+          cleanup() {
+            set +e
+            if [[ -n "${pr_number:-}" ]]; then
+              gh pr close "$pr_number" -R "$REPO" --delete-branch || true
+            else
+              gh api -X DELETE "repos/${REPO}/git/refs/heads/${sandbox_branch}" || true
+            fi
+          }
+          trap cleanup EXIT
+
+          git checkout -b "$sandbox_branch"
+          cat > "$sandbox_file" <<EOF
+          # Required Check Emission Smoke Sandbox
+
+          Generated at ${ts}.
+          EOF
+
+          git add "$sandbox_file"
+          git commit -m "ci(smoke): docs-only required-check emission sandbox"
+          git push -u origin "$sandbox_branch"
+
+          pr_url="$(gh pr create \
+            -R "$REPO" \
+            --base "$BASE_BRANCH" \
+            --head "$sandbox_branch" \
+            --title "ci(smoke): docs-only required-check emission" \
+            --body "Automated sandbox PR for required-check emission verification.")"
+          pr_number="$(basename "$pr_url")"
+
+          mapfile -t required_contexts < <(
+            gh api "repos/${REPO}/branches/${BASE_BRANCH}/protection" \
+              --jq '.required_status_checks.contexts[]'
+          )
+
+          for attempt in $(seq 1 30); do
+            rollup="$(gh pr view "$pr_number" -R "$REPO" --json statusCheckRollup)"
+            missing=0
+            incomplete=0
+
+            for context in "${required_contexts[@]}"; do
+              alt="$context"
+              if [[ "$context" == *" / "* ]]; then
+                alt="${context##* / }"
+              fi
+
+              match="$(jq -r --arg c "$context" --arg a "$alt" '[.statusCheckRollup[] | select(.name == $c or .name == $a)] | length' <<<"$rollup")"
+              if [[ "$match" -eq 0 ]]; then
+                missing=$((missing + 1))
+                continue
+              fi
+
+              done_ok="$(jq -r --arg c "$context" --arg a "$alt" '[.statusCheckRollup[] | select((.name == $c or .name == $a) and .status == "COMPLETED" and .conclusion == "SUCCESS")] | length' <<<"$rollup")"
+              if [[ "$done_ok" -eq 0 ]]; then
+                incomplete=$((incomplete + 1))
+              fi
+            done
+
+            if [[ "$missing" -eq 0 && "$incomplete" -eq 0 ]]; then
+              echo "Required checks were emitted and completed successfully."
+              break
+            fi
+
+            if [[ "$attempt" -eq 30 ]]; then
+              echo "Required checks missing or incomplete after timeout" >&2
+              echo "$rollup" >&2
+              exit 1
+            fi
+
+            sleep 20
+          done

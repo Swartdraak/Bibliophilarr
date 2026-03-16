@@ -37,6 +37,12 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
   - removed the lingering `required_approving_review_count=1` policy from `develop` to align branch protection with the documented automated solo-maintainer workflow
 - Pending authenticated GitHub operations are tracked in:
   - `docs/operations/phase6-hardening-pr-bootstrap-2026-03-16.md`
+- Branch policy and release-readiness automation expanded:
+  - Added deterministic apply script: `scripts/apply_branch_protection.sh`
+  - Added drift audit script: `scripts/audit_branch_protection.py`
+  - Added merge reliability fallback helper: `scripts/merge_pr_reliably.sh`
+  - Added release-readiness reporting workflow: `.github/workflows/release-readiness-report.yml`
+  - Added required-check emission sandbox workflow: `.github/workflows/required-check-emission-smoke.yml`
 
 ## What Has Been Done ✅
 

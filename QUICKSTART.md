@@ -13,9 +13,13 @@ Start with these documents in order:
 
 ## 🎯 Current Focus
 
-**We're in Phase 1: Foundation & Documentation**
+**We're in Phase 5 consolidation with Phase 6 hardening active.**
 
-The immediate priority is completing the planning phase and setting up infrastructure for multi-provider metadata support.
+Immediate priorities:
+
+- keep protected-branch merge gates deterministic
+- validate packaging paths (binary/docker/npm) continuously
+- maintain release readiness and security-drift visibility
 
 ## 🚀 Quick Setup
 
@@ -88,6 +92,25 @@ docker rm -f bibliophilarr-local
 ```
 
 See [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md) for full release workflow usage.
+
+## Branch Policy and Merge Reliability Checks
+
+```bash
+# Apply branch protection baseline (develop/staging/main)
+chmod +x scripts/apply_branch_protection.sh
+scripts/apply_branch_protection.sh develop staging main
+
+# Audit branch-protection drift
+python3 scripts/audit_branch_protection.py \
+   --branches develop staging main \
+   --expected-review-count 0
+
+# Merge a green PR with CLI fallback reliability
+chmod +x scripts/merge_pr_reliably.sh
+scripts/merge_pr_reliably.sh <PR_NUMBER> merge
+```
+
+See [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md) and [docs/operations/gh-pr-merge-cli-mismatch-2026-03-16.md](docs/operations/gh-pr-merge-cli-mismatch-2026-03-16.md).
 
 ## 💡 Easy First Contributions
 
@@ -173,8 +196,8 @@ src/NzbDrone.Core/MetadataSource/
 3. ✅ Set up your development environment
 4. ✅ Build and run the project locally
 5. 👉 Pick a task from [CONTRIBUTING.md](CONTRIBUTING.md)
-6. 👉 Make your contribution!
-7. 👉 Open a pull request
+6. 👉 Run branch-policy audit and release-readiness scripts before opening a PR
+7. 👉 Make your contribution and open a pull request
 
 ## 🎉 Welcome
 

@@ -5,9 +5,13 @@ name: Staging Smoke Metadata Telemetry
   pull_request:
     branches:
       - develop
+      - staging
+      - main
   push:
     branches:
       - develop
+      - staging
+      - main
   workflow_dispatch:
 
 permissions:
