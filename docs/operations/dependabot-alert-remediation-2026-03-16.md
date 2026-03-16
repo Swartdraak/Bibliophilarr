@@ -4,6 +4,8 @@
 
 Focused security branch created: `security/dependabot-8-alerts-2026-03-16`
 
+Follow-up branch created: `security/dependabot-pass2-no-resolutions-2026-03-16`
+
 Updated frontend dependency graph to remediate the 8 open npm Dependabot alerts reported on `develop`:
 
 - `glob` (high): patched to `11.1.0` in lock graph
@@ -31,6 +33,15 @@ Updated frontend dependency graph to remediate the 8 open npm Dependabot alerts 
 - `yarn.lock`
   - Regenerated with patched transitive versions
 
+### Pass 2 (No Resolution Overrides)
+
+- Removed `resolutions` from `package.json`
+- Updated direct dependencies to remove advisory entry paths without overrides:
+  - `rimraf`: `6.0.1` -> `5.0.10`
+  - `webpack`: `5.104.1` -> `5.105.4`
+- Removed unused `postcss-url` dependency (carried vulnerable `minimatch@~3.0.4` chain)
+- Regenerated `yarn.lock` and rebuilt frontend
+
 ## Why It Changed
 
 `yarn.lock` on `develop` had eight open Dependabot alerts, including multiple vulnerable `minimatch` ranges and old `postcss`/`serialize-javascript` transitive versions. This update removes vulnerable versions from the lock graph while preserving current frontend behavior.
@@ -55,7 +66,20 @@ Validated lockfile entries for flagged packages:
 
 - PR merged to `develop`: https://github.com/Swartdraak/Bibliophilarr/pull/12
 - Merge commit on default branch: `c5656a492`
-- Immediate `dependabot/alerts?state=open` API recheck still reports 8 alerts.
+- Follow-up PR merged to `develop`: https://github.com/Swartdraak/Bibliophilarr/pull/13
+- Merge commit on default branch: `47cf259ee`
+- Immediate and delayed `dependabot/alerts?state=open` API rechecks still report 8 alerts.
+
+Current lock graph evidence on `develop`:
+
+- `glob@^10.0.0, glob@^10.3.7` -> `10.5.0`
+- `immutable@^4.0.0` -> `4.3.8`
+- `minimatch@^3.1.2` -> `3.1.5`
+- `minimatch@^5.1.0` -> `5.1.9`
+- `minimatch@^9.0.4` -> `9.0.9`
+- `minimatch@^10.2.2` -> `10.2.4`
+- `postcss@8.4.47` / `postcss@8.4.48`
+- `serialize-javascript`: not present in lock graph
 
 Observed behavior suggests GitHub Dependabot processing lag or lockfile interpretation lag.
 Re-run command used for verification:
@@ -70,7 +94,8 @@ GH_TOKEN="$GITHUB_TOKEN" gh api \
 
 - No backend/runtime service behavior changes.
 - Frontend build toolchain now uses newer lint/typecheck/plugin versions.
-- Yarn emits compatibility warnings due resolution overrides on older transitive semver ranges; build remains green.
+- No dependency resolution overrides remain in `package.json`.
+- Frontend build remains green after pass 2.
 
 ## Rollback
 

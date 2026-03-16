@@ -161,11 +161,21 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - ✅ Merged focused security PR [#12](https://github.com/Swartdraak/Bibliophilarr/pull/12) into `develop`
   - Branch: `security/dependabot-8-alerts-2026-03-16`
   - Merge commit: `c5656a492`
+- ✅ Merged follow-up no-override security PR [#13](https://github.com/Swartdraak/Bibliophilarr/pull/13) into `develop`
+  - Branch: `security/dependabot-pass2-no-resolutions-2026-03-16`
+  - Merge commit: `47cf259ee`
+  - Removed `resolutions` overrides and remediated chains at source (`rimraf`, `webpack`, `postcss-url` removal)
 - ✅ Replaced legacy PostCSS plugin chain using `postcss-color-function` with `@csstools/postcss-color-function`
 - ✅ Regenerated `yarn.lock` and validated frontend build success after dependency updates
-- 🔄 Dependabot API still reports 8 open npm alerts immediately post-merge
-  - Current lock entries are pinned at/above advisory patch levels
-  - Next action: wait for GitHub dependency graph reprocessing and re-run alert query
+- 🔄 Dependabot API still reports 8 open npm alerts after PR #12 and PR #13 merges
+  - Rechecked immediately and after delay via GitHub API on `develop`
+  - Local lock graph now resolves at/above patched ranges:
+    - `glob`: `10.5.0`
+    - `immutable`: `4.3.8`
+    - `minimatch`: `3.1.5`, `5.1.9`, `9.0.9`, `10.2.4`
+    - `postcss`: `8.4.47`, `8.4.48`
+    - `serialize-javascript`: not present
+  - Next action: trigger/await GitHub dependency graph refresh and re-query alert state
 
 ## What Needs to Be Done 📋
 
@@ -241,11 +251,11 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Implement Open Library API client
 - [x] Map Open Library data to Bibliophilarr models (search result mapping)
 - [x] Search functionality (primary search path in BookInfoProxy)
-- [ ] ISBN/ASIN lookup
+- [x] ISBN/ASIN lookup
 - [ ] Author information retrieval
 - [ ] Cover image handling
-- [ ] Rate limiting
-- [ ] Comprehensive testing
+- [x] Rate limiting
+- [x] Comprehensive testing
 
 ### Subsequent Phases
 See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
