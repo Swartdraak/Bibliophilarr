@@ -65,7 +65,6 @@ namespace NzbDrone.Integration.Test
             indexer.Implementation = nameof(Newznab);
             indexer.Name = "NewznabTest";
             indexer.Protocol = Core.Indexers.DownloadProtocol.Usenet;
-
         }
 
         protected override void StopTestTarget()
