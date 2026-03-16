@@ -158,3 +158,4 @@ _temp_*/**/*
 .env
 .env.local
 .env.*.local
+.env.bak*

@@ -167,6 +167,7 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
   - Removed `resolutions` overrides and remediated chains at source (`rimraf`, `webpack`, `postcss-url` removal)
 - ✅ Replaced legacy PostCSS plugin chain using `postcss-color-function` with `@csstools/postcss-color-function`
 - ✅ Regenerated `yarn.lock` and validated frontend build success after dependency updates
+- ✅ Removed accidental local `.env.bak.*` secret backup from workspace and added `.gitignore` guard (`.env.bak*`) while keeping `.env` local-only and `.env.example` tracked
 - 🔄 Dependabot API still reports 8 open npm alerts after PR #12 and PR #13 merges
   - Rechecked immediately and after delay via GitHub API on `develop`
   - Local lock graph now resolves at/above patched ranges:
