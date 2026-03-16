@@ -26,6 +26,7 @@ Matrix lanes:
 
 npm lane details:
 - installs the packed launcher tarball into an isolated temp project
+- writes logs/artifacts using `${GITHUB_WORKSPACE}` paths (runner-portable, no hardcoded absolute workspace)
 - seeds the launcher cache for a pinned smoke tag (`v0.0.0-phase6-smoke` by default)
 - executes `bibliophilarr --help` to validate the concrete launcher invocation path without requiring a published release asset during CI
 
