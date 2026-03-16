@@ -2,9 +2,6 @@ name: Bibliophilarr Backend CI
 
 on:
   pull_request:
-    paths:
-      - 'src/**'
-      - '.github/workflows/ci-backend.yml'
   push:
     branches:
       - main
@@ -12,9 +9,6 @@ on:
       - staging
       - release
       - hotfix
-    paths:
-      - 'src/**'
-      - '.github/workflows/ci-backend.yml'
 
 permissions:
   contents: read
