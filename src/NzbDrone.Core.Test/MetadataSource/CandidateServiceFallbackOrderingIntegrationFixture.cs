@@ -10,6 +10,7 @@ using NzbDrone.Core.MediaFiles.BookImport.Identification;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.GoogleBooks;
 using NzbDrone.Core.MetadataSource.Hardcover;
+using NzbDrone.Core.MetadataSource.Inventaire;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
 
@@ -23,6 +24,10 @@ namespace NzbDrone.Core.Test.MetadataSource
         {
             var normalization = Mocker.Resolve<MetadataQueryNormalizationService>();
             Mocker.SetConstant<IMetadataQueryNormalizationService>(normalization);
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.EnableInventaireFallback)
+                .Returns(true);
 
             Mocker.GetMock<IConfigService>()
                 .SetupGet(x => x.EnableGoogleBooksFallback)
@@ -44,6 +49,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .SetupGet(x => x.MetadataTitleStripPatterns)
                 .Returns("[\":\\\\s*Book\\\\s*\\\\d+$\"]");
 
+            var inventaire = new InventaireFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
             var googleBooks = new GoogleBooksFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
             var hardcover = new HardcoverFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
 
@@ -56,7 +62,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             {
                 emptySecondary.Object,
                 googleBooks,
-                hardcover
+                hardcover,
+                inventaire
             });
 
             Mocker.GetMock<IBookSearchFallbackExecutionService>()
@@ -79,6 +86,14 @@ namespace NzbDrone.Core.Test.MetadataSource
                           "\"printType\":\"BOOK\"," +
                           "\"industryIdentifiers\":[{\"type\":\"ISBN_13\",\"identifier\":\"9780316206846\"}]" +
                           "}}]}";
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Get<InventaireSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var emptyPayload = "{\"results\":[]}";
+                    return new HttpResponse<InventaireSearchResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, emptyPayload));
+                });
 
             Mocker.GetMock<IHttpClient>()
                 .Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
@@ -114,6 +129,52 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             Mocker.GetMock<IHttpClient>()
                 .Verify(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.AtLeastOnce());
+        }
+
+        [Test]
+        public void should_prefer_inventaire_before_google_books_when_inventaire_returns_candidates()
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Get<InventaireSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var payload = "{" +
+                                  "\"results\":[{" +
+                                  "\"uri\":\"inv:work:1\"," +
+                                  "\"label\":\"The Cuckoo's Calling\"," +
+                                  "\"author\":\"Robert Galbraith\"," +
+                                  "\"cover\":\"https://inventaire.example/cover.jpg\"" +
+                                  "}]}";
+
+                    return new HttpResponse<InventaireSearchResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload));
+                });
+
+            var edition = new LocalEdition
+            {
+                LocalBooks = new List<LocalBook>
+                {
+                    new LocalBook
+                    {
+                        FileTrackInfo = new ParsedTrackInfo
+                        {
+                            Authors = new List<string> { "J.K. Rowling" },
+                            BookTitle = "The Cuckoo's Calling: Book 1"
+                        }
+                    }
+                }
+            };
+
+            var candidates = Subject.GetRemoteCandidates(edition, null).ToList();
+
+            candidates.Should().ContainSingle();
+            candidates[0].Edition.ForeignEditionId.Should().StartWith("inventaire:edition:");
+            candidates[0].Edition.Images.Should().ContainSingle();
+
+            Mocker.GetMock<IHttpClient>()
+                .Verify(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.Never());
+
+            Mocker.GetMock<IHttpClient>()
+                .Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never());
         }
 
         [Test]

@@ -304,6 +304,13 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("EmbedMetadata", value); }
         }
 
+        public bool EnableInventaireFallback
+        {
+            get { return GetValueBoolean("EnableInventaireFallback", true); }
+
+            set { SetValue("EnableInventaireFallback", value); }
+        }
+
         public bool EnableGoogleBooksFallback
         {
             get { return GetValueBoolean("EnableGoogleBooksFallback", true); }

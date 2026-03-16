@@ -168,6 +168,18 @@ function MetadataProvider(props) {
 
             <FieldSet legend={translate('MetadataQueryNormalization')}>
               <FormGroup>
+                <FormLabel>{translate('EnableInventaireFallback')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableInventaireFallback"
+                  helpText={translate('EnableInventaireFallbackHelpText')}
+                  onChange={onInputChange}
+                  {...settings.enableInventaireFallback}
+                />
+              </FormGroup>
+
+              <FormGroup>
                 <FormLabel>{translate('EnableHardcoverFallback')}</FormLabel>
 
                 <FormInputGroup

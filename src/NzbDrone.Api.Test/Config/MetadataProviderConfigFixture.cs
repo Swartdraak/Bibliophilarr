@@ -15,12 +15,14 @@ namespace NzbDrone.Api.Test.Config
             string hardcoverToken = "raw-jwt-token",
             int hardcoverTimeout = 30,
             bool enableGoogleBooks = false,
-            string googleBooksKey = "")
+            string googleBooksKey = "",
+            bool enableInventaire = true)
         {
             var mock = new Mock<IConfigService>();
             mock.SetupGet(x => x.EnableHardcoverFallback).Returns(enableHardcover);
             mock.SetupGet(x => x.HardcoverApiToken).Returns(hardcoverToken);
             mock.SetupGet(x => x.HardcoverRequestTimeoutSeconds).Returns(hardcoverTimeout);
+            mock.SetupGet(x => x.EnableInventaireFallback).Returns(enableInventaire);
             mock.SetupGet(x => x.EnableGoogleBooksFallback).Returns(enableGoogleBooks);
             mock.SetupGet(x => x.GoogleBooksApiKey).Returns(googleBooksKey);
             mock.SetupGet(x => x.MetadataAuthorAliases).Returns(string.Empty);
@@ -35,6 +37,20 @@ namespace NzbDrone.Api.Test.Config
                 .InclusiveBetween(0, 120)
                 .WithMessage("Hardcover request timeout must be between 0 and 120 seconds");
             return v;
+        }
+
+        [Test]
+        public void mapper_should_include_inventaire_enable_flag()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(enableInventaire: true));
+            resource.EnableInventaireFallback.Should().BeTrue();
+        }
+
+        [Test]
+        public void mapper_should_map_inventaire_disabled_state()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(enableInventaire: false));
+            resource.EnableInventaireFallback.Should().BeFalse();
         }
 
         [Test]

@@ -208,6 +208,9 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Expose Hardcover fallback controls in metadata settings UI (enable, token, timeout override)
 - [x] Add API-level integration tests for metadata config save/load round-trip (mapper + validation, 10 tests)
 - [x] Add provider resilience tests for Hardcover execution path (408, 503, 429, empty-result — 4 tests)
+- [x] Add Inventaire fallback provider with deterministic ordering ahead of Google Books and Hardcover
+- [x] Add Open Library author-detail retrieval path (`LookupAuthorByKey`) and cover image mapping for search/ISBN flows
+- [x] Add targeted fallback/cover integration tests (Inventaire, Open Library, Google Books)
 
 #### Monitoring & Logging 🔄
 - [x] Add structured logging for provider operations (ProviderTelemetryService)
@@ -253,8 +256,8 @@ Bibliophilarr is a community-driven project focused on sustainable metadata and 
 - [x] Map Open Library data to Bibliophilarr models (search result mapping)
 - [x] Search functionality (primary search path in BookInfoProxy)
 - [x] ISBN/ASIN lookup
-- [ ] Author information retrieval
-- [ ] Cover image handling
+- [x] Author information retrieval
+- [x] Cover image handling
 - [x] Rate limiting
 - [x] Comprehensive testing
 
@@ -335,6 +338,10 @@ See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
 - `dotnet msbuild -restore /opt/Bibliophilarr/src/Bibliophilarr.sln -p:GenerateFullPaths=true -p:Configuration=Debug -p:Platform=Posix -consoleloggerparameters:NoSummary;ForceNoAlign` -> Passed
 - `dotnet test /opt/Bibliophilarr/src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Debug --filter "FullyQualifiedName~MetadataProviderRegistryFixture|FullyQualifiedName~MetadataQualityScorerFixture"` -> Passed (13/13)
 - Analyzer stabilization completed for `SA1200` and `SA1000` issues introduced by broad rename cleanup
+
+### Latest Validation (March 16, 2026)
+- `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter "FullyQualifiedName~MetadataSource.CandidateServiceFallbackOrderingIntegrationFixture|FullyQualifiedName~MetadataSource.InventaireFallbackSearchProviderFixture|FullyQualifiedName~MetadataSource.OpenLibrary.OpenLibrarySearchProxyFixture|FullyQualifiedName~MetadataSource.BookInfo.BookInfoProxyOpenLibraryFixture|FullyQualifiedName~MetadataSource.GoogleBooksFallbackSearchProviderFixture"` -> Passed (11/11)
+- `dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --filter "FullyQualifiedName~Config.MetadataProviderConfigFixture"` -> Passed (12/12)
 
 #### In Progress ⏳
 - [ ] Provider registry implementation

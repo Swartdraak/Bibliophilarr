@@ -8,6 +8,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.MediaCover;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
 {
@@ -27,6 +28,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         /// returns null when no unambiguous single-result match is found.
         /// </summary>
         Book LookupByAsin(string asin);
+
+        /// <summary>
+        /// Fetch author metadata from Open Library author endpoint.
+        /// Supports keys in either raw form (OL123A), /authors/OL123A, or
+        /// bibliophilarr foreign id form (openlibrary:author:OL123A).
+        /// </summary>
+        Author LookupAuthorByKey(string authorKey);
     }
 
     public class OpenLibrarySearchProxy : IOpenLibrarySearchProxy
@@ -129,6 +137,34 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
         }
 
+        public Author LookupAuthorByKey(string authorKey)
+        {
+            var normalized = NormalizeAuthorKey(authorKey);
+            if (normalized.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var request = _isbnRequestBuilder.Create()
+                .Resource($"/authors/{normalized}.json")
+                .Build();
+
+            try
+            {
+                var response = _httpClient.Get<OpenLibraryAuthorResource>(request);
+                return MapAuthor(response.Resource, normalized);
+            }
+            catch (HttpException e) when (e.Response?.StatusCode == HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "OpenLibrary author lookup failed for '{0}'", authorKey);
+                return null;
+            }
+        }
+
         private Book TryIsbnEndpoint(string isbn)
         {
             var request = _isbnRequestBuilder.Create()
@@ -224,22 +260,31 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Ratings = new Ratings()
             };
 
-            book.Editions = new List<Edition>
+            var mappedEdition = new Edition
             {
-                new Edition
-                {
-                    ForeignEditionId = $"openlibrary:edition:{editionKey}",
-                    Title = title,
-                    Isbn13 = isbn13,
-                    Publisher = edition.Publishers?.FirstOrDefault()?.Trim(),
-                    PageCount = edition.NumberOfPages ?? 0,
-                    ReleaseDate = releaseDate,
-                    IsEbook = true,
-                    Format = "Ebook",
-                    Book = book,
-                    Ratings = new Ratings()
-                }
+                ForeignEditionId = $"openlibrary:edition:{editionKey}",
+                Title = title,
+                Isbn13 = isbn13,
+                Publisher = edition.Publishers?.FirstOrDefault()?.Trim(),
+                PageCount = edition.NumberOfPages ?? 0,
+                ReleaseDate = releaseDate,
+                IsEbook = true,
+                Format = "Ebook",
+                Book = book,
+                Ratings = new Ratings()
             };
+
+            var editionCoverUrl = BuildBookCoverUrl(edition.Covers?.FirstOrDefault());
+            if (editionCoverUrl.IsNotNullOrWhiteSpace())
+            {
+                mappedEdition.Images.Add(new MediaCover.MediaCover
+                {
+                    Url = editionCoverUrl,
+                    CoverType = MediaCoverTypes.Cover
+                });
+            }
+
+            book.Editions = new List<Edition> { mappedEdition };
 
             return book;
         }
@@ -285,20 +330,29 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var isbn13 = doc.Isbn?.FirstOrDefault(x => IsThirteenDigitIsbn(x));
 
-            book.Editions = new List<Edition>
+            var mappedEdition = new Edition
             {
-                new Edition
-                {
-                    ForeignEditionId = $"openlibrary:edition:{workKey}",
-                    Title = title,
-                    Isbn13 = isbn13,
-                    ReleaseDate = book.ReleaseDate,
-                    IsEbook = true,
-                    Format = "Ebook",
-                    Book = book,
-                    Ratings = new Ratings()
-                }
+                ForeignEditionId = $"openlibrary:edition:{workKey}",
+                Title = title,
+                Isbn13 = isbn13,
+                ReleaseDate = book.ReleaseDate,
+                IsEbook = true,
+                Format = "Ebook",
+                Book = book,
+                Ratings = new Ratings()
             };
+
+            var coverUrl = BuildBookCoverUrl(doc.CoverId);
+            if (coverUrl.IsNotNullOrWhiteSpace())
+            {
+                mappedEdition.Images.Add(new MediaCover.MediaCover
+                {
+                    Url = coverUrl,
+                    CoverType = MediaCoverTypes.Cover
+                });
+            }
+
+            book.Editions = new List<Edition> { mappedEdition };
 
             return book;
         }
@@ -396,6 +450,119 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             return new string(normalized.Where(c => char.IsLetterOrDigit(c) || c == '-').ToArray());
         }
+
+        private static string NormalizeAuthorKey(string authorKey)
+        {
+            if (authorKey.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var normalized = authorKey.Trim();
+            if (normalized.StartsWith("openlibrary:author:", StringComparison.InvariantCultureIgnoreCase))
+            {
+                normalized = normalized.Substring("openlibrary:author:".Length);
+            }
+
+            if (normalized.StartsWith("/authors/", StringComparison.InvariantCultureIgnoreCase))
+            {
+                normalized = normalized.Substring("/authors/".Length);
+            }
+
+            return normalized.Trim();
+        }
+
+        private static Author MapAuthor(OpenLibraryAuthorResource resource, string authorKey)
+        {
+            if (resource == null)
+            {
+                return null;
+            }
+
+            var normalizedKey = NormalizeAuthorKey(resource.Key).IsNotNullOrWhiteSpace()
+                ? NormalizeAuthorKey(resource.Key)
+                : NormalizeAuthorKey(authorKey);
+
+            if (normalizedKey.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var authorName = resource.Name.IsNotNullOrWhiteSpace() ? resource.Name.Trim() : normalizedKey;
+            var metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = $"openlibrary:author:{normalizedKey}",
+                TitleSlug = normalizedKey,
+                Name = authorName,
+                SortName = authorName,
+                NameLastFirst = authorName,
+                SortNameLastFirst = authorName,
+                Overview = GetAuthorBio(resource.Bio),
+                Status = AuthorStatusType.Continuing,
+                Ratings = new Ratings()
+            };
+
+            var imageUrl = BuildAuthorCoverUrl(resource.Photos?.FirstOrDefault());
+            if (imageUrl.IsNotNullOrWhiteSpace())
+            {
+                metadata.Images.Add(new MediaCover.MediaCover
+                {
+                    Url = imageUrl,
+                    CoverType = MediaCoverTypes.Poster
+                });
+            }
+
+            metadata.Links.Add(new Links
+            {
+                Url = $"https://openlibrary.org/authors/{normalizedKey}",
+                Name = "Open Library"
+            });
+
+            return new Author
+            {
+                ForeignAuthorId = metadata.ForeignAuthorId,
+                Metadata = metadata,
+                AuthorMetadataId = metadata.Id,
+                CleanName = Parser.Parser.CleanAuthorName(metadata.Name),
+                Books = new List<Book>(),
+                Series = new List<Series>()
+            };
+        }
+
+        private static string GetAuthorBio(object bio)
+        {
+            if (bio is string raw)
+            {
+                return raw;
+            }
+
+            if (bio is OpenLibraryTextValueResource wrapped)
+            {
+                return wrapped.Value;
+            }
+
+            return null;
+        }
+
+        private static string BuildBookCoverUrl(int? coverId)
+        {
+            if (!coverId.HasValue || coverId.Value <= 0)
+            {
+                return null;
+            }
+
+            return $"https://covers.openlibrary.org/b/id/{coverId.Value}-L.jpg";
+        }
+
+        private static string BuildAuthorCoverUrl(int? coverId)
+        {
+            if (!coverId.HasValue || coverId.Value <= 0)
+            {
+                return null;
+            }
+
+            return $"https://covers.openlibrary.org/a/id/{coverId.Value}-L.jpg";
+        }
     }
 
     public class OpenLibrarySearchResponse
@@ -432,6 +599,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         [JsonProperty("number_of_pages")]
         public int? NumberOfPages { get; set; }
+
+        [JsonProperty("covers")]
+        public List<int> Covers { get; set; }
     }
 
     public class OpenLibraryKeyRef
@@ -459,5 +629,29 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         [JsonProperty("isbn")]
         public List<string> Isbn { get; set; }
+
+        [JsonProperty("cover_i")]
+        public int? CoverId { get; set; }
+    }
+
+    public class OpenLibraryAuthorResource
+    {
+        [JsonProperty("key")]
+        public string Key { get; set; }
+
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("bio")]
+        public object Bio { get; set; }
+
+        [JsonProperty("photos")]
+        public List<int> Photos { get; set; }
+    }
+
+    public class OpenLibraryTextValueResource
+    {
+        [JsonProperty("value")]
+        public string Value { get; set; }
     }
 }

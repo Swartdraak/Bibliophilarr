@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -21,6 +22,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private static readonly Regex Isbn13Regex = new Regex(@"(?<!\d)(97[89][\d-]{10,16})(?!\d)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex Isbn10Regex = new Regex(@"(?<![\dXx])([\d-]{9}[\dXx])(?![\dXx])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex AsinRegex = new Regex(@"\b(B0[0-9A-Z]{8})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Dictionary<string, int> FallbackProviderPriorities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Inventaire"] = 10,
+            ["GoogleBooks"] = 20,
+            ["Hardcover"] = 30
+        };
 
         private readonly ISearchForNewBook _bookSearchService;
         private readonly IAuthorService _authorService;
@@ -48,7 +55,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _editionService = editionService;
             _mediaFileService = mediaFileService;
             _queryNormalizationService = queryNormalizationService;
-            _fallbackProviders = fallbackProviders ?? new List<IBookSearchFallbackProvider>();
+            _fallbackProviders = (fallbackProviders ?? new List<IBookSearchFallbackProvider>())
+                .OrderBy(GetFallbackProviderPriority)
+                .ThenBy(x => x.ProviderName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
             _fallbackExecutionService = fallbackExecutionService;
             _logger = logger;
         }
@@ -569,6 +579,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return candidates;
+        }
+
+        private static int GetFallbackProviderPriority(IBookSearchFallbackProvider provider)
+        {
+            if (provider == null || provider.ProviderName.IsNullOrWhiteSpace())
+            {
+                return int.MaxValue;
+            }
+
+            return FallbackProviderPriorities.TryGetValue(provider.ProviderName, out var priority)
+                ? priority
+                : 100;
         }
 
         private bool SatisfiesOverride(Edition edition, IdentificationOverrides idOverride)

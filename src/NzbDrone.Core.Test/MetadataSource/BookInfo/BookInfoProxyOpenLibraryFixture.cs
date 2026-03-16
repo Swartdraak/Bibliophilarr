@@ -58,5 +58,37 @@ namespace NzbDrone.Core.Test.MetadataSource.BookInfo
             Mocker.GetMock<IGoodreadsSearchProxy>()
                 .Verify(x => x.Search(It.IsAny<string>()), Times.Once());
         }
+
+        [Test]
+        public void should_use_open_library_author_lookup_for_open_library_author_ids()
+        {
+            var metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = "openlibrary:author:OL23919A",
+                Name = "Frank Herbert",
+                SortName = "Frank Herbert",
+                NameLastFirst = "Frank Herbert",
+                SortNameLastFirst = "Frank Herbert"
+            };
+
+            var author = new Author
+            {
+                ForeignAuthorId = metadata.ForeignAuthorId,
+                Metadata = metadata,
+                AuthorMetadataId = metadata.Id
+            };
+
+            Mocker.GetMock<IOpenLibrarySearchProxy>()
+                .Setup(x => x.LookupAuthorByKey("openlibrary:author:OL23919A"))
+                .Returns(author);
+
+            var result = Subject.GetAuthorInfo("openlibrary:author:OL23919A");
+
+            result.Should().NotBeNull();
+            result.ForeignAuthorId.Should().Be("openlibrary:author:OL23919A");
+
+            Mocker.GetMock<IOpenLibrarySearchProxy>()
+                .Verify(x => x.LookupAuthorByKey("openlibrary:author:OL23919A"), Times.Once());
+        }
     }
 }
