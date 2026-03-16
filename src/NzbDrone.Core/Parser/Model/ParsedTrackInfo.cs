@@ -40,11 +40,16 @@ namespace NzbDrone.Core.Parser.Model
         public string Language { get; set; }
         public string ReleaseGroup { get; set; }
         public string ReleaseHash { get; set; }
+        public string IdentitySource { get; set; }
+        public double BookTitleConfidence { get; set; }
+        public double AuthorConfidence { get; set; }
 
         public ParsedTrackInfo()
         {
             Authors = new List<string>();
             TrackNumbers = new int[0];
+            BookTitleConfidence = 1.0;
+            AuthorConfidence = 1.0;
         }
 
         public override string ToString()
