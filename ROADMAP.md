@@ -106,7 +106,39 @@ Planned entry conditions:
 2. Keep `main` green for readiness reporting and branch-policy audit dispatch.
 3. Reduce dependency security drift in small, verifiable lockfile slices.
 4. Promote release entry criteria from documentation to routine operator practice.
-5. Reassess whether packaging validation can safely move onto `main` after installation paths are fully validated.
+5. Execute local install testing on `develop` as a first-class lane (native binary, Docker, and npm launcher).
+6. Reassess whether packaging validation can safely move onto `main` after installation paths are fully validated.
+
+## Local Install Testing Enablement (Develop Branch)
+
+Purpose:
+
+- The primary mission of `develop` is to prove users can install and run Bibliophilarr locally with deterministic results, not only to pass CI.
+
+Project-level recommendations:
+
+1. Define a weekly install validation matrix owned by maintainers:
+	- Linux native package install and first start
+	- Docker image run and API/UI health check
+	- npm launcher install and binary bootstrap
+2. Enforce install readiness as a merge expectation for risky slices:
+	- packaging path changes
+	- startup/config changes
+	- update/installer changes
+3. Keep a rolling install evidence trail in versioned markdown snapshots with:
+	- exact commands
+	- environment assumptions
+	- pass/fail outcome
+	- rollback notes
+4. Prioritize install blockers ahead of non-critical feature work on `develop`.
+5. Promote only install-proven commits from `develop` to `staging`.
+
+Suggested acceptance criteria for local install readiness:
+
+- Clean install starts and serves `/ping` and core API metadata endpoints.
+- Existing config/data directories upgrade without manual data surgery.
+- Fallback to prior release is documented and verified for the same environment.
+- Any known installer/runtime caveats are captured in QUICKSTART and runbooks.
 
 ## Operational Notes
 

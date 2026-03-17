@@ -93,6 +93,32 @@ docker rm -f bibliophilarr-local
 
 See [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md) for full release workflow usage.
 
+## Local Install Testing Loop (Develop Branch)
+
+Use this loop when validating install readiness from `develop`.
+
+### Objective
+
+Prove a contributor can install and run Bibliophilarr locally across the supported delivery surfaces with no hidden manual recovery steps.
+
+### Validation matrix
+
+1. Native package install (linux-x64 artifact)
+2. Docker runtime install (`docker build` + `docker run`)
+3. npm launcher install path (`npm pack` from launcher package)
+
+### Minimum evidence to capture
+
+1. Commands executed
+2. Environment assumptions (OS, runtime versions)
+3. Health results (`/ping` and metadata endpoints)
+4. Failures and mitigation notes
+
+### Suggested cadence
+
+- Run after any change touching startup, packaging, updater, config pathing, or metadata provider bootstrapping.
+- Run at least once per week on `develop`, then summarize in `PROJECT_STATUS.md`.
+
 ## Branch Policy and Merge Reliability Checks
 
 ```bash

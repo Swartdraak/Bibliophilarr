@@ -4,6 +4,28 @@
 
 This document outlines the comprehensive technical plan for migrating Bibliophilarr (formerly Readarr) from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
+## Implementation Progress Snapshot (March 17, 2026)
+
+Completed in the current migration slice:
+
+- Metadata provider orchestration is implemented and integrated into search, add, refresh, and import-list flows.
+- Runtime provider controls are available via config/API/UI:
+    - Provider enablement and ordering
+    - Timeout, retry, and circuit-breaker settings
+- Open Library and BookInfo provider enablement now respects configuration flags.
+- Inventaire provider baseline is implemented and registered as a secondary metadata source.
+- Inventaire can be force-disabled by environment kill-switch (`BIBLIOPHILARR_DISABLE_INVENTAIRE=1`) for staged rollout control.
+- Provider telemetry collection and diagnostics API endpoints are available for operational visibility.
+- Open Library identifier backfill command/service is implemented for startup-triggered migration assistance.
+- Provenance fields are exposed in API resources and surfaced in book index UI.
+- Status UI includes provider diagnostics, and dry-run automation captures before/after provenance snapshots on staging.
+
+Validation status for this slice:
+
+- API tests: pass (`Bibliophilarr.Api.Test`)
+- Core targeted tests: pass for `MetadataProviderOrchestratorFixture` and `ImportListSyncServiceFixture`
+- Import-list edge-case handling updated to avoid adding unresolved external-ID books
+
 ## Table of Contents
 
 - [Current State](#current-state)

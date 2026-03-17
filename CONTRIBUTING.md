@@ -59,8 +59,8 @@ Help users transition from Goodreads to new providers:
 
 See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the complete technical roadmap.
 
-**Current Phase**: Foundation & Documentation  
-**Next Phase**: Infrastructure setup for multi-provider architecture
+**Current Phase**: Phase 5 consolidation with Phase 6 hardening active
+**Next Focus**: Metadata readiness gates, release-entry criteria, and migration quality enforcement
 
 ## 🚀 Getting Started
 
@@ -162,6 +162,12 @@ See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the complete technical roadmap.
 - Add XML comments to public APIs
 - Keep MIGRATION_PLAN.md updated with progress
 
+### Documentation Maintenance Policy
+
+- Prefer updating the existing core docs (`README.md`, `QUICKSTART.md`, `ROADMAP.md`, `MIGRATION_PLAN.md`, `PROJECT_STATUS.md`) instead of creating new long-lived planning documents.
+- Use operational snapshot files only for dated evidence, audits, or incident-style records that would otherwise distort the main docs.
+- When a plan changes, revise the authoritative doc in the same change set so contributor guidance and repository reality do not drift apart.
+
 ### Pull Request Process
 
 1. Ensure all tests pass
@@ -169,6 +175,38 @@ See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the complete technical roadmap.
 3. Request review from maintainers
 4. Address feedback
 5. Squash commits if requested
+
+## Scoped Commit Process (Required)
+
+Use scoped commits per iteration to avoid large unreviewable batches and to keep rollback risk low.
+
+For each implementation slice:
+
+1. Define a single slice scope (one behavior, one risk boundary).
+2. Run targeted validation for that scope before committing.
+3. Commit only files for that scope.
+4. Repeat for the next slice.
+
+Minimum checklist before each commit:
+
+- `git status --short` only includes intended files.
+- Targeted tests/build/lint for changed area passed.
+- Associated docs/runbook updates for behavior changes are included in the same commit.
+
+Suggested command pattern:
+
+```bash
+git add <scoped-files>
+git commit -m "feat(metadata): concise scoped change"
+```
+
+Helper script option:
+
+```bash
+scripts/scoped_commit.sh --message "feat(area): concise scoped change" --paths "file1 file2" --validate "<targeted command>"
+```
+
+Reference workflow: [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md)
 
 ## 🐛 Reporting Issues
 
@@ -203,10 +241,10 @@ Include:
 
 ## 📚 Additional Resources
 
-### Original Readarr Resources
+### Original Bibliophilarr Resources
 
-- [Servarr Wiki](https://wiki.servarr.com/readarr) (may contain outdated info)
-- [Original Contributing Guide](https://wiki.servarr.com/readarr/contributing)
+- [Servarr Wiki](https://wiki.servarr.com/bibliophilarr) (may contain outdated info)
+- [Original Contributing Guide](https://wiki.servarr.com/bibliophilarr/contributing)
 
 ### Bibliophilarr-Specific Resources
 

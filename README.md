@@ -1,8 +1,8 @@
-# Bibliophilarr - Reviving the Readarr Project
+# Bibliophilarr - Reviving the Bibliophilarr Project
 
 ## 🎉 Announcement: Project Revival & Active Development
 
-**Bibliophilarr** is a community-driven fork of the [Readarr project](<https://github.com/Readarr/Readarr>), which was retired by the original maintainers due to metadata provider issues. We are actively working to revive and improve this project by migrating away from proprietary metadata sources to fully open-source, sustainable alternatives.
+**Bibliophilarr** is a community-driven fork of the [Bibliophilarr project](<https://github.com/Bibliophilarr/Bibliophilarr>), which was retired by the original maintainers due to metadata provider issues. We are actively working to revive and improve this project by migrating away from proprietary metadata sources to fully open-source, sustainable alternatives.
 
 ### What's Different?
 
@@ -11,19 +11,21 @@
 - **Community-Driven**: Open to contributions and community input
 - **Sustainable Future**: Building on reliable, open infrastructure
 
-### Current Status: Planning & Architecture Phase
+### Current Status: Phase 5 Consolidation with Phase 6 Hardening Active
 
-We are currently developing a comprehensive migration plan to replace Goodreads with sustainable FOSS alternatives including:
+We are actively operating migration and hardening slices across `develop` and `staging`, with `main` serving as release-entry and readiness reporting lane. Current metadata delivery includes:
 
 - **Open Library** (primary provider)
 - **Inventaire.io** (secondary provider)
-- **Additional fallback providers** for robustness
+- **Configurable fallback ordering, telemetry, diagnostics, and resilience controls**
 
-📋 See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for detailed technical scaffold and roadmap.
+📋 See [PROJECT_STATUS.md](PROJECT_STATUS.md), [ROADMAP.md](ROADMAP.md), and [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for current execution posture and migration details.
 
-### Original Readarr Retirement Notice
+We keep these core docs updated in place as the migration advances, rather than creating overlapping planning documents that drift from repository reality.
 
-The original Readarr project was retired due to metadata provider issues. The Servarr team announced:
+### Original Bibliophilarr Retirement Notice
+
+The original Bibliophilarr project was retired due to metadata provider issues. The Servarr team announced:
 > "The retirement takes effect immediately... the project's metadata has become unusable, we no longer have the time to remake or repair it, and the community effort to transition to using Open Library as the source has stalled without much progress."
 
 **We're picking up where they left off!** This fork aims to complete the Open Library migration and establish a sustainable, FOSS-based future for book and audiobook management.
@@ -32,15 +34,15 @@ The original Readarr project was retired due to metadata provider issues. The Se
 
 # Bibliophilarr
 
-> **Note**: The badges below reference the original Readarr project infrastructure and may not reflect the current state of Bibliophilarr. We are working on establishing our own build and community infrastructure.
+> **Note**: The badges below reference the original Bibliophilarr project infrastructure and may not reflect the current state of Bibliophilarr. We are working on establishing our own build and community infrastructure.
 
-[![Build Status](https://dev.azure.com/Readarr/Readarr/_apis/build/status/Readarr.Readarr?branchName=develop)](https://dev.azure.com/Readarr/Readarr/_build/latest?definitionId=1&branchName=develop)
-[![Translated](https://translate.servarr.com/widgets/servarr/-/readarr/svg-badge.svg)](https://translate.servarr.com/engage/readarr/?utm_source=widget)
-[![Docker Pulls](https://img.shields.io/docker/pulls/hotio/readarr)](https://wiki.servarr.com/readarr/installation#docker)
+[![Build Status](https://dev.azure.com/Bibliophilarr/Bibliophilarr/_apis/build/status/Bibliophilarr.Bibliophilarr?branchName=develop)](https://dev.azure.com/Bibliophilarr/Bibliophilarr/_build/latest?definitionId=1&branchName=develop)
+[![Translated](https://translate.servarr.com/widgets/servarr/-/bibliophilarr/svg-badge.svg)](https://translate.servarr.com/engage/bibliophilarr/?utm_source=widget)
+[![Docker Pulls](https://img.shields.io/docker/pulls/hotio/bibliophilarr)](https://wiki.servarr.com/bibliophilarr/installation#docker)
 
 ### ⚠️ Bibliophilarr is under active development and currently in a transitional state. We are working on migrating to FOSS metadata providers
 
-Bibliophilarr (formerly Readarr) is an ebook and audiobook collection manager for Usenet and BitTorrent users. It can monitor multiple RSS feeds for new books from your favorite authors and will grab, sort, and rename them.
+Bibliophilarr (formerly Bibliophilarr) is an ebook and audiobook collection manager for Usenet and BitTorrent users. It can monitor multiple RSS feeds for new books from your favorite authors and will grab, sort, and rename them.
 
 **Note**: Only one type of a given book is supported per instance. If you want both an audiobook and ebook of a given book, you will need multiple instances.
 
@@ -59,7 +61,7 @@ Bibliophilarr (formerly Readarr) is an ebook and audiobook collection manager fo
 - Can scan your existing library and download any missing books
 - Automatic failed download handling will try another release if one fails
 - Manual search so you can pick any release or to see why a release was not downloaded automatically
-- Advanced customization for profiles, such that Readarr will always download the copy you want
+- Advanced customization for profiles, such that Bibliophilarr will always download the copy you want
 - Fully configurable book renaming
 - SABnzbd, NZBGet, QBittorrent, Deluge, rTorrent, Transmission, uTorrent, and other download clients are supported and integrated
 - Full integration with Calibre (add to library, conversion) (Requires Calibre Content Server)
@@ -83,11 +85,11 @@ To support the revival effort, we now maintain repository operation blueprints:
 - **Discord**: Community discussion and support (coming soon)
 - **Wiki**: Documentation (being updated for new metadata system)
 
-For the original Readarr project, refer to the [Servarr Wiki](https://wiki.servarr.com/readarr) (may contain outdated information).
+For the original Bibliophilarr project, refer to the [Servarr Wiki](https://wiki.servarr.com/bibliophilarr) (may contain outdated information).
 
 ## Contributors & Developers
 
-This is a community fork building on the excellent work of the original Readarr team and contributors.
+This is a community fork building on the excellent work of the original Bibliophilarr team and contributors.
 
 ### Contributing to Bibliophilarr
 
@@ -100,13 +102,13 @@ We welcome contributions! Areas where we especially need help:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the technical roadmap.
 
-### Original Readarr Contributors
+### Original Bibliophilarr Contributors
 
-This project exists thanks to all the people who contributed to the original Readarr project.
+This project exists thanks to all the people who contributed to the original Bibliophilarr project.
 
 ### License
 
 - [GNU GPL v3](http://www.gnu.org/licenses/gpl.html)
 - Copyright 2010-2024
-- Original Readarr by Servarr Team
+- Original Bibliophilarr by Servarr Team
 - Bibliophilarr fork maintained by the community
