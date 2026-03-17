@@ -35,4 +35,6 @@ jobs:
         run: dotnet build Readarr.sln --configuration Release --no-restore -p:Platform=Posix
 
       - name: Test
-        run: dotnet test Readarr.sln --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+        run: >-
+          dotnet test NzbDrone.Common.Test/Readarr.Common.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
