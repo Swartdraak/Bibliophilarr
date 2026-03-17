@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.MetadataSource;
-using Readarr.Http;
 
 namespace Readarr.Api.V1.Metadata
 {

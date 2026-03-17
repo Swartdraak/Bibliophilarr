@@ -1,9 +1,9 @@
 using System.Collections.Generic;
+using Bibliophilarr.Api.V1.Config;
+using Bibliophilarr.Http.REST;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Integration.Test.Client;
-using Readarr.Api.V1.Config;
-using Readarr.Http.REST;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {

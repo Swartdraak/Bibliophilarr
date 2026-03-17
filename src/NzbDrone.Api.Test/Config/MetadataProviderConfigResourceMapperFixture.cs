@@ -1,8 +1,8 @@
+using Bibliophilarr.Api.V1.Config;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Configuration;
-using Readarr.Api.V1.Config;
 
 namespace NzbDrone.Api.Test.Config
 {

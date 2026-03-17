@@ -26,6 +26,77 @@ namespace NzbDrone.Core.Test.MetadataSource
                 return _providers;
             }
 
+            public void RegisterProvider(IMetadataProvider provider)
+            {
+            }
+
+            public void UnregisterProvider(string providerName)
+            {
+            }
+
+            public IMetadataProvider GetProvider(string providerName)
+            {
+                return _providers.FirstOrDefault(p => p.ProviderName == providerName);
+            }
+
+            public List<IMetadataProvider> GetAllProviders()
+            {
+                return _providers.ToList();
+            }
+
+            public List<IMetadataProvider> GetEnabledProviders()
+            {
+                return _providers.Where(p => p.IsEnabled).ToList();
+            }
+
+            public List<IMetadataProvider> GetProvidersWithCapability(string capability)
+            {
+                return new List<IMetadataProvider>();
+            }
+
+            public List<ISearchForNewBookV2> GetBookSearchProviders()
+            {
+                return new List<ISearchForNewBookV2>();
+            }
+
+            public List<ISearchForNewAuthorV2> GetAuthorSearchProviders()
+            {
+                return new List<ISearchForNewAuthorV2>();
+            }
+
+            public List<IProvideBookInfoV2> GetBookInfoProviders()
+            {
+                return new List<IProvideBookInfoV2>();
+            }
+
+            public List<IProvideAuthorInfoV2> GetAuthorInfoProviders()
+            {
+                return new List<IProvideAuthorInfoV2>();
+            }
+
+            public void EnableProvider(string providerName)
+            {
+            }
+
+            public void DisableProvider(string providerName)
+            {
+            }
+
+            public void SetProviderPriority(string providerName, int priority)
+            {
+            }
+
+            public Dictionary<string, ProviderHealthStatus> GetProvidersHealthStatus()
+            {
+                return new Dictionary<string, ProviderHealthStatus>();
+            }
+
+            public void UpdateProviderHealth(string providerName, ProviderHealthStatus healthStatus)
+            {
+            }
+
+            public int Count => _providers.Count;
+
             public T Execute<T>(Func<IMetadataProvider, T> operation, string operationName)
                 where T : class
             {
