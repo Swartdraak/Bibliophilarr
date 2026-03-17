@@ -57,6 +57,10 @@ jobs:
           for candidate in \
             ./_output/net8.0/Bibliophilarr \
             ./_output/net8.0/Readarr \
+            ./_output/net8.0/linux-x64/publish/Bibliophilarr \
+            ./_output/net8.0/linux-x64/publish/Readarr \
+            ./_output/net8.0/linux-x64/Bibliophilarr \
+            ./_output/net8.0/linux-x64/Readarr \
             ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
             ./_artifacts/linux-x64/net8.0/Readarr/Readarr; do
             if [ -x "$candidate" ]; then
