@@ -52,6 +52,27 @@ Source of truth for this table:
 - Do not collapse unrelated dependency updates into a single broad sweep unless lockfile churn makes it unavoidable.
 - Treat Actions-token Dependabot restrictions as reporting limitations only. Local authenticated triage remains the source of truth for cleanup planning.
 
+## March 17 update: remediation slice started
+
+- Started the `serialize-javascript` remediation slice and the `glob` and `minimatch` family slice by adding explicit `yarn` resolutions for:
+	- `serialize-javascript` -> `7.0.3`
+	- `glob` -> `11.1.0`
+	- `minimatch` -> `10.2.3`
+- Validation completed successfully:
+	- `yarn install --mode=skip-build`
+	- `yarn build`
+- `yarn why` confirms patched versions are now selected for the targeted packages.
+
+Observed risk for follow-up:
+
+- Yarn reports compatibility warnings because several upstream packages still request older major ranges. Build is currently green, but this should be treated as an interim hardening step.
+- A follow-up cleanup slice should replace broad forced resolutions with upstream dependency upgrades where available.
+
+Current blocker note:
+
+- Dependabot alert API currently returns `HTTP 403` with `Dependabot alerts are disabled for this repository` in this environment, so automated alert-count verification is unavailable from the script at this time.
+- Lockfile and `yarn why` evidence were used for this slice validation.
+
 ## Mitigation and rollback
 
 - If a dependency bump breaks the frontend build, revert only that slice and leave the rest of the remediation queue untouched.

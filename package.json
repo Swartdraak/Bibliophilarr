@@ -141,6 +141,11 @@
     "webpack-livereload-plugin": "3.0.2",
     "worker-loader": "3.0.8"
   },
+  "resolutions": {
+    "**/serialize-javascript": "7.0.3",
+    "**/glob": "11.1.0",
+    "**/minimatch": "10.2.3"
+  },
   "volta": {
     "node": "20.11.1",
     "yarn": "1.22.19"
