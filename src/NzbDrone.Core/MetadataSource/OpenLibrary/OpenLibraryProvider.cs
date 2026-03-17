@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
-using NzbDrone.Core.Books;
-using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
+using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
 {
@@ -23,7 +24,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         // ── IMetadataProvider ────────────────────────────────────────────────
         public string ProviderName => "OpenLibrary";
         public int Priority => 2;
-        public bool IsEnabled => true;
+        public bool IsEnabled => _configService.EnableOpenLibraryProvider;
         public bool SupportsAuthorSearch => true;
         public bool SupportsBookSearch => true;
         public bool SupportsIsbnLookup => true;
@@ -31,16 +32,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         public bool SupportsCoverImages => true;
 
         private readonly IOpenLibraryClient _client;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
-        public OpenLibraryProvider(IOpenLibraryClient client, Logger logger)
+        public OpenLibraryProvider(IOpenLibraryClient client, IConfigService configService, Logger logger)
         {
             _client = client;
+            _configService = configService;
             _logger = logger;
         }
 
         // ── IProvideAuthorInfo ───────────────────────────────────────────────
-
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
         {
             _logger.Debug("OpenLibraryProvider.GetAuthorInfo: {0}", foreignAuthorId);
@@ -90,7 +92,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         }
 
         // ── IProvideBookInfo ─────────────────────────────────────────────────
-
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string foreignBookId)
         {
             _logger.Debug("OpenLibraryProvider.GetBookInfo: {0}", foreignBookId);
@@ -129,7 +130,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         }
 
         // ── ISearchForNewBook ────────────────────────────────────────────────
-
         public List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true)
         {
             _logger.Debug("OpenLibraryProvider.SearchForNewBook: title={0} author={1}", title, author);
@@ -238,7 +238,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         }
 
         // ── ISearchForNewAuthor ──────────────────────────────────────────────
-
         public List<Author> SearchForNewAuthor(string title)
         {
             _logger.Debug("OpenLibraryProvider.SearchForNewAuthor: {0}", title);
@@ -253,7 +252,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         }
 
         // ── ISearchForNewEntity ──────────────────────────────────────────────
-
         public List<object> SearchForNewEntity(string title)
         {
             var books = SearchForNewBook(title, null, false);
@@ -274,7 +272,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         }
 
         // ── Private helpers ──────────────────────────────────────────────────
-
         private List<Book> MapSearchDocsToBooks(List<OlSearchDoc> docs)
         {
             if (docs == null || !docs.Any())
@@ -303,6 +300,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var metadata = new AuthorMetadata
             {
                 ForeignAuthorId = foreignAuthorId,
+                OpenLibraryAuthorId = foreignAuthorId.StartsWith("OL") ? foreignAuthorId : null,
                 TitleSlug = foreignAuthorId,
                 Name = "Unknown Author",
                 Status = AuthorStatusType.Continuing,
@@ -317,6 +315,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var book = new Book
             {
                 ForeignBookId = workKey != null ? $"OL{workKey.Split('/').Last()}W" : edition.ForeignEditionId,
+                OpenLibraryWorkId = workKey != null ? $"OL{workKey.Split('/').Last()}W" : null,
                 TitleSlug = edition.TitleSlug,
                 Title = edition.Title,
                 CleanTitle = Parser.Parser.CleanAuthorName(edition.Title ?? string.Empty),

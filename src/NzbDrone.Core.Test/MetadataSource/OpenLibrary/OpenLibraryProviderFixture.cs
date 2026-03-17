@@ -5,6 +5,7 @@ using NUnit.Framework;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 {
@@ -152,6 +153,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Throws(new OpenLibraryException("429 rate limited"));
 
             Subject.SearchForNewBook("rate limit test", null).Should().BeEmpty();
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
+using NzbDrone.Core.Configuration;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -24,17 +25,52 @@ namespace NzbDrone.Core.MetadataSource
         /// Receives all DI-registered <see cref="IMetadataProvider"/> implementations via
         /// DryIoC's <c>IEnumerable&lt;T&gt;</c> collection injection.
         /// </summary>
-        public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers, Logger logger)
+        public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers, IConfigService configService, Logger logger)
         {
+            var configuredOrder = ParseProviderOrder(configService.MetadataProviderPriorityOrder);
+
             _providers = providers
                 .Where(p => p.IsEnabled)
-                .OrderBy(p => p.Priority)
+                .OrderBy(p => GetConfiguredOrderIndex(configuredOrder, p.ProviderName))
+                .ThenBy(p => p.Priority)
                 .ToList();
 
             _logger = logger;
             _logger.Debug("MetadataProviderRegistry: {0} provider(s) registered: {1}",
                 _providers.Count,
                 string.Join(", ", _providers.Select(p => $"{p.ProviderName}(P{p.Priority})")));
+        }
+
+        private static List<string> ParseProviderOrder(string order)
+        {
+            if (string.IsNullOrWhiteSpace(order))
+            {
+                return new List<string>();
+            }
+
+            return order
+                .Split(',')
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+        }
+
+        private static int GetConfiguredOrderIndex(IReadOnlyList<string> order, string providerName)
+        {
+            if (order == null || order.Count == 0)
+            {
+                return int.MaxValue;
+            }
+
+            for (var i = 0; i < order.Count; i++)
+            {
+                if (string.Equals(order[i], providerName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return int.MaxValue;
         }
 
         public IReadOnlyList<IMetadataProvider> GetProviders() => _providers;

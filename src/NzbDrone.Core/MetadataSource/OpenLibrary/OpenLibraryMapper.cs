@@ -64,6 +64,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var book = new Book
             {
                 ForeignBookId = $"OL{olid}W",
+                OpenLibraryWorkId = $"OL{olid}W",
                 TitleSlug = olid,
                 Title = doc.Title.CleanSpaces(),
                 CleanTitle = Parser.Parser.CleanAuthorName(doc.Title ?? string.Empty),
@@ -113,6 +114,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var book = new Book
             {
                 ForeignBookId = $"OL{olid}W",
+                OpenLibraryWorkId = $"OL{olid}W",
                 TitleSlug = olid,
                 Title = (work.Title ?? string.Empty).CleanSpaces(),
                 CleanTitle = Parser.Parser.CleanAuthorName(work.Title ?? string.Empty),
@@ -150,6 +152,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var metadata = new AuthorMetadata
             {
                 ForeignAuthorId = $"OL{olid}A",
+                OpenLibraryAuthorId = $"OL{olid}A",
                 TitleSlug = olid,
                 Name = (author.Name ?? author.PersonalName ?? string.Empty).CleanSpaces(),
                 Overview = author.Bio,
@@ -223,7 +226,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         }
 
         // ── Private helpers ──────────────────────────────────────────────────
-
         private static AuthorMetadata BuildAuthorMetadataFromSearchDoc(OlSearchDoc doc)
         {
             var authorName = doc.AuthorName?.FirstOrDefault() ?? "Unknown Author";
