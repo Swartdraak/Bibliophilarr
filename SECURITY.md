@@ -12,9 +12,9 @@ Do not open a public issue for an unpatched security vulnerability.
 Preferred reporting path:
 
 1. Use GitHub private vulnerability reporting or a repository security advisory,
-	if available for this repository.
+   if available for this repository.
 2. If that path is unavailable, contact a repository maintainer directly before
-	disclosing details publicly.
+   disclosing details publicly.
 
 Include:
 

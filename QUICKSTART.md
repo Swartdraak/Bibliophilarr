@@ -29,7 +29,7 @@ git clone https://github.com/YOUR_USERNAME/Bibliophilarr.git
 cd Bibliophilarr
 
 yarn install --frozen-lockfile
-dotnet restore src/Readarr.sln
+dotnet restore src/Bibliophilarr.sln
 ```
 
 ## Build and run
@@ -37,7 +37,7 @@ dotnet restore src/Readarr.sln
 For a basic local build:
 
 ```bash
-dotnet msbuild -restore src/Readarr.sln \
+dotnet msbuild -restore src/Bibliophilarr.sln \
   -p:Configuration=Debug \
   -p:Platform=Posix
 
@@ -58,7 +58,7 @@ metadata, or packaging behavior.
 Common commands:
 
 ```bash
-dotnet test src/Readarr.sln
+dotnet test src/Bibliophilarr.sln
 yarn lint
 yarn build
 ```
@@ -115,9 +115,13 @@ Related runbooks:
 Important areas:
 
 - `src/NzbDrone.Core/MetadataSource` for provider interfaces and implementations
-- `src/Readarr.Api.V1` for API resources and controllers
+- `src/Bibliophilarr.Api.V1` for API resources and controllers
 - `frontend` for UI code
 - `docs/operations` for operator runbooks and dated evidence
+
+Restore uses the committed [src/NuGet.config](src/NuGet.config), which includes
+the Servarr package feeds required for FluentMigrator, SQLite, Mono.Posix, and
+other fork-specific dependencies.
 
 ## References
 

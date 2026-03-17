@@ -64,9 +64,7 @@ function MetadataProvider(props) {
     error,
     settings,
     hasSettings,
-    onInputChange,
-    validationErrors,
-    validationWarnings
+    onInputChange
   } = props;
 
   const conflictStrategyVariantsEnabled = hasSettings && settings.enableMetadataConflictStrategyVariants.value;

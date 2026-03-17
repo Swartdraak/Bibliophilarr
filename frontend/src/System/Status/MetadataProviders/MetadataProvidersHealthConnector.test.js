@@ -1,5 +1,5 @@
-import React from 'react';
 import { render } from '@testing-library/react';
+import React from 'react';
 import { MetadataProvidersHealthConnector } from './MetadataProvidersHealthConnector';
 
 jest.mock('./MetadataProvidersHealth', () => () => <div>metadata-provider-health</div>);

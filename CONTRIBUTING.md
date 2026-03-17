@@ -39,7 +39,7 @@ touches startup, metadata, packaging, or CI.
 Typical commands:
 
 ```bash
-dotnet test src/Readarr.sln
+dotnet test src/Bibliophilarr.sln
 yarn lint
 yarn build
 python3 scripts/audit_branch_protection.py --branches develop staging main --expected-review-count 0
@@ -73,6 +73,7 @@ Minimum pre-commit checklist:
 - `git status --short` shows only intended files.
 - Tests, lint, or build commands relevant to the change have passed.
 - Docs and runbooks affected by the change are included.
+- `src/NuGet.config` still matches any Servarr-hosted package references added or updated in the slice.
 
 Reference: [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md)
 

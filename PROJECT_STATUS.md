@@ -58,6 +58,12 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Recorded first telemetry endpoint checkpoint in `docs/operations/metadata-telemetry-checkpoints/2026-03-17.md`.
 - Recorded dry-run provenance as blocked in `docs/operations/metadata-dry-run-snapshots/2026-03-17-blocked.md` because staging secrets were unavailable in this execution environment.
 
+### March 17, 2026 CI stabilization note
+
+- Restored the committed Servarr NuGet feed configuration in `src/NuGet.config` so GitHub-hosted runners can resolve FluentMigrator, SQLite, Mono.Posix, and related fork-specific packages without relying on local caches.
+- Restored the frontend `metadataProviderHealth` action/state wiring expected by the metadata diagnostics status UI and its test coverage.
+- Narrowed the required Markdown lint gate to the canonical root documentation set while dated evidence and historical snapshots are normalized incrementally.
+
 ## What Is Complete
 
 ### Metadata migration foundation
@@ -91,9 +97,11 @@ To keep the project moving toward practical release confidence, the `develop` br
 Recommended program posture:
 
 1. Require recurring install proofs from `develop` for:
-  - native package run
-  - Docker run
-  - npm launcher install and startup
+
+   - native package run
+   - Docker run
+   - npm launcher install and startup
+
 2. Track install results as dated operator artifacts (commands, outputs, environment, verdict).
 3. Escalate installer/startup regressions above routine feature slices until closed.
 4. Require each migration or hardening slice to include install impact notes and rollback path.

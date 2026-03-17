@@ -24,12 +24,12 @@ namespace NzbDrone.Core.MetadataSource
 
         public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers, IConfigService configService, Logger logger)
         {
+            _logger = logger ?? LogManager.GetCurrentClassLogger();
             _providers = new Dictionary<string, IMetadataProvider>(StringComparer.OrdinalIgnoreCase);
             _enabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             _priorityOverrides = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             _healthOverrides = new Dictionary<string, ProviderHealthStatus>(StringComparer.OrdinalIgnoreCase);
-            _configuredOrder = ParseProviderOrder(configService?.MetadataProviderPriorityOrder);
-            _logger = logger ?? LogManager.GetCurrentClassLogger();
+            _configuredOrder = LoadConfiguredOrder(configService);
 
             if (providers == null)
             {
@@ -297,6 +297,24 @@ namespace NzbDrone.Core.MetadataSource
                 .Select(x => x.Trim())
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .ToList();
+        }
+
+        private List<string> LoadConfiguredOrder(IConfigService configService)
+        {
+            if (configService == null)
+            {
+                return new List<string>();
+            }
+
+            try
+            {
+                return ParseProviderOrder(configService.MetadataProviderPriorityOrder);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "MetadataProviderRegistry: unable to read configured provider order during construction; using provider defaults.");
+                return new List<string>();
+            }
         }
 
         private static int GetConfiguredOrderIndex(IReadOnlyList<string> order, string providerName)

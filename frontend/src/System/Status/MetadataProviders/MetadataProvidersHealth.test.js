@@ -1,5 +1,5 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
+import React from 'react';
 import MetadataProvidersHealth from './MetadataProvidersHealth';
 
 jest.mock('Components/Alert', () => ({ children }) => <div>{children}</div>);

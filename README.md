@@ -53,6 +53,10 @@ Active operations references include:
 - [docs/operations/METADATA_MIGRATION_DRY_RUN.md](docs/operations/METADATA_MIGRATION_DRY_RUN.md)
 - [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md)
 
+Canonical-doc validation in CI is intentionally scoped to the root canonical
+set so merge readiness is not blocked by historical evidence snapshots while
+they are normalized incrementally.
+
 ## Contributing
 
 The highest-priority work is metadata migration safety, observability, and

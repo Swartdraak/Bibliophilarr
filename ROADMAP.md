@@ -117,19 +117,25 @@ Purpose:
 
 Project-level recommendations:
 
-1. Define a weekly install validation matrix owned by maintainers:
-	- Linux native package install and first start
-	- Docker image run and API/UI health check
-	- npm launcher install and binary bootstrap
-2. Enforce install readiness as a merge expectation for risky slices:
-	- packaging path changes
-	- startup/config changes
-	- update/installer changes
-3. Keep a rolling install evidence trail in versioned markdown snapshots with:
-	- exact commands
-	- environment assumptions
-	- pass/fail outcome
-	- rollback notes
+1. Define a weekly install validation matrix owned by maintainers.
+
+   - Linux native package install and first start
+   - Docker image run and API/UI health check
+   - npm launcher install and binary bootstrap
+
+2. Enforce install readiness as a merge expectation for risky slices.
+
+   - packaging path changes
+   - startup/config changes
+   - update/installer changes
+
+3. Keep a rolling install evidence trail in versioned markdown snapshots.
+
+   - exact commands
+   - environment assumptions
+   - pass/fail outcome
+   - rollback notes
+
 4. Prioritize install blockers ahead of non-critical feature work on `develop`.
 5. Promote only install-proven commits from `develop` to `staging`.
 

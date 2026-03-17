@@ -9,9 +9,8 @@ This document outlines the comprehensive technical plan for migrating Bibliophil
 Completed in the current migration slice:
 
 - Metadata provider orchestration is implemented and integrated into search, add, refresh, and import-list flows.
-- Runtime provider controls are available via config/API/UI:
-    - Provider enablement and ordering
-    - Timeout, retry, and circuit-breaker settings
+- Runtime provider controls are available via config/API/UI, including provider enablement and ordering.
+- Runtime provider controls are available via config/API/UI, including timeout, retry, and circuit-breaker settings.
 - Open Library and BookInfo provider enablement now respects configuration flags.
 - Inventaire provider baseline is implemented and registered as a secondary metadata source.
 - Inventaire can be force-disabled by environment kill-switch (`BIBLIOPHILARR_DISABLE_INVENTAIRE=1`) for staged rollout control.
@@ -342,20 +341,20 @@ public class MetadataCacheManager
 Completed in code on branch `feature/open-library-provider-2026-03-17`:
 
 - Added provider abstraction and fallback orchestration:
-    - `IMetadataProvider`
-    - `IMetadataProviderRegistry`
-    - `MetadataProviderRegistry`
+  - `IMetadataProvider`
+  - `IMetadataProviderRegistry`
+  - `MetadataProviderRegistry`
 - Refactored search abstraction to be provider-agnostic:
-    - `ISearchForNewBook.SearchByExternalId(string idType, string id)` replaces direct `SearchByGoodreadsBookId(...)` interface usage
+  - `ISearchForNewBook.SearchByExternalId(string idType, string id)` replaces direct `SearchByGoodreadsBookId(...)` interface usage
 - Implemented Open Library provider stack:
-    - `OpenLibraryClient` with endpoint wrappers (`/search`, `/works`, `/authors`, `/isbn`, `/books`) and 429 retry handling
-    - `OpenLibraryMapper` with deterministic resource-to-domain mapping
-    - `OpenLibraryProvider` implementing search and metadata interfaces with priority-based fallback role
-    - Open Library resource DTOs and `OpenLibraryException`
+  - `OpenLibraryClient` with endpoint wrappers (`/search`, `/works`, `/authors`, `/isbn`, `/books`) and 429 retry handling
+  - `OpenLibraryMapper` with deterministic resource-to-domain mapping
+  - `OpenLibraryProvider` implementing search and metadata interfaces with priority-based fallback role
+  - Open Library resource DTOs and `OpenLibraryException`
 - Added additive database migration for Open Library foreign IDs:
-    - `041_add_open_library_ids.cs`
-    - `Book.OpenLibraryWorkId`
-    - `AuthorMetadata.OpenLibraryAuthorId`
+  - `041_add_open_library_ids.cs`
+  - `Book.OpenLibraryWorkId`
+  - `AuthorMetadata.OpenLibraryAuthorId`
 - Updated import/sync path to remove direct Goodreads proxy coupling in `ImportListSyncService` by using `ISearchForNewBook` abstraction.
 
 Validation status:
