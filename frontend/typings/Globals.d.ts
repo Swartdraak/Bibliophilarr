@@ -1,7 +1,7 @@
 declare module '*.module.css';
 
 interface Window {
-  Readarr: {
+  Bibliophilarr: {
     apiKey: string;
     instanceName: string;
     theme: string;

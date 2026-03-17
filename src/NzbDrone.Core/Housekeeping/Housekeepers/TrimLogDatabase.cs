@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.Instrumentation;
+using NzbDrone.Core.Instrumentation;
 
 namespace NzbDrone.Core.Housekeeping.Housekeepers
 {

@@ -1,4 +1,4 @@
-﻿using FluentValidation.Validators;
+using FluentValidation.Validators;
 using NzbDrone.Core.Books;
 
 namespace NzbDrone.Core.Validation.Paths

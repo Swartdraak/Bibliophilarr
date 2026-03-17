@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.ServiceProcess;
 using NLog;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Exceptions;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Processes;
@@ -25,7 +26,7 @@ namespace NzbDrone.Common
 
     public class ServiceProvider : IServiceProvider
     {
-        public const string SERVICE_NAME = "Readarr";
+        public static readonly string SERVICE_NAME = AppIdentity.ServiceName;
 
         private readonly IProcessProvider _processProvider;
         private readonly Logger _logger;
@@ -81,7 +82,7 @@ namespace NzbDrone.Common
 
             _logger.Info(installOutput.Lines.Select(x => x.Content).ConcatToString("\n"));
 
-            var descOutput = _processProvider.StartAndCapture("sc.exe", $"description {serviceName} \"Readarr Application Server\"");
+            var descOutput = _processProvider.StartAndCapture("sc.exe", $"description {serviceName} \"{BuildInfo.AppName} Application Server\"");
             if (descOutput.ExitCode != 0)
             {
                 _logger.Error($"Failed to install service: {descOutput.Lines.Select(x => x.Content).ConcatToString("\n")}");

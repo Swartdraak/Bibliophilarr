@@ -1,4 +1,4 @@
-﻿using NzbDrone.Common.Messaging;
+using NzbDrone.Common.Messaging;
 using NzbDrone.Core.Messaging.Commands;
 
 namespace NzbDrone.Core.ProgressMessaging

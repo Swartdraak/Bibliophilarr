@@ -100,7 +100,7 @@ const config = {
   slicer,
   serialize,
   merge,
-  key: 'readarr'
+  key: 'bibliophilarr'
 };
 
 export default function createPersistState() {

@@ -1,11 +1,11 @@
 using System.Collections.Generic;
+using Bibliophilarr.Http.ClientSchema;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Annotations;
 using NzbDrone.Core.Localization;
 using NzbDrone.Test.Common;
-using Readarr.Http.ClientSchema;
 
 namespace NzbDrone.Api.Test.ClientSchemaTests
 {

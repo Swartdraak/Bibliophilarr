@@ -191,9 +191,9 @@ namespace NzbDrone.Core.Notifications.Plex.Server
                 var authToken = _plexTvService.GetAuthToken(Convert.ToInt32(query["pinId"]));
 
                 return new
-                       {
-                           authToken
-                       };
+                {
+                    authToken
+                };
             }
 
             return new { };

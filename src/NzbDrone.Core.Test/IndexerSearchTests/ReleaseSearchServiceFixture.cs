@@ -14,7 +14,7 @@ using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.IndexerSearchTests
 {
-        public class ReleaseSearchServiceFixture : CoreTest<ReleaseSearchService>
+    public class ReleaseSearchServiceFixture : CoreTest<ReleaseSearchService>
     {
         private Mock<IIndexer> _mockIndexer;
         private Author _author;

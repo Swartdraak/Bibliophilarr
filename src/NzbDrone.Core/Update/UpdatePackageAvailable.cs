@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Update
+namespace NzbDrone.Core.Update
 {
     public class UpdatePackageAvailable
     {

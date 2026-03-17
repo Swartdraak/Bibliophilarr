@@ -31,7 +31,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
                 Port = 2222,
                 Username = "admin",
                 Password = "pass",
-                MusicCategory = "readarr"
+                MusicCategory = "bibliophilarr"
             };
 
             _queued = new UTorrentTorrent
@@ -42,7 +42,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
                 Size = 1000,
                 Remaining = 1000,
                 Progress = 0,
-                Label = "readarr",
+                Label = "bibliophilarr",
                 DownloadUrl = _downloadUrl,
                 RootDownloadPath = "somepath"
             };
@@ -55,7 +55,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
                 Size = 1000,
                 Remaining = 100,
                 Progress = 0.9,
-                Label = "readarr",
+                Label = "bibliophilarr",
                 DownloadUrl = _downloadUrl,
                 RootDownloadPath = "somepath"
             };
@@ -68,7 +68,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
                 Size = 1000,
                 Remaining = 100,
                 Progress = 0.9,
-                Label = "readarr",
+                Label = "bibliophilarr",
                 DownloadUrl = _downloadUrl,
                 RootDownloadPath = "somepath"
             };
@@ -81,7 +81,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
                 Size = 1000,
                 Remaining = 0,
                 Progress = 1.0,
-                Label = "readarr",
+                Label = "bibliophilarr",
                 DownloadUrl = _downloadUrl,
                 RootDownloadPath = "somepath"
             };
@@ -108,7 +108,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
         protected void GivenRedirectToTorrent()
         {
             var httpHeader = new HttpHeader();
-            httpHeader["Location"] = "http://test.readarr.com/not-a-real-torrent.torrent";
+            httpHeader["Location"] = "http://test.bibliophilarr.com/not-a-real-torrent.torrent";
 
             Mocker.GetMock<IHttpClient>()
                   .Setup(s => s.Get(It.Is<HttpRequest>(h => h.Url.ToString() == _downloadUrl)))
@@ -333,7 +333,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
 
             result.IsLocalhost.Should().BeTrue();
             result.OutputRootFolders.Should().NotBeNull();
-            result.OutputRootFolders.First().Should().Be(@"C:\Downloads\Finished\utorrent\readarr".AsOsAgnostic());
+            result.OutputRootFolders.First().Should().Be(@"C:\Downloads\Finished\utorrent\bibliophilarr".AsOsAgnostic());
         }
 
         [Test]

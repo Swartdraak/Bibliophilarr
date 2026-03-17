@@ -1,4 +1,4 @@
-﻿using NzbDrone.Common.Exceptions;
+using NzbDrone.Common.Exceptions;
 
 namespace NzbDrone.Core.Organizer
 {

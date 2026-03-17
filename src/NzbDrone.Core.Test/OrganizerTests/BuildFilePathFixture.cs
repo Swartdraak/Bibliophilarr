@@ -9,7 +9,7 @@ using NzbDrone.Test.Common;
 namespace NzbDrone.Core.Test.OrganizerTests
 {
     [TestFixture]
-    [Ignore("Don't use book folder in readarr")]
+    [Ignore("Don't use book folder in bibliophilarr")]
     public class BuildFilePathFixture : CoreTest<FileNameBuilder>
     {
         private NamingConfig _namingConfig;

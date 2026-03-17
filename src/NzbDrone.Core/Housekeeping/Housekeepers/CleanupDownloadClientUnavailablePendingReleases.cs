@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Dapper;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Download.Pending;

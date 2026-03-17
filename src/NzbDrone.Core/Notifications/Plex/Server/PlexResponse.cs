@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Notifications.Plex.Server
+namespace NzbDrone.Core.Notifications.Plex.Server
 {
     public class PlexResponse<T>
     {

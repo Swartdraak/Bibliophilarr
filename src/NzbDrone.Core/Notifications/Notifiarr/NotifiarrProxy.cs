@@ -32,7 +32,7 @@ namespace NzbDrone.Core.Notifications.Notifiarr
         {
             try
             {
-                var request = new HttpRequestBuilder(URL + "/api/v1/notification/readarr")
+                var request = new HttpRequestBuilder(URL + "/api/v1/notification/bibliophilarr")
                     .Accept(HttpAccept.Json)
                     .SetHeader("X-API-Key", settings.APIKey)
                     .Build();
@@ -54,8 +54,8 @@ namespace NzbDrone.Core.Notifications.Notifiarr
                         throw new NotifiarrException("API key is invalid");
                     case 400:
                         // 400 responses shouldn't be treated as an actual error because it's a misconfiguration
-                        // between Readarr and Notifiarr for a specific event, but shouldn't stop all events.
-                        _logger.Warn("HTTP 400 - Unable to send notification. Ensure Readarr Integration is enabled & assigned a channel on Notifiarr");
+                        // between Bibliophilarr and Notifiarr for a specific event, but shouldn't stop all events.
+                        _logger.Warn("HTTP 400 - Unable to send notification. Ensure Bibliophilarr Integration is enabled & assigned a channel on Notifiarr");
                         break;
                     case 502:
                     case 503:

@@ -64,8 +64,12 @@ function MetadataProvider(props) {
     error,
     settings,
     hasSettings,
-    onInputChange
+    onInputChange,
+    validationErrors,
+    validationWarnings
   } = props;
+
+  const conflictStrategyVariantsEnabled = hasSettings && settings.enableMetadataConflictStrategyVariants.value;
 
   return (
 
@@ -276,6 +280,104 @@ function MetadataProvider(props) {
               </FormGroup>
 
             </FieldSet>
+
+            <FieldSet legend={translate('MetadataQueryNormalization')}>
+              <FormGroup>
+                <FormLabel>{translate('EnableInventaireFallback')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableInventaireFallback"
+                  helpText={translate('EnableInventaireFallbackHelpText')}
+                  onChange={onInputChange}
+                  {...settings.enableInventaireFallback}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>{translate('EnableHardcoverFallback')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableHardcoverFallback"
+                  helpText={translate('EnableHardcoverFallbackHelpText')}
+                  onChange={onInputChange}
+                  {...settings.enableHardcoverFallback}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>{translate('HardcoverApiToken')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.PASSWORD}
+                  name="hardcoverApiToken"
+                  helpText={translate('HardcoverApiTokenHelpText')}
+                  onChange={onInputChange}
+                  {...settings.hardcoverApiToken}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>{translate('HardcoverRequestTimeoutSeconds')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="hardcoverRequestTimeoutSeconds"
+                  min={0}
+                  max={120}
+                  helpText={translate('HardcoverRequestTimeoutSecondsHelpText')}
+                  onChange={onInputChange}
+                  {...settings.hardcoverRequestTimeoutSeconds}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>{translate('EnableMetadataConflictStrategyVariants')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableMetadataConflictStrategyVariants"
+                  helpText={translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                  helpTextWarning={translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                  onChange={onInputChange}
+                  {...settings.enableMetadataConflictStrategyVariants}
+                />
+
+                {
+                  conflictStrategyVariantsEnabled ?
+                    <Alert kind={kinds.WARNING}>
+                      {translate('EnableMetadataConflictStrategyVariantsHelpText')}
+                    </Alert> :
+                    null
+                }
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>{translate('MetadataAuthorAliases')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.TEXT_AREA}
+                  name="metadataAuthorAliases"
+                  helpText={translate('MetadataAuthorAliasesHelpText')}
+                  onChange={onInputChange}
+                  {...settings.metadataAuthorAliases}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>{translate('MetadataTitleStripPatterns')}</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.TEXT_AREA}
+                  name="metadataTitleStripPatterns"
+                  helpText={translate('MetadataTitleStripPatternsHelpText')}
+                  helpTextWarning={translate('MetadataTitleStripPatternsHelpTextWarning')}
+                  onChange={onInputChange}
+                  {...settings.metadataTitleStripPatterns}
+                />
+              </FormGroup>
+            </FieldSet>
           </Form>
       }
     </div>
@@ -288,7 +390,9 @@ MetadataProvider.propTypes = {
   error: PropTypes.object,
   settings: PropTypes.object.isRequired,
   hasSettings: PropTypes.bool.isRequired,
-  onInputChange: PropTypes.func.isRequired
+  onInputChange: PropTypes.func.isRequired,
+  validationErrors: PropTypes.arrayOf(PropTypes.object).isRequired,
+  validationWarnings: PropTypes.arrayOf(PropTypes.object).isRequired
 };
 
 export default MetadataProvider;

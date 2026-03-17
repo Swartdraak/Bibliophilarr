@@ -17,10 +17,10 @@ namespace NzbDrone.Integration.Test
 
             var resultGet = Author.All();
 
-            var logFile = "readarr.trace.txt";
+            var logFile = "bibliophilarr.trace.txt";
             var logLines = Logs.GetLogFileLines(logFile);
 
-            var result = Author.InvalidPost(new Readarr.Api.V1.Author.AuthorResource());
+            var result = Author.InvalidPost(new Bibliophilarr.Api.V1.Author.AuthorResource());
 
             // Skip 2 and 1 to ignore the logs endpoint
             logLines = Logs.GetLogFileLines(logFile).Skip(logLines.Length + 2).ToArray();

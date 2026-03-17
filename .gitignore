@@ -104,7 +104,7 @@ App_Data/*.ldf
 _NCrunch_*
 _TeamCity*
 
-# Readarr
+# Bibliophilarr
 config.xml
 nzbdrone.log*txt
 UpdateLogs/
@@ -136,6 +136,8 @@ artifacts/
 
 #VS outout folders
 bin
+!npm/bibliophilarr-launcher/bin/
+!npm/bibliophilarr-launcher/bin/bibliophilarr.js
 obj
 output/*
 
@@ -153,3 +155,9 @@ _temp_*/**/*
 
 # API doc generation
 .config/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+.env.bak*

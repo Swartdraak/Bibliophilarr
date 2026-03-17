@@ -8,7 +8,7 @@ namespace ServiceUninstall
 {
     public static class ServiceHelper
     {
-        private static string ReadarrExe => Path.Combine(new FileInfo(Assembly.GetExecutingAssembly().Location).Directory.FullName, "Readarr.Console.exe");
+        private static string BibliophilarrExe => Path.Combine(new FileInfo(Assembly.GetExecutingAssembly().Location).Directory.FullName, "Bibliophilarr.Console.exe");
 
         private static bool IsAnAdministrator()
         {
@@ -18,9 +18,9 @@ namespace ServiceUninstall
 
         public static void Run(string arg)
         {
-            if (!File.Exists(ReadarrExe))
+            if (!File.Exists(BibliophilarrExe))
             {
-                Console.WriteLine("Unable to find Readarr.exe in the current directory.");
+                Console.WriteLine("Unable to find Bibliophilarr.exe in the current directory.");
                 return;
             }
 
@@ -32,7 +32,7 @@ namespace ServiceUninstall
 
             var startInfo = new ProcessStartInfo
             {
-                FileName = ReadarrExe,
+                FileName = BibliophilarrExe,
                 Arguments = arg,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,

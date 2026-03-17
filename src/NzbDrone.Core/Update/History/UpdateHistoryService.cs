@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
@@ -77,16 +77,16 @@ namespace NzbDrone.Core.Update.History
             }
 
             if (history == null || history.Version != BuildInfo.Version)
-                {
-                    _prevVersion = history?.Version;
+            {
+                _prevVersion = history?.Version;
 
-                    _repository.Insert(new UpdateHistory
-                    {
-                        Date = DateTime.UtcNow,
-                        Version = BuildInfo.Version,
-                        EventType = UpdateHistoryEventType.Installed
-                    });
-                }
+                _repository.Insert(new UpdateHistory
+                {
+                    Date = DateTime.UtcNow,
+                    Version = BuildInfo.Version,
+                    EventType = UpdateHistoryEventType.Installed
+                });
+            }
         }
 
         public void HandleAsync(ApplicationStartedEvent message)

@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+.devcontainer
+_artifacts
+_output
+_tests
+_temp
+node_modules
+**/bin
+**/obj
+**/.DS_Store
+local-audits

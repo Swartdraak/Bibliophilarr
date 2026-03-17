@@ -295,9 +295,9 @@ namespace NzbDrone.Core.Download.Clients.UTorrent
                 _logger.Error(ex, "Failed to test uTorrent");
 
                 return new NzbDroneValidationFailure("Host", "Unable to connect to uTorrent")
-                       {
-                           DetailedDescription = ex.Message
-                       };
+                {
+                    DetailedDescription = ex.Message
+                };
             }
 
             return null;

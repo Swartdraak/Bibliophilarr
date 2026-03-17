@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -35,6 +36,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IRootFolderWatchingService _rootFolderWatchingService;
         private readonly IAuthorService _authorService;
         private readonly IMapCoversToLocal _mediaCoverService;
+        private readonly IEmbeddedAudioTagFallbackReader _embeddedAudioTagFallbackReader;
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
 
@@ -44,6 +46,7 @@ namespace NzbDrone.Core.MediaFiles
                                IRootFolderWatchingService rootFolderWatchingService,
                                IAuthorService authorService,
                                IMapCoversToLocal mediaCoverService,
+                               IEmbeddedAudioTagFallbackReader embeddedAudioTagFallbackReader,
                                IEventAggregator eventAggregator,
                                Logger logger)
         {
@@ -53,6 +56,7 @@ namespace NzbDrone.Core.MediaFiles
             _rootFolderWatchingService = rootFolderWatchingService;
             _authorService = authorService;
             _mediaCoverService = mediaCoverService;
+            _embeddedAudioTagFallbackReader = embeddedAudioTagFallbackReader;
             _eventAggregator = eventAggregator;
             _logger = logger;
         }
@@ -64,7 +68,54 @@ namespace NzbDrone.Core.MediaFiles
 
         public ParsedTrackInfo ReadTags(string path)
         {
-            return new AudioTag(path);
+            var parsed = (ParsedTrackInfo)new AudioTag(path);
+
+            if (HasCoreIdentity(parsed))
+            {
+                return parsed;
+            }
+
+            var fallback = _embeddedAudioTagFallbackReader.ReadTags(path);
+            if (fallback == null)
+            {
+                return parsed;
+            }
+
+            var fallbackTrack = fallback.TrackInfo;
+
+            if (parsed.BookTitle.IsNullOrWhiteSpace())
+            {
+                parsed.BookTitle = fallbackTrack.BookTitle;
+                parsed.BookTitleConfidence = fallback.BookTitleConfidence;
+            }
+
+            if ((parsed.Authors == null || !parsed.Authors.Any()) && fallbackTrack.Authors != null)
+            {
+                parsed.Authors = fallbackTrack.Authors;
+                parsed.AuthorConfidence = fallback.AuthorConfidence;
+            }
+
+            if (parsed.Title.IsNullOrWhiteSpace())
+            {
+                parsed.Title = fallbackTrack.Title;
+            }
+
+            if (parsed.IdentitySource.IsNullOrWhiteSpace())
+            {
+                parsed.IdentitySource = fallbackTrack.IdentitySource;
+            }
+
+            return parsed;
+        }
+
+        private static bool HasCoreIdentity(ParsedTrackInfo parsed)
+        {
+            if (parsed == null)
+            {
+                return false;
+            }
+
+            return parsed.BookTitle.IsNotNullOrWhiteSpace() || (parsed.Authors?.Any(a => !string.IsNullOrWhiteSpace(a)) ?? false);
         }
 
         public AudioTag GetTrackMetadata(BookFile trackfile)

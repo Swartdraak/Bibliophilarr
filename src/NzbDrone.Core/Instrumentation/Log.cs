@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using NzbDrone.Core.Datastore;
 
 namespace NzbDrone.Core.Instrumentation

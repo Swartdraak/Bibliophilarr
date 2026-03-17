@@ -166,11 +166,11 @@ namespace NzbDrone.Test.Common.AutoMoq
 
         private void LoadPlatformLibrary()
         {
-            var assemblyName = "Readarr.Windows";
+            var assemblyName = "Bibliophilarr.Windows";
 
             if (OsInfo.IsNotWindows)
             {
-                assemblyName = "Readarr.Mono";
+                assemblyName = "Bibliophilarr.Mono";
             }
 
             var types = Assembly.Load(assemblyName).GetTypes();

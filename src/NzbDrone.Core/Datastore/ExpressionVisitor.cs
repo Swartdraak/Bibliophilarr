@@ -1,4 +1,4 @@
-﻿/* This class was copied from Mehfuz's LinqExtender project, which is available from github.
+/* This class was copied from Mehfuz's LinqExtender project, which is available from github.
  * http://mehfuzh.github.com/LinqExtender/
  */
 

@@ -20,7 +20,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
     public class AlreadyImportedSpecificationFixture : CoreTest<AlreadyImportedSpecification>
     {
         private const int FIRST_ALBUM_ID = 1;
-        private const string TITLE = "Some.Author-Some.Book-2018-320kbps-CD-Readarr";
+        private const string TITLE = "Some.Author-Some.Book-2018-320kbps-CD-Bibliophilarr";
 
         private Author _author;
         private QualityModel _mp3;

@@ -1,8 +1,8 @@
 using System.Linq;
 using System.Net;
+using Bibliophilarr.Api.V1.Indexers;
 using FluentAssertions;
 using NUnit.Framework;
-using Readarr.Api.V1.Indexers;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {

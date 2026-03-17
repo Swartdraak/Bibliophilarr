@@ -90,6 +90,8 @@ class MetadataProviderConnector extends Component {
 MetadataProviderConnector.propTypes = {
   isSaving: PropTypes.bool.isRequired,
   hasPendingChanges: PropTypes.bool.isRequired,
+  validationErrors: PropTypes.arrayOf(PropTypes.object).isRequired,
+  validationWarnings: PropTypes.arrayOf(PropTypes.object).isRequired,
   dispatchFetchMetadataProvider: PropTypes.func.isRequired,
   dispatchSetMetadataProviderValue: PropTypes.func.isRequired,
   dispatchSaveMetadataProvider: PropTypes.func.isRequired,

@@ -1,4 +1,4 @@
-﻿namespace ServiceUninstall
+namespace ServiceUninstall
 {
     public static class Program
     {

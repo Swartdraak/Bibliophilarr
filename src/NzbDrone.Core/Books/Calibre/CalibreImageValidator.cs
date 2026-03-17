@@ -14,7 +14,7 @@ namespace NzbDrone.Core.Books.Calibre
         private static readonly byte[] GIF87 = Encoding.ASCII.GetBytes("GIF87a");
         private static readonly byte[] GIF89 = Encoding.ASCII.GetBytes("GIF89a");
 
-        private static readonly byte[] PNG = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10  };
+        private static readonly byte[] PNG = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 };
 
         public static bool IsValidImage(byte[] data)
         {

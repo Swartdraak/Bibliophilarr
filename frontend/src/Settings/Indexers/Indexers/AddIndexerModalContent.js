@@ -54,7 +54,7 @@ class AddIndexerModalContent extends Component {
 
                 <Alert kind={kinds.INFO}>
                   <div>
-                    {translate('ReadarrSupportsAnyIndexerThatUsesTheNewznabStandardAsWellAsOtherIndexersListedBelow')}
+                    {translate('BibliophilarrSupportsAnyIndexerThatUsesTheNewznabStandardAsWellAsOtherIndexersListedBelow')}
                   </div>
                   <div>
                     {translate('ForMoreInformationOnTheIndividualIndexersClickOnTheInfoButtons')}

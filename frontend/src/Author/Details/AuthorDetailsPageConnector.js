@@ -56,7 +56,7 @@ class AuthorDetailsPageConnector extends Component {
 
   componentDidUpdate(prevProps) {
     if (!this.props.titleSlug) {
-      this.props.push(`${window.Readarr.urlBase}/`);
+      this.props.push(`${window.Bibliophilarr.urlBase}/`);
       return;
     }
   }

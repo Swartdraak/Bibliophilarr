@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Common.Model
+namespace NzbDrone.Common.Model
 {
     public class ProcessInfo
     {

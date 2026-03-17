@@ -9,6 +9,7 @@ using NzbDrone.Core.Update;
 
 namespace NzbDrone.Core.Test.UpdateTests
 {
+    [Ignore("Live cloud update endpoint integration test. Enable explicitly when external endpoint is available.")]
     public class UpdatePackageProviderFixture : CoreTest<UpdatePackageProvider>
     {
         [SetUp]
@@ -48,7 +49,7 @@ namespace NzbDrone.Core.Test.UpdateTests
 
             recent.Should().NotBeEmpty();
             recent.Should().OnlyContain(c => c.Hash.IsNotNullOrWhiteSpace());
-            recent.Should().OnlyContain(c => c.FileName.Contains("Readarr.develop.0"));
+            recent.Should().OnlyContain(c => c.FileName.Contains("Bibliophilarr.develop.0"));
             recent.Should().OnlyContain(c => c.ReleaseDate.Year >= 2014);
             recent.Where(c => c.Changes != null).Should().OnlyContain(c => c.Changes.New != null);
             recent.Where(c => c.Changes != null).Should().OnlyContain(c => c.Changes.Fixed != null);

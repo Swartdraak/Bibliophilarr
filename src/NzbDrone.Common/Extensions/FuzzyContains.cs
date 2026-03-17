@@ -161,7 +161,7 @@ namespace NzbDrone.Common.Extensions
                         var rd_ins = calculator.LeftShift(lastRd[j], 1);
 
                         // state if we assume deletion at char j
-                        var rd_del = calculator.BitwiseAnd(lastRd[j + 1],  one_comp);
+                        var rd_del = calculator.BitwiseAnd(lastRd[j + 1], one_comp);
 
                         if (adjustForWordBoundary)
                         {

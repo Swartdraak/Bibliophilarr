@@ -8,8 +8,8 @@ namespace NzbDrone.Core.Datastore.Migration
     {
         protected override void MainDbUpgrade()
         {
-            Alter.Table("DownloadHistory").AlterColumn("Date").AsDateTimeOffset().Nullable();
-            Alter.Table("ImportListStatus").AlterColumn("LastInfoSync").AsDateTimeOffset().Nullable();
+            IfDatabase("postgres").Alter.Table("DownloadHistory").AlterColumn("Date").AsDateTimeOffset().Nullable();
+            IfDatabase("postgres").Alter.Table("ImportListStatus").AlterColumn("LastInfoSync").AsDateTimeOffset().Nullable();
         }
     }
 }

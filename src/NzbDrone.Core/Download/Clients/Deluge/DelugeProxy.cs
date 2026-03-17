@@ -110,13 +110,13 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             if (settings.DownloadDirectory.IsNotNullOrWhiteSpace())
             {
-              options.download_location = settings.DownloadDirectory;
+                options.download_location = settings.DownloadDirectory;
             }
 
             if (settings.CompletedDirectory.IsNotNullOrWhiteSpace())
             {
-              options.move_completed_path = settings.CompletedDirectory;
-              options.move_completed = true;
+                options.move_completed_path = settings.CompletedDirectory;
+                options.move_completed = true;
             }
 
             var response = ProcessRequest<string>(settings, "core.add_torrent_magnet", magnetLink, options);
@@ -133,13 +133,13 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             if (settings.DownloadDirectory.IsNotNullOrWhiteSpace())
             {
-              options.download_location = settings.DownloadDirectory;
+                options.download_location = settings.DownloadDirectory;
             }
 
             if (settings.CompletedDirectory.IsNotNullOrWhiteSpace())
             {
-              options.move_completed_path = settings.CompletedDirectory;
-              options.move_completed = true;
+                options.move_completed_path = settings.CompletedDirectory;
+                options.move_completed = true;
             }
 
             var response = ProcessRequest<string>(settings, "core.add_torrent_file", filename, fileContent, options);

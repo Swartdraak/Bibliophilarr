@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using NzbDrone.Common.Exceptions;
 using NzbDrone.Core.Parser.Model;
 

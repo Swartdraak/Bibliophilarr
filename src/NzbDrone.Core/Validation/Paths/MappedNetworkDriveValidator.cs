@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.RegularExpressions;
 using FluentValidation.Validators;
 using NzbDrone.Common.Disk;

@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using NzbDrone.Core.Annotations;
 using NzbDrone.Core.ThingiProvider;
 using NzbDrone.Core.Validation;
@@ -19,10 +19,10 @@ namespace NzbDrone.Core.Download.Clients.Blackhole
     {
         private static readonly UsenetBlackholeSettingsValidator Validator = new UsenetBlackholeSettingsValidator();
 
-        [FieldDefinition(0, Label = "Nzb Folder", Type = FieldType.Path, HelpText = "Folder in which Readarr will store the .nzb file")]
+        [FieldDefinition(0, Label = "Nzb Folder", Type = FieldType.Path, HelpText = "Folder in which Bibliophilarr will store the .nzb file")]
         public string NzbFolder { get; set; }
 
-        [FieldDefinition(1, Label = "Watch Folder", Type = FieldType.Path, HelpText = "Folder from which Readarr should import completed downloads")]
+        [FieldDefinition(1, Label = "Watch Folder", Type = FieldType.Path, HelpText = "Folder from which Bibliophilarr should import completed downloads")]
         public string WatchFolder { get; set; }
 
         public NzbDroneValidationResult Validate()

@@ -19,6 +19,7 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Http;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.Goodreads;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace NzbDrone.Core.MetadataSource.BookInfo
@@ -43,6 +44,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
         private readonly IHttpClient _httpClient;
         private readonly ICachedHttpResponseService _cachedHttpClient;
+        private readonly IOpenLibrarySearchProxy _openLibrarySearchProxy;
         private readonly IGoodreadsSearchProxy _goodreadsSearchProxy;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
@@ -54,6 +56,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
         public BookInfoProxy(IHttpClient httpClient,
                              ICachedHttpResponseService cachedHttpClient,
+                             IOpenLibrarySearchProxy openLibrarySearchProxy,
                              IGoodreadsSearchProxy goodreadsSearchProxy,
                              IAuthorService authorService,
                              IBookService bookService,
@@ -64,6 +67,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
         {
             _httpClient = httpClient;
             _cachedHttpClient = cachedHttpClient;
+            _openLibrarySearchProxy = openLibrarySearchProxy;
             _goodreadsSearchProxy = goodreadsSearchProxy;
             _authorService = authorService;
             _bookService = bookService;
@@ -101,6 +105,15 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
         {
             _logger.Debug("Getting Author details GoodreadsId of {0}", foreignAuthorId);
+
+            if (IsOpenLibraryAuthorId(foreignAuthorId) && _openLibrarySearchProxy != null)
+            {
+                var openLibraryAuthor = _openLibrarySearchProxy.LookupAuthorByKey(foreignAuthorId);
+                if (openLibraryAuthor != null)
+                {
+                    return openLibraryAuthor;
+                }
+            }
 
             try
             {
@@ -239,16 +252,43 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
         public List<Book> SearchByIsbn(string isbn)
         {
+            if (_openLibrarySearchProxy != null)
+            {
+                var olResult = _openLibrarySearchProxy.LookupByIsbn(isbn);
+                if (olResult != null)
+                {
+                    return new List<Book> { olResult };
+                }
+            }
+
             return Search(isbn, true);
         }
 
         public List<Book> SearchByAsin(string asin)
         {
+            if (_openLibrarySearchProxy != null)
+            {
+                var olResult = _openLibrarySearchProxy.LookupByAsin(asin);
+                if (olResult != null)
+                {
+                    return new List<Book> { olResult };
+                }
+            }
+
             return Search(asin, true);
         }
 
         private List<Book> Search(string query, bool getAllEditions)
         {
+            if (_openLibrarySearchProxy != null)
+            {
+                var openLibraryResults = _openLibrarySearchProxy.Search(query);
+                if (openLibraryResults?.Count > 0)
+                {
+                    return openLibraryResults;
+                }
+            }
+
             List<SearchJsonResource> result;
             try
             {
@@ -1019,6 +1059,11 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
         private static int GetAuthorId(WorkResource b)
         {
             return b.Books.OrderByDescending(x => x.RatingCount * x.AverageRating).FirstOrDefault(x => x.Contributors.Any())?.Contributors.First().ForeignId ?? 0;
+        }
+
+        private static bool IsOpenLibraryAuthorId(string foreignAuthorId)
+        {
+            return foreignAuthorId.IsNotNullOrWhiteSpace() && foreignAuthorId.StartsWith("openlibrary:author:", StringComparison.InvariantCultureIgnoreCase);
         }
     }
 }

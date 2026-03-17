@@ -69,9 +69,9 @@ namespace NzbDrone.Core.Notifications.Ntfy
         {
             try
             {
-                const string title = "Readarr - Test Notification";
+                const string title = "Bibliophilarr - Test Notification";
 
-                const string body = "This is a test message from Readarr";
+                const string body = "This is a test message from Bibliophilarr";
 
                 SendNotification(title, body, settings);
             }

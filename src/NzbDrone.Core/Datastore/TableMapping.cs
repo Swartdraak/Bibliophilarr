@@ -25,6 +25,7 @@ using NzbDrone.Core.Instrumentation;
 using NzbDrone.Core.Jobs;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Notifications;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser.Model;
@@ -214,6 +215,8 @@ namespace NzbDrone.Core.Datastore
             Mapper.Entity<DownloadHistory>("DownloadHistory").RegisterModel();
 
             Mapper.Entity<UpdateHistory>("UpdateHistory").RegisterModel();
+
+            Mapper.Entity<MetadataProviderSettings>("MetadataProviderSettings").RegisterModel();
         }
 
         private static void RegisterMappers()

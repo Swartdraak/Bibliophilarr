@@ -1,4 +1,4 @@
-﻿namespace VersOne.Epub.Schema
+namespace VersOne.Epub.Schema
 {
     public enum ManifestProperty
     {

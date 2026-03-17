@@ -16,7 +16,7 @@ function Tags(props) {
   } = props;
 
   if (!items.length) {
-    const wikiLink = <Link to='https://wiki.servarr.com/readarr/settings#tags'>here</Link>;
+    const wikiLink = <Link to='https://github.com/Swartdraak/Bibliophilarr/wiki/settings#tags'>here</Link>;
     return (
       <Alert kind={kinds.INFO}>
         {translate('NoTagsHaveBeenAddedYet', [wikiLink])}

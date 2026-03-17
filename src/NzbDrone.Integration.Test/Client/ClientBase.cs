@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using Bibliophilarr.Http;
+using Bibliophilarr.Http.REST;
 using FluentAssertions;
 using NLog;
 using NzbDrone.Common.Serializer;
-using Readarr.Http;
-using Readarr.Http.REST;
 using RestSharp;
 
 namespace NzbDrone.Integration.Test.Client

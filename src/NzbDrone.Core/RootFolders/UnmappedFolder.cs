@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.RootFolders
+namespace NzbDrone.Core.RootFolders
 {
     public class UnmappedFolder
     {

@@ -63,7 +63,8 @@ namespace NzbDrone.Core.Books
         [JsonIgnore]
         public int AuthorId
         {
-            get { return Author?.Value?.Id ?? 0; } set { Author.Value.Id = value; }
+            get { return Author?.Value?.Id ?? 0; }
+            set { Author.Value.Id = value; }
         }
 
         public override string ToString()

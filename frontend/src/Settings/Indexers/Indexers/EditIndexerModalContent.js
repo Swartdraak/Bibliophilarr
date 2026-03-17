@@ -111,7 +111,7 @@ function EditIndexerModalContent(props) {
                 <FormInputGroup
                   type={inputTypes.CHECK}
                   name="enableAutomaticSearch"
-                  helpText={supportsSearch.value ? translate('SupportsSearchvalueWillBeUsedWhenAutomaticSearchesArePerformedViaTheUIOrByReadarr') : undefined}
+                  helpText={supportsSearch.value ? translate('SupportsSearchvalueWillBeUsedWhenAutomaticSearchesArePerformedViaTheUIOrByBibliophilarr') : undefined}
                   helpTextWarning={supportsSearch.value ? undefined : translate('SupportsSearchvalueSearchIsNotSupportedWithThisIndexer')}
                   isDisabled={!supportsSearch.value}
                   {...enableAutomaticSearch}

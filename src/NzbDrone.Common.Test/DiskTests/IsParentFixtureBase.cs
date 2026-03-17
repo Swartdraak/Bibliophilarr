@@ -1,4 +1,4 @@
-﻿using NzbDrone.Test.Common;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Common.Test.DiskTests
 {

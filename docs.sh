@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-FRAMEWORK="net6.0"
+FRAMEWORK="net8.0"
 PLATFORM=$1
 
 if [ "$PLATFORM" = "Windows" ]; then
@@ -21,14 +21,14 @@ testPackageFolder='_tests'
 rm -rf $outputFolder
 rm -rf $testPackageFolder
 
-slnFile=src/Readarr.sln
+slnFile=src/Bibliophilarr.sln
 
 platform=Posix
 
 if [ "$PLATFORM" = "Windows" ]; then
-  application=Readarr.Console.dll
+  application=Bibliophilarr.Console.dll
 else
-  application=Readarr.dll
+  application=Bibliophilarr.dll
 fi
 
 dotnet clean $slnFile -c Debug
@@ -39,7 +39,7 @@ dotnet msbuild -restore $slnFile -p:Configuration=Debug -p:Platform=$platform -p
 dotnet new tool-manifest
 dotnet tool install --version 6.6.2 Swashbuckle.AspNetCore.Cli
 
-dotnet tool run swagger tofile --output ./src/Readarr.Api.V1/openapi.json "$outputFolder/$FRAMEWORK/$RUNTIME/$application" v1 &
+dotnet tool run swagger tofile --output ./src/Bibliophilarr.Api.V1/openapi.json "$outputFolder/$FRAMEWORK/$RUNTIME/$application" v1 &
 
 sleep 45
 

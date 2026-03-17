@@ -432,10 +432,10 @@ namespace NzbDrone.Common.Extensions
             return t;
         }
 
-/*
- * Ensures that the Left arrays can be indexed through {@code index},
- * inclusively, resizing (and copying) as necessary.
- */
+        /*
+         * Ensures that the Left arrays can be indexed through {@code index},
+         * inclusively, resizing (and copying) as necessary.
+         */
         private static void EnsureCapacityLeft(ref int[] currentLeft, ref int[] lastLeft, ref int[] priorLeft, int index, bool copy)
         {
             if (currentLeft.Length <= index)
@@ -447,10 +447,10 @@ namespace NzbDrone.Common.Extensions
             }
         }
 
-/*
- * Ensures that the Right arrays can be indexed through {@code index},
- * inclusively, resizing (and copying) as necessary.
- */
+        /*
+         * Ensures that the Right arrays can be indexed through {@code index},
+         * inclusively, resizing (and copying) as necessary.
+         */
         private static void EnsureCapacityRight(ref int[] currentRight, ref int[] lastRight, ref int[] priorRight, int index, bool copy)
         {
             if (currentRight.Length <= index)
@@ -462,7 +462,7 @@ namespace NzbDrone.Common.Extensions
             }
         }
 
-/* Resize an array, copying old contents if requested */
+        /* Resize an array, copying old contents if requested */
         private static void Resize(ref int[] array, int size, bool copy)
         {
             if (copy)

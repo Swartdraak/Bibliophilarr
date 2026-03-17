@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.Indexers;
+using NzbDrone.Core.Indexers;
 using NzbDrone.Core.ThingiProvider;
 
 namespace NzbDrone.Core.Download

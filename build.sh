@@ -7,6 +7,14 @@ testPackageFolder='_tests'
 #Artifact variables
 artifactsFolder="_artifacts";
 
+# Rename migration knobs.
+APP_INTERNAL_NAME="${APP_INTERNAL_NAME:-Bibliophilarr}"
+APP_UPDATE_NAME="${APP_INTERNAL_NAME}.Update"
+APP_WINDOWS_NAME="${APP_INTERNAL_NAME}.Windows"
+APP_MONO_NAME="${APP_INTERNAL_NAME}.Mono"
+APP_MAC_APP_NAME="${APP_INTERNAL_NAME}.app"
+APP_SOLUTION_NAME="${APP_SOLUTION_NAME:-Bibliophilarr}"
+
 ProgressStart()
 {
     echo "Start '$1'"
@@ -19,17 +27,18 @@ ProgressEnd()
 
 UpdateVersionNumber()
 {
-    if [ "$READARRVERSION" != "" ]; then
+    local appVersion="${BIBLIOPHILARRVERSION:-$BIBLIOPHILARRVERSION}"
+    if [ "$appVersion" != "" ]; then
         echo "Updating Version Info"
-        sed -i'' -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>$READARRVERSION<\/AssemblyVersion>/g" src/Directory.Build.props
+        sed -i'' -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>$appVersion<\/AssemblyVersion>/g" src/Directory.Build.props
         sed -i'' -e "s/<AssemblyConfiguration>[\$()A-Za-z-]\+<\/AssemblyConfiguration>/<AssemblyConfiguration>${BUILD_SOURCEBRANCHNAME}<\/AssemblyConfiguration>/g" src/Directory.Build.props
-        sed -i'' -e "s/<string>10.0.0.0<\/string>/<string>$READARRVERSION<\/string>/g" distribution/osx/Readarr.app/Contents/Info.plist
+        sed -i'' -e "s/<string>10.0.0.0<\/string>/<string>$appVersion<\/string>/g" "distribution/osx/${APP_MAC_APP_NAME}/Contents/Info.plist"
     fi
 }
 
 EnableExtraPlatformsInSDK()
 {
-    SDK_PATH=$(dotnet --list-sdks | grep -P '6\.\d\.\d+' | head -1 | sed 's/\(6\.[0-9]*\.[0-9]*\).*\[\(.*\)\]/\2\/\1/g')
+    SDK_PATH=$(dotnet --list-sdks | grep -P '8\.\d\.\d+' | head -1 | sed 's/\(8\.[0-9]*\.[0-9]*\).*\[\(.*\)\]/\2\/\1/g')
     BUNDLEDVERSIONS="${SDK_PATH}/Microsoft.NETCoreSdk.BundledVersions.props"
     if grep -q freebsd-x64 $BUNDLEDVERSIONS; then
         echo "Extra platforms already enabled"
@@ -65,10 +74,13 @@ Build()
 {
     ProgressStart 'Build'
 
-    rm -rf $outputFolder
+    if [ -d "$outputFolder" ]; then
+        # Keep frontend assets if they were already built so packaging is order-independent.
+        find "$outputFolder" -mindepth 1 -maxdepth 1 ! -name UI -exec rm -rf {} +
+    fi
     rm -rf $testPackageFolder
 
-    slnFile=src/Readarr.sln
+    slnFile="src/${APP_SOLUTION_NAME}.sln"
 
     if [ $os = "windows" ]; then
         platform=Windows
@@ -109,7 +121,7 @@ PackageFiles()
     rm -rf $folder
     mkdir -p $folder
     cp -r $outputFolder/$framework/$runtime/publish/* $folder
-    cp -r $outputFolder/Readarr.Update/$framework/$runtime/publish $folder/Readarr.Update
+    cp -r "$outputFolder/$APP_UPDATE_NAME/$framework/$runtime/publish" "$folder/$APP_UPDATE_NAME"
     cp -r $outputFolder/UI $folder
 
     echo "Adding LICENSE"
@@ -123,7 +135,7 @@ PackageLinux()
 
     ProgressStart "Creating $runtime Package for $framework"
 
-    local folder=$artifactsFolder/$runtime/$framework/Readarr
+    local folder=$artifactsFolder/$runtime/$framework/$APP_INTERNAL_NAME
 
     PackageFiles "$folder" "$framework" "$runtime"
 
@@ -131,14 +143,14 @@ PackageLinux()
     rm -f $folder/ServiceUninstall.*
     rm -f $folder/ServiceInstall.*
 
-    echo "Removing Readarr.Windows"
-    rm $folder/Readarr.Windows.*
+    echo "Removing $APP_WINDOWS_NAME"
+    rm "$folder/$APP_WINDOWS_NAME".*
 
-    echo "Adding Readarr.Mono to UpdatePackage"
-    cp $folder/Readarr.Mono.* $folder/Readarr.Update
-    if [ "$framework" = "net6.0" ]; then
-        cp $folder/Mono.Posix.NETStandard.* $folder/Readarr.Update
-        cp $folder/libMonoPosixHelper.* $folder/Readarr.Update
+    echo "Adding $APP_MONO_NAME to UpdatePackage"
+    cp "$folder/$APP_MONO_NAME".* "$folder/$APP_UPDATE_NAME"
+    if [ "$framework" = "net8.0" ]; then
+        cp $folder/Mono.Posix.NETStandard.* "$folder/$APP_UPDATE_NAME"
+        cp $folder/libMonoPosixHelper.* "$folder/$APP_UPDATE_NAME"
     fi
 
     ProgressEnd "Creating $runtime Package for $framework"
@@ -151,7 +163,7 @@ PackageMacOS()
     
     ProgressStart "Creating MacOS Package for $framework $runtime"
 
-    local folder=$artifactsFolder/$runtime/$framework/Readarr
+    local folder=$artifactsFolder/$runtime/$framework/$APP_INTERNAL_NAME
 
     PackageFiles "$folder" "$framework" "$runtime"
 
@@ -159,14 +171,14 @@ PackageMacOS()
     rm -f $folder/ServiceUninstall.*
     rm -f $folder/ServiceInstall.*
 
-    echo "Removing Readarr.Windows"
-    rm $folder/Readarr.Windows.*
+    echo "Removing $APP_WINDOWS_NAME"
+    rm "$folder/$APP_WINDOWS_NAME".*
 
-    echo "Adding Readarr.Mono to UpdatePackage"
-    cp $folder/Readarr.Mono.* $folder/Readarr.Update
-    if [ "$framework" = "net6.0" ]; then
-        cp $folder/Mono.Posix.NETStandard.* $folder/Readarr.Update
-        cp $folder/libMonoPosixHelper.* $folder/Readarr.Update
+    echo "Adding $APP_MONO_NAME to UpdatePackage"
+    cp "$folder/$APP_MONO_NAME".* "$folder/$APP_UPDATE_NAME"
+    if [ "$framework" = "net8.0" ]; then
+        cp $folder/Mono.Posix.NETStandard.* "$folder/$APP_UPDATE_NAME"
+        cp $folder/libMonoPosixHelper.* "$folder/$APP_UPDATE_NAME"
     fi
 
     ProgressEnd 'Creating MacOS Package'
@@ -183,14 +195,14 @@ PackageMacOSApp()
 
     rm -rf $folder
     mkdir -p $folder
-    cp -r distribution/osx/Readarr.app $folder
-    mkdir -p $folder/Readarr.app/Contents/MacOS
+    cp -r "distribution/osx/${APP_MAC_APP_NAME}" "$folder"
+    mkdir -p "$folder/$APP_MAC_APP_NAME/Contents/MacOS"
 
     echo "Copying Binaries"
-    cp -r $artifactsFolder/$runtime/$framework/Readarr/* $folder/Readarr.app/Contents/MacOS
+    cp -r "$artifactsFolder/$runtime/$framework/$APP_INTERNAL_NAME"/* "$folder/$APP_MAC_APP_NAME/Contents/MacOS"
 
     echo "Removing Update Folder"
-    rm -r $folder/Readarr.app/Contents/MacOS/Readarr.Update
+    rm -r "$folder/$APP_MAC_APP_NAME/Contents/MacOS/$APP_UPDATE_NAME"
 
     ProgressEnd 'Creating macOS App Package'
 }
@@ -202,18 +214,18 @@ PackageWindows()
 
     ProgressStart "Creating $runtime Package for $framework"
 
-    local folder=$artifactsFolder/$runtime/$framework/Readarr
+    local folder=$artifactsFolder/$runtime/$framework/$APP_INTERNAL_NAME
     
     PackageFiles "$folder" "$framework" "$runtime"
     cp -r $outputFolder/$framework-windows/$runtime/publish/* $folder
 
-    echo "Removing Readarr.Mono"
-    rm -f $folder/Readarr.Mono.*
+    echo "Removing $APP_MONO_NAME"
+    rm -f "$folder/$APP_MONO_NAME".*
     rm -f $folder/Mono.Posix.NETStandard.*
     rm -f $folder/libMonoPosixHelper.*
 
-    echo "Adding Readarr.Windows to UpdatePackage"
-    cp $folder/Readarr.Windows.* $folder/Readarr.Update
+    echo "Adding $APP_WINDOWS_NAME to UpdatePackage"
+    cp "$folder/$APP_WINDOWS_NAME".* "$folder/$APP_UPDATE_NAME"
 
     ProgressEnd "Creating $runtime Package for $framework"
 }
@@ -245,7 +257,7 @@ BuildInstaller()
     local framework="$1"
     local runtime="$2"
     
-    ./_inno/ISCC.exe distribution/windows/setup/readarr.iss "//DFramework=$framework" "//DRuntime=$runtime"
+    ./_inno/ISCC.exe distribution/windows/setup/bibliophilarr.iss "//DFramework=$framework" "//DRuntime=$runtime"
 }
 
 InstallInno()
@@ -376,15 +388,15 @@ then
     Build
     if [[ -z "$RID" || -z "$FRAMEWORK" ]];
     then
-        PackageTests "net6.0" "win-x64"
-        PackageTests "net6.0" "win-x86"
-        PackageTests "net6.0" "linux-x64"
-        PackageTests "net6.0" "linux-musl-x64"
-        PackageTests "net6.0" "osx-x64"
+        PackageTests "net8.0" "win-x64"
+        PackageTests "net8.0" "win-x86"
+        PackageTests "net8.0" "linux-x64"
+        PackageTests "net8.0" "linux-musl-x64"
+        PackageTests "net8.0" "osx-x64"
         if [ "$ENABLE_EXTRA_PLATFORMS" = "YES" ];
         then
-            PackageTests "net6.0" "freebsd-x64"
-            PackageTests "net6.0" "linux-x86"
+            PackageTests "net8.0" "freebsd-x64"
+            PackageTests "net8.0" "linux-x86"
         fi
     else
         PackageTests "$FRAMEWORK" "$RID"
@@ -412,20 +424,20 @@ then
 
     if [[ -z "$RID" || -z "$FRAMEWORK" ]];
     then
-        Package "net6.0" "win-x64"
-        Package "net6.0" "win-x86"
-        Package "net6.0" "linux-x64"
-        Package "net6.0" "linux-musl-x64"
-        Package "net6.0" "linux-arm64"
-        Package "net6.0" "linux-musl-arm64"
-        Package "net6.0" "linux-arm"
-        Package "net6.0" "linux-musl-arm"
-        Package "net6.0" "osx-x64"
-        Package "net6.0" "osx-arm64"
+        Package "net8.0" "win-x64"
+        Package "net8.0" "win-x86"
+        Package "net8.0" "linux-x64"
+        Package "net8.0" "linux-musl-x64"
+        Package "net8.0" "linux-arm64"
+        Package "net8.0" "linux-musl-arm64"
+        Package "net8.0" "linux-arm"
+        Package "net8.0" "linux-musl-arm"
+        Package "net8.0" "osx-x64"
+        Package "net8.0" "osx-arm64"
         if [ "$ENABLE_EXTRA_PLATFORMS" = "YES" ];
         then
-            Package "net6.0" "freebsd-x64"
-            Package "net6.0" "linux-x86"
+            Package "net8.0" "freebsd-x64"
+            Package "net8.0" "linux-x86"
         fi
     else
         Package "$FRAMEWORK" "$RID"
@@ -435,7 +447,7 @@ fi
 if [ "$INSTALLER" = "YES" ];
 then
     InstallInno
-    BuildInstaller "net6.0" "win-x64"
-    BuildInstaller "net6.0" "win-x86"
+    BuildInstaller "net8.0" "win-x64"
+    BuildInstaller "net8.0" "win-x86"
     RemoveInno
 fi

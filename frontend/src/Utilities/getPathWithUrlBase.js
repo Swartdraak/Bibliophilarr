@@ -1,3 +1,3 @@
 export default function getPathWithUrlBase(path) {
-  return `${window.Readarr.urlBase}${path}`;
+  return `${window.Bibliophilarr.urlBase}${path}`;
 }

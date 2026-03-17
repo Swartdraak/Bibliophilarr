@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Common;

@@ -15,7 +15,7 @@ class Donations extends Component {
           <Link to="https://opencollective.com/radarr">
             <img
               className={styles.logo}
-              src={`${window.Readarr.urlBase}/Content/Images/Icons/logo-radarr.png`}
+              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-radarr.png`}
             />
           </Link>
         </div>
@@ -23,15 +23,15 @@ class Donations extends Component {
           <Link to="https://opencollective.com/lidarr">
             <img
               className={styles.logo}
-              src={`${window.Readarr.urlBase}/Content/Images/Icons/logo-lidarr.png`}
+              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-lidarr.png`}
             />
           </Link>
         </div>
-        <div className={styles.logoContainer} title="Readarr">
-          <Link to="https://opencollective.com/readarr">
+        <div className={styles.logoContainer} title="Bibliophilarr">
+          <Link to="https://opencollective.com/bibliophilarr">
             <img
               className={styles.logo}
-              src={`${window.Readarr.urlBase}/Content/Images/Icons/logo-readarr.png`}
+              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-bibliophilarr.png`}
             />
           </Link>
         </div>
@@ -39,7 +39,7 @@ class Donations extends Component {
           <Link to="https://opencollective.com/prowlarr">
             <img
               className={styles.logo}
-              src={`${window.Readarr.urlBase}/Content/Images/Icons/logo-prowlarr.png`}
+              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-prowlarr.png`}
             />
           </Link>
         </div>
@@ -47,7 +47,7 @@ class Donations extends Component {
           <Link to="https://opencollective.com/sonarr">
             <img
               className={styles.logo}
-              src={`${window.Readarr.urlBase}/Content/Images/Icons/logo-sonarr.png`}
+              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-sonarr.png`}
             />
           </Link>
         </div>

@@ -116,7 +116,7 @@ namespace NzbDrone.Core.Download.History
                 Protocol = message.Book.Release.DownloadProtocol,
                 IndexerId = message.Book.Release.IndexerId,
                 DownloadClientId = message.DownloadClientId,
-                Release =  message.Book.Release
+                Release = message.Book.Release
             };
 
             history.Data.Add("Indexer", message.Book.Release.Indexer);

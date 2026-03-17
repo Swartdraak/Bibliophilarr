@@ -1,4 +1,4 @@
-﻿using FluentValidation.Validators;
+using FluentValidation.Validators;
 using NzbDrone.Core.Download;
 
 namespace NzbDrone.Core.Validation
