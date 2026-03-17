@@ -1,3 +1,9 @@
+> [!WARNING]
+> **DEPRECATED** — This document has been superseded.
+> Canonical replacement: [README.md](../../README.md)
+> Reason: Wiki home duplicated the canonical repository overview and doc index.
+> Deprecation date: 2026-03-17
+
 # Bibliophilarr Wiki
 
 Welcome to the Bibliophilarr wiki.
@@ -17,9 +23,7 @@ Welcome to the Bibliophilarr wiki.
 
 ## Related docs in repository
 
-- [README.md](../README.md)
-- [MIGRATION_PLAN.md](../MIGRATION_PLAN.md)
-- [PROJECT_STATUS.md](../PROJECT_STATUS.md)
-- [CONTRIBUTING.md](../CONTRIBUTING.md)
-- [GitHub Projects Blueprint](../docs/operations/GITHUB_PROJECTS_BLUEPRINT.md)
-- [MCP Server Recommendations](../docs/operations/MCP_SERVER_RECOMMENDATIONS.md)
+- [README.md](../../README.md)
+- [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md)
+- [PROJECT_STATUS.md](../../PROJECT_STATUS.md)
+- [CONTRIBUTING.md](../../CONTRIBUTING.md)

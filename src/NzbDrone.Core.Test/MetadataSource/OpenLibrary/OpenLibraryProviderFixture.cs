@@ -1,5 +1,5 @@
-using FluentAssertions;
 using System.Collections.Generic;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
@@ -25,7 +25,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── SearchForNewBook ──────────────────────────────────────────────────
-
         [Test]
         public void search_returns_mapped_books()
         {
@@ -62,7 +61,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── SearchByIsbn ──────────────────────────────────────────────────────
-
         [Test]
         public void search_by_isbn_hit_returns_book()
         {
@@ -94,7 +92,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── SearchByExternalId ────────────────────────────────────────────────
-
         [Test]
         public void search_by_external_id_olid_calls_get_book_info()
         {
@@ -127,7 +124,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── SearchByAsin ──────────────────────────────────────────────────────
-
         [Test]
         public void search_by_asin_not_supported_returns_empty()
         {
@@ -135,7 +131,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── GetChangedAuthors ─────────────────────────────────────────────────
-
         [Test]
         public void get_changed_authors_returns_null()
         {
@@ -144,7 +139,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── Rate-limit response (429) ──────────────────────────────────────────
-
         [Test]
         public void search_when_client_throws_open_library_exception_returns_empty()
         {
@@ -157,7 +151,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
-
         private static OlSearchResponse BuildSearchResponse() => new OlSearchResponse
         {
             NumFound = 1,

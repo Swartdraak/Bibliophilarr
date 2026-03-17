@@ -13,8 +13,11 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
     {
         private static string LoadFixture(string name)
         {
-            var dir = Path.Combine(TestContext.CurrentContext.TestDirectory,
-                "MetadataSource", "OpenLibrary", "Fixtures");
+            var dir = Path.Combine(
+                TestContext.CurrentContext.TestDirectory,
+                "MetadataSource",
+                "OpenLibrary",
+                "Fixtures");
             return File.ReadAllText(Path.Combine(dir, name));
         }
 
@@ -27,7 +30,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── MapSearchDocToBook ────────────────────────────────────────────────
-
         [Test]
         public void map_search_doc_produces_valid_book()
         {
@@ -72,7 +74,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── MapWorkToBook ─────────────────────────────────────────────────────
-
         [Test]
         public void map_work_to_book_with_typed_description()
         {
@@ -116,7 +117,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── MapAuthorToMetadata ───────────────────────────────────────────────
-
         [Test]
         public void map_author_populates_all_fields()
         {
@@ -158,7 +158,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── MapEdition ────────────────────────────────────────────────────────
-
         [Test]
         public void map_edition_populates_isbn_and_publisher()
         {

@@ -1,3 +1,9 @@
+> [!WARNING]
+> **DEPRECATED** — This document has been superseded.
+> Canonical replacement: [Bibliophilarr Release Automation](../../operations/RELEASE_AUTOMATION.md)
+> Reason: Merge fallback guidance was consolidated into the canonical release automation runbook.
+> Deprecation date: 2026-03-17
+
 # gh pr merge CLI Mismatch Investigation
 
 Date: 2026-03-16

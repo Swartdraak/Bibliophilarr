@@ -1,114 +1,67 @@
-# Bibliophilarr - Reviving the Bibliophilarr Project
-
-## 🎉 Announcement: Project Revival & Active Development
-
-**Bibliophilarr** is a community-driven fork of the [Bibliophilarr project](<https://github.com/Bibliophilarr/Bibliophilarr>), which was retired by the original maintainers due to metadata provider issues. We are actively working to revive and improve this project by migrating away from proprietary metadata sources to fully open-source, sustainable alternatives.
-
-### What's Different?
-
-- **Active Development**: This fork is under active development with a clear roadmap
-- **FOSS Metadata**: Transitioning to Free and Open Source Software (FOSS) metadata providers
-- **Community-Driven**: Open to contributions and community input
-- **Sustainable Future**: Building on reliable, open infrastructure
-
-### Current Status: Phase 5 Consolidation with Phase 6 Hardening Active
-
-We are actively operating migration and hardening slices across `develop` and `staging`, with `main` serving as release-entry and readiness reporting lane. Current metadata delivery includes:
-
-- **Open Library** (primary provider)
-- **Inventaire.io** (secondary provider)
-- **Configurable fallback ordering, telemetry, diagnostics, and resilience controls**
-
-📋 See [PROJECT_STATUS.md](PROJECT_STATUS.md), [ROADMAP.md](ROADMAP.md), and [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for current execution posture and migration details.
-
-We keep these core docs updated in place as the migration advances, rather than creating overlapping planning documents that drift from repository reality.
-
-### Original Bibliophilarr Retirement Notice
-
-The original Bibliophilarr project was retired due to metadata provider issues. The Servarr team announced:
-> "The retirement takes effect immediately... the project's metadata has become unusable, we no longer have the time to remake or repair it, and the community effort to transition to using Open Library as the source has stalled without much progress."
-
-**We're picking up where they left off!** This fork aims to complete the Open Library migration and establish a sustainable, FOSS-based future for book and audiobook management.
-
----
-
 # Bibliophilarr
 
-> **Note**: The badges below reference the original Bibliophilarr project infrastructure and may not reflect the current state of Bibliophilarr. We are working on establishing our own build and community infrastructure.
+Bibliophilarr is a community-maintained fork of Readarr focused on replacing
+fragile or proprietary metadata dependencies with sustainable FOSS providers
+while preserving reliable ebook and audiobook library automation.
 
-[![Build Status](https://dev.azure.com/Bibliophilarr/Bibliophilarr/_apis/build/status/Bibliophilarr.Bibliophilarr?branchName=develop)](https://dev.azure.com/Bibliophilarr/Bibliophilarr/_build/latest?definitionId=1&branchName=develop)
-[![Translated](https://translate.servarr.com/widgets/servarr/-/bibliophilarr/svg-badge.svg)](https://translate.servarr.com/engage/bibliophilarr/?utm_source=widget)
-[![Docker Pulls](https://img.shields.io/docker/pulls/hotio/bibliophilarr)](https://wiki.servarr.com/bibliophilarr/installation#docker)
+## Current status
 
-### ⚠️ Bibliophilarr is under active development and currently in a transitional state. We are working on migrating to FOSS metadata providers
+The repository is operating in Phase 5 consolidation with Phase 6 hardening
+active. Metadata delivery currently centers on Open Library as the primary
+provider, Inventaire as secondary coverage, and config-driven fallback,
+telemetry, diagnostics, and rollout controls.
 
-Bibliophilarr (formerly Bibliophilarr) is an ebook and audiobook collection manager for Usenet and BitTorrent users. It can monitor multiple RSS feeds for new books from your favorite authors and will grab, sort, and rename them.
+Use the core docs as the authoritative set:
 
-**Note**: Only one type of a given book is supported per instance. If you want both an audiobook and ebook of a given book, you will need multiple instances.
+- [PROJECT_STATUS.md](PROJECT_STATUS.md) for the current operating posture
+- [ROADMAP.md](ROADMAP.md) for phase and milestone sequencing
+- [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for provider architecture and migration details
+- [QUICKSTART.md](QUICKSTART.md) for local setup and validation
+- [CONTRIBUTING.md](CONTRIBUTING.md) for contribution workflow and quality gates
+- [SECURITY.md](SECURITY.md) for vulnerability handling
+- [CHANGELOG.md](CHANGELOG.md) for notable documentation and release history
 
-## What We're Working On
+## What the project does
 
-- 🔄 **Metadata Migration**: Transitioning from Goodreads to FOSS providers (Open Library, Inventaire)
-- 🏗️ **Infrastructure**: Building a robust multi-provider metadata architecture
-- 🧪 **Testing**: Comprehensive testing framework for metadata providers
-- 📚 **Documentation**: Updated guides for the new metadata system
+Bibliophilarr monitors authors and books, searches across supported indexers,
+and automates download, import, organization, and metadata refresh for ebook
+and audiobook libraries.
 
-## Major Features Include
+Key product capabilities inherited from the Readarr base and actively
+maintained here include:
 
-- Can watch for better quality of the ebooks and audiobooks you have and do an automatic upgrade. *e.g. from PDF to AZW3*
-- Support for major platforms: Windows, Linux, macOS, Raspberry Pi, etc.
-- Automatically detects new books
-- Can scan your existing library and download any missing books
-- Automatic failed download handling will try another release if one fails
-- Manual search so you can pick any release or to see why a release was not downloaded automatically
-- Advanced customization for profiles, such that Bibliophilarr will always download the copy you want
-- Fully configurable book renaming
-- SABnzbd, NZBGet, QBittorrent, Deluge, rTorrent, Transmission, uTorrent, and other download clients are supported and integrated
-- Full integration with Calibre (add to library, conversion) (Requires Calibre Content Server)
-- And a beautiful UI
+- automated search, import, and upgrade workflows
+- configurable renaming and organization
+- download client integration across common Usenet and BitTorrent tools
+- Calibre integration for library and conversion workflows
+- metadata search and refresh across supported providers
 
-## Project Operations
+Only one edition type is supported per instance. Run separate instances if you
+need both ebook and audiobook management for the same title.
 
-To support the revival effort, we now maintain repository operation blueprints:
+## Repository documentation model
 
-- [MCP Server Recommendations](docs/operations/MCP_SERVER_RECOMMENDATIONS.md)
-- [Repository Tags and Labels](docs/operations/REPOSITORY_TAGS.md)
-- [GitHub Projects Blueprint](docs/operations/GITHUB_PROJECTS_BLUEPRINT.md)
-- [.NET Modernization Project](docs/operations/DOTNET_MODERNIZATION.md) - **HIGH PRIORITY**
-- [Wiki Home](wiki/Home.md)
+This repository keeps long-lived documentation in a small canonical set and
+stores dated evidence as focused operational snapshots under
+[docs/operations](docs/operations).
 
-## Support & Community
+Active operations references include:
 
-**Note**: This is a community fork. For support:
+- [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md)
+- [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md)
+- [docs/operations/METADATA_PROVIDER_RUNBOOK.md](docs/operations/METADATA_PROVIDER_RUNBOOK.md)
+- [docs/operations/METADATA_MIGRATION_DRY_RUN.md](docs/operations/METADATA_MIGRATION_DRY_RUN.md)
+- [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md)
 
-- **GitHub Issues**: Bug reports and feature requests for Bibliophilarr
-- **Discord**: Community discussion and support (coming soon)
-- **Wiki**: Documentation (being updated for new metadata system)
+## Contributing
 
-For the original Bibliophilarr project, refer to the [Servarr Wiki](https://wiki.servarr.com/bibliophilarr) (may contain outdated information).
+The highest-priority work is metadata migration safety, observability, and
+release readiness. Contributions should stay small, testable, and reversible.
 
-## Contributors & Developers
+Start with [QUICKSTART.md](QUICKSTART.md), then read
+[MIGRATION_PLAN.md](MIGRATION_PLAN.md) and [CONTRIBUTING.md](CONTRIBUTING.md)
+before opening a pull request.
 
-This is a community fork building on the excellent work of the original Bibliophilarr team and contributors.
+## License
 
-### Contributing to Bibliophilarr
-
-We welcome contributions! Areas where we especially need help:
-
-- **Metadata Provider Implementation**: Help implement Open Library and other FOSS providers
-- **Testing**: Test metadata retrieval and edge cases
-- **Documentation**: Update docs for the new metadata system
-- **UI/UX**: Improve the user experience for provider selection and configuration
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the technical roadmap.
-
-### Original Bibliophilarr Contributors
-
-This project exists thanks to all the people who contributed to the original Bibliophilarr project.
-
-### License
-
-- [GNU GPL v3](http://www.gnu.org/licenses/gpl.html)
-- Copyright 2010-2024
-- Original Bibliophilarr by Servarr Team
-- Bibliophilarr fork maintained by the community
+Bibliophilarr is distributed under [LICENSE.md](LICENSE.md).

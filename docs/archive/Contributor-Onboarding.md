@@ -1,4 +1,10 @@
-# Contributor Onboarding
+> [!WARNING]
+> **DEPRECATED** — This document has been superseded.
+> Canonical replacement: [QUICKSTART.md](../../QUICKSTART.md)
+> Reason: Wiki onboarding duplicated the canonical contributor quick start.
+> Deprecation date: 2026-03-17
+
+# Contributor onboarding
 
 ## Prerequisites
 
@@ -25,5 +31,5 @@
 ## Collaboration conventions
 
 - Keep PRs focused and reviewable.
-- Add tests/docs with functional changes.
+- Add tests and docs with functional changes.
 - Use labels and project fields consistently.

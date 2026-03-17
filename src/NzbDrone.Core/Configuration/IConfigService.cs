@@ -96,5 +96,15 @@ namespace NzbDrone.Core.Configuration
 
         CertificateValidationType CertificateValidation { get; }
         string ApplicationUrl { get; }
+
+        // Metadata Providers
+        bool EnableBookInfoProvider { get; set; }
+        bool EnableOpenLibraryProvider { get; set; }
+        bool EnableInventaireProvider { get; set; }
+        string MetadataProviderPriorityOrder { get; set; }
+        int MetadataProviderTimeoutSeconds { get; set; }
+        int MetadataProviderRetryBudget { get; set; }
+        int MetadataProviderCircuitBreakerThreshold { get; set; }
+        int MetadataProviderCircuitBreakerDurationSeconds { get; set; }
     }
 }

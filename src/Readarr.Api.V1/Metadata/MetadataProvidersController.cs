@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.MetadataSource;
-using Bibliophilarr.Http;
+using Readarr.Http;
 
-namespace Bibliophilarr.Api.V1.Metadata
+namespace Readarr.Api.V1.Metadata
 {
     public class MetadataProviderHealthResource
     {

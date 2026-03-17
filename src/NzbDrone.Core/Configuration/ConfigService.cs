@@ -410,6 +410,54 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("TrustCgnatIpAddresses", value); }
         }
 
+        public bool EnableBookInfoProvider
+        {
+            get { return GetValueBoolean("EnableBookInfoProvider", true); }
+            set { SetValue("EnableBookInfoProvider", value); }
+        }
+
+        public bool EnableOpenLibraryProvider
+        {
+            get { return GetValueBoolean("EnableOpenLibraryProvider", true); }
+            set { SetValue("EnableOpenLibraryProvider", value); }
+        }
+
+        public bool EnableInventaireProvider
+        {
+            get { return GetValueBoolean("EnableInventaireProvider", true); }
+            set { SetValue("EnableInventaireProvider", value); }
+        }
+
+        public string MetadataProviderPriorityOrder
+        {
+            get { return GetValue("MetadataProviderPriorityOrder", "BookInfo,OpenLibrary,Inventaire"); }
+            set { SetValue("MetadataProviderPriorityOrder", value); }
+        }
+
+        public int MetadataProviderTimeoutSeconds
+        {
+            get { return GetValueInt("MetadataProviderTimeoutSeconds", 30); }
+            set { SetValue("MetadataProviderTimeoutSeconds", value); }
+        }
+
+        public int MetadataProviderRetryBudget
+        {
+            get { return GetValueInt("MetadataProviderRetryBudget", 3); }
+            set { SetValue("MetadataProviderRetryBudget", value); }
+        }
+
+        public int MetadataProviderCircuitBreakerThreshold
+        {
+            get { return GetValueInt("MetadataProviderCircuitBreakerThreshold", 5); }
+            set { SetValue("MetadataProviderCircuitBreakerThreshold", value); }
+        }
+
+        public int MetadataProviderCircuitBreakerDurationSeconds
+        {
+            get { return GetValueInt("MetadataProviderCircuitBreakerDurationSeconds", 300); }
+            set { SetValue("MetadataProviderCircuitBreakerDurationSeconds", value); }
+        }
+
         private string GetValue(string key)
         {
             return GetValue(key, string.Empty);

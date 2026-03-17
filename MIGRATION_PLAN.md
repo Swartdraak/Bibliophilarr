@@ -1062,23 +1062,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## References
 
-### FOSS Metadata Resources
-
-- [Open Library API](https://openlibrary.org/developers/api)
-- [Inventaire API](https://api.inventaire.io/)
-- [Open Library Data Dumps](https://openlibrary.org/developers/dumps)
-- [BookBrainz](https://bookbrainz.org/) (future consideration)
-
-### Technical Resources
-
-- [ISBN Standards](https://www.isbn-international.org/)
-- [ISNI (Author Identifiers)](https://isni.org/)
-- [VIAF (Authority Files)](https://viaf.org/)
-
-### Community
-
-- [GitHub Discussions](https://github.com/Swartdraak/Bibliophilarr/discussions)
-- Discord Community (coming soon)
+1. [ROADMAP.md](ROADMAP.md) — current phase ordering and release-hardening posture.
+2. [PROJECT_STATUS.md](PROJECT_STATUS.md) — current migration slice completion and validation status.
+3. [Open Library developer documentation](https://openlibrary.org/developers/api) — API endpoints and platform guidance.
+4. [Open Library data dumps](https://openlibrary.org/developers/dumps) — bulk data option referenced in provider planning.
+5. [Inventaire API documentation](https://api.inventaire.io/) — API behavior and endpoint model.
+6. [BookBrainz](https://bookbrainz.org/) — future provider consideration.
+7. [ISBN International](https://www.isbn-international.org/) — ISBN standard reference.
+8. [ISNI](https://isni.org/) — author identifier reference.
+9. [VIAF](https://viaf.org/) — authority-file reference.
 
 ---
 

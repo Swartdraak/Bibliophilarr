@@ -1,3 +1,9 @@
+> [!WARNING]
+> **DEPRECATED** — This document has been superseded.
+> Canonical replacement: [Contributing to Bibliophilarr](../../../CONTRIBUTING.md)
+> Reason: Project board and label governance guidance was consolidated into canonical contributor workflow documentation.
+> Deprecation date: 2026-03-17
+
 # GitHub Projects Blueprint
 
 This blueprint defines recommended GitHub Projects for Bibliophilarr's current revival stage.
@@ -52,8 +58,6 @@ This blueprint defines recommended GitHub Projects for Bibliophilarr's current r
 
 - Kanban by Status
 - Table by Audience
-
----
 
 ## Automation Suggestions
 

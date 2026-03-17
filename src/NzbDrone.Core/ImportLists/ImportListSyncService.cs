@@ -35,7 +35,7 @@ namespace NzbDrone.Core.ImportLists
                                      IImportListExclusionService importListExclusionService,
                                      IFetchAndParseImportList listFetcherAndParser,
                                      IProvideBookInfo bookInfoProxy,
-                                                                     ISearchForNewBook bookSearchService,
+                                     ISearchForNewBook bookSearchService,
                                      IAuthorService authorService,
                                      IBookService bookService,
                                      IEditionService editionService,

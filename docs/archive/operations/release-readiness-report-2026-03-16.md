@@ -1,3 +1,9 @@
+> [!WARNING]
+> **DEPRECATED** — This document has been superseded.
+> Canonical replacement: [Bibliophilarr Release Automation](../../operations/RELEASE_AUTOMATION.md)
+> Reason: Dated readiness report content was merged into the active automation runbook and ongoing status docs.
+> Deprecation date: 2026-03-17
+
 # Release Readiness Report Automation
 
 Date: 2026-03-16
@@ -52,8 +58,8 @@ python3 scripts/audit_branch_protection.py --branches develop staging main
 
 Permission-limited mode:
 
-- In GitHub Actions, `GITHUB_TOKEN` can return `403 Resource not accessible by integration` for branch-protection and Dependabot endpoints.
-- The workflow runs scripts with `--allow-integration-403` so artifacts are still generated and the report captures the API limitation explicitly.
+- In GitHub Actions, GITHUB_TOKEN can return 403 Resource not accessible by integration for branch-protection and Dependabot endpoints.
+- The workflow runs scripts with --allow-integration-403 so artifacts are still generated and the report captures the API limitation explicitly.
 
 ## Rollback
 

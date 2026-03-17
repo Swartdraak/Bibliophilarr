@@ -2,7 +2,8 @@ using System.Collections.Generic;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Integration.Test.Client;
-using Bibliophilarr.Api.V1.Config;
+using Readarr.Api.V1.Config;
+using Readarr.Http.REST;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
@@ -22,7 +23,7 @@ namespace NzbDrone.Integration.Test.ApiTests
             public MetadataProviderTelemetrySnapshotResource Telemetry { get; set; }
         }
 
-        private class MetadataProviderTelemetrySnapshotResource : Bibliophilarr.Http.REST.RestResource
+        private class MetadataProviderTelemetrySnapshotResource : RestResource
         {
             public string ProviderName { get; set; }
             public long Calls { get; set; }

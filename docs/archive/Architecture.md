@@ -1,10 +1,16 @@
-# Architecture Overview
+> [!WARNING]
+> **DEPRECATED** — This document has been superseded.
+> Canonical replacement: [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md)
+> Reason: Wiki architecture summary duplicated the canonical migration architecture.
+> Deprecation date: 2026-03-17
+
+# Architecture overview
 
 ## High-level stack
 
 - **Backend:** .NET / C# services and API.
 - **Frontend:** React + TypeScript application.
-- **Domain focus:** Book/audiobook metadata ingestion, search, and automation.
+- **Domain focus:** Book and audiobook metadata ingestion, search, and automation.
 
 ## Metadata architecture (target state)
 

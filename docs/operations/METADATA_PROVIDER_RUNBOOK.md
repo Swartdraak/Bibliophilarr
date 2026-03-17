@@ -133,3 +133,10 @@ Each checkpoint should include:
 2. Restore prior resilience values.
 3. Remove emergency environment kill-switch if set.
 4. Re-run health and telemetry checks to verify normalization.
+
+## References
+
+1. [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md) — provider ordering and migration constraints.
+2. [PROJECT_STATUS.md](../../PROJECT_STATUS.md) — current rollout posture and validation state.
+3. [Open Library developer documentation](https://openlibrary.org/developers/api) — provider API behavior.
+4. [Inventaire API documentation](https://api.inventaire.io/) — secondary provider behavior.

@@ -1,7 +1,7 @@
 using NzbDrone.Core.Configuration;
-using Bibliophilarr.Http.REST;
+using Readarr.Http.REST;
 
-namespace Bibliophilarr.Api.V1.Config
+namespace Readarr.Api.V1.Config
 {
     public class MetadataProviderConfigResource : RestResource
     {

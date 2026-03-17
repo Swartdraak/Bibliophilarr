@@ -3,7 +3,7 @@ using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.MetadataSource;
-using Bibliophilarr.Api.V1.Metadata;
+using Readarr.Api.V1.Metadata;
 
 namespace NzbDrone.Api.Test.Metadata
 {

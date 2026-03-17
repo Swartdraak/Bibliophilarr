@@ -152,4 +152,3 @@ Suggested acceptance criteria for local install readiness:
 - [PROJECT_STATUS.md](PROJECT_STATUS.md)
 - [QUICKSTART.md](QUICKSTART.md)
 - [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md)
-- [docs/operations/release-readiness-report-2026-03-16.md](docs/operations/release-readiness-report-2026-03-16.md)

@@ -111,14 +111,14 @@ Metadata migration readiness is now a release-entry gate, not an advisory check.
 Required to proceed with release tagging:
 
 1. `Metadata Provider Fixtures` job passes in latest `ci-backend.yml` on both `develop` and `staging`.
-2. Latest dry-run snapshot passes provenance acceptance gates in `docs/operations/METADATA_MIGRATION_DRY_RUN.md`.
+2. Latest dry-run snapshot passes provenance acceptance gates in [docs/operations/METADATA_MIGRATION_DRY_RUN.md](docs/operations/METADATA_MIGRATION_DRY_RUN.md).
 3. Provider telemetry remains inside warning SLO thresholds in `docs/operations/METADATA_PROVIDER_RUNBOOK.md`.
 4. Any temporary Inventaire kill-switch activation is rolled back and documented.
 
 ## Delivery Process Guardrail
 
 - Scoped commit iteration process is required for migration and hardening slices.
-- Reference: `docs/operations/SCOPED_COMMIT_PROCESS.md` and `CONTRIBUTING.md`.
+- Reference: [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Recommended Operator Checks
 
@@ -141,10 +141,8 @@ python3 scripts/release_readiness_report.py \
 - [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md)
 - [docs/operations/METADATA_PROVIDER_RUNBOOK.md](docs/operations/METADATA_PROVIDER_RUNBOOK.md)
 - [docs/operations/METADATA_MIGRATION_DRY_RUN.md](docs/operations/METADATA_MIGRATION_DRY_RUN.md)
+- [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md)
 - [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md)
 - [docs/operations/install-test-snapshots/2026-03-17.md](docs/operations/install-test-snapshots/2026-03-17.md)
 - [docs/operations/metadata-telemetry-checkpoints/2026-03-17.md](docs/operations/metadata-telemetry-checkpoints/2026-03-17.md)
 - [docs/operations/metadata-dry-run-snapshots/2026-03-17-blocked.md](docs/operations/metadata-dry-run-snapshots/2026-03-17-blocked.md)
-- [docs/operations/release-readiness-report-2026-03-16.md](docs/operations/release-readiness-report-2026-03-16.md)
-- [docs/operations/release-readiness-snapshot-2026-03-17.md](docs/operations/release-readiness-snapshot-2026-03-17.md)
-- [docs/operations/security-drift-cleanup-2026-03-17.md](docs/operations/security-drift-cleanup-2026-03-17.md)

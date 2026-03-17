@@ -1,6 +1,12 @@
+> [!WARNING]
+> **DEPRECATED** — This document has been superseded.
+> Canonical replacement: [Contributing to Bibliophilarr](../../../CONTRIBUTING.md)
+> Reason: Label and triage taxonomy was consolidated into canonical contributor guidance.
+> Deprecation date: 2026-03-17
+
 # Suggested Repository Tags, Labels, and Topics
 
-This file proposes both **GitHub repository topics** and **issue/PR labels** tailored to Bibliophilarr's current phase and roadmap.
+This file proposes both GitHub repository topics and issue/PR labels tailored to Bibliophilarr's current phase and roadmap.
 
 ## 1) Repository Topics (for GitHub repo settings)
 
