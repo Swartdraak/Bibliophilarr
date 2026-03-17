@@ -2,16 +2,11 @@ name: Docs Validation
 
 on:
   pull_request:
-    paths:
-      - '**/*.md'
-      - '.github/workflows/docs-validation.yml'
   push:
     branches:
       - main
       - develop
-    paths:
-      - '**/*.md'
-      - '.github/workflows/docs-validation.yml'
+      - staging
 
 permissions:
   contents: read

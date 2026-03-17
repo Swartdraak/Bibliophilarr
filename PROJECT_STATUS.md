@@ -1,249 +1,80 @@
 # Project Status Summary
 
-**Last Updated**: February 16, 2024  
-**Project**: Bibliophilarr (formerly Readarr)  
-**Current Phase**: Phase 1 - Foundation & Documentation
-
----
+**Last Updated**: March 17, 2026  
+**Project**: Bibliophilarr  
+**Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
 ## Overview
 
-Bibliophilarr is a community-driven fork of Readarr, revived after the original project was retired due to metadata provider issues. We are migrating from proprietary Goodreads metadata to Free and Open Source Software (FOSS) alternatives.
-
-## What Has Been Done ✅
-
-### Documentation (Phase 1) - COMPLETE
-
-- ✅ **README.md**: Updated to reflect active development status
-  - Announces project revival and community focus
-  - Explains FOSS metadata migration
-  - Removes references to retirement
-  - Updates support and contribution information
-
-- ✅ **MIGRATION_PLAN.md**: Comprehensive 26,000+ word technical plan
-  - Current architecture analysis
-  - FOSS provider research and comparison
-  - Multi-provider architecture design
-  - 10-phase implementation plan
-  - Database migration strategy
-  - Testing strategy
-  - Risk analysis and mitigation
-  - Timeline and milestones
-
-- ✅ **ROADMAP.md**: High-level project roadmap
-  - 8 major phases with timelines
-  - Clear milestones and success criteria
-  - Long-term vision
-  - Ways to contribute
-  - Status tracking
-
-- ✅ **CONTRIBUTING.md**: Updated contributor guide
-  - Priority contribution areas
-  - Development setup instructions
-  - Code style guidelines
-  - PR process
-  - Community resources
-
-- ✅ **QUICKSTART.md**: Quick start guide for new contributors
-  - Essential reading list
-  - Quick setup steps
-  - Key directories and files
-  - Learning resources
-  - Next steps
-
-- ✅ **package.json**: Updated project metadata
-  - Project name changed to "bibliophilarr"
-  - Repository URL updated
-  - Author attribution updated
-
-### Architecture Analysis
-
-- ✅ Comprehensive codebase exploration
-- ✅ Metadata provider architecture documented
-- ✅ Current Goodreads dependencies identified
-- ✅ Interface hierarchy mapped
-- ✅ Testing infrastructure understood
-
-### Research
-
-- ✅ **FOSS Metadata Providers Evaluated:**
-  - Open Library (primary choice - 20M+ books, AGPL)
-  - Inventaire.io (secondary - Wikidata-based, AGPL)
-  - Google Books (fallback - comprehensive but proprietary)
-  - BookBrainz (future consideration)
-  
-- ✅ **API Comparison Matrix Created**
-- ✅ **Provider Capabilities Documented**
-- ✅ **Rate Limiting Strategies Defined**
+Bibliophilarr is a community-driven continuation focused on replacing fragile or proprietary metadata dependencies with sustainable FOSS providers while keeping library automation reliable and observable.
 
-## What Needs to Be Done 📋
-
-### Immediate Next Steps (Phase 1 Completion)
+## Current Operational State
 
-- [ ] Community engagement and recruitment
-- [ ] Set up Discord or communication channel
-- [ ] Create GitHub project board for task tracking
-- [ ] Set up continuous integration for documentation
+- Protected branches `develop`, `staging`, and `main` now use the same required contexts:
+  - `build-test`
+  - `Markdown lint`
+  - `triage`
+  - `Staging Smoke Metadata Telemetry / smoke-metadata-telemetry`
+- Required approving review count is `0` across those protected branches.
+- Phase 6 packaging validation is green on both `develop` and `staging` across the `binary`, `docker`, and `npm` lanes.
+- Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
-### Phase 2: Infrastructure (Weeks 5-8)
+## Latest Delivery Update
 
-- [ ] Design provider interface v2
-- [ ] Implement provider registry
-- [ ] Build metadata quality scorer
-- [ ] Create testing framework
-- [ ] Set up monitoring/logging
+- Added manual and scheduled workflow support for:
+  - `.github/workflows/release-readiness-report.yml`
+  - `.github/workflows/branch-policy-audit.yml`
+- Added supporting operational scripts:
+  - `scripts/release_readiness_report.py`
+  - `scripts/dependabot_lockfile_triage.py`
+  - `scripts/audit_branch_protection.py`
+- Added main-compatible staging smoke workflow support so the required smoke context is declared and can execute against both legacy and current branch layouts.
+- Refreshed contributor and operator documentation for branch protection and release-readiness workflows.
 
-### Phase 3: Open Library Provider (Weeks 9-14)
+## What Is Complete
 
-- [ ] Implement Open Library API client
-- [ ] Map Open Library data to Bibliophilarr models
-- [ ] Search functionality
-- [ ] ISBN/ASIN lookup
-- [ ] Author information retrieval
-- [ ] Cover image handling
-- [ ] Rate limiting
-- [ ] Comprehensive testing
+### Metadata migration foundation
 
-### Subsequent Phases
+- Migration roadmap and architecture are documented in [MIGRATION_PLAN.md](MIGRATION_PLAN.md) and [ROADMAP.md](ROADMAP.md).
+- Provider-consolidation work is active in the `develop` and `staging` lanes.
+- Phase 5 rollout controls and telemetry slices are in place.
 
-See [ROADMAP.md](ROADMAP.md) for complete phase breakdown.
+### Operational hardening
 
-## Key Decisions Made
+- Required checks emit consistently for protected branches.
+- Branch policy drift can be audited with `scripts/audit_branch_protection.py`.
+- Release readiness can be summarized with `scripts/release_readiness_report.py`.
+- Dependabot alert state can be compared against `yarn.lock` with `scripts/dependabot_lockfile_triage.py`.
 
-### Architecture
+### Packaging validation
 
-1. **Multi-provider approach** with fallback and aggregation
-2. **Open Library as primary provider** due to size, license, and features
-3. **Inventaire as secondary** for additional coverage
-4. **Google Books as tertiary fallback** for critical gaps
-5. **ISBN as primary external identifier** (more universal than provider-specific IDs)
+- Phase 6 packaging validation runs on `develop` and `staging`.
+- The latest validated matrix state is green for binary, Docker, and npm installation paths.
 
-### Database
+## Current Risks And Follow-Up Areas
 
-1. **Extend existing schema** rather than complete rewrite
-2. **Add multiple identifier columns** for each provider
-3. **Maintain Goodreads IDs** for backward compatibility during migration
-4. **Create mapping table** for ID resolution
+- GitHub still reports 8 open Dependabot alerts, so dependency graph refresh and residual remediation remain active work.
+- `main` can now host the manual readiness workflows, but broader release workflows are still aligned primarily with the active delivery lanes.
+- Packaging validation is green on `develop` and `staging`; `main` is receiving the audit and readiness automation first so operators can dispatch reports from the default branch.
 
-### Migration Strategy
+## Recommended Operator Checks
 
-1. **Gradual migration** - not forced on users immediately
-2. **Multiple ID mapping strategies** (ISBN from files, title/author matching, etc.)
-3. **User control** - allow manual overrides and provider selection
-4. **Backward compatibility** - support existing Goodreads-based libraries
+Run these after significant branch-policy or release-readiness changes:
 
-### Quality Assurance
+```bash
+python3 scripts/audit_branch_protection.py \
+  --branches develop staging main \
+  --expected-review-count 0
 
-1. **Metadata quality scoring** to compare provider results
-2. **Multi-provider aggregation** for best possible metadata
-3. **User reporting tools** for metadata issues
-4. **Community contribution** pathways
+python3 scripts/release_readiness_report.py \
+  --branches develop staging main \
+  --md-out _artifacts/release-readiness/release-readiness.md \
+  --json-out _artifacts/release-readiness/release-readiness.json
+```
 
-## Current Challenges
+## Related Documents
 
-### Technical
-
-- Rate limiting with Open Library (100 req/5min default)
-- ISBN mapping for existing Goodreads-based libraries
-- Handling books without ISBNs
-- Series information (less robust in Open Library)
-- Metadata quality variance
-
-### Community
-
-- Need contributors, especially C# developers
-- Need beta testers with various library sizes
-- Documentation needs ongoing maintenance
-- Community communication channels needed
-
-### Timeline
-
-- Ambitious 30+ week timeline
-- Dependent on volunteer contributions
-- May need adjustment based on resources
-
-## Success Metrics
-
-### Phase 1 (Current) ✅
-
-- [x] Comprehensive documentation created
-- [x] Architecture understood
-- [x] FOSS providers researched
-- [x] Implementation plan defined
-
-### Phase 2 (Next)
-
-- [ ] Provider interfaces implemented
-- [ ] Testing framework operational
-- [ ] Quality scoring functional
-- [ ] Can load and manage multiple providers
-
-### Phase 3
-
-- [ ] Open Library provider fully functional
-- [ ] Performance acceptable (< 1s for searches)
-- [ ] 90%+ test coverage
-- [ ] Can replace Goodreads for basic operations
-
-### Final Success (v1.0)
-
-- [ ] Multiple FOSS providers working
-- [ ] User libraries successfully migrated
-- [ ] Better metadata quality than Goodreads
-- [ ] Active community maintaining project
-- [ ] No dependency on proprietary services
-
-## Resources
-
-### Documentation
-
-- [README.md](README.md) - Project overview
-- [MIGRATION_PLAN.md](MIGRATION_PLAN.md) - Detailed technical plan
-- [ROADMAP.md](ROADMAP.md) - High-level roadmap
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guide
-- [QUICKSTART.md](QUICKSTART.md) - Quick start for contributors
-
-### External Resources
-
-- [Open Library API](https://openlibrary.org/developers/api)
-- [Inventaire API](https://api.inventaire.io/)
-- [Original Readarr](https://github.com/Readarr/Readarr)
-- [Servarr Wiki](https://wiki.servarr.com/readarr)
-
-### Repository
-
-- **GitHub**: <https://github.com/Swartdraak/Bibliophilarr>
-- **Issues**: <https://github.com/Swartdraak/Bibliophilarr/issues>
-- **Discussions**: <https://github.com/Swartdraak/Bibliophilarr/discussions>
-
-## How to Help
-
-We need:
-
-1. **Developers** (C#, TypeScript/React) - Implement providers
-2. **Testers** - Test with real libraries
-3. **Writers** - Improve documentation
-4. **Users** - Provide feedback and requirements
-5. **Advocates** - Spread the word
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
-
----
-
-## Summary
-
-**Bibliophilarr Phase 1 is substantially complete.** We have:
-
-- Clear understanding of the current architecture
-- Comprehensive technical plan for migration
-- Research on FOSS alternatives
-- Complete documentation for contributors
-- Path forward to Phase 2
-
-**Next major milestone**: Complete Phase 2 infrastructure by Week 8, enabling provider development to begin.
-
-**Project Health**: 🟢 Healthy - Well planned, clear direction, ready for contributors
-
----
-
-**Questions?** Open a discussion on GitHub or check the documentation!
+- [QUICKSTART.md](QUICKSTART.md)
+- [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md)
+- [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md)
+- [docs/operations/release-readiness-report-2026-03-16.md](docs/operations/release-readiness-report-2026-03-16.md)

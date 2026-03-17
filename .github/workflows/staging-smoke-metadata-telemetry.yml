@@ -1,0 +1,138 @@
+---
+name: Staging Smoke Metadata Telemetry
+
+"on":
+  pull_request:
+    branches:
+      - develop
+      - staging
+      - main
+  push:
+    branches:
+      - develop
+      - staging
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-metadata-telemetry:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Restore and build
+        run: |
+          ./build.sh --backend -r linux-x64 -f net8.0
+
+      - name: Prepare isolated appdata
+        run: |
+          mkdir -p /tmp/bibliophilarr-smoke
+          cat > /tmp/bibliophilarr-smoke/config.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <Config>
+            <ApiKey>smoke-ci-key</ApiKey>
+            <LogLevel>trace</LogLevel>
+            <AnalyticsEnabled>false</AnalyticsEnabled>
+            <AuthenticationMethod>Forms</AuthenticationMethod>
+            <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>
+            <Port>8793</Port>
+          </Config>
+          EOF
+
+      - name: Start service
+        run: |
+          mkdir -p _artifacts/staging-smoke
+          app_path=""
+          for candidate in \
+            ./_output/net8.0/Bibliophilarr \
+            ./_output/net8.0/Readarr \
+            ./_output/net8.0/linux-x64/publish/Bibliophilarr \
+            ./_output/net8.0/linux-x64/publish/Readarr \
+            ./_output/net8.0/linux-x64/Bibliophilarr \
+            ./_output/net8.0/linux-x64/Readarr \
+            ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
+            ./_artifacts/linux-x64/net8.0/Readarr/Readarr; do
+            if [ -x "$candidate" ]; then
+              app_path="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$app_path" ]; then
+            echo "No runnable application binary found"
+            find ./_output ./_artifacts -maxdepth 5 -type f \( -name Readarr -o -name Bibliophilarr \) 2>/dev/null || true
+            exit 1
+          fi
+
+          DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+            timeout 180s "$app_path" \
+            /data=/tmp/bibliophilarr-smoke \
+            /nobrowser /nosingleinstancecheck \
+            > _artifacts/staging-smoke/service.log 2>&1 &
+          echo $! > _artifacts/staging-smoke/service.pid
+
+      - name: Wait for health endpoint
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://127.0.0.1:8793/ping" || true)
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Service did not become ready"
+          exit 1
+
+      - name: Validate telemetry endpoints
+        run: |
+          branch_name="${GITHUB_BASE_REF:-${GITHUB_REF_NAME}}"
+
+          providers_code=$(curl -sS -o _artifacts/staging-smoke/providers-health.json \
+            -w "%{http_code}" -H "X-Api-Key: smoke-ci-key" \
+            "http://127.0.0.1:8793/api/v1/metadata/providers/health" || true)
+
+          telemetry_code=$(curl -sS -o _artifacts/staging-smoke/conflict-telemetry.json \
+            -w "%{http_code}" -H "X-Api-Key: smoke-ci-key" \
+            "http://127.0.0.1:8793/api/v1/metadata/conflicts/telemetry" || true)
+
+          if [ "$providers_code" = "200" ] && [ "$telemetry_code" = "200" ]; then
+            exit 0
+          fi
+
+          if [ "$branch_name" = "main" ] && \
+             [ "$providers_code" = "404" ] && \
+             [ "$telemetry_code" = "404" ]; then
+            printf '{"mode":"main-compatibility","providers_health":%s,"conflict_telemetry":%s}\n' \
+              "$providers_code" "$telemetry_code" \
+              > _artifacts/staging-smoke/telemetry-compatibility-note.json
+            exit 0
+          fi
+
+          echo "Unexpected telemetry response codes: providers=$providers_code telemetry=$telemetry_code"
+          exit 1
+
+      - name: Stop service
+        if: always()
+        run: |
+          if [ -f _artifacts/staging-smoke/service.pid ]; then
+            kill "$(cat _artifacts/staging-smoke/service.pid)" || true
+          fi
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smoke-metadata-telemetry
+          path: _artifacts/staging-smoke
