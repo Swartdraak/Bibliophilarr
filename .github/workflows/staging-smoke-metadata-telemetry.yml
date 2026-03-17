@@ -56,13 +56,9 @@ jobs:
           app_path=""
           for candidate in \
             ./_output/net8.0/Bibliophilarr \
-            ./_output/net8.0/Readarr \
             ./_output/net8.0/linux-x64/publish/Bibliophilarr \
-            ./_output/net8.0/linux-x64/publish/Readarr \
             ./_output/net8.0/linux-x64/Bibliophilarr \
-            ./_output/net8.0/linux-x64/Readarr \
-            ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
-            ./_artifacts/linux-x64/net8.0/Readarr/Readarr; do
+            ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr; do
             if [ -x "$candidate" ]; then
               app_path="$candidate"
               break
@@ -71,7 +67,7 @@ jobs:
 
           if [ -z "$app_path" ]; then
             echo "No runnable application binary found"
-            find ./_output ./_artifacts -maxdepth 5 -type f \( -name Readarr -o -name Bibliophilarr \) 2>/dev/null || true
+            find ./_output ./_artifacts -maxdepth 5 -type f -name Bibliophilarr 2>/dev/null || true
             exit 1
           fi
 
@@ -103,9 +99,9 @@ jobs:
             -w "%{http_code}" -H "X-Api-Key: smoke-ci-key" \
             "http://127.0.0.1:8793/api/v1/metadata/providers/health" || true)
 
-          telemetry_code=$(curl -sS -o _artifacts/staging-smoke/conflict-telemetry.json \
+          telemetry_code=$(curl -sS -o _artifacts/staging-smoke/provider-telemetry.json \
             -w "%{http_code}" -H "X-Api-Key: smoke-ci-key" \
-            "http://127.0.0.1:8793/api/v1/metadata/conflicts/telemetry" || true)
+            "http://127.0.0.1:8793/api/v1/metadata/providers/telemetry" || true)
 
           if [ "$providers_code" = "200" ] && [ "$telemetry_code" = "200" ]; then
             exit 0
