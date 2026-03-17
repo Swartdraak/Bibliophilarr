@@ -23,8 +23,18 @@ using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace NzbDrone.Core.MetadataSource.BookInfo
 {
-    public class BookInfoProxy : IProvideAuthorInfo, IProvideBookInfo, ISearchForNewBook, ISearchForNewAuthor, ISearchForNewEntity
+    public class BookInfoProxy : IProvideAuthorInfo, IProvideBookInfo, ISearchForNewBook, ISearchForNewAuthor, ISearchForNewEntity, IMetadataProvider
     {
+        // IMetadataProvider
+        public string ProviderName => "BookInfo";
+        public int Priority => 1;
+        public bool IsEnabled => true;
+        public bool SupportsAuthorSearch => true;
+        public bool SupportsBookSearch => true;
+        public bool SupportsIsbnLookup => true;
+        public bool SupportsSeriesInfo => true;
+        public bool SupportsCoverImages => true;
+
         private static readonly JsonSerializerOptions SerializerSettings = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = false,
@@ -298,7 +308,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
                 catch (HttpException ex)
                 {
                     _logger.Warn(ex);
-                    throw new BookInfoException("Search for '{0}' failed. Unable to communicate with ReadarrAPI, returning status code: {1}.", ex, query, ex.Response.StatusCode);
+                    throw new BookInfoException("Search for '{0}' failed. Unable to communicate with BibliophilarrAPI, returning status code: {1}.", ex, query, ex.Response.StatusCode);
                 }
                 catch (Exception e)
                 {
@@ -355,7 +365,28 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
             }
         }
 
-        public List<Book> SearchByGoodreadsBookId(int id, bool getAllEditions)
+        public List<Book> SearchByExternalId(string idType, string id)
+        {
+            if (idType == "goodreads" && int.TryParse(id, out var goodreadsId))
+            {
+                return SearchByGoodreadsBookId(goodreadsId, true);
+            }
+
+            if (idType == "isbn")
+            {
+                return SearchByIsbn(id);
+            }
+
+            if (idType == "asin")
+            {
+                return SearchByAsin(id);
+            }
+
+            _logger.Debug("BookInfoProxy does not support id type '{0}'; returning empty.", idType);
+            return new List<Book>();
+        }
+
+        private List<Book> SearchByGoodreadsBookId(int id, bool getAllEditions)
         {
             try
             {

@@ -250,24 +250,21 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (goodreads.Count == 1 &&
                 goodreads[0].IsNotNullOrWhiteSpace())
             {
-                if (int.TryParse(goodreads[0], out var id))
+                _logger.Trace($"Searching by goodreads id {goodreads[0]}");
+
+                try
                 {
-                    _logger.Trace($"Searching by goodreads id {id}");
+                    remoteBooks = _bookSearchService.SearchByExternalId("goodreads", goodreads[0]);
+                }
+                catch (GoodreadsException e)
+                {
+                    _logger.Info(e, "Skipping Goodreads ID search due to Goodreads Error");
+                    remoteBooks = new List<Book>();
+                }
 
-                    try
-                    {
-                        remoteBooks = _bookSearchService.SearchByGoodreadsBookId(id, true);
-                    }
-                    catch (GoodreadsException e)
-                    {
-                        _logger.Info(e, "Skipping Goodreads ID search due to Goodreads Error");
-                        remoteBooks = new List<Book>();
-                    }
-
-                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
-                    {
-                        yield return candidate;
-                    }
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                {
+                    yield return candidate;
                 }
             }
 

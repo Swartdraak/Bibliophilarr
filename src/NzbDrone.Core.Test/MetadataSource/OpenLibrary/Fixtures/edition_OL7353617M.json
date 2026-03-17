@@ -1,0 +1,13 @@
+{
+  "key": "/books/OL7353617M",
+  "title": "The Fellowship of the Ring",
+  "isbn_13": ["9780618346257"],
+  "isbn_10": ["0618346252"],
+  "publishers": ["Houghton Mifflin"],
+  "publish_date": "October 2004",
+  "covers": [240726],
+  "works": [{"key": "/works/OL45883W"}],
+  "authors": [{"key": "/authors/OL26320A"}],
+  "number_of_pages": 398,
+  "physical_format": "Hardcover"
+}

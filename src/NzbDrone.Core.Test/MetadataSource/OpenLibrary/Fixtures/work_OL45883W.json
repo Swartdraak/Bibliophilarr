@@ -1,0 +1,17 @@
+{
+  "key": "/works/OL45883W",
+  "title": "The Lord of the Rings",
+  "description": {
+    "type": "/type/text",
+    "value": "An epic high-fantasy novel by J.R.R. Tolkien."
+  },
+  "covers": [8739161, 12345],
+  "subjects": ["Fantasy fiction", "Rings", "Fiction", "Magic"],
+  "authors": [
+    {
+      "author": { "key": "/authors/OL26320A" },
+      "type": { "key": "/type/author_role" }
+    }
+  ],
+  "first_publish_date": "1954"
+}

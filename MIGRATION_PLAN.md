@@ -315,6 +315,34 @@ public class MetadataCacheManager
 
 ## Implementation Phases
 
+### Session Progress Update (2026-03-17)
+
+Completed in code on branch `feature/open-library-provider-2026-03-17`:
+
+- Added provider abstraction and fallback orchestration:
+    - `IMetadataProvider`
+    - `IMetadataProviderRegistry`
+    - `MetadataProviderRegistry`
+- Refactored search abstraction to be provider-agnostic:
+    - `ISearchForNewBook.SearchByExternalId(string idType, string id)` replaces direct `SearchByGoodreadsBookId(...)` interface usage
+- Implemented Open Library provider stack:
+    - `OpenLibraryClient` with endpoint wrappers (`/search`, `/works`, `/authors`, `/isbn`, `/books`) and 429 retry handling
+    - `OpenLibraryMapper` with deterministic resource-to-domain mapping
+    - `OpenLibraryProvider` implementing search and metadata interfaces with priority-based fallback role
+    - Open Library resource DTOs and `OpenLibraryException`
+- Added additive database migration for Open Library foreign IDs:
+    - `041_add_open_library_ids.cs`
+    - `Book.OpenLibraryWorkId`
+    - `AuthorMetadata.OpenLibraryAuthorId`
+- Updated import/sync path to remove direct Goodreads proxy coupling in `ImportListSyncService` by using `ISearchForNewBook` abstraction.
+
+Validation status:
+
+- `Bibliophilarr.Core.csproj` builds cleanly (0 errors).
+- `Bibliophilarr.Core.Test.csproj` builds cleanly (0 errors).
+- Open Library mapper and model equality tests pass.
+- Provider fixture tests currently fail due to pre-existing test harness platform assembly naming mismatch (`AutoMoqer.LoadPlatformLibrary()` expected name does not match embedded mono assembly name), not due to Open Library implementation logic.
+
 ### Phase 1: Foundation & Documentation ✓
 
 **Status**: Current Phase
@@ -333,7 +361,9 @@ public class MetadataCacheManager
 - Updated README.md
 - Contributor guidelines for metadata work
 
-### Phase 2: Infrastructure Setup
+### Phase 2: Infrastructure Setup ✓
+
+**Status**: Completed (core slice)
 
 **Tasks:**
 
@@ -345,12 +375,25 @@ public class MetadataCacheManager
 
 **Deliverables:**
 
-- `IMetadataProviderV2` interface hierarchy
+- `IMetadataProvider` interface hierarchy
 - `MetadataProviderRegistry` service
 - `MetadataQualityScorer` implementation
 - Unit test framework for providers
 
-### Phase 3: Open Library Provider Implementation
+**Completed this phase:**
+
+- `IMetadataProvider` and `IMetadataProviderRegistry`
+- `MetadataProviderRegistry` priority-based fallback execution
+- Provider abstraction wiring for `BookInfoProxy` (priority 1) and Open Library (priority 2)
+
+**Deferred to later phases:**
+
+- Metadata quality scorer
+- Expanded provider health/telemetry and scoring instrumentation
+
+### Phase 3: Open Library Provider Implementation ✓
+
+**Status**: Implemented and partially validated
 
 **Tasks:**
 
@@ -379,12 +422,24 @@ src/NzbDrone.Core/MetadataSource/OpenLibrary/
   ├── OpenLibraryClient.cs
   ├── OpenLibraryMapper.cs
   ├── Resources/
-  │   ├── WorkResource.cs
-  │   ├── EditionResource.cs
-  │   ├── AuthorResource.cs
-  │   └── SearchResultResource.cs
+    │   ├── OlWorkResource.cs
+    │   ├── OlEditionResource.cs
+    │   ├── OlAuthorResource.cs
+    │   ├── OlSearchDoc.cs
+    │   └── OlSearchResponse.cs
   └── OpenLibraryException.cs
 ```
+
+**Completed this phase:**
+
+- Open Library client, mapper, provider, resources, and exception types
+- Identifier search support (`isbn`, `olid`) and explicit unsupported handling (`asin`, `goodreads`)
+- 429 retry and retry-after parsing in client
+- Unit test coverage for mapper and provider behavior
+
+**Known validation gap:**
+
+- Provider fixture execution is blocked by existing test harness assembly load mismatch and needs a dedicated infrastructure fix before full provider fixture green status can be asserted.
 
 ### Phase 4: Inventaire Provider Implementation
 

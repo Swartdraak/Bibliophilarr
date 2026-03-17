@@ -1,0 +1,37 @@
+{
+  "numFound": 2,
+  "start": 0,
+  "numFoundExact": true,
+  "docs": [
+    {
+      "key": "/works/OL45883W",
+      "title": "The Lord of the Rings",
+      "author_name": ["J.R.R. Tolkien"],
+      "author_key": ["/authors/OL26320A"],
+      "isbn": ["0618346252", "9780618346257"],
+      "cover_i": 8739161,
+      "first_publish_year": 1954,
+      "number_of_pages_median": 1200,
+      "language": ["eng"],
+      "subject": ["Fantasy fiction", "Rings", "Fiction", "Magic"],
+      "ratings_average": 4.5,
+      "ratings_count": 1000,
+      "edition_count": 50
+    },
+    {
+      "key": "/works/OL102749W",
+      "title": "The Hobbit",
+      "author_name": ["J.R.R. Tolkien"],
+      "author_key": ["/authors/OL26320A"],
+      "isbn": ["9780547928227"],
+      "cover_i": 8406786,
+      "first_publish_year": 1937,
+      "number_of_pages_median": 300,
+      "language": ["eng"],
+      "subject": ["Fantasy fiction", "Dragons"],
+      "ratings_average": 4.3,
+      "ratings_count": 800,
+      "edition_count": 30
+    }
+  ]
+}
