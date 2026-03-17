@@ -32,28 +32,47 @@ jobs:
           global-json-file: global.json
 
       - name: Restore and build
-        working-directory: src
         run: |
-          dotnet restore Bibliophilarr.sln -p:Platform=Posix
-          dotnet build Bibliophilarr.sln --configuration Release \
-            --no-restore -p:Platform=Posix
+          ./build.sh --backend -r linux-x64 -f net8.0
 
-      - name: Prepare isolated appdata with high-verbosity profile
+      - name: Prepare isolated appdata
         run: |
           mkdir -p /tmp/bibliophilarr-smoke
-          cp tests/profiles/packaging-high-verbosity.config.xml \
-            /tmp/bibliophilarr-smoke/config.xml
-          sed -i 's#<Port>8787</Port>#<Port>8793</Port>#' \
-            /tmp/bibliophilarr-smoke/config.xml
-          api_key_pattern='s#<ApiKey>packaging-ci-key</ApiKey>#'
-          api_key_pattern+='<ApiKey>smoke-ci-key</ApiKey>#'
-          sed -i "${api_key_pattern}" /tmp/bibliophilarr-smoke/config.xml
+          cat > /tmp/bibliophilarr-smoke/config.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <Config>
+            <ApiKey>smoke-ci-key</ApiKey>
+            <LogLevel>trace</LogLevel>
+            <AnalyticsEnabled>false</AnalyticsEnabled>
+            <AuthenticationMethod>Forms</AuthenticationMethod>
+            <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>
+            <Port>8793</Port>
+          </Config>
+          EOF
 
       - name: Start service
         run: |
           mkdir -p _artifacts/staging-smoke
+          app_path=""
+          for candidate in \
+            ./_output/net8.0/Bibliophilarr \
+            ./_output/net8.0/Readarr \
+            ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
+            ./_artifacts/linux-x64/net8.0/Readarr/Readarr; do
+            if [ -x "$candidate" ]; then
+              app_path="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$app_path" ]; then
+            echo "No runnable application binary found"
+            find ./_output ./_artifacts -maxdepth 5 -type f \( -name Readarr -o -name Bibliophilarr \) 2>/dev/null || true
+            exit 1
+          fi
+
           DOTNET_CLI_TELEMETRY_OPTOUT=1 \
-            timeout 180s ./_output/net8.0/Bibliophilarr \
+            timeout 180s "$app_path" \
             /data=/tmp/bibliophilarr-smoke \
             /nobrowser /nosingleinstancecheck \
             > _artifacts/staging-smoke/service.log 2>&1 &
