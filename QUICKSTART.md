@@ -1,208 +1,126 @@
-# Quick Start Guide for Contributors
+# Quick start
 
-Welcome to Bibliophilarr! This guide will help you get started quickly.
+Use this guide to get a working local checkout, run the common validation
+commands, and understand which docs are authoritative.
 
-## 📚 Essential Reading
+## Read first
 
-Start with these documents in order:
+Start in this order:
 
-1. **[README.md](README.md)** - Project overview and current status
-2. **[ROADMAP.md](ROADMAP.md)** - High-level phases and milestones
-3. **[MIGRATION_PLAN.md](MIGRATION_PLAN.md)** - Detailed technical plan
-4. **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute
+1. [README.md](README.md)
+2. [ROADMAP.md](ROADMAP.md)
+3. [MIGRATION_PLAN.md](MIGRATION_PLAN.md)
+4. [CONTRIBUTING.md](CONTRIBUTING.md)
 
-## 🎯 Current Focus
+## Prerequisites
 
-**We're in Phase 5 consolidation with Phase 6 hardening active.**
-
-Immediate priorities:
-
-- keep protected-branch merge gates deterministic
-- validate packaging paths (binary/docker/npm) continuously
-- maintain release readiness and security-drift visibility
-
-## 🚀 Quick Setup
-
-### Prerequisites
-
-- .NET 8.0+ SDK (LTS)
-- Node.js 20.x and Yarn 1.22.x
+- .NET 8 SDK
+- Node.js 20.x
+- Yarn 1.22.x
 - Git
 
-### Clone and Build
+The repository currently builds from the root. Frontend assets are bundled via
+the root `package.json`, not from a separate npm launcher package.
+
+## Clone and install
 
 ```bash
-# Clone your fork
 git clone https://github.com/YOUR_USERNAME/Bibliophilarr.git
 cd Bibliophilarr
 
-# Initialize local branch lanes used by automation
-./scripts/init-branch-schema.sh
+yarn install --frozen-lockfile
+dotnet restore src/Readarr.sln
+```
 
-# Build backend
-cd src
-dotnet restore
-dotnet build
+## Build and run
 
-# Build frontend
-cd ../frontend
-yarn install
+For a basic local build:
+
+```bash
+dotnet msbuild -restore src/Readarr.sln \
+  -p:Configuration=Debug \
+  -p:Platform=Posix
+
 yarn build
-
-# Run tests
-cd ../src
-dotnet test
 ```
 
-### Running Locally
+For the repository build script:
 
 ```bash
-# From repository root
-./build.sh --configuration Debug
-
-# The app will be available at http://localhost:8787
+./build.sh
 ```
 
-### Environment Configuration
+## Test
+
+Run targeted checks first, then broader validation if your slice changes build,
+metadata, or packaging behavior.
+
+Common commands:
 
 ```bash
-# From repository root
-cp .env.example .env
+dotnet test src/Readarr.sln
+yarn lint
+yarn build
 ```
 
-Notes:
-
-- `.env` is ignored by git and should stay local.
-- PostgreSQL keys use `Bibliophilarr__Postgres__*` only.
-- Leave PostgreSQL values unset to run with default SQLite settings.
-
-## Release-Oriented Local Checks
+For the legacy shell-based test runner:
 
 ```bash
-# Build release artifacts for linux-x64
-./build.sh --backend -r linux-x64 -f net8.0
-./build.sh --frontend
-./build.sh --packages -r linux-x64 -f net8.0
+./test.sh Linux Unit Test
+```
 
-# Build production container image
+## Install-readiness loop
+
+Use this loop for startup, packaging, updater, or metadata-provider changes.
+
+```bash
+./build.sh
 docker build -t bibliophilarr:local .
 docker run --rm -d -p 8787:8787 --name bibliophilarr-local bibliophilarr:local
 docker logs bibliophilarr-local | tail -n 100
 docker rm -f bibliophilarr-local
 ```
 
-See [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md) for full release workflow usage.
+Capture:
 
-## Branch Policy and Merge Reliability Checks
+1. Commands executed
+2. OS and runtime versions
+3. Health checks such as `/ping`
+4. Any rollback or mitigation notes
+
+Store dated evidence in
+[docs/operations/install-test-snapshots](docs/operations/install-test-snapshots).
+
+## Branch and readiness checks
+
+Use these when changing protected-branch policy, readiness automation, or merge
+reliability.
 
 ```bash
-# Apply branch protection baseline (develop/staging/main)
-chmod +x scripts/apply_branch_protection.sh
-scripts/apply_branch_protection.sh develop staging main
-
-# Audit branch-protection drift
 python3 scripts/audit_branch_protection.py \
-   --branches develop staging main \
-   --expected-review-count 0
+  --branches develop staging main \
+  --expected-review-count 0
 
-# Merge a green PR with CLI fallback reliability
-chmod +x scripts/merge_pr_reliably.sh
-scripts/merge_pr_reliably.sh <PR_NUMBER> merge
+python3 scripts/release_readiness_report.py \
+  --branches develop staging main
 ```
 
-See [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md) and [docs/operations/gh-pr-merge-cli-mismatch-2026-03-16.md](docs/operations/gh-pr-merge-cli-mismatch-2026-03-16.md).
+Related runbooks:
 
-## 💡 Easy First Contributions
+- [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md)
+- [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md)
 
-### Documentation
+## Codebase orientation
 
-- Fix typos or improve clarity
-- Add examples to MIGRATION_PLAN.md
-- Create diagrams for architecture
-- Write user guides
+Important areas:
 
-### Research
+- `src/NzbDrone.Core/MetadataSource` for provider interfaces and implementations
+- `src/Readarr.Api.V1` for API resources and controllers
+- `frontend` for UI code
+- `docs/operations` for operator runbooks and dated evidence
 
-- Test Open Library API and document findings
-- Compare metadata quality across providers
-- Document edge cases in book identification
-- Research ISBN mapping strategies
+## References
 
-### Planning
-
-- Review and provide feedback on MIGRATION_PLAN.md
-- Suggest improvements to architecture
-- Identify potential issues
-- Propose testing strategies
-
-## 🔍 Understanding the Codebase
-
-### Key Directories
-
-```
-Bibliophilarr/
-├── src/
-│   ├── NzbDrone.Core/           # Core business logic
-│   │   ├── MetadataSource/      # 🎯 Metadata providers (our focus!)
-│   │   ├── Books/               # Book and author models
-│   │   └── ...
-│   ├── Bibliophilarr.Api.V1/          # REST API
-│   └── ...
-├── frontend/                     # React UI
-├── MIGRATION_PLAN.md            # 📋 Detailed technical plan
-├── ROADMAP.md                   # 🗺️ High-level roadmap
-└── CONTRIBUTING.md              # 🤝 Contribution guide
-```
-
-### Important Files for Metadata Work
-
-```
-src/NzbDrone.Core/MetadataSource/
-├── IProvideBookInfo.cs          # Book metadata interface
-├── ISearchForNewBook.cs         # Book search interface
-├── IProvideAuthorInfo.cs        # Author metadata interface
-├── BookInfo/                    # Current metadata provider
-│   └── BookInfoProxy.cs         # Main implementation
-└── Goodreads/                   # Legacy provider (to be replaced)
-    └── GoodreadsProxy.cs
-```
-
-## 🎓 Learning Resources
-
-### Understanding Metadata Providers
-
-1. **Open Library**
-   - Docs: <https://openlibrary.org/developers/api>
-   - Try it: <https://openlibrary.org/search.json?q=foundation+asimov>
-
-2. **Inventaire**
-   - Docs: <https://api.inventaire.io/>
-   - Try it: <https://inventaire.io/api/search?types=works&search=foundation>
-
-3. **Current Implementation**
-   - Read `src/NzbDrone.Core/MetadataSource/BookInfo/BookInfoProxy.cs`
-   - Understand how it implements `IProvideBookInfo`, `ISearchForNewBook`, etc.
-
-## 🤝 Getting Help
-
-- **Questions?** Open a GitHub Discussion
-- **Found a bug?** Create an issue
-- **Need clarification?** Ask in pull request comments
-
-## 📋 Next Steps
-
-1. ✅ Read this guide
-2. ✅ Read the essential documents
-3. ✅ Set up your development environment
-4. ✅ Build and run the project locally
-5. 👉 Pick a task from [CONTRIBUTING.md](CONTRIBUTING.md)
-6. 👉 Run branch-policy audit and release-readiness scripts before opening a PR
-7. 👉 Make your contribution and open a pull request
-
-## 🎉 Welcome
-
-Thank you for contributing to Bibliophilarr! Every contribution, no matter how small, helps revive this project and build a sustainable future for book management.
-
----
-
-**Still have questions?** Don't hesitate to ask! We're here to help.
+1. [package.json](package.json) — root frontend commands and toolchain versions.
+2. [build.sh](build.sh) — repository build entrypoint.
+3. [test.sh](test.sh) — shell-based test runner arguments.

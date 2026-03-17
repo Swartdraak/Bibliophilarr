@@ -1,0 +1,54 @@
+name: metadata-migration-dry-run
+
+on:
+  workflow_dispatch:
+    inputs:
+      skipCommand:
+        description: "Skip triggering backfill command"
+        required: false
+        default: "false"
+      maxLookups:
+        description: "Maximum backfill lookups"
+        required: false
+        default: "200"
+  schedule:
+    - cron: "15 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run migration dry-run metrics capture
+        env:
+          BIBLIOPHILARR_STAGING_BASE_URL: ${{ secrets.BIBLIOPHILARR_STAGING_BASE_URL }}
+          BIBLIOPHILARR_API_KEY: ${{ secrets.BIBLIOPHILARR_API_KEY }}
+          SKIP_COMMAND: ${{ github.event.inputs.skipCommand || 'false' }}
+          MAX_LOOKUPS: ${{ github.event.inputs.maxLookups || '200' }}
+        run: |
+          EXTRA_ARGS=""
+          if [ "$SKIP_COMMAND" = "true" ]; then
+            EXTRA_ARGS="--skip-command"
+          fi
+
+          python3 scripts/metadata_migration_dry_run.py \
+            --max-lookups "$MAX_LOOKUPS" \
+            --enforce-gates \
+            $EXTRA_ARGS
+
+      - name: Upload dry-run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metadata-dry-run-${{ github.run_id }}
+          path: _artifacts/metadata-dry-run/

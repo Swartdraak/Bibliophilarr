@@ -65,6 +65,19 @@ namespace NzbDrone.Integration.Test
             indexer.Implementation = nameof(Newznab);
             indexer.Name = "NewznabTest";
             indexer.Protocol = Core.Indexers.DownloadProtocol.Usenet;
+
+            // Attempt to raise log verbosity for test diagnostics, but don't fail
+            // fixture bootstrap if host config validation rules evolve.
+            try
+            {
+                var config = HostConfig.Get(1);
+                config.ConsoleLogLevel = "Debug";
+                HostConfig.Put(config);
+            }
+            catch
+            {
+                TestContext.Progress.WriteLine("HostConfig update skipped during integration bootstrap.");
+            }
         }
 
         protected override void StopTestTarget()

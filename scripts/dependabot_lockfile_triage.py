@@ -61,16 +61,34 @@ def at_or_above(version: str, floor: str) -> bool:
     return semver_key(version) >= semver_key(floor)
 
 
+def is_integration_403(message: str) -> bool:
+    return "HTTP 403" in message and "Resource not accessible by integration" in message
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Triage Dependabot alerts against lockfile versions")
     parser.add_argument("--owner", default="Swartdraak")
     parser.add_argument("--repo", default="Bibliophilarr")
     parser.add_argument("--lockfile", default="yarn.lock")
+    parser.add_argument(
+        "--allow-integration-403",
+        action="store_true",
+        help="Treat GitHub integration-token 403 responses as permission-limited",
+    )
     parser.add_argument("--json-out")
     parser.add_argument("--md-out")
     args = parser.parse_args()
 
-    alerts = gh_api(f"repos/{args.owner}/{args.repo}/dependabot/alerts?state=open&per_page=100")
+    alerts: List[Dict[str, Any]] = []
+    dependabot_error = None
+    try:
+        alerts = gh_api(f"repos/{args.owner}/{args.repo}/dependabot/alerts?state=open&per_page=100")
+    except RuntimeError as exc:
+        message = str(exc)
+        if args.allow_integration_403 and is_integration_403(message):
+            dependabot_error = message
+        else:
+            raise
 
     package_alerts: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for alert in alerts:
@@ -115,6 +133,7 @@ def main() -> int:
         "owner": args.owner,
         "repo": args.repo,
         "open_alert_count": len(alerts),
+        "error": dependabot_error,
         "packages": rows,
     }
 
@@ -131,6 +150,12 @@ def main() -> int:
             "| Package | Open Alerts | Severity | First Patched | Lockfile Versions | Triage Status |",
             "|---|---:|---|---|---|---|",
         ]
+        if dependabot_error:
+            lines.extend([
+                "",
+                f"Dependabot alert API note: {dependabot_error}",
+                "",
+            ])
         for row in rows:
             lines.append(
                 "| {package} | {alerts} | {severity} | {patched} | {versions} | {status} |".format(

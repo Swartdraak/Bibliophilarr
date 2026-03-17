@@ -1,0 +1,14 @@
+{
+  "key": "/works/OL99999W",
+  "title": "No Subjects Book",
+  "description": "A book without any subjects.",
+  "covers": [],
+  "subjects": null,
+  "authors": [
+    {
+      "author": { "key": "/authors/OL26320A" },
+      "type": { "key": "/type/author_role" }
+    }
+  ],
+  "first_publish_date": "2000"
+}

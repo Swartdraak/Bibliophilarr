@@ -27,6 +27,7 @@ namespace NzbDrone.Core.Books
         public int AuthorMetadataId { get; set; }
         public string ForeignBookId { get; set; }
         public string ForeignEditionId { get; set; }
+        public string OpenLibraryWorkId { get; set; }
         public string TitleSlug { get; set; }
         public string Title { get; set; }
         public DateTime? ReleaseDate { get; set; }

@@ -88,10 +88,123 @@ function MetadataProvider(props) {
 
       {
         hasSettings && !isFetching && !error &&
-          <Form
-            validationErrors={validationErrors}
-            validationWarnings={validationWarnings}
-          >
+          <Form>
+            <FieldSet legend={translate('MetadataProviders')}>
+              <FormGroup>
+                <FormLabel>
+                  Enable BookInfo Provider
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableBookInfoProvider"
+                  helpText="Primary provider for compatibility with existing metadata IDs."
+                  onChange={onInputChange}
+                  {...settings.enableBookInfoProvider}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Enable Open Library Provider
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableOpenLibraryProvider"
+                  helpText="Enable Open Library as FOSS provider and fallback source."
+                  onChange={onInputChange}
+                  {...settings.enableOpenLibraryProvider}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Enable Inventaire Provider
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableInventaireProvider"
+                  helpText="Enable Inventaire as additional fallback provider. Environment kill switch: BIBLIOPHILARR_DISABLE_INVENTAIRE=1"
+                  onChange={onInputChange}
+                  {...settings.enableInventaireProvider}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Provider Priority Order
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.TEXT}
+                  name="metadataProviderPriorityOrder"
+                  helpText="Comma-separated provider order, e.g. BookInfo,OpenLibrary,Inventaire"
+                  onChange={onInputChange}
+                  {...settings.metadataProviderPriorityOrder}
+                />
+              </FormGroup>
+            </FieldSet>
+
+            <FieldSet legend={translate('ProviderResilience')}>
+              <FormGroup>
+                <FormLabel>
+                  Provider Timeout (seconds)
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="metadataProviderTimeoutSeconds"
+                  helpText="HTTP timeout per metadata provider endpoint request."
+                  onChange={onInputChange}
+                  {...settings.metadataProviderTimeoutSeconds}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Retry Budget
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="metadataProviderRetryBudget"
+                  helpText="Number of retries for transient provider failures."
+                  onChange={onInputChange}
+                  {...settings.metadataProviderRetryBudget}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Circuit Breaker Failure Threshold
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="metadataProviderCircuitBreakerThreshold"
+                  helpText="Consecutive failures before endpoint circuit opens."
+                  onChange={onInputChange}
+                  {...settings.metadataProviderCircuitBreakerThreshold}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Circuit Breaker Duration (seconds)
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="metadataProviderCircuitBreakerDurationSeconds"
+                  helpText="How long an endpoint remains open-circuit before retry."
+                  onChange={onInputChange}
+                  {...settings.metadataProviderCircuitBreakerDurationSeconds}
+                />
+              </FormGroup>
+            </FieldSet>
+
             <FieldSet legend={translate('CalibreMetadata')}>
               <FormGroup>
                 <FormLabel>
@@ -102,7 +215,7 @@ function MetadataProvider(props) {
                   type={inputTypes.SELECT}
                   name="writeBookTags"
                   helpTextWarning={translate('WriteBookTagsHelpTextWarning')}
-                  helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#write-metadata-to-book-files"
+                  helpLink="https://wiki.servarr.com/bibliophilarr/settings#write-metadata-to-book-files"
                   values={writeBookTagOptions}
                   onChange={onInputChange}
                   {...settings.writeBookTags}
@@ -147,7 +260,7 @@ function MetadataProvider(props) {
                   type={inputTypes.SELECT}
                   name="writeAudioTags"
                   helpTextWarning={translate('WriteBookTagsHelpTextWarning')}
-                  helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#write-metadata-to-audio-files"
+                  helpLink="https://wiki.servarr.com/bibliophilarr/settings#write-metadata-to-audio-files"
                   values={writeAudioTagOptions}
                   onChange={onInputChange}
                   {...settings.writeAudioTags}

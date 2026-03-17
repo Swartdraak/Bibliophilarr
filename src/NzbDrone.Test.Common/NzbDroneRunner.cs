@@ -45,21 +45,30 @@ namespace NzbDrone.Test.Common
 
             GenerateConfigFile(enableAuth);
 
-            var appName = BuildInfo.AppName;
             string bibliophilarrConsoleExe;
             if (OsInfo.IsWindows)
             {
-                bibliophilarrConsoleExe = $"{appName}.Console.exe";
+                bibliophilarrConsoleExe = "Bibliophilarr.Console.exe";
             }
             else
             {
-                bibliophilarrConsoleExe = appName;
+                bibliophilarrConsoleExe = "Bibliophilarr";
             }
 
             _startupLog = new List<string>();
             if (BuildInfo.IsDebug)
             {
-                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "_output", "net8.0", bibliophilarrConsoleExe));
+                var testDir = TestContext.CurrentContext.TestDirectory;
+                var candidates = new[]
+                {
+                    Path.Combine(testDir, "..", "..", "_output", "net8.0", bibliophilarrConsoleExe),
+                    Path.Combine(testDir, "..", "..", "_output", "net8.0", "linux-x64", bibliophilarrConsoleExe),
+                    Path.Combine(testDir, "..", "..", "_output", "net8.0", "linux-x64", "publish", bibliophilarrConsoleExe),
+                    Path.Combine(testDir, "..", "..", "_output", "net6.0", bibliophilarrConsoleExe)
+                };
+
+                var outputPath = Array.Find(candidates, File.Exists) ?? candidates[^1];
+                Start(outputPath);
             }
             else
             {
@@ -72,7 +81,7 @@ namespace NzbDrone.Test.Common
 
                 if (_nzbDroneProcess.HasExited)
                 {
-                    TestContext.Progress.WriteLine("{0} has exited unexpectedly", appName);
+                    TestContext.Progress.WriteLine("Bibliophilarr has exited unexpectedly");
                     Thread.Sleep(2000);
                     var output = _startupLog.Join(Environment.NewLine);
                     Assert.Fail("Process has exited: ExitCode={0} Output={1}", _nzbDroneProcess.ExitCode, output);
@@ -87,11 +96,11 @@ namespace NzbDrone.Test.Common
                 if (statusCall.ResponseStatus == ResponseStatus.Completed)
                 {
                     _startupLog = null;
-                    TestContext.Progress.WriteLine("{0} {1} is started. Running Tests", appName, Port);
+                    TestContext.Progress.WriteLine($"Bibliophilarr {Port} is started. Running Tests");
                     return;
                 }
 
-                TestContext.Progress.WriteLine("Waiting for {0} to start. Response Status : {1}  [{2}] {3}", appName, statusCall.ResponseStatus, statusCall.StatusDescription, statusCall.ErrorException.Message);
+                TestContext.Progress.WriteLine("Waiting for Bibliophilarr to start. Response Status : {0}  [{1}] {2}", statusCall.ResponseStatus, statusCall.StatusDescription, statusCall.ErrorException.Message);
 
                 Thread.Sleep(500);
             }
@@ -106,8 +115,7 @@ namespace NzbDrone.Test.Common
                     _nzbDroneProcess.Refresh();
                     if (_nzbDroneProcess.HasExited)
                     {
-                        var logFileName = $"{BuildInfo.AppName.ToLowerInvariant()}.trace.txt";
-                        var log = File.ReadAllLines(Path.Combine(AppData, "logs", logFileName));
+                        var log = File.ReadAllLines(Path.Combine(AppData, "logs", "bibliophilarr.trace.txt"));
                         var output = log.Join(Environment.NewLine);
                         TestContext.Progress.WriteLine("Process has exited prematurely: ExitCode={0} Output:\n{1}", _nzbDroneProcess.ExitCode, output);
                     }

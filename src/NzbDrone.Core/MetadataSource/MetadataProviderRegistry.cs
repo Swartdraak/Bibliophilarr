@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using NLog;
+using NzbDrone.Core.Configuration;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -12,13 +14,22 @@ namespace NzbDrone.Core.MetadataSource
         private readonly Dictionary<string, bool> _enabledOverrides;
         private readonly Dictionary<string, int> _priorityOverrides;
         private readonly Dictionary<string, ProviderHealthStatus> _healthOverrides;
+        private readonly List<string> _configuredOrder;
+        private readonly Logger _logger;
 
         public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers)
+            : this(providers, null, LogManager.GetCurrentClassLogger())
+        {
+        }
+
+        public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers, IConfigService configService, Logger logger)
         {
             _providers = new Dictionary<string, IMetadataProvider>(StringComparer.OrdinalIgnoreCase);
             _enabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             _priorityOverrides = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             _healthOverrides = new Dictionary<string, ProviderHealthStatus>(StringComparer.OrdinalIgnoreCase);
+            _configuredOrder = ParseProviderOrder(configService?.MetadataProviderPriorityOrder);
+            _logger = logger ?? LogManager.GetCurrentClassLogger();
 
             if (providers == null)
             {
@@ -29,6 +40,10 @@ namespace NzbDrone.Core.MetadataSource
             {
                 RegisterProvider(provider);
             }
+
+            _logger.Debug("MetadataProviderRegistry: {0} provider(s) registered: {1}",
+                _providers.Count,
+                string.Join(", ", SortProviders(_providers.Values).Select(p => $"{p.ProviderName}(P{GetPriority(p)})")));
         }
 
         public int Count
@@ -149,7 +164,6 @@ namespace NzbDrone.Core.MetadataSource
             {
                 return SortProviders(_providers.Values)
                     .Where(IsEnabled)
-                    .Where(p => p.SupportsBookInfo)
                     .OfType<IProvideBookInfoV2>()
                     .ToList();
             }
@@ -161,7 +175,6 @@ namespace NzbDrone.Core.MetadataSource
             {
                 return SortProviders(_providers.Values)
                     .Where(IsEnabled)
-                    .Where(p => p.SupportsAuthorInfo)
                     .OfType<IProvideAuthorInfoV2>()
                     .ToList();
             }
@@ -200,7 +213,7 @@ namespace NzbDrone.Core.MetadataSource
                 var registered = _providers
                     .ToDictionary(
                         x => x.Key,
-                        x => GetProviderHealthStatus(x.Key, x.Value),
+                        _ => new ProviderHealthStatus(),
                         StringComparer.OrdinalIgnoreCase);
 
                 foreach (var kvp in _healthOverrides)
@@ -225,6 +238,85 @@ namespace NzbDrone.Core.MetadataSource
             }
         }
 
+        public IReadOnlyList<IMetadataProvider> GetProviders()
+        {
+            lock (_syncRoot)
+            {
+                return SortProviders(_providers.Values.Where(IsEnabled)).ToList();
+            }
+        }
+
+        public T Execute<T>(Func<IMetadataProvider, T> operation, string operationName)
+            where T : class
+        {
+            Exception lastException = null;
+
+            foreach (var provider in GetProviders())
+            {
+                _logger.Debug("MetadataProviderRegistry: attempting '{0}' via {1}", operationName, provider.ProviderName);
+
+                try
+                {
+                    var result = operation(provider);
+                    if (result != null)
+                    {
+                        _logger.Debug("MetadataProviderRegistry: '{0}' succeeded via {1}", operationName, provider.ProviderName);
+                        return result;
+                    }
+
+                    _logger.Debug("MetadataProviderRegistry: '{0}' returned null from {1}; trying next provider.", operationName, provider.ProviderName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "MetadataProviderRegistry: '{0}' failed on {1}; trying next provider.", operationName, provider.ProviderName);
+                    lastException = ex;
+                }
+            }
+
+            if (lastException != null)
+            {
+                _logger.Warn("MetadataProviderRegistry: all providers failed for '{0}'. Last error: {1}", operationName, lastException.Message);
+            }
+            else
+            {
+                _logger.Debug("MetadataProviderRegistry: all providers returned null for '{0}'.", operationName);
+            }
+
+            return null;
+        }
+
+        private static List<string> ParseProviderOrder(string order)
+        {
+            if (string.IsNullOrWhiteSpace(order))
+            {
+                return new List<string>();
+            }
+
+            return order
+                .Split(',')
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+        }
+
+        private static int GetConfiguredOrderIndex(IReadOnlyList<string> order, string providerName)
+        {
+            if (order == null || order.Count == 0)
+            {
+                return int.MaxValue;
+            }
+
+            for (var i = 0; i < order.Count; i++)
+            {
+                if (string.Equals(order[i], providerName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return int.MaxValue;
+        }
+
         private void SetProviderEnabled(string providerName, bool enabled)
         {
             if (string.IsNullOrWhiteSpace(providerName))
@@ -244,7 +336,8 @@ namespace NzbDrone.Core.MetadataSource
         private IEnumerable<IMetadataProvider> SortProviders(IEnumerable<IMetadataProvider> providers)
         {
             return providers
-                .OrderBy(GetPriority)
+                .OrderBy(p => GetConfiguredOrderIndex(_configuredOrder, p.ProviderName))
+                .ThenBy(GetPriority)
                 .ThenBy(p => p.ProviderName, StringComparer.OrdinalIgnoreCase);
         }
 
@@ -278,23 +371,12 @@ namespace NzbDrone.Core.MetadataSource
             var property = typeof(IMetadataProvider).GetProperty(
                 capability,
                 BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-
             if (property == null || property.PropertyType != typeof(bool))
             {
                 return false;
             }
 
             return (bool)property.GetValue(provider);
-        }
-
-        private ProviderHealthStatus GetProviderHealthStatus(string providerName, IMetadataProvider provider)
-        {
-            if (_healthOverrides.TryGetValue(providerName, out var overridden))
-            {
-                return overridden;
-            }
-
-            return provider.GetHealthStatus() ?? new ProviderHealthStatus();
         }
     }
 }

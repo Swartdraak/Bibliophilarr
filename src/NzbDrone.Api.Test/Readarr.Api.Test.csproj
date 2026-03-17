@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NBuilder" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NzbDrone.Core\Readarr.Core.csproj" />
+    <ProjectReference Include="..\NzbDrone.Test.Common\Readarr.Test.Common.csproj" />
+    <ProjectReference Include="..\Readarr.Http\Readarr.Http.csproj" />
+    <ProjectReference Include="..\Readarr.Api.V1\Readarr.Api.V1.csproj" />
+  </ItemGroup>
+</Project>

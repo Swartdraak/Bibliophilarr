@@ -1,4 +1,4 @@
-name: Bibliophilarr Docs Validation
+name: Docs Validation
 
 on:
   pull_request:
@@ -7,8 +7,6 @@ on:
       - main
       - develop
       - staging
-      - release
-      - hotfix
 
 permissions:
   contents: read
@@ -26,8 +24,4 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@v16
         with:
           globs: |
-            README.md
-            QUICKSTART.md
-            CONTRIBUTING.md
-            SECURITY.md
-            docs/**/*.md
+            **/*.md

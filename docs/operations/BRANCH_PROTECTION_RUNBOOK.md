@@ -82,3 +82,9 @@ If policy changes need to be reverted quickly:
 1. Run scripts/apply_branch_protection.sh with adjusted REQUIRED_REVIEW_COUNT and context list updates.
 2. Re-run scripts/audit_branch_protection.py to confirm expected state.
 3. Document deviation and mitigation in PROJECT_STATUS.md.
+
+## References
+
+1. [PROJECT_STATUS.md](../../PROJECT_STATUS.md) — required context and review-count posture.
+2. [.github/workflows/branch-policy-audit.yml](../../.github/workflows/branch-policy-audit.yml) — audit workflow.
+3. [scripts/audit_branch_protection.py](../../scripts/audit_branch_protection.py) — drift audit implementation.
