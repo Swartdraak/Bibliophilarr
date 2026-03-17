@@ -2,16 +2,11 @@ name: Backend CI
 
 on:
   pull_request:
-    paths:
-      - 'src/**'
-      - '.github/workflows/ci-backend.yml'
   push:
     branches:
       - main
       - develop
-    paths:
-      - 'src/**'
-      - '.github/workflows/ci-backend.yml'
+      - staging
 
 permissions:
   contents: read
