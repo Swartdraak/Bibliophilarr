@@ -32,6 +32,7 @@ jobs:
             --repo "${{ github.event.repository.name }}" \
             --branches develop staging main \
             --expected-review-count 0 \
+            --allow-integration-403 \
             --json-out _artifacts/branch-policy-audit/audit.json \
             --md-out _artifacts/branch-policy-audit/audit.md
 

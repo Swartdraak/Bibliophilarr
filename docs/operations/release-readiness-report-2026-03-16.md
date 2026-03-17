@@ -50,6 +50,11 @@ scripts/apply_branch_protection.sh develop staging main
 python3 scripts/audit_branch_protection.py --branches develop staging main
 ```
 
+Permission-limited mode:
+
+- In GitHub Actions, `GITHUB_TOKEN` can return `403 Resource not accessible by integration` for branch-protection and Dependabot endpoints.
+- The workflow runs scripts with `--allow-integration-403` so artifacts are still generated and the report captures the API limitation explicitly.
+
 ## Rollback
 
 If reporting workflow breaks:

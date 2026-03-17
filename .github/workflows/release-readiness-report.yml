@@ -31,6 +31,7 @@ jobs:
             --owner "${{ github.repository_owner }}" \
             --repo "${{ github.event.repository.name }}" \
             --branches develop staging main \
+            --allow-integration-403 \
             --md-out _artifacts/release-readiness/release-readiness.md \
             --json-out _artifacts/release-readiness/release-readiness.json
 
@@ -38,6 +39,7 @@ jobs:
             --owner "${{ github.repository_owner }}" \
             --repo "${{ github.event.repository.name }}" \
             --lockfile yarn.lock \
+            --allow-integration-403 \
             --md-out _artifacts/release-readiness/dependabot-triage.md \
             --json-out _artifacts/release-readiness/dependabot-triage.json
 
@@ -46,6 +48,7 @@ jobs:
             --repo "${{ github.event.repository.name }}" \
             --branches develop staging main \
             --expected-review-count 0 \
+            --allow-integration-403 \
             --md-out _artifacts/release-readiness/branch-policy-audit.md \
             --json-out _artifacts/release-readiness/branch-policy-audit.json
 

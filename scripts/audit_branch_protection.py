@@ -93,6 +93,10 @@ def context_variants(context: str) -> Set[str]:
     return variants
 
 
+def is_integration_403(message: str) -> bool:
+    return "HTTP 403" in message and "Resource not accessible by integration" in message
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Audit protected-branch required-check drift")
     parser.add_argument("--owner", default="Swartdraak")
@@ -100,6 +104,11 @@ def main() -> int:
     parser.add_argument("--branches", nargs="+", default=["develop", "staging", "main"])
     parser.add_argument("--expected-review-count", type=int, default=0)
     parser.add_argument("--workflow-dir", default=".github/workflows")
+    parser.add_argument(
+        "--allow-integration-403",
+        action="store_true",
+        help="Treat GitHub integration-token 403 responses as permission-limited warnings",
+    )
     parser.add_argument("--md-out")
     parser.add_argument("--json-out")
     args = parser.parse_args()
@@ -111,6 +120,7 @@ def main() -> int:
         "repo": args.repo,
         "branches": [],
         "ok": True,
+        "permission_limited": False,
     }
 
     for branch in args.branches:
@@ -123,6 +133,7 @@ def main() -> int:
             "observed_contexts": [],
             "missing_contexts": [],
             "review_count_matches": True,
+            "permission_limited": False,
             "error": None,
         }
         try:
@@ -152,7 +163,11 @@ def main() -> int:
             entry["error"] = message
             entry["exists"] = "Branch not found" not in message
             entry["protected"] = "Branch not protected" not in message
-            report["ok"] = False
+            if args.allow_integration_403 and is_integration_403(message):
+                entry["permission_limited"] = True
+                report["permission_limited"] = True
+            else:
+                report["ok"] = False
 
         report["branches"].append(entry)
 
@@ -177,6 +192,12 @@ def main() -> int:
             )
             if b["error"]:
                 lines.append(f"| {b['branch']} error | - | - | - | - | {b['error']} |")
+
+        if report["permission_limited"]:
+            lines.extend([
+                "",
+                "Note: Some branch protection API calls returned integration-token 403 and were recorded as permission-limited.",
+            ])
 
         lines.append("")
         lines.append(f"Overall: {'PASS' if report['ok'] else 'FAIL'}")
