@@ -1,0 +1,56 @@
+name: Release Readiness Report
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  release-readiness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Generate release-readiness report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p _artifacts/release-readiness
+          python3 scripts/release_readiness_report.py \
+            --owner "${{ github.repository_owner }}" \
+            --repo "${{ github.event.repository.name }}" \
+            --branches develop staging main \
+            --md-out _artifacts/release-readiness/release-readiness.md \
+            --json-out _artifacts/release-readiness/release-readiness.json
+
+          python3 scripts/dependabot_lockfile_triage.py \
+            --owner "${{ github.repository_owner }}" \
+            --repo "${{ github.event.repository.name }}" \
+            --lockfile yarn.lock \
+            --md-out _artifacts/release-readiness/dependabot-triage.md \
+            --json-out _artifacts/release-readiness/dependabot-triage.json
+
+          python3 scripts/audit_branch_protection.py \
+            --owner "${{ github.repository_owner }}" \
+            --repo "${{ github.event.repository.name }}" \
+            --branches develop staging main \
+            --expected-review-count 0 \
+            --md-out _artifacts/release-readiness/branch-policy-audit.md \
+            --json-out _artifacts/release-readiness/branch-policy-audit.json
+
+      - name: Upload readiness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-readiness-report
+          path: _artifacts/release-readiness
