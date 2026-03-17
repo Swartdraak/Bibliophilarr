@@ -93,6 +93,7 @@ no: treat as genuine taxonomy gap and update `scripts/packaging_error_taxonomy.p
 False-positive handling guidance:
 - require at least one deterministic fixture line for any new pattern before merging.
 - prefer specific regex fragments over broad `error|failed` catch-alls.
+- ignore benign scaffold noise such as the default `npm init` `"Error: no test specified"` script field when it is not an actual runtime failure.
 - if a pattern causes reclassification churn, keep old and new samples in fixtures until stable for 2 runs.
 
 ## Operational Notes
