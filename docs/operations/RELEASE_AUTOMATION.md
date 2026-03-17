@@ -96,6 +96,22 @@ Trigger model:
 - Weekly schedule
 - Manual dispatch
 
+### 5) Operational drift check
+
+File: `.github/workflows/operational-drift-check.yml`
+
+Responsibilities:
+
+- Compare `develop`, `staging`, and `main` against explicit operational drift thresholds
+- Confirm active delivery lanes remain close enough for reliable release promotion
+- Confirm `main` readiness workflows stay fresh and successful
+- Publish markdown and JSON artifacts for operator review
+
+Trigger model:
+
+- Weekly schedule
+- Manual dispatch
+
 ## Required repository secrets
 
 - `NPM_TOKEN`: npm registry publish token
@@ -178,6 +194,25 @@ gh workflow run "Required Check Emission Smoke" \
 4. Review draft release notes/assets.
 5. Publish release.
 6. Validate Docker image and npm launcher channel.
+
+## Release entry criteria
+
+Before tagging a release from `main`, all of the following must be true:
+
+1. The latest `ci-backend.yml`, `docs-validation.yml`, `staging-smoke-metadata-telemetry.yml`, and `phase6-packaging-validation.yml` runs are successful on `develop`.
+2. The latest `ci-backend.yml`, `docs-validation.yml`, `staging-smoke-metadata-telemetry.yml`, and `phase6-packaging-validation.yml` runs are successful on `staging`.
+3. The latest `branch-policy-audit.yml` and `release-readiness-report.yml` runs are successful on `main`.
+4. Required contexts on protected branches remain aligned with branch protection policy.
+5. Open security drift is either remediated or explicitly accepted with documented rationale.
+
+Packaging scope note:
+
+- Packaging validation is intentionally required on `develop` and `staging` today.
+- `main` remains the operator-facing release-entry lane until binary, Docker, and npm installation paths are fully validated for direct promotion on the default branch.
+
+Operator decision note:
+
+- If readiness or branch-policy workflows on `main` are permission-limited because the Actions integration token cannot read an admin or Dependabot endpoint, use the uploaded artifacts as the decision record rather than treating the limitation itself as a failed release gate.
 
 ## Local verification checklist
 

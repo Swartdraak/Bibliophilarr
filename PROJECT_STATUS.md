@@ -31,6 +31,12 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Added main-compatible staging smoke workflow support so the required smoke context is declared and can execute against both legacy and current branch layouts.
 - Refreshed contributor and operator documentation for branch protection and release-readiness workflows.
 
+### March 17, 2026 operator note
+
+- Manual workflow dispatch from `main` is now validated for both `Release Readiness Report` and `Branch Policy Audit`.
+- Workflow artifacts now preserve permission-limited output when GitHub Actions integration tokens receive `403 Resource not accessible by integration`.
+- Packaging remains intentionally scoped to `develop` and `staging` until binary, Docker, and npm installation paths are fully validated for release-entry use from `main`.
+
 ## What Is Complete
 
 ### Metadata migration foundation
@@ -78,3 +84,5 @@ python3 scripts/release_readiness_report.py \
 - [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md)
 - [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md)
 - [docs/operations/release-readiness-report-2026-03-16.md](docs/operations/release-readiness-report-2026-03-16.md)
+- [docs/operations/release-readiness-snapshot-2026-03-17.md](docs/operations/release-readiness-snapshot-2026-03-17.md)
+- [docs/operations/security-drift-cleanup-2026-03-17.md](docs/operations/security-drift-cleanup-2026-03-17.md)

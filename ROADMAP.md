@@ -1,367 +1,123 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: February 16, 2024
+**Last Updated**: March 17, 2026
 
-This document provides a high-level overview of the Bibliophilarr project roadmap. For detailed technical specifications, see [MIGRATION_PLAN.md](MIGRATION_PLAN.md).
+This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
----
+## Current Delivery Posture
 
-## Vision
+- Current phase: Phase 5 consolidation with Phase 6 hardening active.
+- Active delivery lanes: `develop` and `staging`.
+- Default branch posture: `main` is the operator-facing readiness and release-entry branch, not the primary packaging-validation lane.
+- Packaging scope: binary, Docker, and npm packaging validation remain intentionally scoped to `develop` and `staging` until installation paths are fully proven end to end for release tagging from `main`.
+- Actions token posture: branch-policy and readiness workflows remain report-only when GitHub Actions integration tokens cannot read admin or Dependabot APIs.
 
-**Bibliophilarr aims to be a sustainable, community-driven ebook and audiobook manager powered entirely by Free and Open Source Software (FOSS) metadata providers.**
+## Delivery Lanes
 
----
+| Branch | Purpose | Required outcomes |
+|---|---|---|
+| `develop` | Active integration lane for metadata migration and operational hardening slices | `build-test`, `Markdown lint`, `triage`, smoke telemetry, packaging validation |
+| `staging` | Pre-release validation lane mirroring `develop` with tighter release-readiness scrutiny | same required contexts as `develop`, plus green packaging validation |
+| `main` | Default branch for operator runbooks, readiness reporting, branch-policy auditing, and release-entry confirmation | `build-test`, `Markdown lint`, `triage`, smoke telemetry, successful readiness and branch-policy report runs |
 
-## Current Status: Planning & Foundation Phase
+## Phase Summary
 
-We are currently in the early stages of reviving the project after the original Readarr retirement. Our immediate focus is on planning the migration away from Goodreads to sustainable FOSS alternatives.
+### Phase 1 to Phase 4 foundation
 
-### ✅ Completed
+These phases are no longer the best way to describe day-to-day execution. The core outcomes from the foundation phases now exist as ongoing program constraints rather than isolated milestones:
 
-- Repository analysis and architecture review
-- Research of FOSS metadata providers
-- Comprehensive migration plan documentation
-- Updated README and contributing guidelines
-- Community engagement setup
+- migration and architecture planning are documented in [MIGRATION_PLAN.md](MIGRATION_PLAN.md);
+- contributor and operator workflows are documented in [QUICKSTART.md](QUICKSTART.md) and [PROJECT_STATUS.md](PROJECT_STATUS.md);
+- provider abstraction and metadata-correctness work continue as incremental slices inside `develop` and `staging` rather than a separate big-bang implementation phase;
+- release safety, rollback, and observability now drive prioritization for migration work.
 
-### 🔄 In Progress
+### Phase 5 consolidation
 
-- Documentation updates
-- Community building
-- Development environment setup
+Phase 5 is the current program baseline.
 
-### 📋 Next Steps
+Completed or stable:
 
-- Complete Phase 1 documentation
-- Begin infrastructure development for multi-provider system
-- Set up automated testing for metadata providers
+- protected branch parity across `develop`, `staging`, and `main`;
+- required check emission hardened so protected branches consistently receive required contexts;
+- release-readiness reporting and branch-policy auditing available for scheduled and manual execution;
+- main-compatible smoke validation added so the required smoke context can execute against legacy and current branch layouts;
+- operator runbooks refreshed for branch protection, readiness, and merge reliability.
 
----
+In progress:
 
-## Roadmap Phases
+- continue migration-safe provider work through `develop` and `staging` without destabilizing release lanes;
+- keep branch drift observable and bounded as operational automation expands;
+- reduce security drift with lockfile-backed remediation slices.
 
-### Phase 1: Foundation & Documentation (Current)
+Phase 5 exit criteria:
 
-**Timeline**: Weeks 1-4  
-**Status**: 🔄 In Progress (75%)
+- `develop` and `staging` remain operationally aligned with low drift;
+- readiness and branch-policy reporting remain green on `main`;
+- security remediation backlog is reduced to a small, explicitly tracked set of exceptions.
 
-**Goals:**
+### Phase 6 hardening
 
-- ✅ Analyze existing codebase and architecture
-- ✅ Research and evaluate FOSS metadata alternatives
-- ✅ Create comprehensive migration plan
-- 🔄 Update all documentation to reflect active development
-- 🔄 Engage community and recruit contributors
+Phase 6 is active and focused on release confidence rather than feature breadth.
 
-**Key Deliverables:**
+Completed or validated:
 
-- ✅ MIGRATION_PLAN.md
-- ✅ Updated README.md
-- ✅ Updated CONTRIBUTING.md
-- ✅ ROADMAP.md (this document)
-- ⏳ Project wiki updates
+- packaging validation is green on both `develop` and `staging` for binary, Docker, and npm lanes;
+- manual workflow dispatch from `main` has been validated for release readiness and branch-policy audit workflows;
+- permission-limited reporting mode preserves useful artifacts when Actions integration tokens receive `403 Resource not accessible by integration`.
 
----
+In progress:
 
-### Phase 2: Infrastructure Setup
+- release entry criteria for `main`;
+- scheduled operational drift detection;
+- security-drift cleanup sequencing with lockfile evidence;
+- operator-facing readiness snapshots for release decisions.
 
-**Timeline**: Weeks 5-8  
-**Status**: ⏳ Not Started
+Phase 6 exit criteria:
 
-**Goals:**
+- release entry criteria are documented and repeatable;
+- branch drift is automatically surfaced before release work stalls;
+- packaging scope can be promoted from `develop` and `staging` to `main` without compatibility exceptions.
 
-- Design and implement multi-provider architecture
-- Create provider interfaces and abstractions
-- Build metadata quality scoring system
-- Set up comprehensive testing framework
-- Implement monitoring and logging
+### Phase 7 release preparation
 
-**Key Deliverables:**
+Phase 7 starts only after Phase 6 hardening gates are consistently met.
 
-- Provider interface hierarchy (`IMetadataProviderV2`)
-- Provider registry and management system
-- Quality scoring algorithms
-- Testing framework for providers
-- Logging and monitoring infrastructure
+Planned entry conditions:
 
-**Success Criteria:**
+- latest packaging validation successful on both `develop` and `staging`;
+- latest readiness and branch-policy report runs successful on `main`;
+- remaining open dependency alerts either remediated or explicitly accepted with documented rationale;
+- release workflows, runbooks, and rollback steps verified against current repository reality.
 
-- All interfaces defined and documented
-- Testing framework operational
-- Provider registry can dynamically load providers
+## Current Milestones
 
----
+| Milestone | Target state | Current status |
+|---|---|---|
+| Branch protection parity | `develop`, `staging`, and `main` share required contexts and review policy | complete |
+| Main dispatch validation | manual readiness and branch-policy workflows succeed on `main` | complete |
+| Packaging lane validation | binary, Docker, and npm packaging green on `develop` and `staging` | complete |
+| Operational drift checks | scheduled drift signal exists with actionable artifacts | in progress |
+| Release entry criteria | `main` release gate documented and enforced operationally | in progress |
+| Security drift cleanup | open Dependabot set reduced via lockfile-backed remediation slices | in progress |
 
-### Phase 3: Open Library Provider
-
-**Timeline**: Weeks 9-14  
-**Status**: ⏳ Not Started
-
-**Goals:**
-
-- Complete Open Library API integration
-- Implement all search and retrieval functions
-- Handle rate limiting and caching
-- Map Open Library data to Bibliophilarr models
-- Comprehensive testing
-
-**Key Deliverables:**
-
-- Full Open Library provider implementation
-- Search by title, author, ISBN, ASIN
-- Author information retrieval
-- Cover image handling
-- 90%+ test coverage
-- Performance benchmarks
-
-**Success Criteria:**
-
-- All metadata operations functional via Open Library
-- Performance meets or exceeds Goodreads
-- Comprehensive test suite passes
-- Documentation complete
-
----
-
-### Phase 4: Multi-Provider Support
-
-**Timeline**: Weeks 15-18  
-**Status**: ⏳ Not Started
-
-**Goals:**
-
-- Implement Inventaire provider as secondary source
-- Build provider aggregation layer
-- Create fallback and redundancy logic
-- Implement metadata merging from multiple sources
-- Add Google Books as tertiary fallback
-
-**Key Deliverables:**
-
-- Inventaire provider implementation
-- Metadata aggregation service
-- Intelligent fallback logic
-- Provider health monitoring
-- Provider selection UI
-
-**Success Criteria:**
-
-- Multiple providers working in harmony
-- Automatic fallback on provider failure
-- Improved metadata quality from aggregation
-- Users can select preferred providers
-
----
-
-### Phase 5: Database Migration
-
-**Timeline**: Weeks 19-22  
-**Status**: ⏳ Not Started
-
-**Goals:**
-
-- Update database schema for multi-provider IDs
-- Implement ID mapping system
-- Create migration scripts
-- Build Goodreads → ISBN → Open Library mapping
-- Ensure backward compatibility
-
-**Key Deliverables:**
-
-- Updated database schema
-- Migration scripts and tools
-- ID mapping database
-- Rollback procedures
-- Migration testing with various library sizes
-
-**Success Criteria:**
-
-- Existing libraries can be migrated without data loss
-- New identifier system is robust and extensible
-- Backward compatibility maintained
-- Rollback works if needed
-
----
-
-### Phase 6: Migration Tools & User Experience
-
-**Timeline**: Weeks 23-26  
-**Status**: ⏳ Not Started
-
-**Goals:**
-
-- Build user-friendly migration tools
-- Create migration progress UI
-- Implement metadata conflict resolution
-- Add manual override capabilities
-- Comprehensive user documentation
-
-**Key Deliverables:**
-
-- Automated migration tool
-- Migration progress dashboard
-- Conflict resolution UI
-- Manual metadata entry/override
-- User migration guide
-- Video tutorials
-
-**Success Criteria:**
-
-- Average user can migrate library with minimal effort
-- Migration progress is clear and trackable
-- Edge cases have manual resolution options
-- Documentation is comprehensive and clear
-
----
-
-### Phase 7: Beta Release
-
-**Timeline**: Weeks 27-30  
-**Status**: ⏳ Not Started
-
-**Goals:**
-
-- Release beta version to community
-- Gather feedback and usage data
-- Fix bugs and address issues
-- Performance tuning
-- Expand documentation
-
-**Key Deliverables:**
-
-- Beta release announcement
-- Bug tracking and resolution
-- Performance improvements
-- Updated documentation based on feedback
-- Community support channels
-
-**Success Criteria:**
-
-- No critical bugs in beta
-- Positive community feedback
-- Successful migration stories
-- Performance acceptable for production
-
----
-
-### Phase 8: Stable Release (v1.0)
-
-**Timeline**: Weeks 31-34  
-**Status**: ⏳ Not Started
-
-**Goals:**
-
-- Final testing and QA
-- Production-ready release
-- Official deprecation of Goodreads
-- Launch documentation and marketing
-- Celebrate success! 🎉
-
-**Key Deliverables:**
-
-- Stable v1.0 release
-- Complete documentation
-- Release announcement
-- Migration from Goodreads complete
-- Community celebration
-
-**Success Criteria:**
-
-- Stable, production-ready release
-- All critical functionality working
-- Documentation complete
-- Community adoption growing
-- Sustainable future established
-
----
-
-## Long-Term Vision (Post v1.0)
-
-### Future Enhancements
-
-- **BookBrainz Integration**: When mature, add MusicBrainz's book database
-- **Local Metadata Mirror**: Option to host local Open Library mirror
-- **Community Metadata**: Allow users to contribute metadata improvements
-- **Advanced Matching**: ML-based book identification
-- **Enhanced Series Support**: Better series and collection management
-- **Mobile App**: Companion mobile application
-- **Plugin System**: Allow third-party metadata providers
-
-### Maintenance & Growth
-
-- **Regular Updates**: Keep dependencies current
-- **Community Growth**: Build contributor base
-- **Documentation**: Maintain comprehensive docs
-- **Support**: Provide excellent user support
-- **Innovation**: Continue improving features
-
----
-
-## How to Help
-
-We need contributors in several areas:
-
-### 🔨 Development
-
-- **Backend (C#)**: Provider implementations, API integration
-- **Frontend (React)**: UI for settings, migration tools
-- **Testing**: Write tests, test with real libraries
-
-### 📝 Documentation  
-
-- **User Guides**: Help users understand new features
-- **API Docs**: Document provider interfaces
-- **Tutorials**: Create video and written tutorials
-
-### 🧪 Testing
-
-- **Beta Testing**: Test with your library
-- **Bug Reports**: Report issues clearly
-- **Edge Cases**: Test unusual scenarios
-
-### 💬 Community
-
-- **Support**: Help other users
-- **Feedback**: Share your experience
-- **Advocacy**: Spread the word
-
-**See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.**
-
----
-
-## Stay Updated
-
-- **GitHub**: Watch this repository for updates
-- **Discussions**: Join [GitHub Discussions](https://github.com/Swartdraak/Bibliophilarr/discussions)
-- **Discord**: Join our community (link coming soon)
-- **Blog**: Release announcements and progress updates (planned)
-
----
-
-## Milestones
-
-| Milestone | Target | Status |
-|-----------|--------|--------|
-| Phase 1: Foundation Complete | Week 4 | 🔄 In Progress |
-| Phase 2: Infrastructure Ready | Week 8 | ⏳ Not Started |
-| Phase 3: Open Library Working | Week 14 | ⏳ Not Started |
-| Phase 4: Multi-Provider Live | Week 18 | ⏳ Not Started |
-| Phase 5: Migration Tools Done | Week 22 | ⏳ Not Started |
-| Phase 6: UX Complete | Week 26 | ⏳ Not Started |
-| Phase 7: Beta Release | Week 30 | ⏳ Not Started |
-| Phase 8: v1.0 Stable Release | Week 34 | ⏳ Not Started |
-
----
-
-## Contact
-
-- **Issues**: [GitHub Issues](https://github.com/Swartdraak/Bibliophilarr/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Swartdraak/Bibliophilarr/discussions)
-- **Email**: Coming soon
-
----
-
-*This roadmap is a living document and will be updated as the project progresses. Dates are estimates and may change based on community contributions and unforeseen challenges.*
-
-**Last Updated**: February 16, 2024  
-**Version**: 1.0
+## Near-Term Delivery Sequence
+
+1. Keep `develop` and `staging` green for backend, docs, smoke, and packaging validation.
+2. Keep `main` green for readiness reporting and branch-policy audit dispatch.
+3. Reduce dependency security drift in small, verifiable lockfile slices.
+4. Promote release entry criteria from documentation to routine operator practice.
+5. Reassess whether packaging validation can safely move onto `main` after installation paths are fully validated.
+
+## Operational Notes
+
+- Do not treat `main` packaging absence as a regression. It is an intentional scope boundary until release installation paths are fully validated.
+- Do not treat Actions integration-token `403` responses as release blockers when the report artifacts explicitly mark the run as permission-limited and all available checks still succeed.
+- Prefer incremental migration slices with rollback clarity over broad architectural rewrites.
+
+## Related Documents
+
+- [MIGRATION_PLAN.md](MIGRATION_PLAN.md)
+- [PROJECT_STATUS.md](PROJECT_STATUS.md)
+- [QUICKSTART.md](QUICKSTART.md)
+- [docs/operations/RELEASE_AUTOMATION.md](docs/operations/RELEASE_AUTOMATION.md)
+- [docs/operations/release-readiness-report-2026-03-16.md](docs/operations/release-readiness-report-2026-03-16.md)
