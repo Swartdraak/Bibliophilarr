@@ -106,7 +106,7 @@ Example minimal config for priority servers (with version pinning for security):
 
 **Best use in this repo**
 
-- Understanding legacy Goodreads assumptions.
+- Understanding legacy metadata assumptions.
 - Tracking migration deltas over multiple phased PRs.
 
 ### 4) `openapi`
@@ -133,7 +133,7 @@ Example minimal config for priority servers (with version pinning for security):
 
 **Best use in this repo**
 
-- Verifying identifier mapping changes (Goodreads -> OLID/ISBN/etc.).
+- Verifying identifier mapping changes (legacy IDs -> OLID/ISBN/etc.).
 - Auditing migration correctness before production rollout.
 
 ### 6) `http` / `rest` test MCP

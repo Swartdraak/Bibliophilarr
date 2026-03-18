@@ -10,6 +10,12 @@ This runbook defines how operators detect provider degradation, tune fallback be
 - Provider health diagnostics endpoint.
 - Runtime resilience settings and provider order controls.
 
+OpenLibrary-only migration notes:
+
+- Legacy Goodreads provider implementations were removed from active runtime paths.
+- Identifier troubleshooting must use OpenLibrary-first identifiers (`olid`, ISBN, and provider foreign IDs).
+- If operators encounter stale automation or custom integrations still using Goodreads key names, treat this as migration drift and remediate before release entry.
+
 ## Prerequisites
 
 - Instance admin access.
@@ -47,6 +53,14 @@ Alert thresholds:
 - warning: fallback-hit rate `>= 15%` OR failure rate `>= 5%` OR hit rate `< 80%`
 - critical: fallback-hit rate `>= 30%` OR failure rate `>= 10%` OR hit rate `< 65%`
 
+Enforcement policy:
+
+- Warning or critical verdicts are release-entry blockers until resolved or explicitly accepted.
+- Promotion decisions must reference the latest dated checkpoint under
+   `docs/operations/metadata-telemetry-checkpoints/`.
+- Release workflow gating consumes these verdicts through
+   `scripts/release_entry_gate.py`.
+
 Action at warning:
 
 1. Confirm whether one provider dominates failures.
@@ -83,7 +97,6 @@ Action at critical:
 For emergency environment-level disablement:
 
 - `BIBLIOPHILARR_DISABLE_INVENTAIRE=1`
-- `READARR_DISABLE_INVENTAIRE=1`
 
 This forces `EnableInventaireProvider` to resolve as disabled at runtime regardless of stored config.
 
@@ -116,6 +129,19 @@ This forces `EnableInventaireProvider` to resolve as disabled at runtime regardl
 2. Execute a known book search and verify fallback behavior in logs.
 3. Run import-list sync and confirm no unresolved-ID book additions.
 4. Confirm API tests and targeted core fixtures pass in CI for metadata changes.
+5. Confirm no legacy Goodreads symbols are present in guarded source paths via release-entry gate output.
+
+## Removed legacy features
+
+- Goodreads import-list providers are removed.
+- Goodreads notification providers are removed.
+- Goodreads-specific metadata proxy implementations are removed.
+
+Operational response if stale configs remain:
+
+1. Remove or disable any persisted provider entries whose implementation name references Goodreads.
+2. Re-run provider settings validation and metadata diagnostics endpoints.
+3. Re-run import-list sync and verify no unresolved legacy identifier-only entries are added.
 
 ## Checkpoint Recording
 
@@ -126,6 +152,10 @@ Each checkpoint should include:
 1. Time window evaluated.
 2. Per-provider fallback-hit, failure, and hit-rate values.
 3. Warning/critical threshold verdict and operator action taken.
+
+The checkpoint must include a machine-readable line in this format:
+
+- `Overall threshold verdict: PASS|WARNING|CRITICAL|BLOCKED`
 
 ## Rollback
 

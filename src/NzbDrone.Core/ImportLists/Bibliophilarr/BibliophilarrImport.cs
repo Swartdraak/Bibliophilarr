@@ -66,11 +66,11 @@ namespace NzbDrone.Core.ImportLists.Bibliophilarr
 
                     authorsAndBooks.Add(new ImportListItemInfo
                     {
-                        BookGoodreadsId = remoteBook.ForeignBookId,
+                        BookOpenLibraryId = remoteBook.ForeignBookId,
                         Book = remoteBook.Title,
-                        EditionGoodreadsId = remoteBook.ForeignEditionId,
+                        EditionOpenLibraryId = remoteBook.ForeignEditionId,
                         Author = remoteAuthor.AuthorName,
-                        AuthorGoodreadsId = remoteAuthor.ForeignAuthorId
+                        AuthorOpenLibraryId = remoteAuthor.ForeignAuthorId
                     });
                 }
 

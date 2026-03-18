@@ -43,7 +43,7 @@ A structured upstream audit was created outside this repository to avoid acciden
 
 - Internal assembly/solution/project names remain `Bibliophilarr*` where required for build/runtime compatibility.
 - User-facing and operational references were moved toward Bibliophilarr-owned resources.
-- Runtime dependency on Servarr-specific package feeds was removed by switching to upstream packages and applying database-aware migration compatibility fixes.
+- Runtime dependency on legacy fork-specific package feeds was removed by switching to upstream packages and applying database-aware migration compatibility fixes.
 
 ## Remaining follow-up candidates
 

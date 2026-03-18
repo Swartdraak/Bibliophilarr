@@ -13,7 +13,7 @@ namespace NzbDrone.Common.Cloud
         public BibliophilarrCloudRequestBuilder()
         {
             //TODO: Create Update Endpoint
-            Services = new HttpRequestBuilder("https://bibliophilarr.servarr.com/v1/")
+            Services = new HttpRequestBuilder("https://services.bibliophilarr.org/v1/")
                 .CreateFactory();
 
             Metadata = new HttpRequestBuilder("https://api.bookinfo.club/v1/{route}")

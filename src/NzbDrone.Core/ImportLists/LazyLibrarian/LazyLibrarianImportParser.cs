@@ -36,7 +36,7 @@ namespace NzbDrone.Core.ImportLists.LazyLibrarianImport
                 {
                     Author = item.AuthorName,
                     Book = item.BookName,
-                    EditionGoodreadsId = item.BookId
+                    EditionOpenLibraryId = item.BookId
                 });
             }
 

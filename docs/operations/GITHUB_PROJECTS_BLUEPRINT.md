@@ -4,7 +4,7 @@ This blueprint defines recommended GitHub Projects for Bibliophilarr's current r
 
 ## Project 1: Metadata Migration Program
 
-**Purpose:** Track the Goodreads-to-FOSS migration as a multi-phase delivery program.
+**Purpose:** Track the legacy-metadata-to-FOSS migration as a multi-phase delivery program.
 
 **Suggested fields**
 

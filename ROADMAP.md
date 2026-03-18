@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: March 17, 2026
+**Last Updated**: March 18, 2026
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -71,6 +71,11 @@ In progress:
 - scheduled operational drift detection;
 - security-drift cleanup sequencing with lockfile evidence;
 - operator-facing readiness snapshots for release decisions.
+
+Completed in current hardening slice:
+
+- active Goodreads runtime provider implementations were removed from metadata/import-list/notification paths and replaced by OpenLibrary-oriented behavior in active runtime surfaces;
+- OpenAPI/API, localization, and frontend active-text surfaces were migrated away from Goodreads naming to OpenLibrary naming.
 
 Phase 6 exit criteria:
 

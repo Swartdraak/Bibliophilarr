@@ -116,10 +116,10 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         [Test]
-        public void search_by_external_id_goodreads_returns_empty()
+        public void search_by_external_id_openlibrary_returns_empty()
         {
-            // OpenLibraryProvider cannot resolve Goodreads IDs
-            var results = Subject.SearchByExternalId("goodreads", "12345");
+            // OpenLibraryProvider cannot resolve OpenLibrary IDs
+            var results = Subject.SearchByExternalId("openlibrary", "12345");
             results.Should().BeEmpty();
         }
 

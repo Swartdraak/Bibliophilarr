@@ -6,7 +6,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.Goodreads;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
 
@@ -33,11 +33,11 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
         }
 
         [Test]
-        public void should_not_throw_on_goodreads_exception()
+        public void should_not_throw_on_openlibrary_exception()
         {
             Mocker.GetMock<ISearchForNewBook>()
                 .Setup(s => s.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
-                .Throws(new GoodreadsException("Bad search"));
+                .Throws(new OpenLibraryException("Bad search"));
 
             var edition = new LocalEdition
             {

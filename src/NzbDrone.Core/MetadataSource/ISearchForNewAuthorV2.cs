@@ -47,7 +47,7 @@ namespace NzbDrone.Core.MetadataSource
         /// <summary>
         /// Search for author by provider-specific identifier
         /// </summary>
-        /// <param name="identifierType">Type of identifier (e.g., "openlibrary", "inventaire", "goodreads")</param>
+        /// <param name="identifierType">Type of identifier (e.g., "openlibrary", "inventaire", "openlibrary")</param>
         /// <param name="identifier">The identifier value</param>
         /// <param name="options">Search options</param>
         /// <returns>Author if found, null otherwise</returns>

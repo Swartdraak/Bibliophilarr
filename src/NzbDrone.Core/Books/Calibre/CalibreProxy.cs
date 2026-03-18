@@ -262,7 +262,7 @@ namespace NzbDrone.Core.Books.Calibre
                     {
                         { "isbn", edition.Isbn13 },
                         { "asin", edition.Asin },
-                        { "goodreads", edition.ForeignEditionId }
+                        { "openlibrary", edition.ForeignEditionId }
                     },
                     Series = series?.Title,
                     SeriesIndex = seriesIndex

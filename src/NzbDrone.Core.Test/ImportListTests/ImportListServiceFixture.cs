@@ -10,7 +10,7 @@ namespace NzbDrone.Core.Test.ImportListTests
         {
             _importLists = new List<IImportList>();
 
-            _importLists.Add(Mocker.Resolve<GoodreadsOwnedBooks>());
+            _importLists.Add(Mocker.Resolve<OpenLibraryOwnedBooks>());
 
             Mocker.SetConstant<IEnumerable<IImportList>>(_importLists);
         }

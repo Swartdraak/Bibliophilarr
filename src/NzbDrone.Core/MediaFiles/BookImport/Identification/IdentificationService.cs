@@ -167,7 +167,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             // If the result isn't great and we haven't tried remote candidates, try looking for remote candidates
-            // Goodreads may have a better edition of a local book
+            // OpenLibrary may have a better edition of a local book
             if (localBookRelease.Distance.NormalizedDistance() > 0.15 && !usedRemote)
             {
                 _logger.Debug("Match not good enough, trying remote candidates");

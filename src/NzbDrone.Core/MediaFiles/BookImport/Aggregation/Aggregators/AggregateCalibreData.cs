@@ -33,7 +33,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Aggregation.Aggregators
                 var parsed = localTrack.FileTrackInfo;
                 parsed.Asin = book.Identifiers.GetValueOrDefault("mobi-asin") ?? book.Identifiers.GetValueOrDefault("asin");
                 parsed.Isbn = book.Identifiers.GetValueOrDefault("isbn");
-                parsed.GoodreadsId = book.Identifiers.GetValueOrDefault("goodreads");
+                parsed.OpenLibraryId = book.Identifiers.GetValueOrDefault("openlibrary");
                 parsed.Authors = book.Authors;
                 parsed.BookTitle = book.Title;
             }

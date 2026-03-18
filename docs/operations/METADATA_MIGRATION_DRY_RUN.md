@@ -60,6 +60,7 @@ blocked snapshot instead of silently skipping the evidence trail.
 ## Related evidence
 
 - [metadata-dry-run-snapshots/2026-03-17-blocked.md](metadata-dry-run-snapshots/2026-03-17-blocked.md)
+- [metadata-dry-run-snapshots/2026-03-18-blocked.md](metadata-dry-run-snapshots/2026-03-18-blocked.md)
 - [METADATA_PROVIDER_RUNBOOK.md](METADATA_PROVIDER_RUNBOOK.md)
 - [PROJECT_STATUS.md](../../PROJECT_STATUS.md)
 

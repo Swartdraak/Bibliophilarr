@@ -4,7 +4,7 @@
 
 This document outlines the comprehensive technical plan for migrating Bibliophilarr from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
-## Implementation Progress Snapshot (March 17, 2026)
+## Implementation Progress Snapshot (March 18, 2026)
 
 Completed in the current migration slice:
 
@@ -24,6 +24,13 @@ Validation status for this slice:
 - API tests: pass (`Bibliophilarr.Api.Test`)
 - Core targeted tests: pass for `MetadataProviderOrchestratorFixture` and `ImportListSyncServiceFixture`
 - Import-list edge-case handling updated to avoid adding unresolved external-ID books
+
+Additional migration progress (March 18, 2026):
+
+- Goodreads provider implementations were removed from active runtime source trees and replaced by OpenLibrary-aligned metadata/search behavior.
+- Active runtime/API/frontend/localization references were migrated from Goodreads naming to OpenLibrary naming.
+- OpenAPI and frontend text were patched to remove Goodreads identifiers in active user and contract surfaces.
+- Legacy Goodreads-linked test fixtures were removed where they blocked build after provider removal; OpenLibrary-native replacement fixtures remain follow-up work.
 
 ## Table of Contents
 
@@ -52,15 +59,15 @@ Bibliophilarr currently uses a two-tier metadata system:
    - Comprehensive book and author metadata
    - Advanced search with special syntax (edition:, author:, work:, isbn:, asin:)
 
-2. **GoodreadsProxy** (Legacy Provider)
-   - Implements: `IProvideSeriesInfo`, `IProvideListInfo`
-   - XML-based Goodreads API
-   - Series and list metadata only
-   - Deprecated but still in use
+2. **OpenLibrarySearchProxy** (Primary search/lookup provider)
+    - Implements: `IOpenLibrarySearchProxy`
+    - OpenLibrary API-backed search and identifier lookup
+    - Handles title/author query search and ISBN/ASIN lookup fallback behavior
+    - Active and in use
 
 ### Problems with Current System
 
-- **Goodreads API**: Deprecated and unreliable
+- **Legacy Goodreads API paths**: Removed from active runtime provider implementations
 - **Proprietary Dependency**: Not community maintainable
 - **Single Point of Failure**: No fallback options
 - **Legal Concerns**: Terms of service restrictions
@@ -69,11 +76,11 @@ Bibliophilarr currently uses a two-tier metadata system:
 
 ### Foreign ID System
 
-Currently uses Goodreads IDs as `ForeignAuthorId` and `ForeignBookId` throughout the codebase:
+Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign IDs as the active identity path:
 
 - Database schema uses these IDs
-- User libraries are tagged with Goodreads IDs
-- Import/export relies on Goodreads identification
+- User libraries are progressively normalized toward OpenLibrary identifiers
+- Import/export flows are being migrated to OpenLibrary-oriented external identifier handling
 
 ---
 

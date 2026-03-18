@@ -32,3 +32,6 @@ jobs:
             CONTRIBUTING.md
             SECURITY.md
             CHANGELOG.md
+            docs/operations/METADATA_MIGRATION_DRY_RUN.md
+            docs/operations/METADATA_PROVIDER_RUNBOOK.md
+            docs/operations/RELEASE_AUTOMATION.md

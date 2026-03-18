@@ -180,8 +180,8 @@ class AddNewItem extends Component {
                 </div>
                 <div>
                   You can also search using the
-                  <Link to="https://goodreads.com"> Goodreads ID </Link>
-                  of a book (e.g. edition:656), work (e.g. work:4912783) or author (e.g. author:128382), the isbn (e.g. isbn:067003469X) or the asin (e.g. asin:B00JCDK5ME)
+                  <Link to="/settings/metadata"> external ID </Link>
+                  of a book (e.g. edition:656), work (e.g. work:4912783), author (e.g. author:128382), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
                 </div>
               </div>
           }
@@ -195,8 +195,8 @@ class AddNewItem extends Component {
                 </div>
                 <div>
                   You can also search using the
-                  <Link to="https://goodreads.com"> Goodreads ID </Link>
-                  of a book (e.g. edition:656), work (e.g. work:4912783) or author (e.g. author:128382), the isbn (e.g. isbn:067003469X) or the asin (e.g. asin:B00JCDK5ME)
+                  <Link to="/settings/metadata"> external ID </Link>
+                  of a book (e.g. edition:656), work (e.g. work:4912783), author (e.g. author:128382), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
                 </div>
               </div>
           }

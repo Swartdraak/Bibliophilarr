@@ -10,7 +10,7 @@ using NzbDrone.Core.MetadataSource.BookInfo;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Test.Framework;
 
-namespace NzbDrone.Core.Test.MetadataSource.Goodreads
+namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 {
     [TestFixture]
     [Ignore("Live metadata endpoint integration test. Enable explicitly when external endpoint is available.")]

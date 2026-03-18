@@ -6,7 +6,7 @@ using NzbDrone.Core.MetadataSource;
 
 namespace Bibliophilarr.Api.V1.Metadata
 {
-    [V1ApiController("metadata/providers/health")]
+    [V1ApiController("metadata/providers/health/basic")]
     public class ProviderHealthController : Controller
     {
         private readonly IMetadataProviderRegistry _providerRegistry;

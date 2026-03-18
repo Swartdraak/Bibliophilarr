@@ -79,13 +79,15 @@ class ApiClient:
 
     def trigger_backfill(self, max_lookups: int) -> Optional[int]:
         payload = {
-            "name": "BackfillOpenLibraryIds",
-            "maxLookups": max_lookups,
+            "Name": "BackfillOpenLibraryIds",
+            "MaxLookups": max_lookups,
         }
 
         data = self._request("POST", "/api/v1/command", payload)
-        if isinstance(data, dict) and isinstance(data.get("id"), int):
-            return data["id"]
+        if isinstance(data, dict):
+            command_id = data.get("id", data.get("Id"))
+            if isinstance(command_id, int):
+                return command_id
 
         return None
 

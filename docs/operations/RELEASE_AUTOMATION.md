@@ -146,6 +146,37 @@ Before tagging a release from `main`, all of the following must be true:
 5. The latest dated install evidence in `docs/operations/install-test-snapshots` still reflects successful local installation validation.
 6. Open security drift is either remediated or explicitly accepted with documented rationale.
 
+Mandatory checklist flow:
+
+1. Operator updates the latest dated entries in:
+  - `docs/operations/metadata-dry-run-snapshots/`
+  - `docs/operations/metadata-telemetry-checkpoints/`
+  - `docs/operations/install-test-snapshots/`
+2. Each snapshot must include explicit gate lines:
+  - `Verdict: PASS|WARNING|CRITICAL|BLOCKED` (dry-run snapshots)
+  - `Overall threshold verdict: PASS|WARNING|CRITICAL|BLOCKED` (telemetry checkpoints)
+  - `Overall matrix verdict: PASS|BLOCKED` (install snapshots)
+3. Operator runs:
+
+```bash
+python3 scripts/release_entry_gate.py \
+  --max-age-days 7 \
+  --md-out _artifacts/release-entry/release-entry-gate.md \
+  --json-out _artifacts/release-entry/release-entry-gate.json
+```
+
+Legacy symbol guard:
+
+- `scripts/release_entry_gate.py` now enforces a source scan gate over:
+  - `src/NzbDrone.Core`
+  - `src/Bibliophilarr.Api.V1`
+  - `frontend/src`
+- Release promotion is blocked if the forbidden legacy symbol `goodreads` is detected in those guarded paths.
+- The gate supports an explicit allowlist for approved compatibility shims via `--symbol-allowlist` (defaults include parser model alias files used for backward-compatible JSON deserialization).
+
+4. Promotion is blocked unless the gate report returns `Overall: PASS`.
+5. `release.yml` enforces this gate automatically in the `Release Entry Gate` job.
+
 Packaging scope note:
 
 - Packaging validation is intentionally required on `develop` and `staging` today.

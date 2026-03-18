@@ -77,13 +77,13 @@ namespace NzbDrone.Core.MetadataSource
         {
             return new MetadataFieldPrecedenceMatrix(new Dictionary<MetadataConflictField, IReadOnlyList<string>>
             {
-                [MetadataConflictField.Title] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.Subtitle] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.AuthorIdentity] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.Identifiers] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.PublicationDate] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.Language] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.CoverLinks] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" }
+                [MetadataConflictField.Title] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.Subtitle] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.AuthorIdentity] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.Identifiers] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.PublicationDate] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.Language] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.CoverLinks] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "OpenLibrary" }
             });
         }
     }
@@ -112,7 +112,7 @@ namespace NzbDrone.Core.MetadataSource
             ["Inventaire"] = 20,
             ["GoogleBooks"] = 30,
             ["Hardcover"] = 40,
-            ["Goodreads"] = 90
+            ["OpenLibrary"] = 90
         };
 
         private static readonly MetadataFieldPrecedenceMatrix FieldPrecedenceMatrix = MetadataFieldPrecedenceMatrix.CreateDefault();

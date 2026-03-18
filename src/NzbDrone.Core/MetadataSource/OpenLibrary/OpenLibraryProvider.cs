@@ -232,7 +232,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return SearchByAsin(id);
             }
 
-            // "goodreads" IDs are not meaningful to Open Library
+            // "openlibrary" IDs are not meaningful to Open Library
             _logger.Debug("OpenLibraryProvider: id type '{0}' not supported; returning empty.", idType);
             return new List<Book>();
         }

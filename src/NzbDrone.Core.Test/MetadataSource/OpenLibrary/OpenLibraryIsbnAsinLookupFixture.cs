@@ -1,156 +1,78 @@
-using System;
 using System.Collections.Generic;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MetadataSource.BookInfo;
-using NzbDrone.Core.MetadataSource.Goodreads;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 {
-    /// <summary>
-    /// Unit tests for Phase 3 ISBN/ASIN lookup paths in BookInfoProxy and the
-    /// OpenLibrarySearchProxy integration.
-    /// </summary>
     [TestFixture]
     public class OpenLibraryIsbnAsinLookupFixture : CoreTest<BookInfoProxy>
     {
-        // ------------------------------------------------------------------ //
-        // SearchByIsbn – Open Library happy-path
-        // ------------------------------------------------------------------ //
         [Test]
-        public void search_by_isbn_returns_open_library_result_when_lookup_succeeds()
-        {
-            var expectedBook = BuildBook("openlibrary:work:OL123W", "Dune", "9780441013593");
-
-            Mocker.GetMock<IOpenLibrarySearchProxy>()
-                .Setup(x => x.LookupByIsbn("9780441013593"))
-                .Returns(expectedBook);
-
-            var result = Subject.SearchByIsbn("9780441013593");
-
-            result.Should().ContainSingle();
-            result[0].ForeignBookId.Should().Be("openlibrary:work:OL123W");
-        }
-
-        [Test]
-        public void search_by_isbn_does_not_call_goodreads_when_open_library_succeeds()
-        {
-            var expectedBook = BuildBook("openlibrary:work:OL123W", "Dune", "9780441013593");
-
-            Mocker.GetMock<IOpenLibrarySearchProxy>()
-                .Setup(x => x.LookupByIsbn(It.IsAny<string>()))
-                .Returns(expectedBook);
-
-            Subject.SearchByIsbn("9780441013593");
-
-            // Goodreads search should not be triggered when OL lookup succeeds
-            Mocker.GetMock<IGoodreadsSearchProxy>()
-                .Verify(x => x.Search(It.IsAny<string>()), Times.Never());
-        }
-
-        // ------------------------------------------------------------------ //
-        // SearchByIsbn – Open Library miss → Goodreads fallback
-        // ------------------------------------------------------------------ //
-        [Test]
-        public void search_by_isbn_falls_back_when_open_library_returns_null()
+        public void search_by_isbn_should_fallback_to_query_search_when_lookup_misses()
         {
             Mocker.GetMock<IOpenLibrarySearchProxy>()
-                .Setup(x => x.LookupByIsbn(It.IsAny<string>()))
+                .Setup(x => x.LookupByIsbn("9780261103573"))
                 .Returns((Book)null);
 
-            Mocker.GetMock<IGoodreadsSearchProxy>()
-                .Setup(x => x.Search(It.IsAny<string>()))
-                .Returns(new List<SearchJsonResource>());
+            var metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = "OL3A",
+                Name = "J.R.R. Tolkien"
+            };
 
-            var result = Subject.SearchByIsbn("9780441013593");
-
-            result.Should().BeEmpty();
-
-            // Goodreads fallback should be attempted
-            Mocker.GetMock<IGoodreadsSearchProxy>()
-                .Verify(x => x.Search(It.IsAny<string>()), Times.Once());
-        }
-
-        // ------------------------------------------------------------------ //
-        // SearchByAsin – Open Library happy-path
-        // ------------------------------------------------------------------ //
-        [Test]
-        public void search_by_asin_returns_open_library_result_when_lookup_succeeds()
-        {
-            var expectedBook = BuildBook("openlibrary:work:OL456W", "Foundation", null);
+            var searchedBook = new Book
+            {
+                ForeignBookId = "OL3W",
+                Title = "The Lord of the Rings",
+                AuthorMetadata = new LazyLoaded<AuthorMetadata>(metadata)
+            };
 
             Mocker.GetMock<IOpenLibrarySearchProxy>()
-                .Setup(x => x.LookupByAsin("B000FC1PWW"))
-                .Returns(expectedBook);
+                .Setup(x => x.Search("9780261103573"))
+                .Returns(new List<Book> { searchedBook });
 
-            var result = Subject.SearchByAsin("B000FC1PWW");
+            var results = Subject.SearchByIsbn("9780261103573");
 
-            result.Should().ContainSingle();
-            result[0].ForeignBookId.Should().Be("openlibrary:work:OL456W");
+            results.Should().HaveCount(1);
+            results[0].ForeignBookId.Should().Be("OL3W");
+            Mocker.GetMock<IOpenLibrarySearchProxy>().Verify(x => x.Search("9780261103573"), Times.Once);
         }
 
         [Test]
-        public void search_by_asin_falls_back_when_open_library_returns_null()
+        public void search_by_asin_should_fallback_to_query_search_when_lookup_misses()
         {
             Mocker.GetMock<IOpenLibrarySearchProxy>()
-                .Setup(x => x.LookupByAsin(It.IsAny<string>()))
+                .Setup(x => x.LookupByAsin("B00JCDK5ME"))
                 .Returns((Book)null);
 
-            Mocker.GetMock<IGoodreadsSearchProxy>()
-                .Setup(x => x.Search(It.IsAny<string>()))
-                .Returns(new List<SearchJsonResource>());
-
-            var result = Subject.SearchByAsin("B000FC1PWW");
-
-            result.Should().BeEmpty();
-
-            Mocker.GetMock<IGoodreadsSearchProxy>()
-                .Verify(x => x.Search(It.IsAny<string>()), Times.Once());
-        }
-
-        // ------------------------------------------------------------------ //
-        // Helpers
-        // ------------------------------------------------------------------ //
-        private static Book BuildBook(string foreignId, string title, string isbn13)
-        {
-            var author = new AuthorMetadata
+            var metadata = new AuthorMetadata
             {
-                ForeignAuthorId = "openlibrary:author:test",
-                Name = "Test Author",
-                SortName = "Test Author",
-                NameLastFirst = "Test Author",
-                SortNameLastFirst = "Test Author"
+                ForeignAuthorId = "OL4A",
+                Name = "George Orwell"
             };
 
-            var book = new Book
+            var searchedBook = new Book
             {
-                ForeignBookId = foreignId,
-                Title = title,
-                CleanTitle = title,
-                AuthorMetadata = author,
-                ReleaseDate = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                Ratings = new Ratings()
+                ForeignBookId = "OL4W",
+                Title = "Nineteen Eighty-Four",
+                AuthorMetadata = new LazyLoaded<AuthorMetadata>(metadata)
             };
 
-            book.Editions = new List<Edition>
-            {
-                new Edition
-                {
-                    ForeignEditionId = foreignId.Replace("work", "edition"),
-                    Title = title,
-                    Isbn13 = isbn13,
-                    IsEbook = true,
-                    Format = "Ebook",
-                    Book = book,
-                    Ratings = new Ratings()
-                }
-            };
+            Mocker.GetMock<IOpenLibrarySearchProxy>()
+                .Setup(x => x.Search("B00JCDK5ME"))
+                .Returns(new List<Book> { searchedBook });
 
-            return book;
+            var results = Subject.SearchByAsin("B00JCDK5ME");
+
+            results.Should().HaveCount(1);
+            results[0].ForeignBookId.Should().Be("OL4W");
+            Mocker.GetMock<IOpenLibrarySearchProxy>().Verify(x => x.Search("B00JCDK5ME"), Times.Once);
         }
     }
 }

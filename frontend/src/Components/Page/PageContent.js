@@ -1,6 +1,5 @@
 import PropTypes from 'prop-types';
 import React from 'react';
-import DocumentTitle from 'react-document-title';
 import ErrorBoundary from 'Components/Error/ErrorBoundary';
 import PageContentError from './PageContentError';
 import styles from './PageContent.css';
@@ -12,13 +11,15 @@ function PageContent(props) {
     children
   } = props;
 
+  React.useEffect(() => {
+    document.title = title ? `${title} - ${window.Bibliophilarr.instanceName}` : window.Bibliophilarr.instanceName;
+  }, [title]);
+
   return (
     <ErrorBoundary errorComponent={PageContentError}>
-      <DocumentTitle title={title ? `${title} - ${window.Bibliophilarr.instanceName}` : window.Bibliophilarr.instanceName}>
-        <div className={className}>
-          {children}
-        </div>
-      </DocumentTitle>
+      <div className={className}>
+        {children}
+      </div>
     </ErrorBoundary>
   );
 }

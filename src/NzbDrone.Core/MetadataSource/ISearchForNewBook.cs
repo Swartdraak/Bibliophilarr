@@ -11,7 +11,7 @@ namespace NzbDrone.Core.MetadataSource
 
         /// <summary>
         /// Provider-agnostic identifier lookup.
-        /// Supported idType values: "goodreads" (int edition id), "olid" (Open Library work key), "isbn", "asin".
+        /// Supported idType values: "openlibrary" (int edition id), "olid" (Open Library work key), "isbn", "asin".
         /// Unknown or unsupported idTypes return an empty list.
         /// </summary>
         List<Book> SearchByExternalId(string idType, string id);

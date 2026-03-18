@@ -121,10 +121,10 @@ namespace NzbDrone.Common.Test.InstrumentationTests
             cleansedMessage.Should().Contain("shouldkeep3");
         }
 
-        //GoodReads
-        [TestCase(@"{""signatureMethod"": ""hmacSha1"",""signatureTreatment"": ""escaped"",""type"": ""protectedResource"",""method"": ""GET"",""token"": ""mytoken"",""tokenSecret"": ""mytokensecret"",""requestUrl"": ""https://www.goodreads.com/review/list.xml"",""parameters"": {  ""_nc"": ""1"",  ""v"": ""2"",  ""id"": ""999999999"",  ""shelf"": ""currently-reading"",  ""per_page"": ""200"",  ""page"": ""1""}")]
-        [TestCase(@"https://www.goodreads.com/series/311911?key=1234530f422f4aacb6b301233210aaaa&_nc=1&format=xml")]
-        public void should_cleanGoodRead_message(string message)
+        // OpenLibrary
+        [TestCase(@"{""signatureMethod"": ""hmacSha1"",""signatureTreatment"": ""escaped"",""type"": ""protectedResource"",""method"": ""GET"",""token"": ""mytoken"",""tokenSecret"": ""mytokensecret"",""requestUrl"": ""https://openlibrary.org/review/list.xml"",""parameters"": {  ""_nc"": ""1"",  ""v"": ""2"",  ""id"": ""999999999"",  ""shelf"": ""currently-reading"",  ""per_page"": ""200"",  ""page"": ""1""}")]
+        [TestCase(@"https://openlibrary.org/series/311911?key=1234530f422f4aacb6b301233210aaaa&_nc=1&format=xml")]
+        public void should_clean_openlibrary_message(string message)
         {
             var cleansedMessage = CleanseLogMessage.Cleanse(message);
 

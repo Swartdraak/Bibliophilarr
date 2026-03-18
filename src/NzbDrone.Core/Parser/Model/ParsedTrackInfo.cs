@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Qualities;
 
@@ -18,7 +19,14 @@ namespace NzbDrone.Core.Parser.Model
         public string SeriesIndex { get; set; }
         public string Isbn { get; set; }
         public string Asin { get; set; }
-        public string GoodreadsId { get; set; }
+        public string OpenLibraryId { get; set; }
+
+        [JsonProperty("GoodreadsId")]
+        public string LegacyGoodreadsId
+        {
+            set => OpenLibraryId ??= value;
+        }
+
         public string AuthorMBId { get; set; }
         public string BookMBId { get; set; }
         public string ReleaseMBId { get; set; }

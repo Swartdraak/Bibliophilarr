@@ -6,7 +6,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.Goodreads;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.MediaFiles.BookImport.Identification
@@ -226,7 +226,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             var isbns = localEdition.LocalBooks.Select(x => x.FileTrackInfo.Isbn).Distinct().ToList();
             var asins = localEdition.LocalBooks.Select(x => x.FileTrackInfo.Asin).Distinct().ToList();
-            var goodreads = localEdition.LocalBooks.Select(x => x.FileTrackInfo.GoodreadsId).Distinct().ToList();
+            var openlibrary = localEdition.LocalBooks.Select(x => x.FileTrackInfo.OpenLibraryId).Distinct().ToList();
             var isbn = SelectSingleIsbn(isbns, localEdition);
             var asin = SelectSingleAsin(asins, localEdition);
 
@@ -239,9 +239,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchByIsbn(isbn);
                 }
-                catch (GoodreadsException e)
+                catch (OpenLibraryException e)
                 {
-                    _logger.Info(e, "Skipping ISBN search due to Goodreads Error");
+                    _logger.Info(e, "Skipping ISBN search due to OpenLibrary Error");
                     remoteBooks = new List<Book>();
                 }
 
@@ -259,9 +259,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchByAsin(asin);
                 }
-                catch (GoodreadsException e)
+                catch (OpenLibraryException e)
                 {
-                    _logger.Info(e, "Skipping ASIN search due to Goodreads Error");
+                    _logger.Info(e, "Skipping ASIN search due to OpenLibrary Error");
                     remoteBooks = new List<Book>();
                 }
 
@@ -271,18 +271,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
             }
 
-            if (goodreads.Count == 1 &&
-                goodreads[0].IsNotNullOrWhiteSpace())
+            if (openlibrary.Count == 1 &&
+                openlibrary[0].IsNotNullOrWhiteSpace())
             {
-                _logger.Trace($"Searching by goodreads id {goodreads[0]}");
+                _logger.Trace($"Searching by openlibrary id {openlibrary[0]}");
 
                 try
                 {
-                    remoteBooks = _bookSearchService.SearchByExternalId("goodreads", goodreads[0]);
+                    remoteBooks = _bookSearchService.SearchByExternalId("openlibrary", openlibrary[0]);
                 }
-                catch (GoodreadsException e)
+                catch (OpenLibraryException e)
                 {
-                    _logger.Info(e, "Skipping Goodreads ID search due to Goodreads Error");
+                    _logger.Info(e, "Skipping OpenLibrary ID search due to OpenLibrary Error");
                     remoteBooks = new List<Book>();
                 }
 
@@ -442,9 +442,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 return _bookSearchService.SearchForNewBook(title, author);
             }
-            catch (GoodreadsException e)
+            catch (OpenLibraryException e)
             {
-                _logger.Info(e, "Skipping {0} due to Goodreads Error", mode);
+                _logger.Info(e, "Skipping {0} due to OpenLibrary Error", mode);
                 return new List<Book>();
             }
         }

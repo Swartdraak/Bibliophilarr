@@ -19,8 +19,37 @@ permissions:
   contents: write
 
 jobs:
+  release-entry-gate:
+    name: Release Entry Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Enforce release-entry evidence gates
+        run: |
+          mkdir -p _artifacts/release-entry
+          python3 scripts/release_entry_gate.py \
+            --max-age-days 7 \
+            --md-out _artifacts/release-entry/release-entry-gate.md \
+            --json-out _artifacts/release-entry/release-entry-gate.json
+
+      - name: Upload release-entry gate artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-entry-gate
+          path: _artifacts/release-entry
+
   build-package:
     name: Build and Package (${{ matrix.rid }})
+    needs: release-entry-gate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

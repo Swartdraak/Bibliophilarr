@@ -4,7 +4,7 @@ using NUnit.Framework;
 namespace NzbDrone.Integration.Test.ApiTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
+    [Ignore("Requires deterministic metadata fixture; live provider lookup remains non-deterministic in CI", Until = "2027-01-15 00:00:00Z")]
     public class AuthorLookupFixture : IntegrationTest
     {
         [TestCase("Robert Harris", "Robert Harris")]
@@ -18,7 +18,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         }
 
         [Test]
-        public void lookup_new_author_by_goodreads_book_id()
+        public void lookup_new_author_by_openlibrary_book_id()
         {
             var author = Author.Lookup("edition:2");
 

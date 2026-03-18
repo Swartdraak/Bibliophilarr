@@ -18,7 +18,6 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Http;
 using NzbDrone.Core.MediaCover;
-using NzbDrone.Core.MetadataSource.Goodreads;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -45,7 +44,6 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
         private readonly IHttpClient _httpClient;
         private readonly ICachedHttpResponseService _cachedHttpClient;
         private readonly IOpenLibrarySearchProxy _openLibrarySearchProxy;
-        private readonly IGoodreadsSearchProxy _goodreadsSearchProxy;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IEditionService _editionService;
@@ -57,7 +55,6 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
         public BookInfoProxy(IHttpClient httpClient,
                              ICachedHttpResponseService cachedHttpClient,
                              IOpenLibrarySearchProxy openLibrarySearchProxy,
-                             IGoodreadsSearchProxy goodreadsSearchProxy,
                              IAuthorService authorService,
                              IBookService bookService,
                              IEditionService editionService,
@@ -68,7 +65,6 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
             _httpClient = httpClient;
             _cachedHttpClient = cachedHttpClient;
             _openLibrarySearchProxy = openLibrarySearchProxy;
-            _goodreadsSearchProxy = goodreadsSearchProxy;
             _authorService = authorService;
             _bookService = bookService;
             _editionService = editionService;
@@ -104,7 +100,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
         {
-            _logger.Debug("Getting Author details GoodreadsId of {0}", foreignAuthorId);
+            _logger.Debug("Getting Author details OpenLibraryId of {0}", foreignAuthorId);
 
             if (IsOpenLibraryAuthorId(foreignAuthorId) && _openLibrarySearchProxy != null)
             {
@@ -218,17 +214,17 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
                         if (prefix == "author")
                         {
-                            return SearchByGoodreadsAuthorId(searchId);
+                            return SearchByOpenLibraryAuthorId(searchId);
                         }
 
                         if (prefix == "work")
                         {
-                            return SearchByGoodreadsWorkId(searchId);
+                            return SearchByOpenLibraryWorkId(searchId);
                         }
 
                         if (prefix == "edition")
                         {
-                            return SearchByGoodreadsBookId(searchId, getAllEditions);
+                            return SearchByOpenLibraryBookId(searchId, getAllEditions);
                         }
                     }
 
@@ -241,12 +237,12 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
             catch (HttpException ex)
             {
                 _logger.Warn(ex, ex.Message);
-                throw new GoodreadsException("Search for '{0}' failed. Unable to communicate with Goodreads.", ex, title);
+                throw new OpenLibraryException("Search for '{0}' failed. Unable to communicate with OpenLibrary.", ex, title);
             }
             catch (Exception ex) when (ex is not BookInfoException)
             {
                 _logger.Warn(ex, ex.Message);
-                throw new GoodreadsException("Search for '{0}' failed. Invalid response received from Goodreads.", ex, title);
+                throw new OpenLibraryException("Search for '{0}' failed. Invalid response received from OpenLibrary.", ex, title);
             }
         }
 
@@ -280,86 +276,19 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
         private List<Book> Search(string query, bool getAllEditions)
         {
-            if (_openLibrarySearchProxy != null)
-            {
-                var openLibraryResults = _openLibrarySearchProxy.Search(query);
-                if (openLibraryResults?.Count > 0)
-                {
-                    return openLibraryResults;
-                }
-            }
-
-            List<SearchJsonResource> result;
             try
             {
-                result = _goodreadsSearchProxy.Search(query);
+                var result = _openLibrarySearchProxy.Search(query);
+                return result ?? new List<Book>();
             }
             catch (Exception e)
             {
                 _logger.Warn(e, "Error searching for {0}", query);
                 return new List<Book>();
             }
-
-            var books = new List<Book>();
-
-            if (getAllEditions)
-            {
-                // Slower but more exhaustive, less intensive on metadata API
-                var bookIds = result.Select(x => x.WorkId).ToList();
-
-                var idMap = result.Select(x => new { AuthorId = x.Author.Id, BookId = x.WorkId })
-                    .GroupBy(x => x.AuthorId)
-                    .ToDictionary(x => x.Key, x => x.Select(i => i.BookId.ToString()).ToList());
-
-                List<Book> authorBooks;
-                foreach (var author in idMap.Keys)
-                {
-                    authorBooks = SearchByGoodreadsAuthorId(author);
-                    books.AddRange(authorBooks.Where(b => idMap[author].Contains(b.ForeignBookId)));
-                }
-
-                var missingBooks = bookIds.ExceptBy(x => x.ToString(), books, x => x.ForeignBookId, StringComparer.Ordinal).ToList();
-                foreach (var book in missingBooks)
-                {
-                    books.AddRange(SearchByGoodreadsWorkId(book));
-                }
-
-                return books;
-            }
-            else
-            {
-                // Use sparingly, hits metadata API quite hard
-                var ids = result.Select(x => x.BookId).ToList();
-
-                if (ids.Count == 0)
-                {
-                    return new List<Book>();
-                }
-
-                if (ids.Count == 1)
-                {
-                    return SearchByGoodreadsBookId(ids[0], false);
-                }
-
-                try
-                {
-                    return MapSearchResult(ids);
-                }
-                catch (HttpException ex)
-                {
-                    _logger.Warn(ex);
-                    throw new BookInfoException("Search for '{0}' failed. Unable to communicate with BibliophilarrAPI, returning status code: {1}.", ex, query, ex.Response.StatusCode);
-                }
-                catch (Exception e)
-                {
-                    _logger.Warn(e, "Error mapping search results");
-
-                    return new List<Book>();
-                }
-            }
         }
 
-        private List<Book> SearchByGoodreadsAuthorId(int id)
+        private List<Book> SearchByOpenLibraryAuthorId(int id)
         {
             try
             {
@@ -386,7 +315,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
             }
         }
 
-        public List<Book> SearchByGoodreadsWorkId(int id)
+        public List<Book> SearchByOpenLibraryWorkId(int id)
         {
             try
             {
@@ -407,9 +336,9 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
         public List<Book> SearchByExternalId(string idType, string id)
         {
-            if (idType == "goodreads" && int.TryParse(id, out var goodreadsId))
+            if (idType == "openlibrary" && int.TryParse(id, out var openlibraryId))
             {
-                return SearchByGoodreadsBookId(goodreadsId, true);
+                return SearchByOpenLibraryBookId(openlibraryId, true);
             }
 
             if (idType == "isbn")
@@ -426,7 +355,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
             return new List<Book>();
         }
 
-        private List<Book> SearchByGoodreadsBookId(int id, bool getAllEditions)
+        private List<Book> SearchByOpenLibraryBookId(int id, bool getAllEditions)
         {
             try
             {
@@ -866,7 +795,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
             if (resource.Url.IsNotNullOrWhiteSpace())
             {
-                metadata.Links.Add(new Links { Url = resource.Url, Name = "Goodreads" });
+                metadata.Links.Add(new Links { Url = resource.Url, Name = "OpenLibrary" });
             }
 
             return metadata;
@@ -955,7 +884,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
                 RelatedBooks = resource.RelatedWorks
             };
 
-            book.Links.Add(new Links { Url = resource.Url, Name = "Goodreads Editions" });
+            book.Links.Add(new Links { Url = resource.Url, Name = "OpenLibrary Editions" });
 
             if (resource.Books != null)
             {
@@ -1051,7 +980,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
                 });
             }
 
-            edition.Links.Add(new Links { Url = resource.Url, Name = "Goodreads Book" });
+            edition.Links.Add(new Links { Url = resource.Url, Name = "OpenLibrary Book" });
 
             return edition;
         }

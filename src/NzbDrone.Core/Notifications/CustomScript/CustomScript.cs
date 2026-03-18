@@ -133,7 +133,7 @@ namespace NzbDrone.Core.Notifications.CustomScript
             AddScriptVariable(environmentVariables, "Author_Id", author.Id.ToString());
             AddScriptVariable(environmentVariables, "Author_Name", author.Name);
             AddScriptVariable(environmentVariables, "Author_Path", author.Path);
-            AddScriptVariable(environmentVariables, "Author_GoodreadsId", author.ForeignAuthorId);
+            AddScriptVariable(environmentVariables, "Author_OpenLibraryId", author.ForeignAuthorId);
             AddScriptVariable(environmentVariables, "Author_DeletedFiles", deleteMessage.DeletedFiles.ToString());
 
             ExecuteScript(environmentVariables);
@@ -150,10 +150,10 @@ namespace NzbDrone.Core.Notifications.CustomScript
             AddScriptVariable(environmentVariables, "Author_Id", author.Id.ToString());
             AddScriptVariable(environmentVariables, "Author_Name", author.Name);
             AddScriptVariable(environmentVariables, "Author_Path", author.Path);
-            AddScriptVariable(environmentVariables, "Author_GoodreadsId", author.ForeignAuthorId);
+            AddScriptVariable(environmentVariables, "Author_OpenLibraryId", author.ForeignAuthorId);
             AddScriptVariable(environmentVariables, "Book_Id", book.Id.ToString());
             AddScriptVariable(environmentVariables, "Book_Title", book.Title);
-            AddScriptVariable(environmentVariables, "Book_GoodreadsId", book.ForeignBookId);
+            AddScriptVariable(environmentVariables, "Book_OpenLibraryId", book.ForeignBookId);
             AddScriptVariable(environmentVariables, "Book_DeletedFiles", deleteMessage.DeletedFiles.ToString());
 
             ExecuteScript(environmentVariables);
@@ -172,10 +172,10 @@ namespace NzbDrone.Core.Notifications.CustomScript
             AddScriptVariable(environmentVariables, "Delete_Reason", deleteMessage.Reason.ToString());
             AddScriptVariable(environmentVariables, "Author_Id", author.Id.ToString());
             AddScriptVariable(environmentVariables, "Author_Name", author.Name);
-            AddScriptVariable(environmentVariables, "Author_GoodreadsId", author.ForeignAuthorId);
+            AddScriptVariable(environmentVariables, "Author_OpenLibraryId", author.ForeignAuthorId);
             AddScriptVariable(environmentVariables, "Book_Id", book.Id.ToString());
             AddScriptVariable(environmentVariables, "Book_Title", book.Title);
-            AddScriptVariable(environmentVariables, "Book_GoodreadsId", book.ForeignBookId);
+            AddScriptVariable(environmentVariables, "Book_OpenLibraryId", book.ForeignBookId);
             AddScriptVariable(environmentVariables, "BookFile_Id", bookFile.Id.ToString());
             AddScriptVariable(environmentVariables, "BookFile_Path", bookFile.Path);
             AddScriptVariable(environmentVariables, "BookFile_Quality", bookFile.Quality.Quality.Name);
@@ -184,7 +184,7 @@ namespace NzbDrone.Core.Notifications.CustomScript
             AddScriptVariable(environmentVariables, "BookFile_SceneName", bookFile.SceneName ?? string.Empty);
             AddScriptVariable(environmentVariables, "BookFile_Edition_Id", edition.Id.ToString());
             AddScriptVariable(environmentVariables, "BookFile_Edition_Name", edition.Title);
-            AddScriptVariable(environmentVariables, "BookFile_Edition_GoodreadsId", edition.ForeignEditionId);
+            AddScriptVariable(environmentVariables, "BookFile_Edition_OpenLibraryId", edition.ForeignEditionId);
             AddScriptVariable(environmentVariables, "BookFile_Edition_Isbn13", edition.Isbn13);
             AddScriptVariable(environmentVariables, "BookFile_Edition_Asin", edition.Asin);
 
