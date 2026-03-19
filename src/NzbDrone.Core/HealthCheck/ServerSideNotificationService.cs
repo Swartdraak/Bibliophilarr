@@ -22,6 +22,7 @@ namespace NzbDrone.Core.HealthCheck
         private readonly IHttpClient _client;
         private readonly IConfigFileProvider _configFileProvider;
         private readonly IHttpRequestBuilderFactory _cloudRequestBuilder;
+        private readonly bool _servicesEnabled;
         private readonly Logger _logger;
 
         private readonly ICached<List<HealthCheck>> _cache;
@@ -35,6 +36,7 @@ namespace NzbDrone.Core.HealthCheck
             _client = client;
             _configFileProvider = configFileProvider;
             _cloudRequestBuilder = cloudRequestBuilder.Services;
+            _servicesEnabled = cloudRequestBuilder.HasServices;
             _logger = logger;
 
             _cache = cacheManager.GetCache<List<HealthCheck>>(GetType());
@@ -47,6 +49,11 @@ namespace NzbDrone.Core.HealthCheck
 
         private List<HealthCheck> RetrieveServerChecks()
         {
+            if (!_servicesEnabled || _cloudRequestBuilder == null)
+            {
+                return new List<HealthCheck>();
+            }
+
             var request = _cloudRequestBuilder.Create()
                                       .Resource("/notification")
                                       .AddQueryParam("version", BuildInfo.Version)

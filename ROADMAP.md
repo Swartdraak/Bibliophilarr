@@ -77,6 +77,19 @@ Completed in current hardening slice:
 - active Goodreads runtime provider implementations were removed from metadata/import-list/notification paths and replaced by OpenLibrary-oriented behavior in active runtime surfaces;
 - OpenAPI/API, localization, and frontend active-text surfaces were migrated away from Goodreads naming to OpenLibrary naming.
 
+Long-term cloud strategy — decided and implemented (March 2026):
+
+- The hardcoded `services.bibliophilarr.org` dependency has been replaced by an
+   optional `BIBLIOPHILARR_SERVICES_URL` environment variable.
+- Default mode is **local-only**: all cloud-backed features (update checks,
+   system-time drift, proxy health, server-side notifications) degrade gracefully
+   to no-op when the env var is not set. No errors are logged, no registry entries
+   are required.
+- Operators who want those features may point to a self-hosted or community endpoint.
+- There is no plan to operate a Bibliophilarr-managed cloud service. The
+   local-only default is the permanent production baseline.
+- Runbook: `docs/operations/services-endpoint-runbook.md`.
+
 Phase 6 exit criteria:
 
 - release entry criteria are documented and repeatable;

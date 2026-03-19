@@ -5,6 +5,7 @@ using Bibliophilarr.Http.Validation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Internal;
+using NzbDrone.Common.Cloud;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
@@ -27,6 +28,7 @@ namespace Bibliophilarr.Api.V1.System
         private readonly EndpointDataSource _endpointData;
         private readonly DfaGraphWriter _graphWriter;
         private readonly DuplicateEndpointDetector _detector;
+        private readonly IBibliophilarrCloudRequestBuilder _cloudRequestBuilder;
 
         public SystemController(IAppFolderInfo appFolderInfo,
                                 IRuntimeInfo runtimeInfo,
@@ -38,7 +40,8 @@ namespace Bibliophilarr.Api.V1.System
                                 IDeploymentInfoProvider deploymentInfoProvider,
                                 EndpointDataSource endpoints,
                                 DfaGraphWriter graphWriter,
-                                DuplicateEndpointDetector detector)
+                                DuplicateEndpointDetector detector,
+                                IBibliophilarrCloudRequestBuilder cloudRequestBuilder)
         {
             _appFolderInfo = appFolderInfo;
             _runtimeInfo = runtimeInfo;
@@ -51,6 +54,7 @@ namespace Bibliophilarr.Api.V1.System
             _endpointData = endpoints;
             _graphWriter = graphWriter;
             _detector = detector;
+            _cloudRequestBuilder = cloudRequestBuilder;
         }
 
         [HttpGet("status")]
@@ -88,7 +92,8 @@ namespace Bibliophilarr.Api.V1.System
                 PackageVersion = _deploymentInfoProvider.PackageVersion,
                 PackageAuthor = _deploymentInfoProvider.PackageAuthor,
                 PackageUpdateMechanism = _deploymentInfoProvider.PackageUpdateMechanism,
-                PackageUpdateMechanismMessage = _deploymentInfoProvider.PackageUpdateMechanismMessage
+                PackageUpdateMechanismMessage = _deploymentInfoProvider.PackageUpdateMechanismMessage,
+                UpdatesEnabled = _cloudRequestBuilder.HasServices
             };
         }
 

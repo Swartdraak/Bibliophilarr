@@ -50,6 +50,33 @@ For the repository build script:
 ./build.sh
 ```
 
+Optional runtime cloud-services endpoint:
+
+- `BIBLIOPHILARR_SERVICES_URL` enables cloud-backed update/time/notification checks.
+- If unset, those checks are skipped gracefully and local metadata workflows still run.
+- Example:
+
+```bash
+export BIBLIOPHILARR_SERVICES_URL="https://your-services-host.example"
+```
+
+When set, the following endpoints must be available at `{BIBLIOPHILARR_SERVICES_URL}/v1/`:
+
+| Path | Purpose | Method |
+|------|---------|--------|
+| `update/{branch}` | Latest update package for a branch | GET |
+| `update/{branch}/changes` | Recent update packages (list) | GET |
+| `time` | UTC clock for system-time health check | GET |
+| `ping` | Proxy connectivity health check | GET |
+| `notification` | Server-side health notifications | GET |
+
+Expected response format for `time`: `{ "utc": "2026-03-19T12:00:00Z" }`.
+Expected response format for `update/{branch}`: an `UpdatePackage` JSON object.
+Without this env var set, all update-check and time-sync health checks degrade
+gracefully to OK/empty without logging errors.
+
+See `docs/operations/services-endpoint-runbook.md` for full deployment patterns.
+
 ## Test
 
 Run targeted checks first, then broader validation if your slice changes build,

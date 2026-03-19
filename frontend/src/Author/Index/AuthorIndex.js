@@ -157,7 +157,12 @@ class AuthorIndex extends Component {
     }
 
     const characters = _.reduce(items, (acc, item) => {
-      let char = item[sortKey].charAt(0);
+      const value = item?.[sortKey];
+      if (typeof value !== 'string' || !value.length) {
+        return acc;
+      }
+
+      let char = value.charAt(0).toLowerCase();
 
       if (!isNaN(char)) {
         char = '#';

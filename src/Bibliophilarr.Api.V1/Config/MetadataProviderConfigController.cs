@@ -23,6 +23,10 @@ namespace Bibliophilarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.HardcoverRequestTimeoutSeconds)
                 .InclusiveBetween(0, 120)
                 .WithMessage("Hardcover request timeout must be between 0 and 120 seconds");
+
+            SharedValidator.RuleFor(c => c.IsbnContextFallbackLimit)
+                .InclusiveBetween(1, 10)
+                .WithMessage("ISBN contextual fallback attempt limit must be between 1 and 10");
         }
 
         protected override MetadataProviderConfigResource ToResource(IConfigService model)

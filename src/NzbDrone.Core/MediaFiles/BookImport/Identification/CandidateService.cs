@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
@@ -19,6 +21,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
     public class CandidateService : ICandidateService
     {
+        private const int IsbnFallbackCacheMaxSize = 200;
         private static readonly Regex Isbn13Regex = new Regex(@"(?<!\d)(97[89][\d-]{10,16})(?!\d)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex Isbn10Regex = new Regex(@"(?<![\dXx])([\d-]{9}[\dXx])(?![\dXx])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex AsinRegex = new Regex(@"\b(B0[0-9A-Z]{8})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -37,7 +40,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private readonly IMetadataQueryNormalizationService _queryNormalizationService;
         private readonly IEnumerable<IBookSearchFallbackProvider> _fallbackProviders;
         private readonly IBookSearchFallbackExecutionService _fallbackExecutionService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
+
+        private readonly ConcurrentDictionary<string, IReadOnlyList<Book>> _isbnFallbackCache =
+            new ConcurrentDictionary<string, IReadOnlyList<Book>>(StringComparer.OrdinalIgnoreCase);
 
         public CandidateService(ISearchForNewBook bookSearchService,
                                 IAuthorService authorService,
@@ -47,6 +54,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                                 IMetadataQueryNormalizationService queryNormalizationService,
                                 IEnumerable<IBookSearchFallbackProvider> fallbackProviders,
                                 IBookSearchFallbackExecutionService fallbackExecutionService,
+                                IConfigService configService,
                                 Logger logger)
         {
             _bookSearchService = bookSearchService;
@@ -60,6 +68,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 .ThenBy(x => x.ProviderName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             _fallbackExecutionService = fallbackExecutionService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -249,6 +258,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     yield return candidate;
                 }
+
+                // If ISBN lookup misses, attempt a few author+title searches before other ID-based lookups.
+                if (!seenCandidates.Any())
+                {
+                    foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides))
+                    {
+                        yield return candidate;
+                    }
+                }
             }
 
             if (asin.IsNotNullOrWhiteSpace() && asin.Length == 10)
@@ -433,6 +451,111 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     _logger.Debug("Provider {0} returned fallback candidates", provider.ProviderName);
                     yield break;
                 }
+            }
+        }
+
+        private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides)
+        {
+            var attemptLimit = _configService.IsbnContextFallbackLimit;
+            var attempts = 0;
+            var cacheHits = 0;
+
+            var bookTag = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.BookTitle) ?? string.Empty;
+            var authorTags = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.Authors) ?? new List<string>();
+
+            var titleVariants = (_queryNormalizationService.BuildTitleVariants(bookTag) ?? new List<string>())
+                .Where(t => t.IsNotNullOrWhiteSpace()).Distinct().ToList();
+            var authorVariants = (_queryNormalizationService.ExpandAuthorAliases(authorTags) ?? new List<string>())
+                .Where(a => a.IsNotNullOrWhiteSpace()).Distinct().ToList();
+
+            if (!titleVariants.Any())
+            {
+                yield break;
+            }
+
+            if (!authorVariants.Any())
+            {
+                authorVariants.Add(null);
+            }
+
+            foreach (var title in titleVariants)
+            {
+                foreach (var author in authorVariants)
+                {
+                    var cacheKey = $"{title}|{author ?? string.Empty}".ToLowerInvariant();
+
+                    if (_isbnFallbackCache.TryGetValue(cacheKey, out var cached))
+                    {
+                        cacheHits++;
+                        _logger.Debug("ISBN contextual fallback cache hit for title='{0}', author='{1}'", title, author ?? "<none>");
+                        foreach (var candidate in ToCandidates(cached, seenCandidates, idOverrides))
+                        {
+                            yield return candidate;
+                        }
+
+                        if (seenCandidates.Any())
+                        {
+                            _logger.Info("ISBN contextual fallback resolved via cache after {0} live attempt(s) and {1} cache hit(s)", attempts, cacheHits);
+                            yield break;
+                        }
+
+                        continue;
+                    }
+
+                    if (attempts >= attemptLimit)
+                    {
+                        yield break;
+                    }
+
+                    attempts++;
+                    _logger.Debug(
+                        "ISBN lookup miss; trying contextual fallback ({0}/{1}): title='{2}', author='{3}'",
+                        attempts,
+                        attemptLimit,
+                        title,
+                        author ?? "<none>");
+
+                    List<Book> remoteBooks;
+                    try
+                    {
+                        remoteBooks = _bookSearchService.SearchForNewBook(title, author, true);
+                    }
+                    catch (OpenLibraryException e)
+                    {
+                        _logger.Info(e, "Skipping ISBN contextual fallback search due to OpenLibrary Error");
+                        remoteBooks = new List<Book>();
+                    }
+
+                    if (_isbnFallbackCache.Count >= IsbnFallbackCacheMaxSize)
+                    {
+                        _isbnFallbackCache.Clear();
+                    }
+
+                    _isbnFallbackCache[cacheKey] = remoteBooks.AsReadOnly();
+
+                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                    {
+                        yield return candidate;
+                    }
+
+                    if (seenCandidates.Any())
+                    {
+                        _logger.Info(
+                            "ISBN contextual fallback hit after {0} attempt(s) and {1} cache hit(s); candidates found",
+                            attempts,
+                            cacheHits);
+                        yield break;
+                    }
+                }
+            }
+
+            if (attempts > 0 || cacheHits > 0)
+            {
+                _logger.Info(
+                    "ISBN contextual fallback exhausted: {0} live attempt(s), {1} cache hit(s), limit={2}, no candidates found",
+                    attempts,
+                    cacheHits,
+                    attemptLimit);
             }
         }
 

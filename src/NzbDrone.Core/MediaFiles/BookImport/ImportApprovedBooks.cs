@@ -448,6 +448,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     try
                     {
+                        NormalizeBookForInsert(book);
                         book.Monitored = book.Author.Value.Monitored;
                         book.Added = DateTime.UtcNow;
                         _bookService.InsertMany(new List<Book> { book });
@@ -502,6 +503,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     try
                     {
+                        NormalizeEditionForInsert(edition, book);
                         edition.BookId = book.Id;
                         edition.Monitored = false;
                         _editionService.InsertMany(new List<Edition> { edition });
@@ -527,6 +529,58 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             return edition;
+        }
+
+        private static void NormalizeBookForInsert(Book book)
+        {
+            if (book == null)
+            {
+                return;
+            }
+
+            if (book.CleanTitle.IsNullOrWhiteSpace())
+            {
+                book.CleanTitle = book.Title;
+            }
+
+            if (book.TitleSlug.IsNullOrWhiteSpace())
+            {
+                book.TitleSlug = FirstNonEmpty(book.ForeignBookId, book.OpenLibraryWorkId, book.CleanTitle, book.Title);
+            }
+
+            var editions = book.Editions?.Value;
+            if (editions == null)
+            {
+                return;
+            }
+
+            foreach (var edition in editions)
+            {
+                NormalizeEditionForInsert(edition, book);
+            }
+        }
+
+        private static void NormalizeEditionForInsert(Edition edition, Book book)
+        {
+            if (edition == null)
+            {
+                return;
+            }
+
+            if (edition.Title.IsNullOrWhiteSpace())
+            {
+                edition.Title = book?.Title;
+            }
+
+            if (edition.TitleSlug.IsNullOrWhiteSpace())
+            {
+                edition.TitleSlug = FirstNonEmpty(edition.ForeignEditionId, edition.Title, book?.TitleSlug, book?.ForeignBookId);
+            }
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            return values.FirstOrDefault(x => x.IsNotNullOrWhiteSpace())?.Trim();
         }
 
         private void RejectBook(List<ImportDecision<LocalBook>> decisions)

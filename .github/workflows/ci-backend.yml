@@ -22,6 +22,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Enforce explicit HTTP mutation binding
+        working-directory: .
+        run: bash scripts/ops/check_http_binding.sh
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:

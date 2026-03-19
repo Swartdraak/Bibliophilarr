@@ -32,6 +32,12 @@ Additional migration progress (March 18, 2026):
 - OpenAPI and frontend text were patched to remove Goodreads identifiers in active user and contract surfaces.
 - Legacy Goodreads-linked test fixtures were removed where they blocked build after provider removal; OpenLibrary-native replacement fixtures remain follow-up work.
 
+Additional hardening progress (March 19, 2026):
+
+- OpenLibrary ISBN-miss handling now performs limited contextual title+author fallback attempts before advancing to other identifier-source paths.
+- Metadata HTTP requests now follow canonical redirects in development to align local validation with production behavior.
+- Ebook import parsing now performs best-effort filename metadata fallback when EPUB/PDF/AZW parsing fails, reducing hard-stop identification failures.
+
 ## Table of Contents
 
 - [Current State](#current-state)

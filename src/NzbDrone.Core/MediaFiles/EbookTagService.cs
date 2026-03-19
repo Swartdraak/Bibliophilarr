@@ -292,8 +292,10 @@ namespace NzbDrone.Core.MediaFiles
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Error reading epub");
+                _logger.Warn(e, "Corrupt or unreadable EPUB: '{0}'. Tag parsing failed; using filename fallback. Repair or re-export via Calibre to restore full metadata.", file);
                 result.Quality.QualityDetectionSource = QualityDetectionSource.Extension;
+                ApplyFilenameFallback(file, result);
+                LogFallbackOutcome(file, result, "EPUB");
             }
 
             _logger.Trace($"Got:\n{result.ToJson()}");
@@ -311,10 +313,10 @@ namespace NzbDrone.Core.MediaFiles
                 var book = new Azw3File(file);
                 result.Authors = book.Authors;
                 result.BookTitle = book.Title;
-                result.Isbn = StripIsbn(book.Isbn);
                 result.Asin = book.Asin;
                 result.Language = book.Language;
                 result.Disambiguation = book.Description;
+
                 result.Publisher = book.Publisher;
                 result.Label = book.Imprint;
                 result.Source = book.Source;
@@ -327,13 +329,15 @@ namespace NzbDrone.Core.MediaFiles
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Error reading file");
-
+                var azwFormat = Path.GetExtension(file).Equals(".mobi", StringComparison.OrdinalIgnoreCase) ? "MOBI" : "AZW3";
+                _logger.Warn(e, "Corrupt or unreadable {0}: '{1}'. Tag parsing failed; using filename fallback. Convert or repair via Calibre to restore full metadata.", azwFormat, file);
                 result.Quality = new QualityModel
                 {
                     Quality = Path.GetExtension(file) == ".mobi" ? Quality.MOBI : Quality.AZW3,
                     QualityDetectionSource = QualityDetectionSource.Extension
                 };
+                ApplyFilenameFallback(file, result);
+                LogFallbackOutcome(file, result, azwFormat);
             }
 
             _logger.Trace($"Got {result.ToJson()}");
@@ -366,8 +370,10 @@ namespace NzbDrone.Core.MediaFiles
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Error reading pdf");
+                _logger.Warn(e, "Corrupt or unreadable PDF: '{0}'. Tag parsing failed; using filename fallback. Re-export from source or repair via Calibre to restore full metadata.", file);
                 result.Quality.QualityDetectionSource = QualityDetectionSource.Extension;
+                ApplyFilenameFallback(file, result);
+                LogFallbackOutcome(file, result, "PDF");
             }
 
             _logger.Trace($"Got:\n{result.ToJson()}");
@@ -377,6 +383,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public string GetIsbn(IEnumerable<EpubMetadataIdentifier> ids)
         {
+            if (ids == null)
+            {
+                return null;
+            }
+
             var candidates = ids.Select(x => StripIsbn(x?.Identifier))
                 .Where(x => x != null)
                 .OrderByDescending(x => x.Length);
@@ -384,6 +395,60 @@ namespace NzbDrone.Core.MediaFiles
             return candidates.FirstOrDefault(x => x.StartsWith("978"))
                 ?? candidates.FirstOrDefault(x => x.StartsWith("979"))
                 ?? candidates.FirstOrDefault();
+        }
+
+        private void ApplyFilenameFallback(string file, ParsedTrackInfo result)
+        {
+            var parsed = Parser.Parser.ParseTitle(file);
+            if (parsed == null)
+            {
+                return;
+            }
+
+            if (result.Authors == null || !result.Authors.Any())
+            {
+                result.Authors = parsed.Authors?.Where(a => a.IsNotNullOrWhiteSpace())
+                    .Select(a => a.Trim())
+                    .Distinct()
+                    .ToList() ?? new List<string>();
+            }
+
+            if (result.BookTitle.IsNullOrWhiteSpace())
+            {
+                result.BookTitle = parsed.BookTitle;
+            }
+
+            if (result.Isbn.IsNullOrWhiteSpace())
+            {
+                result.Isbn = parsed.Isbn;
+            }
+
+            if (result.Asin.IsNullOrWhiteSpace())
+            {
+                result.Asin = parsed.Asin;
+            }
+        }
+
+        private void LogFallbackOutcome(string file, ParsedTrackInfo result, string format)
+        {
+            var hasTitle = !result.BookTitle.IsNullOrWhiteSpace();
+            var hasAuthors = result.Authors != null && result.Authors.Any();
+            if (hasTitle || hasAuthors)
+            {
+                _logger.Info("{0} fallback metadata from filename for '{1}': title='{2}', authors='{3}'",
+                    format,
+                    Path.GetFileName(file),
+                    result.BookTitle ?? string.Empty,
+                    hasAuthors ? string.Join(", ", result.Authors) : "<none>");
+            }
+            else
+            {
+                _logger.Warn(
+                    "No fallback metadata could be extracted from filename '{0}'. " +
+                    "Rename to 'Title - Author.{1}' format to aid automatic matching.",
+                    Path.GetFileName(file),
+                    format.ToLower());
+            }
         }
 
         private string GetIsbnChars(string input)

@@ -329,6 +329,20 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
+                <FormLabel>ISBN Fallback Attempt Limit</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="isbnContextFallbackLimit"
+                  min={1}
+                  max={10}
+                  helpText="Maximum number of title/author search attempts when an ISBN lookup finds no results. Range 1–10."
+                  onChange={onInputChange}
+                  {...settings.isbnContextFallbackLimit}
+                />
+              </FormGroup>
+
+              <FormGroup>
                 <FormLabel>{translate('EnableMetadataConflictStrategyVariants')}</FormLabel>
 
                 <FormInputGroup

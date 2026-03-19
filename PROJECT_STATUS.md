@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 18, 2026  
+**Last Updated**: March 19, 2026  
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -109,6 +109,45 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Targeted integration rerun (`AuthorLookupFixture|AuthorFixture|OpenLibraryRefreshBaselineFixture`) completed with:
   - `2` passed (deterministic refresh baseline)
   - `14` skipped (intentionally ignored live-provider lookup/add tests)
+
+### March 19, 2026 HTTP mutation binding hardening note
+
+- Completed project-wide explicit binding remediation for complex mutation payload endpoints in:
+  - `src/Bibliophilarr.Api.V1`
+  - `src/Bibliophilarr.Http`
+- Added machine-readable scope-lock inventory and remediation checklist:
+  - `scripts/ops/http_binding_inventory.json`
+- Added a static regression gate to block implicit binding on complex POST/PUT payloads:
+  - `scripts/ops/check_http_binding.sh`
+  - `.github/workflows/ci-backend.yml` (`Enforce explicit HTTP mutation binding`)
+- Operational impact:
+  - API save/update paths now explicitly declare payload source, reducing first-run and settings-save ambiguity.
+  - CI now fails fast when a complex mutation payload omits explicit source binding.
+
+### March 19, 2026 metadata resilience hardening note
+
+- Added import identification resilience to reduce metadata misses and first-pass failures:
+  - ISBN miss flow now performs limited title+author fallback attempts before moving on to other identifier sources.
+  - Added constrained contextual fallback attempts to improve OpenLibrary hit rate for files with stale or edition-mismatched ISBNs.
+- Relaxed HTTP redirect behavior in development and production request defaults so metadata requests follow canonical endpoint redirects.
+- Improved ebook metadata parsing resilience for malformed files:
+  - Added best-effort filename-derived metadata fallback when EPUB/PDF/AZW parsing fails.
+  - Hardened EPUB ISBN extraction against null identifier collections.
+- Decoupled runtime from missing `services.bibliophilarr.org` dependency:
+  - Cloud services endpoint is now optional and enabled only when `BIBLIOPHILARR_SERVICES_URL` is configured.
+  - Update checks, server-side cloud notifications, and cloud-backed proxy/system-time checks now degrade gracefully when endpoint is not configured.
+- Validation rerun completed on March 19, 2026 with:
+  - full solution build passing:
+    - `dotnet msbuild -restore src/Bibliophilarr.sln -p:Configuration=Debug -p:Platform=Posix`
+  - targeted core fixture tests passing (`18/18`):
+    - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter "FullyQualifiedName~EbookTagServiceFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~UpdatePackageProviderServicesDisabledFixture|FullyQualifiedName~SystemTimeCheckFixture"`
+  - targeted HTTP client fixture tests passing (`55/55`):
+    - `dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --filter "FullyQualifiedName~HttpClientFixture"`
+  - publish path validated for runtime artifact generation:
+    - `dotnet publish src/NzbDrone.Console/Bibliophilarr.Console.csproj -f net8.0 -c Debug`
+  - install-readiness smoke checks passing for both local binary and Docker runtime:
+    - `/ping` returned `200`
+    - `/api/v1/system/status` returned `401` (expected without API key)
 
 ## What Is Complete
 

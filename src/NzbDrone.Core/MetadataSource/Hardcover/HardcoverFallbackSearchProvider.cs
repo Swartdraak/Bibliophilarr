@@ -144,6 +144,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var book = new Book
             {
                 ForeignBookId = $"hardcover:work:{result.Id}",
+                TitleSlug = $"hardcover:work:{result.Id}",
                 Title = title,
                 CleanTitle = title,
                 AuthorMetadata = authorMetadata,
@@ -169,6 +170,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     new Edition
                     {
                         ForeignEditionId = $"hardcover:edition:{result.Id}",
+                        TitleSlug = $"hardcover:edition:{result.Id}",
                         Title = title,
                         ReleaseDate = publishedDate,
                         IsEbook = true,
@@ -191,6 +193,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             return new Edition
             {
                 ForeignEditionId = $"hardcover:edition:{edition?.Id ?? book.ForeignBookId}",
+                TitleSlug = $"hardcover:edition:{edition?.Id ?? book.ForeignBookId}",
                 Title = title,
                 Publisher = edition?.Publisher?.Name,
                 Language = edition?.Language?.Code,

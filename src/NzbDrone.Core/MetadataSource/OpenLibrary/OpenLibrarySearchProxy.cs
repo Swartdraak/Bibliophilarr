@@ -247,6 +247,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var book = new Book
             {
                 ForeignBookId = bookForeignId,
+                TitleSlug = bookForeignId,
                 Title = title,
                 CleanTitle = title,
                 AuthorMetadata = authorMetadata,
@@ -263,6 +264,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var mappedEdition = new Edition
             {
                 ForeignEditionId = $"openlibrary:edition:{editionKey}",
+                TitleSlug = $"openlibrary:edition:{editionKey}",
                 Title = title,
                 Isbn13 = isbn13,
                 Publisher = edition.Publishers?.FirstOrDefault()?.Trim(),
@@ -315,6 +317,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var book = new Book
             {
                 ForeignBookId = $"openlibrary:work:{workKey}",
+                TitleSlug = $"openlibrary:work:{workKey}",
                 Title = title,
                 CleanTitle = title,
                 AuthorMetadata = authorMetadata,
@@ -333,6 +336,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var mappedEdition = new Edition
             {
                 ForeignEditionId = $"openlibrary:edition:{workKey}",
+                TitleSlug = $"openlibrary:edition:{workKey}",
                 Title = title,
                 Isbn13 = isbn13,
                 ReleaseDate = book.ReleaseDate,

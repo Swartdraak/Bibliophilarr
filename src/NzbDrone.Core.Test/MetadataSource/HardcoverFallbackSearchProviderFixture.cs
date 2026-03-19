@@ -90,10 +90,12 @@ namespace NzbDrone.Core.Test.MetadataSource
             books.Should().ContainSingle();
             books[0].Title.Should().Be("The Stand");
             books[0].ForeignBookId.Should().Be("hardcover:work:book-1");
+            books[0].TitleSlug.Should().Be("hardcover:work:book-1");
             books[0].AuthorMetadata.Should().NotBeNull();
             books[0].AuthorMetadata.Value.Name.Should().Be("Stephen King");
             books[0].Editions.Value.Should().ContainSingle();
             books[0].Editions.Value[0].ForeignEditionId.Should().Be("hardcover:edition:edition-1");
+            books[0].Editions.Value[0].TitleSlug.Should().Be("hardcover:edition:edition-1");
             books[0].Editions.Value[0].Publisher.Should().Be("Anchor");
             books[0].Editions.Value[0].Language.Should().Be("en");
             books[0].Editions.Value[0].Isbn13.Should().Be("9780307743688");

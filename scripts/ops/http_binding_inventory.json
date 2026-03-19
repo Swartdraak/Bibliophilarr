@@ -1,0 +1,249 @@
+{
+  "version": 1,
+  "generatedAt": "2026-03-19",
+  "scope": {
+    "projects": [
+      "src/Bibliophilarr.Api.V1",
+      "src/Bibliophilarr.Http"
+    ],
+    "mutationAttributes": [
+      "RestPostById",
+      "RestPutById",
+      "HttpPost",
+      "HttpPut"
+    ]
+  },
+  "summary": {
+    "totalHttpActions": 160,
+    "restPostPutActions": 34,
+    "httpPostPutActions": 22,
+    "baselineRestMissingBodyBinding": 25,
+    "baselineHttpComplexMissingBinding": 3
+  },
+  "baselineGaps": [
+    {
+      "path": "src/Bibliophilarr.Api.V1/Author/AuthorController.cs",
+      "line": 141,
+      "method": "AddAuthor",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Author/AuthorController.cs",
+      "line": 149,
+      "method": "UpdateAuthor",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Tags/TagController.cs",
+      "line": 40,
+      "method": "Create",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Tags/TagController.cs",
+      "line": 46,
+      "method": "Update",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/ImportLists/ImportListExclusionController.cs",
+      "line": 39,
+      "method": "AddImportListExclusion",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/ImportLists/ImportListExclusionController.cs",
+      "line": 47,
+      "method": "UpdateImportListExclusion",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Config/NamingConfigController.cs",
+      "line": 57,
+      "method": "UpdateNamingConfig",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Config/DevelopmentConfigController.cs",
+      "line": 44,
+      "method": "SaveDevelopmentConfig",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Config/UiConfigController.cs",
+      "line": 35,
+      "method": "SaveConfig",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/CustomFormats/CustomFormatController.cs",
+      "line": 52,
+      "method": "Create",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/CustomFormats/CustomFormatController.cs",
+      "line": 63,
+      "method": "Update",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/BookFiles/BookFileController.cs",
+      "line": 112,
+      "method": "SetQuality",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Qualities/QualityDefinitionController.cs",
+      "line": 26,
+      "method": "Update",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/CustomFilters/CustomFilterController.cs",
+      "line": 32,
+      "method": "AddCustomFilter",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/CustomFilters/CustomFilterController.cs",
+      "line": 40,
+      "method": "UpdateCustomFilter",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Books/BookController.cs",
+      "line": 155,
+      "method": "AddBook",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Books/BookController.cs",
+      "line": 163,
+      "method": "UpdateBook",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Profiles/Metadata/MetadataProfileController.cs",
+      "line": 38,
+      "method": "Create",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Profiles/Metadata/MetadataProfileController.cs",
+      "line": 52,
+      "method": "Update",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Profiles/Quality/QualityProfileController.cs",
+      "line": 47,
+      "method": "Create",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Profiles/Quality/QualityProfileController.cs",
+      "line": 61,
+      "method": "Update",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Profiles/Release/ReleaseProfileController.cs",
+      "line": 50,
+      "method": "Create",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Profiles/Release/ReleaseProfileController.cs",
+      "line": 56,
+      "method": "Update",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Profiles/Delay/DelayProfileController.cs",
+      "line": 37,
+      "method": "Create",
+      "attribute": "RestPostById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Profiles/Delay/DelayProfileController.cs",
+      "line": 57,
+      "method": "Update",
+      "attribute": "RestPutById",
+      "riskTag": "binding-high",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/ManualImport/ManualImportController.cs",
+      "line": 36,
+      "method": "UpdateItems",
+      "attribute": "HttpPost",
+      "riskTag": "binding-medium",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Indexers/ReleasePushController.cs",
+      "line": 49,
+      "method": "Create",
+      "attribute": "HttpPost",
+      "riskTag": "binding-medium",
+      "status": "remediated"
+    },
+    {
+      "path": "src/Bibliophilarr.Api.V1/Indexers/ReleaseController.cs",
+      "line": 66,
+      "method": "DownloadRelease",
+      "attribute": "HttpPost",
+      "riskTag": "binding-medium",
+      "status": "remediated"
+    }
+  ]
+}

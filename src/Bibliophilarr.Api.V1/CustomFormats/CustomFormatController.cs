@@ -49,7 +49,7 @@ namespace Bibliophilarr.Api.V1.CustomFormats
 
         [RestPostById]
         [Consumes("application/json")]
-        public ActionResult<CustomFormatResource> Create(CustomFormatResource customFormatResource)
+        public ActionResult<CustomFormatResource> Create([FromBody] CustomFormatResource customFormatResource)
         {
             var model = customFormatResource.ToModel(_specifications);
 
@@ -60,7 +60,7 @@ namespace Bibliophilarr.Api.V1.CustomFormats
 
         [RestPutById]
         [Consumes("application/json")]
-        public ActionResult<CustomFormatResource> Update(CustomFormatResource resource)
+        public ActionResult<CustomFormatResource> Update([FromBody] CustomFormatResource resource)
         {
             var model = resource.ToModel(_specifications);
 

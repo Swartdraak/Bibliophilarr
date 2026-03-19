@@ -138,7 +138,7 @@ namespace Bibliophilarr.Api.V1.Author
         }
 
         [RestPostById]
-        public ActionResult<AuthorResource> AddAuthor(AuthorResource authorResource)
+        public ActionResult<AuthorResource> AddAuthor([FromBody] AuthorResource authorResource)
         {
             var author = _addAuthorService.AddAuthor(authorResource.ToModel());
 
@@ -146,7 +146,7 @@ namespace Bibliophilarr.Api.V1.Author
         }
 
         [RestPutById]
-        public ActionResult<AuthorResource> UpdateAuthor(AuthorResource authorResource, bool moveFiles = false)
+        public ActionResult<AuthorResource> UpdateAuthor([FromBody] AuthorResource authorResource, bool moveFiles = false)
         {
             var author = _authorService.GetAuthor(authorResource.Id);
 

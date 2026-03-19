@@ -78,6 +78,7 @@ namespace NzbDrone.Core.Configuration
         bool EnableHardcoverFallback { get; set; }
         string HardcoverApiToken { get; set; }
         int HardcoverRequestTimeoutSeconds { get; set; }
+        int IsbnContextFallbackLimit { get; set; }
         bool EnableMetadataConflictStrategyVariants { get; set; }
         string MetadataAuthorAliases { get; set; }
         string MetadataTitleStripPatterns { get; set; }

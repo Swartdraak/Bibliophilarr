@@ -122,6 +122,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             var book = new Book
             {
                 ForeignBookId = $"googlebooks:work:{item.Id}",
+                TitleSlug = $"googlebooks:work:{item.Id}",
                 Title = title,
                 CleanTitle = title,
                 Author = author,
@@ -134,6 +135,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             var edition = new Edition
             {
                 ForeignEditionId = $"googlebooks:edition:{item.Id}",
+                TitleSlug = $"googlebooks:edition:{item.Id}",
                 Title = title,
                 Publisher = volume.Publisher,
                 ReleaseDate = publishedDate,

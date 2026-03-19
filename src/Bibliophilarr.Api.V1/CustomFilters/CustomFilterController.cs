@@ -29,7 +29,7 @@ namespace Bibliophilarr.Api.V1.CustomFilters
         }
 
         [RestPostById]
-        public ActionResult<CustomFilterResource> AddCustomFilter(CustomFilterResource resource)
+        public ActionResult<CustomFilterResource> AddCustomFilter([FromBody] CustomFilterResource resource)
         {
             var customFilter = _customFilterService.Add(resource.ToModel());
 
@@ -37,7 +37,7 @@ namespace Bibliophilarr.Api.V1.CustomFilters
         }
 
         [RestPutById]
-        public ActionResult<CustomFilterResource> UpdateCustomFilter(CustomFilterResource resource)
+        public ActionResult<CustomFilterResource> UpdateCustomFilter([FromBody] CustomFilterResource resource)
         {
             _customFilterService.Update(resource.ToModel());
             return Accepted(resource.Id);

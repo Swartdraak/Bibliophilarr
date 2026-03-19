@@ -6,6 +6,7 @@ import BookCover from 'Book/BookCover';
 import HeartRating from 'Components/HeartRating';
 import Icon from 'Components/Icon';
 import Label from 'Components/Label';
+import Link from 'Components/Link/Link';
 import { icons, sizes } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
 import fonts from 'Styles/Variables/fonts';
@@ -80,7 +81,6 @@ class AddNewBookSearchResult extends Component {
       ratings,
       images,
       author,
-      editions,
       isExistingBook,
       isExistingAuthor,
       isSmallScreen

@@ -4,9 +4,7 @@ import PageContentBody from 'Components/Page/PageContentBody';
 import translate from 'Utilities/String/translate';
 import AboutConnector from './About/AboutConnector';
 import DiskSpaceConnector from './DiskSpace/DiskSpaceConnector';
-import Donations from './Donations/Donations';
 import HealthConnector from './Health/HealthConnector';
-import MoreInfo from './MoreInfo/MoreInfo';
 
 class Status extends Component {
 
@@ -20,8 +18,6 @@ class Status extends Component {
           <HealthConnector />
           <DiskSpaceConnector />
           <AboutConnector />
-          <MoreInfo />
-          <Donations />
         </PageContentBody>
       </PageContent>
     );

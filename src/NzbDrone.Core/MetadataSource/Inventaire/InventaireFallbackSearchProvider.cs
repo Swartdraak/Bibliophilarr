@@ -115,6 +115,7 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
             var book = new Book
             {
                 ForeignBookId = $"inventaire:work:{workId}",
+                TitleSlug = $"inventaire:work:{workId}",
                 Title = title,
                 CleanTitle = title,
                 Author = author,
@@ -127,6 +128,7 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
             var edition = new Edition
             {
                 ForeignEditionId = $"inventaire:edition:{workId}",
+                TitleSlug = $"inventaire:edition:{workId}",
                 Title = title,
                 Isbn13 = result.Isbn13,
                 IsEbook = true,

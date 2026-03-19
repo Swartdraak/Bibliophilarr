@@ -346,6 +346,12 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("HardcoverRequestTimeoutSeconds", value); }
         }
 
+        public int IsbnContextFallbackLimit
+        {
+            get { return GetValueInt("IsbnContextFallbackLimit", 3); }
+            set { SetValue("IsbnContextFallbackLimit", Math.Max(1, Math.Min(10, value))); }
+        }
+
         public bool EnableMetadataConflictStrategyVariants
         {
             get { return GetValueBoolean("EnableMetadataConflictStrategyVariants", false); }

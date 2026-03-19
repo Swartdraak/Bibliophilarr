@@ -39,12 +39,18 @@ touches startup, metadata, packaging, or CI.
 Typical commands:
 
 ```bash
+bash scripts/ops/check_http_binding.sh
 dotnet test src/Bibliophilarr.sln
 yarn lint
 yarn build
 python3 scripts/audit_branch_protection.py --branches develop staging main --expected-review-count 0
 python3 scripts/release_readiness_report.py --branches develop staging main
 ```
+
+API mutation guidance:
+
+- For complex `POST`/`PUT` payloads, always use explicit source binding (`[FromBody]`, `[FromForm]`, `[FromQuery]`, or `[FromRoute]`).
+- Avoid relying on implicit model binding for resource payloads in `src/Bibliophilarr.Api.V1` and `src/Bibliophilarr.Http`.
 
 Metadata-related changes should add or update deterministic tests for mapping,
 fallback order, unresolved identifiers, or transient provider failures.

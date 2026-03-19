@@ -23,6 +23,7 @@ function AuthenticationRequiredModalContent(props) {
   const {
     isPopulated,
     error,
+    saveError,
     isSaving,
     settings,
     onInputChange,
@@ -67,6 +68,13 @@ function AuthenticationRequiredModalContent(props) {
           {translate('AuthenticationRequiredWarning')}
         </Alert>
 
+     {
+       saveError ?
+         <Alert kind={kinds.DANGER}>
+           {translate('ErrorSavingGeneralSettings')}
+         </Alert> :
+         null
+     }
         {
           isPopulated && !error ?
             <div>
