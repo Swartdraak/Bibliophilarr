@@ -175,6 +175,94 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - `main` can now host the manual readiness workflows, but broader release workflows are still aligned primarily with the active delivery lanes.
 - Packaging validation is green on `develop` and `staging`; `main` is receiving the audit and readiness automation first so operators can dispatch reports from the default branch.
 
+## Source-code technical debt tracker (March 19, 2026)
+
+### Audit scope and method
+
+- Scope: source-only pre-compile code under `src/`, `frontend/src/`, `scripts/`, and root build/config files.
+- Excluded by policy: `_output/`, `_tests/`, `_artifacts/`, and all `bin/` and `obj/` trees.
+- Method: static source review, call-path tracing on active runtime surfaces, and workspace diagnostics check.
+- Current status: open remediation queue, ordered by release risk and user-facing impact.
+
+### Change management note
+
+What changed:
+- Added a canonical technical debt register for source-level validity findings and remediation tracking.
+
+Why it changed:
+- Runtime issues persisted despite successful builds, indicating unresolved source-level correctness and safety gaps.
+
+How to validate:
+- Confirm each debt item acceptance criteria and validation commands pass before setting item status to closed.
+
+Operational impact and rollback:
+- Closing P0/P1 items reduces crash/security exposure and improves search/import determinism.
+- Rollback is per-slice via scoped commits and revert of the specific debt item commit when needed.
+
+### Priority definitions
+
+- `P0`: security boundary or crash-risk issue affecting core runtime flows.
+- `P1`: high-probability runtime defect in user-critical paths.
+- `P2`: important correctness, resilience, or operability hardening.
+- `P3`: cleanup, refactor, or deferred structural quality work.
+
+### Tracker fields
+
+- `Debt ID`: stable identifier for cross-reference in commits/PRs.
+- `Owner`: team or maintainer assignment (set during triage).
+- `Status`: `open`, `in-progress`, `blocked`, `done`.
+- `Validation gate`: objective check required to close the item.
+
+### Active technical debt queue
+
+| Debt ID | Priority | Area | Risk summary | Primary locations | Owner | Status | Acceptance criteria | Validation gate |
+|---|---|---|---|---|---|---|---|---|
+| TD-001 | P0 | API/Auth | Host config endpoints are anonymously readable/writable and can expose credential fields. | `src/Bibliophilarr.Api.V1/Config/HostConfigController.cs` | unassigned | done | Host config write requires authenticated admin context; response never returns password material. | API tests for unauthorized/authorized host config GET/PUT and first-run path behavior. |
+| TD-002 | P0 | Core/API | Unsafe `Single(x => x.Monitored)` edition selection can throw when monitored cardinality is not exactly one. | `src/NzbDrone.Core/Books/Services/AddBookService.cs`, `src/NzbDrone.Core/Notifications/CustomScript/CustomScript.cs`, `src/Bibliophilarr.Api.V1/ManualImport/ManualImportResource.cs` | unassigned | done | Replace `Single` calls with safe deterministic selection/fallback and null-safe behavior. | Targeted unit/integration tests for 0, 1, and many monitored-edition cases. |
+| TD-003 | P1 | Frontend/Add Search | Add-search book rendering assumes non-null author and can crash on partial provider payloads. | `frontend/src/Search/AddNewItem.js`, `frontend/src/Search/Book/AddNewBookSearchResult.js` | unassigned | done | UI handles `book.author == null` without runtime errors and still renders actionable result state. | Frontend tests plus manual add-search smoke (`/add/search?term=...`) with null-author fixture payload. |
+| TD-004 | P1 | Frontend/Navigation | A-Z jump paths accept `-1` from index finder and may attempt invalid scroll operations. | `frontend/src/Utilities/Array/getIndexOfFirstCharacter.js`, `frontend/src/Author/Index/**`, `frontend/src/Book/Index/**`, `frontend/src/Bookshelf/Bookshelf.js` | unassigned | done | All jump consumers gate on non-negative index and no-op cleanly when no match exists. | Unit tests for no-match jump; manual A-Z jump smoke in table, poster, and overview modes. |
+| TD-005 | P1 | API Runtime Surface | Multiple API/runtime controllers still throw `NotImplementedException` on callable paths. | `src/Bibliophilarr.Api.V1/Queue/*.cs`, `src/Bibliophilarr.Api.V1/Health/HealthController.cs`, `src/Bibliophilarr.Api.V1/Metadata/MetadataController.cs`, `src/Bibliophilarr.Api.V1/Notifications/NotificationController.cs` | unassigned | done | Replace hard throws with implemented behavior or explicit `501/feature-unavailable` responses plus telemetry. | API contract tests confirm non-crashing responses and expected status codes. |
+| TD-006 | P2 | Indexer Search | RSS-only indexer generators throw `NotImplementedException` for search methods. | `src/NzbDrone.Core/Indexers/*RequestGenerator.cs` (RSS-only implementations) | unassigned | open | Explicit capability segregation prevents search invocation against RSS-only generators, or methods return safe no-op chains. | Search flow tests across mixed indexer capabilities; no unhandled `NotImplementedException`. |
+| TD-007 | P2 | Auth Handling | Basic auth parsing throws generic exception on malformed auth header. | `src/Bibliophilarr.Http/Authentication/BasicAuthenticationHandler.cs` | unassigned | open | Malformed headers produce controlled auth failure (401) without unhandled exceptions. | Authentication handler tests for malformed/missing delimiter scenarios. |
+| TD-008 | P2 | Search Observability | Unsupported search entity types are silently dropped, masking provider contract drift. | `src/Bibliophilarr.Api.V1/Search/SearchController.cs` | unassigned | open | Unsupported entity types are counted/logged with request context while preserving successful partial responses. | Telemetry assertions and log verification in search tests. |
+| TD-009 | P3 | Build/Test Clarity | Distinction between test package and full runtime package is implicit and causes execution confusion. | `build.sh`, `QUICKSTART.md` | unassigned | open | Commands/documentation clearly distinguish runtime package artifacts vs test package artifacts and startup expectations. | Local operator walkthrough from clean checkout confirms deterministic startup instructions. |
+
+### Latest validation evidence (March 20, 2026)
+
+1. Clean rebuild and package generation completed from a fresh output state:
+  - `rm -rf _output/net8.0 _tests/net8.0 _artifacts/linux-x64`
+  - `dotnet msbuild -restore src/Bibliophilarr.sln -p:GenerateFullPaths=true -p:Configuration=Debug -p:Platform=Posix '-consoleloggerparameters:NoSummary;ForceNoAlign'`
+  - `./build.sh --backend --frontend --packages --lint --framework net8.0 --runtime linux-x64`
+2. Runtime package startup validated using the packaged binary and UI folder placement:
+  - `cp -r _output/UI _output/net8.0/linux-x64/UI`
+  - `./_output/net8.0/linux-x64/Bibliophilarr --nobrowser ...`
+  - `/ping` returned `200`.
+3. Integration bootstrap path repaired in `src/NzbDrone.Test.Common/NzbDroneRunner.cs` (robust executable resolution across current output layouts).
+4. TD-001 and TD-005 integration fixtures now pass (`10/10`):
+  - `dotnet test src/NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~ControllerNonThrowingContractFixture"`
+5. TD-003 manual UI smoke passed:
+  - `/add/search?term=anne` exercised with Playwright route-mutation setting first search result `author = null`.
+  - Search results continued rendering with no page errors and no console runtime errors.
+6. TD-004 manual UI smoke passed:
+  - Author index and shelf UI paths were exercised under empty-library and populated-list conditions.
+  - Jump/no-match navigation paths produced no client runtime exceptions; guarded `isValidScrollIndex` flow no-oped cleanly when no valid index existed.
+
+### Execution order and cadence
+
+1. Complete all `P0` items before introducing new migration-scope feature work.
+2. Close `P1` items in short scoped commits, each with targeted test evidence.
+3. Address `P2` resilience items after `P0/P1` queue reaches stable green.
+4. Schedule `P3` cleanup with documentation updates and operator validation.
+
+### Tracking protocol
+
+For each debt item closure:
+
+1. Reference the `Debt ID` in commit and PR text.
+2. Include exact commands used for validation and resulting outcomes.
+3. Record rollback notes for any change touching auth, search, or import paths.
+4. Update this table status and acceptance evidence in the same change set.
+
 ## Local Install Testing Program Recommendations
 
 To keep the project moving toward practical release confidence, the `develop` branch should treat local install testing as a primary delivery outcome.

@@ -1,6 +1,4 @@
-using System;
 using Bibliophilarr.Http;
-using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Extras.Metadata;
 
 namespace Bibliophilarr.Api.V1.Metadata
@@ -14,18 +12,6 @@ namespace Bibliophilarr.Api.V1.Metadata
         public MetadataController(IMetadataFactory metadataFactory)
             : base(metadataFactory, "metadata", ResourceMapper, BulkResourceMapper)
         {
-        }
-
-        [NonAction]
-        public override ActionResult<MetadataResource> UpdateProvider([FromBody] MetadataBulkResource providerResource)
-        {
-            throw new NotImplementedException();
-        }
-
-        [NonAction]
-        public override object DeleteProviders([FromBody] MetadataBulkResource resource)
-        {
-            throw new NotImplementedException();
         }
     }
 }

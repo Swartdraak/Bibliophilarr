@@ -65,7 +65,21 @@ namespace Bibliophilarr.Api.V1.Queue
 
         protected override QueueResource GetResourceById(int id)
         {
-            throw new NotImplementedException();
+            var pendingRelease = _pendingReleaseService.FindPendingQueueItem(id);
+
+            if (pendingRelease != null)
+            {
+                return MapToResource(pendingRelease, includeAuthor: true, includeBook: true);
+            }
+
+            var queueItem = _queueService.Find(id);
+
+            if (queueItem == null)
+            {
+                throw new NotFoundException();
+            }
+
+            return MapToResource(queueItem, includeAuthor: true, includeBook: true);
         }
 
         [RestDeleteById]

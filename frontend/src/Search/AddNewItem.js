@@ -15,6 +15,16 @@ import AddNewAuthorSearchResultConnector from './Author/AddNewAuthorSearchResult
 import AddNewBookSearchResultConnector from './Book/AddNewBookSearchResultConnector';
 import styles from './AddNewItem.css';
 
+export function getBookSearchResultFlags(book) {
+  const isExistingBook = !!book && 'id' in book && book.id !== 0;
+  const isExistingAuthor = !!book?.author && 'id' in book.author && book.author.id !== 0;
+
+  return {
+    isExistingBook,
+    isExistingAuthor
+  };
+}
+
 class AddNewItem extends Component {
 
   //
@@ -157,11 +167,13 @@ class AddNewItem extends Component {
                       );
                     } else if (item.book) {
                       const book = item.book;
+                      const { isExistingBook, isExistingAuthor } = getBookSearchResultFlags(book);
+
                       return (
                         <AddNewBookSearchResultConnector
                           key={item.id}
-                          isExistingBook={'id' in book && book.id !== 0}
-                          isExistingAuthor={'id' in book.author && book.author.id !== 0}
+                          isExistingBook={isExistingBook}
+                          isExistingAuthor={isExistingAuthor}
                           {...book}
                         />
                       );

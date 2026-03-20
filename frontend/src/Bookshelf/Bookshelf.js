@@ -14,6 +14,7 @@ import VirtualTable from 'Components/Table/VirtualTable';
 import VirtualTableRow from 'Components/Table/VirtualTableRow';
 import { align, sortDirections } from 'Helpers/Props';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
+import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 import getSelectedIds from 'Utilities/Table/getSelectedIds';
@@ -90,12 +91,12 @@ class Bookshelf extends Component {
     } = this.state;
 
     if (prevProps.isSaving && !isSaving && !saveError) {
-      this.onSelectAllChange({ value: false });
+      this.setState(selectAll(this.state.selectedState, false));
     }
 
     // nasty hack to fix react-virtualized jumping incorrectly
     // due to variable row heights
-    if (scrollIndex != null) {
+    if (isValidScrollIndex(scrollIndex)) {
       if (jumpCount === 0) {
         this.setState({
           scrollIndex: scrollIndex + 1,
@@ -296,7 +297,7 @@ class Bookshelf extends Component {
 
     const scrollIndex = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
 
-    if (scrollIndex != null) {
+    if (isValidScrollIndex(scrollIndex)) {
       this.setState({ scrollIndex });
     }
   };

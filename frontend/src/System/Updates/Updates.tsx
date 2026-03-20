@@ -92,17 +92,17 @@ function Updates() {
       <PageContentBody>
         {isPopulated || hasError ? null : <LoadingIndicator />}
 
-        {noUpdates ? (
-          updatesEnabled === false ? (
-            <Alert kind={kinds.WARNING}>
-              Update checks are not configured. Set the{' '}
-              <code>BIBLIOPHILARR_SERVICES_URL</code> environment variable to
-              enable cloud-backed version checks. See the deployment runbook for
-              details.
-            </Alert>
-          ) : (
-            <Alert kind={kinds.INFO}>{translate('NoUpdatesAreAvailable')}</Alert>
-          )
+        {noUpdates && updatesEnabled === false ? (
+          <Alert kind={kinds.WARNING}>
+            Update checks are not configured. Set the{' '}
+            <code>BIBLIOPHILARR_SERVICES_URL</code> environment variable to
+            enable cloud-backed version checks. See the deployment runbook for
+            details.
+          </Alert>
+        ) : null}
+
+        {noUpdates && updatesEnabled !== false ? (
+          <Alert kind={kinds.INFO}>{translate('NoUpdatesAreAvailable')}</Alert>
         ) : null}
 
         {hasUpdateToInstall ? (

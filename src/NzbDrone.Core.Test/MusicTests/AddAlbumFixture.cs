@@ -106,5 +106,71 @@ namespace NzbDrone.Core.Test.MusicTests
 
             ExceptionVerification.ExpectedErrors(1);
         }
+
+        [Test]
+        public void should_fallback_to_first_edition_when_none_are_monitored()
+        {
+            var newBook = new Book
+            {
+                ForeignBookId = "book",
+                Editions = new List<Edition>
+                {
+                    new Edition
+                    {
+                        ForeignEditionId = "edition-1",
+                        Monitored = false
+                    },
+                    new Edition
+                    {
+                        ForeignEditionId = "edition-2",
+                        Monitored = false
+                    }
+                },
+                AuthorMetadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = "author"
+                }
+            };
+
+            GivenValidBook("book", "edition-1");
+            GivenValidPath();
+
+            var result = Subject.AddBook(newBook);
+
+            result.GetPreferredEdition().ForeignEditionId.Should().Be("edition-1");
+        }
+
+        [Test]
+        public void should_select_first_monitored_edition_when_multiple_are_monitored()
+        {
+            var newBook = new Book
+            {
+                ForeignBookId = "book",
+                Editions = new List<Edition>
+                {
+                    new Edition
+                    {
+                        ForeignEditionId = "edition-1",
+                        Monitored = true
+                    },
+                    new Edition
+                    {
+                        ForeignEditionId = "edition-2",
+                        Monitored = true
+                    }
+                },
+                AuthorMetadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = "author"
+                }
+            };
+
+            GivenValidBook("book", "edition-1");
+            GivenValidPath();
+
+            var result = Subject.AddBook(newBook);
+
+            result.GetPreferredEdition().ForeignEditionId.Should().Be("edition-1");
+        }
     }
 }

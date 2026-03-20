@@ -59,7 +59,17 @@ namespace NzbDrone.Core.Books
 
             // Note it's a manual addition so it's not deleted on next refresh
             book.AddOptions.AddType = BookAddType.Manual;
-            book.Editions.Value.Single(x => x.Monitored).ManualAdd = true;
+            var selectedEdition = book.GetPreferredEdition();
+
+            if (selectedEdition == null)
+            {
+                throw new ValidationException(new List<ValidationFailure>
+                                              {
+                                                  new ValidationFailure("Editions", "Book must include at least one edition")
+                                              });
+            }
+
+            selectedEdition.ManualAdd = true;
 
             // Add the author if necessary
             var dbAuthor = _authorService.FindById(book.AuthorMetadata.Value.ForeignAuthorId);
@@ -103,7 +113,17 @@ namespace NzbDrone.Core.Books
 
         private Book AddSkyhookData(Book newBook)
         {
-            var editionId = newBook.Editions.Value.Single(x => x.Monitored).ForeignEditionId;
+            var selectedEdition = newBook.GetPreferredEdition();
+
+            if (selectedEdition == null)
+            {
+                throw new ValidationException(new List<ValidationFailure>
+                                              {
+                                                  new ValidationFailure("Editions", "Book must include at least one edition")
+                                              });
+            }
+
+            var editionId = selectedEdition.ForeignEditionId;
 
             Tuple<string, Book, List<AuthorMetadata>> tuple = null;
             try
@@ -125,7 +145,14 @@ namespace NzbDrone.Core.Books
 
             newBook.Editions = tuple.Item2.Editions.Value;
             newBook.Editions.Value.ForEach(x => x.Monitored = false);
-            newBook.Editions.Value.Single(x => x.ForeignEditionId == editionId).Monitored = true;
+
+            var editionToMonitor = newBook.Editions.Value.FirstOrDefault(x => x.ForeignEditionId == editionId) ??
+                                   newBook.GetPreferredEdition();
+
+            if (editionToMonitor != null)
+            {
+                editionToMonitor.Monitored = true;
+            }
 
             var metadata = tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1);
             newBook.AuthorMetadata = metadata;

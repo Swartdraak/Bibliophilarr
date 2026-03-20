@@ -5,6 +5,7 @@ import BookIndexItemConnector from 'Book/Index/BookIndexItemConnector';
 import Measure from 'Components/Measure';
 import dimensions from 'Styles/Variables/dimensions';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
+import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
 import hasDifferentItemsOrOrder from 'Utilities/Object/hasDifferentItemsOrOrder';
 import BookIndexPoster from './BookIndexPoster';
 import styles from './BookIndexPosters.css';
@@ -159,7 +160,7 @@ class BookIndexPosters extends Component {
     if (jumpToCharacter != null && jumpToCharacter !== prevProps.jumpToCharacter) {
       const index = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
 
-      if (this._grid && index != null) {
+      if (this._grid && isValidScrollIndex(index)) {
         const row = Math.floor(index / columnCount);
 
         this._grid.scrollToCell({

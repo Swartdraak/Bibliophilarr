@@ -68,13 +68,13 @@ function AuthenticationRequiredModalContent(props) {
           {translate('AuthenticationRequiredWarning')}
         </Alert>
 
-     {
-       saveError ?
-         <Alert kind={kinds.DANGER}>
-           {translate('ErrorSavingGeneralSettings')}
-         </Alert> :
-         null
-     }
+        {
+          saveError ?
+            <Alert kind={kinds.DANGER}>
+              {translate('ErrorSavingGeneralSettings')}
+            </Alert> :
+            null
+        }
         {
           isPopulated && !error ?
             <div>

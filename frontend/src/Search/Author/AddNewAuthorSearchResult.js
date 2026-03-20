@@ -5,6 +5,7 @@ import AuthorPoster from 'Author/AuthorPoster';
 import HeartRating from 'Components/HeartRating';
 import Icon from 'Components/Icon';
 import Label from 'Components/Label';
+import Link from 'Components/Link/Link';
 import { icons, kinds, sizes } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
 import fonts from 'Styles/Variables/fonts';
@@ -120,7 +121,7 @@ class AddNewAuthorSearchResult extends Component {
                   {authorName}
 
                   {
-                    !authorName.contains(year) && year ?
+                    year && !authorName.includes(year.toString()) ?
                       <span className={styles.year}>
                         ({year})
                       </span> :

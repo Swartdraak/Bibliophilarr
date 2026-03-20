@@ -56,24 +56,7 @@ namespace NzbDrone.Test.Common
             }
 
             _startupLog = new List<string>();
-            if (BuildInfo.IsDebug)
-            {
-                var testDir = TestContext.CurrentContext.TestDirectory;
-                var candidates = new[]
-                {
-                    Path.Combine(testDir, "..", "..", "_output", "net8.0", bibliophilarrConsoleExe),
-                    Path.Combine(testDir, "..", "..", "_output", "net8.0", "linux-x64", bibliophilarrConsoleExe),
-                    Path.Combine(testDir, "..", "..", "_output", "net8.0", "linux-x64", "publish", bibliophilarrConsoleExe),
-                    Path.Combine(testDir, "..", "..", "_output", "net6.0", bibliophilarrConsoleExe)
-                };
-
-                var outputPath = Array.Find(candidates, File.Exists) ?? candidates[^1];
-                Start(outputPath);
-            }
-            else
-            {
-                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "bin", bibliophilarrConsoleExe));
-            }
+            Start(ResolveConsolePath(bibliophilarrConsoleExe));
 
             while (true)
             {
@@ -171,6 +154,56 @@ namespace NzbDrone.Test.Common
 
             var args = "-nobrowser -nosingleinstancecheck -data=\"" + AppData + "\"";
             _nzbDroneProcess = _processProvider.Start(outputNzbdroneConsoleExe, args, envVars, OnOutputDataReceived, OnOutputDataReceived);
+        }
+
+        private static string ResolveConsolePath(string consoleExeName)
+        {
+            var testDir = TestContext.CurrentContext.TestDirectory;
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidate in EnumerateConsoleCandidates(testDir, consoleExeName))
+            {
+                if (!visited.Add(candidate))
+                {
+                    continue;
+                }
+
+                if (!File.Exists(candidate))
+                {
+                    continue;
+                }
+
+                var candidateDirectory = Path.GetDirectoryName(candidate);
+                if (candidateDirectory == null)
+                {
+                    continue;
+                }
+
+                if (File.Exists(Path.Combine(candidateDirectory, "Bibliophilarr.Common.dll")))
+                {
+                    return candidate;
+                }
+            }
+
+            throw new FileNotFoundException($"Could not locate {consoleExeName} with runtime dependencies. TestDirectory={testDir}");
+        }
+
+        private static IEnumerable<string> EnumerateConsoleCandidates(string testDir, string consoleExeName)
+        {
+            var current = testDir;
+
+            for (var i = 0; i < 6 && !string.IsNullOrEmpty(current); i++)
+            {
+                yield return Path.Combine(current, "_output", "net8.0", consoleExeName);
+                yield return Path.Combine(current, "_output", "net8.0", "linux-x64", consoleExeName);
+                yield return Path.Combine(current, "_output", "net8.0", "linux-x64", "publish", consoleExeName);
+                yield return Path.Combine(current, "_output", "net6.0", consoleExeName);
+                yield return Path.Combine(current, "_tests", "bin", consoleExeName);
+
+                current = Directory.GetParent(current)?.FullName;
+            }
+
+            yield return Path.Combine(testDir, "..", "bin", consoleExeName);
         }
 
         private void OnOutputDataReceived(string data)

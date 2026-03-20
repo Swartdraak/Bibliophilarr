@@ -114,7 +114,7 @@ namespace Bibliophilarr.Api.V1.Config
             var user = _userService.FindUser();
 
             resource.Username = user?.Username ?? string.Empty;
-            resource.Password = user?.Password ?? string.Empty;
+            resource.Password = string.Empty;
             resource.PasswordConfirmation = string.Empty;
 
             return resource;

@@ -217,7 +217,6 @@ PackageWindows()
     local folder=$artifactsFolder/$runtime/$framework/$APP_INTERNAL_NAME
     
     PackageFiles "$folder" "$framework" "$runtime"
-    cp -r $outputFolder/$framework-windows/$runtime/publish/* $folder
 
     echo "Removing $APP_MONO_NAME"
     rm -f "$folder/$APP_MONO_NAME".*

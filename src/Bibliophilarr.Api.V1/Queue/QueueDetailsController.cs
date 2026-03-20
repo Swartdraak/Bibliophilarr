@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Http;
@@ -34,7 +33,21 @@ namespace Bibliophilarr.Api.V1.Queue
 
         protected override QueueResource GetResourceById(int id)
         {
-            throw new NotImplementedException();
+            var pendingRelease = _pendingReleaseService.FindPendingQueueItem(id);
+
+            if (pendingRelease != null)
+            {
+                return pendingRelease.ToResource(includeAuthor: true, includeBook: true);
+            }
+
+            var queueItem = _queueService.Find(id);
+
+            if (queueItem == null)
+            {
+                throw new NotFoundException();
+            }
+
+            return queueItem.ToResource(includeAuthor: true, includeBook: true);
         }
 
         [HttpGet]
