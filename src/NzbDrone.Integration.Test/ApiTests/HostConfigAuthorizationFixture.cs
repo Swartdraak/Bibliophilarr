@@ -1,5 +1,4 @@
 using System.Net;
-using FluentAssertions;
 using NUnit.Framework;
 using RestSharp;
 
@@ -16,7 +15,7 @@ namespace NzbDrone.Integration.Test.ApiTests
 
             var response = anonymousClient.Execute(request);
 
-            response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
         }
 
         [Test]
@@ -31,7 +30,20 @@ namespace NzbDrone.Integration.Test.ApiTests
 
             var response = anonymousClient.Execute(request);
 
-            response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+        }
+
+        [Test]
+        public void get_host_config_with_malformed_basic_auth_should_return_unauthorized()
+        {
+            var anonymousClient = new RestClient(RootUrl + "api/v1/");
+            var request = new RestRequest("config/host", Method.GET);
+            request.AddHeader("Authorization", "Basic malformed-base64-value");
+
+            var response = anonymousClient.Execute(request);
+
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(response.StatusCode, Is.Not.EqualTo(HttpStatusCode.InternalServerError));
         }
 
         [Test]
@@ -44,9 +56,9 @@ namespace NzbDrone.Integration.Test.ApiTests
 
             var updated = HostConfig.GetSingle();
 
-            updated.ConsoleLogLevel.Should().Be("Info");
-            updated.Password.Should().BeEmpty();
-            updated.PasswordConfirmation.Should().BeEmpty();
+            Assert.That(updated.ConsoleLogLevel, Is.EqualTo("Info"));
+            Assert.That(updated.Password, Is.Empty);
+            Assert.That(updated.PasswordConfirmation, Is.Empty);
         }
 
         [Test]
@@ -60,8 +72,8 @@ namespace NzbDrone.Integration.Test.ApiTests
 
             var updated = HostConfig.GetSingle();
 
-            updated.AuthenticationMethod.Should().Be(NzbDrone.Core.Authentication.AuthenticationType.None);
-            updated.Password.Should().BeEmpty();
+            Assert.That(updated.AuthenticationMethod, Is.EqualTo(NzbDrone.Core.Authentication.AuthenticationType.None));
+            Assert.That(updated.Password, Is.Empty);
         }
     }
 }

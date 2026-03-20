@@ -9,6 +9,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.BookInfo;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -130,6 +131,38 @@ namespace NzbDrone.Core.Test.MusicTests
             Assert.Throws<ValidationException>(() => Subject.AddAuthor(newAuthor));
 
             ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_fallback_to_request_payload_when_metadata_provider_temporarily_fails()
+        {
+            var newAuthor = new Author
+            {
+                ForeignAuthorId = "OL999999A",
+                Path = @"C:\Test\Music\Fallback",
+                Metadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = "OL999999A",
+                    Name = "Fallback Author"
+                }
+            };
+
+            Mocker.GetMock<IProvideAuthorInfo>()
+                .Setup(s => s.GetAuthorInfo(newAuthor.ForeignAuthorId, false))
+                .Throws(new BookInfoException("upstream unavailable"));
+
+            Mocker.GetMock<IAddAuthorValidator>()
+                .Setup(s => s.Validate(It.IsAny<Author>()))
+                .Returns(new ValidationResult());
+
+            var author = Subject.AddAuthor(newAuthor, false);
+
+            author.Should().NotBeNull();
+            author.ForeignAuthorId.Should().Be("OL999999A");
+            author.Name.Should().Be("Fallback Author");
+            author.Path.Should().Be(@"C:\Test\Music\Fallback");
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

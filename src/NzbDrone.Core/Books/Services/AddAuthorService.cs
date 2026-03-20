@@ -106,10 +106,57 @@ namespace NzbDrone.Core.Books
                     new ("ForeignAuthorId", "An author with this ID was not found", newAuthor.Metadata.Value.ForeignAuthorId)
                 });
             }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Author metadata lookup failed for {0}; using request payload fallback", newAuthor.Metadata.Value.ForeignAuthorId);
+                author = BuildFallbackAuthor(newAuthor);
+            }
 
             author.ApplyChanges(newAuthor);
 
             return author;
+        }
+
+        private static Author BuildFallbackAuthor(Author requestedAuthor)
+        {
+            var metadata = requestedAuthor.Metadata.Value;
+
+            metadata.ForeignAuthorId = metadata.ForeignAuthorId.IsNotNullOrWhiteSpace()
+                ? metadata.ForeignAuthorId
+                : requestedAuthor.ForeignAuthorId;
+
+            metadata.Name = metadata.Name.IsNotNullOrWhiteSpace()
+                ? metadata.Name
+                : metadata.ForeignAuthorId;
+
+            if (metadata.NameLastFirst.IsNullOrWhiteSpace())
+            {
+                metadata.NameLastFirst = metadata.Name.ToLastFirst();
+            }
+
+            if (metadata.SortName.IsNullOrWhiteSpace())
+            {
+                metadata.SortName = metadata.Name.ToLowerInvariant();
+            }
+
+            if (metadata.SortNameLastFirst.IsNullOrWhiteSpace())
+            {
+                metadata.SortNameLastFirst = metadata.NameLastFirst.ToLowerInvariant();
+            }
+
+            metadata.TitleSlug = metadata.TitleSlug.IsNotNullOrWhiteSpace()
+                ? metadata.TitleSlug
+                : metadata.ForeignAuthorId;
+
+            metadata.Links ??= new List<Links>();
+            metadata.Images ??= new List<MediaCover.MediaCover>();
+            metadata.Genres ??= new List<string>();
+            metadata.Ratings ??= new Ratings { Votes = 0, Value = 0 };
+
+            var fallback = new Author();
+            fallback.Metadata = metadata;
+
+            return fallback;
         }
 
         private Author SetPropertiesAndValidate(Author newAuthor)

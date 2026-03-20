@@ -107,6 +107,25 @@ jobs:
           curl -f -sS -H "X-Api-Key: binary-ci-key" \
             "http://127.0.0.1:8794/api/v1/metadata/conflicts/telemetry" \
             > _artifacts/phase6-packaging/binary/conflict-telemetry.json
+          curl -f -sS -H "X-Api-Key: binary-ci-key" \
+            "http://127.0.0.1:8794/api/v1/diagnostics/search/telemetry" \
+            > _artifacts/phase6-packaging/binary/search-telemetry.json
+          sha256sum ./_output/net8.0/Bibliophilarr \
+            > _artifacts/phase6-packaging/binary/binary-sha256.txt
+          ping_code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "http://127.0.0.1:8794/ping" || true)
+          {
+            echo "# Install Readiness Snapshot"
+            echo
+            echo "- timestamp_utc: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "- binary_path: _output/net8.0/Bibliophilarr"
+            echo "- ping_status: ${ping_code}"
+            echo "- config_path: /tmp/bibliophilarr-packaging-binary/config.xml"
+            echo "- providers_health_artifact: providers-health.json"
+            echo "- conflict_telemetry_artifact: conflict-telemetry.json"
+            echo "- search_telemetry_artifact: search-telemetry.json"
+            echo "- checksum_artifact: binary-sha256.txt"
+          } > _artifacts/phase6-packaging/binary/install-readiness-snapshot.md
           kill "$app_pid" || true
 
       - name: Docker install path validation

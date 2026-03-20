@@ -25,6 +25,17 @@ ProgressEnd()
     echo "Finish '$1'"
 }
 
+PrintArtifactGuidance()
+{
+    echo "Artifact layout:"
+    echo "  $outputFolder/<framework>/<runtime>          raw publish output for local startup validation"
+    echo "  $testPackageFolder/<framework>/<runtime>     test-only assets and test runner helpers; not a runtime package"
+    echo "  $artifactsFolder/<runtime>/<framework>/$APP_INTERNAL_NAME  packaged runtime distribution with UI included"
+    echo "Startup guidance:"
+    echo "  - local binary: copy $outputFolder/UI to $outputFolder/<framework>/<runtime>/UI, then run $outputFolder/<framework>/<runtime>/$APP_INTERNAL_NAME"
+    echo "  - packaged binary: run $artifactsFolder/<runtime>/<framework>/$APP_INTERNAL_NAME/$APP_INTERNAL_NAME directly"
+}
+
 UpdateVersionNumber()
 {
     local appVersion="${BIBLIOPHILARRVERSION:-$BIBLIOPHILARRVERSION}"
@@ -88,11 +99,15 @@ Build()
         platform=Posix
     fi
 
+    # PublishAllRids writes multiple test projects into shared RID-specific _tests paths.
+    # Serializing msbuild avoids transient file-copy contention and MSB3026 retry noise.
+    local msbuild_args=("-m:1" "-restore" "$slnFile" "-p:Configuration=Release" "-p:Platform=$platform")
+
     if [[ -z "$RID" || -z "$FRAMEWORK" ]];
     then
-        dotnet msbuild -restore $slnFile -p:Configuration=Release -p:Platform=$platform -t:PublishAllRids
+        dotnet msbuild "${msbuild_args[@]}" -t:PublishAllRids
     else
-        dotnet msbuild -restore $slnFile -p:Configuration=Release -p:Platform=$platform -p:RuntimeIdentifiers=$RID -t:PublishAllRids
+        dotnet msbuild "${msbuild_args[@]}" -p:RuntimeIdentifiers=$RID -t:PublishAllRids
     fi
 
     ProgressEnd 'Build'
@@ -400,6 +415,8 @@ then
     else
         PackageTests "$FRAMEWORK" "$RID"
     fi
+
+    PrintArtifactGuidance
 fi
 
 if [[ "$LINT" = "YES" || "$FRONTEND" = "YES" ]];
@@ -441,6 +458,8 @@ then
     else
         Package "$FRAMEWORK" "$RID"
     fi
+
+    PrintArtifactGuidance
 fi
 
 if [ "$INSTALLER" = "YES" ];

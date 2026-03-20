@@ -4,6 +4,7 @@ using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
+using NLog;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
@@ -13,25 +14,29 @@ namespace Bibliophilarr.Api.V1.Search
     [V1ApiController]
     public class SearchController : Controller
     {
+        private static readonly Logger Logger = LogManager.GetLogger("Search");
+
         private readonly ISearchForNewEntity _searchProxy;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IMapCoversToLocal _coverMapper;
+        private readonly ISearchTelemetryService _searchTelemetry;
 
-        public SearchController(ISearchForNewEntity searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper)
+        public SearchController(ISearchForNewEntity searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper, ISearchTelemetryService searchTelemetry = null)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
             _coverMapper = coverMapper;
+            _searchTelemetry = searchTelemetry ?? SearchTelemetryService.Shared;
         }
 
         [HttpGet]
         public object Search([FromQuery] string term)
         {
             var searchResults = _searchProxy.SearchForNewEntity(term);
-            return MapToResource(searchResults).ToList();
+            return MapToResource(searchResults, term).ToList();
         }
 
-        private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results)
+        private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term)
         {
             var id = 1;
             foreach (var result in results)
@@ -82,7 +87,8 @@ namespace Bibliophilarr.Api.V1.Search
                 }
                 else
                 {
-                    // Ignore unsupported entity types so mixed-provider responses do not fail the whole search request.
+                    _searchTelemetry.RecordUnsupportedEntityType(term, result?.GetType());
+                    Logger.Warn("Ignoring unsupported search entity type [{0}] for search term [{1}]", result?.GetType().FullName ?? "<null>", term);
                     continue;
                 }
 

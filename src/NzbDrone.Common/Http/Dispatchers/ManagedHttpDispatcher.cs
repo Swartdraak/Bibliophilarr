@@ -232,7 +232,8 @@ namespace NzbDrone.Common.Http.Dispatchers
                         webRequest.Headers.UserAgent.ParseAdd(header.Value);
                         break;
                     case "Proxy-Connection":
-                        throw new NotImplementedException();
+                        _logger.Debug("Ignoring unsupported request header Proxy-Connection");
+                        break;
                     default:
                         webRequest.Headers.Add(header.Key, header.Value);
                         break;

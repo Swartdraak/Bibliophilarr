@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 19, 2026  
+**Last Updated**: March 20, 2026  
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -20,6 +20,54 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
 ## Latest Delivery Update
+
+### March 20, 2026 hardening and RC rehearsal note
+
+- Closed the remaining add-author runtime failure path by falling back to request payload metadata when upstream author lookups fail transiently.
+- Replaced remaining high-risk callable `NotImplementedException` paths in release lookup, metadata redirect handling, and managed HTTP header dispatch with controlled behavior/logged failures.
+- Added search telemetry diagnostics exposure at `api/v1/diagnostics/search/telemetry` and validated it through both unit and integration fixtures.
+- Added real HTTP pipeline coverage for malformed Basic auth and replaced live-dependent author lookup integration assertions with deterministic non-500 contract coverage.
+- Added a dedicated RID-specific backend CI lane for core/common targeted tests using `-r linux-x64`.
+- Added binary install-readiness snapshot generation to Phase 6 packaging validation artifacts.
+
+Validation completed with exact command evidence and outcomes:
+
+- Deterministic cleanup before rebuild:
+  - `find . -maxdepth 6 -type d -name '_intg_*' -exec rm -rf {} +`
+  - `rm -rf _output _tests /tmp/bibliophilarr-packaging-binary`
+  - `find src -type d \( -name bin -o -name obj \) -exec rm -rf {} +`
+- Fresh solution build: PASS
+  - `dotnet build src/Bibliophilarr.sln -p:Platform=Posix -c Debug -v minimal`
+- Fresh RID backend build: PASS
+  - `./build.sh --backend -r linux-x64 -f net8.0`
+- Add-author fallback fixture with RID runtime layout: PASS (`8/8`)
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Debug -p:Platform=Posix -r linux-x64 --filter 'FullyQualifiedName~AddAuthorFixture'`
+- Search telemetry API/controller unit fixtures: PASS (`2/2`)
+  - `dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Debug -p:Platform=Posix --filter 'FullyQualifiedName~SearchControllerFixture|FullyQualifiedName~SearchTelemetryControllerFixture'`
+- Targeted integration hardening fixtures: PASS (`10/10`)
+  - `dotnet test src/NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj --configuration Debug -p:Platform=Posix --filter 'FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~MetadataConflictTelemetryFixture'`
+- RID lane-equivalent common fixtures: PASS (`71/73`, `2 skipped`)
+  - `dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Debug -p:Platform=Posix -r linux-x64 --filter 'FullyQualifiedName~HttpClientFixture|FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture'`
+- RID lane-equivalent core fixtures: PASS (`13/13`)
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Debug -p:Platform=Posix -r linux-x64 --filter 'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibraryIsbnAsinLookupFixture'`
+- Local release-entry gate before install-snapshot marker fix: FAIL (`install snapshot missing required marker`)
+  - `python3 scripts/release_entry_gate.py --md-out _artifacts/release-entry-gate.md --json-out _artifacts/release-entry-gate.json`
+- GitHub-backed readiness/dependency scripts: BLOCKED by missing CLI authentication
+  - `python3 scripts/release_readiness_report.py --owner Swartdraak --repo Bibliophilarr --md-out _artifacts/release-readiness-report.md --json-out _artifacts/release-readiness-report.json`
+  - `python3 scripts/dependabot_lockfile_triage.py --owner Swartdraak --repo Bibliophilarr --md-out _artifacts/dependabot-triage.md --json-out _artifacts/dependabot-triage.json`
+  - Outcome: both exited with `gh auth login` / `GH_TOKEN` required before GitHub API data can be collected.
+- Release-entry rerun after install snapshot fix: PASS (`ok=true`)
+  - `python3 scripts/release_entry_gate.py --md-out _artifacts/release-entry-gate.md --json-out _artifacts/release-entry-gate.json`
+- Final packaged-runtime RC rehearsal: PASS after package refresh
+  - `./build.sh --frontend`
+  - `./build.sh --packages -r linux-x64 -f net8.0`
+  - `./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr /data=/tmp/bibliophilarr-rc-rehearsal /nobrowser /nosingleinstancecheck`
+  - `curl http://127.0.0.1:8796/ping` -> `200`
+  - `curl -H 'X-Api-Key: rc-rehearsal-key' http://127.0.0.1:8796/api/v1/metadata/providers/health` -> `200`
+  - `curl -H 'X-Api-Key: rc-rehearsal-key' http://127.0.0.1:8796/api/v1/metadata/conflicts/telemetry` -> `200`
+  - `curl -H 'X-Api-Key: rc-rehearsal-key' http://127.0.0.1:8796/api/v1/diagnostics/search/telemetry` -> `200`
+  - `curl -H 'X-Api-Key: rc-rehearsal-key' http://127.0.0.1:8797/api/v1/qualityprofile/schema` -> `200`
+  - Probe correction note: `rootFolder/schema` returned `404` because that route is not implemented in this fork; rehearsal now uses `qualityprofile/schema` as the valid schema contract check.
 
 - Added manual and scheduled workflow support for:
   - `.github/workflows/release-readiness-report.yml`
@@ -171,11 +219,12 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 
 ## Current Risks And Follow-Up Areas
 
-- GitHub still reports 8 open Dependabot alerts, so dependency graph refresh and residual remediation remain active work.
+- GitHub-backed readiness reporting and Dependabot triage cannot currently be revalidated from this environment because `gh` is installed but not authenticated; workflow/branch-protection/Dependabot API state is therefore unverified in this execution pass.
+- Open dependency security remediation remains active work, but exact current alert counts could not be refreshed locally until `gh auth login` or `GH_TOKEN` is supplied.
 - `main` can now host the manual readiness workflows, but broader release workflows are still aligned primarily with the active delivery lanes.
 - Packaging validation is green on `develop` and `staging`; `main` is receiving the audit and readiness automation first so operators can dispatch reports from the default branch.
 
-## Source-code technical debt tracker (March 19, 2026)
+## Source-code technical debt tracker (March 20, 2026)
 
 ### Audit scope and method
 
@@ -222,30 +271,69 @@ Operational impact and rollback:
 | TD-003 | P1 | Frontend/Add Search | Add-search book rendering assumes non-null author and can crash on partial provider payloads. | `frontend/src/Search/AddNewItem.js`, `frontend/src/Search/Book/AddNewBookSearchResult.js` | unassigned | done | UI handles `book.author == null` without runtime errors and still renders actionable result state. | Frontend tests plus manual add-search smoke (`/add/search?term=...`) with null-author fixture payload. |
 | TD-004 | P1 | Frontend/Navigation | A-Z jump paths accept `-1` from index finder and may attempt invalid scroll operations. | `frontend/src/Utilities/Array/getIndexOfFirstCharacter.js`, `frontend/src/Author/Index/**`, `frontend/src/Book/Index/**`, `frontend/src/Bookshelf/Bookshelf.js` | unassigned | done | All jump consumers gate on non-negative index and no-op cleanly when no match exists. | Unit tests for no-match jump; manual A-Z jump smoke in table, poster, and overview modes. |
 | TD-005 | P1 | API Runtime Surface | Multiple API/runtime controllers still throw `NotImplementedException` on callable paths. | `src/Bibliophilarr.Api.V1/Queue/*.cs`, `src/Bibliophilarr.Api.V1/Health/HealthController.cs`, `src/Bibliophilarr.Api.V1/Metadata/MetadataController.cs`, `src/Bibliophilarr.Api.V1/Notifications/NotificationController.cs` | unassigned | done | Replace hard throws with implemented behavior or explicit `501/feature-unavailable` responses plus telemetry. | API contract tests confirm non-crashing responses and expected status codes. |
-| TD-006 | P2 | Indexer Search | RSS-only indexer generators throw `NotImplementedException` for search methods. | `src/NzbDrone.Core/Indexers/*RequestGenerator.cs` (RSS-only implementations) | unassigned | open | Explicit capability segregation prevents search invocation against RSS-only generators, or methods return safe no-op chains. | Search flow tests across mixed indexer capabilities; no unhandled `NotImplementedException`. |
-| TD-007 | P2 | Auth Handling | Basic auth parsing throws generic exception on malformed auth header. | `src/Bibliophilarr.Http/Authentication/BasicAuthenticationHandler.cs` | unassigned | open | Malformed headers produce controlled auth failure (401) without unhandled exceptions. | Authentication handler tests for malformed/missing delimiter scenarios. |
-| TD-008 | P2 | Search Observability | Unsupported search entity types are silently dropped, masking provider contract drift. | `src/Bibliophilarr.Api.V1/Search/SearchController.cs` | unassigned | open | Unsupported entity types are counted/logged with request context while preserving successful partial responses. | Telemetry assertions and log verification in search tests. |
-| TD-009 | P3 | Build/Test Clarity | Distinction between test package and full runtime package is implicit and causes execution confusion. | `build.sh`, `QUICKSTART.md` | unassigned | open | Commands/documentation clearly distinguish runtime package artifacts vs test package artifacts and startup expectations. | Local operator walkthrough from clean checkout confirms deterministic startup instructions. |
+| TD-006 | P2 | Indexer Search | RSS-only indexer generators throw `NotImplementedException` for search methods. | `src/NzbDrone.Core/Indexers/*RequestGenerator.cs` (RSS-only implementations) | unassigned | done | Explicit capability segregation prevents search invocation against RSS-only generators, or methods return safe no-op chains. | Search flow tests across mixed indexer capabilities; no unhandled `NotImplementedException`. |
+| TD-007 | P2 | Auth Handling | Basic auth parsing throws generic exception on malformed auth header. | `src/Bibliophilarr.Http/Authentication/BasicAuthenticationHandler.cs` | unassigned | done | Malformed headers produce controlled auth failure (401) without unhandled exceptions. | Authentication handler tests for malformed/missing delimiter scenarios. |
+| TD-008 | P2 | Search Observability | Unsupported search entity types are silently dropped, masking provider contract drift. | `src/Bibliophilarr.Api.V1/Search/SearchController.cs` | unassigned | done | Unsupported entity types are counted/logged with request context while preserving successful partial responses. | Telemetry assertions and log verification in search tests. |
+| TD-009 | P3 | Build/Test Clarity | Distinction between test package and full runtime package is implicit and causes execution confusion. | `build.sh`, `QUICKSTART.md` | unassigned | done | Commands/documentation clearly distinguish runtime package artifacts vs test package artifacts and startup expectations. | Local operator walkthrough from clean checkout confirms deterministic startup instructions. |
 
 ### Latest validation evidence (March 20, 2026)
 
 1. Clean rebuild and package generation completed from a fresh output state:
   - `rm -rf _output/net8.0 _tests/net8.0 _artifacts/linux-x64`
-  - `dotnet msbuild -restore src/Bibliophilarr.sln -p:GenerateFullPaths=true -p:Configuration=Debug -p:Platform=Posix '-consoleloggerparameters:NoSummary;ForceNoAlign'`
   - `./build.sh --backend --frontend --packages --lint --framework net8.0 --runtime linux-x64`
-2. Runtime package startup validated using the packaged binary and UI folder placement:
+2. `build.sh` packaging flow now serializes the `PublishAllRids` msbuild step (`-m:1`) so shared RID-specific `_tests` outputs no longer emit `MSB3026` copy-retry warnings during a clean linux-x64 build.
+3. TD-006 targeted core tests now pass on the RID-specific runtime layout (`7/7`):
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~ReleaseSearchServiceFixture|FullyQualifiedName~RssIndexerRequestGeneratorFixture"`
+4. TD-007 and TD-008 targeted API tests now pass (`4/4`):
+  - `dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~BasicAuthenticationHandlerFixture|FullyQualifiedName~SearchControllerFixture"`
+5. Redirect-handling regression tests now pass on the RID-specific runtime layout (`6/6`):
+  - `dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj -p:Platform=Posix -r linux-x64 --filter "Name~should_follow_redirects_by_default|Name~should_follow_redirects_from_simulated_metadata_endpoint|Name~should_follow_redirects|Name~should_not_follow_redirects|Name~should_not_write_redirect_content_to_stream"`
+6. TD-001 and TD-005 integration fixtures remain green after the new search/auth changes (`10/10`):
+  - `dotnet test src/NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~ControllerNonThrowingContractFixture"`
+7. Runtime package startup validated using both the raw publish output and the packaged artifact tree:
   - `cp -r _output/UI _output/net8.0/linux-x64/UI`
   - `./_output/net8.0/linux-x64/Bibliophilarr --nobrowser ...`
+  - `./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr /data=/tmp/bibliophilarr-package-smoke-2026-03-20 /nobrowser /nosingleinstancecheck`
   - `/ping` returned `200`.
-3. Integration bootstrap path repaired in `src/NzbDrone.Test.Common/NzbDroneRunner.cs` (robust executable resolution across current output layouts).
-4. TD-001 and TD-005 integration fixtures now pass (`10/10`):
-  - `dotnet test src/NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~ControllerNonThrowingContractFixture"`
-5. TD-003 manual UI smoke passed:
+8. Integration bootstrap path remains repaired in `src/NzbDrone.Test.Common/NzbDroneRunner.cs` (robust executable resolution across current output layouts).
+9. TD-003 manual UI smoke passed:
   - `/add/search?term=anne` exercised with Playwright route-mutation setting first search result `author = null`.
   - Search results continued rendering with no page errors and no console runtime errors.
-6. TD-004 manual UI smoke passed:
+10. TD-004 manual UI smoke passed:
   - Author index and shelf UI paths were exercised under empty-library and populated-list conditions.
   - Jump/no-match navigation paths produced no client runtime exceptions; guarded `isValidScrollIndex` flow no-oped cleanly when no valid index existed.
+11. March 20 RC hardening rerun completed from a fully cleaned local runtime/build state:
+  - `find . -maxdepth 6 -type d -name '_intg_*' -exec rm -rf {} +`
+  - `rm -rf _output _tests /tmp/bibliophilarr-packaging-binary`
+  - `find src -type d \( -name bin -o -name obj \) -exec rm -rf {} +`
+  - `dotnet build src/Bibliophilarr.sln -p:Platform=Posix -c Debug -v minimal`
+  - `./build.sh --backend -r linux-x64 -f net8.0`
+  - Outcome: all commands passed and regenerated fresh runtime/test artifacts.
+12. New March 20 hardening tests passed:
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Debug -p:Platform=Posix -r linux-x64 --filter 'FullyQualifiedName~AddAuthorFixture'` -> `8/8` passed
+  - `dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Debug -p:Platform=Posix --filter 'FullyQualifiedName~SearchControllerFixture|FullyQualifiedName~SearchTelemetryControllerFixture'` -> `2/2` passed
+  - `dotnet test src/NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj --configuration Debug -p:Platform=Posix --filter 'FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~MetadataConflictTelemetryFixture'` -> `10/10` passed
+13. RID-specific CI-lane-equivalent validations passed locally:
+  - `dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Debug -p:Platform=Posix -r linux-x64 --filter 'FullyQualifiedName~HttpClientFixture|FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture'` -> `71` passed, `2` skipped
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Debug -p:Platform=Posix -r linux-x64 --filter 'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibraryIsbnAsinLookupFixture'` -> `13/13` passed
+14. Release-entry gate status during this pass:
+  - `python3 scripts/release_entry_gate.py --md-out _artifacts/release-entry-gate.md --json-out _artifacts/release-entry-gate.json`
+  - Initial outcome: FAIL because `docs/operations/install-test-snapshots/2026-03-20.md` lacked the required `Overall matrix verdict` marker.
+15. GitHub-backed readiness/dependency reporting status during this pass:
+  - `python3 scripts/release_readiness_report.py --owner Swartdraak --repo Bibliophilarr --md-out _artifacts/release-readiness-report.md --json-out _artifacts/release-readiness-report.json`
+  - `python3 scripts/dependabot_lockfile_triage.py --owner Swartdraak --repo Bibliophilarr --md-out _artifacts/dependabot-triage.md --json-out _artifacts/dependabot-triage.json`
+  - Outcome: both blocked pending `gh` authentication (`gh auth login` or `GH_TOKEN`).
+16. Release-entry gate rerun after install-snapshot correction: PASS (`ok=true`):
+  - `python3 scripts/release_entry_gate.py --md-out _artifacts/release-entry-gate.md --json-out _artifacts/release-entry-gate.json`
+17. Final packaged-runtime RC rehearsal completed successfully after package refresh:
+  - `./build.sh --frontend`
+  - `./build.sh --packages -r linux-x64 -f net8.0`
+  - `curl http://127.0.0.1:8796/ping` -> `200`
+  - `curl -H 'X-Api-Key: rc-rehearsal-key' http://127.0.0.1:8796/api/v1/metadata/providers/health` -> `200`
+  - `curl -H 'X-Api-Key: rc-rehearsal-key' http://127.0.0.1:8796/api/v1/metadata/conflicts/telemetry` -> `200`
+  - `curl -H 'X-Api-Key: rc-rehearsal-key' http://127.0.0.1:8796/api/v1/diagnostics/search/telemetry` -> `200`
+  - `curl -H 'X-Api-Key: rc-rehearsal-key' http://127.0.0.1:8797/api/v1/qualityprofile/schema` -> `200`
+  - Outcome: package startup, auth, diagnostics, and schema contract checks passed on regenerated linux-x64 release artifacts.
 
 ### Execution order and cadence
 

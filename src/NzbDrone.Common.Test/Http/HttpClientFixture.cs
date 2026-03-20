@@ -360,7 +360,7 @@ namespace NzbDrone.Common.Test.Http
 
             response.StatusCode.Should().Be(HttpStatusCode.Found);
 
-            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedErrors(0);
         }
 
         [Test]
@@ -475,7 +475,7 @@ namespace NzbDrone.Common.Test.Http
                 response.StatusCode.Should().Be(HttpStatusCode.Moved);
             }
 
-            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedErrors(0);
 
             File.Exists(file).Should().BeTrue();
 

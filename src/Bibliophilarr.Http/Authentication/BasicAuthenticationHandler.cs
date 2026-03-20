@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
@@ -33,19 +33,37 @@ namespace Bibliophilarr.Http.Authentication
                 return Task.FromResult(AuthenticateResult.Fail("Authorization header missing."));
             }
 
-            // Get authorization key
             var authorizationHeader = Request.Headers["Authorization"].ToString();
-            var authHeaderRegex = new Regex(@"Basic (.*)");
 
-            if (!authHeaderRegex.IsMatch(authorizationHeader))
+            if (!AuthenticationHeaderValue.TryParse(authorizationHeader, out var headerValue) ||
+                !string.Equals(headerValue.Scheme, "Basic", StringComparison.OrdinalIgnoreCase) ||
+                string.IsNullOrWhiteSpace(headerValue.Parameter))
             {
                 return Task.FromResult(AuthenticateResult.Fail("Authorization code not formatted properly."));
             }
 
-            var authBase64 = Encoding.UTF8.GetString(Convert.FromBase64String(authHeaderRegex.Replace(authorizationHeader, "$1")));
-            var authSplit = authBase64.Split(':', 2);
-            var authUsername = authSplit[0];
-            var authPassword = authSplit.Length > 1 ? authSplit[1] : throw new Exception("Unable to get password");
+            string authBase64;
+
+            try
+            {
+                authBase64 = Encoding.UTF8.GetString(Convert.FromBase64String(headerValue.Parameter));
+            }
+            catch (FormatException ex)
+            {
+                Logger.LogWarning(ex, "Invalid Basic authentication header received.");
+                return Task.FromResult(AuthenticateResult.Fail("Authorization code not formatted properly."));
+            }
+
+            var delimiterIndex = authBase64.IndexOf(':');
+
+            if (delimiterIndex < 0)
+            {
+                Logger.LogWarning("Invalid Basic authentication header received without a username/password delimiter.");
+                return Task.FromResult(AuthenticateResult.Fail("Authorization code not formatted properly."));
+            }
+
+            var authUsername = authBase64.Substring(0, delimiterIndex);
+            var authPassword = authBase64.Substring(delimiterIndex + 1);
 
             var user = _authService.Login(Request, authUsername, authPassword);
 

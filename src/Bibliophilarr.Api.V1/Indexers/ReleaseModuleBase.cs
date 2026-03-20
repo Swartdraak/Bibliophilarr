@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +15,7 @@ namespace Bibliophilarr.Api.V1.Indexers
 
         protected override ReleaseResource GetResourceById(int id)
         {
-            throw new NotImplementedException();
+            return null;
         }
 
         protected virtual List<ReleaseResource> MapDecisions(IEnumerable<DownloadDecision> decisions)

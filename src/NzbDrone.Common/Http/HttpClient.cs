@@ -8,7 +8,6 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Cache;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.TPL;
@@ -98,9 +97,9 @@ namespace NzbDrone.Common.Http
                 while (response.HasHttpRedirect);
             }
 
-            if (response.HasHttpRedirect && !RuntimeInfo.IsProduction)
+            if (response.HasHttpRedirect && !request.AllowAutoRedirect)
             {
-                _logger.Error("Server requested a redirect to [{0}] while in developer mode. Update the request URL to avoid this redirect.", response.Headers["Location"]);
+                _logger.Debug("Server requested a redirect to [{0}] with automatic redirects disabled for [{1}].", response.Headers["Location"], request.Url);
             }
 
             if (!request.SuppressHttpError && response.HasHttpError && (request.SuppressHttpErrorStatusCodes == null || !request.SuppressHttpErrorStatusCodes.Contains(response.StatusCode)))

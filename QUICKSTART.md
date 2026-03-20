@@ -50,6 +50,42 @@ For the repository build script:
 ./build.sh
 ```
 
+## Artifact layout and startup paths
+
+The repository produces three different artifact trees. Treat them differently:
+
+- `_output/<framework>/<runtime>`: raw publish output for local startup validation.
+- `_tests/<framework>/<runtime>`: test-only assets and `test.sh` helpers. This is not a runnable app package.
+- `_artifacts/<runtime>/<framework>/Bibliophilarr`: packaged runtime distribution with the `UI` directory already included.
+
+For a local binary smoke using `_output`:
+
+```bash
+rm -rf _output/net8.0 _tests/net8.0 _artifacts/linux-x64
+
+./build.sh --backend --frontend --packages --lint --framework net8.0 --runtime linux-x64
+cp -r _output/UI _output/net8.0/linux-x64/UI
+
+./_output/net8.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
+curl http://127.0.0.1:8787/ping
+```
+
+For a package smoke using the packaged runtime tree:
+
+```bash
+./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
+  /data=/tmp/bibliophilarr-package \
+  /nobrowser /nosingleinstancecheck
+
+curl http://127.0.0.1:8787/ping
+```
+
+Expected outcome:
+
+- `/ping` returns `200`.
+- The packaged runtime starts without any manual UI copy step.
+- `_tests/net8.0/linux-x64` is reserved for test execution only.
+
 Optional runtime cloud-services endpoint:
 
 - `BIBLIOPHILARR_SERVICES_URL` enables cloud-backed update/time/notification checks.
@@ -88,6 +124,18 @@ Common commands:
 dotnet test src/Bibliophilarr.sln
 yarn lint
 yarn build
+```
+
+For RID-sensitive local reruns that depend on the packaged Linux runtime layout,
+use the runtime identifier explicitly so test resolution matches `_output/net8.0/linux-x64`
+and `_tests/net8.0/linux-x64`:
+
+```bash
+dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj \
+  -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~ReleaseSearchServiceFixture"
+
+dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj \
+  -p:Platform=Posix -r linux-x64 --filter "Name~should_not_follow_redirects"
 ```
 
 For the legacy shell-based test runner:

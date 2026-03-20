@@ -123,6 +123,15 @@ namespace NzbDrone.Core.IndexerSearch
                 _indexerFactory.InteractiveSearchEnabled() :
                 _indexerFactory.AutomaticSearchEnabled();
 
+            var unsupportedIndexers = indexers.Where(i => !i.SupportsSearch).ToList();
+
+            if (unsupportedIndexers.Any())
+            {
+                _logger.Debug("Skipping {0} indexers without search capability for {1}: {2}", unsupportedIndexers.Count, criteriaBase, string.Join(", ", unsupportedIndexers.Select(i => i.Definition?.Name ?? i.GetType().Name)));
+            }
+
+            indexers = indexers.Where(i => i.SupportsSearch).ToList();
+
             // Filter indexers to untagged indexers and indexers with intersecting tags
             indexers = indexers.Where(i => i.Definition.Tags.Empty() || i.Definition.Tags.Intersect(criteriaBase.Author.Tags).Any()).ToList();
 

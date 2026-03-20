@@ -442,7 +442,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
             }
             else
             {
-                throw new NotImplementedException($"Unexpected response from {httpResponse.Request.Url}");
+                throw new BookInfoException($"Unexpected redirect type '{type}' from {httpResponse.Request.Url}");
             }
 
             if (book == null || book.Editions.Value.All(e => e.ForeignEditionId != id.ToString()))
@@ -708,7 +708,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
                     }
                     else
                     {
-                        throw new NotImplementedException($"Unexpected response from {httpResponse.Request.Url}");
+                        throw new BookInfoException($"Unexpected redirect type '{type}' from {httpResponse.Request.Url}");
                     }
                 }
 

@@ -19,12 +19,12 @@ namespace NzbDrone.Core.Indexers.IPTorrents
 
         public virtual IndexerPageableRequestChain GetSearchRequests(BookSearchCriteria searchCriteria)
         {
-            throw new System.NotImplementedException();
+            return new IndexerPageableRequestChain();
         }
 
         public virtual IndexerPageableRequestChain GetSearchRequests(AuthorSearchCriteria searchCriteria)
         {
-            throw new System.NotImplementedException();
+            return new IndexerPageableRequestChain();
         }
 
         private IEnumerable<IndexerRequest> GetRssRequests()

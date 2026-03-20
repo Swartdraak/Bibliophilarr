@@ -43,6 +43,42 @@ jobs:
           dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
 
+  rid-core-common-targeted:
+    name: RID Core/Common Targeted
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Build backend runtime for RID test resolution
+        run: |
+          cd ..
+          ./build.sh --backend -r linux-x64 -f net8.0
+
+      - name: Run RID-targeted common fixtures
+        run: >-
+          dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
+          --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
+          --filter
+          'FullyQualifiedName~HttpClientFixture|FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture'
+
+      - name: Run RID-targeted core fixtures
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
+          --filter
+          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibraryIsbnAsinLookupFixture'
+
   metadata-provider-fixtures:
     name: Metadata Provider Fixtures
     runs-on: ubuntu-latest
@@ -104,4 +140,4 @@ jobs:
           dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
           --configuration Debug --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderDiagnosticsFixture'
+          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture'
