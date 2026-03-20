@@ -83,10 +83,23 @@ jobs:
             /tmp/bibliophilarr-packaging-binary/config.xml
           sed -i 's#<Port>8787</Port>#<Port>8794</Port>#' \
             /tmp/bibliophilarr-packaging-binary/config.xml
+          python3 - <<'PY'
+from pathlib import Path
+path = Path('/tmp/bibliophilarr-packaging-binary/config.xml')
+text = path.read_text()
+entry = '  <MetadataSource>https://api.bookinfo.invalid/v1</MetadataSource>\n'
+if '<MetadataSource>' in text:
+    import re
+    text = re.sub(r'\s*<MetadataSource>.*?</MetadataSource>\s*', '\n' + entry, text, count=1)
+else:
+    text = text.replace('  <Branch>develop</Branch>\n', entry + '  <Branch>develop</Branch>\n')
+path.write_text(text)
+PY
           api_key_pattern='s#<ApiKey>packaging-ci-key</ApiKey>#'
           api_key_pattern+='<ApiKey>binary-ci-key</ApiKey>#'
           sed -i "${api_key_pattern}" \
             /tmp/bibliophilarr-packaging-binary/config.xml
+          mkdir -p /tmp/bibliophilarr-packaging-binary/root
           timeout 240s ./_output/net8.0/Bibliophilarr \
             /data=/tmp/bibliophilarr-packaging-binary \
             /nobrowser /nosingleinstancecheck \
@@ -102,6 +115,75 @@ jobs:
             sleep 2
           done
           curl -f -sS -H "X-Api-Key: binary-ci-key" \
+            -H "Content-Type: application/json" \
+            -d '{"path":"/tmp/bibliophilarr-packaging-binary/root"}' \
+            "http://127.0.0.1:8794/api/v1/rootfolder" \
+            > _artifacts/phase6-packaging/binary/rootfolder.json
+          curl -f -sS -H "X-Api-Key: binary-ci-key" \
+            "http://127.0.0.1:8794/api/v1/author/lookup?term=Frank%20Herbert" \
+            > _artifacts/phase6-packaging/binary/author-lookup.json
+          jq -e '.[] | select(.foreignAuthorId == "openlibrary:author:OL23919A")' \
+            _artifacts/phase6-packaging/binary/author-lookup.json \
+            > _artifacts/phase6-packaging/binary/author-seed.json
+          jq '.qualityProfileId = 1 |
+              .metadataProfileId = 1 |
+              .rootFolderPath = "/tmp/bibliophilarr-packaging-binary/root" |
+              .path = "/tmp/bibliophilarr-packaging-binary/root/Frank Herbert" |
+              .monitored = true' \
+            _artifacts/phase6-packaging/binary/author-seed.json \
+            > _artifacts/phase6-packaging/binary/author-create.json
+          mkdir -p "/tmp/bibliophilarr-packaging-binary/root/Frank Herbert"
+          curl -f -sS -H "X-Api-Key: binary-ci-key" \
+            -H "Content-Type: application/json" \
+            -d @"_artifacts/phase6-packaging/binary/author-create.json" \
+            "http://127.0.0.1:8794/api/v1/author" \
+            > _artifacts/phase6-packaging/binary/author-created.json
+          author_id=$(jq -r '.id' _artifacts/phase6-packaging/binary/author-created.json)
+          test -n "$author_id" && test "$author_id" != "null"
+          for i in $(seq 1 120); do
+            command_count=$(curl -f -sS -H "X-Api-Key: binary-ci-key" \
+              "http://127.0.0.1:8794/api/v1/command" | \
+              jq '[.[] | select(.status == "queued" or .status == "started")] | length')
+            if [ "$command_count" = "0" ]; then
+              break
+            fi
+            sleep 2
+          done
+          jq -n --argjson authorId "$author_id" '{name:"RefreshAuthor", authorId:$authorId}' \
+            > _artifacts/phase6-packaging/binary/refresh-author-request.json
+          curl -f -sS -H "X-Api-Key: binary-ci-key" \
+            -H "Content-Type: application/json" \
+            -d @"_artifacts/phase6-packaging/binary/refresh-author-request.json" \
+            "http://127.0.0.1:8794/api/v1/command" \
+            > _artifacts/phase6-packaging/binary/refresh-author-command.json
+          refresh_command_id=$(jq -r '.id' _artifacts/phase6-packaging/binary/refresh-author-command.json)
+          test -n "$refresh_command_id" && test "$refresh_command_id" != "null"
+          refresh_completed=0
+          for i in $(seq 1 300); do
+            curl -f -sS -H "X-Api-Key: binary-ci-key" \
+              "http://127.0.0.1:8794/api/v1/command/${refresh_command_id}" \
+              > _artifacts/phase6-packaging/binary/refresh-author-status.json
+            status=$(jq -r '.status' _artifacts/phase6-packaging/binary/refresh-author-status.json)
+            result=$(jq -r '.result // empty' _artifacts/phase6-packaging/binary/refresh-author-status.json)
+            if [ "$status" = "completed" ]; then
+              if [ -n "$result" ] && [ "$result" != "successful" ]; then
+                echo "RefreshAuthor command completed unsuccessfully: $result" >&2
+                exit 1
+              fi
+              refresh_completed=1
+              break
+            fi
+            if [ "$status" = "failed" ]; then
+              echo "RefreshAuthor command failed" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ "$refresh_completed" != "1" ]; then
+            echo "RefreshAuthor command did not complete in time" >&2
+            exit 1
+          fi
+          curl -f -sS -H "X-Api-Key: binary-ci-key" \
             "http://127.0.0.1:8794/api/v1/metadata/providers/health" \
             > _artifacts/phase6-packaging/binary/providers-health.json
           curl -f -sS -H "X-Api-Key: binary-ci-key" \
@@ -110,6 +192,36 @@ jobs:
           curl -f -sS -H "X-Api-Key: binary-ci-key" \
             "http://127.0.0.1:8794/api/v1/diagnostics/search/telemetry" \
             > _artifacts/phase6-packaging/binary/search-telemetry.json
+          curl -f -sS -H "X-Api-Key: binary-ci-key" \
+            "http://127.0.0.1:8794/api/v1/metadata/providers/telemetry" \
+            > _artifacts/phase6-packaging/binary/providers-telemetry.json
+          curl -f -sS -H "X-Api-Key: binary-ci-key" \
+            "http://127.0.0.1:8794/api/v1/metadata/providers/telemetry/operations" \
+            > _artifacts/phase6-packaging/binary/providers-operation-telemetry.json
+          fallback_hits=$(jq '[.[] | select(.providerName == "OpenLibrary" and (.operationName == "get-book-info" or .operationName == "get-author-info") and .fallbackHits > 0)] | length' \
+            _artifacts/phase6-packaging/binary/providers-operation-telemetry.json)
+          if [ "$fallback_hits" = "0" ]; then
+            echo "Expected OpenLibrary fallback hits after RefreshAuthor smoke" >&2
+            exit 1
+          fi
+          : > _artifacts/phase6-packaging/binary/isbn-heavy-batch.log
+          : > _artifacts/phase6-packaging/binary/isbn-heavy-batch-429.log
+          for isbn in \
+            9781433200236 9789992296004 9789994871797 9780440243830 \
+            9780261103573 9780618346257 9781455546176 9780547773742; do
+            for attempt in $(seq 1 10); do
+              code=$(curl -sS -o /tmp/bibliophilarr-isbn-batch.json -w "%{http_code}" \
+                -H "X-Api-Key: binary-ci-key" \
+                "http://127.0.0.1:8794/api/v1/book/lookup?term=${isbn}" || true)
+              printf '%s\t%s\t%s\n' "${isbn}" "${attempt}" "${code}" \
+                >> _artifacts/phase6-packaging/binary/isbn-heavy-batch.log
+              if grep -q '429' _artifacts/phase6-packaging/binary/service.log; then
+                grep '429' _artifacts/phase6-packaging/binary/service.log \
+                  > _artifacts/phase6-packaging/binary/isbn-heavy-batch-429.log || true
+                break 2
+              fi
+            done
+          done
           sha256sum ./_output/net8.0/Bibliophilarr \
             > _artifacts/phase6-packaging/binary/binary-sha256.txt
           ping_code=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -122,8 +234,14 @@ jobs:
             echo "- ping_status: ${ping_code}"
             echo "- config_path: /tmp/bibliophilarr-packaging-binary/config.xml"
             echo "- providers_health_artifact: providers-health.json"
+            echo "- providers_telemetry_artifact: providers-telemetry.json"
+            echo "- providers_operation_telemetry_artifact: providers-operation-telemetry.json"
             echo "- conflict_telemetry_artifact: conflict-telemetry.json"
             echo "- search_telemetry_artifact: search-telemetry.json"
+            echo "- refresh_author_command_artifact: refresh-author-command.json"
+            echo "- refresh_author_status_artifact: refresh-author-status.json"
+            echo "- isbn_heavy_batch_artifact: isbn-heavy-batch.log"
+            echo "- isbn_rate_limit_artifact: isbn-heavy-batch-429.log"
             echo "- checksum_artifact: binary-sha256.txt"
           } > _artifacts/phase6-packaging/binary/install-readiness-snapshot.md
           kill "$app_pid" || true

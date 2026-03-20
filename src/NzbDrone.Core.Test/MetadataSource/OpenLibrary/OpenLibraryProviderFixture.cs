@@ -182,6 +182,55 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             _clientMock.Verify(c => c.GetWork("OL8547083W"), Times.Once);
         }
 
+        [Test]
+        public void get_book_info_should_resolve_edition_ids_without_work_links_via_isbn_search()
+        {
+            var edition = new OlEditionResource
+            {
+                Key = "/books/OL9205704M",
+                Title = "Hickory Dickory Death",
+                Isbn13 = new List<string> { "9789992296004" }
+            };
+
+            var searchResponse = new OlSearchResponse
+            {
+                Docs = new List<OlSearchDoc>
+                {
+                    new OlSearchDoc
+                    {
+                        Key = "/works/OL9205704W",
+                        Title = "Hickory Dickory Death",
+                        AuthorName = new List<string> { "Agatha Christie" },
+                        AuthorKey = new List<string> { "OL27695A" },
+                        Isbn = new List<string> { "9789992296004" }
+                    }
+                }
+            };
+
+            _clientMock
+                .Setup(c => c.GetWork("OL9205704M"))
+                .Returns((OlWorkResource)null);
+
+            _clientMock
+                .Setup(c => c.GetEdition("OL9205704M"))
+                .Returns(edition);
+
+            _clientMock
+                .Setup(c => c.GetEditionByIsbn("9789992296004"))
+                .Returns(edition);
+
+            _clientMock
+                .Setup(c => c.Search("9789992296004", It.IsAny<int>()))
+                .Returns(searchResponse);
+
+            var result = Subject.GetBookInfo("openlibrary:work:OL9205704M");
+
+            result.Should().NotBeNull();
+            result.Item2.ForeignBookId.Should().Be("openlibrary:work:OL9205704W");
+            result.Item2.OpenLibraryWorkId.Should().Be("OL9205704W");
+            result.Item2.Editions.Value.Should().Contain(x => x.Isbn13 == "9789992296004");
+        }
+
         // ── SearchByExternalId ────────────────────────────────────────────────
         [Test]
         public void search_by_external_id_olid_calls_get_book_info()

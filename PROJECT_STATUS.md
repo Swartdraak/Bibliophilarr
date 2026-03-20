@@ -21,6 +21,54 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 
 ## Latest Delivery Update
 
+### March 20, 2026 completion pass (OpenLibrary backfill + fallback telemetry + parity validation)
+
+Completed the outstanding remediation set focused on OpenLibrary edition-token recovery, refresh fallback hardening, operation-scoped telemetry visibility, and runtime parity validation.
+
+**Code and test changes completed:**
+
+1. `OL...M` work-id recovery and persistence:
+  - `OpenLibraryProvider` now resolves edition-token book IDs through ISBN search when direct work links are absent.
+  - `OpenLibraryIdBackfillService` now accepts canonical OpenLibrary `OL...M` work tokens during normalization and persists them as valid `OpenLibraryWorkId` values.
+  - Backfill coverage was extended for both empty external-ID lookup and `OL...M` normalization behavior.
+
+2. Fallback integration harness hardening:
+  - `RefreshBookServiceFallbackIntegrationFixture` now uses a concrete provider chain (`BookInfoProxy` + `OpenLibraryProvider` + real orchestrator) with boundary-level HTTP failure simulation.
+  - DNS failure regression is covered at the HTTP/provider boundary.
+
+3. Telemetry and diagnostics:
+  - Provider telemetry now records operation name alongside aggregate counters.
+  - Added operation feed endpoint: `/api/v1/metadata/providers/telemetry/operations`.
+  - Updated API + integration fixtures to validate aggregate and operation telemetry shapes.
+
+4. Core failure remediation:
+  - `Book` metadata replication now copies `OpenLibraryWorkId` in `UseMetadataFrom` and `ApplyChanges`.
+  - Mono harness test resolution is fixed by adding `Bibliophilarr.Mono` as a project reference in shared test-common output.
+  - `UpdateServiceFixture` was rewritten to align with current intentional product behavior: application updates are disabled and should throw `CommandFailedException` without download/extract/start side effects.
+
+5. Phase 6 workflow hardening:
+  - `phase6-packaging-validation.yml` now includes `RefreshAuthor` command-post/poll smoke checks, provider telemetry artifact capture, operation-telemetry capture, fallback-hit assertion, and ISBN-heavy lookup batch artifact generation.
+
+**Validation evidence (this pass):**
+
+- Targeted Core regression set:
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter 'FullyQualifiedName~OpenLibraryIdBackfillServiceFixture|FullyQualifiedName~OpenLibraryProviderFixture|FullyQualifiedName~RefreshBookServiceFallbackIntegrationFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~EntityFixture|FullyQualifiedName~EbookTagServiceFixture|FullyQualifiedName~UpdateServiceFixture'`
+  - Result: **Passed 118, Failed 0, Skipped 0**.
+
+- Runtime parity with fresh artifacts (`./build.sh --backend --packages -r linux-x64 -f net8.0`):
+  - Direct runtime: `./_output/net8.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-parity-output ...`
+  - Packaged runtime: `./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr /data=/tmp/bibliophilarr-parity-artifact ...`
+  - Both runtimes reported startup `BackfillOpenLibraryIds` completion and operation telemetry endpoint availability.
+  - DB outcome in both parity profiles:
+   - `books_with_work_id = 1778`
+   - missing rows: `[]`
+
+**ISBN-heavy 429 evidence status:**
+
+- Local ISBN-heavy batch against packaged runtime returned `HTTP 200` for all 80 lookup calls.
+- Strict log scan for real rate-limit markers (`429`, `TooManyRequests`, `Retry-After`, `rate-limited`) produced **0 matches** in this environment.
+- Outcome: workflow capture wiring is complete; reproducible live `429` evidence remains environment-dependent and not yet observed in this pass.
+
 ### March 20, 2026 refresh-path hardening and OpenLibrary correctness note
 
 Addressed four runtime-observable defects identified during forensic log analysis of a 530-author import rehearsal (288 of 530 authors had only 1 book; 0 of 530 had `OpenLibraryAuthorId` set).

@@ -6,6 +6,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
@@ -98,6 +99,19 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                         var resolvedWorkId = NormalizeOpenLibraryWorkId(resolvedByExternalId?.OpenLibraryWorkId) ??
                                              NormalizeOpenLibraryWorkId(resolvedByExternalId?.ForeignBookId);
+
+                        if (resolvedWorkId.IsNullOrWhiteSpace())
+                        {
+                            try
+                            {
+                                var resolvedByProvider = _metadataProviderOrchestrator.GetBookInfo(foreignBookToken);
+                                resolvedWorkId = NormalizeOpenLibraryWorkId(resolvedByProvider?.Item2?.OpenLibraryWorkId) ??
+                                                 NormalizeOpenLibraryWorkId(resolvedByProvider?.Item2?.ForeignBookId);
+                            }
+                            catch (BookNotFoundException)
+                            {
+                            }
+                        }
 
                         if (resolvedWorkId.IsNotNullOrWhiteSpace())
                         {
@@ -203,7 +217,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         private static bool LooksLikeOpenLibraryWorkId(string value)
         {
-            return value.IsNotNullOrWhiteSpace() && value.StartsWith("OL", StringComparison.OrdinalIgnoreCase) && value.EndsWith("W", StringComparison.OrdinalIgnoreCase);
+            return value.IsNotNullOrWhiteSpace() &&
+                   value.StartsWith("OL", StringComparison.OrdinalIgnoreCase) &&
+                   (value.EndsWith("W", StringComparison.OrdinalIgnoreCase) ||
+                    value.EndsWith("M", StringComparison.OrdinalIgnoreCase));
         }
 
         private static string NormalizeOpenLibraryWorkId(string value)

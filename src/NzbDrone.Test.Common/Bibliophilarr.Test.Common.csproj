@@ -17,5 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Common\Bibliophilarr.Common.csproj" />
     <ProjectReference Include="..\NzbDrone.Core\Bibliophilarr.Core.csproj" />
+    <ProjectReference Include="..\NzbDrone.Mono\Bibliophilarr.Mono.csproj" />
   </ItemGroup>
 </Project>

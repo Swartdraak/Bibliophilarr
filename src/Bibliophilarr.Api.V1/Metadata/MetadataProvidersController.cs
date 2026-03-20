@@ -48,7 +48,11 @@ namespace Readarr.Api.V1.Metadata
                 SupportsCoverImages = provider.SupportsCoverImages,
                 Telemetry = telemetryByProvider.TryGetValue(provider.ProviderName, out var data)
                     ? data
-                    : new MetadataProviderTelemetrySnapshot { ProviderName = provider.ProviderName }
+                    : new MetadataProviderTelemetrySnapshot
+                    {
+                        ProviderName = provider.ProviderName,
+                        Operations = new List<MetadataProviderOperationTelemetrySnapshot>()
+                    }
             });
         }
 
@@ -56,6 +60,12 @@ namespace Readarr.Api.V1.Metadata
         public IReadOnlyList<MetadataProviderTelemetrySnapshot> GetTelemetry()
         {
             return _telemetry.GetSnapshots();
+        }
+
+        [HttpGet("telemetry/operations")]
+        public IReadOnlyList<MetadataProviderOperationTelemetrySnapshot> GetOperationTelemetry()
+        {
+            return _telemetry.GetOperationSnapshots();
         }
     }
 }

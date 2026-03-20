@@ -209,6 +209,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var stats = telemetry.GetSnapshots();
             stats.Should().ContainSingle(x => x.ProviderName == "Failing");
             stats.Should().ContainSingle(x => x.ProviderName == "Successful" && x.FallbackHits == 1);
+            telemetry.GetOperationSnapshots().Should().ContainSingle(x => x.ProviderName == "Successful" && x.OperationName == "search-for-new-book" && x.FallbackHits == 1);
         }
 
         [Test]
@@ -260,6 +261,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             winner.Calls.Should().Be(1);
             winner.Successes.Should().Be(1);
             winner.FallbackHits.Should().Be(1);
+
+            telemetry.GetOperationSnapshots().Should().ContainSingle(x => x.ProviderName == "Winner" && x.OperationName == "search-for-new-book" && x.FallbackHits == 1);
         }
 
         [Test]

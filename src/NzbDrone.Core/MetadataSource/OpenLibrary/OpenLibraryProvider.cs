@@ -131,6 +131,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 var workKey = edition?.Works?.FirstOrDefault()?.Key;
                 var normalizedFromEdition = NormalizeWorkId(workKey);
 
+                if (normalizedFromEdition.IsNullOrWhiteSpace())
+                {
+                    var resolvedFromEditionIsbn = ResolveBookInfoFromEditionIsbn(edition);
+
+                    if (resolvedFromEditionIsbn != null)
+                    {
+                        return resolvedFromEditionIsbn;
+                    }
+                }
+
                 if (normalizedFromEdition.IsNotNullOrWhiteSpace())
                 {
                     normalizedWorkId = normalizedFromEdition;
@@ -229,6 +239,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     }
                 }
 
+                var isbnSearchResults = SearchEditionByIsbn(isbn, mappedEdition);
+                if (isbnSearchResults.Any())
+                {
+                    return isbnSearchResults;
+                }
+
                 // Fallback: build a minimal book from edition only
                 var fallback = BuildBookFromEditionOnly(mappedEdition, edition);
                 return fallback != null ? new List<Book> { fallback } : new List<Book>();
@@ -325,6 +341,91 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .Select(d => OpenLibraryMapper.MapSearchDocToBook(d))
                 .Where(b => b != null)
                 .ToList();
+        }
+
+        private Tuple<string, Book, List<AuthorMetadata>> ResolveBookInfoFromEditionIsbn(OlEditionResource edition)
+        {
+            if (edition == null)
+            {
+                return null;
+            }
+
+            var isbnCandidates = (edition.Isbn13 ?? new List<string>())
+                .Concat(edition.Isbn10 ?? new List<string>())
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Distinct()
+                .ToList();
+
+            foreach (var isbn in isbnCandidates)
+            {
+                var candidate = SearchByIsbn(isbn)
+                    .FirstOrDefault(x => NormalizeWorkId(x.OpenLibraryWorkId).IsNotNullOrWhiteSpace() ||
+                                         NormalizeWorkId(x.ForeignBookId).IsNotNullOrWhiteSpace());
+
+                if (candidate?.AuthorMetadata?.Value == null)
+                {
+                    continue;
+                }
+
+                var authorId = candidate.AuthorMetadata.Value.ForeignAuthorId ?? "OL-unknown";
+                var authorMetaList = new List<AuthorMetadata> { candidate.AuthorMetadata.Value };
+
+                return Tuple.Create(authorId, candidate, authorMetaList);
+            }
+
+            return null;
+        }
+
+        private List<Book> SearchEditionByIsbn(string isbn, Edition mappedEdition)
+        {
+            var response = _client.Search(isbn, limit: 5);
+            var books = MapSearchDocsToBooks(response?.Docs)
+                .Where(x => NormalizeWorkId(x.OpenLibraryWorkId).IsNotNullOrWhiteSpace() ||
+                            NormalizeWorkId(x.ForeignBookId).IsNotNullOrWhiteSpace())
+                .ToList();
+
+            if (!books.Any())
+            {
+                return books;
+            }
+
+            foreach (var book in books)
+            {
+                AddEditionIfMissing(book, mappedEdition, isbn);
+            }
+
+            return books;
+        }
+
+        private static void AddEditionIfMissing(Book book, Edition edition, string isbn)
+        {
+            if (book?.Editions?.Value == null || edition == null)
+            {
+                return;
+            }
+
+            if (book.Editions.Value.Any(x => string.Equals(x.Isbn13, isbn, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            var clone = new Edition
+            {
+                ForeignEditionId = edition.ForeignEditionId,
+                TitleSlug = edition.TitleSlug,
+                Title = edition.Title,
+                Isbn13 = edition.Isbn13,
+                Publisher = edition.Publisher,
+                PageCount = edition.PageCount,
+                ReleaseDate = edition.ReleaseDate,
+                IsEbook = edition.IsEbook,
+                Format = edition.Format,
+                Ratings = edition.Ratings,
+                Images = edition.Images,
+                Book = book
+            };
+
+            book.Editions.Value.Insert(0, clone);
         }
 
         private static Book BuildBookFromEditionOnly(Edition edition, OlEditionResource raw)

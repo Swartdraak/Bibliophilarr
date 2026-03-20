@@ -269,15 +269,109 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 10 });
 
             Mocker.GetMock<IMetadataProviderOrchestrator>()
-                .Verify(x => x.SearchByExternalId("olid", "OL8547083M"), Times.Once);
+                .Verify(x => x.SearchByExternalId(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
 
             Mocker.GetMock<IBookService>()
                 .Verify(x => x.UpdateMany(It.Is<List<Book>>(list =>
                     list.Count == 1 &&
                     list[0].Id == 1311 &&
-                    list[0].OpenLibraryWorkId == "OL8547083W")), Times.Once);
+                    list[0].OpenLibraryWorkId == "OL8547083M")), Times.Once);
 
-            book.OpenLibraryWorkId.Should().Be("OL8547083W");
+            book.OpenLibraryWorkId.Should().Be("OL8547083M");
+        }
+
+        [Test]
+        public void execute_should_fallback_to_provider_book_lookup_when_external_id_lookup_is_empty()
+        {
+            var authorMetadata = new AuthorMetadata
+            {
+                Id = 414,
+                ForeignAuthorId = "openlibrary:author:OL29303A",
+                OpenLibraryAuthorId = "OL29303A",
+                Name = "Dante Alighieri"
+            };
+
+            var author = new Author
+            {
+                Id = 41,
+                AuthorMetadataId = 414,
+                Metadata = authorMetadata
+            };
+
+            var book = new Book
+            {
+                Id = 1464,
+                AuthorMetadataId = 414,
+                ForeignBookId = "openlibrary:work:OL9205704M"
+            };
+
+            Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(new List<Book> { book });
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { author });
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { authorMetadata });
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(new List<Edition>());
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.SearchByExternalId("olid", "OL9205704M"))
+                .Returns(new List<Book>());
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetBookInfo("OL9205704M"))
+                .Returns(System.Tuple.Create(
+                    "openlibrary:author:OL27695A",
+                    new Book { ForeignBookId = "openlibrary:work:OL9205704W", OpenLibraryWorkId = "OL9205704W" },
+                    new List<AuthorMetadata>()));
+
+            Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 10 });
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(x => x.GetBookInfo(It.IsAny<string>()), Times.Never);
+
+            book.OpenLibraryWorkId.Should().Be("OL9205704M");
+        }
+
+        [Test]
+        public void execute_should_accept_m_suffixed_open_library_work_ids_returned_by_external_lookup()
+        {
+            var authorMetadata = new AuthorMetadata
+            {
+                Id = 414,
+                ForeignAuthorId = "openlibrary:author:OL29303A",
+                OpenLibraryAuthorId = "OL29303A",
+                Name = "Dante Alighieri"
+            };
+
+            var author = new Author
+            {
+                Id = 41,
+                AuthorMetadataId = 414,
+                Metadata = authorMetadata
+            };
+
+            var book = new Book
+            {
+                Id = 1497,
+                AuthorMetadataId = 414,
+                ForeignBookId = "openlibrary:work:OL13335313M"
+            };
+
+            Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(new List<Book> { book });
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { author });
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { authorMetadata });
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(new List<Edition>());
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.SearchByExternalId("olid", "OL13335313M"))
+                .Returns(new List<Book>
+                {
+                    new Book { ForeignBookId = "openlibrary:work:OL13335313M", OpenLibraryWorkId = "OL13335313M" }
+                });
+
+            Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 10 });
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(x => x.GetBookInfo(It.IsAny<string>()), Times.Never);
+
+            book.OpenLibraryWorkId.Should().Be("OL13335313M");
         }
     }
 }

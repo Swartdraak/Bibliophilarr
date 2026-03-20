@@ -76,6 +76,7 @@ namespace NzbDrone.Core.Books
         {
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
+            OpenLibraryWorkId = other.OpenLibraryWorkId;
             TitleSlug = other.TitleSlug;
             Title = other.Title;
             ReleaseDate = other.ReleaseDate;
@@ -102,6 +103,7 @@ namespace NzbDrone.Core.Books
         {
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
+            OpenLibraryWorkId = other.OpenLibraryWorkId;
             AddOptions = other.AddOptions;
             Monitored = other.Monitored;
             AnyEditionOk = other.AnyEditionOk;

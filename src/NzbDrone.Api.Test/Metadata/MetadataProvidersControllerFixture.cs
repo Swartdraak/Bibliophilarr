@@ -127,7 +127,7 @@ namespace NzbDrone.Api.Test.Metadata
         public void get_health_should_include_provider_capabilities_and_telemetry()
         {
             var telemetry = new MetadataProviderTelemetryService();
-            telemetry.Record("OpenLibrary", 12, success: true, returnedNull: false, fallbackHit: false);
+            telemetry.Record("OpenLibrary", "get-book-info", 12, success: true, returnedNull: false, fallbackHit: false);
 
             var controller = new MetadataProvidersController(
                 new FakeRegistry(new IMetadataProvider[] { new FakeProvider() }),
@@ -141,13 +141,14 @@ namespace NzbDrone.Api.Test.Metadata
             health.SupportsBookSearch.Should().BeTrue();
             health.Telemetry.Should().NotBeNull();
             health.Telemetry.Successes.Should().Be(1);
+            health.Telemetry.Operations.Should().ContainSingle(x => x.OperationName == "get-book-info");
         }
 
         [Test]
         public void get_telemetry_should_return_current_snapshots()
         {
             var telemetry = new MetadataProviderTelemetryService();
-            telemetry.Record("Inventaire", 9, success: false, returnedNull: true, fallbackHit: false);
+            telemetry.Record("Inventaire", "search-by-isbn", 9, success: false, returnedNull: true, fallbackHit: false);
 
             var controller = new MetadataProvidersController(
                 new FakeRegistry(new IMetadataProvider[] { new FakeProvider() }),
@@ -156,6 +157,24 @@ namespace NzbDrone.Api.Test.Metadata
             var result = controller.GetTelemetry();
 
             result.Should().ContainSingle(x => x.ProviderName == "Inventaire" && x.NullResults == 1);
+        }
+
+        [Test]
+        public void get_operation_telemetry_should_return_operation_snapshots()
+        {
+            var telemetry = new MetadataProviderTelemetryService();
+            telemetry.Record("OpenLibrary", "get-book-info", 5, success: true, returnedNull: false, fallbackHit: true);
+
+            var controller = new MetadataProvidersController(
+                new FakeRegistry(new IMetadataProvider[] { new FakeProvider() }),
+                telemetry);
+
+            var result = controller.GetOperationTelemetry();
+
+            result.Should().ContainSingle(x =>
+                x.ProviderName == "OpenLibrary" &&
+                x.OperationName == "get-book-info" &&
+                x.FallbackHits == 1);
         }
     }
 }

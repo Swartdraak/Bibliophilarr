@@ -129,7 +129,7 @@ namespace NzbDrone.Core.MetadataSource
                     stopwatch.Stop();
 
                     var returnedNull = result == null;
-                    _telemetry.Record(provider.ProviderName, stopwatch.ElapsedMilliseconds, !returnedNull, returnedNull, i > 0 && !returnedNull);
+                    _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, !returnedNull, returnedNull, i > 0 && !returnedNull);
 
                     if (!returnedNull)
                     {
@@ -139,7 +139,7 @@ namespace NzbDrone.Core.MetadataSource
                 catch (Exception ex)
                 {
                     stopwatch.Stop();
-                    _telemetry.Record(provider.ProviderName, stopwatch.ElapsedMilliseconds, false, false, false);
+                    _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, false, false);
                     _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operationName);
                     lastError = ex;
                 }
