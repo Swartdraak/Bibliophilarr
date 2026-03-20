@@ -44,6 +44,7 @@ namespace NzbDrone.Core.Books
         public override void UseMetadataFrom(AuthorMetadata other)
         {
             ForeignAuthorId = other.ForeignAuthorId;
+            OpenLibraryAuthorId = other.OpenLibraryAuthorId;
             TitleSlug = other.TitleSlug;
             Name = other.Name;
             NameLastFirst = other.NameLastFirst;

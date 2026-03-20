@@ -47,8 +47,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             _logger.Debug("OpenLibraryProvider.GetAuthorInfo: {0}", foreignAuthorId);
 
-            // foreignAuthorId is expected in form "OL{n}A"
-            var authorResource = _client.GetAuthor(foreignAuthorId);
+            var normalizedAuthorId = NormalizeAuthorId(foreignAuthorId);
+
+            // foreignAuthorId may arrive as either "OL{n}A" or "openlibrary:author:OL{n}A"
+            var authorResource = _client.GetAuthor(normalizedAuthorId);
             if (authorResource == null)
             {
                 throw new NzbDrone.Core.Exceptions.AuthorNotFoundException(foreignAuthorId);
@@ -61,7 +63,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             // Fetch a sample of works via search to populate Books
-            var searchResponse = _client.Search($"author_key:/authors/{foreignAuthorId}");
+            var searchResponse = _client.Search($"author_key:/authors/{normalizedAuthorId}");
             var books = (searchResponse?.Docs ?? new List<OlSearchDoc>())
                 .Select(d => OpenLibraryMapper.MapSearchDocToBook(d))
                 .Where(b => b != null)
@@ -84,6 +86,25 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             };
         }
 
+        private static string NormalizeAuthorId(string foreignAuthorId)
+        {
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                return foreignAuthorId;
+            }
+
+            const string prefix = "openlibrary:author:";
+
+            var normalized = foreignAuthorId.Trim();
+
+            if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized.Substring(prefix.Length);
+            }
+
+            return normalized;
+        }
+
         public HashSet<string> GetChangedAuthors(DateTime startTime)
         {
             // Open Library does not expose a "changed since" feed in a queryable form.
@@ -96,8 +117,27 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             _logger.Debug("OpenLibraryProvider.GetBookInfo: {0}", foreignBookId);
 
-            // foreignBookId is expected in form "OL{n}W"
-            var work = _client.GetWork(foreignBookId);
+            var normalizedWorkId = NormalizeWorkId(foreignBookId);
+            OlEditionResource edition = null;
+
+            // foreignBookId may arrive as either "OL{n}W" or "openlibrary:work:OL{n}W"
+            var work = _client.GetWork(normalizedWorkId);
+
+            // Some legacy rows carry an OL edition id (OL...M) in ForeignBookId.
+            // Resolve edition -> work key, then continue via the work endpoint.
+            if (work == null && normalizedWorkId.IsNotNullOrWhiteSpace() && normalizedWorkId.EndsWith("M", StringComparison.OrdinalIgnoreCase))
+            {
+                edition = _client.GetEdition(normalizedWorkId);
+                var workKey = edition?.Works?.FirstOrDefault()?.Key;
+                var normalizedFromEdition = NormalizeWorkId(workKey);
+
+                if (normalizedFromEdition.IsNotNullOrWhiteSpace())
+                {
+                    normalizedWorkId = normalizedFromEdition;
+                    work = _client.GetWork(normalizedWorkId);
+                }
+            }
+
             if (work == null)
             {
                 throw new NzbDrone.Core.Exceptions.BookNotFoundException(foreignBookId);
@@ -108,6 +148,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .Where(a => a.Author?.Key != null)
                 .Select(a => a.Author.Key)
                 .FirstOrDefault();
+
+            authorKey ??= edition?.Authors?.FirstOrDefault()?.Key;
 
             OlAuthorResource authorResource = null;
             if (authorKey != null)
@@ -293,14 +335,15 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             var authorKey = raw.Authors?.FirstOrDefault()?.Key;
+            var authorId = NormalizeAuthorId(authorKey?.TrimStart('/').Split('/').LastOrDefault());
             var foreignAuthorId = authorKey != null
-                ? $"OL{authorKey.TrimStart('/').Split('/').LastOrDefault()}A"
+                ? $"openlibrary:author:{authorId}"
                 : "OL-unknown";
 
             var metadata = new AuthorMetadata
             {
                 ForeignAuthorId = foreignAuthorId,
-                OpenLibraryAuthorId = foreignAuthorId.StartsWith("OL") ? foreignAuthorId : null,
+                OpenLibraryAuthorId = authorId,
                 TitleSlug = foreignAuthorId,
                 Name = "Unknown Author",
                 Status = AuthorStatusType.Continuing,
@@ -312,10 +355,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             metadata.SortNameLastFirst = metadata.NameLastFirst.ToLower();
 
             var workKey = raw.Works?.FirstOrDefault()?.Key;
+            var workId = NormalizeWorkId(workKey?.Split('/').Last());
             var book = new Book
             {
-                ForeignBookId = workKey != null ? $"OL{workKey.Split('/').Last()}W" : edition.ForeignEditionId,
-                OpenLibraryWorkId = workKey != null ? $"OL{workKey.Split('/').Last()}W" : null,
+                ForeignBookId = workId != null ? $"openlibrary:work:{workId}" : edition.ForeignEditionId,
+                OpenLibraryWorkId = workId,
                 TitleSlug = edition.TitleSlug,
                 Title = edition.Title,
                 CleanTitle = Parser.Parser.CleanAuthorName(edition.Title ?? string.Empty),
@@ -329,6 +373,36 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             book.Author = new Author { Metadata = metadata };
 
             return book;
+        }
+
+        private static string NormalizeWorkId(string foreignBookId)
+        {
+            if (foreignBookId.IsNullOrWhiteSpace())
+            {
+                return foreignBookId;
+            }
+
+            const string prefix = "openlibrary:work:";
+            const string editionPrefix = "openlibrary:edition:";
+
+            var normalized = foreignBookId.Trim();
+
+            if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized.Substring(prefix.Length);
+            }
+            else if (normalized.StartsWith(editionPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized.Substring(editionPrefix.Length);
+            }
+
+            var lastSlash = normalized.LastIndexOf('/');
+            if (lastSlash >= 0)
+            {
+                normalized = normalized.Substring(lastSlash + 1);
+            }
+
+            return normalized;
         }
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using NzbDrone.Core.Books;
 
@@ -13,5 +14,6 @@ namespace NzbDrone.Core.MetadataSource
         List<object> SearchForNewEntity(string title);
         System.Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id);
         Author GetAuthorInfo(string id, bool useCache = true);
+        HashSet<string> GetChangedAuthors(DateTime startTime);
     }
 }

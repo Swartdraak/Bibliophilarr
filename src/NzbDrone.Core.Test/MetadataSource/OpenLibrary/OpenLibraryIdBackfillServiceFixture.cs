@@ -66,6 +66,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(new List<Book> { book });
             Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { author });
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { authorMetadata });
             Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(new List<Edition>());
 
             var command = new BackfillOpenLibraryIdsCommand { MaxLookups = 5 };
@@ -97,6 +98,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(new List<Book> { bookOne, bookTwo });
             Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { authorOne, authorTwo });
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { metadataOne, metadataTwo });
             Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(editions);
 
             Mocker.GetMock<IMetadataProviderOrchestrator>()
@@ -118,7 +120,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Setup(x => x.SearchForNewAuthor("Author B"))
                 .Returns(new List<Author>
                 {
-                    new Author { Metadata = new AuthorMetadata { ForeignAuthorId = "OL222A", Name = "Author B" } }
+                    new Author { Metadata = new AuthorMetadata { ForeignAuthorId = "openlibrary:author:OL222A", OpenLibraryAuthorId = "OL222A", Name = "Author B" } }
                 });
 
             Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 10 });
@@ -131,6 +133,151 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             metadataOne.OpenLibraryAuthorId.Should().BeNull();
             metadataTwo.OpenLibraryAuthorId.Should().Be("OL222A");
+        }
+
+        [Test]
+        public void execute_should_backfill_bare_open_library_author_id_from_prefixed_foreign_author_id_without_lookup()
+        {
+            var authorMetadata = new AuthorMetadata
+            {
+                Id = 100,
+                ForeignAuthorId = "openlibrary:author:OL10A",
+                Name = "Author"
+            };
+
+            var author = new Author
+            {
+                Id = 10,
+                AuthorMetadataId = 100,
+                Metadata = authorMetadata
+            };
+
+            var book = new Book
+            {
+                Id = 1,
+                AuthorMetadataId = 100,
+                ForeignBookId = "OL100W",
+                OpenLibraryWorkId = "OL100W"
+            };
+
+            Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(new List<Book> { book });
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { author });
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { authorMetadata });
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(new List<Edition>());
+
+            Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 0 });
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(x => x.SearchForNewAuthor(It.IsAny<string>()), Times.Never);
+
+            Mocker.GetMock<IAuthorMetadataService>()
+                .Verify(x => x.UpsertMany(It.Is<List<AuthorMetadata>>(list =>
+                    list.Count == 1 &&
+                    list[0].Id == 100 &&
+                    list[0].OpenLibraryAuthorId == "OL10A")), Times.Once);
+
+            authorMetadata.OpenLibraryAuthorId.Should().Be("OL10A");
+        }
+
+        [Test]
+        public void execute_should_backfill_open_library_work_id_from_prefixed_foreign_book_id_without_lookup()
+        {
+            var authorMetadata = new AuthorMetadata
+            {
+                Id = 100,
+                ForeignAuthorId = "openlibrary:author:OL10A",
+                Name = "Author"
+            };
+
+            var author = new Author
+            {
+                Id = 10,
+                AuthorMetadataId = 100,
+                Metadata = authorMetadata
+            };
+
+            var book = new Book
+            {
+                Id = 1,
+                AuthorMetadataId = 100,
+                ForeignBookId = "openlibrary:work:OL100W"
+            };
+
+            Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(new List<Book> { book });
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { author });
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { authorMetadata });
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(new List<Edition>());
+
+            Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 0 });
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(x => x.SearchByIsbn(It.IsAny<string>()), Times.Never);
+
+            Mocker.GetMock<IBookService>()
+                .Verify(x => x.UpdateMany(It.Is<List<Book>>(list =>
+                    list.Count == 1 &&
+                    list[0].Id == 1 &&
+                    list[0].OpenLibraryWorkId == "OL100W")), Times.Once);
+
+            Mocker.GetMock<IAuthorMetadataService>()
+                .Verify(x => x.UpsertMany(It.Is<List<AuthorMetadata>>(list =>
+                    list.Count == 1 &&
+                    list[0].Id == 100 &&
+                    list[0].OpenLibraryAuthorId == "OL10A")), Times.Once);
+
+            book.OpenLibraryWorkId.Should().Be("OL100W");
+            authorMetadata.OpenLibraryAuthorId.Should().Be("OL10A");
+        }
+
+        [Test]
+        public void execute_should_resolve_open_library_edition_foreign_book_id_via_external_id_lookup()
+        {
+            var authorMetadata = new AuthorMetadata
+            {
+                Id = 414,
+                ForeignAuthorId = "openlibrary:author:OL29303A",
+                OpenLibraryAuthorId = "OL29303A",
+                Name = "Dante Alighieri"
+            };
+
+            var author = new Author
+            {
+                Id = 41,
+                AuthorMetadataId = 414,
+                Metadata = authorMetadata
+            };
+
+            var book = new Book
+            {
+                Id = 1311,
+                AuthorMetadataId = 414,
+                ForeignBookId = "openlibrary:work:OL8547083M"
+            };
+
+            Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(new List<Book> { book });
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { author });
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { authorMetadata });
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(new List<Edition>());
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.SearchByExternalId("olid", "OL8547083M"))
+                .Returns(new List<Book>
+                {
+                    new Book { ForeignBookId = "openlibrary:work:OL8547083W", OpenLibraryWorkId = "OL8547083W" }
+                });
+
+            Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 10 });
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(x => x.SearchByExternalId("olid", "OL8547083M"), Times.Once);
+
+            Mocker.GetMock<IBookService>()
+                .Verify(x => x.UpdateMany(It.Is<List<Book>>(list =>
+                    list.Count == 1 &&
+                    list[0].Id == 1311 &&
+                    list[0].OpenLibraryWorkId == "OL8547083W")), Times.Once);
+
+            book.OpenLibraryWorkId.Should().Be("OL8547083W");
         }
     }
 }

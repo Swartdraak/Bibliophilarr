@@ -1,9 +1,11 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace NzbDrone.Core.Books
 {
     public interface IAuthorMetadataService
     {
+        List<AuthorMetadata> Get(IEnumerable<int> ids);
         bool Upsert(AuthorMetadata author);
         bool UpsertMany(List<AuthorMetadata> authors);
     }
@@ -15,6 +17,11 @@ namespace NzbDrone.Core.Books
         public AuthorMetadataService(IAuthorMetadataRepository authorMetadataRepository)
         {
             _authorMetadataRepository = authorMetadataRepository;
+        }
+
+        public List<AuthorMetadata> Get(IEnumerable<int> ids)
+        {
+            return _authorMetadataRepository.Get(ids).ToList();
         }
 
         public bool Upsert(AuthorMetadata author)

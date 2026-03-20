@@ -171,6 +171,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .Resource($"/isbn/{isbn}.json")
                 .Build();
 
+            // Open Library /isbn/{isbn}.json redirects to /books/OL{id}M.json;
+            // allow the client to follow that redirect so we get the edition JSON
+            // rather than an HTML redirect page that triggers UnexpectedHtmlContentException.
+            request.AllowAutoRedirect = true;
+
             try
             {
                 var response = _httpClient.Get<OpenLibraryEditionResource>(request);
@@ -496,6 +501,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var metadata = new AuthorMetadata
             {
                 ForeignAuthorId = $"openlibrary:author:{normalizedKey}",
+                OpenLibraryAuthorId = normalizedKey,
                 TitleSlug = normalizedKey,
                 Name = authorName,
                 SortName = authorName,

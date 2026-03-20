@@ -40,12 +40,15 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var book = OpenLibraryMapper.MapSearchDocToBook(doc);
 
             book.Should().NotBeNull();
-            book.ForeignBookId.Should().Contain("OL");
+            book.ForeignBookId.Should().Be("openlibrary:work:OL45883W");
+            book.OpenLibraryWorkId.Should().Be("OL45883W");
             book.Title.Should().Be("The Lord of the Rings");
             book.ReleaseDate.Should().NotBeNull();
             book.ReleaseDate!.Value.Year.Should().Be(1954);
             book.Editions.Value.Should().HaveCount(1);
             book.Author.Value.Should().NotBeNull();
+            book.AuthorMetadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL26320A");
+            book.AuthorMetadata.Value.OpenLibraryAuthorId.Should().Be("OL26320A");
             book.AuthorMetadata.Value.Name.Should().Be("J.R.R. Tolkien");
         }
 
@@ -85,6 +88,9 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var book = OpenLibraryMapper.MapWorkToBook(work, author);
 
             book.Should().NotBeNull();
+            book.ForeignBookId.Should().Be("openlibrary:work:OL45883W");
+            book.OpenLibraryWorkId.Should().Be("OL45883W");
+            book.AuthorMetadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL26320A");
             book.Title.Should().Be("The Lord of the Rings");
             book.ReleaseDate!.Value.Year.Should().Be(1954);
             book.Editions.Value.Should().HaveCount(1);
@@ -126,6 +132,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var metadata = OpenLibraryMapper.MapAuthorToMetadata(author);
 
             metadata.Should().NotBeNull();
+            metadata.ForeignAuthorId.Should().Be("openlibrary:author:OL26320A");
+            metadata.OpenLibraryAuthorId.Should().Be("OL26320A");
             metadata.Name.Should().Be("J.R.R. Tolkien");
             metadata.Overview.Should().Contain("philologist");
             metadata.Born.Should().NotBeNull();
@@ -167,6 +175,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var result = OpenLibraryMapper.MapEdition(edition);
 
             result.Should().NotBeNull();
+            result.ForeignEditionId.Should().Be("openlibrary:edition:OL7353617M");
             result.Isbn13.Should().Be("9780618346257");
             result.Publisher.Should().Be("Houghton Mifflin");
             result.PageCount.Should().Be(398);

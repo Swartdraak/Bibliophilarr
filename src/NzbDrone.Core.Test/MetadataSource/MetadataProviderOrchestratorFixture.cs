@@ -262,6 +262,71 @@ namespace NzbDrone.Core.Test.MetadataSource
             winner.FallbackHits.Should().Be(1);
         }
 
+        [Test]
+        public void should_fallback_to_secondary_provider_for_changed_author_lookup_when_primary_fails()
+        {
+            var registry = new TestRegistry(new IMetadataProvider[]
+            {
+                new FailingAuthorInfoProvider(),
+                new SuccessfulAuthorInfoProvider()
+            });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+            var changedAuthors = orchestrator.GetChangedAuthors(DateTime.UtcNow.AddDays(-1));
+
+            changedAuthors.Should().NotBeNull();
+            changedAuthors.Should().Contain("openlibrary:author:OL23919A");
+
+            var stats = telemetry.GetSnapshots();
+            stats.Should().ContainSingle(x => x.ProviderName == "FailingAuthorInfo");
+            stats.Should().ContainSingle(x => x.ProviderName == "SuccessfulAuthorInfo" && x.FallbackHits == 1);
+        }
+
+        private class FailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
+        {
+            public string ProviderName => "FailingAuthorInfo";
+            public int Priority => 1;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => false;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => false;
+
+            public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
+            {
+                throw new InvalidOperationException("simulated failure");
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                throw new InvalidOperationException("simulated failure");
+            }
+        }
+
+        private class SuccessfulAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
+        {
+            public string ProviderName => "SuccessfulAuthorInfo";
+            public int Priority => 2;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => false;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => false;
+
+            public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
+            {
+                return null;
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                return new HashSet<string> { "openlibrary:author:OL23919A" };
+            }
+        }
+
         private class OrderedSearchProvider : IMetadataProvider, ISearchForNewBook
         {
             private readonly string _title;

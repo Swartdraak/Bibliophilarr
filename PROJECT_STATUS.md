@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 20, 2026  
+**Last Updated**: March 20, 2026 (refresh-path hardening)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -20,6 +20,83 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
 ## Latest Delivery Update
+
+### March 20, 2026 refresh-path hardening and OpenLibrary correctness note
+
+Addressed four runtime-observable defects identified during forensic log analysis of a 530-author import rehearsal (288 of 530 authors had only 1 book; 0 of 530 had `OpenLibraryAuthorId` set).
+
+**Changes delivered:**
+
+1. **`RefreshAuthorService` rewired to `IMetadataProviderOrchestrator`** — `GetSkyhookData` now calls `_orchestrator.GetAuthorInfo(foreignId)` instead of `_authorInfo.GetAuthorInfo(foreignId)`. `IProvideAuthorInfo` is retained only for `GetChangedAuthors` (bulk-poll path). Direct `BookInfoProxy` failures no longer abort author refresh.
+
+2. **`RefreshBookService` rewired to `IMetadataProviderOrchestrator`** — Removed `IProvideAuthorInfo` and `IProvideBookInfo` constructor dependencies entirely. `GetSkyhookData` uses `_orchestrator.GetBookInfo` and `_orchestrator.GetAuthorInfo`, both of which walk the priority-ordered provider chain with fallback.
+
+3. **`OpenLibrarySearchProxy.TryIsbnEndpoint` redirect fix** — Added `request.AllowAutoRedirect = true` after `.Build()`. `HttpRequestBuilder` defaults to `false`; Open Library `/isbn/{isbn}.json` responds with `302 → /books/OL{id}M.json`. Without this the endpoint always returned no candidates.
+
+4. **`OpenLibraryAuthorId` normalization in `MapAuthor`** — Added `OpenLibraryAuthorId = normalizedKey` to the `AuthorMetadata` initializer. `normalizedKey` is the bare `OL{n}A` form after `NormalizeAuthorKey`, which matches the `LooksLikeOpenLibraryAuthorId` predicate in `OpenLibraryIdBackfillService`. All future new-author search results now carry a populated `OpenLibraryAuthorId`.
+
+**Tests added / updated:**
+
+- `RefreshArtistServiceFixture.cs`: Both `IProvideAuthorInfo` mock setups updated to `IMetadataProviderOrchestrator`; new test `should_use_orchestrator_for_author_info_not_direct_provider` verifies orchestrator is called and direct provider is never called.
+- `OpenLibrarySearchProxyFixture.cs`: Added `should_populate_open_library_author_id_on_author_mapping` (verifies `ForeignAuthorId` and `OpenLibraryAuthorId` on `LookupAuthorByKey`) and `isbn_lookup_should_follow_open_library_redirect_to_edition_json` (captures `HttpRequest` via callback, asserts `AllowAutoRedirect == true`).
+
+**Validation evidence:**
+
+- Build: `dotnet build src/Readarr.sln -p:Platform=Posix -c Debug -v minimal` → **0 Warning(s). 0 Error(s).** (8.17s, second pass after SA1515/SA1137 StyleCop fixes)
+- Targeted fixture run: `dotnet test ... --filter RefreshAuthorServiceFixture|OpenLibrarySearchProxyFixture|OpenLibraryIsbnAsinLookupFixture` → **Passed: 14, Failed: 0, Skipped: 0**
+- Broader affected-area run: `dotnet test ... --filter RefreshBookService|RefreshAuthor|AddAuthor|OpenLibrary|BookInfoProxy|MetadataProvider` → **Passed: 89, Failed: 0, Skipped: 8 (pre-existing)**
+- Full Core suite: **Passed: 2572, Failed: 31, Skipped: 68** — the 31 failures confirmed pre-existing via `git stash` baseline run before these changes.
+- Backend binary: `./build.sh --backend -r linux-x64 -f net8.0` → **PASS**, artifact at `_artifacts/linux-x64/net8.0/Bibliophilarr/`.
+
+**Before-snapshot (live DB at time of forensic analysis):**
+
+| Metric | Count |
+|---|---|
+| Total authors | 530 |
+| Total books | 1778 |
+| Total editions | 1778 |
+| Single-book authors | 288 (54%) |
+| Multi-book authors | 242 |
+| Authors with `OpenLibraryAuthorId` set | 0 / 530 |
+
+**Measured rehearsal results (same 530-author profile, March 20, 2026):**
+
+- Live profile used: `/home/swartdraak/.config/Bibliophilarr`
+- Runtime command evidence:
+  - `BackfillOpenLibraryIds` startup run (direct `_output` binary): command `151`, **completed** in `00:00:04.2480252`
+  - Manual full refresh run (direct `_output` binary): command `154`, **completed** in `00:33:05.0413339`
+- Measured after-snapshot:
+
+| Metric | Before | After |
+|---|---:|---:|
+| Total authors | 530 | 530 |
+| Total books | 1778 | 1778 |
+| Total editions | 1778 | 1778 |
+| Single-book authors | 288 | 288 |
+| Multi-book authors | 242 | 242 |
+| Authors with `OpenLibraryAuthorId` set | 0 | 530 |
+| Books with `OpenLibraryWorkId` set | 0 | 1775 |
+
+**Outcome summary:**
+
+- `OpenLibraryAuthorId` backfill objective: **achieved** (`0 -> 530`).
+- `OpenLibraryWorkId` backfill objective: **partially achieved** (`0 -> 1775`), with 3 records still unresolved.
+- Full refresh command stability objective: **achieved** (manual refresh completed; prior `NullReferenceException` path in `RefreshBookService.GetRemoteData` not observed in this rerun).
+- Bibliography expansion objective (reduce single-book authors): **not yet achieved** (`288 -> 288`).
+
+**Observed blockers and caveats:**
+
+- Primary provider DNS failure remains active in this environment (`api.bookinfo.club` lookup failures).
+- The profile SQLite file reports corruption (`database disk image is malformed`) at startup, and integrity checks continue to report malformed pages; this is a reliability risk for repeated long-running measurements.
+- Packaged runtime in `_artifacts/linux-x64/net8.0/Bibliophilarr/` initially produced stale/contradictory backfill outcomes; direct runtime from `_output/net8.0/linux-x64/Bibliophilarr` matched current source behavior and produced consistent ID backfill results.
+
+**Follow-up required before next RC gate:**
+
+- Repair or rebuild the live SQLite profile (`bibliophilarr.db`) and rerun rehearsal to eliminate corruption-driven measurement risk.
+- Investigate the remaining 3 books without `OpenLibraryWorkId` and add deterministic fixture coverage for those unresolved patterns.
+- Re-run full author refresh after DB repair and compare bibliography-count deltas to confirm whether provider fallback now yields expansion under stable storage conditions.
+- Confirm `AllowAutoRedirect` behavior under an ISBN-heavy batch in this environment and capture explicit 429/Retry-After telemetry evidence.
+- Address the 31 pre-existing Core test failures (entity replication, update installer, malformed-file quality source).
 
 ### March 20, 2026 hardening and RC rehearsal note
 

@@ -31,14 +31,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var olid = ExtractOlid(doc.Key);
+            var workId = NormalizeOpenLibraryToken(ExtractOlid(doc.Key), "W");
 
             var authorMetadata = BuildAuthorMetadataFromSearchDoc(doc);
 
             var edition = new Edition
             {
-                ForeignEditionId = $"OL-work-{olid}",
-                TitleSlug = olid,
+                ForeignEditionId = $"openlibrary:work:{workId}",
+                TitleSlug = workId,
                 Title = doc.Title.CleanSpaces(),
                 Isbn13 = doc.Isbn?.FirstOrDefault(),
                 PageCount = doc.NumberOfPagesMedian ?? 0,
@@ -63,9 +63,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var book = new Book
             {
-                ForeignBookId = $"OL{olid}W",
-                OpenLibraryWorkId = $"OL{olid}W",
-                TitleSlug = olid,
+                ForeignBookId = $"openlibrary:work:{workId}",
+                OpenLibraryWorkId = workId,
+                TitleSlug = $"openlibrary:work:{workId}",
                 Title = doc.Title.CleanSpaces(),
                 CleanTitle = Parser.Parser.CleanAuthorName(doc.Title ?? string.Empty),
                 ReleaseDate = doc.FirstPublishYear.HasValue
@@ -103,19 +103,19 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var olid = ExtractOlid(work.Key);
+            var workId = NormalizeOpenLibraryToken(ExtractOlid(work.Key), "W");
 
             var authorMetadata = primaryAuthor != null
                 ? MapAuthorToMetadata(primaryAuthor)
                 : new AuthorMetadata { ForeignAuthorId = "OL-unknown", Name = "Unknown Author" };
 
-            var edition = BuildEditionFromWork(work, olid);
+            var edition = BuildEditionFromWork(work, workId);
 
             var book = new Book
             {
-                ForeignBookId = $"OL{olid}W",
-                OpenLibraryWorkId = $"OL{olid}W",
-                TitleSlug = olid,
+                ForeignBookId = $"openlibrary:work:{workId}",
+                OpenLibraryWorkId = workId,
+                TitleSlug = $"openlibrary:work:{workId}",
                 Title = (work.Title ?? string.Empty).CleanSpaces(),
                 CleanTitle = Parser.Parser.CleanAuthorName(work.Title ?? string.Empty),
                 ReleaseDate = ParseYear(work.FirstPublishDate),
@@ -147,13 +147,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var olid = ExtractOlid(author.Key);
+            var authorId = NormalizeOpenLibraryToken(ExtractOlid(author.Key), "A");
 
             var metadata = new AuthorMetadata
             {
-                ForeignAuthorId = $"OL{olid}A",
-                OpenLibraryAuthorId = $"OL{olid}A",
-                TitleSlug = olid,
+                ForeignAuthorId = $"openlibrary:author:{authorId}",
+                OpenLibraryAuthorId = authorId,
+                TitleSlug = authorId,
                 Name = (author.Name ?? author.PersonalName ?? string.Empty).CleanSpaces(),
                 Overview = author.Bio,
                 Status = AuthorStatusType.Continuing,
@@ -193,13 +193,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var olid = ExtractOlid(edition.Key);
+            var editionId = NormalizeOpenLibraryToken(ExtractOlid(edition.Key), "M");
             var isbn13 = edition.Isbn13?.FirstOrDefault() ?? edition.Isbn10?.FirstOrDefault();
 
             var result = new Edition
             {
-                ForeignEditionId = $"OL{olid}M",
-                TitleSlug = olid,
+                ForeignEditionId = $"openlibrary:edition:{editionId}",
+                TitleSlug = editionId,
                 Title = (edition.Title ?? string.Empty).CleanSpaces(),
                 Isbn13 = isbn13,
                 Publisher = edition.Publishers?.FirstOrDefault(),
@@ -229,14 +229,18 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         private static AuthorMetadata BuildAuthorMetadataFromSearchDoc(OlSearchDoc doc)
         {
             var authorName = doc.AuthorName?.FirstOrDefault() ?? "Unknown Author";
-            var authorOlid = doc.AuthorKey?.FirstOrDefault();
-            var foreignAuthorId = authorOlid.IsNotNullOrWhiteSpace()
-                ? $"OL{ExtractOlid(authorOlid)}A"
+            var authorKey = doc.AuthorKey?.FirstOrDefault();
+            var authorId = authorKey.IsNotNullOrWhiteSpace()
+                ? NormalizeOpenLibraryToken(ExtractOlid(authorKey), "A")
+                : null;
+            var foreignAuthorId = authorId.IsNotNullOrWhiteSpace()
+                ? $"openlibrary:author:{authorId}"
                 : $"OL-search-{authorName.ToLower().Replace(" ", "-")}";
 
             var metadata = new AuthorMetadata
             {
                 ForeignAuthorId = foreignAuthorId,
+                OpenLibraryAuthorId = authorId,
                 TitleSlug = foreignAuthorId,
                 Name = authorName,
                 Status = AuthorStatusType.Continuing,
@@ -310,6 +314,27 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             // Strip type suffix letter + trailing chars: OL26320A -> 26320
             // Keep the full token as-is for use as ForeignId (e.g. OL26320A)
             return raw;
+        }
+
+        private static string NormalizeOpenLibraryToken(string key, string expectedSuffix)
+        {
+            if (key.IsNullOrWhiteSpace())
+            {
+                return key;
+            }
+
+            var normalized = key.Trim();
+
+            if (normalized.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase))
+            {
+                var lastColon = normalized.LastIndexOf(':');
+                normalized = lastColon >= 0 ? normalized.Substring(lastColon + 1) : normalized;
+            }
+
+            return normalized.StartsWith("OL", StringComparison.OrdinalIgnoreCase) ||
+                   normalized.EndsWith(expectedSuffix, StringComparison.OrdinalIgnoreCase)
+                ? normalized
+                : $"OL{normalized}{expectedSuffix}";
         }
 
         private static DateTime? ParseYear(string text)

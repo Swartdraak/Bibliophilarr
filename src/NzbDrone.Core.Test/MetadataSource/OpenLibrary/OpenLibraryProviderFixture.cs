@@ -91,6 +91,97 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Subject.SearchByIsbn("0000000000").Should().BeEmpty();
         }
 
+        [Test]
+        public void get_author_info_should_normalize_prefixed_open_library_author_ids()
+        {
+            _clientMock
+                .Setup(c => c.GetAuthor("OL26320A"))
+                .Returns(BuildAuthor());
+
+            _clientMock
+                .Setup(c => c.Search("author_key:/authors/OL26320A", It.IsAny<int>()))
+                .Returns(new OlSearchResponse { Docs = new List<OlSearchDoc>() });
+
+            var result = Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+
+            result.Should().NotBeNull();
+            result.Metadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL26320A");
+            result.Metadata.Value.OpenLibraryAuthorId.Should().Be("OL26320A");
+
+            _clientMock.Verify(c => c.GetAuthor("OL26320A"), Times.Once);
+            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", It.IsAny<int>()), Times.Once);
+        }
+
+        [Test]
+        public void get_book_info_should_normalize_prefixed_open_library_work_ids()
+        {
+            _clientMock
+                .Setup(c => c.GetWork("OL45883W"))
+                .Returns(BuildWork());
+
+            _clientMock
+                .Setup(c => c.GetAuthor(It.IsAny<string>()))
+                .Returns(BuildAuthor());
+
+            var result = Subject.GetBookInfo("openlibrary:work:OL45883W");
+
+            result.Should().NotBeNull();
+            result.Item1.Should().Be("openlibrary:author:OL26320A");
+            result.Item2.ForeignBookId.Should().Be("openlibrary:work:OL45883W");
+            result.Item2.OpenLibraryWorkId.Should().Be("OL45883W");
+            result.Item2.AuthorMetadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL26320A");
+
+            _clientMock.Verify(c => c.GetWork("OL45883W"), Times.Once);
+        }
+
+        [Test]
+        public void get_book_info_should_resolve_open_library_edition_ids_to_work_ids()
+        {
+            var work = BuildWork();
+            work.Key = "/works/OL8547083W";
+            work.Authors = new List<OlWorkAuthorEntry>
+            {
+                new OlWorkAuthorEntry
+                {
+                    Author = new OlKeyRef { Key = "/authors/OL29303A" },
+                    Type = new OlKeyRef { Key = "/type/author_role" }
+                }
+            };
+
+            var edition = new OlEditionResource
+            {
+                Key = "/books/OL8547083M",
+                Works = new List<OlKeyRef> { new OlKeyRef { Key = "/works/OL8547083W" } },
+                Authors = new List<OlKeyRef> { new OlKeyRef { Key = "/authors/OL29303A" } }
+            };
+
+            _clientMock
+                .Setup(c => c.GetWork("OL8547083M"))
+                .Returns((OlWorkResource)null);
+
+            _clientMock
+                .Setup(c => c.GetEdition("OL8547083M"))
+                .Returns(edition);
+
+            _clientMock
+                .Setup(c => c.GetWork("OL8547083W"))
+                .Returns(work);
+
+            _clientMock
+                .Setup(c => c.GetAuthor(It.IsAny<string>()))
+                .Returns(new OlAuthorResource { Key = "/authors/OL29303A", Name = "Dante Alighieri" });
+
+            var result = Subject.GetBookInfo("openlibrary:work:OL8547083M");
+
+            result.Should().NotBeNull();
+            result.Item2.ForeignBookId.Should().Be("openlibrary:work:OL8547083W");
+            result.Item2.OpenLibraryWorkId.Should().Be("OL8547083W");
+
+            _clientMock.Verify(c => c.GetWork("OL8547083M"), Times.Once);
+            _clientMock.Verify(c => c.GetEdition("OL8547083M"), Times.Once);
+            _clientMock.Verify(c => c.GetWork("OL8547083W"), Times.Once);
+        }
+
         // ── SearchByExternalId ────────────────────────────────────────────────
         [Test]
         public void search_by_external_id_olid_calls_get_book_info()

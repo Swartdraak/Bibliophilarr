@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+
 using FizzWare.NBuilder;
 using Moq;
 using NUnit.Framework;
@@ -64,9 +66,9 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Setup(s => s.FilterBooks(It.IsAny<Author>(), It.IsAny<int>()))
                 .Returns(_remoteBooks);
 
-            Mocker.GetMock<IProvideAuthorInfo>()
-                .Setup(s => s.GetAuthorInfo(It.IsAny<string>(), true))
-                .Callback(() => { throw new AuthorNotFoundException(_author.ForeignAuthorId); });
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                  .Setup(s => s.GetAuthorInfo(It.IsAny<string>(), It.IsAny<bool>()))
+                  .Callback(() => { throw new AuthorNotFoundException(_author.ForeignAuthorId); });
 
             Mocker.GetMock<IMediaFileService>()
                 .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
@@ -91,9 +93,9 @@ namespace NzbDrone.Core.Test.MusicTests
 
         private void GivenNewAuthorInfo(Author author)
         {
-            Mocker.GetMock<IProvideAuthorInfo>()
-                .Setup(s => s.GetAuthorInfo(_author.ForeignAuthorId, true))
-                .Returns(author);
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                  .Setup(s => s.GetAuthorInfo(_author.ForeignAuthorId, It.IsAny<bool>()))
+                  .Returns(author);
         }
 
         private void GivenAuthorFiles()
@@ -321,6 +323,71 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Verify(v => v.UpdateMany(It.Is<List<Book>>(x => x.Count == _books.Count)));
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_use_orchestrator_for_author_info_not_direct_provider()
+        {
+            // Arrange: orchestrator returns valid author data (simulates secondary-provider fallback success)
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Books = _remoteBooks;
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                  .Setup(s => s.GetAuthorInfo(_author.ForeignAuthorId, It.IsAny<bool>()))
+                  .Returns(newAuthorInfo);
+
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            // Verify the orchestrator was called — not a direct IProvideAuthorInfo mock
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                  .Verify(s => s.GetAuthorInfo(_author.ForeignAuthorId, It.IsAny<bool>()), Times.Once);
+
+            // Direct provider should never be called for author info during refresh
+            Mocker.GetMock<IProvideAuthorInfo>()
+                  .Verify(s => s.GetAuthorInfo(It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
+
+            VerifyEventPublished<AuthorRefreshCompleteEvent>();
+        }
+
+        [Test]
+        public void should_use_orchestrator_for_changed_author_lookup_not_direct_provider()
+        {
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Books = _remoteBooks;
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.GetAllAuthors())
+                .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                  .Setup(s => s.GetChangedAuthors(It.IsAny<DateTime>()))
+                  .Returns(new HashSet<string> { _author.ForeignAuthorId });
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                  .Setup(s => s.GetAuthorInfo(_author.ForeignAuthorId, It.IsAny<bool>()))
+                  .Returns(newAuthorInfo);
+
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            Subject.Execute(new RefreshAuthorCommand
+            {
+                LastExecutionTime = DateTime.UtcNow,
+                LastStartTime = DateTime.UtcNow.AddMinutes(-5)
+            });
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                  .Verify(s => s.GetChangedAuthors(It.IsAny<DateTime>()), Times.Once);
+
+            Mocker.GetMock<IProvideAuthorInfo>()
+                  .Verify(s => s.GetChangedAuthors(It.IsAny<DateTime>()), Times.Never);
+
+            VerifyEventPublished<AuthorRefreshCompleteEvent>();
         }
     }
 }

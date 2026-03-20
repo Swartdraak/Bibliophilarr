@@ -99,6 +99,14 @@ namespace NzbDrone.Core.MetadataSource
             return result;
         }
 
+        public HashSet<string> GetChangedAuthors(DateTime startTime)
+        {
+            return ExecuteFirst<IProvideAuthorInfo, HashSet<string>>(
+                p => p.GetChangedAuthors(startTime),
+                "get-changed-authors",
+                p => p.SupportsAuthorSearch);
+        }
+
         private T ExecuteFirst<TContract, T>(Func<TContract, T> operation, string operationName, Func<IMetadataProvider, bool> supports)
             where TContract : class
             where T : class

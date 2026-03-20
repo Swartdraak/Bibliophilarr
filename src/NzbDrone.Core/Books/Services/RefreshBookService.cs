@@ -33,8 +33,7 @@ namespace NzbDrone.Core.Books
         private readonly IRootFolderService _rootFolderService;
         private readonly IAddAuthorService _addAuthorService;
         private readonly IEditionService _editionService;
-        private readonly IProvideAuthorInfo _authorInfo;
-        private readonly IProvideBookInfo _bookInfo;
+        private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IRefreshEditionService _refreshEditionService;
         private readonly IMediaFileService _mediaFileService;
         private readonly IHistoryService _historyService;
@@ -49,8 +48,7 @@ namespace NzbDrone.Core.Books
                                   IAddAuthorService addAuthorService,
                                   IEditionService editionService,
                                   IAuthorMetadataService authorMetadataService,
-                                  IProvideAuthorInfo authorInfo,
-                                  IProvideBookInfo bookInfo,
+                                  IMetadataProviderOrchestrator orchestrator,
                                   IRefreshEditionService refreshEditionService,
                                   IMediaFileService mediaFileService,
                                   IHistoryService historyService,
@@ -65,8 +63,7 @@ namespace NzbDrone.Core.Books
             _rootFolderService = rootFolderService;
             _addAuthorService = addAuthorService;
             _editionService = editionService;
-            _authorInfo = authorInfo;
-            _bookInfo = bookInfo;
+            _orchestrator = orchestrator;
             _refreshEditionService = refreshEditionService;
             _mediaFileService = mediaFileService;
             _historyService = historyService;
@@ -80,8 +77,8 @@ namespace NzbDrone.Core.Books
         {
             try
             {
-                var tuple = _bookInfo.GetBookInfo(book.ForeignBookId);
-                var author = _authorInfo.GetAuthorInfo(tuple.Item1);
+                var tuple = _orchestrator.GetBookInfo(book.ForeignBookId);
+                var author = _orchestrator.GetAuthorInfo(tuple.Item1);
                 var newbook = tuple.Item2;
 
                 newbook.Author = author;
@@ -114,6 +111,12 @@ namespace NzbDrone.Core.Books
             if (book == null)
             {
                 data = GetSkyhookData(local);
+
+                if (data?.Books?.Value == null)
+                {
+                    return result;
+                }
+
                 book = data.Books.Value.SingleOrDefault(x => x.ForeignBookId == local.ForeignBookId);
             }
 
@@ -357,6 +360,12 @@ namespace NzbDrone.Core.Books
         public bool RefreshBookInfo(Book book)
         {
             var data = GetSkyhookData(book);
+
+            if (data?.Books?.Value == null)
+            {
+                _logger.Error("Could not refresh info for {0}", book);
+                return false;
+            }
 
             return RefreshBookInfo(book, data.Books, data, false);
         }

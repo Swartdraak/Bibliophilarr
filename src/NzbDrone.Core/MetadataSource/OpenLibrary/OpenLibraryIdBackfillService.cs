@@ -68,6 +68,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var authors = _authorService.GetAllAuthors();
             var authorsByMetadataId = authors.ToDictionary(x => x.AuthorMetadataId);
+            var authorMetadataById = _authorMetadataService.Get(authorsByMetadataId.Keys).ToDictionary(x => x.Id);
 
             var changedBooks = new List<Book>();
             var changedAuthors = new List<AuthorMetadata>();
@@ -75,41 +76,61 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             foreach (var book in books)
             {
                 var changed = false;
+                var normalizedWorkId = NormalizeOpenLibraryWorkId(book.OpenLibraryWorkId) ?? NormalizeOpenLibraryWorkId(book.ForeignBookId);
+                var foreignBookToken = NormalizeOpenLibraryBookToken(book.ForeignBookId);
 
-                if (book.OpenLibraryWorkId.IsNullOrWhiteSpace())
+                if (normalizedWorkId.IsNotNullOrWhiteSpace())
                 {
-                    if (LooksLikeOpenLibraryWorkId(book.ForeignBookId))
+                    if (book.OpenLibraryWorkId != normalizedWorkId)
                     {
-                        book.OpenLibraryWorkId = book.ForeignBookId;
+                        book.OpenLibraryWorkId = normalizedWorkId;
                         changed = true;
                     }
-                    else if (lookupsUsed < lookupBudget)
+                }
+                else if (lookupsUsed < lookupBudget)
+                {
+                    if (foreignBookToken.IsNotNullOrWhiteSpace() && foreignBookToken.EndsWith("M", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (editionsByBookId.TryGetValue(book.Id, out var editions))
+                        lookupsUsed++;
+                        var resolvedByExternalId = _metadataProviderOrchestrator
+                            .SearchByExternalId("olid", foreignBookToken)
+                            .FirstOrDefault();
+
+                        var resolvedWorkId = NormalizeOpenLibraryWorkId(resolvedByExternalId?.OpenLibraryWorkId) ??
+                                             NormalizeOpenLibraryWorkId(resolvedByExternalId?.ForeignBookId);
+
+                        if (resolvedWorkId.IsNotNullOrWhiteSpace())
                         {
-                            var isbn = editions
-                                .Select(x => x.Isbn13)
-                                .FirstOrDefault(x => x.IsNotNullOrWhiteSpace());
+                            book.OpenLibraryWorkId = resolvedWorkId;
+                            changed = true;
+                        }
+                    }
 
-                            if (isbn.IsNotNullOrWhiteSpace())
+                    if (changed)
+                    {
+                        changedBooks.Add(book);
+                        continue;
+                    }
+
+                    if (editionsByBookId.TryGetValue(book.Id, out var editions))
+                    {
+                        var isbn = editions
+                            .Select(x => x.Isbn13)
+                            .FirstOrDefault(x => x.IsNotNullOrWhiteSpace());
+
+                        if (isbn.IsNotNullOrWhiteSpace())
+                        {
+                            lookupsUsed++;
+                            var resolved = _metadataProviderOrchestrator.SearchByIsbn(isbn).FirstOrDefault();
+
+                            if (resolved != null)
                             {
-                                lookupsUsed++;
-                                var resolved = _metadataProviderOrchestrator.SearchByIsbn(isbn).FirstOrDefault();
+                                var resolvedWorkId = NormalizeOpenLibraryWorkId(resolved.OpenLibraryWorkId) ?? NormalizeOpenLibraryWorkId(resolved.ForeignBookId);
 
-                                if (resolved != null)
+                                if (resolvedWorkId.IsNotNullOrWhiteSpace())
                                 {
-                                    var resolvedWorkId = resolved.OpenLibraryWorkId;
-
-                                    if (resolvedWorkId.IsNullOrWhiteSpace() && LooksLikeOpenLibraryWorkId(resolved.ForeignBookId))
-                                    {
-                                        resolvedWorkId = resolved.ForeignBookId;
-                                    }
-
-                                    if (resolvedWorkId.IsNotNullOrWhiteSpace())
-                                    {
-                                        book.OpenLibraryWorkId = resolvedWorkId;
-                                        changed = true;
-                                    }
+                                    book.OpenLibraryWorkId = resolvedWorkId;
+                                    changed = true;
                                 }
                             }
                         }
@@ -120,34 +141,44 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 {
                     changedBooks.Add(book);
                 }
+            }
 
-                if (!authorsByMetadataId.TryGetValue(book.AuthorMetadataId, out var author))
+            foreach (var author in authors)
+            {
+                if (!authorMetadataById.TryGetValue(author.AuthorMetadataId, out var metadata))
                 {
                     continue;
                 }
 
-                var metadata = author.Metadata.Value;
                 if (metadata == null || metadata.OpenLibraryAuthorId.IsNotNullOrWhiteSpace())
                 {
                     continue;
                 }
 
                 var authorChanged = false;
-                if (LooksLikeOpenLibraryAuthorId(metadata.ForeignAuthorId))
+                var normalizedAuthorId = NormalizeOpenLibraryAuthorId(metadata.ForeignAuthorId);
+
+                if (normalizedAuthorId.IsNotNullOrWhiteSpace())
                 {
-                    metadata.OpenLibraryAuthorId = metadata.ForeignAuthorId;
+                    metadata.OpenLibraryAuthorId = normalizedAuthorId;
                     authorChanged = true;
                 }
                 else if (lookupsUsed < lookupBudget)
                 {
                     lookupsUsed++;
                     var candidates = _metadataProviderOrchestrator.SearchForNewAuthor(metadata.Name ?? author.Name);
-                    var openLibraryAuthor = candidates.FirstOrDefault(x => LooksLikeOpenLibraryAuthorId(x.ForeignAuthorId));
+                    var openLibraryAuthor = candidates.FirstOrDefault(x =>
+                        NormalizeOpenLibraryAuthorId(x.Metadata?.Value?.OpenLibraryAuthorId ?? x.ForeignAuthorId).IsNotNullOrWhiteSpace());
 
                     if (openLibraryAuthor != null)
                     {
-                        metadata.OpenLibraryAuthorId = openLibraryAuthor.ForeignAuthorId;
-                        authorChanged = true;
+                        var resolvedAuthorId = NormalizeOpenLibraryAuthorId(openLibraryAuthor.Metadata?.Value?.OpenLibraryAuthorId ?? openLibraryAuthor.ForeignAuthorId);
+
+                        if (resolvedAuthorId.IsNotNullOrWhiteSpace())
+                        {
+                            metadata.OpenLibraryAuthorId = resolvedAuthorId;
+                            authorChanged = true;
+                        }
                     }
                 }
 
@@ -175,9 +206,65 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return value.IsNotNullOrWhiteSpace() && value.StartsWith("OL", StringComparison.OrdinalIgnoreCase) && value.EndsWith("W", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static string NormalizeOpenLibraryWorkId(string value)
+        {
+            var token = NormalizeOpenLibraryBookToken(value);
+
+            return LooksLikeOpenLibraryWorkId(token) ? token : null;
+        }
+
+        private static string NormalizeOpenLibraryBookToken(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            const string prefix = "openlibrary:work:";
+            const string editionPrefix = "openlibrary:edition:";
+
+            var normalized = value.Trim();
+
+            if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized.Substring(prefix.Length);
+            }
+            else if (normalized.StartsWith(editionPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized.Substring(editionPrefix.Length);
+            }
+
+            var slash = normalized.LastIndexOf('/');
+            if (slash >= 0)
+            {
+                normalized = normalized.Substring(slash + 1);
+            }
+
+            return normalized;
+        }
+
         private static bool LooksLikeOpenLibraryAuthorId(string value)
         {
             return value.IsNotNullOrWhiteSpace() && value.StartsWith("OL", StringComparison.OrdinalIgnoreCase) && value.EndsWith("A", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeOpenLibraryAuthorId(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            const string prefix = "openlibrary:author:";
+
+            var normalized = value.Trim();
+
+            if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized.Substring(prefix.Length);
+            }
+
+            return LooksLikeOpenLibraryAuthorId(normalized) ? normalized : null;
         }
     }
 }

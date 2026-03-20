@@ -30,7 +30,7 @@ namespace NzbDrone.Core.Books
         IExecute<RefreshAuthorCommand>,
         IExecute<BulkRefreshAuthorCommand>
     {
-        private readonly IProvideAuthorInfo _authorInfo;
+        private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IMetadataProfileService _metadataProfileService;
@@ -47,7 +47,7 @@ namespace NzbDrone.Core.Books
         private readonly IImportListExclusionService _importListExclusionService;
         private readonly Logger _logger;
 
-        public RefreshAuthorService(IProvideAuthorInfo authorInfo,
+        public RefreshAuthorService(IMetadataProviderOrchestrator orchestrator,
                                     IAuthorService authorService,
                                     IAuthorMetadataService authorMetadataService,
                                     IBookService bookService,
@@ -66,7 +66,7 @@ namespace NzbDrone.Core.Books
                                     Logger logger)
         : base(logger, authorMetadataService)
         {
-            _authorInfo = authorInfo;
+            _orchestrator = orchestrator;
             _authorService = authorService;
             _bookService = bookService;
             _metadataProfileService = metadataProfileService;
@@ -88,7 +88,7 @@ namespace NzbDrone.Core.Books
         {
             try
             {
-                return _authorInfo.GetAuthorInfo(foreignId);
+                return _orchestrator.GetAuthorInfo(foreignId);
             }
             catch (AuthorNotFoundException)
             {
@@ -383,7 +383,7 @@ namespace NzbDrone.Core.Books
 
                 if (message.LastExecutionTime.HasValue && message.LastExecutionTime.Value.AddDays(14) > DateTime.UtcNow)
                 {
-                    updatedOpenLibraryAuthors = _authorInfo.GetChangedAuthors(message.LastStartTime.Value);
+                    updatedOpenLibraryAuthors = _orchestrator.GetChangedAuthors(message.LastStartTime.Value);
                 }
 
                 foreach (var author in authors)
