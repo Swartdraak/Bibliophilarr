@@ -60,5 +60,44 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Mocker.GetMock<IHttpClient>().Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once);
             ExceptionVerification.IgnoreWarns();
         }
+
+        [Test]
+        public void get_work_should_deserialize_author_role_when_type_is_string()
+        {
+            var payload = "{\"key\":\"/works/OL1W\",\"title\":\"Work\",\"authors\":[{\"author\":{\"key\":\"/authors/OL1A\"},\"type\":\"/type/author_role\"}]}";
+            var response = new HttpResponse(new HttpRequest("https://openlibrary.org/works/OL1W.json"), new HttpHeader(), payload);
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
+                .Returns(response);
+
+            var work = Subject.GetWork("OL1W");
+
+            work.Should().NotBeNull();
+            work.Authors.Should().HaveCount(1);
+            work.Authors[0].Author.Key.Should().Be("/authors/OL1A");
+            work.Authors[0].Type.Key.Should().Be("/type/author_role");
+        }
+
+        [Test]
+        public void get_work_should_tolerate_malformed_mixed_author_array_entries()
+        {
+            var payload = "{\"key\":\"/works/OL2W\",\"title\":\"Work\",\"authors\":[{\"author\":{\"key\":\"/authors/OL1A\"},\"type\":\"/type/author_role\"},{\"author\":42,\"type\":[\"/type/author_role\"]},{\"author\":\"/authors/OL2A\",\"type\":{\"key\":\"/type/author_role\"}}]}";
+            var response = new HttpResponse(new HttpRequest("https://openlibrary.org/works/OL2W.json"), new HttpHeader(), payload);
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
+                .Returns(response);
+
+            var work = Subject.GetWork("OL2W");
+
+            work.Should().NotBeNull();
+            work.Authors.Should().HaveCount(3);
+            work.Authors[0].Author.Key.Should().Be("/authors/OL1A");
+            work.Authors[1].Author.Should().BeNull();
+            work.Authors[1].Type.Should().BeNull();
+            work.Authors[2].Author.Key.Should().Be("/authors/OL2A");
+            work.Authors[2].Type.Key.Should().Be("/type/author_role");
+        }
     }
 }

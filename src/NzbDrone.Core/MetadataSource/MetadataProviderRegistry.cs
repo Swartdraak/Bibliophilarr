@@ -117,7 +117,7 @@ namespace NzbDrone.Core.MetadataSource
         {
             lock (_syncRoot)
             {
-                return SortProviders(_providers.Values.Where(IsEnabled)).ToList();
+                return GetRoutableProviders(_providers.Values.Where(IsEnabled)).ToList();
             }
         }
 
@@ -242,7 +242,7 @@ namespace NzbDrone.Core.MetadataSource
         {
             lock (_syncRoot)
             {
-                return SortProviders(_providers.Values.Where(IsEnabled)).ToList();
+                return GetRoutableProviders(_providers.Values.Where(IsEnabled)).ToList();
             }
         }
 
@@ -354,9 +354,20 @@ namespace NzbDrone.Core.MetadataSource
         private IEnumerable<IMetadataProvider> SortProviders(IEnumerable<IMetadataProvider> providers)
         {
             return providers
-                .OrderBy(p => GetConfiguredOrderIndex(_configuredOrder, p.ProviderName))
+                .OrderBy(GetHealthRank)
+                .ThenBy(p => IsCoolingDown(p) ? 1 : 0)
+                .ThenBy(p => GetConfiguredOrderIndex(_configuredOrder, p.ProviderName))
                 .ThenBy(GetPriority)
                 .ThenBy(p => p.ProviderName, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private IEnumerable<IMetadataProvider> GetRoutableProviders(IEnumerable<IMetadataProvider> providers)
+        {
+            var ordered = SortProviders(providers).ToList();
+            var active = ordered.Where(p => !IsCoolingDown(p)).ToList();
+
+            // If all providers are cooling down, keep deterministic order and allow attempts.
+            return active.Any() ? active : ordered;
         }
 
         private bool IsEnabled(IMetadataProvider provider)
@@ -377,6 +388,43 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             return provider.Priority;
+        }
+
+        private bool IsCoolingDown(IMetadataProvider provider)
+        {
+            if (provider == null)
+            {
+                return false;
+            }
+
+            if (!_healthOverrides.TryGetValue(provider.ProviderName, out var health) || health == null)
+            {
+                return false;
+            }
+
+            return health.CooldownUntilUtc.HasValue && health.CooldownUntilUtc.Value > DateTime.UtcNow;
+        }
+
+        private int GetHealthRank(IMetadataProvider provider)
+        {
+            if (provider == null)
+            {
+                return 3;
+            }
+
+            if (!_healthOverrides.TryGetValue(provider.ProviderName, out var health) || health == null)
+            {
+                return 0;
+            }
+
+            return health.Health switch
+            {
+                ProviderHealth.Healthy => 0,
+                ProviderHealth.Unknown => 1,
+                ProviderHealth.Degraded => 2,
+                ProviderHealth.Unhealthy => 3,
+                _ => 3
+            };
         }
 
         private static bool SupportsCapability(IMetadataProvider provider, string capability)

@@ -29,6 +29,7 @@ namespace NzbDrone.Core.Profiles.Metadata
     public class MetadataProfileService : IMetadataProfileService, IHandle<ApplicationStartedEvent>
     {
         public const string NONE_PROFILE_NAME = "None";
+        public const string OPEN_LIBRARY_PROFILE_NAME = "OpenLibrary";
         public const double NONE_PROFILE_MIN_POPULARITY = 1e10;
 
         private static readonly Regex PartOrSetRegex = new Regex(@"(?<from>\d+) of (?<to>\d+)|(?<from>\d+)\s?/\s?(?<to>\d+)|(?<from>\d+)\s?-\s?(?<to>\d+)",
@@ -145,11 +146,12 @@ namespace NzbDrone.Core.Profiles.Metadata
         private List<Book> FilterBooks(IEnumerable<Book> remoteBooks, List<Book> localBooks, List<BookFile> localFiles, Dictionary<Book, List<SeriesBookLink>> seriesLinks, int metadataProfileId)
         {
             var profile = Get(metadataProfileId);
+            var remoteBookList = remoteBooks.ToList();
 
-            _logger.Trace($"Filtering:\n{remoteBooks.Select(x => x.ToString()).Join("\n")}");
+            _logger.Trace($"Filtering:\n{remoteBookList.Select(x => x.ToString()).Join("\n")}");
 
-            var hash = new HashSet<Book>(remoteBooks);
-            var titles = new HashSet<string>(remoteBooks.Select(x => x.Title));
+            var hash = new HashSet<Book>(remoteBookList);
+            var titles = new HashSet<string>(remoteBookList.Select(x => x.Title));
 
             var localHash = new HashSet<string>(localBooks.Where(x => x.AddOptions.AddType == BookAddType.Manual).Select(x => x.ForeignBookId));
             localHash.UnionWith(localFiles.Select(x => x.Edition.Value.Book.Value.ForeignBookId));
@@ -266,11 +268,13 @@ namespace NzbDrone.Core.Profiles.Metadata
 
             // Name is a unique property
             var emptyProfile = profiles.FirstOrDefault(x => x.Name == NONE_PROFILE_NAME);
+            var openLibraryProfile = profiles.FirstOrDefault(x => x.Name == OPEN_LIBRARY_PROFILE_NAME);
 
             // make sure empty profile exists and is actually empty
             // TODO: reinstate
             if (emptyProfile != null &&
-                emptyProfile.MinPopularity == NONE_PROFILE_MIN_POPULARITY)
+                emptyProfile.MinPopularity == NONE_PROFILE_MIN_POPULARITY &&
+                openLibraryProfile != null)
             {
                 return;
             }
@@ -285,6 +289,22 @@ namespace NzbDrone.Core.Profiles.Metadata
                     MinPopularity = 350,
                     SkipMissingDate = true,
                     SkipPartsAndSets = true,
+                    AllowedLanguages = "eng, null"
+                });
+            }
+
+            if (openLibraryProfile == null)
+            {
+                _logger.Info("Setting up OpenLibrary metadata profile");
+
+                Add(new MetadataProfile
+                {
+                    Name = OPEN_LIBRARY_PROFILE_NAME,
+                    MinPopularity = 0,
+                    SkipMissingDate = false,
+                    SkipMissingIsbn = false,
+                    SkipPartsAndSets = true,
+                    SkipSeriesSecondary = false,
                     AllowedLanguages = "eng, null"
                 });
             }

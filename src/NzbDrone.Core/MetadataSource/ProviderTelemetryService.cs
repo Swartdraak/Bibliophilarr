@@ -54,7 +54,7 @@ namespace NzbDrone.Core.MetadataSource
                 RateLimitUsageRatio = existing?.RateLimitUsageRatio ?? 0,
                 IsRateLimitNearCeiling = existing?.IsRateLimitNearCeiling ?? false,
                 RetryAfterRemainingSeconds = existing?.RetryAfterRemainingSeconds ?? 0,
-                CooldownUntilUtc = existing?.CooldownUntilUtc
+                CooldownUntilUtc = null
             };
 
             _registry.UpdateProviderHealth(providerName, updated);
@@ -97,8 +97,13 @@ namespace NzbDrone.Core.MetadataSource
                 RateLimitUsageRatio = existing?.RateLimitUsageRatio ?? 0,
                 IsRateLimitNearCeiling = existing?.IsRateLimitNearCeiling ?? false,
                 RetryAfterRemainingSeconds = existing?.RetryAfterRemainingSeconds ?? 0,
-                CooldownUntilUtc = existing?.CooldownUntilUtc
+                CooldownUntilUtc = ComputeCooldownUntilUtc(consecutiveFailures)
             };
+
+            if (updated.CooldownUntilUtc.HasValue)
+            {
+                updated.RetryAfterRemainingSeconds = (int)Math.Max(0, (updated.CooldownUntilUtc.Value - DateTime.UtcNow).TotalSeconds);
+            }
 
             if (existing != null && existing.Health != newHealth)
             {
@@ -141,8 +146,13 @@ namespace NzbDrone.Core.MetadataSource
                 RateLimitUsageRatio = existing?.RateLimitUsageRatio ?? 0,
                 IsRateLimitNearCeiling = existing?.IsRateLimitNearCeiling ?? false,
                 RetryAfterRemainingSeconds = existing?.RetryAfterRemainingSeconds ?? 0,
-                CooldownUntilUtc = existing?.CooldownUntilUtc
+                CooldownUntilUtc = ComputeCooldownUntilUtc(consecutiveFailures)
             };
+
+            if (updated.CooldownUntilUtc.HasValue)
+            {
+                updated.RetryAfterRemainingSeconds = (int)Math.Max(0, (updated.CooldownUntilUtc.Value - DateTime.UtcNow).TotalSeconds);
+            }
 
             if (existing != null && existing.Health != newHealth)
             {
@@ -193,6 +203,21 @@ namespace NzbDrone.Core.MetadataSource
             const double alpha = 0.2;
 
             return ((1.0 - alpha) * previousAvg) + (alpha * newSample);
+        }
+
+        private static DateTime? ComputeCooldownUntilUtc(int consecutiveFailures)
+        {
+            if (consecutiveFailures >= 5)
+            {
+                return DateTime.UtcNow.AddMinutes(10);
+            }
+
+            if (consecutiveFailures >= 3)
+            {
+                return DateTime.UtcNow.AddMinutes(2);
+            }
+
+            return null;
         }
     }
 }

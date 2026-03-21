@@ -42,7 +42,7 @@ namespace NzbDrone.Core.Test.MusicTests
                       .BuildList())
                 .Build();
 
-            Mocker.GetMock<IProvideBookInfo>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.GetBookInfo(bookId))
                 .Returns(Tuple.Create(_fakeAuthor.Metadata.Value.ForeignAuthorId,
                                       _fakeBook,
@@ -98,7 +98,7 @@ namespace NzbDrone.Core.Test.MusicTests
         {
             var newBook = BookToAdd("edition", "book", "author");
 
-            Mocker.GetMock<IProvideBookInfo>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                   .Setup(s => s.GetBookInfo("book"))
                   .Throws(new BookNotFoundException("edition"));
 

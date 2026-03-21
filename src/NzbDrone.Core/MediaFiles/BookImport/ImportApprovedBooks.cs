@@ -18,6 +18,7 @@ using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
@@ -364,6 +365,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private Author EnsureAuthorAdded(List<ImportDecision<LocalBook>> decisions, List<Author> addedAuthors)
         {
             var author = decisions.First().Item.Author;
+            var normalizedForeignAuthorId = NormalizeForeignAuthorId(author.ForeignAuthorId);
+
+            if (normalizedForeignAuthorId.IsNotNullOrWhiteSpace())
+            {
+                author.ForeignAuthorId = normalizedForeignAuthorId;
+                author.Metadata.Value.ForeignAuthorId = normalizedForeignAuthorId;
+            }
 
             if (author.Id == 0)
             {
@@ -427,6 +435,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             return author;
+        }
+
+        private static string NormalizeForeignAuthorId(string foreignAuthorId)
+        {
+            var normalizedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId);
+
+            return normalizedAuthorId.IsNotNullOrWhiteSpace()
+                ? $"openlibrary:author:{normalizedAuthorId}"
+                : foreignAuthorId;
         }
 
         private Book EnsureBookAdded(List<ImportDecision<LocalBook>> decisions, List<Book> addedBooks)

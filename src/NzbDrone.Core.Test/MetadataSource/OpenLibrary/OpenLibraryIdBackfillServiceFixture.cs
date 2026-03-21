@@ -373,5 +373,39 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             book.OpenLibraryWorkId.Should().Be("OL13335313M");
         }
+
+        [Test]
+        public void execute_should_write_books_in_batches_when_batch_size_is_limited()
+        {
+            var authorMetadata = new AuthorMetadata
+            {
+                Id = 100,
+                ForeignAuthorId = "openlibrary:author:OL10A",
+                OpenLibraryAuthorId = "OL10A",
+                Name = "Author"
+            };
+
+            var authors = new List<Author>
+            {
+                new Author { Id = 1, AuthorMetadataId = 100, Metadata = authorMetadata }
+            };
+
+            var books = new List<Book>
+            {
+                new Book { Id = 1, AuthorMetadataId = 100, ForeignBookId = "openlibrary:work:OL1W" },
+                new Book { Id = 2, AuthorMetadataId = 100, ForeignBookId = "openlibrary:work:OL2W" },
+                new Book { Id = 3, AuthorMetadataId = 100, ForeignBookId = "openlibrary:work:OL3W" }
+            };
+
+            Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(books);
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(authors);
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { authorMetadata });
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(new List<Edition>());
+
+            Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 0, BatchSize = 2 });
+
+            Mocker.GetMock<IBookService>()
+                .Verify(x => x.UpdateMany(It.IsAny<List<Book>>()), Times.Exactly(2));
+        }
     }
 }

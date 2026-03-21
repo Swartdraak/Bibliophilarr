@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
+using NLog;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
@@ -50,7 +51,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Returns("[\":\\\\s*Book\\\\s*\\\\d+$\"]");
 
             var inventaire = new InventaireFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
-            var googleBooks = new GoogleBooksFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
+            var googleBooks = new GoogleBooksFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object, LogManager.GetCurrentClassLogger());
             var hardcover = new HardcoverFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
 
             var emptySecondary = new Mock<IBookSearchFallbackProvider>();
@@ -70,7 +71,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Setup(x => x.Search(It.IsAny<IBookSearchFallbackProvider>(), It.IsAny<string>(), It.IsAny<string>()))
                 .Returns((IBookSearchFallbackProvider provider, string title, string author) => provider.Search(title, author));
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(x => x.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
                 .Returns(new List<Book>());
 
@@ -124,7 +125,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             candidates[0].Edition.Title.Should().Be("The Cuckoo's Calling");
             candidates[0].Edition.Book.Value.AuthorMetadata.Value.Name.Should().Be("Robert Galbraith");
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Verify(x => x.SearchForNewBook("The Cuckoo's Calling", "Robert Galbraith", It.IsAny<bool>()), Times.Once());
 
             Mocker.GetMock<IHttpClient>()

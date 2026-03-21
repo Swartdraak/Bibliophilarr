@@ -9,7 +9,6 @@ using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.BookInfo;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -37,7 +36,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
         private void GivenValidAuthor(string bibliophilarrId)
         {
-            Mocker.GetMock<IProvideAuthorInfo>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.GetAuthorInfo(bibliophilarrId, false))
                 .Returns(_fakeAuthor);
         }
@@ -117,7 +116,7 @@ namespace NzbDrone.Core.Test.MusicTests
                 Path = @"C:\Test\Music\Name1"
             };
 
-            Mocker.GetMock<IProvideAuthorInfo>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                   .Setup(s => s.GetAuthorInfo(newAuthor.ForeignAuthorId, false))
                   .Throws(new AuthorNotFoundException(newAuthor.ForeignAuthorId));
 
@@ -147,9 +146,9 @@ namespace NzbDrone.Core.Test.MusicTests
                 }
             };
 
-            Mocker.GetMock<IProvideAuthorInfo>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.GetAuthorInfo(newAuthor.ForeignAuthorId, false))
-                .Throws(new BookInfoException("upstream unavailable"));
+                .Throws(new System.Exception("upstream unavailable"));
 
             Mocker.GetMock<IAddAuthorValidator>()
                 .Setup(s => s.Validate(It.IsAny<Author>()))

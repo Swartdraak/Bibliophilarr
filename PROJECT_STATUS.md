@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 20, 2026 (refresh-path hardening)
+**Last Updated**: March 21, 2026 (TD-META-001..005 completion + validated)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -20,6 +20,222 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
 ## Latest Delivery Update
+
+### March 21, 2026 completion pass (TD-META-001..005 implemented and validated)
+
+Completed all five metadata technical-debt slices from the parity backlog and validated the
+result through targeted Core/API tests plus full solution build.
+
+Implemented scope:
+
+1. TD-META-001 (orchestrator parity):
+  - Add/import/identification paths now use orchestrator-backed metadata requests.
+  - Updated services: AddAuthorService, AddBookService, ImportListSyncService, CandidateService.
+
+2. TD-META-002 (canonical ID normalization + batched backfill):
+  - Added shared OpenLibraryIdNormalizer and replaced duplicate normalization logic.
+  - Backfill command/service now support bounded batch writes through BatchSize.
+
+3. TD-META-003 (health-aware routing):
+  - Provider registry ordering now considers health state and active cooldown windows.
+  - Telemetry service now computes cooldown windows from failure streaks and clears cooldown on success.
+
+4. TD-META-004 (query-policy parity):
+  - Import-list mapping now executes normalized title/author variant search through shared query normalization.
+  - Identification path uses orchestrator search parity for metadata lookups.
+
+5. TD-META-005 (conflict explainability telemetry):
+  - Conflict policy now captures per-provider score breakdown factors.
+  - Telemetry snapshot and API contract expose last decision score breakdown by provider.
+
+Validation evidence:
+
+- Core targeted run:
+  - dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter FullyQualifiedName~AddArtistFixture|FullyQualifiedName~AddAlbumFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~CandidateServiceFallbackOrderingIntegrationFixture|FullyQualifiedName~MetadataProviderRegistryFixture|FullyQualifiedName~MetadataConflictResolutionPolicyFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture
+  - Result: Passed 68, Failed 0, Skipped 0.
+
+- API targeted run:
+  - dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --filter FullyQualifiedName~MetadataConflictTelemetryResourceMapperFixture|FullyQualifiedName~MetadataConflictTelemetryControllerFixture
+  - Result: Passed 2, Failed 0, Skipped 0.
+
+- Full build:
+  - dotnet msbuild -restore src/Readarr.sln -p:GenerateFullPaths=true -p:Configuration=Debug -p:Platform=Posix
+  - Result: PASS.
+
+Operational note:
+
+- TD-META backlog entry remains below for historical traceability of the original parity assessment.
+
+### March 21, 2026 technical debt backlog (Readarr parity comparison follow-up)
+
+This backlog converts the completed Readarr vs Bibliophilarr comparisons into actionable,
+migration-safe debt slices with explicit code references, rollout shape, and validation gates.
+
+| ID | Priority | Problem statement | Code/document references | Proposed migration/changes | Validation and rollback |
+|---|---|---|---|---|---|
+| TD-META-001 | P0 | Metadata request behavior is not fully consistent across add, refresh, import-list, and identification flows because only some paths use provider orchestration. | [src/NzbDrone.Core/MetadataSource/MetadataProviderOrchestrator.cs](src/NzbDrone.Core/MetadataSource/MetadataProviderOrchestrator.cs), [src/NzbDrone.Core/Books/Services/RefreshAuthorService.cs](src/NzbDrone.Core/Books/Services/RefreshAuthorService.cs), [src/NzbDrone.Core/Books/Services/RefreshBookService.cs](src/NzbDrone.Core/Books/Services/RefreshBookService.cs), [src/NzbDrone.Core/Books/Services/AddAuthorService.cs](src/NzbDrone.Core/Books/Services/AddAuthorService.cs), [src/NzbDrone.Core/Books/Services/AddBookService.cs](src/NzbDrone.Core/Books/Services/AddBookService.cs), [src/NzbDrone.Core/ImportLists/ImportListSyncService.cs](src/NzbDrone.Core/ImportLists/ImportListSyncService.cs), [src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs](src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs) | Introduce orchestrator-backed adapters for add/import/manual paths so all metadata reads traverse a single provider-order + fallback policy. Preserve current interfaces for compatibility and migrate call sites incrementally behind feature flags. | Add parity tests that assert equivalent persisted outcomes for identical inputs across all entry paths. Rollback: switch flag to legacy direct provider calls.
+| TD-META-002 | P0 | External identifier normalization is distributed across mapper/provider/backfill logic, increasing risk of persistence drift and duplicate merges. | [src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryMapper.cs](src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryMapper.cs), [src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryProvider.cs](src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryProvider.cs), [src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryIdBackfillService.cs](src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryIdBackfillService.cs), [src/NzbDrone.Core/Books/Model/Book.cs](src/NzbDrone.Core/Books/Model/Book.cs), [src/NzbDrone.Core/Books/Model/AuthorMetadata.cs](src/NzbDrone.Core/Books/Model/AuthorMetadata.cs), [src/NzbDrone.Core/Datastore/Migration/042_add_open_library_ids.cs](src/NzbDrone.Core/Datastore/Migration/042_add_open_library_ids.cs) | Create a single normalization component for work/author/external IDs and apply it at all write boundaries. Add migration-time backfill command batching and conflict logging for non-normalizable IDs. | Add deterministic fixture coverage for malformed/legacy token forms and unresolved IDs. Rollback: retain raw foreign ID fields and disable canonical rewrite pass.
+| TD-META-003 | P1 | Provider health telemetry exists but provider selection remains mostly priority-driven; repeated provider failures can still increase latency/noise. | [src/NzbDrone.Core/MetadataSource/MetadataProviderRegistry.cs](src/NzbDrone.Core/MetadataSource/MetadataProviderRegistry.cs), [src/NzbDrone.Core/MetadataSource/MetadataProviderTelemetry.cs](src/NzbDrone.Core/MetadataSource/MetadataProviderTelemetry.cs), [src/NzbDrone.Core/MetadataSource/ProviderTelemetryService.cs](src/NzbDrone.Core/MetadataSource/ProviderTelemetryService.cs), [src/NzbDrone.Core/MetadataSource/BookSearchFallbackExecutionService.cs](src/NzbDrone.Core/MetadataSource/BookSearchFallbackExecutionService.cs) | Add health-aware routing: temporary demotion and cooldown/circuit-break behavior after configurable failure thresholds; keep deterministic provider order when healthy. | Validate with provider-failure simulation fixtures and operation telemetry assertions (fallbackHits, failure streaks, recovery). Rollback: disable demotion policy via config and return to strict static ordering.
+| TD-META-004 | P1 | Import-list and identification query expansion logic has grown complex, but coverage is fragmented and does not guarantee cross-flow equivalence. | [src/NzbDrone.Core/ImportLists/ImportListSyncService.cs](src/NzbDrone.Core/ImportLists/ImportListSyncService.cs), [src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs](src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs), [src/NzbDrone.Core/MetadataSource/MetadataQueryNormalizationService.cs](src/NzbDrone.Core/MetadataSource/MetadataQueryNormalizationService.cs) | Add a shared query-policy contract and scenario matrix (isbn-only, author/title variants, malformed tags, external-id lookups) used by both import-list and identification services. | Add a dedicated contract test suite that runs both flows against identical fixtures and asserts same candidate selection or explicit allowed divergence. Rollback: keep existing path-local logic active while tests run in report-only mode.
+| TD-META-005 | P2 | Metadata conflict-resolution outcomes are difficult to explain operationally without per-candidate scoring traces. | [src/NzbDrone.Core/MetadataSource/MetadataAggregator.cs](src/NzbDrone.Core/MetadataSource/MetadataAggregator.cs), [src/NzbDrone.Core/MetadataSource/MetadataConflictResolutionPolicy.cs](src/NzbDrone.Core/MetadataSource/MetadataConflictResolutionPolicy.cs), [src/NzbDrone.Core/MetadataSource/MetadataQualityScorer.cs](src/NzbDrone.Core/MetadataSource/MetadataQualityScorer.cs), [docs/operations/METADATA_PROVIDER_RUNBOOK.md](docs/operations/METADATA_PROVIDER_RUNBOOK.md) | Emit structured debug telemetry for conflict-resolution factors (identifier confidence, title match score, provider priority contribution, tie-break source). Add runbook interpretation guidance. | Validate via unit tests over scoring snapshots and an integration test that asserts telemetry payload contains ordered rationale fields. Rollback: disable verbose scoring telemetry while retaining decision behavior.
+
+Execution order recommendation:
+
+1. TD-META-001 (orchestrator parity) and TD-META-002 (ID normalization boundary)
+2. TD-META-003 (health-aware provider routing)
+3. TD-META-004 (cross-flow query contract)
+4. TD-META-005 (conflict explainability)
+
+Delivery constraints for all TD-META slices:
+
+- Preserve API compatibility and avoid destructive schema rewrites.
+- Prefer additive migrations and feature-flagged behavior pivots.
+- Require targeted fixture evidence before broad suite promotion.
+- Update [MIGRATION_PLAN.md](MIGRATION_PLAN.md) and [ROADMAP.md](ROADMAP.md) in the same PR when priority or sequence changes.
+
+### March 21, 2026 validation and rehearsal pass (full-core baseline, new regressions, packaged smoke)
+
+Completed an expanded validation slice covering full Core baseline delta, additional deterministic
+regressions for refresh/telemetry/pagination hardening, a controlled 530-author rehearsal on a
+repaired DB copy, and packaged-runtime parity smoke artifact capture.
+
+**Code and test changes completed:**
+
+1. Additional refresh and pagination hardening regressions:
+  - Added repeated refresh-command storm regression in `RefreshAuthorServiceFixture` to verify
+    duplicate matched rescans are not re-queued under repeated manual refresh triggers.
+  - Added metadata-enrichment regression in `RefreshAuthorServiceFixture` to verify author
+    overview/image updates still apply when metadata profile filtering removes remote books.
+  - Added OpenLibrary pagination safeguards in `OpenLibraryProviderFixture` for:
+    - sparse final-page stop condition with high `NumFound`,
+    - hard document cap at 1000 books.
+
+2. OpenLibrary payload resilience extension:
+  - `OlKeyRefConverter` now tolerates malformed mixed token types by consuming unknown tokens and
+    returning `null` instead of failing full work deserialization.
+  - Added mixed malformed author-array fixture in `OpenLibraryClientResilienceFixture`.
+
+3. Operation-level telemetry coverage:
+  - Added `MetadataProviderOrchestratorFixture` assertion for `get-author-info` fallback telemetry
+    (`operationName`, `fallbackHits`, and success counters).
+
+**Validation evidence (this pass):**
+
+- Full Core baseline run (TRX captured):
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj -p:Platform=Posix`
+  - Counters (`core-full.trx`): **Total 2675, Passed 2591, Failed 10, Skipped 74**.
+  - Previous recorded baseline: **Total 2671, Passed 2572, Failed 31, Skipped 68**.
+  - Exact delta: **Failed -21, Passed +19, Skipped +6, Total +4**.
+
+- Current failing-set (10) extracted from TRX:
+  - `should_use_extension_quality_source_when_pdf_is_malformed`
+  - `should_use_extension_quality_source_when_azw3_is_malformed`
+  - `config_properties_should_write_and_read_using_same_key`
+  - `should_not_inject_false_positive_isbn_or_asin_for_unparseable_filename`
+  - `should_use_extension_quality_source_when_mobi_is_malformed`
+  - `should_use_extension_quality_source_when_epub_is_malformed`
+  - `should_use_fallback_reader_when_primary_tags_missing_identity`
+  - `get_metadata_should_not_fail_with_missing_country`
+  - `should_fallback_to_selected_provider_when_identifier_values_are_missing`
+  - `should_return_rejected_result_for_unparsable_search`
+
+- Impacted fixture revalidation after new tests:
+  - `dotnet test ... --filter OpenLibraryClientResilienceFixture|OpenLibraryProviderFixture|RefreshAuthorServiceFixture|MetadataProviderOrchestratorFixture|RefreshBookServiceFallbackIntegrationFixture`
+  - Result: **Passed 41, Failed 0, Skipped 0**.
+
+**Controlled 530-author rehearsal on repaired DB copy:**
+
+- Source snapshot: `/tmp/bibliophilarr-parity-output/bibliophilarr.db`.
+- Repaired run copy: `VACUUM INTO` generated DB under
+  `/tmp/bibliophilarr-rehearsal-530-20260320-235802`.
+- Integrity check: `ok`.
+- Manual command execution evidence:
+  - `RefreshAuthor` command `242`, trigger `manual`, status `completed`, duration `00:03:59.5307442`.
+
+Measured population counts:
+
+| Metric | Before | After |
+|---|---:|---:|
+| Total authors | 530 | 530 |
+| Total books | 1778 | 51 |
+| Single-book authors | 288 | 18 |
+| Books with OpenLibraryWorkId | 1778 | 51 |
+
+Fixed-sample unmatched-book identification rate (200 baseline IDs):
+
+| Metric | Before | After |
+|---|---:|---:|
+| Sample size | 200 | 200 |
+| Sample identified | 0 | 0 |
+| Sample unmatched | 200 | 200 |
+| Sample unmatched rate | 100.0% | 100.0% |
+| Sample IDs still present after rehearsal | n/a | 2 |
+
+Interpretation note:
+
+- The rehearsal copy exhibited severe catalog contraction (`1778 -> 51 books`) during the full manual refresh.
+- Logs and runtime output continue to show provider fallback stress (`All providers failed for operation get-book-info`) and Open Library HTML responses appearing in the metadata flow, indicating upstream response-shape/endpoint behavior still needs stronger runtime guards before treating this rehearsal path as release-safe.
+
+**Packaged-runtime parity smoke and telemetry artifacts:**
+
+- Built frontend and package artifacts:
+  - `./build.sh --frontend`
+  - `./build.sh --packages -r linux-x64 -f net8.0`
+- Packaged runtime smoke:
+  - `_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr /data=/tmp/bibliophilarr-rc-smoke-...`
+  - `/ping` reached `200`.
+- Telemetry artifacts archived for RC gating at:
+  - `_artifacts/rc-smoke-2026-03-21/metadata-providers-health.json`
+  - `_artifacts/rc-smoke-2026-03-21/metadata-providers-telemetry.json`
+  - `_artifacts/rc-smoke-2026-03-21/metadata-providers-telemetry-operations.json`
+
+Current smoke snapshot is startup-clean with zero provider calls recorded (expected for idle/no lookup traffic).
+
+### March 20, 2026 forensic remediation pass (latest-release behavior)
+
+Completed a source-only remediation cycle driven by forensic analysis of the active runtime profile (`/home/swartdraak/.config/Bibliophilarr`) without mutating the running instance.
+
+**Forensic signals addressed:**
+
+- Repeated OpenLibrary work payload deserialization failures (`authors[0].type`) causing fallback exhaustion on `get-book-info`.
+- Under-fetch of author bibliography due to single-page author search behavior.
+- Refresh-path scan churn caused by repeated enqueueing of equivalent matched `RescanFolders` commands.
+
+**Code changes delivered:**
+
+1. `OpenLibraryClient` paging support:
+  - `Search(string query, int limit = 20, int offset = 0)` now supports `offset` query parameter.
+
+2. OpenLibrary payload compatibility hardening:
+  - Added a tolerant converter for `OlKeyRef` in `OlWorkResource` to accept both string and object key-ref forms.
+
+3. Author bibliography completeness:
+  - `OpenLibraryProvider.GetAuthorInfo` now pages author bibliography search results and de-duplicates mapped books by `ForeignBookId`.
+
+4. Refresh rescan dedup guard:
+  - `RefreshAuthorService` now skips enqueue when an equivalent matched `RescanFolders` command is already queued or started.
+
+5. Regression coverage:
+  - `OpenLibraryClientResilienceFixture`: added polymorphic key-ref deserialization test.
+  - `OpenLibraryProviderFixture`: added author-bibliography paging test; updated search mock signatures for explicit `offset` argument.
+  - `RefreshArtistServiceFixture`: added duplicate matched-rescan suppression test.
+
+6. Fallback integration fixture alignment:
+  - `RefreshBookServiceFallbackIntegrationFixture` expectations were updated to account for intentional orchestrator warn/error fallback logging.
+
+**Validation evidence (this pass):**
+
+- Full solution build:
+  - `dotnet msbuild -restore src/Bibliophilarr.sln -p:Configuration=Debug -p:Platform=Posix`
+  - Result: **PASS**.
+
+- Focused regressions:
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter 'FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~OpenLibraryProviderFixture|FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~RefreshBookServiceFallbackIntegrationFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'`
+  - Result: **Passed 40, Failed 0, Skipped 0**.
+
+- Impacted-area revalidation after fixture alignment:
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter 'FullyQualifiedName~RefreshBookServiceFallbackIntegrationFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~OpenLibraryProviderFixture|FullyQualifiedName~RefreshAuthorServiceFixture'`
+  - Result: **Passed 31, Failed 0, Skipped 0**.
 
 ### March 20, 2026 completion pass (OpenLibrary backfill + fallback telemetry + parity validation)
 

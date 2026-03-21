@@ -13,10 +13,10 @@ namespace NzbDrone.Api.Test.Config
         public void to_resource_should_map_metadata_provider_settings_round_trip_surface()
         {
             var config = new Mock<IConfigService>();
-            config.SetupGet(x => x.EnableBookInfoProvider).Returns(true);
             config.SetupGet(x => x.EnableOpenLibraryProvider).Returns(true);
+            config.SetupGet(x => x.EnableGoogleBooksProvider).Returns(true);
             config.SetupGet(x => x.EnableInventaireProvider).Returns(false);
-            config.SetupGet(x => x.MetadataProviderPriorityOrder).Returns("OpenLibrary,BookInfo,Inventaire");
+            config.SetupGet(x => x.MetadataProviderPriorityOrder).Returns("OpenLibrary,Inventaire");
             config.SetupGet(x => x.MetadataProviderTimeoutSeconds).Returns(25);
             config.SetupGet(x => x.MetadataProviderRetryBudget).Returns(3);
             config.SetupGet(x => x.MetadataProviderCircuitBreakerThreshold).Returns(4);
@@ -29,10 +29,10 @@ namespace NzbDrone.Api.Test.Config
 
             var resource = MetadataProviderConfigResourceMapper.ToResource(config.Object);
 
-            resource.EnableBookInfoProvider.Should().BeTrue();
             resource.EnableOpenLibraryProvider.Should().BeTrue();
+            resource.EnableGoogleBooksProvider.Should().BeTrue();
             resource.EnableInventaireProvider.Should().BeFalse();
-            resource.MetadataProviderPriorityOrder.Should().Be("OpenLibrary,BookInfo,Inventaire");
+            resource.MetadataProviderPriorityOrder.Should().Be("OpenLibrary,Inventaire");
             resource.MetadataProviderTimeoutSeconds.Should().Be(25);
             resource.MetadataProviderRetryBudget.Should().Be(3);
             resource.MetadataProviderCircuitBreakerThreshold.Should().Be(4);

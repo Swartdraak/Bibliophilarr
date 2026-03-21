@@ -11,7 +11,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 {
     public interface IOpenLibraryClient
     {
-        OlSearchResponse Search(string query, int limit = 20);
+        OlSearchResponse Search(string query, int limit = 20, int offset = 0);
+        OlAuthorWorksResponse GetAuthorWorks(string olid, int limit = 100, int offset = 0);
+        OlWorkEditionsResponse GetWorkEditions(string olid, int limit = 20, int offset = 0);
         OlWorkResource GetWork(string olid);
         OlAuthorResource GetAuthor(string olid);
         OlEditionResource GetEditionByIsbn(string isbn);
@@ -51,22 +53,64 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .CreateFactory();
         }
 
-        public OlSearchResponse Search(string query, int limit = 20)
+        public OlSearchResponse Search(string query, int limit = 20, int offset = 0)
         {
             _logger.Debug("OpenLibrary search: {0}", query);
 
-            var request = new HttpRequestBuilder(BaseUrl + "/search.json")
+            var requestBuilder = new HttpRequestBuilder(BaseUrl + "/search.json")
                 .AddQueryParam("q", query)
                 .AddQueryParam("limit", limit.ToString())
-                .AddQueryParam("fields", "key,title,author_name,author_key,isbn,cover_i,first_publish_year,number_of_pages_median,language,subject,ratings_average,ratings_count,edition_count")
-                .SetHeader("Accept", "application/json")
-                .Build();
+                .AddQueryParam("fields", "key,title,author_name,author_key,isbn,cover_i,first_publish_year,number_of_pages_median,language,subject,ratings_average,ratings_count,want_to_read_count,currently_reading_count,already_read_count,edition_count")
+                .SetHeader("Accept", "application/json");
+
+            if (offset > 0)
+            {
+                requestBuilder.AddQueryParam("offset", offset.ToString());
+            }
+
+            var request = requestBuilder.Build();
 
             request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
             request.SuppressHttpError = true;
 
             var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request);
             return response ?? new OlSearchResponse();
+        }
+
+        public OlAuthorWorksResponse GetAuthorWorks(string olid, int limit = 100, int offset = 0)
+        {
+            _logger.Debug("OpenLibrary get author works: {0} limit={1} offset={2}", olid, limit, offset);
+
+            var cleanKey = StripKeyPrefix(olid);
+            var request = _requestBuilder.Create()
+                .SetSegment("route", $"authors/{cleanKey}/works.json")
+                .AddQueryParam("limit", limit.ToString())
+                .AddQueryParam("offset", offset.ToString())
+                .Build();
+
+            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.SuppressHttpError = true;
+
+            var response = ExecuteWithRateLimitRetry<OlAuthorWorksResponse>("openlibrary.author-works", request);
+            return response ?? new OlAuthorWorksResponse();
+        }
+
+        public OlWorkEditionsResponse GetWorkEditions(string olid, int limit = 20, int offset = 0)
+        {
+            _logger.Debug("OpenLibrary get work editions: {0} limit={1} offset={2}", olid, limit, offset);
+
+            var cleanKey = StripKeyPrefix(olid);
+            var request = _requestBuilder.Create()
+                .SetSegment("route", $"works/{cleanKey}/editions.json")
+                .AddQueryParam("limit", limit.ToString())
+                .AddQueryParam("offset", offset.ToString())
+                .Build();
+
+            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.SuppressHttpError = true;
+
+            var response = ExecuteWithRateLimitRetry<OlWorkEditionsResponse>("openlibrary.work-editions", request);
+            return response ?? new OlWorkEditionsResponse();
         }
 
         public OlWorkResource GetWork(string olid)

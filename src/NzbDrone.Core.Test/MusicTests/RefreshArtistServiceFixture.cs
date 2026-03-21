@@ -12,6 +12,8 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.Commands;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.RootFolders;
@@ -388,6 +390,119 @@ namespace NzbDrone.Core.Test.MusicTests
                   .Verify(s => s.GetChangedAuthors(It.IsAny<DateTime>()), Times.Never);
 
             VerifyEventPublished<AuthorRefreshCompleteEvent>();
+        }
+
+        [Test]
+        public void should_not_queue_duplicate_rescan_when_matching_rescan_is_already_queued()
+        {
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Metadata.Value.Overview = "Updated overview";
+            newAuthorInfo.Books = _remoteBooks;
+
+            GivenNewAuthorInfo(newAuthorInfo);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            var folders = new List<RootFolder>
+            {
+                new RootFolder { Path = "/media/ebooks" }
+            };
+
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(x => x.All())
+                .Returns(folders);
+
+            var existingCommand = new CommandModel
+            {
+                Name = nameof(RescanFoldersCommand),
+                Status = CommandStatus.Queued,
+                Body = new RescanFoldersCommand(new List<string> { "/media/ebooks" }, FilterFilesType.Matched, false, new List<int> { _author.Id })
+            };
+
+            Mocker.GetMock<IManageCommandQueue>()
+                .Setup(x => x.All())
+                .Returns(new List<CommandModel> { existingCommand });
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IManageCommandQueue>()
+                .Verify(x => x.Push(It.IsAny<RescanFoldersCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Never);
+        }
+
+        [Test]
+        public void should_not_queue_duplicate_rescan_during_repeated_refresh_command_storm()
+        {
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            var invocation = 0;
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(s => s.GetAuthorInfo(_author.ForeignAuthorId, It.IsAny<bool>()))
+                .Returns(() =>
+                {
+                    var newAuthorInfo = _author.JsonClone();
+                    newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+                    newAuthorInfo.Metadata.Value.Overview = $"Updated overview {invocation++}";
+                    newAuthorInfo.Books = _remoteBooks;
+                    return newAuthorInfo;
+                });
+
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(x => x.All())
+                .Returns(new List<RootFolder> { new RootFolder { Path = "/media/ebooks" } });
+
+            var existingCommand = new CommandModel
+            {
+                Name = nameof(RescanFoldersCommand),
+                Status = CommandStatus.Started,
+                Body = new RescanFoldersCommand(new List<string> { "/media/ebooks" }, FilterFilesType.Matched, false, new List<int> { _author.Id })
+            };
+
+            Mocker.GetMock<IManageCommandQueue>()
+                .Setup(x => x.All())
+                .Returns(new List<CommandModel> { existingCommand });
+
+            for (var i = 0; i < 5; i++)
+            {
+                Subject.Execute(new RefreshAuthorCommand(_author.Id) { Trigger = CommandTrigger.Manual });
+            }
+
+            Mocker.GetMock<IManageCommandQueue>()
+                .Verify(x => x.Push(It.IsAny<RescanFoldersCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Never);
+        }
+
+        [Test]
+        public void should_refresh_author_overview_and_images_when_books_are_filtered_by_metadata_profile()
+        {
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Metadata.Value.Overview = "Updated overview from provider";
+            newAuthorInfo.Metadata.Value.Images = new List<MediaCover.MediaCover>
+            {
+                new MediaCover.MediaCover(MediaCover.MediaCoverTypes.Poster, "https://covers.example/author.jpg")
+            };
+
+            newAuthorInfo.Books = _remoteBooks;
+
+            GivenNewAuthorInfo(newAuthorInfo);
+            AllowAuthorUpdate();
+            GivenBooksForRefresh(new List<Book>());
+
+            Mocker.GetMock<IMetadataProfileService>()
+                .Setup(s => s.FilterBooks(It.IsAny<Author>(), It.IsAny<int>()))
+                .Returns(new List<Book>());
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id) { Trigger = CommandTrigger.Manual });
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(x => x.UpdateAuthor(It.Is<Author>(a =>
+                    a.Metadata.Value.Overview == "Updated overview from provider" &&
+                    a.Metadata.Value.Images.Count == 1 &&
+                    a.Metadata.Value.Images[0].Url == "https://covers.example/author.jpg")), Times.AtLeastOnce);
+
+            Mocker.GetMock<IMetadataProfileService>()
+                .Verify(s => s.FilterBooks(It.IsAny<Author>(), _author.MetadataProfileId), Times.Once);
         }
     }
 }

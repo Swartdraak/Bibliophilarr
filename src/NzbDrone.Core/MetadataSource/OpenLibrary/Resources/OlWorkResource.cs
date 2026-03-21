@@ -58,10 +58,74 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         public OlKeyRef Type { get; set; }
     }
 
+    [JsonConverter(typeof(OlKeyRefConverter))]
     public class OlKeyRef
     {
         [JsonPropertyName("key")]
         public string Key { get; set; }
+    }
+
+    public class OlKeyRefConverter : JsonConverter<OlKeyRef>
+    {
+        public override OlKeyRef Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                return new OlKeyRef { Key = reader.GetString() };
+            }
+
+            if (reader.TokenType == JsonTokenType.StartObject)
+            {
+                string key = null;
+
+                while (reader.Read())
+                {
+                    if (reader.TokenType == JsonTokenType.EndObject)
+                    {
+                        break;
+                    }
+
+                    if (reader.TokenType == JsonTokenType.PropertyName)
+                    {
+                        var propertyName = reader.GetString();
+                        reader.Read();
+
+                        if (propertyName == "key" && reader.TokenType == JsonTokenType.String)
+                        {
+                            key = reader.GetString();
+                        }
+                    }
+                }
+
+                return new OlKeyRef { Key = key };
+            }
+
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                return null;
+            }
+
+            // Some Open Library payloads contain malformed mixed token types in arrays.
+            // Consume unknown tokens and keep processing instead of failing the entire work payload.
+            using (JsonDocument.ParseValue(ref reader))
+            {
+            }
+
+            return null;
+        }
+
+        public override void Write(Utf8JsonWriter writer, OlKeyRef value, JsonSerializerOptions options)
+        {
+            if (value == null)
+            {
+                writer.WriteNullValue();
+                return;
+            }
+
+            writer.WriteStartObject();
+            writer.WriteString("key", value.Key);
+            writer.WriteEndObject();
+        }
     }
 
     public class OlLink

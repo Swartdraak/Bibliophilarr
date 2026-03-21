@@ -99,6 +99,59 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_prefer_healthy_provider_over_degraded_provider_when_both_enabled()
+        {
+            var primary = new TestBookSearchProvider("Primary", 10, true);
+            var fallback = new TestBookSearchProvider("Fallback", 20, true);
+            var registry = new MetadataProviderRegistry(new IMetadataProvider[] { primary, fallback });
+
+            registry.UpdateProviderHealth("Primary", new ProviderHealthStatus
+            {
+                Health = ProviderHealth.Degraded,
+                LastChecked = DateTime.UtcNow
+            });
+
+            registry.UpdateProviderHealth("Fallback", new ProviderHealthStatus
+            {
+                Health = ProviderHealth.Healthy,
+                LastChecked = DateTime.UtcNow
+            });
+
+            var ordered = registry.GetProviders().Select(x => x.ProviderName).ToList();
+
+            ordered.Should().Equal("Fallback", "Primary");
+        }
+
+        [Test]
+        public void should_skip_provider_in_active_cooldown_until_window_expires()
+        {
+            var first = new TestBookSearchProvider("First", 10, true);
+            var second = new TestBookSearchProvider("Second", 20, true);
+            var registry = new MetadataProviderRegistry(new IMetadataProvider[] { first, second });
+
+            registry.UpdateProviderHealth("First", new ProviderHealthStatus
+            {
+                Health = ProviderHealth.Unhealthy,
+                CooldownUntilUtc = DateTime.UtcNow.AddMinutes(5),
+                LastChecked = DateTime.UtcNow
+            });
+
+            var duringCooldown = registry.GetProviders().Select(x => x.ProviderName).ToList();
+            duringCooldown.Should().Equal("Second");
+
+            registry.UpdateProviderHealth("First", new ProviderHealthStatus
+            {
+                Health = ProviderHealth.Healthy,
+                CooldownUntilUtc = DateTime.UtcNow.AddMinutes(-1),
+                LastChecked = DateTime.UtcNow
+            });
+
+            var afterCooldown = registry.GetProviders().Select(x => x.ProviderName).ToList();
+            afterCooldown.Should().Contain("First");
+            afterCooldown.Should().Contain("Second");
+        }
+
+        [Test]
         public void should_unregister_provider_and_clear_overrides()
         {
             var registry = new MetadataProviderRegistry(new IMetadataProvider[]

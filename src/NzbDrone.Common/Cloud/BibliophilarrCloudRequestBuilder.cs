@@ -24,7 +24,7 @@ namespace NzbDrone.Common.Cloud
                 HasServices = true;
             }
 
-            Metadata = new HttpRequestBuilder("https://api.bookinfo.club/v1/{route}")
+            Metadata = new HttpRequestBuilder("https://openlibrary.org/{route}")
                 .CreateFactory();
         }
 

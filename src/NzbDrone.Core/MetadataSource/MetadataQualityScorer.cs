@@ -17,84 +17,99 @@ namespace NzbDrone.Core.MetadataSource
         /// </summary>
         public int CalculateBookScore(Book book)
         {
+            return GetBookScoreBreakdown(book).Values.Sum();
+        }
+
+        public static System.Collections.Generic.Dictionary<string, int> GetBookScoreBreakdown(Book book)
+        {
+            var breakdown = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase)
+            {
+                ["title"] = 0,
+                ["author"] = 0,
+                ["foreign-book-id"] = 0,
+                ["release-date"] = 0,
+                ["foreign-edition-id"] = 0,
+                ["has-editions"] = 0,
+                ["multiple-editions"] = 0,
+                ["ratings"] = 0,
+                ["genres"] = 0,
+                ["links"] = 0,
+                ["series-links"] = 0,
+                ["related-books"] = 0,
+                ["cover-images"] = 0
+            };
+
             if (book == null)
             {
-                return 0;
+                return breakdown;
             }
 
-            var score = 0;
-
-            // Essential fields (60 points total)
             if (!string.IsNullOrWhiteSpace(book.Title))
             {
-                score += 20;
+                breakdown["title"] = 20;
             }
 
             if (book.AuthorMetadata?.Value != null || book.Author?.Value != null)
             {
-                score += 20;
+                breakdown["author"] = 20;
             }
 
             if (!string.IsNullOrWhiteSpace(book.ForeignBookId))
             {
-                score += 20;
+                breakdown["foreign-book-id"] = 20;
             }
 
-            // Important fields (25 points total)
             if (book.ReleaseDate.HasValue)
             {
-                score += 5;
+                breakdown["release-date"] = 5;
             }
 
             if (!string.IsNullOrWhiteSpace(book.ForeignEditionId))
             {
-                score += 5;
+                breakdown["foreign-edition-id"] = 5;
             }
 
             if (book.Editions?.Value?.Any() == true)
             {
-                score += 5;
+                breakdown["has-editions"] = 5;
 
-                // Bonus for multiple editions
                 if (book.Editions.Value.Count > 1)
                 {
-                    score += 5;
+                    breakdown["multiple-editions"] = 5;
                 }
             }
 
             if (book.Ratings != null && book.Ratings.Votes > 0)
             {
-                score += 5;
+                breakdown["ratings"] = 5;
             }
 
-            // Nice to have fields (15 points total)
             if (book.Genres?.Any() == true)
             {
-                score += 3;
+                breakdown["genres"] = 3;
             }
 
             if (book.Links?.Any() == true)
             {
-                score += 2;
+                breakdown["links"] = 2;
             }
 
             if (book.SeriesLinks?.Value?.Any() == true)
             {
-                score += 5;
+                breakdown["series-links"] = 5;
             }
 
             if (book.RelatedBooks?.Any() == true)
             {
-                score += 2;
+                breakdown["related-books"] = 2;
             }
 
-            // Cover images (check if any edition has covers)
             if (book.Editions?.Value?.Any(e => e.Images?.Any() == true) == true)
             {
-                score += 3;
+                breakdown["cover-images"] = 3;
             }
 
-            return score;
+            return breakdown;
         }
 
         /// <summary>

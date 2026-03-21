@@ -286,6 +286,30 @@ namespace NzbDrone.Core.Test.MetadataSource
             stats.Should().ContainSingle(x => x.ProviderName == "SuccessfulAuthorInfo" && x.FallbackHits == 1);
         }
 
+        [Test]
+        public void should_record_get_author_info_operation_fallback_telemetry()
+        {
+            var registry = new TestRegistry(new IMetadataProvider[]
+            {
+                new FailingAuthorInfoProvider(),
+                new SuccessfulGetAuthorInfoProvider()
+            });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+            var result = orchestrator.GetAuthorInfo("openlibrary:author:OL23919A", true);
+
+            result.Should().NotBeNull();
+            result.Metadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL23919A");
+
+            telemetry.GetOperationSnapshots().Should().ContainSingle(x =>
+                x.ProviderName == "SuccessfulGetAuthorInfo" &&
+                x.OperationName == "get-author-info" &&
+                x.FallbackHits == 1 &&
+                x.Successes == 1);
+        }
+
         private class FailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
         {
             public string ProviderName => "FailingAuthorInfo";
@@ -327,6 +351,36 @@ namespace NzbDrone.Core.Test.MetadataSource
             public HashSet<string> GetChangedAuthors(DateTime startTime)
             {
                 return new HashSet<string> { "openlibrary:author:OL23919A" };
+            }
+        }
+
+        private class SuccessfulGetAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
+        {
+            public string ProviderName => "SuccessfulGetAuthorInfo";
+            public int Priority => 2;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => false;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => false;
+
+            public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
+            {
+                return new Author
+                {
+                    Metadata = new AuthorMetadata
+                    {
+                        ForeignAuthorId = bibliophilarrId,
+                        Name = "Fallback Author"
+                    },
+                    Books = new List<Book>()
+                };
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                return new HashSet<string>();
             }
         }
 

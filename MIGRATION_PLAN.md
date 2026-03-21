@@ -25,6 +25,28 @@ Validation status for this slice:
 - Core targeted tests: pass for `MetadataProviderOrchestratorFixture` and `ImportListSyncServiceFixture`
 - Import-list edge-case handling updated to avoid adding unresolved external-ID books
 
+## Implementation Progress Snapshot (March 21, 2026 TD-META completion)
+
+Completed in this migration-hardening slice:
+
+- TD-META-001: orchestrator parity implemented for add/import/identification metadata request paths.
+- TD-META-002: shared OpenLibrary ID normalization boundary implemented and backfill writes batched via command-configured BatchSize.
+- TD-META-003: provider registry routing is now health/cooldown aware with deterministic fallback ordering and cooldown recovery on success.
+- TD-META-004: import-list mapping now uses shared query normalization variants for parity with identification behavior.
+- TD-META-005: conflict-resolution telemetry now includes per-provider score-factor breakdowns and API exposure for operator explainability.
+
+Validation status for this slice:
+
+- Core targeted fixtures: pass (68/68).
+- API targeted fixtures: pass (2/2).
+- Full solution build: pass.
+
+Migration safety posture:
+
+- Changes are additive and backward-compatible at API and persistence boundaries.
+- No destructive schema changes were introduced in this slice.
+- Existing fallback behavior is preserved while routing now uses health-aware ordering.
+
 Additional migration progress (March 18, 2026):
 
 - Goodreads provider implementations were removed from active runtime source trees and replaced by OpenLibrary-aligned metadata/search behavior.
@@ -37,6 +59,155 @@ Additional hardening progress (March 19, 2026):
 - OpenLibrary ISBN-miss handling now performs limited contextual title+author fallback attempts before advancing to other identifier-source paths.
 - Metadata HTTP requests now follow canonical redirects in development to align local validation with production behavior.
 - Ebook import parsing now performs best-effort filename metadata fallback when EPUB/PDF/AZW parsing fails, reducing hard-stop identification failures.
+
+### Technical debt backlog from parity comparison (March 21, 2026)
+
+The post-comparison backlog below defines migration-safe debt slices with explicit implementation
+touch points, rollout shape, and acceptance criteria.
+
+#### TD-META-001: Orchestrator parity across all ingest/request paths
+
+Objective:
+
+- Ensure add, refresh, import-list, and identification flows all execute metadata requests through a
+    single provider-selection/fallback policy.
+
+Primary touch points:
+
+- [src/NzbDrone.Core/MetadataSource/MetadataProviderOrchestrator.cs](src/NzbDrone.Core/MetadataSource/MetadataProviderOrchestrator.cs)
+- [src/NzbDrone.Core/Books/Services/AddAuthorService.cs](src/NzbDrone.Core/Books/Services/AddAuthorService.cs)
+- [src/NzbDrone.Core/Books/Services/AddBookService.cs](src/NzbDrone.Core/Books/Services/AddBookService.cs)
+- [src/NzbDrone.Core/Books/Services/RefreshAuthorService.cs](src/NzbDrone.Core/Books/Services/RefreshAuthorService.cs)
+- [src/NzbDrone.Core/Books/Services/RefreshBookService.cs](src/NzbDrone.Core/Books/Services/RefreshBookService.cs)
+- [src/NzbDrone.Core/ImportLists/ImportListSyncService.cs](src/NzbDrone.Core/ImportLists/ImportListSyncService.cs)
+- [src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs](src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs)
+
+Proposed change shape:
+
+1. Add orchestrator wrappers for operations currently executed via direct provider contracts.
+2. Migrate call sites incrementally with feature flags per flow.
+3. Keep legacy contract path available until parity fixtures pass.
+
+Acceptance criteria:
+
+- Equivalent persisted metadata outcomes across entry paths for shared fixture inputs.
+- No increase in targeted failure counts for current refresh/import regression suites.
+
+Rollback/mitigation:
+
+- Disable per-flow orchestrator flags and revert to legacy direct provider usage.
+
+#### TD-META-002: Canonical external-ID normalization boundary
+
+Objective:
+
+- Eliminate divergence between provider mapping, backfill, and persistence logic for external IDs.
+
+Primary touch points:
+
+- [src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryMapper.cs](src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryMapper.cs)
+- [src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryProvider.cs](src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryProvider.cs)
+- [src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryIdBackfillService.cs](src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryIdBackfillService.cs)
+- [src/NzbDrone.Core/Books/Model/Book.cs](src/NzbDrone.Core/Books/Model/Book.cs)
+- [src/NzbDrone.Core/Books/Model/AuthorMetadata.cs](src/NzbDrone.Core/Books/Model/AuthorMetadata.cs)
+- [src/NzbDrone.Core/Datastore/Migration/042_add_open_library_ids.cs](src/NzbDrone.Core/Datastore/Migration/042_add_open_library_ids.cs)
+
+Proposed change shape:
+
+1. Introduce one normalization component for work/author/external IDs.
+2. Apply normalization at write boundaries in mappers and persistence updates.
+3. Add batched migration-time normalization command with unresolved-id telemetry.
+
+Acceptance criteria:
+
+- Deterministic normalization for legacy/malformed ID forms.
+- Monotonic increase in normalized ID coverage with unresolved cases explicitly counted.
+
+Rollback/mitigation:
+
+- Keep raw foreign IDs intact; disable canonical rewrite pass via config flag.
+
+#### TD-META-003: Health-aware provider routing
+
+Objective:
+
+- Reduce repeated slow failures by feeding provider health telemetry into selection order.
+
+Primary touch points:
+
+- [src/NzbDrone.Core/MetadataSource/MetadataProviderRegistry.cs](src/NzbDrone.Core/MetadataSource/MetadataProviderRegistry.cs)
+- [src/NzbDrone.Core/MetadataSource/MetadataProviderTelemetry.cs](src/NzbDrone.Core/MetadataSource/MetadataProviderTelemetry.cs)
+- [src/NzbDrone.Core/MetadataSource/ProviderTelemetryService.cs](src/NzbDrone.Core/MetadataSource/ProviderTelemetryService.cs)
+- [src/NzbDrone.Core/MetadataSource/BookSearchFallbackExecutionService.cs](src/NzbDrone.Core/MetadataSource/BookSearchFallbackExecutionService.cs)
+
+Proposed change shape:
+
+1. Add failure-streak thresholds and cooldown windows.
+2. Temporarily demote failing providers while preserving deterministic ordering for healthy providers.
+3. Add recovery probes and automatic reintegration.
+
+Acceptance criteria:
+
+- Provider-failure simulations show bounded retry behavior and successful recovery reinsertion.
+- Operation telemetry reflects demotion and reintegration events.
+
+Rollback/mitigation:
+
+- Disable health-aware demotion and return to static priority order.
+
+#### TD-META-004: Query-policy contract parity for import and identification
+
+Objective:
+
+- Guarantee predictable query behavior for equivalent inputs across import-list and identification
+    workflows.
+
+Primary touch points:
+
+- [src/NzbDrone.Core/ImportLists/ImportListSyncService.cs](src/NzbDrone.Core/ImportLists/ImportListSyncService.cs)
+- [src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs](src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs)
+- [src/NzbDrone.Core/MetadataSource/MetadataQueryNormalizationService.cs](src/NzbDrone.Core/MetadataSource/MetadataQueryNormalizationService.cs)
+
+Proposed change shape:
+
+1. Define a shared query-policy contract and scenario matrix.
+2. Route both flows through shared normalization/expansion helpers.
+3. Mark intentionally divergent behaviors explicitly in tests/docs.
+
+Acceptance criteria:
+
+- New contract test suite demonstrates parity or documented divergence for all matrix scenarios.
+
+Rollback/mitigation:
+
+- Keep existing local query logic active behind compatibility switch while parity suite matures.
+
+#### TD-META-005: Conflict-resolution explainability telemetry
+
+Objective:
+
+- Make metadata winner selection auditable and operator-explainable.
+
+Primary touch points:
+
+- [src/NzbDrone.Core/MetadataSource/MetadataAggregator.cs](src/NzbDrone.Core/MetadataSource/MetadataAggregator.cs)
+- [src/NzbDrone.Core/MetadataSource/MetadataConflictResolutionPolicy.cs](src/NzbDrone.Core/MetadataSource/MetadataConflictResolutionPolicy.cs)
+- [src/NzbDrone.Core/MetadataSource/MetadataQualityScorer.cs](src/NzbDrone.Core/MetadataSource/MetadataQualityScorer.cs)
+- [docs/operations/METADATA_PROVIDER_RUNBOOK.md](docs/operations/METADATA_PROVIDER_RUNBOOK.md)
+
+Proposed change shape:
+
+1. Emit structured per-candidate scoring factors in debug telemetry.
+2. Add operator guidance for interpreting factor-level outputs.
+
+Acceptance criteria:
+
+- Unit and integration fixtures assert presence and ordering of rationale fields.
+- Runbook includes factor interpretation and mitigation steps.
+
+Rollback/mitigation:
+
+- Disable verbose scoring traces while keeping selection behavior unchanged.
 
 ## Table of Contents
 

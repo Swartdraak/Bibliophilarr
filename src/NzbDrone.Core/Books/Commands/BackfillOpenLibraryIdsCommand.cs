@@ -5,6 +5,7 @@ namespace NzbDrone.Core.Books.Commands
     public class BackfillOpenLibraryIdsCommand : Command
     {
         public int MaxLookups { get; set; } = 200;
+        public int BatchSize { get; set; } = 250;
 
         public override bool SendUpdatesToClient => false;
 

@@ -138,7 +138,7 @@ namespace NzbDrone.Core.Books
 
             local.UseMetadataFrom(remote);
             local.Metadata = remote.Metadata;
-            local.Series = remote.Series.Value;
+            local.Series = remote.Series?.Value ?? new List<Series>();
             local.LastInfoSync = DateTime.UtcNow;
 
             try
@@ -334,8 +334,30 @@ namespace NzbDrone.Core.Books
                 // (but don't add new authors to reduce repeated searches against api)
                 var folders = _rootFolderService.All().Select(x => x.Path).ToList();
 
+                if (HasQueuedOrStartedMatchedRescan(authorIds, folders))
+                {
+                    _logger.Trace("Skipping rescan. Reason: matching rescan command already queued or started");
+                    return;
+                }
+
                 _commandQueueManager.Push(new RescanFoldersCommand(folders, FilterFilesType.Matched, false, authorIds));
             }
+        }
+
+        private bool HasQueuedOrStartedMatchedRescan(List<int> authorIds, List<string> folders)
+        {
+            var commands = _commandQueueManager.All() ?? new List<CommandModel>();
+            var expectedFolders = (folders ?? new List<string>()).OrderBy(x => x).ToList();
+            var expectedAuthors = (authorIds ?? new List<int>()).OrderBy(x => x).ToList();
+
+            return commands.Any(command =>
+                (command.Status == CommandStatus.Queued || command.Status == CommandStatus.Started) &&
+                string.Equals(command.Name, nameof(RescanFoldersCommand), StringComparison.Ordinal) &&
+                command.Body is RescanFoldersCommand existing &&
+                existing.Filter == FilterFilesType.Matched &&
+                !existing.AddNewAuthors &&
+                (existing.Folders ?? new List<string>()).OrderBy(x => x).SequenceEqual(expectedFolders) &&
+                (existing.AuthorIds ?? new List<int>()).OrderBy(x => x).SequenceEqual(expectedAuthors));
         }
 
         private void RefreshSelectedAuthors(List<int> authorIds, bool isNew, CommandTrigger trigger)

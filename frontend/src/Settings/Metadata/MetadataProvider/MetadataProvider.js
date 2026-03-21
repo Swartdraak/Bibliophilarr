@@ -90,20 +90,6 @@ function MetadataProvider(props) {
             <FieldSet legend={translate('MetadataProviders')}>
               <FormGroup>
                 <FormLabel>
-                  Enable BookInfo Provider
-                </FormLabel>
-
-                <FormInputGroup
-                  type={inputTypes.CHECK}
-                  name="enableBookInfoProvider"
-                  helpText="Primary provider for compatibility with existing metadata IDs."
-                  onChange={onInputChange}
-                  {...settings.enableBookInfoProvider}
-                />
-              </FormGroup>
-
-              <FormGroup>
-                <FormLabel>
                   Enable Open Library Provider
                 </FormLabel>
 
@@ -138,7 +124,7 @@ function MetadataProvider(props) {
                 <FormInputGroup
                   type={inputTypes.TEXT}
                   name="metadataProviderPriorityOrder"
-                  helpText="Comma-separated provider order, e.g. BookInfo,OpenLibrary,Inventaire"
+                  helpText="Comma-separated provider order, e.g. OpenLibrary,Inventaire"
                   onChange={onInputChange}
                   {...settings.metadataProviderPriorityOrder}
                 />

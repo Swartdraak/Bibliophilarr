@@ -20,8 +20,8 @@ namespace NzbDrone.Core.ImportLists
         private readonly IImportListFactory _importListFactory;
         private readonly IImportListExclusionService _importListExclusionService;
         private readonly IFetchAndParseImportList _listFetcherAndParser;
-        private readonly IProvideBookInfo _bookInfoProxy;
-        private readonly ISearchForNewBook _bookSearchService;
+        private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
+        private readonly IMetadataQueryNormalizationService _queryNormalizationService;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IEditionService _editionService;
@@ -34,8 +34,8 @@ namespace NzbDrone.Core.ImportLists
         public ImportListSyncService(IImportListFactory importListFactory,
                                      IImportListExclusionService importListExclusionService,
                                      IFetchAndParseImportList listFetcherAndParser,
-                                     IProvideBookInfo bookInfoProxy,
-                                     ISearchForNewBook bookSearchService,
+                                     IMetadataProviderOrchestrator metadataOrchestrator,
+                                     IMetadataQueryNormalizationService queryNormalizationService,
                                      IAuthorService authorService,
                                      IBookService bookService,
                                      IEditionService editionService,
@@ -48,8 +48,8 @@ namespace NzbDrone.Core.ImportLists
             _importListFactory = importListFactory;
             _importListExclusionService = importListExclusionService;
             _listFetcherAndParser = listFetcherAndParser;
-            _bookInfoProxy = bookInfoProxy;
-            _bookSearchService = bookSearchService;
+            _metadataOrchestrator = metadataOrchestrator;
+            _queryNormalizationService = queryNormalizationService;
             _authorService = authorService;
             _bookService = bookService;
             _editionService = editionService;
@@ -155,7 +155,7 @@ namespace NzbDrone.Core.ImportLists
                 return;
             }
 
-            if (report.EditionOpenLibraryId.IsNotNullOrWhiteSpace() && int.TryParse(report.EditionOpenLibraryId, out var openlibraryId))
+            if (report.EditionOpenLibraryId.IsNotNullOrWhiteSpace())
             {
                 // check the local DB
                 var edition = _editionService.GetEditionByForeignEditionId(report.EditionOpenLibraryId);
@@ -170,7 +170,7 @@ namespace NzbDrone.Core.ImportLists
                     return;
                 }
 
-                var editionResults = _bookSearchService.SearchByExternalId("openlibrary", report.EditionOpenLibraryId);
+                var editionResults = _metadataOrchestrator.SearchByExternalId("openlibrary", report.EditionOpenLibraryId);
                 var remoteBook = editionResults.FirstOrDefault();
 
                 if (remoteBook == null)
@@ -189,7 +189,7 @@ namespace NzbDrone.Core.ImportLists
             }
             else if (report.BookOpenLibraryId.IsNotNullOrWhiteSpace())
             {
-                var mappedBook = _bookInfoProxy.GetBookInfo(report.BookOpenLibraryId);
+                var mappedBook = _metadataOrchestrator.GetBookInfo(report.BookOpenLibraryId);
 
                 report.BookOpenLibraryId = mappedBook.Item2.ForeignBookId;
                 report.Book = mappedBook.Item2.Title;
@@ -197,7 +197,7 @@ namespace NzbDrone.Core.ImportLists
             }
             else
             {
-                var searchResults = _bookSearchService.SearchForNewBook(report.Book, report.Author, false);
+                var searchResults = SearchBooksWithVariants(report.Book, report.Author, false);
                 var mappedBook = searchResults.FirstOrDefault();
 
                 if (mappedBook == null)
@@ -324,7 +324,7 @@ namespace NzbDrone.Core.ImportLists
                     }
                 };
 
-                if (report.EditionOpenLibraryId.IsNotNullOrWhiteSpace() && int.TryParse(report.EditionOpenLibraryId, out var openlibraryId))
+                if (report.EditionOpenLibraryId.IsNotNullOrWhiteSpace())
                 {
                     toAdd.Editions.Value.Add(new Edition
                     {
@@ -345,7 +345,7 @@ namespace NzbDrone.Core.ImportLists
 
         private void MapAuthorReport(ImportListItemInfo report)
         {
-            var searchResults = _bookSearchService.SearchForNewBook(report.Author, null, false);
+            var searchResults = SearchBooksWithVariants(report.Author, null, false);
             var mappedBook = searchResults.FirstOrDefault();
 
             if (mappedBook == null)
@@ -358,6 +358,48 @@ namespace NzbDrone.Core.ImportLists
 
             report.Author = mappedBook.AuthorMetadata.Value.Name;
             report.AuthorOpenLibraryId = mappedBook.AuthorMetadata.Value.ForeignAuthorId;
+        }
+
+        private List<Book> SearchBooksWithVariants(string title, string author, bool getAllEditions)
+        {
+            var titleVariants = (_queryNormalizationService.BuildTitleVariants(title) ?? new List<string>())
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Distinct()
+                .ToList();
+
+            if (!titleVariants.Any() && title.IsNotNullOrWhiteSpace())
+            {
+                titleVariants.Add(title);
+            }
+
+            var authorVariants = (_queryNormalizationService.ExpandAuthorAliases(new[] { author }) ?? new List<string>())
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Distinct()
+                .ToList();
+
+            if (!authorVariants.Any() && author.IsNotNullOrWhiteSpace())
+            {
+                authorVariants.Add(author);
+            }
+
+            if (!authorVariants.Any())
+            {
+                authorVariants.Add(null);
+            }
+
+            foreach (var titleVariant in titleVariants)
+            {
+                foreach (var authorVariant in authorVariants)
+                {
+                    var results = _metadataOrchestrator.SearchForNewBook(titleVariant, authorVariant, getAllEditions);
+                    if (results.Any())
+                    {
+                        return results;
+                    }
+                }
+            }
+
+            return new List<Book>();
         }
 
         private Author ProcessAuthorReport(ImportListDefinition importList, ImportListItemInfo report, List<ImportListExclusion> listExclusions, List<Author> authorsToAdd)

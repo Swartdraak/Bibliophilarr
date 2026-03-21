@@ -59,6 +59,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         public void Execute(BackfillOpenLibraryIdsCommand message)
         {
             var lookupBudget = Math.Max(0, message.MaxLookups);
+            var batchSize = Math.Max(1, message.BatchSize);
             var lookupsUsed = 0;
 
             var books = _bookService.GetAllBooks();
@@ -77,8 +78,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             foreach (var book in books)
             {
                 var changed = false;
-                var normalizedWorkId = NormalizeOpenLibraryWorkId(book.OpenLibraryWorkId) ?? NormalizeOpenLibraryWorkId(book.ForeignBookId);
-                var foreignBookToken = NormalizeOpenLibraryBookToken(book.ForeignBookId);
+                var normalizedWorkId = OpenLibraryIdNormalizer.NormalizeWorkId(book.OpenLibraryWorkId) ?? OpenLibraryIdNormalizer.NormalizeWorkId(book.ForeignBookId);
+                var foreignBookToken = OpenLibraryIdNormalizer.NormalizeBookToken(book.ForeignBookId);
 
                 if (normalizedWorkId.IsNotNullOrWhiteSpace())
                 {
@@ -97,16 +98,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                             .SearchByExternalId("olid", foreignBookToken)
                             .FirstOrDefault();
 
-                        var resolvedWorkId = NormalizeOpenLibraryWorkId(resolvedByExternalId?.OpenLibraryWorkId) ??
-                                             NormalizeOpenLibraryWorkId(resolvedByExternalId?.ForeignBookId);
+                        var resolvedWorkId = OpenLibraryIdNormalizer.NormalizeWorkId(resolvedByExternalId?.OpenLibraryWorkId) ??
+                                             OpenLibraryIdNormalizer.NormalizeWorkId(resolvedByExternalId?.ForeignBookId);
 
                         if (resolvedWorkId.IsNullOrWhiteSpace())
                         {
                             try
                             {
                                 var resolvedByProvider = _metadataProviderOrchestrator.GetBookInfo(foreignBookToken);
-                                resolvedWorkId = NormalizeOpenLibraryWorkId(resolvedByProvider?.Item2?.OpenLibraryWorkId) ??
-                                                 NormalizeOpenLibraryWorkId(resolvedByProvider?.Item2?.ForeignBookId);
+                                resolvedWorkId = OpenLibraryIdNormalizer.NormalizeWorkId(resolvedByProvider?.Item2?.OpenLibraryWorkId) ??
+                                                 OpenLibraryIdNormalizer.NormalizeWorkId(resolvedByProvider?.Item2?.ForeignBookId);
                             }
                             catch (BookNotFoundException)
                             {
@@ -139,7 +140,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                             if (resolved != null)
                             {
-                                var resolvedWorkId = NormalizeOpenLibraryWorkId(resolved.OpenLibraryWorkId) ?? NormalizeOpenLibraryWorkId(resolved.ForeignBookId);
+                                var resolvedWorkId = OpenLibraryIdNormalizer.NormalizeWorkId(resolved.OpenLibraryWorkId) ?? OpenLibraryIdNormalizer.NormalizeWorkId(resolved.ForeignBookId);
 
                                 if (resolvedWorkId.IsNotNullOrWhiteSpace())
                                 {
@@ -170,7 +171,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 }
 
                 var authorChanged = false;
-                var normalizedAuthorId = NormalizeOpenLibraryAuthorId(metadata.ForeignAuthorId);
+                var normalizedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(metadata.ForeignAuthorId);
 
                 if (normalizedAuthorId.IsNotNullOrWhiteSpace())
                 {
@@ -182,11 +183,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     lookupsUsed++;
                     var candidates = _metadataProviderOrchestrator.SearchForNewAuthor(metadata.Name ?? author.Name);
                     var openLibraryAuthor = candidates.FirstOrDefault(x =>
-                        NormalizeOpenLibraryAuthorId(x.Metadata?.Value?.OpenLibraryAuthorId ?? x.ForeignAuthorId).IsNotNullOrWhiteSpace());
+                        OpenLibraryIdNormalizer.NormalizeAuthorId(x.Metadata?.Value?.OpenLibraryAuthorId ?? x.ForeignAuthorId).IsNotNullOrWhiteSpace());
 
                     if (openLibraryAuthor != null)
                     {
-                        var resolvedAuthorId = NormalizeOpenLibraryAuthorId(openLibraryAuthor.Metadata?.Value?.OpenLibraryAuthorId ?? openLibraryAuthor.ForeignAuthorId);
+                        var resolvedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(openLibraryAuthor.Metadata?.Value?.OpenLibraryAuthorId ?? openLibraryAuthor.ForeignAuthorId);
 
                         if (resolvedAuthorId.IsNotNullOrWhiteSpace())
                         {
@@ -204,84 +205,22 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             if (changedBooks.Any())
             {
-                _bookService.UpdateMany(changedBooks);
+                foreach (var chunk in changedBooks.Chunk(batchSize))
+                {
+                    _bookService.UpdateMany(chunk.ToList());
+                }
             }
 
             if (changedAuthors.Any())
             {
-                _authorMetadataService.UpsertMany(changedAuthors.DistinctBy(x => x.Id).ToList());
+                var distinctAuthors = changedAuthors.DistinctBy(x => x.Id).ToList();
+                foreach (var chunk in distinctAuthors.Chunk(batchSize))
+                {
+                    _authorMetadataService.UpsertMany(chunk.ToList());
+                }
             }
 
             _logger.Info("OpenLibrary ID backfill complete. Updated books={0}, authors={1}, lookups={2}/{3}", changedBooks.Count, changedAuthors.Count, lookupsUsed, lookupBudget);
-        }
-
-        private static bool LooksLikeOpenLibraryWorkId(string value)
-        {
-            return value.IsNotNullOrWhiteSpace() &&
-                   value.StartsWith("OL", StringComparison.OrdinalIgnoreCase) &&
-                   (value.EndsWith("W", StringComparison.OrdinalIgnoreCase) ||
-                    value.EndsWith("M", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static string NormalizeOpenLibraryWorkId(string value)
-        {
-            var token = NormalizeOpenLibraryBookToken(value);
-
-            return LooksLikeOpenLibraryWorkId(token) ? token : null;
-        }
-
-        private static string NormalizeOpenLibraryBookToken(string value)
-        {
-            if (value.IsNullOrWhiteSpace())
-            {
-                return null;
-            }
-
-            const string prefix = "openlibrary:work:";
-            const string editionPrefix = "openlibrary:edition:";
-
-            var normalized = value.Trim();
-
-            if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                normalized = normalized.Substring(prefix.Length);
-            }
-            else if (normalized.StartsWith(editionPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                normalized = normalized.Substring(editionPrefix.Length);
-            }
-
-            var slash = normalized.LastIndexOf('/');
-            if (slash >= 0)
-            {
-                normalized = normalized.Substring(slash + 1);
-            }
-
-            return normalized;
-        }
-
-        private static bool LooksLikeOpenLibraryAuthorId(string value)
-        {
-            return value.IsNotNullOrWhiteSpace() && value.StartsWith("OL", StringComparison.OrdinalIgnoreCase) && value.EndsWith("A", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string NormalizeOpenLibraryAuthorId(string value)
-        {
-            if (value.IsNullOrWhiteSpace())
-            {
-                return null;
-            }
-
-            const string prefix = "openlibrary:author:";
-
-            var normalized = value.Trim();
-
-            if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                normalized = normalized.Substring(prefix.Length);
-            }
-
-            return LooksLikeOpenLibraryAuthorId(normalized) ? normalized : null;
         }
     }
 }

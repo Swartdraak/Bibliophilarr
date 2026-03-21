@@ -70,6 +70,30 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         [Test]
+        public void map_search_doc_should_use_reading_engagement_for_popularity_when_higher_than_ratings()
+        {
+            var doc = new OlSearchDoc
+            {
+                Key = "/works/OL100W",
+                Title = "Engagement Heavy Title",
+                AuthorName = new List<string> { "Author" },
+                AuthorKey = new List<string> { "/authors/OL1A" },
+                RatingsAverage = 4.0,
+                RatingsCount = 10,
+                WantToReadCount = 420,
+                CurrentlyReadingCount = 30,
+                AlreadyReadCount = 50,
+                Language = new List<string> { "spa", "eng" }
+            };
+
+            var book = OpenLibraryMapper.MapSearchDocToBook(doc);
+
+            book.Should().NotBeNull();
+            book.Ratings.Popularity.Should().BeGreaterThan(350);
+            book.Editions.Value[0].Language.Should().Be("eng");
+        }
+
+        [Test]
         public void map_search_doc_with_null_returns_null()
         {
             var result = OpenLibraryMapper.MapSearchDocToBook(null);
@@ -196,6 +220,28 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             result.Should().NotBeNull();
             result.Isbn13.Should().Be("0618346252");
+        }
+
+        [Test]
+        public void map_edition_should_map_language_and_detect_ebook_format()
+        {
+            var edition = new OlEditionResource
+            {
+                Key = "/books/OL3M",
+                Title = "Digital Title",
+                PhysicalFormat = "EBOOK",
+                Languages = new List<OlKeyRef>
+                {
+                    new OlKeyRef { Key = "/languages/fre" },
+                    new OlKeyRef { Key = "/languages/eng" }
+                }
+            };
+
+            var result = OpenLibraryMapper.MapEdition(edition);
+
+            result.Should().NotBeNull();
+            result.Language.Should().Be("eng");
+            result.IsEbook.Should().BeTrue();
         }
 
         [Test]

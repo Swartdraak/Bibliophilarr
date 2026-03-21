@@ -10,8 +10,7 @@ using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
 {
     /// <summary>
-    /// Secondary metadata provider backed by the Open Library REST API.
-    /// Priority 2 — used by MetadataProviderRegistry when the primary (BookInfo) provider fails.
+    /// Primary metadata provider backed by the Open Library REST API.
     /// </summary>
     public class OpenLibraryProvider :
         IMetadataProvider,
@@ -23,7 +22,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     {
         // ── IMetadataProvider ────────────────────────────────────────────────
         public string ProviderName => "OpenLibrary";
-        public int Priority => 2;
+        public int Priority => 1;
         public bool IsEnabled => _configService.EnableOpenLibraryProvider;
         public bool SupportsAuthorSearch => true;
         public bool SupportsBookSearch => true;
@@ -62,28 +61,203 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 throw new NzbDrone.Core.Exceptions.AuthorNotFoundException(foreignAuthorId);
             }
 
-            // Fetch a sample of works via search to populate Books
-            var searchResponse = _client.Search($"author_key:/authors/{normalizedAuthorId}");
-            var books = (searchResponse?.Docs ?? new List<OlSearchDoc>())
-                .Select(d => OpenLibraryMapper.MapSearchDocToBook(d))
-                .Where(b => b != null)
-                .ToList();
+            var works = GetAuthorWorkEntries(normalizedAuthorId);
+            var workDocsById = GetAuthorWorkSearchDocs(normalizedAuthorId)
+                .Where(x => x?.Key.IsNotNullOrWhiteSpace() == true)
+                .GroupBy(x => NormalizeWorkId(x.Key))
+                .Where(x => x.Key.IsNotNullOrWhiteSpace())
+                .ToDictionary(x => x.Key, x => x.First());
 
-            foreach (var book in books)
-            {
-                book.AuthorMetadata = metadata;
-                if (book.Author?.Value != null)
-                {
-                    book.Author.Value.Metadata = metadata;
-                }
-            }
+            var books = works
+                .Select(work => MapAuthorWorkToBook(work, authorResource, metadata, workDocsById))
+                .Where(book => book != null)
+                .DistinctBy(b => b.ForeignBookId)
+                .ToList();
 
             return new Author
             {
                 Metadata = metadata,
                 CleanName = Parser.Parser.CleanAuthorName(metadata.Name),
-                Books = books
+                Books = books,
+                Series = new List<Series>()
             };
+        }
+
+        private List<OlWorkResource> GetAuthorWorkEntries(string normalizedAuthorId)
+        {
+            const int pageSize = 100;
+            const int maxWorks = 1000;
+
+            var works = new List<OlWorkResource>();
+            var offset = 0;
+
+            while (offset < maxWorks)
+            {
+                var response = _client.GetAuthorWorks(normalizedAuthorId, pageSize, offset);
+                var page = response?.Entries ?? new List<OlWorkResource>();
+
+                if (!page.Any())
+                {
+                    break;
+                }
+
+                works.AddRange(page);
+                offset += page.Count;
+
+                if (page.Count < pageSize)
+                {
+                    break;
+                }
+
+                if (response != null && response.Size > 0 && offset >= response.Size)
+                {
+                    break;
+                }
+            }
+
+            return works;
+        }
+
+        private List<OlSearchDoc> GetAuthorWorkSearchDocs(string normalizedAuthorId)
+        {
+            const int pageSize = 100;
+            const int maxDocs = 1000;
+
+            var query = $"author_key:{normalizedAuthorId}";
+            var docs = new List<OlSearchDoc>();
+            var offset = 0;
+
+            while (offset < maxDocs)
+            {
+                var response = _client.Search(query, pageSize, offset);
+                var page = response?.Docs ?? new List<OlSearchDoc>();
+
+                if (!page.Any())
+                {
+                    break;
+                }
+
+                docs.AddRange(page);
+                offset += page.Count;
+
+                if (page.Count < pageSize)
+                {
+                    break;
+                }
+
+                if (response != null && response.NumFound > 0 && offset >= response.NumFound)
+                {
+                    break;
+                }
+            }
+
+            return docs;
+        }
+
+        private Book MapAuthorWorkToBook(OlWorkResource work,
+                                         OlAuthorResource authorResource,
+                                         AuthorMetadata metadata,
+                                         IReadOnlyDictionary<string, OlSearchDoc> searchDocsById)
+        {
+            var workBook = OpenLibraryMapper.MapWorkToBook(work, authorResource);
+            if (workBook == null)
+            {
+                return null;
+            }
+
+            var book = workBook;
+            var normalizedWorkId = NormalizeWorkId(work?.Key);
+
+            if (normalizedWorkId.IsNotNullOrWhiteSpace() && searchDocsById.TryGetValue(normalizedWorkId, out var searchDoc))
+            {
+                book = OpenLibraryMapper.MapSearchDocToBook(searchDoc) ?? workBook;
+            }
+
+            EnrichBookFromWork(book, workBook);
+
+            book.AuthorMetadata = metadata;
+            if (book.Author?.Value != null)
+            {
+                book.Author.Value.Metadata = metadata;
+            }
+
+            return book;
+        }
+
+        private static void EnrichBookFromWork(Book book, Book workBook)
+        {
+            if (book == null || workBook == null)
+            {
+                return;
+            }
+
+            if (!book.ReleaseDate.HasValue)
+            {
+                book.ReleaseDate = workBook.ReleaseDate;
+            }
+
+            if (!book.Genres.Any() && workBook.Genres.Any())
+            {
+                book.Genres = workBook.Genres;
+            }
+
+            if (!book.Links.Any() && workBook.Links.Any())
+            {
+                book.Links = workBook.Links;
+            }
+
+            var edition = book.Editions?.Value?.FirstOrDefault();
+            var workEdition = workBook.Editions?.Value?.FirstOrDefault();
+
+            if (edition == null || workEdition == null)
+            {
+                return;
+            }
+
+            if (edition.Overview.IsNullOrWhiteSpace())
+            {
+                edition.Overview = workEdition.Overview;
+            }
+
+            if (edition.ReleaseDate == null)
+            {
+                edition.ReleaseDate = workEdition.ReleaseDate;
+            }
+
+            if (edition.Format.IsNullOrWhiteSpace())
+            {
+                edition.Format = workEdition.Format;
+            }
+
+            if (edition.Publisher.IsNullOrWhiteSpace())
+            {
+                edition.Publisher = workEdition.Publisher;
+            }
+
+            if (edition.PageCount == 0)
+            {
+                edition.PageCount = workEdition.PageCount;
+            }
+
+            if (edition.Language.IsNullOrWhiteSpace())
+            {
+                edition.Language = workEdition.Language;
+            }
+
+            if (!edition.Images.Any() && workEdition.Images.Any())
+            {
+                edition.Images = workEdition.Images;
+            }
+
+            if (!edition.Links.Any() && workEdition.Links.Any())
+            {
+                edition.Links = workEdition.Links;
+            }
+
+            if ((edition.Ratings?.Votes ?? 0) == 0 && (workEdition.Ratings?.Votes ?? 0) > 0)
+            {
+                edition.Ratings = workEdition.Ratings;
+            }
         }
 
         private static string NormalizeAuthorId(string foreignAuthorId)
@@ -91,6 +265,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             if (foreignAuthorId.IsNullOrWhiteSpace())
             {
                 return foreignAuthorId;
+            }
+
+            var normalizedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId);
+            if (normalizedAuthorId.IsNotNullOrWhiteSpace())
+            {
+                return normalizedAuthorId;
             }
 
             const string prefix = "openlibrary:author:";
@@ -173,6 +353,20 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 throw new NzbDrone.Core.Exceptions.BookNotFoundException(foreignBookId);
             }
 
+            var representativeEditions = GetRepresentativeEditions(normalizedWorkId);
+            if (representativeEditions.Any())
+            {
+                representativeEditions[0].Monitored = true;
+
+                foreach (var additionalEdition in representativeEditions.Skip(1))
+                {
+                    additionalEdition.Monitored = false;
+                }
+
+                book.Editions = representativeEditions;
+                EnrichBookFromEdition(book, representativeEditions[0]);
+            }
+
             var authorId = book.AuthorMetadata?.Value?.ForeignAuthorId ?? "OL-unknown";
             var authorMetaList = book.AuthorMetadata?.Value != null
                 ? new List<AuthorMetadata> { book.AuthorMetadata.Value }
@@ -181,17 +375,96 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return Tuple.Create(authorId, book, authorMetaList);
         }
 
+        private List<Edition> GetRepresentativeEditions(string normalizedWorkId)
+        {
+            var response = _client.GetWorkEditions(normalizedWorkId, 20, 0);
+
+            return (response?.Entries ?? new List<OlEditionResource>())
+                .Select(OpenLibraryMapper.MapEdition)
+                .Where(x => x != null)
+                .OrderByDescending(IsPreferredEdition)
+                .ThenByDescending(x => x.Images.Any())
+                .ThenByDescending(x => x.PageCount)
+                .ThenByDescending(x => x.ReleaseDate)
+                .DistinctBy(x => x.ForeignEditionId)
+                .Take(5)
+                .ToList();
+        }
+
+        private static bool IsPreferredEdition(Edition edition)
+        {
+            var language = edition.Language?.Trim();
+            var isEnglishOrUnknown = language.IsNullOrWhiteSpace() || language.Equals("eng", StringComparison.OrdinalIgnoreCase);
+            var hasIdentifier = edition.Isbn13.IsNotNullOrWhiteSpace() || edition.Asin.IsNotNullOrWhiteSpace();
+
+            return isEnglishOrUnknown && hasIdentifier;
+        }
+
+        private static void EnrichBookFromEdition(Book book, Edition edition)
+        {
+            if (book == null || edition == null)
+            {
+                return;
+            }
+
+            if (!book.ReleaseDate.HasValue)
+            {
+                book.ReleaseDate = edition.ReleaseDate;
+            }
+        }
+
         // ── ISearchForNewBook ────────────────────────────────────────────────
         public List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true)
         {
             _logger.Debug("OpenLibraryProvider.SearchForNewBook: title={0} author={1}", title, author);
 
-            var query = author.IsNullOrWhiteSpace() ? title : $"{title} {author}";
-
             try
             {
-                var response = _client.Search(query, limit: 20);
-                return MapSearchDocsToBooks(response?.Docs);
+                var query = (title ?? string.Empty).ToLowerInvariant().Trim();
+
+                if (author.IsNotNullOrWhiteSpace())
+                {
+                    query += " " + author;
+                }
+
+                var lowerTitle = title?.ToLowerInvariant() ?? string.Empty;
+                var split = lowerTitle.Split(':');
+                var prefix = split[0];
+
+                if (split.Length == 2 && new[] { "author", "work", "edition", "isbn", "asin" }.Contains(prefix))
+                {
+                    var slug = split[1].Trim();
+
+                    if (slug.IsNullOrWhiteSpace() || slug.Any(char.IsWhiteSpace))
+                    {
+                        return new List<Book>();
+                    }
+
+                    if (prefix == "author" || prefix == "work" || prefix == "edition")
+                    {
+                        var normalizedId = NormalizePrefixedOpenLibraryId(prefix, slug);
+                        if (normalizedId.IsNullOrWhiteSpace())
+                        {
+                            return new List<Book>();
+                        }
+
+                        if (prefix == "author")
+                        {
+                            return SearchByOpenLibraryAuthorId(normalizedId);
+                        }
+
+                        if (prefix == "work")
+                        {
+                            return SearchByOpenLibraryWorkId(normalizedId, getAllEditions);
+                        }
+
+                        return SearchByOpenLibraryEditionId(normalizedId, getAllEditions);
+                    }
+
+                    query = slug;
+                }
+
+                return Search(query, getAllEditions);
             }
             catch (OpenLibraryException ex)
             {
@@ -258,9 +531,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public List<Book> SearchByAsin(string asin)
         {
-            // Open Library does not index ASIN
-            _logger.Debug("OpenLibraryProvider.SearchByAsin: not supported by Open Library, skipping");
-            return new List<Book>();
+            _logger.Debug("OpenLibraryProvider.SearchByAsin: {0}", asin);
+            return Search(asin, true);
         }
 
         public List<Book> SearchByExternalId(string idType, string id)
@@ -272,17 +544,31 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return SearchByIsbn(id);
             }
 
-            if (idType == "olid")
+            if (idType == "olid" || idType == "openlibrary")
             {
-                try
-                {
-                    var tuple = GetBookInfo(id);
-                    return new List<Book> { tuple.Item2 };
-                }
-                catch (NzbDrone.Core.Exceptions.BookNotFoundException)
+                var token = OpenLibraryIdNormalizer.NormalizeBookToken(id);
+
+                if (token.IsNullOrWhiteSpace())
                 {
                     return new List<Book>();
                 }
+
+                if (token.EndsWith("A", StringComparison.OrdinalIgnoreCase))
+                {
+                    return SearchByOpenLibraryAuthorId(token);
+                }
+
+                if (token.EndsWith("M", StringComparison.OrdinalIgnoreCase))
+                {
+                    return SearchByOpenLibraryEditionId(token, true);
+                }
+
+                if (token.EndsWith("W", StringComparison.OrdinalIgnoreCase))
+                {
+                    return SearchByOpenLibraryWorkId(token, true);
+                }
+
+                return new List<Book>();
             }
 
             if (idType == "asin")
@@ -290,7 +576,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return SearchByAsin(id);
             }
 
-            // "openlibrary" IDs are not meaningful to Open Library
+            // Unknown idType
             _logger.Debug("OpenLibraryProvider: id type '{0}' not supported; returning empty.", idType);
             return new List<Book>();
         }
@@ -476,34 +762,122 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return book;
         }
 
+        private List<Book> Search(string query, bool getAllEditions)
+        {
+            var response = _client.Search(query, limit: getAllEditions ? 20 : 10);
+            return MapSearchDocsToBooks(response?.Docs);
+        }
+
+        private List<Book> SearchByOpenLibraryAuthorId(string authorId)
+        {
+            try
+            {
+                var author = GetAuthorInfo(authorId);
+                return author.Books?.Value ?? new List<Book>();
+            }
+            catch (NzbDrone.Core.Exceptions.AuthorNotFoundException)
+            {
+                return new List<Book>();
+            }
+        }
+
+        private List<Book> SearchByOpenLibraryWorkId(string workId, bool getAllEditions)
+        {
+            try
+            {
+                var tuple = GetBookInfo(workId);
+                var book = tuple.Item2;
+
+                if (!getAllEditions)
+                {
+                    TrimEditions(book, null);
+                }
+
+                return new List<Book> { book };
+            }
+            catch (NzbDrone.Core.Exceptions.BookNotFoundException)
+            {
+                return new List<Book>();
+            }
+        }
+
+        private List<Book> SearchByOpenLibraryEditionId(string editionId, bool getAllEditions)
+        {
+            try
+            {
+                var tuple = GetBookInfo(editionId);
+                var book = tuple.Item2;
+
+                if (!book.Editions.Value.Any(e => string.Equals(e.ForeignEditionId, editionId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return new List<Book>();
+                }
+
+                if (!getAllEditions)
+                {
+                    TrimEditions(book, editionId);
+                }
+
+                return new List<Book> { book };
+            }
+            catch (NzbDrone.Core.Exceptions.BookNotFoundException)
+            {
+                return new List<Book>();
+            }
+        }
+
+        private static void TrimEditions(Book book, string preferredEditionId)
+        {
+            if (book?.Editions?.Value == null || !book.Editions.Value.Any())
+            {
+                return;
+            }
+
+            var selected = preferredEditionId.IsNotNullOrWhiteSpace()
+                ? book.Editions.Value.FirstOrDefault(e => string.Equals(e.ForeignEditionId, preferredEditionId, StringComparison.OrdinalIgnoreCase))
+                : null;
+
+            selected ??= book.Editions.Value.First();
+            book.Editions = new List<Edition> { selected };
+        }
+
+        private static string NormalizePrefixedOpenLibraryId(string prefix, string slug)
+        {
+            if (prefix == "author")
+            {
+                return OpenLibraryIdNormalizer.NormalizeAuthorId(slug) ??
+                       (int.TryParse(slug, out _) ? OpenLibraryIdNormalizer.EnsureToken(slug, "A") : null);
+            }
+
+            var token = OpenLibraryIdNormalizer.NormalizeBookToken(slug);
+
+            if (token.IsNullOrWhiteSpace())
+            {
+                if (!int.TryParse(slug, out _))
+                {
+                    return null;
+                }
+
+                return prefix == "work"
+                    ? OpenLibraryIdNormalizer.EnsureToken(slug, "W")
+                    : OpenLibraryIdNormalizer.EnsureToken(slug, "M");
+            }
+
+            if (prefix == "work")
+            {
+                return token.EndsWith("W", StringComparison.OrdinalIgnoreCase)
+                    ? OpenLibraryIdNormalizer.EnsureToken(token, "W")
+                    : null;
+            }
+
+            return token.EndsWith("M", StringComparison.OrdinalIgnoreCase)
+                ? OpenLibraryIdNormalizer.EnsureToken(token, "M")
+                : null;
+        }
+
         private static string NormalizeWorkId(string foreignBookId)
         {
-            if (foreignBookId.IsNullOrWhiteSpace())
-            {
-                return foreignBookId;
-            }
-
-            const string prefix = "openlibrary:work:";
-            const string editionPrefix = "openlibrary:edition:";
-
-            var normalized = foreignBookId.Trim();
-
-            if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                normalized = normalized.Substring(prefix.Length);
-            }
-            else if (normalized.StartsWith(editionPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                normalized = normalized.Substring(editionPrefix.Length);
-            }
-
-            var lastSlash = normalized.LastIndexOf('/');
-            if (lastSlash >= 0)
-            {
-                normalized = normalized.Substring(lastSlash + 1);
-            }
-
-            return normalized;
+            return OpenLibraryIdNormalizer.NormalizeBookToken(foreignBookId);
         }
     }
 }

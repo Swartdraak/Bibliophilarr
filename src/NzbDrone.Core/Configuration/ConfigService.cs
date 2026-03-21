@@ -479,16 +479,16 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("TrustCgnatIpAddresses", value); }
         }
 
-        public bool EnableBookInfoProvider
-        {
-            get { return GetValueBoolean("EnableBookInfoProvider", true); }
-            set { SetValue("EnableBookInfoProvider", value); }
-        }
-
         public bool EnableOpenLibraryProvider
         {
             get { return GetValueBoolean("EnableOpenLibraryProvider", true); }
             set { SetValue("EnableOpenLibraryProvider", value); }
+        }
+
+        public bool EnableGoogleBooksProvider
+        {
+            get { return GetValueBoolean("EnableGoogleBooksProvider", false); }
+            set { SetValue("EnableGoogleBooksProvider", value); }
         }
 
         public bool EnableInventaireProvider
@@ -499,7 +499,7 @@ namespace NzbDrone.Core.Configuration
 
         public string MetadataProviderPriorityOrder
         {
-            get { return GetValue("MetadataProviderPriorityOrder", "BookInfo,OpenLibrary,Inventaire"); }
+            get { return GetValue("MetadataProviderPriorityOrder", "OpenLibrary,GoogleBooks,Inventaire"); }
             set { SetValue("MetadataProviderPriorityOrder", value); }
         }
 

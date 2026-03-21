@@ -117,6 +117,10 @@ Planned entry conditions:
 | Operational drift checks | scheduled drift signal exists with actionable artifacts | in progress |
 | Release entry criteria | `main` release gate documented and enforced operationally | in progress |
 | Security drift cleanup | open Dependabot set reduced via lockfile-backed remediation slices | in progress |
+| Metadata path parity debt burn-down | add/refresh/import/identification use aligned orchestrated metadata request policy | complete |
+| Identifier normalization convergence | canonical external-ID normalization is enforced at persistence boundaries | complete |
+| Health-aware provider routing | provider failure streaks influence fallback order with deterministic recovery | complete |
+| Conflict explainability telemetry | factor-level score breakdown is exposed for operator diagnostics | complete |
 
 ## Near-Term Delivery Sequence
 
@@ -126,6 +130,9 @@ Planned entry conditions:
 4. Promote release entry criteria from documentation to routine operator practice.
 5. Execute local install testing on `develop` as a first-class lane (native binary, Docker, and npm launcher).
 6. Reassess whether packaging validation can safely move onto `main` after installation paths are fully validated.
+7. Promote TD-META-001..005 behaviors into release-entry evidence capture, including provider telemetry and conflict-score snapshots.
+8. Add end-to-end metadata parity rehearsal on production-shaped datasets with explicit pass/fail thresholds for catalog retention and match-rate drift.
+9. Close remaining high-priority failing Core baseline tests that impact metadata import quality signals.
 
 ## Local Install Testing Enablement (Develop Branch)
 

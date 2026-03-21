@@ -32,7 +32,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             ["Hardcover"] = 30
         };
 
-        private readonly ISearchForNewBook _bookSearchService;
+        private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IEditionService _editionService;
@@ -46,7 +46,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private readonly ConcurrentDictionary<string, IReadOnlyList<Book>> _isbnFallbackCache =
             new ConcurrentDictionary<string, IReadOnlyList<Book>>(StringComparer.OrdinalIgnoreCase);
 
-        public CandidateService(ISearchForNewBook bookSearchService,
+        public CandidateService(IMetadataProviderOrchestrator metadataOrchestrator,
                                 IAuthorService authorService,
                                 IBookService bookService,
                                 IEditionService editionService,
@@ -57,7 +57,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                                 IConfigService configService,
                                 Logger logger)
         {
-            _bookSearchService = bookSearchService;
+            _metadataOrchestrator = metadataOrchestrator;
             _authorService = authorService;
             _bookService = bookService;
             _editionService = editionService;
@@ -246,7 +246,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 try
                 {
-                    remoteBooks = _bookSearchService.SearchByIsbn(isbn);
+                    remoteBooks = _metadataOrchestrator.SearchByIsbn(isbn);
                 }
                 catch (OpenLibraryException e)
                 {
@@ -275,7 +275,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 try
                 {
-                    remoteBooks = _bookSearchService.SearchByAsin(asin);
+                    remoteBooks = _metadataOrchestrator.SearchByAsin(asin);
                 }
                 catch (OpenLibraryException e)
                 {
@@ -296,7 +296,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 try
                 {
-                    remoteBooks = _bookSearchService.SearchByExternalId("openlibrary", openlibrary[0]);
+                    remoteBooks = _metadataOrchestrator.SearchByExternalId("openlibrary", openlibrary[0]);
                 }
                 catch (OpenLibraryException e)
                 {
@@ -518,7 +518,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     List<Book> remoteBooks;
                     try
                     {
-                        remoteBooks = _bookSearchService.SearchForNewBook(title, author, true);
+                        remoteBooks = _metadataOrchestrator.SearchForNewBook(title, author, true);
                     }
                     catch (OpenLibraryException e)
                     {
@@ -563,7 +563,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         {
             try
             {
-                return _bookSearchService.SearchForNewBook(title, author);
+                return _metadataOrchestrator.SearchForNewBook(title, author);
             }
             catch (OpenLibraryException e)
             {

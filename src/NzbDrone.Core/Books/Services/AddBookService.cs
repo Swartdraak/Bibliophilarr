@@ -7,6 +7,7 @@ using NLog;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.Books
 {
@@ -21,21 +22,21 @@ namespace NzbDrone.Core.Books
         private readonly IAuthorService _authorService;
         private readonly IAddAuthorService _addAuthorService;
         private readonly IBookService _bookService;
-        private readonly IProvideBookInfo _bookInfo;
+        private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IImportListExclusionService _importListExclusionService;
         private readonly Logger _logger;
 
         public AddBookService(IAuthorService authorService,
                                IAddAuthorService addAuthorService,
                                IBookService bookService,
-                               IProvideBookInfo bookInfo,
+                               IMetadataProviderOrchestrator orchestrator,
                                IImportListExclusionService importListExclusionService,
                                Logger logger)
         {
             _authorService = authorService;
             _addAuthorService = addAuthorService;
             _bookService = bookService;
-            _bookInfo = bookInfo;
+            _orchestrator = orchestrator;
             _importListExclusionService = importListExclusionService;
             _logger = logger;
         }
@@ -128,7 +129,8 @@ namespace NzbDrone.Core.Books
             Tuple<string, Book, List<AuthorMetadata>> tuple = null;
             try
             {
-                tuple = _bookInfo.GetBookInfo(newBook.ForeignBookId);
+                var normalizedBookId = OpenLibraryIdNormalizer.NormalizeWorkId(newBook.ForeignBookId) ?? newBook.ForeignBookId;
+                tuple = _orchestrator.GetBookInfo(normalizedBookId);
             }
             catch (BookNotFoundException)
             {

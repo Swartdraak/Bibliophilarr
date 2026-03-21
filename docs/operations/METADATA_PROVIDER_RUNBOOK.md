@@ -92,6 +92,93 @@ Action at critical:
    - Lower `metadataProviderCircuitBreakerThreshold`.
    - Keep `metadataProviderCircuitBreakerDurationSeconds` non-zero to avoid request storms.
 
+## Queued RescanFolders triage (migration-safe)
+
+Use this playbook when command queues grow with repeated `RescanFolders` entries and
+operators observe scan-loop behavior during author refresh windows.
+
+Detection signals:
+
+- `Commands` table contains many `RescanFolders` rows in queued/started states.
+- Logs repeatedly show refresh completions without meaningful metadata deltas.
+- Metadata-provider failures increase during the same window (`get-book-info`,
+  `get-author-info`) and command queue depth trends upward.
+
+SQL triage queries:
+
+```sql
+-- Current queued/started RescanFolders pressure
+SELECT "Status", COUNT(*)
+FROM "Commands"
+WHERE "Name" = 'RescanFolders'
+GROUP BY "Status";
+
+-- Recent refresh command throughput and runtime
+SELECT "Id", "Name", "Status", "Trigger", "Duration", "Started", "Ended"
+FROM "Commands"
+WHERE "Name" = 'RefreshAuthor'
+ORDER BY "Id" DESC
+LIMIT 20;
+```
+
+Log triage patterns:
+
+- `Skipping rescan. Reason: matching rescan command already queued or started`
+- `All providers failed for operation get-book-info`
+- `All providers failed for operation get-author-info`
+
+Operator actions (safe for migration):
+
+1. Confirm provider outage/degradation first using telemetry endpoints before
+   changing refresh cadence.
+2. Keep refresh running on authoritative IDs; avoid manual DB edits to remove
+   books/authors during a degraded-provider window.
+3. If queue pressure continues, temporarily reduce refresh concurrency by
+   pausing nonessential scheduled command triggers and resume when provider
+   telemetry recovers.
+4. Capture command and telemetry snapshots in `_artifacts/` and attach them to
+   release-entry evidence before promoting.
+
+## Conflict-resolution explainability triage
+
+Use this section when metadata merges pick unexpected winners and operators need
+to understand why a provider was selected.
+
+Primary endpoint:
+
+- `GET /api/v1/metadata/conflicts/telemetry`
+
+Primary fields:
+
+- `decisionsByReason`
+- `decisionsByProvider`
+- `fieldSelectionsByProvider`
+- `lastDecisionScoreBreakdownByProvider`
+
+How to read score breakdown values:
+
+- Values are emitted per provider as comma-separated `factor:points` entries.
+- Typical high-impact factors include:
+   - `title`
+   - `author`
+   - `foreign-book-id`
+   - `has-editions`
+   - `cover-images`
+- Higher totals generally indicate richer metadata completeness and are used by
+   conflict policy quality-score selection.
+
+Operator triage workflow:
+
+1. Check `decisionsByReason` to confirm whether `quality-score` is driving outcomes.
+2. Compare `lastDecisionScoreBreakdownByProvider` values for the selected provider versus fallback providers.
+3. If selected provider repeatedly wins with lower identifier-related factors, inspect provider payload quality and identifier mapping paths.
+4. Correlate with provider health telemetry before changing provider order to avoid masking upstream outages as quality regressions.
+
+Escalation criteria:
+
+- Open an incident when unexpected winner shifts persist for more than two telemetry checkpoints.
+- Attach conflict telemetry snapshot and matching provider operation telemetry to release-entry artifacts.
+
 ## Inventaire Kill-Switch
 
 For emergency environment-level disablement:

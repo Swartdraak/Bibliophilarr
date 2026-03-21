@@ -9,6 +9,7 @@ using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser;
 
@@ -24,21 +25,21 @@ namespace NzbDrone.Core.Books
     {
         private readonly IAuthorService _authorService;
         private readonly IAuthorMetadataService _authorMetadataService;
-        private readonly IProvideAuthorInfo _authorInfo;
+        private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IAddAuthorValidator _addAuthorValidator;
         private readonly Logger _logger;
 
         public AddAuthorService(IAuthorService authorService,
                                 IAuthorMetadataService authorMetadataService,
-                                IProvideAuthorInfo authorInfo,
+                                IMetadataProviderOrchestrator orchestrator,
                                 IBuildFileNames fileNameBuilder,
                                 IAddAuthorValidator addAuthorValidator,
                                 Logger logger)
         {
             _authorService = authorService;
             _authorMetadataService = authorMetadataService;
-            _authorInfo = authorInfo;
+            _orchestrator = orchestrator;
             _fileNameBuilder = fileNameBuilder;
             _addAuthorValidator = addAuthorValidator;
             _logger = logger;
@@ -93,9 +94,13 @@ namespace NzbDrone.Core.Books
         {
             Author author;
 
+            var normalizedForeignAuthorId = NormalizeForeignAuthorId(newAuthor.Metadata.Value.ForeignAuthorId);
+            newAuthor.Metadata.Value.ForeignAuthorId = normalizedForeignAuthorId;
+
             try
             {
-                author = _authorInfo.GetAuthorInfo(newAuthor.Metadata.Value.ForeignAuthorId, false);
+                var normalizedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(newAuthor.Metadata.Value.ForeignAuthorId) ?? newAuthor.Metadata.Value.ForeignAuthorId;
+                author = _orchestrator.GetAuthorInfo(normalizedAuthorId, false);
             }
             catch (AuthorNotFoundException)
             {
@@ -115,6 +120,15 @@ namespace NzbDrone.Core.Books
             author.ApplyChanges(newAuthor);
 
             return author;
+        }
+
+        private static string NormalizeForeignAuthorId(string foreignAuthorId)
+        {
+            var normalizedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId);
+
+            return normalizedAuthorId.IsNotNullOrWhiteSpace()
+                ? $"openlibrary:author:{normalizedAuthorId}"
+                : foreignAuthorId;
         }
 
         private static Author BuildFallbackAuthor(Author requestedAuthor)

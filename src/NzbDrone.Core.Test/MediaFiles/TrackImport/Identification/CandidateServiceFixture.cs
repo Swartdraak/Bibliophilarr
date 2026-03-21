@@ -40,7 +40,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
         [Test]
         public void should_not_throw_on_openlibrary_exception()
         {
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
                 .Throws(new OpenLibraryException("Bad search"));
 
@@ -65,7 +65,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
         [Test]
         public void should_search_by_title_when_author_is_missing()
         {
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
                 .Returns(new List<Book>());
 
@@ -86,14 +86,14 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 
             Subject.GetRemoteCandidates(edition, null).Should().BeEmpty();
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Verify(s => s.SearchForNewBook("Book Without Author", null, true), Times.Once());
         }
 
         [Test]
         public void should_search_by_author_when_title_is_missing()
         {
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
                 .Returns(new List<Book>());
 
@@ -114,7 +114,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 
             Subject.GetRemoteCandidates(edition, null).Should().BeEmpty();
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Verify(s => s.SearchForNewBook("Fallback Author", null, true), Times.Once());
         }
 
@@ -125,7 +125,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
                 .Setup(s => s.BuildTitleVariants("Spellmonger: Book 1"))
                 .Returns(new List<string> { "Spellmonger: Book 1", "Spellmonger" });
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
                 .Returns(new List<Book>());
 
@@ -146,14 +146,14 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 
             Subject.GetRemoteCandidates(edition, null).Should().BeEmpty();
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Verify(s => s.SearchForNewBook("Spellmonger", "Terry Mancour", true), Times.Once());
         }
 
         [Test]
         public void should_use_tertiary_fallback_provider_when_primary_returns_no_candidates()
         {
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
                 .Returns(new List<Book>());
 
@@ -189,7 +189,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
         [Test]
         public void should_try_limited_title_author_fallback_when_isbn_lookup_misses()
         {
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(x => x.SearchByIsbn("9780261103573"))
                 .Returns(new List<Book>());
 
@@ -228,7 +228,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 
             matchedBook.Editions = new List<Edition> { matchedEdition };
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(x => x.SearchForNewBook("The Lord of the Rings", "J.R.R. Tolkien", true))
                 .Returns(new List<Book> { matchedBook });
 
@@ -252,7 +252,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 
             candidates.Should().NotBeEmpty();
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Verify(x => x.SearchForNewBook("The Lord of the Rings", "J.R.R. Tolkien", true), Times.Once());
         }
     }

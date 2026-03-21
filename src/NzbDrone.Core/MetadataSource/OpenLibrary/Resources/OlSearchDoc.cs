@@ -48,6 +48,15 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         [JsonPropertyName("ratings_count")]
         public int? RatingsCount { get; set; }
 
+        [JsonPropertyName("want_to_read_count")]
+        public int? WantToReadCount { get; set; }
+
+        [JsonPropertyName("currently_reading_count")]
+        public int? CurrentlyReadingCount { get; set; }
+
+        [JsonPropertyName("already_read_count")]
+        public int? AlreadyReadCount { get; set; }
+
         [JsonPropertyName("edition_count")]
         public int? EditionCount { get; set; }
     }

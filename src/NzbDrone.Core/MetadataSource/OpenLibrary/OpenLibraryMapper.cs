@@ -31,7 +31,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var workId = NormalizeOpenLibraryToken(ExtractOlid(doc.Key), "W");
+            var workId = OpenLibraryIdNormalizer.EnsureToken(ExtractOlid(doc.Key), "W");
 
             var authorMetadata = BuildAuthorMetadataFromSearchDoc(doc);
 
@@ -41,13 +41,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 TitleSlug = workId,
                 Title = doc.Title.CleanSpaces(),
                 Isbn13 = doc.Isbn?.FirstOrDefault(),
+                Language = GetPreferredLanguage(doc.Language),
                 PageCount = doc.NumberOfPagesMedian ?? 0,
                 Monitored = true,
-                Ratings = new Ratings
-                {
-                    Votes = doc.RatingsCount ?? 0,
-                    Value = (decimal)(doc.RatingsAverage ?? 0)
-                }
+                Ratings = BuildRatingsFromSearchDoc(doc)
             };
 
             if (doc.CoverId.HasValue)
@@ -72,11 +69,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     ? (DateTime?)new DateTime(doc.FirstPublishYear.Value, 1, 1)
                     : null,
                 Genres = doc.Subject?.Take(10).ToList() ?? new List<string>(),
-                Ratings = new Ratings
-                {
-                    Votes = doc.RatingsCount ?? 0,
-                    Value = (decimal)(doc.RatingsAverage ?? 0)
-                },
+                Ratings = BuildRatingsFromSearchDoc(doc),
                 AnyEditionOk = true
             };
 
@@ -103,7 +96,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var workId = NormalizeOpenLibraryToken(ExtractOlid(work.Key), "W");
+            var workId = OpenLibraryIdNormalizer.EnsureToken(ExtractOlid(work.Key), "W");
 
             var authorMetadata = primaryAuthor != null
                 ? MapAuthorToMetadata(primaryAuthor)
@@ -147,7 +140,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var authorId = NormalizeOpenLibraryToken(ExtractOlid(author.Key), "A");
+            var authorId = OpenLibraryIdNormalizer.EnsureToken(ExtractOlid(author.Key), "A");
 
             var metadata = new AuthorMetadata
             {
@@ -193,7 +186,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var editionId = NormalizeOpenLibraryToken(ExtractOlid(edition.Key), "M");
+            var editionId = OpenLibraryIdNormalizer.EnsureToken(ExtractOlid(edition.Key), "M");
             var isbn13 = edition.Isbn13?.FirstOrDefault() ?? edition.Isbn10?.FirstOrDefault();
 
             var result = new Edition
@@ -205,7 +198,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Publisher = edition.Publishers?.FirstOrDefault(),
                 PageCount = edition.NumberOfPages ?? 0,
                 ReleaseDate = ParsePublishDate(edition.PublishDate),
+                Language = GetPreferredLanguage(edition.Languages?.Select(x => x?.Key)),
                 Format = edition.PhysicalFormat,
+                IsEbook = IsEbookFormat(edition.PhysicalFormat),
                 Overview = edition.Description,
                 Monitored = true,
                 Ratings = new Ratings { Votes = 0, Value = 0 }
@@ -231,7 +226,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var authorName = doc.AuthorName?.FirstOrDefault() ?? "Unknown Author";
             var authorKey = doc.AuthorKey?.FirstOrDefault();
             var authorId = authorKey.IsNotNullOrWhiteSpace()
-                ? NormalizeOpenLibraryToken(ExtractOlid(authorKey), "A")
+                ? OpenLibraryIdNormalizer.EnsureToken(ExtractOlid(authorKey), "A")
                 : null;
             var foreignAuthorId = authorId.IsNotNullOrWhiteSpace()
                 ? $"openlibrary:author:{authorId}"
@@ -262,6 +257,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 TitleSlug = workOlid,
                 Title = (work.Title ?? string.Empty).CleanSpaces(),
                 Overview = work.Description,
+                ReleaseDate = ParseYear(work.FirstPublishDate),
                 Monitored = true,
                 Ratings = new Ratings { Votes = 0, Value = 0 }
             };
@@ -314,27 +310,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             // Strip type suffix letter + trailing chars: OL26320A -> 26320
             // Keep the full token as-is for use as ForeignId (e.g. OL26320A)
             return raw;
-        }
-
-        private static string NormalizeOpenLibraryToken(string key, string expectedSuffix)
-        {
-            if (key.IsNullOrWhiteSpace())
-            {
-                return key;
-            }
-
-            var normalized = key.Trim();
-
-            if (normalized.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase))
-            {
-                var lastColon = normalized.LastIndexOf(':');
-                normalized = lastColon >= 0 ? normalized.Substring(lastColon + 1) : normalized;
-            }
-
-            return normalized.StartsWith("OL", StringComparison.OrdinalIgnoreCase) ||
-                   normalized.EndsWith(expectedSuffix, StringComparison.OrdinalIgnoreCase)
-                ? normalized
-                : $"OL{normalized}{expectedSuffix}";
         }
 
         private static DateTime? ParseYear(string text)
@@ -404,6 +379,70 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return null;
+        }
+
+        private static Ratings BuildRatingsFromSearchDoc(OlSearchDoc doc)
+        {
+            var ratingValue = (decimal)(doc.RatingsAverage ?? 0);
+            var ratingVotes = doc.RatingsCount ?? 0;
+            var ratingPopularity = (double)ratingValue * ratingVotes;
+            var readingPopularity = (doc.WantToReadCount ?? 0) + (doc.CurrentlyReadingCount ?? 0) + (doc.AlreadyReadCount ?? 0);
+
+            if (readingPopularity > ratingPopularity)
+            {
+                var effectiveValue = ratingValue > 0 ? ratingValue : 1m;
+                var effectiveVotes = (int)Math.Ceiling(readingPopularity / (double)effectiveValue);
+
+                return new Ratings
+                {
+                    Votes = Math.Max(effectiveVotes, 1),
+                    Value = effectiveValue
+                };
+            }
+
+            return new Ratings
+            {
+                Votes = ratingVotes,
+                Value = ratingValue
+            };
+        }
+
+        private static string GetPreferredLanguage(IEnumerable<string> languages)
+        {
+            var tokens = languages?
+                .Select(ExtractLanguageToken)
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (tokens == null || tokens.Count == 0)
+            {
+                return null;
+            }
+
+            return tokens.FirstOrDefault(x => x.Equals("eng", StringComparison.OrdinalIgnoreCase)) ?? tokens.First();
+        }
+
+        private static string ExtractLanguageToken(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var last = value.LastIndexOf('/');
+            return (last >= 0 ? value.Substring(last + 1) : value).Trim();
+        }
+
+        private static bool IsEbookFormat(string format)
+        {
+            if (format.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            var normalized = format.ToLowerInvariant();
+            return normalized.Contains("ebook") || normalized.Contains("e-book") || normalized.Contains("epub") || normalized.Contains("kindle") || normalized.Contains("pdf") || normalized.Contains("digital");
         }
     }
 }

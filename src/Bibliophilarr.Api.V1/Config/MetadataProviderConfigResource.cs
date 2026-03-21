@@ -5,8 +5,8 @@ namespace Bibliophilarr.Api.V1.Config
 {
     public class MetadataProviderConfigResource : RestResource
     {
-        public bool EnableBookInfoProvider { get; set; }
         public bool EnableOpenLibraryProvider { get; set; }
+        public bool EnableGoogleBooksProvider { get; set; }
         public bool EnableInventaireProvider { get; set; }
         public string MetadataProviderPriorityOrder { get; set; }
         public int MetadataProviderTimeoutSeconds { get; set; }
@@ -37,8 +37,8 @@ namespace Bibliophilarr.Api.V1.Config
             return new MetadataProviderConfigResource
             {
                 Id = 1,
-                EnableBookInfoProvider = model.EnableBookInfoProvider,
                 EnableOpenLibraryProvider = model.EnableOpenLibraryProvider,
+                EnableGoogleBooksProvider = model.EnableGoogleBooksProvider,
                 EnableInventaireProvider = model.EnableInventaireProvider,
                 MetadataProviderPriorityOrder = model.MetadataProviderPriorityOrder,
                 MetadataProviderTimeoutSeconds = model.MetadataProviderTimeoutSeconds,

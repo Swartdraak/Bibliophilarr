@@ -228,11 +228,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var editionKey = ExtractEditionKey(edition.Key);
             var title = edition.Title.IsNotNullOrWhiteSpace() ? edition.Title.Trim() : editionKey;
-            var authorSlug = edition.Authors?.Select(a => a.Key)
-                .Where(k => k.IsNotNullOrWhiteSpace())
-                .Select(k => k.Replace("/authors/", string.Empty).Trim())
-                .FirstOrDefault();
-            var authorName = authorSlug.IsNotNullOrWhiteSpace() ? authorSlug : "Unknown Author";
+            var authorKey = edition.Authors?
+                .Select(a => NormalizeAuthorKey(a.Key))
+                .FirstOrDefault(k => k.IsNotNullOrWhiteSpace());
+            var authorName = authorKey.IsNotNullOrWhiteSpace() ? authorKey : "Unknown Author";
             var isbn13 = edition.Isbn13?.FirstOrDefault(IsThirteenDigitIsbn)
                 ?? (Isbn13Regex.IsMatch(lookupIsbn) ? lookupIsbn : null);
             var publishYear = ParseEditionPublishYear(edition.PublishDate);
@@ -242,7 +241,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var authorMetadata = new AuthorMetadata
             {
-                ForeignAuthorId = $"openlibrary:author:{NormalizeId(authorName)}",
+                ForeignAuthorId = authorKey.IsNotNullOrWhiteSpace()
+                    ? $"openlibrary:author:{authorKey}"
+                    : "openlibrary:author:unknown-author",
                 Name = authorName,
                 SortName = authorName,
                 NameLastFirst = authorName,
@@ -306,7 +307,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var title = doc.Title.IsNotNullOrWhiteSpace() ? doc.Title.Trim() : workKey;
             var authorName = doc.AuthorNames?.FirstOrDefault(x => x.IsNotNullOrWhiteSpace())?.Trim() ?? "Unknown Author";
-            var authorKey = doc.AuthorKeys?.FirstOrDefault(x => x.IsNotNullOrWhiteSpace());
+            var authorKey = NormalizeAuthorKey(doc.AuthorKeys?.FirstOrDefault(x => x.IsNotNullOrWhiteSpace()));
 
             var authorMetadata = new AuthorMetadata
             {
@@ -478,7 +479,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 normalized = normalized.Substring("/authors/".Length);
             }
 
-            return normalized.Trim();
+            normalized = normalized.Trim();
+            var canonical = OpenLibraryIdNormalizer.NormalizeAuthorId(normalized);
+
+            return canonical.IsNotNullOrWhiteSpace() ? canonical : normalized;
         }
 
         private static Author MapAuthor(OpenLibraryAuthorResource resource, string authorKey)
