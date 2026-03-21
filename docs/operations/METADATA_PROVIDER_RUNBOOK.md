@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This runbook defines how operators detect provider degradation, tune fallback behavior, and safely recover metadata operations when Open Library, BookInfo, or Inventaire are unstable.
+This runbook defines how operators detect provider degradation, tune fallback behavior, and safely recover metadata operations when Open Library, Google Books, BookInfo, or Inventaire are unstable.
 
 ## Scope
 
@@ -91,6 +91,104 @@ Action at critical:
 4. Increase circuit-breaker sensitivity for hard outages:
    - Lower `metadataProviderCircuitBreakerThreshold`.
    - Keep `metadataProviderCircuitBreakerDurationSeconds` non-zero to avoid request storms.
+5. Validate Google Books runtime controls when fallback coverage is needed:
+   - Ensure `enableGoogleBooksProvider` is true.
+   - Ensure `enableGoogleBooksFallback` is true.
+   - Configure `googleBooksApiKey` for higher quota and better response consistency.
+
+## Google Books configuration checklist
+
+Use this checklist after metadata-provider config changes or incident recovery:
+
+1. Read current settings from `GET /api/v1/config/metadataprovider`.
+2. Confirm `enableGoogleBooksProvider` and `enableGoogleBooksFallback` are set as intended.
+3. Confirm `googleBooksApiKey` is populated in secure settings storage when quota-sensitive workloads are expected.
+4. Confirm provider ordering includes GoogleBooks where intended in `metadataProviderPriorityOrder`.
+5. Run a known book lookup and verify provider telemetry increments for GoogleBooks operation counters.
+
+## Series metadata validation
+
+Open Library can provide series information through search-document fields. Bibliophilarr maps these fields into
+book series links and author series during refresh.
+
+Validation steps:
+
+1. Refresh an author with known series data.
+2. Query `GET /api/v1/book?authorId=<id>` and verify `seriesTitle` values are populated.
+3. Query `GET /api/v1/series?authorId=<id>` and verify expected link counts and positions.
+4. In UI naming preview, validate series tokens resolve for titles with linked series:
+   - `{Book Series}`
+   - `{Book SeriesPosition}`
+   - `{Book SeriesTitle}`
+
+### Series source caveat (OpenLibrary works feed)
+
+For the `authors/{authorId}/works.json` path, `entries[]` commonly do not include a `series` field.
+Series enrichment is expected to come from search-document fields (`series`, `series_with_number`) and
+must be explicitly requested in OpenLibrary search field selection.
+
+Operator verification:
+
+1. Sample the live works feed for a known author and confirm whether `entries[].series` exists.
+2. If works feed lacks `series`, verify application logs include search requests that request
+   `series,series_with_number` fields.
+3. Re-run author refresh and confirm `Series` / `SeriesBookLink` rows are no longer zero.
+
+Recommended DB verification query:
+
+```sql
+SELECT
+  (SELECT COUNT(*) FROM "Series") AS series_count,
+  (SELECT COUNT(*) FROM "SeriesBookLink") AS series_link_count;
+```
+
+If both counts remain zero after refresh, treat this as a metadata ingestion defect and escalate to
+the metadata migration backlog.
+
+## Rename no-op diagnosis (forced rename)
+
+Forced rename can execute correctly but still produce no filesystem changes when generated destination
+paths match existing source paths.
+
+Expected evidence in logs:
+
+- Command execution entries such as `Renaming all files for selected author`.
+- No-op entries such as `File not renamed, source and destination are the same`.
+- Optional mixed outcomes where some files are renamed and others are unchanged.
+
+Important behavior notes:
+
+- Rename path generation uses DB metadata + naming tokens, not tag-writing side effects.
+- If series links are missing (`SeriesBookLink = 0`), series tokens may collapse to empty components.
+- Missing edition linkage can reduce rename coverage for affected files.
+
+Operator triage steps:
+
+1. Confirm naming config is enabled:
+   - `NamingConfig.RenameBooks = 1`
+   - standard format contains intended tokens.
+2. Trigger forced rename for a controlled author sample.
+3. Inspect logs for changed vs unchanged outcomes.
+4. Validate metadata linkage before re-running rename:
+   - series links present for series-token usage.
+   - edition linkage present for renamed file set.
+
+Recommended SQL checks:
+
+```sql
+SELECT "RenameBooks", "StandardBookFormat"
+FROM "NamingConfig"
+LIMIT 1;
+
+SELECT
+  COUNT(*) AS total_files,
+  SUM(CASE WHEN "EditionId" IS NULL OR "EditionId" = 0 THEN 1 ELSE 0 END) AS missing_edition_links
+FROM "BookFiles";
+```
+
+When forced rename is mostly unchanged due to identical paths, this is expected behavior and not a
+pipeline failure. Escalate only if logs show rename command execution without either no-op or success
+per-file outcomes.
 
 ## Queued RescanFolders triage (migration-safe)
 

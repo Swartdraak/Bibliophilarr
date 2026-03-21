@@ -116,5 +116,11 @@ namespace NzbDrone.Core.Configuration
         int MetadataProviderRetryBudget { get; set; }
         int MetadataProviderCircuitBreakerThreshold { get; set; }
         int MetadataProviderCircuitBreakerDurationSeconds { get; set; }
+        int OpenLibrarySearchTimeoutSeconds { get; set; }
+        int OpenLibraryIsbnTimeoutSeconds { get; set; }
+        int OpenLibraryWorkTimeoutSeconds { get; set; }
+        int OpenLibrarySearchRetryBudget { get; set; }
+        int OpenLibraryIsbnRetryBudget { get; set; }
+        int OpenLibraryWorkRetryBudget { get; set; }
     }
 }

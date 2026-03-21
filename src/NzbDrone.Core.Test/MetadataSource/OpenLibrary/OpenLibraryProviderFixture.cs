@@ -68,7 +68,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Returns(BuildAuthor());
 
             _clientMock
-                .Setup(c => c.Search("author_key:/authors/OL26320A", It.IsAny<int>(), It.IsAny<int>()))
+                .Setup(c => c.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()))
                 .Returns(new OlSearchResponse { Docs = new List<OlSearchDoc>() });
 
             var results = Subject.SearchForNewBook("author:OL26320A", null);
@@ -134,7 +134,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Returns(BuildAuthor());
 
             _clientMock
-                .Setup(c => c.Search("author_key:/authors/OL26320A", It.IsAny<int>(), It.IsAny<int>()))
+                .Setup(c => c.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()))
                 .Returns(new OlSearchResponse { Docs = new List<OlSearchDoc>() });
 
             var result = Subject.GetAuthorInfo("openlibrary:author:OL26320A");
@@ -144,7 +144,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             result.Metadata.Value.OpenLibraryAuthorId.Should().Be("OL26320A");
 
             _clientMock.Verify(c => c.GetAuthor("OL26320A"), Times.Once);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", It.IsAny<int>(), It.IsAny<int>()), Times.Once);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()), Times.Once);
         }
 
         [Test]
@@ -167,11 +167,11 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             }
 
             _clientMock
-                .Setup(c => c.Search("author_key:/authors/OL26320A", 100, 0))
+                .Setup(c => c.Search("author_key:OL26320A", 100, 0))
                 .Returns(new OlSearchResponse { NumFound = 101, Docs = firstPage });
 
             _clientMock
-                .Setup(c => c.Search("author_key:/authors/OL26320A", 100, 100))
+                .Setup(c => c.Search("author_key:OL26320A", 100, 100))
                 .Returns(new OlSearchResponse
                 {
                     NumFound = 101,
@@ -191,8 +191,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             result.Should().NotBeNull();
             result.Books.Value.Should().HaveCount(101);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", 100, 0), Times.Once);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", 100, 100), Times.Once);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 0), Times.Once);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 100), Times.Once);
         }
 
         [Test]
@@ -203,20 +203,20 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Returns(BuildAuthor());
 
             _clientMock
-                .Setup(c => c.Search("author_key:/authors/OL26320A", 100, 0))
+                .Setup(c => c.Search("author_key:OL26320A", 100, 0))
                 .Returns(new OlSearchResponse { NumFound = 10000, Docs = BuildSearchDocs(100, 0) });
 
             _clientMock
-                .Setup(c => c.Search("author_key:/authors/OL26320A", 100, 100))
+                .Setup(c => c.Search("author_key:OL26320A", 100, 100))
                 .Returns(new OlSearchResponse { NumFound = 10000, Docs = BuildSearchDocs(3, 100) });
 
             var result = Subject.GetAuthorInfo("openlibrary:author:OL26320A");
 
             result.Should().NotBeNull();
             result.Books.Value.Should().HaveCount(103);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", 100, 0), Times.Once);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", 100, 100), Times.Once);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", 100, 103), Times.Never);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 0), Times.Once);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 100), Times.Once);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 103), Times.Never);
         }
 
         [Test]
@@ -227,7 +227,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Returns(BuildAuthor());
 
             _clientMock
-                .Setup(c => c.Search("author_key:/authors/OL26320A", 100, It.IsAny<int>()))
+                .Setup(c => c.Search("author_key:OL26320A", 100, It.IsAny<int>()))
                 .Returns((string _, int _, int offset) => new OlSearchResponse
                 {
                     NumFound = 5000,
@@ -238,9 +238,119 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             result.Should().NotBeNull();
             result.Books.Value.Should().HaveCount(1000);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", 100, 0), Times.Once);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", 100, 900), Times.Once);
-            _clientMock.Verify(c => c.Search("author_key:/authors/OL26320A", 100, 1000), Times.Never);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 0), Times.Once);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 900), Times.Once);
+            _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 1000), Times.Never);
+        }
+
+        [Test]
+        public void get_author_info_should_enrich_series_from_search_docs_and_expose_author_series_links()
+        {
+            _clientMock
+                .Setup(c => c.GetAuthor("OL26320A"))
+                .Returns(BuildAuthor());
+
+            _clientMock
+                .Setup(c => c.GetAuthorWorks("OL26320A", It.IsAny<int>(), It.IsAny<int>()))
+                .Returns(new OlAuthorWorksResponse
+                {
+                    Entries = new List<OlWorkResource>
+                    {
+                        new OlWorkResource
+                        {
+                            Key = "/works/OL45883W",
+                            Title = "The Lord of the Rings",
+                            FirstPublishDate = "1954"
+                        }
+                    },
+                    Size = 1
+                });
+
+            _clientMock
+                .Setup(c => c.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()))
+                .Returns(new OlSearchResponse
+                {
+                    NumFound = 1,
+                    Docs = new List<OlSearchDoc>
+                    {
+                        new OlSearchDoc
+                        {
+                            Key = "/works/OL45883W",
+                            Title = "The Lord of the Rings",
+                            AuthorName = new List<string> { "J.R.R. Tolkien" },
+                            AuthorKey = new List<string> { "/authors/OL26320A" },
+                            SeriesWithNumber = new List<string> { "The Lord of the Rings #1" },
+                            Series = new List<string> { "The Lord of the Rings" }
+                        }
+                    }
+                });
+
+            var author = Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+
+            author.Should().NotBeNull();
+            author.Books.Value.Should().HaveCount(1);
+            author.Books.Value[0].SeriesLinks.Value.Should().NotBeEmpty();
+            author.Books.Value[0].SeriesLinks.Value[0].Series.Value.Title.Should().Be("The Lord of the Rings");
+            author.Series?.Value.Should().NotBeEmpty();
+            author.Series.Value[0].LinkItems?.Value.Should().HaveCount(1);
+        }
+
+        [Test]
+        public void get_author_info_should_use_works_as_identity_source_when_search_docs_do_not_match_work_keys()
+        {
+            _clientMock
+                .Setup(c => c.GetAuthor("OL26320A"))
+                .Returns(BuildAuthor());
+
+            _clientMock
+                .Setup(c => c.GetAuthorWorks("OL26320A", It.IsAny<int>(), It.IsAny<int>()))
+                .Returns(new OlAuthorWorksResponse
+                {
+                    Entries = new List<OlWorkResource>
+                    {
+                        new OlWorkResource
+                        {
+                            Key = "/works/OL45883W",
+                            Title = "Canonical Work Title",
+                            FirstPublishDate = "1954"
+                        }
+                    },
+                    Size = 1
+                });
+
+            _clientMock
+                .Setup(c => c.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()))
+                .Returns(new OlSearchResponse
+                {
+                    NumFound = 1,
+                    Docs = new List<OlSearchDoc>
+                    {
+                        new OlSearchDoc
+                        {
+                            Key = "/works/OL99999W",
+                            Title = "Non-matching Search Result",
+                            AuthorName = new List<string> { "J.R.R. Tolkien" },
+                            AuthorKey = new List<string> { "/authors/OL26320A" },
+                            SeriesWithNumber = new List<string> { "Non Matching Series #9" }
+                        }
+                    }
+                });
+
+            var author = Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+
+            author.Should().NotBeNull();
+            author.Books.Value.Should().HaveCount(1);
+            author.Books.Value[0].ForeignBookId.Should().Be("openlibrary:work:OL45883W");
+            author.Books.Value[0].Title.Should().Be("Canonical Work Title");
+            if (author.Books.Value[0].SeriesLinks != null)
+            {
+                author.Books.Value[0].SeriesLinks.Value.Should().BeEmpty();
+            }
+
+            if (author.Series != null)
+            {
+                author.Series.Value.Should().BeEmpty();
+            }
         }
 
         [Test]

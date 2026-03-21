@@ -527,6 +527,42 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("MetadataProviderCircuitBreakerDurationSeconds", value); }
         }
 
+        public int OpenLibrarySearchTimeoutSeconds
+        {
+            get { return GetValueInt("OpenLibrarySearchTimeoutSeconds", 0); }
+            set { SetValue("OpenLibrarySearchTimeoutSeconds", value); }
+        }
+
+        public int OpenLibraryIsbnTimeoutSeconds
+        {
+            get { return GetValueInt("OpenLibraryIsbnTimeoutSeconds", 0); }
+            set { SetValue("OpenLibraryIsbnTimeoutSeconds", value); }
+        }
+
+        public int OpenLibraryWorkTimeoutSeconds
+        {
+            get { return GetValueInt("OpenLibraryWorkTimeoutSeconds", 0); }
+            set { SetValue("OpenLibraryWorkTimeoutSeconds", value); }
+        }
+
+        public int OpenLibrarySearchRetryBudget
+        {
+            get { return GetValueInt("OpenLibrarySearchRetryBudget", -1); }
+            set { SetValue("OpenLibrarySearchRetryBudget", value); }
+        }
+
+        public int OpenLibraryIsbnRetryBudget
+        {
+            get { return GetValueInt("OpenLibraryIsbnRetryBudget", -1); }
+            set { SetValue("OpenLibraryIsbnRetryBudget", value); }
+        }
+
+        public int OpenLibraryWorkRetryBudget
+        {
+            get { return GetValueInt("OpenLibraryWorkRetryBudget", -1); }
+            set { SetValue("OpenLibraryWorkRetryBudget", value); }
+        }
+
         private string GetValue(string key)
         {
             return GetValue(key, string.Empty);

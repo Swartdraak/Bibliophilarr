@@ -118,13 +118,55 @@ function MetadataProvider(props) {
 
               <FormGroup>
                 <FormLabel>
+                  Enable Google Books Provider
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableGoogleBooksProvider"
+                  helpText="Enable Google Books provider for additional metadata coverage when available."
+                  onChange={onInputChange}
+                  {...settings.enableGoogleBooksProvider}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Enable Google Books Fallback
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableGoogleBooksFallback"
+                  helpText="Allow Google Books fallback query expansion when primary lookup returns no usable result."
+                  onChange={onInputChange}
+                  {...settings.enableGoogleBooksFallback}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Google Books API Key
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.PASSWORD}
+                  name="googleBooksApiKey"
+                  helpText="Optional but recommended for higher Google Books request quota and consistency."
+                  onChange={onInputChange}
+                  {...settings.googleBooksApiKey}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
                   Provider Priority Order
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.TEXT}
                   name="metadataProviderPriorityOrder"
-                  helpText="Comma-separated provider order, e.g. OpenLibrary,Inventaire"
+                  helpText="Comma-separated provider order, e.g. OpenLibrary,GoogleBooks,Inventaire"
                   onChange={onInputChange}
                   {...settings.metadataProviderPriorityOrder}
                 />

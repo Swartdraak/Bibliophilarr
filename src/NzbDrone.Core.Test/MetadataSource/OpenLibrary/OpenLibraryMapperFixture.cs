@@ -70,6 +70,47 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         [Test]
+        public void map_search_doc_should_not_map_negative_cover_ids()
+        {
+            var doc = new OlSearchDoc
+            {
+                Key = "/works/OL99W",
+                Title = "Invalid Cover",
+                AuthorName = new List<string> { "Test Author" },
+                AuthorKey = new List<string> { "/authors/OL1A" },
+                CoverId = -1
+            };
+
+            var book = OpenLibraryMapper.MapSearchDocToBook(doc);
+
+            book.Should().NotBeNull();
+            book.Editions.Value[0].Images.Should().BeEmpty();
+        }
+
+        [Test]
+        public void map_search_doc_should_map_series_links_from_series_fields()
+        {
+            var doc = new OlSearchDoc
+            {
+                Key = "/works/OL123W",
+                Title = "Series Book",
+                AuthorName = new List<string> { "Series Author" },
+                AuthorKey = new List<string> { "/authors/OL777A" },
+                SeriesWithNumber = new List<string> { "Epic Saga #2" },
+                Series = new List<string> { "Epic Saga" }
+            };
+
+            var book = OpenLibraryMapper.MapSearchDocToBook(doc);
+
+            book.Should().NotBeNull();
+            book.SeriesLinks.Value.Should().HaveCount(1);
+            book.SeriesLinks.Value[0].Series.Value.Title.Should().Be("Epic Saga");
+            book.SeriesLinks.Value[0].Position.Should().Be("2");
+            book.SeriesLinks.Value[0].SeriesPosition.Should().Be(2);
+            book.SeriesLinks.Value[0].Series.Value.ForeignSeriesId.Should().Be("openlibrary:series:ol777a:epic-saga");
+        }
+
+        [Test]
         public void map_search_doc_should_use_reading_engagement_for_popularity_when_higher_than_ratings()
         {
             var doc = new OlSearchDoc

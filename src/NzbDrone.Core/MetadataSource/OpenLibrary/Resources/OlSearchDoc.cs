@@ -42,6 +42,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         [JsonPropertyName("subject")]
         public List<string> Subject { get; set; }
 
+        [JsonPropertyName("series")]
+        public List<string> Series { get; set; }
+
+        [JsonPropertyName("series_with_number")]
+        public List<string> SeriesWithNumber { get; set; }
+
         [JsonPropertyName("ratings_average")]
         public double? RatingsAverage { get; set; }
 

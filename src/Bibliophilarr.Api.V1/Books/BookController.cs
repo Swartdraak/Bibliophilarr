@@ -242,6 +242,11 @@ namespace Bibliophilarr.Api.V1.Books
         [NonAction]
         public void Handle(BookFileDeletedEvent message)
         {
+            if (message?.BookFile?.Edition?.Value?.Book?.Value == null)
+            {
+                return;
+            }
+
             if (message.Reason == DeleteMediaFileReason.Upgrade)
             {
                 return;

@@ -74,13 +74,94 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .DistinctBy(b => b.ForeignBookId)
                 .ToList();
 
+            if (!books.Any() && workDocsById.Any())
+            {
+                books = BuildBooksFromSearchDocFallback(workDocsById.Values, metadata);
+            }
+
+            var series = BuildAuthorSeries(books);
+
             return new Author
             {
                 Metadata = metadata,
                 CleanName = Parser.Parser.CleanAuthorName(metadata.Name),
                 Books = books,
-                Series = new List<Series>()
+                Series = series
             };
+        }
+
+        private static List<Book> BuildBooksFromSearchDocFallback(IEnumerable<OlSearchDoc> docs, AuthorMetadata metadata)
+        {
+            return (docs ?? Enumerable.Empty<OlSearchDoc>())
+                .Select(OpenLibraryMapper.MapSearchDocToBook)
+                .Where(book => book != null)
+                .Select(book =>
+                {
+                    book.AuthorMetadata = metadata;
+                    if (book.Author?.Value != null)
+                    {
+                        book.Author.Value.Metadata = metadata;
+                    }
+
+                    return book;
+                })
+                .DistinctBy(book => book.ForeignBookId)
+                .ToList();
+        }
+
+        private static List<Series> BuildAuthorSeries(IEnumerable<Book> books)
+        {
+            var links = books?
+                .Where(book => book?.SeriesLinks?.Value?.Any() == true)
+                .SelectMany(book => book.SeriesLinks.Value)
+                .Where(link => link?.Series?.Value != null &&
+                               link.Series.Value.ForeignSeriesId.IsNotNullOrWhiteSpace() &&
+                               link.Book?.Value != null &&
+                               link.Book.Value.ForeignBookId.IsNotNullOrWhiteSpace())
+                .ToList() ?? new List<SeriesBookLink>();
+
+            if (!links.Any())
+            {
+                return new List<Series>();
+            }
+
+            var grouped = links
+                .GroupBy(link => link.Series.Value.ForeignSeriesId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var series = new List<Series>();
+
+            foreach (var group in grouped)
+            {
+                var template = group.First().Series.Value;
+                var dedupedLinks = group
+                    .GroupBy(link => link.Book.Value.ForeignBookId, StringComparer.OrdinalIgnoreCase)
+                    .Select(linkGroup => linkGroup
+                        .OrderByDescending(link => link.IsPrimary)
+                        .ThenBy(link => link.SeriesPosition)
+                        .First())
+                    .ToList();
+
+                var hydrated = new Series
+                {
+                    ForeignSeriesId = template.ForeignSeriesId,
+                    Title = template.Title,
+                    Description = template.Description,
+                    Numbered = dedupedLinks.Any(link => link.Position.IsNotNullOrWhiteSpace()),
+                    WorkCount = dedupedLinks.Count,
+                    PrimaryWorkCount = dedupedLinks.Count(link => link.IsPrimary),
+                    LinkItems = dedupedLinks
+                };
+
+                foreach (var link in dedupedLinks)
+                {
+                    link.Series = hydrated;
+                }
+
+                series.Add(hydrated);
+            }
+
+            return series.OrderBy(x => x.Title).ToList();
         }
 
         private List<OlWorkResource> GetAuthorWorkEntries(string normalizedAuthorId)
@@ -173,6 +254,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 book = OpenLibraryMapper.MapSearchDocToBook(searchDoc) ?? workBook;
             }
 
+            // Contract: works feed is the identity source; search docs are enrichment.
+            ApplyWorksIdentityContract(book, workBook);
             EnrichBookFromWork(book, workBook);
 
             book.AuthorMetadata = metadata;
@@ -182,6 +265,29 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return book;
+        }
+
+        private static void ApplyWorksIdentityContract(Book book, Book workBook)
+        {
+            if (book == null || workBook == null)
+            {
+                return;
+            }
+
+            if (workBook.ForeignBookId.IsNotNullOrWhiteSpace())
+            {
+                book.ForeignBookId = workBook.ForeignBookId;
+            }
+
+            if (workBook.OpenLibraryWorkId.IsNotNullOrWhiteSpace())
+            {
+                book.OpenLibraryWorkId = workBook.OpenLibraryWorkId;
+            }
+
+            if (workBook.TitleSlug.IsNotNullOrWhiteSpace())
+            {
+                book.TitleSlug = workBook.TitleSlug;
+            }
         }
 
         private static void EnrichBookFromWork(Book book, Book workBook)

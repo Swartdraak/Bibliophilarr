@@ -47,6 +47,28 @@ Migration safety posture:
 - No destructive schema changes were introduced in this slice.
 - Existing fallback behavior is preserved while routing now uses health-aware ordering.
 
+## Implementation Progress Snapshot (March 21, 2026 hardening follow-up)
+
+Completed in this hardening slice:
+
+- Event handler stability (`TD-EVENT-001`): guarded `BookFileDeletedEvent` subscriber paths to prevent null-chain faults.
+- Cover pipeline resilience (`TD-COVER-001`, `TD-COVER-002`, `TD-COVER-003`):
+    - host-aware OpenLibrary cover throttling/cooldown,
+    - invalid cover-id URL suppression,
+    - stale local cover reconciliation and safer missing-file URL fallback.
+- Series contract hardening (`TD-META-SERIES-001`, `TD-META-SERIES-002`):
+    - OpenLibrary search now requests series fields,
+    - deterministic works-identity + search-enrichment merge contract implemented.
+- OpenLibrary operation tuning (`TD-OPENLIB-001`, `TD-ORCH-001`): per-operation timeout and retry settings (`search`, `isbn`, `work`) added across config/API/client plumbing.
+- Refresh deletion safeguards (`TD-IMPORT-001`): two-phase stale mark/delete with degraded-provider suppression.
+- Operational warning-noise control (`TD-OPS-INDEXER-001`): rate-limited no-indexer warning behavior with actionable guidance.
+
+Validation status for this slice:
+
+- Core targeted fixtures: pass (49/49).
+- API targeted fixtures: pass (2/2).
+- Full solution build: pass.
+
 Additional migration progress (March 18, 2026):
 
 - Goodreads provider implementations were removed from active runtime source trees and replaced by OpenLibrary-aligned metadata/search behavior.
@@ -208,6 +230,26 @@ Acceptance criteria:
 Rollback/mitigation:
 
 - Disable verbose scoring traces while keeping selection behavior unchanged.
+
+#### Runtime-forensics debt intake (March 21, 2026)
+
+The following migration-relevant debt was identified from production-like runtime forensics
+(`~/.config/Bibliophilarr` logs + DB state) and is tracked in canonical status records:
+
+- `TD-RUNTIME-001`: null-reference faults in `BookFileDeletedEvent` subscriber paths.
+- `TD-META-006`: series ingestion gap remains unresolved in runtime (`Series` and
+    `SeriesBookLink` persisted counts at zero).
+- `TD-META-007`: OpenLibrary timeout/503 resilience hardening still needed for sustained
+    migration safety.
+- `TD-IMPORT-004`: refresh hard-delete behavior under provider degradation requires
+    two-phase stale-mark safeguards.
+- `TD-RENAME-001` and `TD-RENAME-002`: rename user-perception and linkage preflight gaps.
+
+Migration risk note:
+
+- Series-based naming outcomes and migration confidence remain constrained until
+    `TD-META-006` is complete, because current OpenLibrary `works.json` flows do not reliably
+    provide `series` and runtime enrichment must come from search-document fields.
 
 ## Table of Contents
 

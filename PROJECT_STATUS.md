@@ -21,6 +21,140 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 
 ## Latest Delivery Update
 
+### March 21, 2026 TD hardening batch (event/cover/series/openlibrary/import/indexer)
+
+Completed implementation and validation of a focused hardening batch spanning event safety,
+OpenLibrary resilience, cover-request protection, series enrichment contracts, and refresh-delete safeguards.
+
+Delivered scope:
+
+1. `TD-EVENT-001` (P0): Book file deletion event guardrails
+  - Added defensive payload null guards in:
+    - `BookController.Handle(BookFileDeletedEvent)`
+    - `MediaFileDeletionService.Handle(BookFileDeletedEvent)`
+    - `NotificationService.Handle(BookFileDeletedEvent)`
+  - Added regression fixtures:
+    - `BookControllerEventGuardFixture`
+    - `NotificationServiceBookFileDeletedEventGuardFixture`
+    - `MediaFileDeletionServiceBookFileDeletedEventGuardFixture`
+
+2. `TD-COVER-001` (P0): OpenLibrary cover throttling resilience
+  - Added host-scoped token-bucket request shaping for OpenLibrary covers.
+  - Added adaptive cooldown with jitter on 429/503/timeout responses.
+  - Added request suppression path to avoid immediate retry storms.
+
+3. `TD-COVER-002` (P1): invalid cover id protection
+  - Enforced positive-id checks before constructing OpenLibrary cover URLs in mapper paths for search docs, works, editions, and author photos.
+  - Added mapper regression asserting `cover_i = -1` does not produce image links.
+
+4. `TD-COVER-003` (P1): stale local cover reconciliation
+  - Added cover folder reconciliation pass during author refresh to remove stale/zero-byte files.
+  - Updated local URL mapping fallback to proxy remote cover URLs when local files are missing, reducing missing-file churn.
+
+5. `TD-META-SERIES-001` (P0): series enrichment request + persistence path hardening
+  - Added `series,series_with_number` to OpenLibrary search field selection.
+  - Retained works-first bibliography identity while enabling search-doc series enrichment.
+  - Added provider tests validating author/book series link materialization.
+
+6. `TD-META-SERIES-002` (P1): source-of-truth merge contract formalization
+  - Formalized and implemented deterministic merge contract:
+    - works feed is identity source for work IDs/title slug.
+    - search docs are enrichment source (including series fields).
+  - Added contract coverage for matching and non-matching works/search key scenarios.
+
+7. `TD-OPENLIB-001` (P1) and `TD-ORCH-001` (P1): operation-specific OpenLibrary resilience tuning
+  - Added operation-class timeout/retry budget plumbing for OpenLibrary (`search`, `isbn`, `work`) via config contract/API resource.
+  - OpenLibrary client now applies operation-specific values with global fallback defaults.
+  - Added API validation rules and mapper test coverage for new config fields.
+
+8. `TD-IMPORT-001` (P2): two-phase delete safeguard for refresh misses
+  - Added first-miss stale marking in `RefreshBookService`.
+  - Added degraded-provider suppression to prevent hard-delete on transient outage windows.
+  - Added dedicated regression fixture (`RefreshBookDeletionGuardFixture`) proving:
+    - first miss marks stale, second miss deletes,
+    - degraded-provider windows suppress hard-delete.
+
+9. `TD-OPS-INDEXER-001` (P3): warning-noise reduction for indexer-less states
+  - Changed repeated no-indexer warning behavior to rate-limited advisory with actionable guidance.
+
+Validation evidence:
+
+- Core targeted suite:
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~OpenLibraryMapperFixture|FullyQualifiedName~OpenLibraryProviderFixture|FullyQualifiedName~NotificationServiceBookFileDeletedEventGuardFixture|FullyQualifiedName~MediaFileDeletionServiceBookFileDeletedEventGuardFixture|FullyQualifiedName~RefreshBookDeletionGuardFixture"`
+  - Result: Passed 49, Failed 0, Skipped 0.
+
+- API targeted suite:
+  - `dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture"`
+  - Result: Passed 2, Failed 0, Skipped 0.
+
+- Full solution build:
+  - VS Code task `build dotnet`
+  - Result: PASS.
+
+### March 21, 2026 runtime-forensics task register (active instance analysis)
+
+Completed a full runtime analysis pass against `/home/swartdraak/.config/Bibliophilarr`
+including `logs.db`, rolling text logs, and primary metadata database state.
+
+Observed runtime state snapshot:
+
+- Warning lines in text logs: `8231`
+- Error-like lines in text logs: `8292`
+- Dominant warning/error loggers from `logs.db`:
+  - `HttpClient` (warn): `2013`
+  - `MediaCoverService` (warn): `2013`
+  - `EventAggregator` (error): `72`
+  - `EBookTagService` (warn): `42`
+  - `MediaCoverMapper` (warn): `15`
+  - `OpenLibraryClient` (warn): `10`
+- Library persistence state:
+  - Authors: `25`
+  - Books: `4624`
+  - Series: `0`
+  - SeriesBookLink: `0`
+
+Prioritized technical debt tasks (official backlog):
+
+| ID | Priority | Problem statement | Evidence | Proposed change | Validation target |
+|---|---|---|---|---|---|
+| TD-RUNTIME-001 | P0 | Book file deletion events trigger null-reference failures in multiple subscribers. | `EventAggregator` errors for `BookController`, `MediaFileDeletionService`, `NotificationService` on `BookFileDeletedEvent` (72 total). | Add null-safe event handling and defensive payload guards for all `BookFileDeletedEvent` subscribers; add regression fixture that replays delete events with partial payloads. | Zero `EventAggregator` errors for delete-event workflows in targeted replay tests. |
+| TD-META-006 | P0 | Series import remains empty in runtime despite series-token support in naming. | `Series=0`, `SeriesBookLink=0` in DB; `OpenLibraryClient.Search` does not request `series`/`series_with_number` fields. | Add `series,series_with_number` to OpenLibrary search field selection and add integration refresh test asserting series link persistence. | Refresh of known series author yields non-zero `Series` and `SeriesBookLink`; API returns populated `seriesTitle`. |
+| TD-COVER-006 | P0 | Cover download path is heavily rate-limited, creating persistent warning storms and degraded UX. | `HttpClient` and `MediaCoverService` each at 2013 warnings, mostly 429 from covers endpoints. | Add host-scoped adaptive backoff/jitter and cooldown windows for cover endpoints; reduce repeated retries during provider throttling. | 429 warning volume reduced by at least 80 percent under same import workload. |
+| TD-COVER-007 | P1 | Invalid cover IDs (`-1`) are still requested, generating avoidable 429/503 failures. | Repeated failed requests to `.../b/id/-1-L.jpg` and archive fallback endpoints. | Validate cover IDs before request enqueue; skip and mark as unavailable for non-positive IDs. | No outbound cover requests with invalid negative IDs in logs. |
+| TD-COVER-008 | P1 | Local cover mapper references missing files repeatedly, producing warning noise. | Repeated `MediaCoverMapper` warnings for missing poster files (`22/23/24`). | Add reconciliation job to remove stale cover references and refresh missing cover states once per cycle. | Missing-file warnings converge to near-zero after one reconciliation pass. |
+| TD-META-007 | P1 | OpenLibrary endpoint instability (503/timeouts) still propagates into fallback pressure. | `OpenLibraryClient` 503 warnings and orchestrator timeout warnings (`search-for-new-book`). | Add endpoint-specific retry budgets and circuit isolation per operation class (`search`, `isbn`, `work`). | Lower provider-failure streaks and bounded fallback latency in telemetry. |
+| TD-IMPORT-004 | P1 | Refresh path may delete books after metadata misses during degraded provider windows. | `RefreshBookService` warnings showing book deletions due to not found metadata. | Introduce two-phase stale marking before delete and suppress hard delete on transient-provider incidents. | No immediate hard deletes on first-miss during outage simulation. |
+| TD-RENAME-001 | P1 | Forced rename is perceived as no-op because most files resolve to identical destination paths. | Rename logs show frequent `File not renamed, source and destination are the same`. | Improve rename preview/action feedback with explicit unchanged counts and reasons; surface diff summary in UI and command result. | Forced rename presents changed vs unchanged counts and unchanged reason breakdown. |
+| TD-RENAME-002 | P2 | Rename pipeline silently depends on metadata linkage completeness; partially linked files reduce effective rename coverage. | Runtime DB shows many `BookFiles` rows with missing edition linkage (`EditionId` null/0). | Add preflight validation and remediation guidance for unlinked files before rename execution. | Rename preflight reports unlinked files and excludes them with actionable remediation hints. |
+| TD-OPS-002 | P3 | Indexer-less deployments emit repeated warning noise without operator-context message quality. | `FetchAndParseRssService` warning: no available indexers. | Emit single rate-limited advisory with setup path and optional suppression for metadata-only workflows. | One advisory per interval; no repetitive warning flood for intentional indexer-disabled profiles. |
+
+Operational note:
+
+- Series tokens in naming are functional, but they depend on populated `SeriesBookLink` data.
+- Current runtime series persistence remains zero, so `{Book Series}`-based folder nesting often collapses to non-series paths.
+
+### March 21, 2026 metadata operations follow-up (GoogleBooks controls + series import hardening)
+
+Completed follow-up work from live operator validation:
+
+1. GoogleBooks runtime controls are now exposed in metadata settings UI:
+  - `enableGoogleBooksProvider`
+  - `enableGoogleBooksFallback`
+  - `googleBooksApiKey` (password-type input)
+
+2. OpenLibrary search-document series fields now map into domain series links:
+  - Added support for `series` and `series_with_number` in OpenLibrary search docs.
+  - `OpenLibraryMapper.MapSearchDocToBook` now hydrates `SeriesLinks` for mapped books.
+  - `OpenLibraryProvider.GetAuthorInfo` now promotes mapped book series links into author-level series collections for refresh persistence.
+
+3. Regression and targeted validation evidence:
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~OpenLibraryMapperFixture"`
+    - Result: Passed 16, Failed 0, Skipped 0.
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~FileNameBuilderFixture|FullyQualifiedName~NestedFileNameBuilderFixture|FullyQualifiedName~RenameTrackFileServiceFixture|FullyQualifiedName~MoveTrackFileFixture"`
+    - Result: Passed 78, Failed 0, Skipped 2.
+  - `dotnet msbuild -restore src/Bibliophilarr.sln -p:GenerateFullPaths=true -p:Configuration=Debug -p:Platform=Posix`
+    - Result: PASS.
+
 ### March 21, 2026 completion pass (TD-META-001..005 implemented and validated)
 
 Completed all five metadata technical-debt slices from the parity backlog and validated the

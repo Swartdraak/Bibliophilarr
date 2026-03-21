@@ -21,6 +21,12 @@ namespace NzbDrone.Api.Test.Config
             config.SetupGet(x => x.MetadataProviderRetryBudget).Returns(3);
             config.SetupGet(x => x.MetadataProviderCircuitBreakerThreshold).Returns(4);
             config.SetupGet(x => x.MetadataProviderCircuitBreakerDurationSeconds).Returns(90);
+            config.SetupGet(x => x.OpenLibrarySearchTimeoutSeconds).Returns(20);
+            config.SetupGet(x => x.OpenLibraryIsbnTimeoutSeconds).Returns(12);
+            config.SetupGet(x => x.OpenLibraryWorkTimeoutSeconds).Returns(25);
+            config.SetupGet(x => x.OpenLibrarySearchRetryBudget).Returns(2);
+            config.SetupGet(x => x.OpenLibraryIsbnRetryBudget).Returns(1);
+            config.SetupGet(x => x.OpenLibraryWorkRetryBudget).Returns(3);
             config.SetupGet(x => x.WriteAudioTags).Returns(WriteAudioTagsType.Sync);
             config.SetupGet(x => x.ScrubAudioTags).Returns(true);
             config.SetupGet(x => x.WriteBookTags).Returns(WriteBookTagsType.AllFiles);
@@ -37,6 +43,12 @@ namespace NzbDrone.Api.Test.Config
             resource.MetadataProviderRetryBudget.Should().Be(3);
             resource.MetadataProviderCircuitBreakerThreshold.Should().Be(4);
             resource.MetadataProviderCircuitBreakerDurationSeconds.Should().Be(90);
+            resource.OpenLibrarySearchTimeoutSeconds.Should().Be(20);
+            resource.OpenLibraryIsbnTimeoutSeconds.Should().Be(12);
+            resource.OpenLibraryWorkTimeoutSeconds.Should().Be(25);
+            resource.OpenLibrarySearchRetryBudget.Should().Be(2);
+            resource.OpenLibraryIsbnRetryBudget.Should().Be(1);
+            resource.OpenLibraryWorkRetryBudget.Should().Be(3);
             resource.WriteAudioTags.Should().Be(WriteAudioTagsType.Sync);
             resource.ScrubAudioTags.Should().BeTrue();
             resource.WriteBookTags.Should().Be(WriteBookTagsType.AllFiles);

@@ -20,6 +20,9 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Mocker.GetMock<IConfigService>().SetupGet(x => x.MetadataProviderRetryBudget).Returns(1);
             Mocker.GetMock<IConfigService>().SetupGet(x => x.MetadataProviderCircuitBreakerThreshold).Returns(3);
             Mocker.GetMock<IConfigService>().SetupGet(x => x.MetadataProviderCircuitBreakerDurationSeconds).Returns(30);
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.OpenLibrarySearchRetryBudget).Returns(-1);
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.OpenLibraryIsbnRetryBudget).Returns(-1);
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.OpenLibraryWorkRetryBudget).Returns(-1);
         }
 
         [Test]
@@ -98,6 +101,42 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             work.Authors[1].Type.Should().BeNull();
             work.Authors[2].Author.Key.Should().Be("/authors/OL2A");
             work.Authors[2].Type.Key.Should().Be("/type/author_role");
+        }
+
+        [Test]
+        public void search_should_request_series_enrichment_fields()
+        {
+            HttpRequest captured = null;
+
+            var response = new HttpResponse(new HttpRequest("https://openlibrary.org/search.json"), new HttpHeader(), "{\"docs\":[]}");
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
+                .Callback<HttpRequest>(r => captured = r)
+                .Returns(response);
+
+            Subject.Search("tolkien", 5);
+
+            captured.Should().NotBeNull();
+            captured.Url.ToString().Should().Contain("series%2Cseries_with_number");
+        }
+
+        [Test]
+        public void search_should_use_operation_specific_retry_budget_when_configured()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.MetadataProviderRetryBudget).Returns(3);
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.OpenLibrarySearchRetryBudget).Returns(0);
+
+            var first = new HttpResponse(new HttpRequest("https://openlibrary.org/search.json"), new HttpHeader { { "Retry-After", "0" } }, Array.Empty<byte>(), System.Net.HttpStatusCode.TooManyRequests);
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
+                .Returns(first);
+
+            var result = Subject.Search("retry", 1);
+
+            result.Should().NotBeNull();
+            result.Docs.Should().BeEmpty();
+            Mocker.GetMock<IHttpClient>().Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
         }
     }
 }

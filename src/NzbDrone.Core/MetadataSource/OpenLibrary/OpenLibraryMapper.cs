@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
@@ -17,6 +18,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     {
         private const string OlCoverTemplate = "https://covers.openlibrary.org/b/id/{0}-L.jpg";
         private const string OlWorkBaseUrl = "https://openlibrary.org";
+        private static readonly Regex SeriesWithNumberRegex = new Regex(@"^(?<title>.+?)\s*#(?<position>[0-9]+(?:\.[0-9]+)?)$", RegexOptions.Compiled);
+        private static readonly Regex InvalidSeriesIdCharsRegex = new Regex(@"[^a-z0-9]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex LeadingSeriesNumberRegex = new Regex(@"^(?<position>[0-9]+(?:\.[0-9]+)?)$", RegexOptions.Compiled);
 
         // ── Public entry points ──────────────────────────────────────────────
 
@@ -47,7 +51,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Ratings = BuildRatingsFromSearchDoc(doc)
             };
 
-            if (doc.CoverId.HasValue)
+            if (doc.CoverId.GetValueOrDefault() > 0)
             {
                 edition.Images.Add(new MediaCover.MediaCover
                 {
@@ -84,6 +88,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             book.Author = author;
             book.AuthorMetadata = authorMetadata;
+            book.SeriesLinks = BuildSeriesLinks(doc, authorMetadata.OpenLibraryAuthorId, book);
 
             return book;
         }
@@ -159,11 +164,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             metadata.NameLastFirst = metadata.Name.ToLastFirst();
             metadata.SortNameLastFirst = metadata.NameLastFirst.ToLower();
 
-            if (author.Photos?.Any() == true)
+            var authorPhotoId = author.Photos?.FirstOrDefault(x => x > 0);
+            if (authorPhotoId.GetValueOrDefault() > 0)
             {
                 metadata.Images.Add(new MediaCover.MediaCover
                 {
-                    Url = string.Format(OlCoverTemplate.Replace("/b/", "/a/"), author.Photos.First()),
+                    Url = string.Format(OlCoverTemplate.Replace("/b/", "/a/"), authorPhotoId.Value),
                     CoverType = MediaCoverTypes.Poster
                 });
             }
@@ -206,11 +212,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
-            if (edition.Covers?.Any() == true)
+            var editionCoverId = edition.Covers?.FirstOrDefault(x => x > 0);
+            if (editionCoverId.GetValueOrDefault() > 0)
             {
                 result.Images.Add(new MediaCover.MediaCover
                 {
-                    Url = string.Format(OlCoverTemplate, edition.Covers.First()),
+                    Url = string.Format(OlCoverTemplate, editionCoverId.Value),
                     CoverType = MediaCoverTypes.Cover
                 });
             }
@@ -262,11 +269,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
-            if (work.Covers?.Any() == true)
+            var workCoverId = work.Covers?.FirstOrDefault(x => x > 0);
+            if (workCoverId.GetValueOrDefault() > 0)
             {
                 edition.Images.Add(new MediaCover.MediaCover
                 {
-                    Url = string.Format(OlCoverTemplate, work.Covers.First()),
+                    Url = string.Format(OlCoverTemplate, workCoverId.Value),
                     CoverType = MediaCoverTypes.Cover
                 });
             }
@@ -295,6 +303,178 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return subjects.Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToList();
+        }
+
+        private static List<SeriesBookLink> BuildSeriesLinks(OlSearchDoc doc, string authorId, Book book)
+        {
+            var seriesLinks = new List<SeriesBookLink>();
+
+            if (doc == null || book == null)
+            {
+                return seriesLinks;
+            }
+
+            var descriptors = ExtractSeriesDescriptors(doc);
+            if (!descriptors.Any())
+            {
+                return seriesLinks;
+            }
+
+            var seenSeriesIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (var i = 0; i < descriptors.Count; i++)
+            {
+                var descriptor = descriptors[i];
+                var foreignSeriesId = BuildSeriesForeignId(authorId, descriptor.Title);
+
+                if (foreignSeriesId.IsNullOrWhiteSpace() || !seenSeriesIds.Add(foreignSeriesId))
+                {
+                    continue;
+                }
+
+                var series = new Series
+                {
+                    ForeignSeriesId = foreignSeriesId,
+                    Title = descriptor.Title,
+                    Numbered = descriptor.Position.IsNotNullOrWhiteSpace(),
+                    LinkItems = new List<SeriesBookLink>()
+                };
+
+                var link = new SeriesBookLink
+                {
+                    Book = book,
+                    Series = series,
+                    Position = descriptor.Position,
+                    SeriesPosition = ParseSeriesPosition(descriptor.Position),
+                    IsPrimary = i == 0
+                };
+
+                series.LinkItems = new List<SeriesBookLink> { link };
+                seriesLinks.Add(link);
+            }
+
+            return seriesLinks;
+        }
+
+        private static List<SeriesDescriptor> ExtractSeriesDescriptors(OlSearchDoc doc)
+        {
+            var descriptors = new List<SeriesDescriptor>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var value in doc.SeriesWithNumber ?? new List<string>())
+            {
+                var normalized = ParseSeriesWithNumber(value);
+
+                if (normalized != null && seen.Add(normalized.Title))
+                {
+                    descriptors.Add(normalized);
+                }
+            }
+
+            foreach (var value in doc.Series ?? new List<string>())
+            {
+                if (value.IsNullOrWhiteSpace())
+                {
+                    continue;
+                }
+
+                var title = value.Trim();
+                if (seen.Add(title))
+                {
+                    descriptors.Add(new SeriesDescriptor { Title = title });
+                }
+            }
+
+            return descriptors;
+        }
+
+        private static SeriesDescriptor ParseSeriesWithNumber(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var trimmed = value.Trim();
+            var match = SeriesWithNumberRegex.Match(trimmed);
+
+            if (!match.Success)
+            {
+                return new SeriesDescriptor { Title = trimmed };
+            }
+
+            var title = match.Groups["title"].Value.Trim();
+            var position = match.Groups["position"].Value.Trim();
+
+            if (title.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            return new SeriesDescriptor
+            {
+                Title = title,
+                Position = position
+            };
+        }
+
+        private static string BuildSeriesForeignId(string authorId, string title)
+        {
+            if (title.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var normalizedTitle = InvalidSeriesIdCharsRegex
+                .Replace(title.Trim().ToLowerInvariant(), "-")
+                .Trim('-');
+
+            if (normalizedTitle.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var normalizedAuthor = authorId.IsNotNullOrWhiteSpace()
+                ? InvalidSeriesIdCharsRegex.Replace(authorId.ToLowerInvariant(), "-").Trim('-')
+                : "unknown-author";
+
+            return $"openlibrary:series:{normalizedAuthor}:{normalizedTitle}";
+        }
+
+        private static int ParseSeriesPosition(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return 0;
+            }
+
+            var candidate = value.Trim();
+            var match = LeadingSeriesNumberRegex.Match(candidate);
+
+            if (!match.Success)
+            {
+                return 0;
+            }
+
+            var raw = match.Groups["position"].Value;
+
+            if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedInt))
+            {
+                return parsedInt;
+            }
+
+            if (double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedDouble))
+            {
+                return (int)Math.Floor(parsedDouble);
+            }
+
+            return 0;
+        }
+
+        private sealed class SeriesDescriptor
+        {
+            public string Title { get; set; }
+            public string Position { get; set; }
         }
 
         private static string ExtractOlid(string key)

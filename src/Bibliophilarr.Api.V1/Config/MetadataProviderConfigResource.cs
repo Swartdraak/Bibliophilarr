@@ -13,6 +13,12 @@ namespace Bibliophilarr.Api.V1.Config
         public int MetadataProviderRetryBudget { get; set; }
         public int MetadataProviderCircuitBreakerThreshold { get; set; }
         public int MetadataProviderCircuitBreakerDurationSeconds { get; set; }
+        public int OpenLibrarySearchTimeoutSeconds { get; set; }
+        public int OpenLibraryIsbnTimeoutSeconds { get; set; }
+        public int OpenLibraryWorkTimeoutSeconds { get; set; }
+        public int OpenLibrarySearchRetryBudget { get; set; }
+        public int OpenLibraryIsbnRetryBudget { get; set; }
+        public int OpenLibraryWorkRetryBudget { get; set; }
         public WriteAudioTagsType WriteAudioTags { get; set; }
         public bool ScrubAudioTags { get; set; }
         public WriteBookTagsType WriteBookTags { get; set; }
@@ -45,6 +51,12 @@ namespace Bibliophilarr.Api.V1.Config
                 MetadataProviderRetryBudget = model.MetadataProviderRetryBudget,
                 MetadataProviderCircuitBreakerThreshold = model.MetadataProviderCircuitBreakerThreshold,
                 MetadataProviderCircuitBreakerDurationSeconds = model.MetadataProviderCircuitBreakerDurationSeconds,
+                OpenLibrarySearchTimeoutSeconds = model.OpenLibrarySearchTimeoutSeconds,
+                OpenLibraryIsbnTimeoutSeconds = model.OpenLibraryIsbnTimeoutSeconds,
+                OpenLibraryWorkTimeoutSeconds = model.OpenLibraryWorkTimeoutSeconds,
+                OpenLibrarySearchRetryBudget = model.OpenLibrarySearchRetryBudget,
+                OpenLibraryIsbnRetryBudget = model.OpenLibraryIsbnRetryBudget,
+                OpenLibraryWorkRetryBudget = model.OpenLibraryWorkRetryBudget,
                 WriteAudioTags = model.WriteAudioTags,
                 ScrubAudioTags = model.ScrubAudioTags,
                 WriteBookTags = model.WriteBookTags,

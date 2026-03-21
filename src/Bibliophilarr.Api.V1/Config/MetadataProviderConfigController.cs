@@ -27,6 +27,30 @@ namespace Bibliophilarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.IsbnContextFallbackLimit)
                 .InclusiveBetween(1, 10)
                 .WithMessage("ISBN contextual fallback attempt limit must be between 1 and 10");
+
+            SharedValidator.RuleFor(c => c.OpenLibrarySearchTimeoutSeconds)
+                .InclusiveBetween(0, 120)
+                .WithMessage("OpenLibrary search timeout must be between 0 and 120 seconds");
+
+            SharedValidator.RuleFor(c => c.OpenLibraryIsbnTimeoutSeconds)
+                .InclusiveBetween(0, 120)
+                .WithMessage("OpenLibrary ISBN timeout must be between 0 and 120 seconds");
+
+            SharedValidator.RuleFor(c => c.OpenLibraryWorkTimeoutSeconds)
+                .InclusiveBetween(0, 120)
+                .WithMessage("OpenLibrary work timeout must be between 0 and 120 seconds");
+
+            SharedValidator.RuleFor(c => c.OpenLibrarySearchRetryBudget)
+                .InclusiveBetween(-1, 10)
+                .WithMessage("OpenLibrary search retry budget must be between -1 and 10");
+
+            SharedValidator.RuleFor(c => c.OpenLibraryIsbnRetryBudget)
+                .InclusiveBetween(-1, 10)
+                .WithMessage("OpenLibrary ISBN retry budget must be between -1 and 10");
+
+            SharedValidator.RuleFor(c => c.OpenLibraryWorkRetryBudget)
+                .InclusiveBetween(-1, 10)
+                .WithMessage("OpenLibrary work retry budget must be between -1 and 10");
         }
 
         protected override MetadataProviderConfigResource ToResource(IConfigService model)

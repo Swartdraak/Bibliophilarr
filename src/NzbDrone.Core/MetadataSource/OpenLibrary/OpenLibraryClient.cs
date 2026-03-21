@@ -60,7 +60,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var requestBuilder = new HttpRequestBuilder(BaseUrl + "/search.json")
                 .AddQueryParam("q", query)
                 .AddQueryParam("limit", limit.ToString())
-                .AddQueryParam("fields", "key,title,author_name,author_key,isbn,cover_i,first_publish_year,number_of_pages_median,language,subject,ratings_average,ratings_count,want_to_read_count,currently_reading_count,already_read_count,edition_count")
+                .AddQueryParam("fields", "key,title,author_name,author_key,isbn,cover_i,first_publish_year,number_of_pages_median,language,subject,series,series_with_number,ratings_average,ratings_count,want_to_read_count,currently_reading_count,already_read_count,edition_count")
                 .SetHeader("Accept", "application/json");
 
             if (offset > 0)
@@ -70,10 +70,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var request = requestBuilder.Build();
 
-            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Search));
             request.SuppressHttpError = true;
 
-            var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request);
+            var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request, GetRetryBudget(OperationClass.Search));
             return response ?? new OlSearchResponse();
         }
 
@@ -88,10 +88,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .AddQueryParam("offset", offset.ToString())
                 .Build();
 
-            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
 
-            var response = ExecuteWithRateLimitRetry<OlAuthorWorksResponse>("openlibrary.author-works", request);
+            var response = ExecuteWithRateLimitRetry<OlAuthorWorksResponse>("openlibrary.author-works", request, GetRetryBudget(OperationClass.Work));
             return response ?? new OlAuthorWorksResponse();
         }
 
@@ -106,10 +106,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .AddQueryParam("offset", offset.ToString())
                 .Build();
 
-            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
 
-            var response = ExecuteWithRateLimitRetry<OlWorkEditionsResponse>("openlibrary.work-editions", request);
+            var response = ExecuteWithRateLimitRetry<OlWorkEditionsResponse>("openlibrary.work-editions", request, GetRetryBudget(OperationClass.Work));
             return response ?? new OlWorkEditionsResponse();
         }
 
@@ -122,10 +122,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .SetSegment("route", $"works/{cleanKey}.json")
                 .Build();
 
-            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
 
-            return ExecuteWithRateLimitRetry<OlWorkResource>("openlibrary.work", request);
+            return ExecuteWithRateLimitRetry<OlWorkResource>("openlibrary.work", request, GetRetryBudget(OperationClass.Work));
         }
 
         public OlAuthorResource GetAuthor(string olid)
@@ -137,10 +137,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .SetSegment("route", $"authors/{cleanKey}.json")
                 .Build();
 
-            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
 
-            return ExecuteWithRateLimitRetry<OlAuthorResource>("openlibrary.author", request);
+            return ExecuteWithRateLimitRetry<OlAuthorResource>("openlibrary.author", request, GetRetryBudget(OperationClass.Work));
         }
 
         public OlEditionResource GetEditionByIsbn(string isbn)
@@ -151,10 +151,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .SetSegment("route", $"isbn/{isbn}.json")
                 .Build();
 
-            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Isbn));
             request.SuppressHttpError = true;
 
-            return ExecuteWithRateLimitRetry<OlEditionResource>("openlibrary.isbn", request);
+            return ExecuteWithRateLimitRetry<OlEditionResource>("openlibrary.isbn", request, GetRetryBudget(OperationClass.Isbn));
         }
 
         public OlEditionResource GetEdition(string olid)
@@ -166,16 +166,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .SetSegment("route", $"books/{cleanKey}.json")
                 .Build();
 
-            request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
 
-            return ExecuteWithRateLimitRetry<OlEditionResource>("openlibrary.edition", request);
+            return ExecuteWithRateLimitRetry<OlEditionResource>("openlibrary.edition", request, GetRetryBudget(OperationClass.Work));
         }
 
-        private T ExecuteWithRateLimitRetry<T>(string endpointKey, HttpRequest request)
+        private T ExecuteWithRateLimitRetry<T>(string endpointKey, HttpRequest request, int maxRetries)
             where T : class
         {
-            var maxRetries = Math.Max(0, _configService.MetadataProviderRetryBudget);
+            maxRetries = Math.Max(0, maxRetries);
             var breakerThreshold = Math.Max(1, _configService.MetadataProviderCircuitBreakerThreshold);
             var breakerDurationSeconds = Math.Max(5, _configService.MetadataProviderCircuitBreakerDurationSeconds);
             var attempts = 0;
@@ -289,6 +289,41 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return 5;
+        }
+
+        private enum OperationClass
+        {
+            Search,
+            Isbn,
+            Work
+        }
+
+        private int GetTimeoutSeconds(OperationClass operation)
+        {
+            var fallback = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
+
+            var configured = operation switch
+            {
+                OperationClass.Search => _configService.OpenLibrarySearchTimeoutSeconds,
+                OperationClass.Isbn => _configService.OpenLibraryIsbnTimeoutSeconds,
+                _ => _configService.OpenLibraryWorkTimeoutSeconds
+            };
+
+            return configured > 0 ? Math.Max(5, configured) : fallback;
+        }
+
+        private int GetRetryBudget(OperationClass operation)
+        {
+            var fallback = Math.Max(0, _configService.MetadataProviderRetryBudget);
+
+            var configured = operation switch
+            {
+                OperationClass.Search => _configService.OpenLibrarySearchRetryBudget,
+                OperationClass.Isbn => _configService.OpenLibraryIsbnRetryBudget,
+                _ => _configService.OpenLibraryWorkRetryBudget
+            };
+
+            return configured >= 0 ? configured : fallback;
         }
     }
 }

@@ -278,6 +278,11 @@ namespace NzbDrone.Core.Notifications
 
         public void Handle(BookFileDeletedEvent message)
         {
+            if (message?.BookFile?.Edition?.Value?.Book == null || message.BookFile.Author == null)
+            {
+                return;
+            }
+
             var deleteMessage = new BookFileDeleteMessage();
 
             var book = new List<Book> { message.BookFile.Edition.Value.Book };

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -41,6 +42,10 @@ namespace NzbDrone.Core.Books
         private readonly ICheckIfBookShouldBeRefreshed _checkIfBookShouldBeRefreshed;
         private readonly IMapCoversToLocal _mediaCoverService;
         private readonly Logger _logger;
+        private readonly ConcurrentDictionary<string, DateTime> _pendingDeleteMisses = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        [ThreadStatic]
+        private static bool _suppressDeletesForCurrentRun;
 
         public RefreshBookService(IBookService bookService,
                                   IAuthorService authorService,
@@ -103,11 +108,6 @@ namespace NzbDrone.Core.Books
 
             var book = remote.SingleOrDefault(x => x.ForeignBookId == local.ForeignBookId);
 
-            if (book == null && ShouldDelete(local))
-            {
-                return result;
-            }
-
             if (book == null)
             {
                 data = GetSkyhookData(local);
@@ -124,6 +124,7 @@ namespace NzbDrone.Core.Books
             if (result.Entity != null)
             {
                 result.Entity.Id = local.Id;
+                ClearPendingDelete(local.ForeignBookId);
             }
 
             return result;
@@ -159,9 +160,35 @@ namespace NzbDrone.Core.Books
 
         protected override bool ShouldDelete(Book local)
         {
+            if (_suppressDeletesForCurrentRun)
+            {
+                _logger.Warn("Suppressing delete for {0} due to degraded metadata-provider window", local);
+                return false;
+            }
+
             // not manually added and has no files
-            return local.AddOptions.AddType != BookAddType.Manual &&
-                !_mediaFileService.GetFilesByBook(local.Id).Any();
+            var eligible = local.AddOptions.AddType != BookAddType.Manual &&
+                           !_mediaFileService.GetFilesByBook(local.Id).Any();
+
+            if (!eligible)
+            {
+                return false;
+            }
+
+            var key = local.ForeignBookId;
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return true;
+            }
+
+            if (_pendingDeleteMisses.TryAdd(key, DateTime.UtcNow))
+            {
+                _logger.Warn("Marking {0} stale after first metadata miss; hard delete requires a repeat miss", local);
+                return false;
+            }
+
+            ClearPendingDelete(key);
+            return true;
         }
 
         protected override void LogProgress(Book local)
@@ -336,17 +363,26 @@ namespace NzbDrone.Core.Books
         public bool RefreshBookInfo(List<Book> books, List<Book> remoteBooks, Author remoteData, bool forceBookRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
             var updated = false;
+            var previousSuppression = _suppressDeletesForCurrentRun;
+            _suppressDeletesForCurrentRun = remoteData == null && (remoteBooks == null || remoteBooks.Count == 0);
 
-            foreach (var book in books)
+            try
             {
-                if (forceBookRefresh || _checkIfBookShouldBeRefreshed.ShouldRefresh(book))
+                foreach (var book in books)
                 {
-                    updated |= RefreshBookInfo(book, remoteBooks, remoteData, forceUpdateFileTags);
+                    if (forceBookRefresh || _checkIfBookShouldBeRefreshed.ShouldRefresh(book))
+                    {
+                        updated |= RefreshBookInfo(book, remoteBooks, remoteData, forceUpdateFileTags);
+                    }
+                    else
+                    {
+                        _logger.Debug("Skipping refresh of book: {0}", book.Title);
+                    }
                 }
-                else
-                {
-                    _logger.Debug("Skipping refresh of book: {0}", book.Title);
-                }
+            }
+            finally
+            {
+                _suppressDeletesForCurrentRun = previousSuppression;
             }
 
             return updated;
@@ -388,6 +424,16 @@ namespace NzbDrone.Core.Books
 
                 RefreshBookInfo(book);
             }
+        }
+
+        private void ClearPendingDelete(string foreignBookId)
+        {
+            if (string.IsNullOrWhiteSpace(foreignBookId))
+            {
+                return;
+            }
+
+            _pendingDeleteMisses.TryRemove(foreignBookId, out _);
         }
     }
 }
