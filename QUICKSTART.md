@@ -111,6 +111,19 @@ Expected response format for `update/{branch}`: an `UpdatePackage` JSON object.
 Without this env var set, all update-check and time-sync health checks degrade
 gracefully to OK/empty without logging errors.
 
+Hardcover token startup override:
+
+- `BIBLIOPHILARR_HARDCOVER_API_TOKEN` can be set before startup to provide the Hardcover API token without entering it through the UI.
+- This value is read at runtime startup and used before the persisted `HardcoverApiToken` config value.
+- Both plain tokens and `Bearer ...` values are accepted.
+
+Example:
+
+```bash
+export BIBLIOPHILARR_HARDCOVER_API_TOKEN='Bearer <your-hardcover-token>'
+./_output/net8.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
+```
+
 See `docs/operations/services-endpoint-runbook.md` for full deployment patterns.
 
 ## Test
@@ -143,6 +156,27 @@ For the legacy shell-based test runner:
 
 ```bash
 ./test.sh Linux Unit Test
+```
+
+Metadata extraction and import-identification verification (targeted):
+
+```bash
+dotnet build src/Bibliophilarr.sln -c Debug -p:Platform=Posix
+
+dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+  --filter "should_extract_isbn_from_filename_during_fallback"
+
+dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+  --filter "should_extract_asin_from_filename_during_fallback"
+
+dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+  --filter "DistanceCalculatorFixture"
+
+dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+  --filter "ImportDecisionMakerFixture"
+
+dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+  --filter "CandidateServiceFixture"
 ```
 
 ## Install-readiness loop

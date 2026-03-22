@@ -211,13 +211,16 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Returns<HttpRequest>(request =>
                 {
                     var payload = "{" +
-                                  "\"data\":{\"search\":{\"results\":[{" +
+                                  "\"data\":{\"search\":{\"error\":null,\"ids\":[1],\"results\":{\"found\":1,\"hits\":[{" +
+                                  "\"document\":{" +
                                   "\"id\":\"hc-1\"," +
                                   "\"title\":\"The Cuckoo's Calling\"," +
-                                  "\"releaseYear\":2013," +
-                                  "\"contributors\":[{\"author\":{\"name\":\"Robert Galbraith\"}}]," +
-                                  "\"editions\":[{\"id\":\"hc-ed-1\",\"title\":\"The Cuckoo's Calling\",\"readingFormat\":\"Ebook\"}]" +
-                                  "}]}}}";
+                                  "\"author_names\":[\"Robert Galbraith\"]," +
+                                  "\"contributions\":[{\"author\":{\"name\":\"Robert Galbraith\"}}]," +
+                                  "\"release_year\":2013," +
+                                  "\"has_ebook\":true," +
+                                  "\"has_audiobook\":false" +
+                                  "}}]}}}}";
 
                     return new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload));
                 });

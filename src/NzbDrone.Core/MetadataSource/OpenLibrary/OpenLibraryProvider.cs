@@ -22,7 +22,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     {
         // ── IMetadataProvider ────────────────────────────────────────────────
         public string ProviderName => "OpenLibrary";
-        public int Priority => 1;
+        public int Priority => 2;
         public bool IsEnabled => _configService.EnableOpenLibraryProvider;
         public bool SupportsAuthorSearch => true;
         public bool SupportsBookSearch => true;

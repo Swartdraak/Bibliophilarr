@@ -51,6 +51,12 @@ namespace NzbDrone.Core.Parser.Model
         public string IdentitySource { get; set; }
         public double BookTitleConfidence { get; set; }
         public double AuthorConfidence { get; set; }
+        public double SeriesConfidence { get; set; }
+        public double IsbnConfidence { get; set; }
+        public double AsinConfidence { get; set; }
+        public double YearConfidence { get; set; }
+        public double PublisherConfidence { get; set; }
+        public double LanguageConfidence { get; set; }
 
         public ParsedTrackInfo()
         {
@@ -58,6 +64,12 @@ namespace NzbDrone.Core.Parser.Model
             TrackNumbers = new int[0];
             BookTitleConfidence = 1.0;
             AuthorConfidence = 1.0;
+            SeriesConfidence = 0.0;
+            IsbnConfidence = 0.0;
+            AsinConfidence = 0.0;
+            YearConfidence = 0.0;
+            PublisherConfidence = 0.0;
+            LanguageConfidence = 0.0;
         }
 
         public override string ToString()

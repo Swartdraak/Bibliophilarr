@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Moq;
+using NLog;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource;
 
 namespace NzbDrone.Core.Test.MetadataSource
@@ -41,6 +44,27 @@ namespace NzbDrone.Core.Test.MetadataSource
             var names = registry.GetEnabledProviders().Select(p => p.ProviderName).ToList();
 
             names.Should().Equal("Second", "First");
+        }
+
+        [Test]
+        public void should_prioritize_hardcover_first_when_configured_order_places_it_first()
+        {
+            var config = new Mock<IConfigService>();
+            config.SetupGet(x => x.MetadataProviderPriorityOrder)
+                .Returns("Hardcover,OpenLibrary,GoogleBooks,Inventaire");
+
+            var registry = new MetadataProviderRegistry(
+                new IMetadataProvider[]
+                {
+                    new TestBookSearchProvider("OpenLibrary", 10, true),
+                    new TestBookSearchProvider("Hardcover", 30, true)
+                },
+                config.Object,
+                LogManager.GetCurrentClassLogger());
+
+            var names = registry.GetBookSearchProviders().Select(p => p.ProviderName).ToList();
+
+            names.Should().Equal("Hardcover", "OpenLibrary");
         }
 
         [Test]

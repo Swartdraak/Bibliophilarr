@@ -231,6 +231,24 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_query_hardcover_first_and_not_call_openlibrary_when_hardcover_returns_results()
+        {
+            var hardcover = new OrderedSearchProvider("Hardcover", 1, "Hardcover Hit");
+            var openLibrary = new OrderedSearchProvider("OpenLibrary", 2, "OpenLibrary Hit");
+
+            var registry = new TestRegistry(new IMetadataProvider[] { hardcover, openLibrary });
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+            var result = orchestrator.SearchForNewBook("order", null, false);
+
+            result.Should().HaveCount(1);
+            result[0].Title.Should().Be("Hardcover Hit");
+            hardcover.CallCount.Should().Be(1);
+            openLibrary.CallCount.Should().Be(0);
+        }
+
+        [Test]
         public void should_record_success_failure_and_null_telemetry_counters()
         {
             var registry = new TestRegistry(new IMetadataProvider[]

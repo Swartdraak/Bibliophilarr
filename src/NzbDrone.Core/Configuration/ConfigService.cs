@@ -373,6 +373,12 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("MetadataTitleStripPatterns", value); }
         }
 
+        public int BookImportMatchThresholdPercent
+        {
+            get { return GetValueInt("BookImportMatchThresholdPercent", 80); }
+            set { SetValue("BookImportMatchThresholdPercent", Math.Max(50, Math.Min(100, value))); }
+        }
+
         public int FirstDayOfWeek
         {
             get { return GetValueInt("FirstDayOfWeek", (int)CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek); }
@@ -499,7 +505,7 @@ namespace NzbDrone.Core.Configuration
 
         public string MetadataProviderPriorityOrder
         {
-            get { return GetValue("MetadataProviderPriorityOrder", "OpenLibrary,GoogleBooks,Inventaire"); }
+            get { return GetValue("MetadataProviderPriorityOrder", "Hardcover,OpenLibrary,GoogleBooks,Inventaire"); }
             set { SetValue("MetadataProviderPriorityOrder", value); }
         }
 

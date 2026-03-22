@@ -44,7 +44,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
 
         // ── IMetadataProvider ────────────────────────────────────────────────
         public string ProviderName => "GoogleBooks";
-        public int Priority => 2;
+        public int Priority => 3;
         public bool IsEnabled => _configService.EnableGoogleBooksProvider;
         public bool SupportsAuthorSearch => true;
         public bool SupportsBookSearch => true;

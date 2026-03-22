@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: March 18, 2026
+**Last Updated**: March 22, 2026
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -75,7 +75,10 @@ In progress:
 Completed in current hardening slice:
 
 - active Goodreads runtime provider implementations were removed from metadata/import-list/notification paths and replaced by OpenLibrary-oriented behavior in active runtime surfaces;
-- OpenAPI/API, localization, and frontend active-text surfaces were migrated away from Goodreads naming to OpenLibrary naming.
+- OpenAPI/API, localization, and frontend active-text surfaces were migrated away from Goodreads naming to OpenLibrary naming;
+- ebook extraction now applies confidence-aware metadata merging (container tags plus filename-derived identifiers) for EPUB, PDF, AZW3, and MOBI import paths;
+- import acceptance threshold for close-match decisions is now configurable via metadata provider config with a default of 80 percent to preserve current behavior.
+- clean-build and targeted verification coverage for author, series, book, and cover identification paths is now recorded in canonical status reporting.
 
 Long-term cloud strategy — decided and implemented (March 2026):
 

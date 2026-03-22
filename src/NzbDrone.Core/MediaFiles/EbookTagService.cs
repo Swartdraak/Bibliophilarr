@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
@@ -41,6 +42,8 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IConfigService _configService;
         private readonly ICalibreProxy _calibre;
         private readonly Logger _logger;
+        private static readonly Regex IsbnPattern = new Regex(@"(?:97[89])?\d{9}[\dXx]", RegexOptions.Compiled);
+        private static readonly Regex AsinPattern = new Regex(@"\b[A-Za-z0-9]{10}\b", RegexOptions.Compiled);
 
         public EBookTagService(IAuthorService authorService,
             IMediaFileService mediaFileService,
@@ -285,16 +288,26 @@ namespace NzbDrone.Core.MediaFiles
                     result.Language = meta?.Languages?.FirstOrDefault();
                     result.Publisher = meta?.Publishers?.FirstOrDefault();
                     result.Disambiguation = meta?.Description;
-
                     result.SeriesTitle = meta?.MetaItems?.FirstOrDefault(x => x.Name == "calibre:series")?.Content;
                     result.SeriesIndex = meta?.MetaItems?.FirstOrDefault(x => x.Name == "calibre:series_index")?.Content;
+
+                    result.BookTitleConfidence = result.BookTitle.IsNotNullOrWhiteSpace() ? 0.92 : 0.0;
+                    result.AuthorConfidence = result.Authors?.Any() == true ? 0.92 : 0.0;
+                    result.IsbnConfidence = result.Isbn.IsNotNullOrWhiteSpace() ? 0.97 : 0.0;
+                    result.AsinConfidence = result.Asin.IsNotNullOrWhiteSpace() ? 0.9 : 0.0;
+                    result.SeriesConfidence = result.SeriesTitle.IsNotNullOrWhiteSpace() ? 0.8 : 0.0;
+                    result.PublisherConfidence = result.Publisher.IsNotNullOrWhiteSpace() ? 0.8 : 0.0;
+                    result.LanguageConfidence = result.Language.IsNotNullOrWhiteSpace() ? 0.75 : 0.0;
                 }
+
+                NormalizeParsedMetadata(result);
+                ApplyFilenameFallback(file, result, 0.5);
             }
             catch (Exception e)
             {
                 _logger.Warn(e, "Corrupt or unreadable EPUB: '{0}'. Tag parsing failed; using filename fallback. Repair or re-export via Calibre to restore full metadata.", file);
                 result.Quality.QualityDetectionSource = QualityDetectionSource.Extension;
-                ApplyFilenameFallback(file, result);
+                ApplyFilenameFallback(file, result, 0.88);
                 LogFallbackOutcome(file, result, "EPUB");
             }
 
@@ -316,16 +329,24 @@ namespace NzbDrone.Core.MediaFiles
                 result.Asin = book.Asin;
                 result.Language = book.Language;
                 result.Disambiguation = book.Description;
-
                 result.Publisher = book.Publisher;
                 result.Label = book.Imprint;
                 result.Source = book.Source;
+
+                result.BookTitleConfidence = result.BookTitle.IsNotNullOrWhiteSpace() ? 0.9 : 0.0;
+                result.AuthorConfidence = result.Authors?.Any() == true ? 0.9 : 0.0;
+                result.AsinConfidence = result.Asin.IsNotNullOrWhiteSpace() ? 0.92 : 0.0;
+                result.PublisherConfidence = result.Publisher.IsNotNullOrWhiteSpace() ? 0.7 : 0.0;
+                result.LanguageConfidence = result.Language.IsNotNullOrWhiteSpace() ? 0.7 : 0.0;
 
                 result.Quality = new QualityModel
                 {
                     Quality = book.Version <= 6 ? Quality.MOBI : Quality.AZW3,
                     QualityDetectionSource = QualityDetectionSource.TagLib
                 };
+
+                NormalizeParsedMetadata(result);
+                ApplyFilenameFallback(file, result, 0.55);
             }
             catch (Exception e)
             {
@@ -336,7 +357,7 @@ namespace NzbDrone.Core.MediaFiles
                     Quality = Path.GetExtension(file) == ".mobi" ? Quality.MOBI : Quality.AZW3,
                     QualityDetectionSource = QualityDetectionSource.Extension
                 };
-                ApplyFilenameFallback(file, result);
+                ApplyFilenameFallback(file, result, 0.88);
                 LogFallbackOutcome(file, result, azwFormat);
             }
 
@@ -364,15 +385,23 @@ namespace NzbDrone.Core.MediaFiles
                 {
                     result.Authors = new List<string> { book.Info.Author };
                     result.BookTitle = book.Info.Title;
+                    result.Publisher = book.Info.Creator;
+
+                    result.BookTitleConfidence = result.BookTitle.IsNotNullOrWhiteSpace() ? 0.65 : 0.0;
+                    result.AuthorConfidence = result.Authors?.Any() == true ? 0.65 : 0.0;
+                    result.PublisherConfidence = result.Publisher.IsNotNullOrWhiteSpace() ? 0.55 : 0.0;
 
                     _logger.Trace(book.Info.ToJson());
                 }
+
+                NormalizeParsedMetadata(result);
+                ApplyFilenameFallback(file, result, 0.72);
             }
             catch (Exception e)
             {
                 _logger.Warn(e, "Corrupt or unreadable PDF: '{0}'. Tag parsing failed; using filename fallback. Re-export from source or repair via Calibre to restore full metadata.", file);
                 result.Quality.QualityDetectionSource = QualityDetectionSource.Extension;
-                ApplyFilenameFallback(file, result);
+                ApplyFilenameFallback(file, result, 0.88);
                 LogFallbackOutcome(file, result, "PDF");
             }
 
@@ -397,7 +426,7 @@ namespace NzbDrone.Core.MediaFiles
                 ?? candidates.FirstOrDefault();
         }
 
-        private void ApplyFilenameFallback(string file, ParsedTrackInfo result)
+        private void ApplyFilenameFallback(string file, ParsedTrackInfo result, double fieldConfidence)
         {
             var parsed = Parser.Parser.ParseTitle(file);
             if (parsed == null)
@@ -405,28 +434,148 @@ namespace NzbDrone.Core.MediaFiles
                 return;
             }
 
-            if (result.Authors == null || !result.Authors.Any())
+            var parsedAuthors = NormalizeAuthors(parsed.Authors);
+            var parsedTitle = NormalizeMetadataText(parsed.BookTitle);
+            var parsedIsbn = NormalizeIsbn(parsed.Isbn) ?? TryExtractIsbnFromText(file);
+            var parsedAsin = NormalizeAsin(parsed.Asin) ?? TryExtractAsinFromText(file);
+
+            if (parsedAuthors.Any() && (result.Authors == null || !result.Authors.Any() || result.AuthorConfidence < fieldConfidence))
             {
-                result.Authors = parsed.Authors?.Where(a => a.IsNotNullOrWhiteSpace())
-                    .Select(a => a.Trim())
-                    .Distinct()
-                    .ToList() ?? new List<string>();
+                result.Authors = parsedAuthors;
+                result.AuthorConfidence = fieldConfidence;
             }
 
-            if (result.BookTitle.IsNullOrWhiteSpace())
+            if (parsedTitle.IsNotNullOrWhiteSpace() && (result.BookTitle.IsNullOrWhiteSpace() || result.BookTitleConfidence < fieldConfidence))
             {
-                result.BookTitle = parsed.BookTitle;
+                result.BookTitle = parsedTitle;
+                result.BookTitleConfidence = fieldConfidence;
             }
 
-            if (result.Isbn.IsNullOrWhiteSpace())
+            if (parsedIsbn.IsNotNullOrWhiteSpace() && (result.Isbn.IsNullOrWhiteSpace() || result.IsbnConfidence < fieldConfidence))
             {
-                result.Isbn = parsed.Isbn;
+                result.Isbn = parsedIsbn;
+                result.IsbnConfidence = fieldConfidence;
             }
 
-            if (result.Asin.IsNullOrWhiteSpace())
+            if (parsedAsin.IsNotNullOrWhiteSpace() && (result.Asin.IsNullOrWhiteSpace() || result.AsinConfidence < fieldConfidence))
             {
-                result.Asin = parsed.Asin;
+                result.Asin = parsedAsin;
+                result.AsinConfidence = fieldConfidence;
             }
+
+            NormalizeParsedMetadata(result);
+        }
+
+        private void NormalizeParsedMetadata(ParsedTrackInfo result)
+        {
+            result.BookTitle = NormalizeMetadataText(result.BookTitle);
+            result.Authors = NormalizeAuthors(result.Authors);
+            result.SeriesTitle = NormalizeMetadataText(result.SeriesTitle);
+            result.Publisher = NormalizeMetadataText(result.Publisher);
+            result.Language = NormalizeLanguage(result.Language);
+            result.Isbn = NormalizeIsbn(result.Isbn) ?? TryExtractIsbnFromText(result.Disambiguation);
+            result.Asin = NormalizeAsin(result.Asin) ?? TryExtractAsinFromText(result.Disambiguation);
+        }
+
+        private static string NormalizeMetadataText(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            return Regex.Replace(value.Trim(), @"\s+", " ");
+        }
+
+        private static List<string> NormalizeAuthors(IEnumerable<string> authors)
+        {
+            return authors?.Where(a => a.IsNotNullOrWhiteSpace())
+                .Select(a => NormalizeMetadataText(a))
+                .Where(a => a.IsNotNullOrWhiteSpace())
+                .Distinct()
+                .ToList() ?? new List<string>();
+        }
+
+        private static string NormalizeLanguage(string value)
+        {
+            var normalized = NormalizeMetadataText(value);
+            return normalized.IsNullOrWhiteSpace() ? null : normalized.CanonicalizeLanguage();
+        }
+
+        private string NormalizeIsbn(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var direct = StripIsbn(value);
+            if (direct != null)
+            {
+                return direct;
+            }
+
+            var match = IsbnPattern.Match(value);
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            return StripIsbn(match.Value);
+        }
+
+        private static string NormalizeAsin(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var candidate = new string(value.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+            if (candidate.Length != 10)
+            {
+                return null;
+            }
+
+            return candidate;
+        }
+
+        private string TryExtractIsbnFromText(string text)
+        {
+            if (text.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            foreach (Match match in IsbnPattern.Matches(text))
+            {
+                var isbn = StripIsbn(match.Value);
+                if (isbn != null)
+                {
+                    return isbn;
+                }
+            }
+
+            return null;
+        }
+
+        private string TryExtractAsinFromText(string text)
+        {
+            if (text.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            foreach (Match match in AsinPattern.Matches(text))
+            {
+                var asin = NormalizeAsin(match.Value);
+                if (asin != null)
+                {
+                    return asin;
+                }
+            }
+
+            return null;
         }
 
         private void LogFallbackOutcome(string file, ParsedTrackInfo result, string format)

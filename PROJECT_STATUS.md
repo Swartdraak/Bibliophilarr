@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 22, 2026 (frontend test runner + replay/series evidence pass)
+**Last Updated**: March 22, 2026 (clean build plus identification verification pass)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -20,6 +20,62 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
 ## Latest Delivery Update
+
+### March 22, 2026 clean build plus identification verification pass
+
+Completed verification updates in this pass:
+
+1. Fresh build validation
+  - Executed a clean full solution build for current metadata extraction and
+    import decision flows.
+  - Result: build succeeded with zero errors.
+
+2. Extraction and identification verification
+  - Confirmed filename identifier fallback coverage for:
+    - `should_extract_isbn_from_filename_during_fallback`
+    - `should_extract_asin_from_filename_during_fallback`
+  - Confirmed matching and decision layers remain green on targeted suites:
+    - `DistanceCalculatorFixture`
+    - `ImportDecisionMakerFixture`
+    - `CandidateServiceFixture`
+
+3. Scope verified
+  - Author identification path
+  - Series-aware metadata path
+  - Book identification/matching path
+  - Cover identification handoff path via provider metadata
+
+Operational impact:
+
+- Confirms confidence-aware extraction and configurable threshold behavior are
+  stable under the current targeted import-identification workflow checks.
+- No runtime or build regressions were introduced in this verification pass.
+
+### March 22, 2026 import extraction confidence merge + configurable threshold
+
+Completed implementation updates in this pass:
+
+1. Confidence-aware ebook metadata extraction merge
+  - Updated `EBookTagService` extraction for EPUB, PDF, AZW3, and MOBI paths to apply field-level confidence assignment and normalization.
+  - Added structured fallback merge from filename parsing with validated identifier extraction (ISBN/ASIN) to improve resilience when container metadata is missing or malformed.
+  - Extended `ParsedTrackInfo` with additional confidence fields (`Series`, `ISBN`, `ASIN`, `Year`, `Publisher`, `Language`) for deterministic downstream scoring.
+
+2. Configurable import close-match acceptance threshold
+  - Replaced hardcoded close-match threshold usage in `CloseBookMatchSpecification` with config-driven threshold consumption.
+  - Added `BookImportMatchThresholdPercent` to `IConfigService`/`ConfigService` with default `80` and enforced bounds (`50..100`).
+  - Exposed and validated the threshold via metadata provider API config resource/controller.
+
+Validation status for this pass:
+
+- Targeted extractor tests:
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter EbookTagServiceFixture`
+  - Result: Passed 10, Failed 0.
+- Full solution build (`build dotnet` task): PASS.
+
+Operational impact:
+
+- Existing behavior is preserved by default (`80%` acceptance threshold).
+- Operators can now tune strictness without code changes when dealing with noisy libraries or low-quality embedded metadata.
 
 ### March 22, 2026 release-evidence and test-runner completion pass
 

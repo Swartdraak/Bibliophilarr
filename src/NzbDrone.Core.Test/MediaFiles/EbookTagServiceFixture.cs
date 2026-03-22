@@ -111,5 +111,33 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
             result.Isbn.Should().BeNullOrEmpty("filename contains no valid ISBN pattern");
             result.Asin.Should().BeNullOrEmpty("filename contains no valid ASIN pattern");
         }
+
+        [Test]
+        public void should_extract_isbn_from_filename_during_fallback()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".pdf");
+            fileInfo.Setup(x => x.FullName).Returns("/tmp/Example Book - Example Author [9781455546176].pdf");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            result.Should().NotBeNull();
+            result.Isbn.Should().Be("9781455546176");
+            result.IsbnConfidence.Should().BeGreaterThan(0.0);
+        }
+
+        [Test]
+        public void should_extract_asin_from_filename_during_fallback()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".azw3");
+            fileInfo.Setup(x => x.FullName).Returns("/tmp/Example Book - Example Author [B08N5WRWNW].azw3");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            result.Should().NotBeNull();
+            result.Asin.Should().Be("B08N5WRWNW");
+            result.AsinConfidence.Should().BeGreaterThan(0.0);
+        }
     }
 }

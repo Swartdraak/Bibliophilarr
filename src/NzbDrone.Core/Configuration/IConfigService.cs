@@ -82,6 +82,7 @@ namespace NzbDrone.Core.Configuration
         bool EnableMetadataConflictStrategyVariants { get; set; }
         string MetadataAuthorAliases { get; set; }
         string MetadataTitleStripPatterns { get; set; }
+        int BookImportMatchThresholdPercent { get; set; }
 
         //Forms Auth
         string RijndaelPassphrase { get; }

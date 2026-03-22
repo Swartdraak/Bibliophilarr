@@ -51,6 +51,10 @@ namespace Bibliophilarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.OpenLibraryWorkRetryBudget)
                 .InclusiveBetween(-1, 10)
                 .WithMessage("OpenLibrary work retry budget must be between -1 and 10");
+
+            SharedValidator.RuleFor(c => c.BookImportMatchThresholdPercent)
+                .InclusiveBetween(50, 100)
+                .WithMessage("Book import match threshold must be between 50 and 100 percent");
         }
 
         protected override MetadataProviderConfigResource ToResource(IConfigService model)

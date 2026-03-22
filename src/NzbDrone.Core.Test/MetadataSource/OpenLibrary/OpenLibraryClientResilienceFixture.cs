@@ -137,6 +137,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             result.Should().NotBeNull();
             result.Docs.Should().BeEmpty();
             Mocker.GetMock<IHttpClient>().Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
+            ExceptionVerification.IgnoreWarns();
         }
     }
 }

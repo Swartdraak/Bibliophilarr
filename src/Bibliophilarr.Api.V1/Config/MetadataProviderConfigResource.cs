@@ -34,6 +34,7 @@ namespace Bibliophilarr.Api.V1.Config
         public bool EnableMetadataConflictStrategyVariants { get; set; }
         public string MetadataAuthorAliases { get; set; }
         public string MetadataTitleStripPatterns { get; set; }
+        public int BookImportMatchThresholdPercent { get; set; }
     }
 
     public static class MetadataProviderConfigResourceMapper
@@ -71,7 +72,8 @@ namespace Bibliophilarr.Api.V1.Config
                 IsbnContextFallbackLimit = model.IsbnContextFallbackLimit,
                 EnableMetadataConflictStrategyVariants = model.EnableMetadataConflictStrategyVariants,
                 MetadataAuthorAliases = model.MetadataAuthorAliases,
-                MetadataTitleStripPatterns = model.MetadataTitleStripPatterns
+                MetadataTitleStripPatterns = model.MetadataTitleStripPatterns,
+                BookImportMatchThresholdPercent = model.BookImportMatchThresholdPercent
             };
         }
     }
