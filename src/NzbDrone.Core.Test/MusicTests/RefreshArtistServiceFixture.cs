@@ -504,5 +504,54 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IMetadataProfileService>()
                 .Verify(s => s.FilterBooks(It.IsAny<Author>(), _author.MetadataProfileId), Times.Once);
         }
+
+        [Test]
+        public void should_send_non_zero_series_payload_on_refresh_path_for_known_series_corpus()
+        {
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Series = new List<Series>
+            {
+                new Series
+                {
+                    ForeignSeriesId = "openlibrary:series:ol100a:earthsea",
+                    Title = "Earthsea"
+                }
+            };
+
+            var remoteBook = Builder<Book>.CreateNew()
+                .With(x => x.ForeignBookId = "series-book-1")
+                .With(x => x.SeriesLinks = new List<SeriesBookLink>
+                {
+                    new SeriesBookLink
+                    {
+                        Position = "1",
+                        SeriesPosition = 1,
+                        Series = new Series
+                        {
+                            ForeignSeriesId = "openlibrary:series:ol100a:earthsea",
+                            Title = "Earthsea"
+                        }
+                    }
+                })
+                .Build();
+
+            newAuthorInfo.Books = new List<Book> { remoteBook };
+
+            GivenNewAuthorInfo(newAuthorInfo);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IRefreshSeriesService>()
+                .Verify(x => x.RefreshSeriesInfo(
+                    It.IsAny<int>(),
+                    It.Is<List<Series>>(series => series != null && series.Count > 0 && series[0].Title == "Earthsea"),
+                    It.IsAny<Author>(),
+                    false,
+                    false,
+                    null), Times.Once);
+        }
     }
 }

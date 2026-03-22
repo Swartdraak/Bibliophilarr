@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.RegularExpressions;
 using NLog;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
 
@@ -10,6 +12,8 @@ namespace NzbDrone.Core.MetadataSource
 {
     public class MetadataProviderOrchestrator : IMetadataProviderOrchestrator
     {
+        private static readonly Regex BareOpenLibraryTokenRegex = new Regex("^OL\\d+[AWM]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private readonly IMetadataProviderRegistry _registry;
         private readonly IMetadataProviderTelemetryService _telemetry;
         private readonly Logger _logger;
@@ -74,7 +78,8 @@ namespace NzbDrone.Core.MetadataSource
             var result = ExecuteFirst<IProvideBookInfo, Tuple<string, Book, List<AuthorMetadata>>>(
                 p => p.GetBookInfo(id),
                 "get-book-info",
-                p => p.SupportsBookSearch || p.SupportsIsbnLookup);
+                p => p.SupportsBookSearch || p.SupportsIsbnLookup,
+                p => IsProviderCompatibleWithIdScope(p, id));
 
             if (result == null)
             {
@@ -89,7 +94,8 @@ namespace NzbDrone.Core.MetadataSource
             var result = ExecuteFirst<IProvideAuthorInfo, Author>(
                 p => p.GetAuthorInfo(id, useCache),
                 "get-author-info",
-                p => p.SupportsAuthorSearch);
+                p => p.SupportsAuthorSearch,
+                p => IsProviderCompatibleWithIdScope(p, id));
 
             if (result == null)
             {
@@ -107,7 +113,10 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.SupportsAuthorSearch);
         }
 
-        private T ExecuteFirst<TContract, T>(Func<TContract, T> operation, string operationName, Func<IMetadataProvider, bool> supports)
+        private T ExecuteFirst<TContract, T>(Func<TContract, T> operation,
+                                             string operationName,
+                                             Func<IMetadataProvider, bool> supports,
+                                             Func<IMetadataProvider, bool> compatibility = null)
             where TContract : class
             where T : class
         {
@@ -115,6 +124,17 @@ namespace NzbDrone.Core.MetadataSource
                 .Where(p => p is TContract)
                 .Where(supports)
                 .ToList();
+
+            if (compatibility != null)
+            {
+                var compatible = providers.Where(compatibility).ToList();
+
+                // Keep legacy behavior if nothing matches compatibility so non-ID operations continue to work.
+                if (compatible.Any())
+                {
+                    providers = compatible;
+                }
+            }
 
             Exception lastError = null;
 
@@ -148,6 +168,53 @@ namespace NzbDrone.Core.MetadataSource
             if (lastError != null)
             {
                 _logger.Warn(lastError, "All providers failed for operation {0}", operationName);
+            }
+
+            return null;
+        }
+
+        private static bool IsProviderCompatibleWithIdScope(IMetadataProvider provider, string providerScopedId)
+        {
+            var expectedProvider = InferProviderFromScopedId(providerScopedId);
+
+            if (expectedProvider == null)
+            {
+                return true;
+            }
+
+            return string.Equals(provider.ProviderName, expectedProvider, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string InferProviderFromScopedId(string providerScopedId)
+        {
+            if (providerScopedId.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var candidate = providerScopedId.Trim();
+
+            if (candidate.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase) ||
+                candidate.StartsWith("/authors/OL", StringComparison.OrdinalIgnoreCase) ||
+                candidate.StartsWith("/works/OL", StringComparison.OrdinalIgnoreCase) ||
+                BareOpenLibraryTokenRegex.IsMatch(candidate))
+            {
+                return "OpenLibrary";
+            }
+
+            if (candidate.StartsWith("googlebooks:", StringComparison.OrdinalIgnoreCase))
+            {
+                return "GoogleBooks";
+            }
+
+            if (candidate.StartsWith("inventaire:", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Inventaire";
+            }
+
+            if (candidate.StartsWith("hardcover:", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Hardcover";
             }
 
             return null;

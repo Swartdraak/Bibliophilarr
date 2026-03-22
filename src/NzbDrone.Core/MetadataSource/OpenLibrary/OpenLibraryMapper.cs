@@ -69,9 +69,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 TitleSlug = $"openlibrary:work:{workId}",
                 Title = doc.Title.CleanSpaces(),
                 CleanTitle = Parser.Parser.CleanAuthorName(doc.Title ?? string.Empty),
-                ReleaseDate = doc.FirstPublishYear.HasValue
-                    ? (DateTime?)new DateTime(doc.FirstPublishYear.Value, 1, 1)
-                    : null,
+                ReleaseDate = ToYearDate(doc.FirstPublishYear),
                 Genres = doc.Subject?.Take(10).ToList() ?? new List<string>(),
                 Ratings = BuildRatingsFromSearchDoc(doc),
                 AnyEditionOk = true
@@ -469,6 +467,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return 0;
+        }
+
+        private static DateTime? ToYearDate(int? year)
+        {
+            if (!year.HasValue || year.Value < DateTime.MinValue.Year || year.Value > DateTime.MaxValue.Year)
+            {
+                return null;
+            }
+
+            return new DateTime(year.Value, 1, 1);
         }
 
         private sealed class SeriesDescriptor

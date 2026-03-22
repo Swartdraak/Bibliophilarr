@@ -260,5 +260,88 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>()
                 .Verify(v => v.Delete(It.IsAny<BookFile>(), DeleteMediaFileReason.ManualOverride), Times.Once());
         }
+
+        [Test]
+        public void should_reject_import_when_author_identifier_is_missing()
+        {
+            var decision = _approvedDecisions.First();
+            decision.Item.Author.Id = 0;
+            decision.Item.Book.Author = decision.Item.Author;
+            decision.Item.Book.AuthorMetadataId = 0;
+            decision.Item.Author.ForeignAuthorId = null;
+            decision.Item.Author.Metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = null,
+                Name = "Missing Id Author"
+            };
+
+            var results = Subject.Import(new List<ImportDecision<LocalBook>> { decision }, false);
+
+            results.Should().ContainSingle(x =>
+                x.Result == ImportResultType.Rejected &&
+                x.Errors.Any(e => e.Contains("Missing or invalid author identifier in import payload")));
+
+            Mocker.GetMock<IAddAuthorService>()
+                .Verify(x => x.AddAuthor(It.IsAny<Author>(), It.IsAny<bool>()), Times.Never);
+        }
+
+        [Test]
+        public void should_reject_import_when_author_identifier_format_is_unsupported()
+        {
+            var decision = _approvedDecisions.First();
+            decision.Item.Author.Id = 0;
+            decision.Item.Book.Author = decision.Item.Author;
+            decision.Item.Book.AuthorMetadataId = 0;
+            decision.Item.Author.ForeignAuthorId = "author-without-provider-scope";
+            decision.Item.Author.Metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = "author-without-provider-scope",
+                Name = "Unsupported Id Author"
+            };
+
+            var results = Subject.Import(new List<ImportDecision<LocalBook>> { decision }, false);
+
+            results.Should().ContainSingle(x =>
+                x.Result == ImportResultType.Rejected &&
+                x.Errors.Any(e => e.Contains("Unsupported author identifier format")));
+
+            Mocker.GetMock<IAddAuthorService>()
+                .Verify(x => x.AddAuthor(It.IsAny<Author>(), It.IsAny<bool>()), Times.Never);
+        }
+
+        [Test]
+        public void should_reject_import_when_author_path_matches_root_folder_path()
+        {
+            var decision = _approvedDecisions.First();
+            decision.Item.Author.Id = 0;
+            decision.Item.Book.Author = decision.Item.Author;
+            decision.Item.Book.AuthorMetadataId = 0;
+            decision.Item.Author.ForeignAuthorId = "openlibrary:author:OL123A";
+            decision.Item.Author.Metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = "openlibrary:author:OL123A",
+                Name = "Root Conflict Author"
+            };
+
+            var rootFolder = Builder<RootFolder>.CreateNew()
+                .With(r => r.Path = @"C:\Test\Music".AsOsAgnostic())
+                .With(r => r.IsCalibreLibrary = false)
+                .Build();
+
+            decision.Item.Author.Path = rootFolder.Path;
+
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(s => s.GetBestRootFolder(It.IsAny<string>()))
+                .Returns(rootFolder);
+
+            var results = Subject.Import(new List<ImportDecision<LocalBook>> { decision }, false);
+
+            results.Should().ContainSingle(x =>
+                x.Result == ImportResultType.Rejected &&
+                x.Errors.Any(e => e.Contains("conflicts with root folder path")));
+
+            Mocker.GetMock<IAddAuthorService>()
+                .Verify(x => x.AddAuthor(It.IsAny<Author>(), It.IsAny<bool>()), Times.Never);
+        }
     }
 }

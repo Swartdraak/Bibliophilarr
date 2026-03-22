@@ -235,9 +235,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var isbn13 = edition.Isbn13?.FirstOrDefault(IsThirteenDigitIsbn)
                 ?? (Isbn13Regex.IsMatch(lookupIsbn) ? lookupIsbn : null);
             var publishYear = ParseEditionPublishYear(edition.PublishDate);
-            var releaseDate = publishYear.HasValue
-                ? new DateTime(publishYear.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                : (DateTime?)null;
+            var releaseDate = ParseReleaseDate(publishYear);
 
             var authorMetadata = new AuthorMetadata
             {

@@ -9,6 +9,10 @@ on:
       tag:
         description: 'Release tag (example: v1.2.3)'
         required: true
+      stagingDbPath:
+        description: 'Path to staging bibliophilarr.db for series gate snapshot generation'
+        required: false
+        default: ''
       draft:
         description: 'Create release as draft'
         required: false
@@ -32,6 +36,29 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Generate series persistence snapshot
+        env:
+          STAGING_DB_PATH: ${{ github.event.inputs.stagingDbPath }}
+        run: |
+          if [[ -z "${STAGING_DB_PATH}" ]]; then
+            echo "No staging database path provided. Set workflow input 'stagingDbPath'."
+            exit 1
+          fi
+
+          if [[ ! -f "${STAGING_DB_PATH}" ]]; then
+            echo "Staging database path does not exist: ${STAGING_DB_PATH}"
+            exit 1
+          fi
+
+          run_date="$(date +%Y-%m-%d)"
+          snapshot_dir="docs/operations/series-persistence-snapshots"
+          mkdir -p "${snapshot_dir}" _artifacts/release-entry
+
+          python3 scripts/series_persistence_gate.py \
+            --db-path "${STAGING_DB_PATH}" \
+            --json-out "${snapshot_dir}/${run_date}.json" \
+            --md-out "${snapshot_dir}/${run_date}.md"
+
       - name: Enforce release-entry evidence gates
         run: |
           mkdir -p _artifacts/release-entry
@@ -45,7 +72,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-entry-gate
-          path: _artifacts/release-entry
+          path: |
+            _artifacts/release-entry
+            docs/operations/series-persistence-snapshots
 
   build-package:
     name: Build and Package (${{ matrix.rid }})

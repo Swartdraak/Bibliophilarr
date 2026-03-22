@@ -310,6 +310,50 @@ namespace NzbDrone.Core.Test.MetadataSource
                 x.Successes == 1);
         }
 
+        [Test]
+        public void should_not_route_openlibrary_author_ids_to_incompatible_provider()
+        {
+            var compatible = new SuccessfulOpenLibraryAuthorInfoProvider();
+            var incompatible = new IncompatibleAuthorInfoProvider();
+
+            var registry = new TestRegistry(new IMetadataProvider[]
+            {
+                incompatible,
+                compatible
+            });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+            var result = orchestrator.GetAuthorInfo("openlibrary:author:OL23919A", true);
+
+            result.Should().NotBeNull();
+            result.Metadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL23919A");
+            incompatible.CallCount.Should().Be(0);
+        }
+
+        [Test]
+        public void should_not_route_openlibrary_work_ids_to_incompatible_book_info_provider()
+        {
+            var compatible = new SuccessfulOpenLibraryBookInfoProvider();
+            var incompatible = new IncompatibleBookInfoProvider();
+
+            var registry = new TestRegistry(new IMetadataProvider[]
+            {
+                incompatible,
+                compatible
+            });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+            var result = orchestrator.GetBookInfo("openlibrary:work:OL45883W");
+
+            result.Should().NotBeNull();
+            result.Item2.ForeignBookId.Should().Be("openlibrary:work:OL45883W");
+            incompatible.CallCount.Should().Be(0);
+        }
+
         private class FailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
         {
             public string ProviderName => "FailingAuthorInfo";
@@ -381,6 +425,113 @@ namespace NzbDrone.Core.Test.MetadataSource
             public HashSet<string> GetChangedAuthors(DateTime startTime)
             {
                 return new HashSet<string>();
+            }
+        }
+
+        private class IncompatibleAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
+        {
+            public int CallCount { get; private set; }
+
+            public string ProviderName => "GoogleBooks";
+            public int Priority => 1;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => false;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => false;
+
+            public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
+            {
+                CallCount++;
+                throw new InvalidOperationException("incompatible provider should not be called");
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                return new HashSet<string>();
+            }
+        }
+
+        private class SuccessfulOpenLibraryAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
+        {
+            public string ProviderName => "OpenLibrary";
+            public int Priority => 2;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => true;
+            public bool SupportsIsbnLookup => true;
+            public bool SupportsSeriesInfo => true;
+            public bool SupportsCoverImages => true;
+
+            public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
+            {
+                return new Author
+                {
+                    Metadata = new AuthorMetadata
+                    {
+                        ForeignAuthorId = bibliophilarrId,
+                        Name = "Compatible Author"
+                    },
+                    Books = new List<Book>()
+                };
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                return new HashSet<string>();
+            }
+        }
+
+        private class SuccessfulOpenLibraryBookInfoProvider : IMetadataProvider, IProvideBookInfo
+        {
+            public string ProviderName => "OpenLibrary";
+            public int Priority => 2;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => true;
+            public bool SupportsIsbnLookup => true;
+            public bool SupportsSeriesInfo => true;
+            public bool SupportsCoverImages => true;
+
+            public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
+            {
+                var metadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = "openlibrary:author:OL26320A",
+                    Name = "J.R.R. Tolkien"
+                };
+
+                return Tuple.Create(
+                    metadata.ForeignAuthorId,
+                    new Book
+                    {
+                        ForeignBookId = "openlibrary:work:OL45883W",
+                        AuthorMetadata = metadata,
+                        Author = new Author { Metadata = metadata },
+                        Editions = new List<Edition>()
+                    },
+                    new List<AuthorMetadata> { metadata });
+            }
+        }
+
+        private class IncompatibleBookInfoProvider : IMetadataProvider, IProvideBookInfo
+        {
+            public int CallCount { get; private set; }
+
+            public string ProviderName => "GoogleBooks";
+            public int Priority => 1;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => false;
+            public bool SupportsBookSearch => true;
+            public bool SupportsIsbnLookup => true;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => true;
+
+            public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
+            {
+                CallCount++;
+                throw new InvalidOperationException("incompatible provider should not be called");
             }
         }
 

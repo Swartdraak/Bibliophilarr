@@ -1,0 +1,9 @@
+{
+  "minIdentifyRateDelta": -0.05,
+  "minCoverSuccessRateDelta": -0.05,
+  "maxProviderFailuresDelta": 2,
+  "maxUnresolvedDelta": 1,
+  "minSeriesDelta": 0,
+  "minSeriesBookLinksDelta": 0,
+  "maxDuplicateAuthorsDelta": 0
+}

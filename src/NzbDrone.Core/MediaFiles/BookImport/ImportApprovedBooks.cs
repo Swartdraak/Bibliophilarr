@@ -34,6 +34,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
     public class ImportApprovedBooks : IImportApprovedBooks
     {
         private static readonly RegexReplace PadNumbers = new RegexReplace(@"\d+", n => n.Value.PadLeft(9, '0'), RegexOptions.Compiled);
+        private static readonly Regex ScopedAuthorIdRegex = new Regex("^(openlibrary|googlebooks|inventaire|hardcover):author:[^:]+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly IUpgradeMediaFiles _bookFileUpgrader;
         private readonly IMediaFileService _mediaFileService;
@@ -403,6 +404,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         author.Path = path.GetParentPath().GetParentPath();
                     }
 
+                    if (!ValidateAuthorImportPreflight(author, rootFolder, decisions))
+                    {
+                        return null;
+                    }
+
                     try
                     {
                         dbAuthor = _addAuthorService.AddAuthor(author, false);
@@ -444,6 +450,44 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return normalizedAuthorId.IsNotNullOrWhiteSpace()
                 ? $"openlibrary:author:{normalizedAuthorId}"
                 : foreignAuthorId;
+        }
+
+        private bool ValidateAuthorImportPreflight(Author author, RootFolder rootFolder, List<ImportDecision<LocalBook>> decisions)
+        {
+            var foreignAuthorId = author?.Metadata?.Value?.ForeignAuthorId;
+
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                RejectAuthorImport(decisions, "Missing or invalid author identifier in import payload");
+                return false;
+            }
+
+            var normalizedOpenLibraryAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId);
+            var isScopedProviderId = ScopedAuthorIdRegex.IsMatch(foreignAuthorId);
+
+            if (!isScopedProviderId && normalizedOpenLibraryAuthorId.IsNullOrWhiteSpace())
+            {
+                RejectAuthorImport(decisions, $"Unsupported author identifier format: '{foreignAuthorId}'");
+                return false;
+            }
+
+            if (rootFolder?.Path.IsNotNullOrWhiteSpace() == true &&
+                author?.Path.IsNotNullOrWhiteSpace() == true &&
+                rootFolder.Path.Equals(author.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                RejectAuthorImport(decisions, $"Author path '{author.Path}' conflicts with root folder path");
+                return false;
+            }
+
+            return true;
+        }
+
+        private static void RejectAuthorImport(IEnumerable<ImportDecision<LocalBook>> decisions, string reason)
+        {
+            foreach (var decision in decisions)
+            {
+                decision.Reject(new Rejection(reason, RejectionType.Permanent));
+            }
         }
 
         private Book EnsureBookAdded(List<ImportDecision<LocalBook>> decisions, List<Book> addedBooks)

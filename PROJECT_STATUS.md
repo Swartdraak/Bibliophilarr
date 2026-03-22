@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 21, 2026 (TD-META-001..005 completion + validated)
+**Last Updated**: March 22, 2026 (frontend test runner + replay/series evidence pass)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -20,6 +20,150 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
 ## Latest Delivery Update
+
+### March 22, 2026 release-evidence and test-runner completion pass
+
+Completed implementation updates in this pass:
+
+1. Frontend test-runner wiring for local and CI execution
+  - Added repository Jest configuration (`jest.config.cjs`) with frontend module mapping parity.
+  - Added Jest setup and file mocks under `frontend/build`.
+  - Added `yarn test:frontend` and CI `Test` step in `.github/workflows/ci-frontend.yml`.
+
+2. Series persistence evidence generation and release workflow hookup
+  - Executed `scripts/series_persistence_gate.py` against staging DB and published:
+    - `docs/operations/series-persistence-snapshots/2026-03-22.md`
+    - `docs/operations/series-persistence-snapshots/2026-03-22.json`
+  - Updated `.github/workflows/release.yml` to generate series snapshot evidence before `release_entry_gate.py`.
+
+3. Baseline/post replay evidence and delta assertions
+  - Generated baseline and post replay reports from curated cohort copies:
+    - `docs/operations/replay-comparison-snapshots/2026-03-22/baseline/root_live_enrichment_report.json`
+    - `docs/operations/replay-comparison-snapshots/2026-03-22/post/root_live_enrichment_report.json`
+  - Generated replay comparison artifacts:
+    - `docs/operations/replay-comparison-snapshots/2026-03-22/replay-comparison.md`
+    - `docs/operations/replay-comparison-snapshots/2026-03-22/replay-comparison.json`
+  - Added CI delta guard script `scripts/replay_delta_guard.py` and threshold profile `tests/fixtures/replay-cohort/replay-delta-thresholds.json`.
+  - Updated weekly replay workflow to run baseline+post, compare, and fail on delta regressions.
+
+4. Targeted core test expansion for migration hardening
+  - Added import preflight rejection tests in `ImportApprovedTracksFixture`.
+  - Added canonical merge side-effect tests in `AuthorCanonicalizationServiceFixture`.
+  - Added refresh-path series payload assertion in `RefreshAuthorServiceFixture`.
+
+Validation status for this pass:
+
+- Frontend tests: `yarn test:frontend` PASS (9 suites, 19 tests).
+- Targeted core tests: PASS (new preflight/canonical/series tests).
+- Full solution build (`build dotnet` task): PASS.
+- Replay delta guard: PASS (`docs/operations/replay-comparison-snapshots/2026-03-22/replay-delta-guard-summary.json`).
+
+Staged gate outcome:
+
+- `_artifacts/release-entry/release-entry-gate.json` reports overall `ok: false`.
+- Blocking gate: `Series persistence` (latest snapshot verdict `FAIL`).
+- Staging DB snapshot details:
+  - `Series=0`
+  - `SeriesBookLinks=0`
+  - `DuplicateNormalizedAuthors=51`
+
+Immediate blocker status:
+
+- Release-entry now enforces series-snapshot generation and consumes current dated evidence correctly.
+- Runtime series persistence remains unresolved in staging data and still blocks release-entry success.
+
+### March 21, 2026 metadata hardening continuation (routing/dedupe/import/replay gates)
+
+Completed implementation updates in this continuation slice:
+
+1. Provider compatibility routing for ID-scoped metadata calls
+  - `MetadataProviderOrchestrator` now applies provider-ID namespace compatibility filtering for:
+    - `get-author-info`
+    - `get-book-info`
+  - Added regression coverage in `MetadataProviderOrchestratorFixture` to ensure OpenLibrary-scoped IDs do not fan out to incompatible providers.
+
+2. Canonical author dedupe and merge tooling
+  - Added `CanonicalizeAuthorsCommand`.
+  - Added `AuthorCanonicalizationService` with confidence-scored canonical matching and bounded merge execution.
+  - Integrated canonical dedupe short-circuiting into `AddAuthorService` for single and bulk add paths.
+
+3. Identification fallback and import preflight hardening
+  - `CandidateService` now applies broader title/author variants and records structured fallback exhaustion diagnostics.
+  - `ImportApprovedBooks` now performs preflight checks for invalid/missing author IDs and root-path conflicts before add flows.
+
+4. Series reconciliation safety and release gating support
+  - `RefreshAuthorService` now reconstructs series candidates from book `SeriesLinks` when author-level series payload is empty.
+  - Added operational scripts:
+    - `scripts/series_persistence_gate.py` (DB-backed series/series-link/duplicate-author gate report)
+    - `scripts/replay_comparison.py` (baseline vs post-fix replay comparison for identify rate, cover success, provider failures, and optional DB deltas)
+  - `scripts/release_entry_gate.py` now includes a `Series persistence` evidence gate (`docs/operations/series-persistence-snapshots`).
+
+Validation status for this continuation slice:
+
+- Full solution build (`build dotnet` task): PASS.
+- Targeted core tests:
+  - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --filter "FullyQualifiedName~MetadataProviderOrchestratorFixture.should_not_route_openlibrary_author_ids_to_incompatible_provider|FullyQualifiedName~MetadataProviderOrchestratorFixture.should_not_route_openlibrary_work_ids_to_incompatible_book_info_provider|FullyQualifiedName~RefreshAuthorServiceFixture" -p:Platform=Posix -p:Configuration=Debug`
+  - Result: Passed 14, Failed 0.
+- Python script syntax validation:
+  - `python3 -m py_compile scripts/series_persistence_gate.py scripts/replay_comparison.py scripts/release_entry_gate.py`
+  - Result: PASS.
+
+Known validation gap:
+
+- Frontend interaction regression tests were added for jump/link press paths, but local Jest execution is not yet wired in this workspace (no project Jest config/module mapping for current command path). Test files are present and require project test-runner alignment.
+
+### March 21, 2026 full-library QA review (logs/config/runtime triage)
+
+A new full-library run was reviewed against runtime logs, config, and database state.
+This triage confirms several production-impacting issues and defines the next correction slice.
+
+Observed evidence snapshot:
+
+- Runtime metadata cardinality remains inconsistent with expected series coverage:
+  - `Authors=541`, `Books=26022`, `Series=0`, `SeriesBookLink=0`, `BookFiles=3789`.
+- Metadata orchestrator warnings are dominated by OpenLibrary search failures:
+  - `Year, Month, and Day parameters describe an un-representable DateTime`.
+  - `Http request timed out`.
+- Author refresh failures are widespread for stale/unresolvable author IDs:
+  - repeated `Author ... was not found` / `Could not find author with id ...`.
+- Duplicate logical authors exist under multiple OpenLibrary foreign IDs
+  (`AuthorMetadata.Name` duplicates with distinct `ForeignAuthorId` values).
+- Import identification quality is degraded:
+  - repeated `ISBN contextual fallback exhausted ... no candidates found`.
+- Cover path now shows reduced warning volume versus prior baseline, but current failures
+  are mostly upstream archive mirror `502` responses.
+- Provider-routing telemetry shows GoogleBooks invoked in `get-author-info` fallback with
+  OpenLibrary-style author IDs, which are provider-incompatible and produce noisy misses.
+
+Immediate code fix completed in this review cycle:
+
+1. OpenLibrary invalid publish-year resilience
+  - Fixed out-of-range publish year handling that caused DateTime exceptions in search mapping paths.
+  - Updated:
+    - `OpenLibraryMapper.MapSearchDocToBook` release-date mapping now validates year bounds.
+    - `OpenLibrarySearchProxy.MapEditionToBook` now uses safe year-date parsing.
+  - Added regression test:
+    - `OpenLibraryMapperFixture.map_search_doc_with_out_of_range_publish_year_should_not_throw`.
+  - Validation:
+    - `dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj -p:Platform=Posix --filter "FullyQualifiedName~OpenLibraryMapperFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~OpenLibraryProviderFixture"`
+    - Result: Passed 46, Failed 0, Skipped 0.
+
+Prioritized correction plan from this QA pass:
+
+| ID | Priority | Problem statement | Proposed correction | Validation gate |
+|---|---|---|---|---|
+| TD-META-008 | P0 | OpenLibrary search mapping can throw on malformed publish years, aborting search/fallback flows. | Keep defensive year guards in all search/edition mapping boundaries; add fixture coverage for invalid years (`0`, negative, `>9999`). | Zero DateTime range exceptions from OpenLibrary mapping paths in runtime logs under full scan/import. |
+| TD-META-009 | P0 | Logical duplicate authors are imported as separate entities because distinct OpenLibrary IDs can map to equivalent canonical names. | Add canonical-author merge policy (name/alias normalization + confidence gates) and post-import dedupe reconciliation command. | Duplicate normalized author-name count decreases monotonically without data loss in merged author/book linkage tests. |
+| TD-META-010 | P1 | Orchestrator routes `get-author-info` fallbacks to providers that cannot resolve OpenLibrary author IDs, adding noise and latency. | Add provider compatibility guard for ID-scoped operations (route by ID namespace/provider capability). | No incompatible-provider fallback warnings for ID-scoped operations; fallback remains active for search/query operations. |
+| TD-META-011 | P1 | Series persistence remains zero in full-library runtime despite series field ingestion support. | Add end-to-end series persistence integration test and refresh audit path (search-doc enrichment => `Series` + `SeriesBookLink` writes). | Refresh of known series corpus yields non-zero `Series` and `SeriesBookLink` counts. |
+| TD-IMPORT-005 | P1 | Download import identification often exhausts ISBN contextual fallback with no candidates. | Expand identification fallback contract with provider-agnostic title/author variant routing and stronger telemetry on candidate rejection reasons. | Reduced `no candidates found` frequency and improved identified-import rate on replay corpus. |
+| TD-UI-001 | P1 | UI interactions (including author jump-bar click behavior) reported as intermittently non-responsive. | Run frontend interaction audit with console/error instrumentation and connector-state regression tests for Author index and jump-bar handlers. | Repro case green in browser regression test; no unhandled UI runtime errors during author index interaction. |
+
+Operational safeguards until next slice lands:
+
+- Keep GoogleBooks enabled for search/fallback coverage, but treat `get-author-info` cross-provider warnings as expected noise until `TD-META-010` is delivered.
+- Re-run author refresh in controlled batches after the DateTime guard fix to repopulate provider telemetry with clean mapping behavior.
+- Track series table counts before and after each batch to verify movement away from zero.
 
 ### March 21, 2026 TD hardening batch (event/cover/series/openlibrary/import/indexer)
 

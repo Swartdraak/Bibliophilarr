@@ -122,6 +122,7 @@ Common commands:
 
 ```bash
 dotnet test src/Bibliophilarr.sln
+yarn test:frontend
 yarn lint
 yarn build
 ```

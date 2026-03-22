@@ -293,7 +293,13 @@ namespace NzbDrone.Core.Books
         protected override void PublishRefreshCompleteEvent(Author entity)
         {
             // little hack - trigger the series update here
-            _refreshSeriesService.RefreshSeriesInfo(entity.AuthorMetadataId, entity.Series, entity, false, false, null);
+            var series = entity.Series;
+            if (series?.Value == null || !series.Value.Any())
+            {
+                series = BuildSeriesFromBookLinks(entity);
+            }
+
+            _refreshSeriesService.RefreshSeriesInfo(entity.AuthorMetadataId, series, entity, false, false, null);
             _eventAggregator.PublishEvent(new AuthorRefreshCompleteEvent(entity));
         }
 
@@ -358,6 +364,53 @@ namespace NzbDrone.Core.Books
                 !existing.AddNewAuthors &&
                 (existing.Folders ?? new List<string>()).OrderBy(x => x).SequenceEqual(expectedFolders) &&
                 (existing.AuthorIds ?? new List<int>()).OrderBy(x => x).SequenceEqual(expectedAuthors));
+        }
+
+        private static List<Series> BuildSeriesFromBookLinks(Author entity)
+        {
+            var links = entity?.Books?.Value?
+                .Where(b => b?.SeriesLinks?.Value?.Any() == true)
+                .SelectMany(b => b.SeriesLinks.Value)
+                .Where(l => l?.Series?.Value != null &&
+                            l.Series.Value.ForeignSeriesId.IsNotNullOrWhiteSpace())
+                .ToList() ?? new List<SeriesBookLink>();
+
+            if (!links.Any())
+            {
+                return new List<Series>();
+            }
+
+            var grouped = links.GroupBy(x => x.Series.Value.ForeignSeriesId, StringComparer.OrdinalIgnoreCase);
+            var series = new List<Series>();
+
+            foreach (var group in grouped)
+            {
+                var first = group.First().Series.Value;
+                var dedupedLinks = group
+                    .GroupBy(x => x.Book?.Value?.ForeignBookId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                    .Select(x => x.First())
+                    .ToList();
+
+                var hydrated = new Series
+                {
+                    ForeignSeriesId = first.ForeignSeriesId,
+                    ForeignAuthorId = entity.ForeignAuthorId,
+                    Title = first.Title,
+                    Numbered = dedupedLinks.Any(x => x.Position.IsNotNullOrWhiteSpace()),
+                    WorkCount = dedupedLinks.Count,
+                    PrimaryWorkCount = dedupedLinks.Count(x => x.IsPrimary),
+                    LinkItems = dedupedLinks
+                };
+
+                foreach (var link in dedupedLinks)
+                {
+                    link.Series = hydrated;
+                }
+
+                series.Add(hydrated);
+            }
+
+            return series;
         }
 
         private void RefreshSelectedAuthors(List<int> authorIds, bool isNew, CommandTrigger trigger)

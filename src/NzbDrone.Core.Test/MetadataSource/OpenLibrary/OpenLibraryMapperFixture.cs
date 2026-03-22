@@ -135,6 +135,24 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         [Test]
+        public void map_search_doc_with_out_of_range_publish_year_should_not_throw()
+        {
+            var doc = new OlSearchDoc
+            {
+                Key = "/works/OL101W",
+                Title = "Year Overflow",
+                AuthorName = new List<string> { "Test Author" },
+                AuthorKey = new List<string> { "/authors/OL1A" },
+                FirstPublishYear = 10000
+            };
+
+            var book = OpenLibraryMapper.MapSearchDocToBook(doc);
+
+            book.Should().NotBeNull();
+            book.ReleaseDate.Should().BeNull();
+        }
+
+        [Test]
         public void map_search_doc_with_null_returns_null()
         {
             var result = OpenLibraryMapper.MapSearchDocToBook(null);

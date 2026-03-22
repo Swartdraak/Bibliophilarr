@@ -4,6 +4,37 @@
 
 This document outlines the comprehensive technical plan for migrating Bibliophilarr from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
+## Implementation Progress Snapshot (March 22, 2026 release-evidence/test-runner completion)
+
+Completed in this migration-evidence slice:
+
+- Frontend regression runner completion:
+  - Added repository Jest config/module mapper and setup hooks so frontend tests run both locally and in CI.
+  - Added `yarn test:frontend` command and CI test execution in `ci-frontend.yml`.
+- Replay baseline/post-fix evidence published from curated cohort:
+  - Baseline report: `docs/operations/replay-comparison-snapshots/2026-03-22/baseline/root_live_enrichment_report.json`
+  - Post report: `docs/operations/replay-comparison-snapshots/2026-03-22/post/root_live_enrichment_report.json`
+  - Comparison outputs: `docs/operations/replay-comparison-snapshots/2026-03-22/replay-comparison.md` and `.json`
+- Delta regression assertions enforced:
+  - Added `scripts/replay_delta_guard.py` and `tests/fixtures/replay-cohort/replay-delta-thresholds.json`.
+  - Weekly replay workflow now performs baseline+post comparison and fails on threshold regressions.
+- Release-entry gate evidence chain improved:
+  - Release workflow now generates same-day series persistence snapshots before `release_entry_gate.py`.
+  - New staging snapshot published at `docs/operations/series-persistence-snapshots/2026-03-22.md` and `.json`.
+
+Validation status for this slice:
+
+- Frontend Jest suites: pass (9/9).
+- New targeted core tests for import preflight, canonical merge side effects, and refresh series payload: pass.
+- Replay delta guard: pass (`replay-delta-guard-summary.json` status `passed`).
+- Full solution build: pass.
+- Staged release-entry gate: fail (expected), blocked by series persistence verdict `FAIL`.
+
+Migration risk posture update:
+
+- Tooling and CI controls for replay and frontend regressions are now in place.
+- Primary migration blocker remains runtime series persistence and duplicate author convergence in staging DB state.
+
 ## Implementation Progress Snapshot (March 18, 2026)
 
 Completed in the current migration slice:
@@ -47,6 +78,35 @@ Migration safety posture:
 - No destructive schema changes were introduced in this slice.
 - Existing fallback behavior is preserved while routing now uses health-aware ordering.
 
+## Implementation Progress Snapshot (March 21, 2026 routing/dedupe/import hardening continuation)
+
+Completed in this continuation slice:
+
+- ID-scoped provider compatibility routing:
+    - `MetadataProviderOrchestrator` now filters provider execution for scoped IDs in `GetAuthorInfo` and `GetBookInfo`.
+    - OpenLibrary ID namespaces are constrained to compatible provider execution before fallback.
+- Canonical dedupe and merge tooling:
+    - Added `CanonicalizeAuthorsCommand` and `AuthorCanonicalizationService`.
+    - Added confidence-scored canonical match policy and bounded merge execution.
+    - Integrated dedupe policy into author add flows to prevent high-confidence duplicate inserts.
+- Import/identification robustness:
+    - Added import preflight guards for invalid author IDs and root-folder conflicts.
+    - Expanded identification fallback query variants and no-candidate diagnostics.
+- Series persistence and release evidence support:
+    - Added series reconstruction fallback in author refresh when author-level series payload is empty.
+    - Added `scripts/series_persistence_gate.py` and integrated series snapshot requirement into `scripts/release_entry_gate.py`.
+    - Added `scripts/replay_comparison.py` for baseline vs post-fix replay comparison metrics.
+
+Validation status:
+
+- Full solution build: pass.
+- Targeted core fixtures for orchestrator compatibility and refresh flow: pass.
+- Python gate/comparison scripts: syntax validation pass via `py_compile`.
+
+Known gap:
+
+- Frontend jump-bar interaction tests are added but local Jest execution path needs repository test-runner wiring (module mapping/Babel setup for direct CLI invocation).
+
 ## Implementation Progress Snapshot (March 21, 2026 hardening follow-up)
 
 Completed in this hardening slice:
@@ -68,6 +128,35 @@ Validation status for this slice:
 - Core targeted fixtures: pass (49/49).
 - API targeted fixtures: pass (2/2).
 - Full solution build: pass.
+
+## Implementation progress snapshot (March 21, 2026 full-library QA triage)
+
+A full-library validation run identified additional migration-critical gaps and one
+newly confirmed provider mapping fault.
+
+Confirmed runtime findings:
+
+- OpenLibrary search flows emitted frequent DateTime range failures from malformed publish-year values.
+- Series persistence remained at zero (`Series` / `SeriesBookLink`) in the reviewed runtime state.
+- Duplicate logical authors were present under distinct OpenLibrary foreign IDs.
+- Import identification quality remained constrained by repeated "no candidates" fallback exhaustion.
+- GoogleBooks was enabled but `get-author-info` fallbacks were invoked with OpenLibrary ID namespaces,
+    creating noisy misses without effective recovery.
+
+Completed in this follow-up:
+
+- Implemented defensive publish-year range handling in OpenLibrary mapper/search-proxy paths to
+    prevent DateTime exceptions from malformed provider payloads.
+- Added regression fixture coverage for out-of-range publish-year search docs.
+- Targeted validation (OpenLibrary mapper/client/provider fixtures): pass (46/46).
+
+Next migration slices (priority order):
+
+1. Provider-compatibility routing for ID-scoped operations (`get-author-info`, `get-book-info`).
+2. Canonical author dedupe/merge policy for multi-ID OpenLibrary author records.
+3. End-to-end series persistence verification and reconciliation for refresh/import paths.
+4. Identification fallback quality expansion with richer candidate-rejection telemetry.
+5. Frontend interaction audit for author index jump-bar and related click handlers.
 
 Additional migration progress (March 18, 2026):
 

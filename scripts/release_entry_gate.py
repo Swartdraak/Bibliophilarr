@@ -237,6 +237,11 @@ def main() -> int:
         default="docs/operations/install-test-snapshots",
         help="Directory containing dated install matrix snapshots",
     )
+    parser.add_argument(
+        "--series-dir",
+        default="docs/operations/series-persistence-snapshots",
+        help="Directory containing dated series persistence snapshots",
+    )
     parser.add_argument("--max-age-days", type=int, default=7)
     parser.add_argument(
         "--symbol-scan-dirs",
@@ -281,6 +286,13 @@ def main() -> int:
             name="Install matrix",
             directory=Path(args.install_dir),
             marker="Overall matrix verdict",
+            max_age_days=args.max_age_days,
+            accepted_terms=["pass"],
+        ),
+        evaluate_gate(
+            name="Series persistence",
+            directory=Path(args.series_dir),
+            marker="Series persistence verdict",
             max_age_days=args.max_age_days,
             accepted_terms=["pass"],
         ),

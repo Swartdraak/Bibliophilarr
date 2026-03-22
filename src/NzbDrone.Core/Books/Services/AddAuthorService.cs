@@ -25,6 +25,7 @@ namespace NzbDrone.Core.Books
     {
         private readonly IAuthorService _authorService;
         private readonly IAuthorMetadataService _authorMetadataService;
+        private readonly IAuthorCanonicalizationService _authorCanonicalizationService;
         private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IAddAuthorValidator _addAuthorValidator;
@@ -32,6 +33,7 @@ namespace NzbDrone.Core.Books
 
         public AddAuthorService(IAuthorService authorService,
                                 IAuthorMetadataService authorMetadataService,
+                                IAuthorCanonicalizationService authorCanonicalizationService,
                                 IMetadataProviderOrchestrator orchestrator,
                                 IBuildFileNames fileNameBuilder,
                                 IAddAuthorValidator addAuthorValidator,
@@ -39,6 +41,7 @@ namespace NzbDrone.Core.Books
         {
             _authorService = authorService;
             _authorMetadataService = authorMetadataService;
+            _authorCanonicalizationService = authorCanonicalizationService;
             _orchestrator = orchestrator;
             _fileNameBuilder = fileNameBuilder;
             _addAuthorValidator = addAuthorValidator;
@@ -51,6 +54,13 @@ namespace NzbDrone.Core.Books
 
             newAuthor = AddSkyhookData(newAuthor);
             newAuthor = SetPropertiesAndValidate(newAuthor);
+
+            var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(newAuthor, out var confidence, out var reason);
+            if (canonical != null)
+            {
+                _logger.Info("Reusing canonical author {0} for incoming {1} (confidence={2:0.000}, reason={3})", canonical, newAuthor, confidence, reason);
+                return canonical;
+            }
 
             _logger.Info("Adding Author {0} Path: [{1}]", newAuthor, newAuthor.Path);
 
@@ -66,6 +76,7 @@ namespace NzbDrone.Core.Books
         {
             var added = DateTime.UtcNow;
             var authorsToAdd = new List<Author>();
+            var existingMatches = new List<Author>();
 
             foreach (var s in newAuthors)
             {
@@ -73,6 +84,15 @@ namespace NzbDrone.Core.Books
                 {
                     var author = AddSkyhookData(s);
                     author = SetPropertiesAndValidate(author);
+
+                    var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(author, out var confidence, out var reason);
+                    if (canonical != null)
+                    {
+                        _logger.Info("Skipping duplicate author insert for {0}; using canonical {1} (confidence={2:0.000}, reason={3})", author, canonical, confidence, reason);
+                        existingMatches.Add(canonical);
+                        continue;
+                    }
+
                     author.Added = added;
                     authorsToAdd.Add(author);
                 }
@@ -83,11 +103,17 @@ namespace NzbDrone.Core.Books
                 }
             }
 
+            if (!authorsToAdd.Any())
+            {
+                return existingMatches.DistinctBy(x => x.Id).ToList();
+            }
+
             // add metadata
             _authorMetadataService.UpsertMany(authorsToAdd.Select(x => x.Metadata.Value).ToList());
             authorsToAdd.ForEach(x => x.AuthorMetadataId = x.Metadata.Value.Id);
 
-            return _authorService.AddAuthors(authorsToAdd, doRefresh);
+            var inserted = _authorService.AddAuthors(authorsToAdd, doRefresh);
+            return inserted.Concat(existingMatches).DistinctBy(x => x.Id).ToList();
         }
 
         private Author AddSkyhookData(Author newAuthor)

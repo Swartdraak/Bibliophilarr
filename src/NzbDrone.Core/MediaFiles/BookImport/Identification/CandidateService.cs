@@ -338,14 +338,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             var bookTag = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.BookTitle) ?? "";
-            var authorVariants = (_queryNormalizationService.ExpandAuthorAliases(authorTags) ?? new List<string>())
-                .Where(a => a.IsNotNullOrWhiteSpace())
-                .Distinct()
-                .ToList();
-            var titleVariants = (_queryNormalizationService.BuildTitleVariants(bookTag) ?? new List<string>())
-                .Where(t => t.IsNotNullOrWhiteSpace())
-                .Distinct()
-                .ToList();
+            var authorVariants = BuildRobustAuthorVariants(authorTags);
+            var titleVariants = BuildRobustTitleVariants(bookTag);
 
             // If neither author nor title tags are available, stop.
             if (!authorVariants.Any() && !titleVariants.Any())
@@ -452,6 +446,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     yield break;
                 }
             }
+
+            LogCandidateRejectionTelemetry(localEdition, "all-search-paths-exhausted", 0, 0, seenCandidates.Count);
         }
 
         private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides)
@@ -463,10 +459,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var bookTag = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.BookTitle) ?? string.Empty;
             var authorTags = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.Authors) ?? new List<string>();
 
-            var titleVariants = (_queryNormalizationService.BuildTitleVariants(bookTag) ?? new List<string>())
-                .Where(t => t.IsNotNullOrWhiteSpace()).Distinct().ToList();
-            var authorVariants = (_queryNormalizationService.ExpandAuthorAliases(authorTags) ?? new List<string>())
-                .Where(a => a.IsNotNullOrWhiteSpace()).Distinct().ToList();
+            var titleVariants = BuildRobustTitleVariants(bookTag);
+            var authorVariants = BuildRobustAuthorVariants(authorTags);
 
             if (!titleVariants.Any())
             {
@@ -523,6 +517,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     catch (OpenLibraryException e)
                     {
                         _logger.Info(e, "Skipping ISBN contextual fallback search due to OpenLibrary Error");
+                        LogCandidateRejectionTelemetry(localEdition, "isbn-context-fallback-exhausted", attempts, cacheHits, seenCandidates.Count);
                         remoteBooks = new List<Book>();
                     }
 
@@ -563,7 +558,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         {
             try
             {
-                return _metadataOrchestrator.SearchForNewBook(title, author);
+                var results = _metadataOrchestrator.SearchForNewBook(title, author);
+
+                if (!results.Any())
+                {
+                    _logger.Debug("Primary identification search returned no candidates: mode={0}, title='{1}', author='{2}'", mode, title ?? "<none>", author ?? "<none>");
+                }
+
+                return results;
             }
             catch (OpenLibraryException e)
             {
@@ -574,7 +576,91 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
         private List<Book> SearchFallback(IBookSearchFallbackProvider provider, string title, string author)
         {
-            return _fallbackExecutionService.Search(provider, title, author);
+            var results = _fallbackExecutionService.Search(provider, title, author);
+
+            if (!results.Any())
+            {
+                _logger.Debug("Fallback identification search returned no candidates: provider={0}, title='{1}', author='{2}'", provider?.ProviderName ?? "<null>", title ?? "<none>", author ?? "<none>");
+            }
+
+            return results;
+        }
+
+        private List<string> BuildRobustTitleVariants(string rawTitle)
+        {
+            var variants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var variant in _queryNormalizationService.BuildTitleVariants(rawTitle) ?? new List<string>())
+            {
+                if (variant.IsNotNullOrWhiteSpace())
+                {
+                    variants.Add(variant.Trim());
+                }
+            }
+
+            if (rawTitle.IsNotNullOrWhiteSpace())
+            {
+                var sanitized = Regex.Replace(rawTitle, "\\[[^\\]]+\\]|\\([^\\)]+\\)", " ");
+                sanitized = sanitized.Replace('_', ' ').Replace('-', ' ').CleanSpaces();
+
+                if (sanitized.IsNotNullOrWhiteSpace())
+                {
+                    variants.Add(sanitized);
+                }
+
+                if (sanitized.Contains(':'))
+                {
+                    variants.Add(sanitized.Split(':')[0].CleanSpaces());
+                }
+            }
+
+            return variants.Where(v => v.IsNotNullOrWhiteSpace()).Distinct().ToList();
+        }
+
+        private List<string> BuildRobustAuthorVariants(IEnumerable<string> authorTags)
+        {
+            var variants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var variant in _queryNormalizationService.ExpandAuthorAliases(authorTags) ?? new List<string>())
+            {
+                if (variant.IsNotNullOrWhiteSpace())
+                {
+                    variants.Add(variant.Trim());
+                }
+            }
+
+            foreach (var author in authorTags ?? new List<string>())
+            {
+                if (author.IsNullOrWhiteSpace())
+                {
+                    continue;
+                }
+
+                var parts = author.Split(new[] { '&', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim())
+                    .Where(x => x.IsNotNullOrWhiteSpace());
+
+                foreach (var part in parts)
+                {
+                    variants.Add(part);
+                }
+            }
+
+            return variants.Where(v => v.IsNotNullOrWhiteSpace()).Distinct().ToList();
+        }
+
+        private void LogCandidateRejectionTelemetry(LocalEdition localEdition, string reason, int attempts, int cacheHits, int seenCandidates)
+        {
+            var topTitle = localEdition?.LocalBooks?.MostCommon(x => x.FileTrackInfo.BookTitle) ?? "<unknown>";
+            var topAuthors = (localEdition?.LocalBooks?.MostCommon(x => x.FileTrackInfo.Authors) ?? new List<string>()).ConcatToString();
+
+            _logger.Info("Identification fallback telemetry: reason={0}, attempts={1}, cacheHits={2}, candidates={3}, title='{4}', authors='{5}'",
+                reason,
+                attempts,
+                cacheHits,
+                seenCandidates,
+                topTitle,
+                topAuthors);
         }
 
         private string SelectSingleIsbn(List<string> parsedIsbns, LocalEdition localEdition)
