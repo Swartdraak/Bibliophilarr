@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 22, 2026 (clean build plus identification verification pass)
+**Last Updated**: March 22, 2026 (Hardcover/runtime logging hardening pass)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -20,6 +20,28 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
 ## Latest Delivery Update
+
+### March 22, 2026 Hardcover/runtime logging hardening pass
+
+Completed implementation updates in this pass:
+
+1. Hardcover provider observability and startup-token routing
+  - Added provider-local `Trace`/`Debug`/`Warn` logging in `HardcoverFallbackSearchProvider` for search entry, query execution, skip reasons, provider payload issues, and mapped result counts.
+  - Corrected Hardcover enablement so `BIBLIOPHILARR_HARDCOVER_API_TOKEN` participates in provider routing, not only request-time auth header resolution.
+
+2. Local metadata exporter script logging controls
+  - Updated `scripts/provider_metadata_pull_test.py` and `scripts/live_provider_enrich_missing_metadata.py` to use Python logging instead of plain `print` summaries.
+  - Added `--log-level DEBUG|INFO|WARNING|ERROR` so operators can choose between concise run summaries and per-query diagnostics.
+
+Validation status for this pass:
+
+- Targeted Hardcover fixture coverage extended for environment-token enablement.
+- Full solution build and impacted script syntax validation executed after the change set.
+
+Operational impact:
+
+- Hardcover usage is now visible in normal debug logs without relying on external network inspection.
+- Pre-start environment token configuration now matches documented operator behavior.
 
 ### March 22, 2026 clean build plus identification verification pass
 

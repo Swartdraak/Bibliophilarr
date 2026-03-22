@@ -114,14 +114,27 @@ gracefully to OK/empty without logging errors.
 Hardcover token startup override:
 
 - `BIBLIOPHILARR_HARDCOVER_API_TOKEN` can be set before startup to provide the Hardcover API token without entering it through the UI.
-- This value is read at runtime startup and used before the persisted `HardcoverApiToken` config value.
+- This value now participates in Hardcover provider enablement as well as request authentication, so a pre-start environment token is sufficient even when the persisted `HardcoverApiToken` config value is empty.
 - Both plain tokens and `Bearer ...` values are accepted.
+
+Hardcover logging:
+
+- `Trace` logs capture Hardcover search entry points and query execution details.
+- `Debug` logs capture skip reasons, token source selection (`environment` vs `config`), provider-declared search errors, and result-count summaries.
+- `Warn` logs capture malformed or empty response payloads.
+
+Metadata exporter script logging:
+
+- `scripts/provider_metadata_pull_test.py` and `scripts/live_provider_enrich_missing_metadata.py` now accept `--log-level DEBUG|INFO|WARNING|ERROR`.
+- Use `DEBUG` when you need per-query/per-folder diagnostics; default `INFO` keeps only run summaries and artifact locations.
 
 Example:
 
 ```bash
 export BIBLIOPHILARR_HARDCOVER_API_TOKEN='Bearer <your-hardcover-token>'
 ./_output/net8.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
+python3 scripts/provider_metadata_pull_test.py --media-root /media --sample-size 25 --log-level DEBUG
+python3 scripts/live_provider_enrich_missing_metadata.py --root /media/books --log-level INFO
 ```
 
 See `docs/operations/services-endpoint-runbook.md` for full deployment patterns.

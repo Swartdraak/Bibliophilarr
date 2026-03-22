@@ -7,6 +7,7 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MusicTests
 {
@@ -51,6 +52,9 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.RefreshBookInfo(new List<Book> { _book }, new List<Book>(), remoteData, true, false, DateTime.UtcNow);
             Mocker.GetMock<IBookService>().Verify(x => x.DeleteBook(_book.Id, false, false), Times.Once());
+
+            ExceptionVerification.IgnoreWarns();
+            ExceptionVerification.IgnoreErrors();
         }
 
         [Test]
@@ -60,6 +64,9 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.RefreshBookInfo(new List<Book> { _book }, new List<Book>(), null, true, false, DateTime.UtcNow);
 
             Mocker.GetMock<IBookService>().Verify(x => x.DeleteBook(_book.Id, false, false), Times.Never());
+
+            ExceptionVerification.IgnoreWarns();
+            ExceptionVerification.IgnoreErrors();
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.Serializer;
@@ -32,18 +33,20 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         private readonly IConfigService _configService;
         private readonly IHttpClient _httpClient;
+        private readonly Logger _logger;
 
-        public HardcoverFallbackSearchProvider(IConfigService configService, IHttpClient httpClient)
+        public HardcoverFallbackSearchProvider(IConfigService configService, IHttpClient httpClient, Logger logger)
         {
             _configService = configService;
             _httpClient = httpClient;
+            _logger = logger;
         }
 
         public string ProviderName => "Hardcover";
 
         public int Priority => 1;
 
-        public bool IsEnabled => _configService.EnableHardcoverFallback && _configService.HardcoverApiToken.IsNotNullOrWhiteSpace();
+        public bool IsEnabled => _configService.EnableHardcoverFallback && HasConfiguredToken();
 
         public bool SupportsAuthorSearch => true;
 
@@ -67,9 +70,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var queryText = BuildSearchQuery(title, author);
             if (queryText.IsNullOrWhiteSpace())
             {
+                _logger.Trace("HardcoverProvider.Search skipped because query was empty.");
                 return new List<Book>();
             }
 
+            _logger.Trace("HardcoverProvider.Search: title='{0}', author='{1}'", title, author);
             return SearchBooks(queryText, 10);
         }
 
@@ -78,9 +83,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var queryText = BuildSearchQuery(title, author);
             if (queryText.IsNullOrWhiteSpace())
             {
+                _logger.Trace("HardcoverProvider.SearchForNewBook skipped because query was empty.");
                 return new List<Book>();
             }
 
+            _logger.Trace("HardcoverProvider.SearchForNewBook: title='{0}', author='{1}', getAllEditions={2}", title, author, getAllEditions);
             return SearchBooks(queryText, SearchPageSize);
         }
 
@@ -88,9 +95,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         {
             if (isbn.IsNullOrWhiteSpace())
             {
+                _logger.Trace("HardcoverProvider.SearchByIsbn skipped because ISBN was empty.");
                 return new List<Book>();
             }
 
+            _logger.Trace("HardcoverProvider.SearchByIsbn: {0}", isbn);
             return SearchBooks(isbn.Trim(), SearchPageSize);
         }
 
@@ -98,9 +107,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         {
             if (asin.IsNullOrWhiteSpace())
             {
+                _logger.Trace("HardcoverProvider.SearchByAsin skipped because ASIN was empty.");
                 return new List<Book>();
             }
 
+            _logger.Trace("HardcoverProvider.SearchByAsin: {0}", asin);
             return SearchBooks(asin.Trim(), SearchPageSize);
         }
 
@@ -108,10 +119,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         {
             if (idType.IsNullOrWhiteSpace() || id.IsNullOrWhiteSpace())
             {
+                _logger.Trace("HardcoverProvider.SearchByExternalId skipped because idType or id was empty.");
                 return new List<Book>();
             }
 
             var normalized = idType.Trim().ToLowerInvariant();
+            _logger.Trace("HardcoverProvider.SearchByExternalId: idType='{0}', id='{1}'", normalized, id);
             if (normalized == "isbn")
             {
                 return SearchByIsbn(id);
@@ -137,6 +150,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string foreignBookId)
         {
+            _logger.Debug("HardcoverProvider.GetBookInfo: {0}", foreignBookId);
+
             var requestedId = NormalizeHardcoverBookToken(foreignBookId);
             if (requestedId.IsNullOrWhiteSpace())
             {
@@ -159,6 +174,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
         {
+            _logger.Debug("HardcoverProvider.GetAuthorInfo: {0}", foreignAuthorId);
+
             var authorName = DecodeAuthorToken(foreignAuthorId);
             if (authorName.IsNullOrWhiteSpace())
             {
@@ -210,9 +227,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         {
             if (title.IsNullOrWhiteSpace())
             {
+                _logger.Trace("HardcoverProvider.SearchForNewAuthor skipped because title was empty.");
                 return new List<Author>();
             }
 
+            _logger.Trace("HardcoverProvider.SearchForNewAuthor: {0}", title);
             return SearchBooks(title.Trim(), SearchPageSize)
                 .Select(x => x?.AuthorMetadata?.Value?.Name)
                 .Where(x => x.IsNotNullOrWhiteSpace())
@@ -224,6 +243,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         public List<object> SearchForNewEntity(string title)
         {
+            _logger.Trace("HardcoverProvider.SearchForNewEntity: {0}", title);
+
             var books = SearchForNewBook(title, null, false);
             var output = new List<object>();
 
@@ -245,11 +266,19 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         private List<Book> SearchBooks(string queryText, int perPage)
         {
-            var token = ResolveToken();
-            if (token.IsNullOrWhiteSpace())
+            if (!_configService.EnableHardcoverFallback)
             {
+                _logger.Debug("Hardcover search skipped for query '{0}' because the provider is disabled.", queryText);
                 return new List<Book>();
             }
+
+            if (!TryResolveToken(out var token, out var tokenSource))
+            {
+                _logger.Debug("Hardcover search skipped for query '{0}' because no API token is configured.", queryText);
+                return new List<Book>();
+            }
+
+            _logger.Trace("Hardcover search request: query='{0}', perPage={1}, tokenSource={2}", queryText, perPage, tokenSource);
 
             var request = new HttpRequest(Endpoint, HttpAccept.Json)
             {
@@ -278,39 +307,76 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }.ToJson());
 
             var response = _httpClient.Post<HardcoverGraphQlResponse>(request);
-            var results = ParseSearchResults(response.Resource?.Data?.Search);
+            var payload = response.Resource?.Data?.Search;
 
-            return results.Select(MapBook)
+            if (payload == null)
+            {
+                _logger.Warn("Hardcover returned no search payload for query '{0}'.", queryText);
+                return new List<Book>();
+            }
+
+            if (payload.Error.IsNotNullOrWhiteSpace())
+            {
+                _logger.Debug("Hardcover search returned provider error for query '{0}': {1}", queryText, payload.Error);
+            }
+
+            var results = ParseSearchResults(payload);
+
+            if (!results.Any())
+            {
+                _logger.Debug("Hardcover returned no matches for query '{0}'.", queryText);
+                return new List<Book>();
+            }
+
+            var mapped = results.Select(MapBook)
                 .Where(x => x != null)
                 .DistinctBy(x => x.ForeignBookId)
                 .ToList();
+
+            _logger.Debug("Hardcover returned {0} unique mapped result(s) for query '{1}'.", mapped.Count, queryText);
+
+            return mapped;
         }
 
-        private string ResolveToken()
+        private bool HasConfiguredToken()
         {
+            return Environment.GetEnvironmentVariable(HardcoverApiTokenEnvironmentVariable).IsNotNullOrWhiteSpace() ||
+                   _configService.HardcoverApiToken.IsNotNullOrWhiteSpace();
+        }
+
+        private bool TryResolveToken(out string token, out string tokenSource)
+        {
+            token = string.Empty;
+            tokenSource = "missing";
+
             if (!_configService.EnableHardcoverFallback)
             {
-                return string.Empty;
+                tokenSource = "disabled";
+                return false;
             }
 
-            var token = Environment.GetEnvironmentVariable(HardcoverApiTokenEnvironmentVariable);
+            var rawToken = Environment.GetEnvironmentVariable(HardcoverApiTokenEnvironmentVariable);
 
-            if (token.IsNullOrWhiteSpace())
+            if (rawToken.IsNotNullOrWhiteSpace())
             {
-                token = _configService.HardcoverApiToken;
+                token = NormalizeBearerToken(rawToken.Trim());
+                tokenSource = "environment";
+                return token.IsNotNullOrWhiteSpace();
             }
 
-            token = token?.Trim();
+            rawToken = _configService.HardcoverApiToken;
 
-            if (token.IsNullOrWhiteSpace())
+            if (rawToken.IsNullOrWhiteSpace())
             {
-                return string.Empty;
+                return false;
             }
 
-            return NormalizeBearerToken(token);
+            token = NormalizeBearerToken(rawToken.Trim());
+            tokenSource = "config";
+            return token.IsNotNullOrWhiteSpace();
         }
 
-        private static List<HardcoverSearchResult> ParseSearchResults(HardcoverSearchPayload payload)
+        private List<HardcoverSearchResult> ParseSearchResults(HardcoverSearchPayload payload)
         {
             if (payload?.Results == null)
             {
@@ -331,8 +397,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 {
                     resultsToken = JToken.Parse(raw);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logger.Warn(ex, "Hardcover returned an unparsable search result payload.");
                     return new List<HardcoverSearchResult>();
                 }
             }

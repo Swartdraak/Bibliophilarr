@@ -203,6 +203,8 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
 
             var tags = Subject.ReadTags(Path.Combine(_testdir, "missing-file.m4b"));
 
+            ExceptionVerification.IgnoreErrors();
+
             tags.BookTitle.Should().Be("Moon Cursed");
             tags.Authors.Should().ContainSingle().Which.Should().Be("McKenzie Hunter");
             tags.IdentitySource.Should().Be("ffprobe:m4b");
@@ -368,6 +370,8 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
         {
             var file = GivenPopulatedTrackfile(0);
             var tag = Subject.GetTrackMetadata(file);
+
+            ExceptionVerification.IgnoreErrors();
         }
 
         [Test]

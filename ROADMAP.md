@@ -79,6 +79,7 @@ Completed in current hardening slice:
 - ebook extraction now applies confidence-aware metadata merging (container tags plus filename-derived identifiers) for EPUB, PDF, AZW3, and MOBI import paths;
 - import acceptance threshold for close-match decisions is now configurable via metadata provider config with a default of 80 percent to preserve current behavior.
 - clean-build and targeted verification coverage for author, series, book, and cover identification paths is now recorded in canonical status reporting.
+- Hardcover provider logging now emits level-appropriate runtime diagnostics, and local metadata exporter scripts now expose explicit `--log-level` controls for operator troubleshooting.
 
 Long-term cloud strategy — decided and implemented (March 2026):
 

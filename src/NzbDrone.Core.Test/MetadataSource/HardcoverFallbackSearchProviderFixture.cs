@@ -12,6 +12,8 @@ namespace NzbDrone.Core.Test.MetadataSource
     [TestFixture]
     public class HardcoverFallbackSearchProviderFixture : CoreTest<HardcoverFallbackSearchProvider>
     {
+        private const string EnvVar = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
+
         [SetUp]
         public void SetUp()
         {
@@ -112,7 +114,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         [Test]
         public void should_return_empty_when_graphql_error_payload_has_no_data()
         {
-            var payload = "{\"errors\":[{\"message\":\"invalid query\"}]}";
+            var payload = "{\"data\":{\"search\":{\"error\":\"invalid query\",\"ids\":[],\"results\":{\"found\":0,\"hits\":[]}}}}";
 
             Mocker.GetMock<IHttpClient>()
                 .Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
@@ -155,13 +157,12 @@ namespace NzbDrone.Core.Test.MetadataSource
         [Test]
         public void should_use_environment_token_before_config_token()
         {
-            const string envVar = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
-            var original = System.Environment.GetEnvironmentVariable(envVar);
+            var original = System.Environment.GetEnvironmentVariable(EnvVar);
             HttpRequest capturedRequest = null;
 
             try
             {
-                System.Environment.SetEnvironmentVariable(envVar, "Bearer from-env-token");
+                System.Environment.SetEnvironmentVariable(EnvVar, "Bearer from-env-token");
 
                 Mocker.GetMock<IConfigService>()
                     .SetupGet(x => x.HardcoverApiToken)
@@ -182,7 +183,28 @@ namespace NzbDrone.Core.Test.MetadataSource
             }
             finally
             {
-                System.Environment.SetEnvironmentVariable(envVar, original);
+                System.Environment.SetEnvironmentVariable(EnvVar, original);
+            }
+        }
+
+        [Test]
+        public void should_report_enabled_when_environment_token_is_present()
+        {
+            var original = System.Environment.GetEnvironmentVariable(EnvVar);
+
+            try
+            {
+                System.Environment.SetEnvironmentVariable(EnvVar, "Bearer from-env-token");
+
+                Mocker.GetMock<IConfigService>()
+                    .SetupGet(x => x.HardcoverApiToken)
+                    .Returns(string.Empty);
+
+                Subject.IsEnabled.Should().BeTrue();
+            }
+            finally
+            {
+                System.Environment.SetEnvironmentVariable(EnvVar, original);
             }
         }
 

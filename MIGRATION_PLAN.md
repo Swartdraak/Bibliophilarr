@@ -4,6 +4,19 @@
 
 This document outlines the comprehensive technical plan for migrating Bibliophilarr from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
+## Implementation Progress Snapshot (March 22, 2026 Hardcover/runtime logging hardening)
+
+Completed in this migration-hardening slice:
+
+- Hardcover provider observability now records query entry, skip reasons, token-source selection, provider-declared search errors, malformed payload anomalies, and mapped result counts at level-appropriate log severities.
+- Hardcover startup environment tokens now participate in provider enablement, aligning runtime routing with documented operator setup.
+- Local metadata exporter scripts (`provider_metadata_pull_test.py`, `live_provider_enrich_missing_metadata.py`) now use structured Python logging with configurable `--log-level` output for local replay and enrichment work.
+
+Validation status for this slice:
+
+- Targeted Hardcover provider fixture coverage updated for environment-token routing.
+- Script syntax and solution build validation executed after the logging changes.
+
 ## Implementation Progress Snapshot (March 22, 2026 release-evidence/test-runner completion)
 
 Additional verification update (March 22, 2026):

@@ -157,7 +157,7 @@ namespace NzbDrone.Core.Test.MusicTests
             var author = Subject.AddAuthor(newAuthor, false);
 
             author.Should().NotBeNull();
-            author.ForeignAuthorId.Should().Be("OL999999A");
+            author.ForeignAuthorId.Should().Be("openlibrary:author:OL999999A");
             author.Name.Should().Be("Fallback Author");
             author.Path.Should().Be(@"C:\Test\Music\Fallback");
 

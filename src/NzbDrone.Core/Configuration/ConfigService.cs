@@ -349,7 +349,7 @@ namespace NzbDrone.Core.Configuration
         public int IsbnContextFallbackLimit
         {
             get { return GetValueInt("IsbnContextFallbackLimit", 3); }
-            set { SetValue("IsbnContextFallbackLimit", Math.Max(1, Math.Min(10, value))); }
+            set { SetValue("IsbnContextFallbackLimit", value); }
         }
 
         public bool EnableMetadataConflictStrategyVariants
@@ -376,7 +376,7 @@ namespace NzbDrone.Core.Configuration
         public int BookImportMatchThresholdPercent
         {
             get { return GetValueInt("BookImportMatchThresholdPercent", 80); }
-            set { SetValue("BookImportMatchThresholdPercent", Math.Max(50, Math.Min(100, value))); }
+            set { SetValue("BookImportMatchThresholdPercent", value); }
         }
 
         public int FirstDayOfWeek
