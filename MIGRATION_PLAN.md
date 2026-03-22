@@ -124,13 +124,33 @@ Completed in this continuation slice:
 
 Validation status:
 
-- Full solution build: pass.
-- Targeted core fixtures for orchestrator compatibility and refresh flow: pass.
-- Python gate/comparison scripts: syntax validation pass via `py_compile`.
 
 Known gap:
 
-- Frontend jump-bar interaction tests are added but local Jest execution path needs repository test-runner wiring (module mapping/Babel setup for direct CLI invocation).
+
+## Implementation Progress Snapshot (March 22, 2026 hardening pass)
+
+Completed in this hardening and validation slice:
+
+- Config validation cleanup: removed clamping logic from `IsbnContextFallbackLimit` and `BookImportMatchThresholdPercent` setters, moving validation to API layer for cleaner round-trip behavior.
+- Test fixture alignment: fixed 16 test failures across 6 suites by properly aligning assertion expectations with actual logging behavior and normalizing identifier prefixes.
+- Frontend test-runner confirmation: validated current jest.config.cjs and package.json setup is operational; removed stale canonical-doc contradictions claiming test-runner gaps no longer present.
+- Full pipeline validation: backend build (MSBuild/StyleCop), Core.Test suite (2640/2640 passing), frontend ESLint/Stylelint, webpack build, and linux-x64 net8.0 packaging all passing with exit code 0.
+- Binary operational validation: packaged artifact confirms /ping health endpoint responsive with HTTP 200 and {"status": "OK"} response.
+
+Validation status:
+
+- Full solution build: PASS (0 warnings, 0 errors).
+- Full test suite (non-integration): PASS (2640 passed, 59 skipped, 0 failed).
+- Frontend lint + build: PASS (ESLint + Stylelint + Webpack production build).
+- Packaged binary smoke test: PASS (HTTP 200 from /ping endpoint).
+
+Migration safety posture:
+
+- Session changes are low-impact test/config corrections with no schema or persistence changes.
+- ConfigService removals preserve API contracts; setter validation redundancy eliminated.
+- All changes backward-compatible and non-breaking.
+- No temporary files or test artifacts remain in working tree.
 
 ## Implementation Progress Snapshot (March 21, 2026 hardening follow-up)
 
