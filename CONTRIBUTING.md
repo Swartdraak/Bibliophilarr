@@ -55,6 +55,12 @@ API mutation guidance:
 Metadata-related changes should add or update deterministic tests for mapping,
 fallback order, unresolved identifiers, or transient provider failures.
 
+Code documentation and comment debt policy:
+
+- New or modified public API members in C# should include meaningful XML summary comments.
+- Do not introduce new `TODO`, `FIXME`, or `XXX` markers in source files.
+- If follow-up work is required, record it in an issue/PR note and use `NOTE:` in code comments only when the context is immediately actionable.
+
 ## Documentation policy
 
 - Update the canonical docs instead of creating new long-lived planning files.

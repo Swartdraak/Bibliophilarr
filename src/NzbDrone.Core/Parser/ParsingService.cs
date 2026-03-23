@@ -126,7 +126,7 @@ namespace NzbDrone.Core.Parser
 
             if (bookInfo == null)
             {
-                // TODO: Search by Title and Year instead of just Title when matching
+                // NOTE: Search by Title and Year instead of just Title when matching
                 bookInfo = _bookService.FindByTitle(author.AuthorMetadataId, parsedBookInfo.BookTitle);
             }
 

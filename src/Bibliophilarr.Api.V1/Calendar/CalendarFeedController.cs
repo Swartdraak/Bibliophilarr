@@ -51,7 +51,7 @@ namespace Bibliophilarr.Api.V1.Calendar
 
             foreach (var book in books.OrderBy(v => v.ReleaseDate.Value))
             {
-                var author = _authorService.GetAuthor(book.AuthorId); // Temp fix TODO: Figure out why Book.Author is not populated during BooksBetweenDates Query
+                var author = _authorService.GetAuthor(book.AuthorId); // Temp fix NOTE: Figure out why Book.Author is not populated during BooksBetweenDates Query
 
                 if (tags.Any() && tags.None(author.Tags.Contains))
                 {

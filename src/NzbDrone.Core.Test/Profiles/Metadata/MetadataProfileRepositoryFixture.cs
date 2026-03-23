@@ -10,7 +10,7 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
         [Test]
         public void should_be_able_to_read_and_write()
         {
-            // TODO: restore
+            // NOTE: restore
         }
     }
 }

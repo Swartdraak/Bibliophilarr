@@ -100,7 +100,7 @@ namespace NzbDrone.Core.Notifications
                 return true;
             }
 
-            //TODO: this message could be more clear
+            //NOTE: this message could be more clear
             _logger.Debug("{0} does not have any intersecting tags with {1}. Notification will not be sent.", definition.Name, author.Name);
             return false;
         }
@@ -371,7 +371,7 @@ namespace NzbDrone.Core.Notifications
 
         public void Handle(BookImportIncompleteEvent message)
         {
-            // TODO: Build out this message so that we can pass on what failed and what was successful
+            // NOTE: Build out this message so that we can pass on what failed and what was successful
             var downloadMessage = new BookDownloadMessage
             {
                 Message = GetBookIncompleteImportMessage(message.TrackedDownload.DownloadItem.Title)

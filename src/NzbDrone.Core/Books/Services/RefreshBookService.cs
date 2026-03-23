@@ -136,7 +136,7 @@ namespace NzbDrone.Core.Books
             // The authorMetadata entry will be in the db but make sure a corresponding author is too
             // so that the book doesn't just disappear.
 
-            // TODO filter by metadata id before hitting database
+            // NOTE filter by metadata id before hitting database
             _logger.Trace($"Ensuring parent author exists [{remote.AuthorMetadata.Value.ForeignAuthorId}]");
 
             var newAuthor = _authorService.FindById(remote.AuthorMetadata.Value.ForeignAuthorId);

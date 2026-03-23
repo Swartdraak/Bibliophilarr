@@ -122,7 +122,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 try
                 {
-                    // TODO fix otherfiles?
+                    // NOTE fix otherfiles?
                     _augmentingService.Augment(localTrack, true);
                     localTracks.Add(localTrack);
                 }

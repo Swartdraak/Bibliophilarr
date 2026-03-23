@@ -51,7 +51,7 @@ namespace Bibliophilarr.Api.V1.Config
     {
         public static HostConfigResource ToResource(this IConfigFileProvider model, IConfigService configService)
         {
-            // TODO: Clean this mess up. don't mix data from multiple classes, use sub-resources instead?
+            // NOTE: Clean this mess up. don't mix data from multiple classes, use sub-resources instead?
             return new HostConfigResource
             {
                 BindAddress = model.BindAddress,

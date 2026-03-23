@@ -64,7 +64,7 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
         }
 
         [Test]
-        [Ignore("TODO: add raw search support")]
+        [Ignore("Pending: add raw search support")]
         public void should_encode_raw_title()
         {
             _capabilities.SupportedBookSearchParameters = new[] { "q", "author", "title" };

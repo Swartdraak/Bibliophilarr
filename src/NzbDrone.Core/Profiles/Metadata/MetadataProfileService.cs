@@ -271,7 +271,7 @@ namespace NzbDrone.Core.Profiles.Metadata
             var openLibraryProfile = profiles.FirstOrDefault(x => x.Name == OPEN_LIBRARY_PROFILE_NAME);
 
             // make sure empty profile exists and is actually empty
-            // TODO: reinstate
+            // NOTE: reinstate
             if (emptyProfile != null &&
                 emptyProfile.MinPopularity == NONE_PROFILE_MIN_POPULARITY &&
                 openLibraryProfile != null)

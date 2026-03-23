@@ -138,7 +138,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
         }
 
         // GivenVaTracks uses random names so repeat multiple times to try to prompt any intermittent failures
-        [Ignore("TODO: fix")]
+        [Ignore("Pending: fix")]
         [Test]
         [Repeat(100)]
         public void all_different_authors_is_various_authors()
@@ -157,7 +157,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             TrackGroupingService.IsVariousAuthors(tracks).Should().Be(false);
         }
 
-        [Ignore("TODO: fix")]
+        [Ignore("Pending: fix")]
         [Test]
         [Repeat(100)]
         public void mostly_different_authors_is_various_authors()
@@ -311,7 +311,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             output[1].LocalBooks.Count.Should().Be(5);
         }
 
-        [Ignore("TODO: fix")]
+        [Ignore("Pending: fix")]
         [Test]
         [Repeat(100)]
         public void should_group_va_release()

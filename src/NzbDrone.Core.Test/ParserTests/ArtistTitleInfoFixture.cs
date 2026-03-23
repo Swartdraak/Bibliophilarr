@@ -7,7 +7,7 @@ namespace NzbDrone.Core.Test.ParserTests
     [TestFixture]
     public class AuthorTitleInfoFixture : CoreTest
     {
-        // TODO: Redo this test and parsed info for Books which do have a year association
+        // NOTE: Redo this test and parsed info for Books which do have a year association
         [Test]
         [Ignore("Author Don't have year association thus we dont use this currently")]
         public void should_have_year_zero_when_title_doesnt_have_a_year()

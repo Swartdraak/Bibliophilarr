@@ -526,7 +526,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
                     return true;
             }
 
-            // TODO: Remove these checks once support for SABnzbd < 4.3 is removed
+            // NOTE: Remove these checks once support for SABnzbd < 4.3 is removed
             if (retention.IsNullOrWhiteSpace())
             {
                 return false;

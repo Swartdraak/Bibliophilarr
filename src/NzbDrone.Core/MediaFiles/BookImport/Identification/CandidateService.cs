@@ -84,7 +84,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             Book tagMbidRelease = null;
             List<CandidateEdition> tagCandidate = null;
 
-            // TODO: select by ISBN?
+            // NOTE: select by ISBN?
             // var releaseIds = localEdition.LocalTracks.Select(x => x.FileTrackInfo.ReleaseMBId).Distinct().ToList();
             // if (releaseIds.Count == 1 && releaseIds[0].IsNotNullOrWhiteSpace())
             // {
@@ -226,7 +226,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
         public IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides)
         {
-            // TODO handle edition override
+            // NOTE handle edition override
 
             // Gets candidate book releases from the metadata server.
             // Will eventually need adding locally if we find a match

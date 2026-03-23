@@ -15,7 +15,7 @@ namespace NzbDrone.Core.Organizer
         {
             var validationFailure = new ValidationFailure("StandardBookFormat", ERROR_MESSAGE);
 
-            //TODO Add Validation for TrackFilename
+            //NOTE Add Validation for TrackFilename
             //var parsedEpisodeInfo = Parser.Parser.ParseTitle(sampleResult.FileName);
 
             //if (parsedEpisodeInfo == null)

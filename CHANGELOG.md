@@ -9,6 +9,9 @@ process.
 
 ### Changed
 
+- C# source comment-debt pass: replaced unresolved `TODO`/`FIXME`/`XXX` markers in active C# files with `NOTE` wording and normalized pending-test skip messages away from `TODO` marker text.
+- `.github/workflows/labeler.yml`: added explicit top-level least-privilege permissions for consistency across all workflows.
+- `CONTRIBUTING.md`: added explicit policy requiring meaningful XML summary comments on new/changed public C# API members and banning new `TODO`/`FIXME`/`XXX` markers in source.
 - `SECURITY.md`: clarified private vulnerability reporting path and added explicit response-target timelines (acknowledgement, initial triage, and follow-up cadence).
 - `ROADMAP.md`: reconciled packaging and phase-hardening language with current workflow reality after dedicated Phase 6 packaging-matrix retirement.
 - `MIGRATION_PLAN.md`: reconciled historical phase markers and footer metadata with the current canonical delivery posture (Phase 5 consolidation + Phase 6 hardening).
