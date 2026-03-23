@@ -163,6 +163,63 @@ Future track: single-instance dual ebook/audiobook management
 - Add UI/API surfaces for variant-level status, quality decisions, and missing/available state.
 - Deliver migration-safe rollout with additive schema changes, feature flags, and rollback-safe toggles.
 
+## Implementation task outline (immediate and future)
+
+### Track A: Import and identification throughput optimization
+
+Immediate implementation slices:
+
+1. Slice A1: Baseline instrumentation
+   - Add stage telemetry for queue wait, local parse/identifier pass, provider calls, scoring, and persistence.
+   - Persist run-level summary artifact with processed count, duration, throughput, and error buckets.
+2. Slice A2: Bounded concurrency controls
+   - Add configurable worker pool for import identification.
+   - Add provider-specific in-flight limits and timeout ceilings.
+3. Slice A3: Phased identification strategy
+   - Phase A local/identifier-only pass before network fallbacks.
+   - Phase B constrained provider search.
+   - Phase C expanded fallback only for unresolved low-confidence candidates.
+4. Slice A4: Resume/checkpoint behavior
+   - Add resumable progress checkpoints for long-running import queues.
+   - Ensure interrupted runs restart from last durable checkpoint.
+5. Slice A5: Performance gate integration
+   - Add replay/fixture benchmark gate in CI/manual workflow.
+   - Compare run to baseline thresholds before promotion.
+
+Measurement criteria:
+
+- Throughput: measured objects/minute improves versus baseline fixture run.
+- Quality: accepted match rate regression is within predefined tolerance.
+- Stability: provider timeout/error rates remain within threshold budget.
+- Recoverability: interrupted run resumes from checkpoint with no duplicate imports.
+
+### Track B: Single-instance dual ebook/audiobook management
+
+Future implementation slices:
+
+1. Slice B1: Variant model and persistence
+   - Add additive per-title variant intent model (`ebook`, `audiobook`).
+   - Add migration-safe schema updates and compatibility defaults.
+2. Slice B2: Policy separation
+   - Support independent quality/format profiles per variant.
+   - Keep variant policy state isolated and explicit.
+3. Slice B3: Pipeline isolation
+   - Partition search/import/upgrade decisions by variant.
+   - Prevent cross-variant replacement or state overwrite.
+4. Slice B4: API/UI surfaces
+   - Add variant-level state in API resources.
+   - Add UI controls for per-variant wanted status, quality decisions, and missing state.
+5. Slice B5: Migration and rollout controls
+   - Feature-flag rollout with reversible toggles.
+   - Add data migration validation and rollback rehearsal.
+
+Measurement criteria:
+
+- Correctness: ebook and audiobook variants co-exist under one title without conflict.
+- Isolation: variant-specific upgrades do not alter opposite-format tracking state.
+- Compatibility: legacy single-format libraries remain functionally unchanged when flag is off.
+- Operability: variant-level telemetry and diagnostics are queryable by operators.
+
 ## Local Install Testing Enablement (Develop Branch)
 
 Purpose:

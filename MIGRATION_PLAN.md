@@ -292,6 +292,51 @@ Rollback/mitigation:
 
 - Keep existing import path behind a feature flag and allow immediate reversion to current sequential strategy.
 
+Implementation task outline:
+
+1. IP-1 Baseline and telemetry contract
+     - Deliverables:
+         - Stage timers for parse, identify, provider fetch, score, persist.
+         - Structured run summary output (`processed`, `duration`, `throughput`, `timeouts`, `errors`).
+     - Validation:
+         - Unit coverage for telemetry aggregation.
+         - Fixture run emits deterministic summary file.
+2. IP-2 Concurrency and throttling controls
+     - Deliverables:
+         - Configurable import worker count.
+         - Provider-specific request concurrency and timeout settings.
+     - Validation:
+         - Concurrency stress fixture verifies bounded in-flight calls.
+         - No unbounded queue growth under synthetic slow-provider conditions.
+3. IP-3 Phased identification path
+     - Deliverables:
+         - Phase A (identifier/local) then Phase B (constrained provider search) then Phase C (expanded fallback).
+     - Validation:
+         - Contract tests verify phase ordering and escalation conditions.
+         - No phase skipping for unresolved low-confidence candidates.
+4. IP-4 Resume/checkpoint support
+     - Deliverables:
+         - Durable checkpoint cursor for long-running import batches.
+         - Restart behavior resumes from checkpoint.
+     - Validation:
+         - Integration test: forced interruption + resume with no duplicate imports.
+5. IP-5 Performance gate
+     - Deliverables:
+         - Benchmark job for production-shaped fixture cohort.
+         - Threshold profile for throughput, quality drift, and provider-failure budget.
+     - Validation:
+         - Gate fails on threshold breach and emits actionable artifact.
+
+Measurement plan:
+
+- Baseline dataset: production-shaped cohort used by replay/perf runs.
+- Primary KPI: `objects_per_minute`.
+- Guardrail KPIs:
+    - `accepted_match_rate_delta`
+    - `provider_timeout_rate`
+    - `unresolved_ratio_delta`
+- Success threshold (initial target): at least 30 percent throughput gain with no quality regressions beyond accepted threshold profile.
+
 #### TD-DUAL-FORMAT-001: Single-instance ebook and audiobook variant management
 
 Objective:
@@ -322,6 +367,50 @@ Acceptance criteria:
 Rollback/mitigation:
 
 - Feature-flag the variant model and preserve legacy single-track behavior as fallback until parity tests pass.
+
+Implementation task outline:
+
+1. DF-1 Variant domain model
+     - Deliverables:
+         - Add per-title variant intent model (`ebook`, `audiobook`) with additive schema changes.
+         - Backward-compatible defaults for existing records.
+     - Validation:
+         - Migration test verifies old schema upgrade and downgrade safety.
+2. DF-2 Variant policy separation
+     - Deliverables:
+         - Independent quality/format profile linkage per variant.
+         - Explicit persistence boundaries for variant policy state.
+     - Validation:
+         - Unit tests confirm policy reads/writes are variant-scoped.
+3. DF-3 Variant pipeline isolation
+     - Deliverables:
+         - Search/import/upgrade paths keyed by variant context.
+         - Cross-variant overwrite prevention checks.
+     - Validation:
+         - Integration fixtures for same-title dual-variant scenarios.
+4. DF-4 API and UI surfaces
+     - Deliverables:
+         - API resources expose variant state and decisions.
+         - UI can set/inspect wanted status and quality by variant.
+     - Validation:
+         - API contract tests and frontend behavior tests for dual-variant flows.
+5. DF-5 Rollout and compatibility gates
+     - Deliverables:
+         - Feature flag, migration runbook, rollback path.
+         - Operator diagnostics for per-variant tracking health.
+     - Validation:
+         - Flag-off mode preserves legacy behavior.
+         - Flag-on mode passes dual-variant acceptance suite.
+
+Measurement plan:
+
+- Correctness KPIs:
+    - `variant_conflict_count` (target: 0)
+    - `cross_variant_overwrite_count` (target: 0)
+- Usability KPI:
+    - `variant_policy_apply_success_rate` (target: 100 percent in acceptance suite)
+- Compatibility KPI:
+    - `legacy_library_regression_failures` (target: 0)
 
 Primary touch points:
 

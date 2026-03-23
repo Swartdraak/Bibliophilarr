@@ -13,6 +13,9 @@ process.
   - import/identification throughput optimization on large media libraries,
   - single-instance dual ebook/audiobook variant management with independent policy and tracking.
   Updated: `ROADMAP.md`, `MIGRATION_PLAN.md`, and `PROJECT_STATUS.md`.
+- Expanded those planning tracks into implementation-ready, measurable task outlines in canonical docs:
+  - `ROADMAP.md`: added immediate/future slice breakdowns and measurement criteria.
+  - `MIGRATION_PLAN.md`: added detailed work packages (IP-1..IP-5, DF-1..DF-5), deliverables, validation, and KPI thresholds.
 - C# source comment-debt pass: replaced unresolved `TODO`/`FIXME`/`XXX` markers in active C# files with `NOTE` wording and normalized pending-test skip messages away from `TODO` marker text.
 - `.github/workflows/labeler.yml`: added explicit top-level least-privilege permissions for consistency across all workflows.
 - `CONTRIBUTING.md`: added explicit policy requiring meaningful XML summary comments on new/changed public C# API members and banning new `TODO`/`FIXME`/`XXX` markers in source.
