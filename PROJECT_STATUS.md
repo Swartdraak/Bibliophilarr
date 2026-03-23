@@ -1,7 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 22, 2026 (Hardcover/runtime logging hardening pass)
-**Last Updated**: March 22, 2026 (Build validation and test fixture hardening pass)
+**Last Updated**: March 23, 2026 (workflow governance and status consistency pass)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -17,7 +16,6 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
   - `triage`
   - `Staging Smoke Metadata Telemetry / smoke-metadata-telemetry`
 - Required approving review count is `0` across those protected branches.
-- Phase 6 packaging validation is green on both `develop` and `staging` across the `binary`, `docker`, and `npm` lanes.
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
 ## Latest Delivery Update
@@ -74,7 +72,6 @@ Operational impact:
 - Full build pipeline validated end-to-end with operational health confirmation.
 - Documentation drift reduced; canonical docs now match current implementation reality.
 
-### March 22, 2026 Hardcover/runtime logging hardening pass
 ### March 22, 2026 Hardcover/runtime logging hardening pass
 
 Completed implementation updates in this pass:

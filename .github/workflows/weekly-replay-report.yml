@@ -17,10 +17,6 @@ jobs:
       REPLAY_ROOT: tests/fixtures/replay-cohort
       REPLAY_SAMPLE_SIZE: "64"
       REPLAY_SAMPLE_SEED: "20260316"
-      REPLAY_REASON_BASELINE: >-
-        tests/fixtures/replay-cohort/reason-distribution-baseline.json
-      REPLAY_DELTA_THRESHOLDS: >-
-        tests/fixtures/replay-cohort/replay-delta-thresholds.json
 
     steps:
       - name: Checkout
@@ -35,62 +31,26 @@ jobs:
           echo "report_dir=${report_dir}" >> "$GITHUB_OUTPUT"
           mkdir -p "${report_dir}"
 
-      - name: Run curated baseline replay sample
+      - name: Run curated replay sample
         run: |
-          baseline_root="${{ runner.temp }}/replay-cohort-baseline"
-          cp -a "${REPLAY_ROOT}" "${baseline_root}"
+          replay_root="${{ runner.temp }}/replay-cohort"
+          cp -a "${REPLAY_ROOT}" "${replay_root}"
 
           python3 scripts/live_provider_enrich_missing_metadata.py \
-            --root "${baseline_root}" \
+            --root "${replay_root}" \
             --sample-size "${REPLAY_SAMPLE_SIZE}" \
             --sample-seed "${REPLAY_SAMPLE_SEED}" \
-            --report-dir "${{ steps.prep.outputs.report_dir }}/baseline"
-
-      - name: Run curated post-fix replay sample
-        run: |
-          post_root="${{ runner.temp }}/replay-cohort-post"
-          cp -a "${REPLAY_ROOT}" "${post_root}"
-
-          python3 scripts/live_provider_enrich_missing_metadata.py \
-            --root "${post_root}" \
-            --sample-size "${REPLAY_SAMPLE_SIZE}" \
-            --sample-seed "${REPLAY_SAMPLE_SEED}" \
-            --report-dir "${{ steps.prep.outputs.report_dir }}/post"
-
-      - name: Compare baseline vs post-fix replay
-        run: |
-          baseline_report="$(find "${{ steps.prep.outputs.report_dir }}/baseline" -maxdepth 1 -name '*_live_enrichment_report.json' | head -n 1)"
-          post_report="$(find "${{ steps.prep.outputs.report_dir }}/post" -maxdepth 1 -name '*_live_enrichment_report.json' | head -n 1)"
-
-          if [[ -z "${baseline_report}" || -z "${post_report}" ]]; then
-            echo "Missing baseline or post replay report"
-            exit 1
-          fi
-
-          python3 scripts/replay_comparison.py \
-            --baseline-report "${baseline_report}" \
-            --post-report "${post_report}" \
-            --json-out "${{ steps.prep.outputs.report_dir }}/replay-comparison.json" \
-            --md-out "${{ steps.prep.outputs.report_dir }}/replay-comparison.md"
-
-      - name: Evaluate replay delta thresholds
-        id: delta_guard
-        continue-on-error: true
-        run: |
-          python3 scripts/replay_delta_guard.py \
-            --comparison "${{ steps.prep.outputs.report_dir }}/replay-comparison.json" \
-            --thresholds "${REPLAY_DELTA_THRESHOLDS}" \
-            --summary-out "${{ steps.prep.outputs.report_dir }}/replay-delta-guard-summary.json"
+            --report-dir "${{ steps.prep.outputs.report_dir }}/replay"
 
       - name: Evaluate replay thresholds
         id: guard
         continue-on-error: true
         run: |
           report_json="${{ steps.prep.outputs.report_dir }}/"
-          report_json+="post/replay-cohort-post_live_enrichment_report.json"
+          report_json+="replay/replay-cohort_live_enrichment_report.json"
           if [[ ! -f "${report_json}" ]]; then
             report_json="$(find \
-              "${{ steps.prep.outputs.report_dir }}/post" \
+              "${{ steps.prep.outputs.report_dir }}/replay" \
               -maxdepth 2 \
               -name '*_live_enrichment_report.json' \
               | head -n 1)"
@@ -107,15 +67,10 @@ jobs:
             --summary-out \
             "${{ steps.prep.outputs.report_dir }}/replay-guard-summary.json"
 
-          baseline_copy="${{ steps.prep.outputs.report_dir }}/"
-          baseline_copy+="reason-distribution-baseline.json"
-          cp "${REPLAY_REASON_BASELINE}" "${baseline_copy}"
-
           echo "report_status=checked" >> "$GITHUB_OUTPUT"
 
       - name: Open or update regression issue
-        if: >-
-          steps.guard.outcome == 'failure' || steps.delta_guard.outcome == 'failure'
+        if: steps.guard.outcome == 'failure'
         uses: actions/github-script@v7
         env:
           REPORT_DIR: ${{ steps.prep.outputs.report_dir }}
@@ -205,7 +160,7 @@ jobs:
             });
 
       - name: Fail when replay thresholds regress
-        if: steps.guard.outcome == 'failure' || steps.delta_guard.outcome == 'failure'
+        if: steps.guard.outcome == 'failure'
         run: |
           echo "Replay thresholds regressed. Issue has been opened."
           exit 1

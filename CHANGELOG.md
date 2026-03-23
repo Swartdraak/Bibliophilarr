@@ -9,6 +9,9 @@ process.
 
 ### Changed
 
+- Removed `.github/workflows/branch-bootstrap.yml`: one-time bootstrap workflow with no recurring operational value and hardcoded `heads/main` source ref assumptions that no longer match the active branch model.
+- Refactored `.github/workflows/weekly-replay-report.yml` to run a single curated replay sample and enforce `replay_regression_guard` thresholds directly. Removed the baseline-vs-post comparison path that previously executed the same cohort seed twice in one run and produced low-signal deltas.
+- Updated `PROJECT_STATUS.md` for canonical accuracy: removed duplicate headings, normalized the `Last Updated` marker, and removed the stale claim that Phase 6 packaging validation lanes remain active.
 - Removed `.github/workflows/phase6-packaging-validation.yml`: stale phase-specific workflow, Phase 6 is complete. The workflow had a broken npm smoke test (hardcoded non-existent tag `v0.0.0-phase6-smoke`), a fragile OpenLibrary fallback assertion, and a weekly schedule that generated noise. Its companion doc was archived in the previous commit.
 - Fixed DI anti-pattern in `SearchController` and `SearchTelemetryController`: removed `ISearchTelemetryService = null` optional constructor parameter and `?? SearchTelemetryService.Shared` fallback. The service is auto-registered as a singleton by DryIoc assembly scanning — the null bypass was never invoked in production and masked a potential misconfiguration.
 - Removed `SearchTelemetryService.Shared` static singleton property: it was only reachable via the now-deleted null fallback and is dead code. Tests use explicit injection or mocks.
@@ -20,11 +23,7 @@ process.
 - Deleted 4 pure session-note files with no lasting operational value: `gh-pr-merge-cli-mismatch-2026-03-16.md`, `hardcover-fallback-ui-timeout-2026-03-15.md`, `media-library-scan-organize-2026-03-15.md`, `phase6-hardening-pr-bootstrap-2026-03-16.md`.
 - Removed empty stray directory `scripts/__pycache__/` (was untracked, now covered by `.gitignore`).
 
-  `docs/operations` runbooks.
-  repository workflows and files.
-  and removed stale canonical links to those files.
-  and archived superseded recommendation docs from `docs/operations`.
-- Consolidated label and project governance guidance into `CONTRIBUTING.md`
+- Consolidated label and project governance guidance into `CONTRIBUTING.md`.
 ## [2026-03-17]
 - Fixed ConfigService property setters: removed clamping logic from `IsbnContextFallbackLimit` and `BookImportMatchThresholdPercent` to preserve exact config values (validation moved to API controller layer).
 - Fixed 16 test fixture failures across 6 core test suites:
