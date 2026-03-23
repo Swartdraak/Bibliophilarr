@@ -11,6 +11,7 @@ process.
 
 - `SECURITY.md`: clarified private vulnerability reporting path and added explicit response-target timelines (acknowledgement, initial triage, and follow-up cadence).
 - `ROADMAP.md`: reconciled packaging and phase-hardening language with current workflow reality after dedicated Phase 6 packaging-matrix retirement.
+- `MIGRATION_PLAN.md`: reconciled historical phase markers and footer metadata with the current canonical delivery posture (Phase 5 consolidation + Phase 6 hardening).
 - `PROJECT_STATUS.md`: replaced stale explicit `phase6-packaging-validation.yml` reference in the historical completion section with current-state wording.
 - `docs/operations/RELEASE_AUTOMATION.md`: corrected repository posture to reflect that `release.yml`, `docker-image.yml`, and `npm-publish.yml` workflows are present.
 - `docs/operations/METADATA_MIGRATION_DRY_RUN.md`: removed duplicate `Related evidence` heading.
