@@ -1,3 +1,10 @@
+> [!WARNING]
+> **ARCHIVED** — This document has been superseded and moved to the archive.
+>
+> Canonical replacement: [PROJECT_STATUS.md](../../../PROJECT_STATUS.md)
+> Reason: Point-in-time release readiness snapshot; superseded by PROJECT_STATUS.md.
+> Deprecation date: 2026-03-23
+
 # Release Readiness Report Automation
 
 Date: 2026-03-16

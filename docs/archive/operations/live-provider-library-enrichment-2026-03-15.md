@@ -1,3 +1,10 @@
+> [!WARNING]
+> **ARCHIVED** — This document has been superseded and moved to the archive.
+>
+> Canonical replacement: [MIGRATION_PLAN.md](../../../MIGRATION_PLAN.md)
+> Reason: Session provider enrichment report; superseded by ongoing MIGRATION_PLAN.md.
+> Deprecation date: 2026-03-23
+
 # Live Provider Library Enrichment
 
 Date: 2026-03-15

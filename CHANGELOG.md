@@ -9,6 +9,13 @@ process.
 
 ### Changed
 
+- `.gitignore`: Added `__pycache__/`, `*.pyc`, `*.pyo` entries to prevent Python bytecode files from being tracked.
+- `scripts/ops/run_post_agent_docs_audit.py`: Added `H1_EXEMPT_FILES` set to suppress false-positive H1 warnings for `LICENSE.md` and `PULL_REQUEST_TEMPLATE.md` (special-purpose files where a top-level H1 is inappropriate).
+- Relocated `PROVIDER_IMPLEMENTATION_GUIDE.md` from repository root to `docs/operations/` (it is a developer implementation reference, not a root-level canonical doc).
+- Archived 10 historical `docs/operations/` session-checkpoint files to `docs/archive/operations/`, each with a `[!WARNING]` deprecation banner linking to their canonical replacement: `IMPLEMENTATION_STATUS_2026-03-15.md`, `status-audit-2026-03-16.md`, `conflict-strategy-staged-rollout-checklist-2026-03-16.md`, `core-identification-fallback-hardening-2026-03-15.md`, `dependabot-alert-remediation-2026-03-16.md`, `dotnet8-and-library-finalization-2026-03-15.md`, `live-provider-library-enrichment-2026-03-15.md`, `live-provider-replay-comparison-2026-03-16.md`, `phase6-packaging-validation-matrix-2026-03-16.md`, `release-readiness-report-2026-03-16.md`.
+- Deleted 4 pure session-note files with no lasting operational value: `gh-pr-merge-cli-mismatch-2026-03-16.md`, `hardcover-fallback-ui-timeout-2026-03-15.md`, `media-library-scan-organize-2026-03-15.md`, `phase6-hardening-pr-bootstrap-2026-03-16.md`.
+- Removed empty stray directory `scripts/__pycache__/` (was untracked, now covered by `.gitignore`).
+
   `docs/operations` runbooks.
   repository workflows and files.
   and removed stale canonical links to those files.

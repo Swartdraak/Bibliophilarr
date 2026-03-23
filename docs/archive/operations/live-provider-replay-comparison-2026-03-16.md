@@ -1,3 +1,10 @@
+> [!WARNING]
+> **ARCHIVED** — This document has been superseded and moved to the archive.
+>
+> Canonical replacement: [PROJECT_STATUS.md](../../../PROJECT_STATUS.md)
+> Reason: Session replay comparison report; superseded by PROJECT_STATUS.md.
+> Deprecation date: 2026-03-23
+
 # Live Provider Replay Comparison (Pre/Post Runtime Wiring)
 
 Date: 2026-03-16

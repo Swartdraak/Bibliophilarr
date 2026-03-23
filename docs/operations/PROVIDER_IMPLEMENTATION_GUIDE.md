@@ -815,8 +815,8 @@ Keep real API credentials in local `.env` only and never commit secret values.
 
 - [Open Library API Documentation](https://openlibrary.org/developers/api)
 - [Inventaire API Documentation](https://api.inventaire.io/)
-- [MIGRATION_PLAN.md](MIGRATION_PLAN.md) - Complete migration plan
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
+- [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md) - Complete migration plan
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) - Contribution guidelines
 
 ---
 

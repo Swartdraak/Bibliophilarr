@@ -1,3 +1,10 @@
+> [!WARNING]
+> **ARCHIVED** — This document has been superseded and moved to the archive.
+>
+> Canonical replacement: [ROADMAP.md](../../../ROADMAP.md)
+> Reason: One-time staged-rollout checklist for completed conflict resolution; superseded by ROADMAP.md.
+> Deprecation date: 2026-03-23
+
 # Conflict Strategy Variants Staged Rollout Checklist
 
 Date: 2026-03-16

@@ -1,3 +1,10 @@
+> [!WARNING]
+> **ARCHIVED** — This document has been superseded and moved to the archive.
+>
+> Canonical replacement: [MIGRATION_PLAN.md](../../../MIGRATION_PLAN.md)
+> Reason: .NET 8 migration completed; historical record superseded by MIGRATION_PLAN.md.
+> Deprecation date: 2026-03-23
+
 # .NET 8 and Library Finalization - 2026-03-15
 
 ## What Changed

@@ -61,6 +61,14 @@ CANONICAL_DOCS = {
     "CHANGELOG.md",
 }
 
+# Files exempted from the H1 heading check. These are special-purpose files
+# (legal documents, GitHub templates) where a top-level H1 is inappropriate
+# or would interfere with the platform feature that consumes them.
+H1_EXEMPT_FILES = {
+    "LICENSE.md",
+    "PULL_REQUEST_TEMPLATE.md",
+}
+
 INTERNAL_GITHUB_LINK_RE = re.compile(
     r"https?://github\.com/Swartdraak/Bibliophilarr/(blob|tree|raw)/",
     re.IGNORECASE,
@@ -172,6 +180,10 @@ def _strip_fenced_code_blocks(text: str) -> str:
 
 def check_heading_hierarchy(path: pathlib.Path, result: AuditResult) -> None:
     """H1 — single H1; H2 — no skipped heading levels."""
+    # Skip files that are exempt from the H1 requirement.
+    if path.name in H1_EXEMPT_FILES:
+        return
+
     raw = path.read_text(encoding="utf-8", errors="replace")
     lines = _strip_fenced_code_blocks(raw).splitlines()
 

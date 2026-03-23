@@ -1,3 +1,10 @@
+> [!WARNING]
+> **ARCHIVED** — This document has been superseded and moved to the archive.
+>
+> Canonical replacement: [ROADMAP.md](../../../ROADMAP.md)
+> Reason: Phase 6 packaging validation matrix for completed phase; superseded by ROADMAP.md.
+> Deprecation date: 2026-03-23
+
 # Phase 6 Packaging Validation Matrix
 
 Date: 2026-03-16

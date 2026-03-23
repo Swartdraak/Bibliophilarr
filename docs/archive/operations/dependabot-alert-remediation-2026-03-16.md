@@ -1,3 +1,10 @@
+> [!WARNING]
+> **ARCHIVED** — This document has been superseded and moved to the archive.
+>
+> Canonical replacement: [SECURITY.md](../../../SECURITY.md)
+> Reason: Completed Dependabot security remediation record; see SECURITY.md for ongoing policy.
+> Deprecation date: 2026-03-23
+
 # Dependabot Remediation Runbook (2026-03-16)
 
 ## What Changed
