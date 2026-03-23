@@ -9,6 +9,10 @@ process.
 
 ### Changed
 
+- Removed `.github/workflows/phase6-packaging-validation.yml`: stale phase-specific workflow, Phase 6 is complete. The workflow had a broken npm smoke test (hardcoded non-existent tag `v0.0.0-phase6-smoke`), a fragile OpenLibrary fallback assertion, and a weekly schedule that generated noise. Its companion doc was archived in the previous commit.
+- Fixed DI anti-pattern in `SearchController` and `SearchTelemetryController`: removed `ISearchTelemetryService = null` optional constructor parameter and `?? SearchTelemetryService.Shared` fallback. The service is auto-registered as a singleton by DryIoc assembly scanning — the null bypass was never invoked in production and masked a potential misconfiguration.
+- Removed `SearchTelemetryService.Shared` static singleton property: it was only reachable via the now-deleted null fallback and is dead code. Tests use explicit injection or mocks.
+- Fixed `.github/workflows/staging-smoke-metadata-telemetry.yml`: removed 3 duplicate binary path entries in the service discovery loop (each of 3 paths was listed twice).
 - `.gitignore`: Added `__pycache__/`, `*.pyc`, `*.pyo` entries to prevent Python bytecode files from being tracked.
 - `scripts/ops/run_post_agent_docs_audit.py`: Added `H1_EXEMPT_FILES` set to suppress false-positive H1 warnings for `LICENSE.md` and `PULL_REQUEST_TEMPLATE.md` (special-purpose files where a top-level H1 is inappropriate).
 - Relocated `PROVIDER_IMPLEMENTATION_GUIDE.md` from repository root to `docs/operations/` (it is a developer implementation reference, not a root-level canonical doc).

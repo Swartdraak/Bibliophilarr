@@ -20,8 +20,6 @@ namespace Bibliophilarr.Api.V1.Search
 
     public class SearchTelemetryService : ISearchTelemetryService
     {
-        public static SearchTelemetryService Shared { get; } = new SearchTelemetryService();
-
         private readonly object _sync = new object();
         private readonly Dictionary<string, int> _unsupportedEntityTypes = new Dictionary<string, int>(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _terms = new Dictionary<string, int>(StringComparer.Ordinal);

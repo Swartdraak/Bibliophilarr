@@ -8,9 +8,9 @@ namespace Bibliophilarr.Api.V1.Search
     {
         private readonly ISearchTelemetryService _telemetryService;
 
-        public SearchTelemetryController(ISearchTelemetryService telemetryService = null)
+        public SearchTelemetryController(ISearchTelemetryService telemetryService)
         {
-            _telemetryService = telemetryService ?? SearchTelemetryService.Shared;
+            _telemetryService = telemetryService;
         }
 
         [HttpGet]

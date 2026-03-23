@@ -56,13 +56,10 @@ jobs:
           app_path=""
           for candidate in \
             ./_output/net8.0/Bibliophilarr \
-            ./_output/net8.0/Bibliophilarr \
             ./_output/net8.0/linux-x64/publish/Bibliophilarr \
-            ./_output/net8.0/linux-x64/publish/Bibliophilarr \
-            ./_output/net8.0/linux-x64/Bibliophilarr \
             ./_output/net8.0/linux-x64/Bibliophilarr \
             ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
-            ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr; do
+            ; do
             if [ -x "$candidate" ]; then
               app_path="$candidate"
               break

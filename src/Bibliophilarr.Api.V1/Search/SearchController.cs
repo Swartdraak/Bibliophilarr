@@ -21,12 +21,12 @@ namespace Bibliophilarr.Api.V1.Search
         private readonly IMapCoversToLocal _coverMapper;
         private readonly ISearchTelemetryService _searchTelemetry;
 
-        public SearchController(ISearchForNewEntity searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper, ISearchTelemetryService searchTelemetry = null)
+        public SearchController(ISearchForNewEntity searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper, ISearchTelemetryService searchTelemetry)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
             _coverMapper = coverMapper;
-            _searchTelemetry = searchTelemetry ?? SearchTelemetryService.Shared;
+            _searchTelemetry = searchTelemetry;
         }
 
         [HttpGet]
