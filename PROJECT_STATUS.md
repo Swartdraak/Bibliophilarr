@@ -18,6 +18,18 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Required approving review count is `0` across those protected branches.
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 
+## Requested implementation tracks (March 23, 2026)
+
+The following items were added to canonical planning for immediate/future delivery sequencing:
+
+1. Import and identification throughput optimization for large libraries
+  - Add phased import strategy, bounded concurrency, and per-stage telemetry.
+  - Add production-shaped benchmark gates so speed improvements do not degrade match quality.
+
+2. Single-instance ebook and audiobook variant management
+  - Add per-title variant intent (ebook/audiobook) with independent format/quality policy.
+  - Ensure variant isolation across monitoring, search, import, and upgrade workflows.
+
 ## Latest Delivery Update
 
 ### March 22, 2026 build validation and test fixture hardening pass

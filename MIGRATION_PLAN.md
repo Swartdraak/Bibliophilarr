@@ -202,6 +202,8 @@ Next migration slices (priority order):
 3. End-to-end series persistence verification and reconciliation for refresh/import paths.
 4. Identification fallback quality expansion with richer candidate-rejection telemetry.
 5. Frontend interaction audit for author index jump-bar and related click handlers.
+6. Import throughput optimization for production-shaped libraries (instrumentation + phased execution + bounded concurrency).
+7. Single-instance dual-format management for ebook/audiobook variants per title.
 
 Additional migration progress (March 18, 2026):
 
@@ -258,6 +260,68 @@ Rollback/mitigation:
 Objective:
 
 - Eliminate divergence between provider mapping, backfill, and persistence logic for external IDs.
+
+#### TD-IMPORT-PERF-001: Production-scale import throughput optimization
+
+Objective:
+
+- Reduce wall-clock time for large media identification/import runs while preserving match quality and deterministic behavior.
+
+Primary touch points:
+
+- `src/NzbDrone.Core/MediaFiles/BookImport/ImportDecisionMaker.cs`
+- `src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs`
+- `src/NzbDrone.Core/Books/Services/RefreshBookService.cs`
+- `src/NzbDrone.Core/MetadataSource/MetadataProviderOrchestrator.cs`
+- `src/Bibliophilarr.Api.V1/Search/SearchTelemetryService.cs`
+
+Proposed change shape:
+
+1. Add phase-level timing/volume telemetry for import pipeline stages.
+2. Add configurable bounded concurrency and provider request ceilings.
+3. Implement phased identification strategy (local/identifier first, provider fallback only when needed).
+4. Add checkpoint/resume-friendly queue progression for long-running import jobs.
+
+Acceptance criteria:
+
+- Measured throughput improvement on production-shaped fixture cohorts.
+- No statistically significant regression in accepted match rate.
+- Provider timeout/error rates remain within explicit threshold bounds.
+
+Rollback/mitigation:
+
+- Keep existing import path behind a feature flag and allow immediate reversion to current sequential strategy.
+
+#### TD-DUAL-FORMAT-001: Single-instance ebook and audiobook variant management
+
+Objective:
+
+- Manage ebook and audiobook variants for the same title in one instance without policy conflicts or tracking loss.
+
+Primary touch points:
+
+- `src/NzbDrone.Core/Books/Book.cs`
+- `src/NzbDrone.Core/MediaFiles/*`
+- `src/NzbDrone.Core/Profiles/*`
+- `src/Bibliophilarr.Api.V1/*`
+- `frontend/src/*`
+
+Proposed change shape:
+
+1. Add additive variant model for per-title format intent (`ebook`, `audiobook`).
+2. Add independent quality/format policy attachment per variant.
+3. Partition search/import/upgrade decisions by variant to prevent cross-over writes.
+4. Expose variant-level status and controls in API/UI.
+
+Acceptance criteria:
+
+- Ebook and audiobook variants can co-exist for the same title without conflict.
+- Variant-specific quality upgrades do not overwrite opposite-format tracking state.
+- Existing single-format libraries remain backward compatible without migration breakage.
+
+Rollback/mitigation:
+
+- Feature-flag the variant model and preserve legacy single-track behavior as fallback until parity tests pass.
 
 Primary touch points:
 

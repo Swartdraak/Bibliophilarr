@@ -125,6 +125,8 @@ Planned entry conditions:
 | Identifier normalization convergence | canonical external-ID normalization is enforced at persistence boundaries | complete |
 | Health-aware provider routing | provider failure streaks influence fallback order with deterministic recovery | complete |
 | Conflict explainability telemetry | factor-level score breakdown is exposed for operator diagnostics | complete |
+| Import throughput optimization | bulk media identification/import throughput is improved on production-shaped libraries without quality regression | in progress |
+| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | planned |
 
 ## Near-Term Delivery Sequence
 
@@ -137,6 +139,29 @@ Planned entry conditions:
 7. Promote TD-META-001..005 behaviors into release-entry evidence capture, including provider telemetry and conflict-score snapshots.
 8. Add end-to-end metadata parity rehearsal on production-shaped datasets with explicit pass/fail thresholds for catalog retention and match-rate drift.
 9. Close remaining high-priority failing Core baseline tests that impact metadata import quality signals.
+10. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.
+11. Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.
+
+## Requested implementation additions (March 2026)
+
+Immediate track: import and identification throughput
+
+- Add import pipeline timing telemetry for queue wait, provider lookup, candidate scoring, and persistence phases.
+- Add bounded concurrency controls (configurable worker count and provider request ceilings) for large-library runs.
+- Add phased identification path:
+   - phase A: low-cost local/identifier match
+   - phase B: constrained provider search
+   - phase C: fallback expansion only when confidence remains below threshold
+- Add checkpoint/resume-friendly processing for long-running library imports so interrupted runs do not restart from zero.
+- Add performance acceptance gates using production-shaped fixture cohorts (throughput, match-rate stability, and provider error-rate ceilings).
+
+Future track: single-instance dual ebook/audiobook management
+
+- Introduce per-title format intent as separate managed variants (ebook, audiobook) under one logical title identity.
+- Add independent quality-profile/format-policy assignment per variant, including preferred and allowed format sets.
+- Ensure monitoring, search, import, and post-processing paths preserve variant isolation (no cross-variant overwrites or loss of tracking state).
+- Add UI/API surfaces for variant-level status, quality decisions, and missing/available state.
+- Deliver migration-safe rollout with additive schema changes, feature flags, and rollback-safe toggles.
 
 ## Local Install Testing Enablement (Develop Branch)
 
