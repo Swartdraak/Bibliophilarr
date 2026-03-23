@@ -59,9 +59,6 @@ blocked snapshot instead of silently skipping the evidence trail.
 
 ## Related evidence
 
-
-## Related evidence
-
 - [metadata-dry-run-snapshots/2026-03-17-blocked.md](metadata-dry-run-snapshots/2026-03-17-blocked.md)
 
 1. [scripts/metadata_migration_dry_run.py](../../scripts/metadata_migration_dry_run.py) — dry-run script authority.

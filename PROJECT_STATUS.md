@@ -670,7 +670,8 @@ Completed the outstanding remediation set focused on OpenLibrary edition-token r
   - `UpdateServiceFixture` was rewritten to align with current intentional product behavior: application updates are disabled and should throw `CommandFailedException` without download/extract/start side effects.
 
 5. Phase 6 workflow hardening:
-  - `phase6-packaging-validation.yml` now includes `RefreshAuthor` command-post/poll smoke checks, provider telemetry artifact capture, operation-telemetry capture, fallback-hit assertion, and ISBN-heavy lookup batch artifact generation.
+  - The hardening slice added `RefreshAuthor` command-post/poll smoke checks, provider telemetry artifact capture, operation-telemetry capture, fallback-hit assertions, and ISBN-heavy lookup batch evidence capture in then-active workflow automation.
+  - That dedicated phase6 packaging-matrix workflow has since been retired after hardening completion, with confidence coverage retained by active smoke/readiness workflows.
 
 **Validation evidence (this pass):**
 

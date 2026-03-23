@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: March 22, 2026
+**Last Updated**: March 23, 2026
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -9,15 +9,15 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 - Current phase: Phase 5 consolidation with Phase 6 hardening active.
 - Active delivery lanes: `develop` and `staging`.
 - Default branch posture: `main` is the operator-facing readiness and release-entry branch, not the primary packaging-validation lane.
-- Packaging scope: binary, Docker, and npm packaging validation remain intentionally scoped to `develop` and `staging` until installation paths are fully proven end to end for release tagging from `main`.
+- Packaging scope: release confidence is tracked through active smoke/build/readiness flows while dedicated Phase 6 packaging-matrix workflow lanes have been retired.
 - Actions token posture: branch-policy and readiness workflows remain report-only when GitHub Actions integration tokens cannot read admin or Dependabot APIs.
 
 ## Delivery Lanes
 
 | Branch | Purpose | Required outcomes |
 |---|---|---|
-| `develop` | Active integration lane for metadata migration and operational hardening slices | `build-test`, `Markdown lint`, `triage`, smoke telemetry, packaging validation |
-| `staging` | Pre-release validation lane mirroring `develop` with tighter release-readiness scrutiny | same required contexts as `develop`, plus green packaging validation |
+| `develop` | Active integration lane for metadata migration and operational hardening slices | `build-test`, `Markdown lint`, `triage`, smoke telemetry |
+| `staging` | Pre-release validation lane mirroring `develop` with tighter release-readiness scrutiny | same required contexts as `develop`, plus current readiness/drift report evidence |
 | `main` | Default branch for operator runbooks, readiness reporting, branch-policy auditing, and release-entry confirmation | `build-test`, `Markdown lint`, `triage`, smoke telemetry, successful readiness and branch-policy report runs |
 
 ## Phase Summary
@@ -61,7 +61,7 @@ Phase 6 is active and focused on release confidence rather than feature breadth.
 
 Completed or validated:
 
-- packaging validation is green on both `develop` and `staging` for binary, Docker, and npm lanes;
+- dedicated phase6 packaging-matrix workflow retired after hardening pass completion;
 - manual workflow dispatch from `main` has been validated for release readiness and branch-policy audit workflows;
 - permission-limited reporting mode preserves useful artifacts when Actions integration tokens receive `403 Resource not accessible by integration`.
 
@@ -98,7 +98,7 @@ Phase 6 exit criteria:
 
 - release entry criteria are documented and repeatable;
 - branch drift is automatically surfaced before release work stalls;
-- packaging scope can be promoted from `develop` and `staging` to `main` without compatibility exceptions.
+- release-entry evidence remains stable without compatibility exceptions.
 
 ### Phase 7 release preparation
 
@@ -106,7 +106,7 @@ Phase 7 starts only after Phase 6 hardening gates are consistently met.
 
 Planned entry conditions:
 
-- latest packaging validation successful on both `develop` and `staging`;
+- latest backend/frontend/docs/smoke validation successful on both `develop` and `staging`;
 - latest readiness and branch-policy report runs successful on `main`;
 - remaining open dependency alerts either remediated or explicitly accepted with documented rationale;
 - release workflows, runbooks, and rollback steps verified against current repository reality.
@@ -117,7 +117,7 @@ Planned entry conditions:
 |---|---|---|
 | Branch protection parity | `develop`, `staging`, and `main` share required contexts and review policy | complete |
 | Main dispatch validation | manual readiness and branch-policy workflows succeed on `main` | complete |
-| Packaging lane validation | binary, Docker, and npm packaging green on `develop` and `staging` | complete |
+| Packaging confidence | release confidence covered by active smoke/build/readiness workflows | complete |
 | Operational drift checks | scheduled drift signal exists with actionable artifacts | in progress |
 | Release entry criteria | `main` release gate documented and enforced operationally | in progress |
 | Security drift cleanup | open Dependabot set reduced via lockfile-backed remediation slices | in progress |

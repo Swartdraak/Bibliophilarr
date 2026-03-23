@@ -11,10 +11,11 @@ Do not open a public issue for an unpatched security vulnerability.
 
 Preferred reporting path:
 
-1. Use GitHub private vulnerability reporting or a repository security advisory,
-   if available for this repository.
-2. If that path is unavailable, contact a repository maintainer directly before
-   disclosing details publicly.
+1. Use the repository Security tab and choose "Report a vulnerability"
+   (private GitHub Security Advisory draft).
+2. If advisory creation is temporarily unavailable, open a private maintainer
+   contact request through GitHub and include only a minimal impact summary
+   until private advisory access is restored.
 
 Include:
 
@@ -26,9 +27,15 @@ Include:
 
 ## Response expectations
 
-Maintainers will triage reports as capacity allows, validate impact, and decide
-whether an immediate patch, mitigation guidance, or coordinated disclosure is
-required.
+Maintainers target the following response windows:
+
+1. Acknowledge receipt within 72 hours.
+2. Provide an initial triage assessment within 7 calendar days.
+3. Provide a mitigation or patch status update at least every 14 calendar days
+   until resolution or coordinated disclosure.
+
+Response windows are goals rather than guarantees and may vary with maintainer
+availability and report complexity.
 
 ## Handling guidance
 

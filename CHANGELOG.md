@@ -9,10 +9,19 @@ process.
 
 ### Changed
 
+- `SECURITY.md`: clarified private vulnerability reporting path and added explicit response-target timelines (acknowledgement, initial triage, and follow-up cadence).
+- `ROADMAP.md`: reconciled packaging and phase-hardening language with current workflow reality after dedicated Phase 6 packaging-matrix retirement.
+- `PROJECT_STATUS.md`: replaced stale explicit `phase6-packaging-validation.yml` reference in the historical completion section with current-state wording.
+- `docs/operations/RELEASE_AUTOMATION.md`: corrected repository posture to reflect that `release.yml`, `docker-image.yml`, and `npm-publish.yml` workflows are present.
+- `docs/operations/METADATA_MIGRATION_DRY_RUN.md`: removed duplicate `Related evidence` heading.
+- `.github/ISSUE_TEMPLATE/bug_report.yml`: branch selector updated from legacy `Master/Nightly` to current `Main/Staging` naming.
+- `.github/workflows/lock.yml`: added explicit least-privilege workflow permissions (`contents: read`, `issues: write`).
+- Archived dated planning file `docs/operations/phase5-inventaire-openlibrary-consolidation-plan-2026-03-16.md` to `docs/archive/operations/` with a deprecation banner and canonical replacement links.
+- Added `docs/archive/operations/README.md` index to maintain archive discoverability and canonical cross-links.
 - Removed `.github/workflows/branch-bootstrap.yml`: one-time bootstrap workflow with no recurring operational value and hardcoded `heads/main` source ref assumptions that no longer match the active branch model.
 - Refactored `.github/workflows/weekly-replay-report.yml` to run a single curated replay sample and enforce `replay_regression_guard` thresholds directly. Removed the baseline-vs-post comparison path that previously executed the same cohort seed twice in one run and produced low-signal deltas.
 - Updated `PROJECT_STATUS.md` for canonical accuracy: removed duplicate headings, normalized the `Last Updated` marker, and removed the stale claim that Phase 6 packaging validation lanes remain active.
-- Removed `.github/workflows/phase6-packaging-validation.yml`: stale phase-specific workflow, Phase 6 is complete. The workflow had a broken npm smoke test (hardcoded non-existent tag `v0.0.0-phase6-smoke`), a fragile OpenLibrary fallback assertion, and a weekly schedule that generated noise. Its companion doc was archived in the previous commit.
+- Removed `.github/workflows/phase6-packaging-validation.yml`: stale phase-specific workflow. The workflow had a broken npm smoke test (hardcoded non-existent tag `v0.0.0-phase6-smoke`), a fragile OpenLibrary fallback assertion, and a weekly schedule that generated noise. Its companion doc was archived in the previous commit.
 - Fixed DI anti-pattern in `SearchController` and `SearchTelemetryController`: removed `ISearchTelemetryService = null` optional constructor parameter and `?? SearchTelemetryService.Shared` fallback. The service is auto-registered as a singleton by DryIoc assembly scanning — the null bypass was never invoked in production and masked a potential misconfiguration.
 - Removed `SearchTelemetryService.Shared` static singleton property: it was only reachable via the now-deleted null fallback and is dead code. Tests use explicit injection or mocks.
 - Fixed `.github/workflows/staging-smoke-metadata-telemetry.yml`: removed 3 duplicate binary path entries in the service discovery loop (each of 3 paths was listed twice).

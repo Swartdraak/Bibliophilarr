@@ -57,9 +57,9 @@ body:
   attributes:
     label: What branch are you running?
     options:
-      - Master
+      - Main
       - Develop
-      - Nightly
+      - Staging
       - Other (This issue will be closed)
   validations:
     required: true

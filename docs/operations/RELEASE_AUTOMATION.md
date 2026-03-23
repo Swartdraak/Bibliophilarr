@@ -91,9 +91,10 @@ Responsibilities:
 ## Current repository posture
 
 The repository currently documents release-entry readiness, branch-policy audit,
-operational drift, and metadata dry-run workflows. Dedicated tag-driven release,
-Docker publish, and npm publish workflows are not present in this repository at
-the moment and should not be treated as active release gates.
+operational drift, and metadata dry-run workflows. Release and publish workflows
+are present in this repository (`release.yml`, `docker-image.yml`, and
+`npm-publish.yml`), while readiness and branch-policy workflows remain the
+authoritative gates for promotion decisions.
 
 ## Workflow dispatch commands (GitHub CLI)
 
