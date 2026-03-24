@@ -1,5 +1,7 @@
 # Metadata Provider Health and Telemetry Runbook
 
+> **DEPRECATED** — This document has been superseded and moved to the archive.
+
 Date: 2026-03-16
 
 ## Purpose

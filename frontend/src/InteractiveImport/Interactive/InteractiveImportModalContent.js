@@ -201,8 +201,6 @@ class InteractiveImportModalContent extends Component {
       .map((x) => x.book)
       .value();
 
-    console.log(booksImported);
-
     this.setState({
       booksImported,
       isConfirmImportModalOpen: true

@@ -125,9 +125,10 @@ gh workflow run "Metadata Migration Dry Run" \
 | `Bibliophilarr__Postgres__LogDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL log DB key during rename migration. |
 | `Bibliophilarr__Postgres__CacheDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL cache DB key during rename migration. |
 | `ASPNETCORE_URLS` | Runtime env var | Optional | Docker/local run | Defaults to `http://+:8787` in container flow. |
-| `SENTRY_AUTH_TOKEN` | Runtime/CI env var | Optional | Azure pipeline | Only needed if Sentry upload/release steps are used. |
-| `SENTRY_ORG` | Runtime/CI env var | Optional | Azure pipeline | Sentry org identifier. |
-| `SENTRY_URL` | Runtime/CI env var | Optional | Azure pipeline | Self-hosted Sentry base URL if applicable. |
+
+> **Removed**: Sentry (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_URL`) variables
+> were inherited from the legacy Azure Pipelines configuration and are no longer
+> used. Bibliophilarr uses GitHub Actions exclusively.
 
 ## Release procedure
 

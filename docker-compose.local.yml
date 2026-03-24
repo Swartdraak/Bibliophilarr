@@ -56,11 +56,11 @@ services:
 
       # ── Optional PostgreSQL override ───────────────────────────────────────
       # Leave blank to use the default SQLite database stored in /config.
-      # Readarr__Postgres__Host: "${POSTGRES_HOST:-}"
-      # Readarr__Postgres__Port: "${POSTGRES_PORT:-5432}"
-      # Readarr__Postgres__User: "${POSTGRES_USER:-bibliophilarr}"
-      # Readarr__Postgres__Password: "${POSTGRES_PASSWORD:-}"
-      # Readarr__Postgres__MainDb: "bibliophilarr-main"
+      # Bibliophilarr__Postgres__Host: "${POSTGRES_HOST:-}"
+      # Bibliophilarr__Postgres__Port: "${POSTGRES_PORT:-5432}"
+      # Bibliophilarr__Postgres__User: "${POSTGRES_USER:-bibliophilarr}"
+      # Bibliophilarr__Postgres__Password: "${POSTGRES_PASSWORD:-}"
+      # Bibliophilarr__Postgres__MainDb: "bibliophilarr-main"
     volumes:
       # ── Media libraries (read-only for safety) ─────────────────────────────
       # Adjust the host-side paths to match your local library layout.

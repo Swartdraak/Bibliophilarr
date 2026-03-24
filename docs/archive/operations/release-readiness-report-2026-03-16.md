@@ -1,5 +1,5 @@
 > [!WARNING]
-> **ARCHIVED** — This document has been superseded and moved to the archive.
+> **DEPRECATED** — This document has been superseded and moved to the archive.
 >
 > Canonical replacement: [PROJECT_STATUS.md](../../../PROJECT_STATUS.md)
 > Reason: Point-in-time release readiness snapshot; superseded by PROJECT_STATUS.md.

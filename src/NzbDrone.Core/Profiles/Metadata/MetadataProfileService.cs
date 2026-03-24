@@ -203,7 +203,7 @@ namespace NzbDrone.Core.Profiles.Metadata
 
         private bool BookAllowedByRating(Book b, MetadataProfile p)
         {
-            // hack for the 'none' metadata profile
+            // NOTE: Special-case the 'none' metadata profile to reject all books.
             if (p.MinPopularity == NONE_PROFILE_MIN_POPULARITY)
             {
                 return false;

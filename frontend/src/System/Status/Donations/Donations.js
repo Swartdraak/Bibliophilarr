@@ -11,43 +11,12 @@ class Donations extends Component {
   render() {
     return (
       <FieldSet legend="Donations">
-        <div className={styles.logoContainer} title="Radarr">
-          <Link to="https://opencollective.com/radarr">
-            <img
-              className={styles.logo}
-              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-radarr.png`}
-            />
-          </Link>
-        </div>
-        <div className={styles.logoContainer} title="Lidarr">
-          <Link to="https://opencollective.com/lidarr">
-            <img
-              className={styles.logo}
-              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-lidarr.png`}
-            />
-          </Link>
-        </div>
         <div className={styles.logoContainer} title="Bibliophilarr">
           <Link to="https://opencollective.com/bibliophilarr">
             <img
               className={styles.logo}
+              alt="Bibliophilarr"
               src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-bibliophilarr.png`}
-            />
-          </Link>
-        </div>
-        <div className={styles.logoContainer} title="Prowlarr">
-          <Link to="https://opencollective.com/prowlarr">
-            <img
-              className={styles.logo}
-              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-prowlarr.png`}
-            />
-          </Link>
-        </div>
-        <div className={styles.logoContainer} title="Sonarr">
-          <Link to="https://opencollective.com/sonarr">
-            <img
-              className={styles.logo}
-              src={`${window.Bibliophilarr.urlBase}/Content/Images/Icons/logo-sonarr.png`}
             />
           </Link>
         </div>

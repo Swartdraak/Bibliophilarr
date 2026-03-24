@@ -1,5 +1,5 @@
 > [!WARNING]
-> **ARCHIVED** — This document has been superseded and moved to the archive.
+> **DEPRECATED** — This document has been superseded and moved to the archive.
 >
 > Canonical replacement: [ROADMAP.md](../../../ROADMAP.md)
 > Reason: Phase 6 packaging validation matrix for completed phase; superseded by ROADMAP.md.

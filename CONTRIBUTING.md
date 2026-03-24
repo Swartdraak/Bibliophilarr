@@ -134,3 +134,9 @@ details where relevant.
 **Questions?** Open a discussion or reach out to the maintainers.
 
 **Want to help but not sure where to start?** Look for issues tagged with `good-first-issue` or `help-wanted`.
+
+## Community standards
+
+By contributing you agree to the [Contributor License Agreement](CLA.md) and
+the [Code of Conduct](CODE_OF_CONDUCT.md). Please review both before opening
+your first pull request.

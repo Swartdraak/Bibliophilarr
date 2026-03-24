@@ -1,5 +1,5 @@
 > [!WARNING]
-> **ARCHIVED** — This document has been superseded and moved to the archive.
+> **DEPRECATED** — This document has been superseded and moved to the archive.
 >
 > Canonical replacement: [SECURITY.md](../../../SECURITY.md)
 > Reason: Completed Dependabot security remediation record; see SECURITY.md for ongoing policy.

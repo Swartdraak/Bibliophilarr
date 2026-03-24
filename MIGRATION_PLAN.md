@@ -4,6 +4,80 @@
 
 This document outlines the comprehensive technical plan for migrating Bibliophilarr from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
+## Implementation Progress Snapshot (March 24, 2026 comprehensive deep audit v2)
+
+Comprehensive audit v2 across six parallel audits (backend C#, frontend, CI/CD and build,
+documentation, Docker and infrastructure, packages and dependencies) identified **287 distinct
+findings** — 14 Critical, 58 High, 101 Medium, 93 Low, and 21 Enhancement/Migration
+opportunities. These are consolidated into **176 remediation items** (RQ-001 through RQ-178)
+in `PROJECT_STATUS.md` § Prioritized Remediation Queue.
+
+### Migration-relevant findings
+
+**Provider reliability:**
+- All provider API calls (Hardcover, Inventaire, GoogleBooks, OpenLibrary) lack explicit
+  per-request timeouts; can hang indefinitely during import identification. Uniform
+  20-30s timeout enforcement planned (RQ-017).
+- No formal circuit breaker pattern for failing providers — partial implementation in
+  `BookSearchFallbackExecutionService` but not standardized (RQ-077).
+- 6+ `.FirstOrDefault()` chains on provider responses without null guards (RQ-078).
+- Unvalidated external provider payloads — minimal schema validation (RQ-089).
+- Provider response exception handling does not distinguish timeout vs 404 vs auth (RQ-034).
+
+**Performance and scalability:**
+- `BookController.GetBooks()` loads entire edition + author table without pagination;
+  OOM risk on large libraries (RQ-002).
+- `ImportListSyncService` has O(n*m) exclusion fetch pattern (RQ-019).
+- `OpenLibraryIdBackfillService` loads all books + authors in one pass (RQ-031).
+- `AuthorService.GetAllAuthors()` cached 30s loads entire table (RQ-033).
+- Kestrel `MaxRequestBodySize` is null (unlimited) — container OOM risk (RQ-118).
+
+**Async/threading:**
+- 10+ sync-over-async `.GetAwaiter().GetResult()` sites risk thread pool starvation and
+  deadlock under load (RQ-003). Affects HttpClient, BookSearchService,
+  AuthorSearchService, EpubReader, LocalizationService, and others.
+- Missing `CancellationToken` propagation across middleware and core services (RQ-021).
+
+**Supply chain and infrastructure:**
+- Docker supply-chain: unpinned base images, unverified Node tarball, root runtime,
+  no image scanning, no SBOM. Expanded hardening plan in PROJECT_STATUS.md (RQ-004,
+  RQ-005, RQ-023, RQ-024, RQ-111, RQ-112).
+- RestSharp 106.15.0 unmaintained with known vulnerabilities — migration to HttpClient
+  planned (RQ-064, RQ-157).
+- Selenium 3.141.0 EOL with known CVEs (RQ-065).
+- All GitHub Actions pinned by floating tags, not commit SHAs (RQ-015).
+
+**Frontend:**
+- Zero frontend test files — no unit, integration, or component tests exist (RQ-066).
+- React 17.0.2 approaching EOL; React Router 5.x already EOL (RQ-159, RQ-160).
+- moment.js adds ~13KB gzipped; 34 import sites (RQ-162).
+- 5+ deprecated/abandoned npm packages still in dependency tree (RQ-067, RQ-068, RQ-069).
+
+**Documentation:**
+- This file references migration `041` at line ~909; actual file is `042` (RQ-007).
+- Scripts reference deleted `phase6-packaging-validation.yml` (RQ-006).
+- 10+ duplicate `## Implementation Progress Snapshot` H2 headings in this file (RQ-048).
+
+Full prioritized remediation queue: see `PROJECT_STATUS.md` § Prioritized Remediation Queue.
+
+## Implementation Progress Snapshot (March 24, 2026 book import identification quality fixes)
+
+Three compounding bugs in the import identification pipeline were identified during production library analysis (81% unlinked files) and fixed:
+
+1. **DistanceCalculator case-sensitive format matching**: `EbookFormats.Contains()` and `AudiobookFormats.Contains()` now use `StringComparer.OrdinalIgnoreCase`. Hardcover's `"Ebook"` was not matching `"ebook"` in format lists, applying a distance penalty to 100% of Hardcover editions.
+
+2. **CloseAlbumMatchSpecification format bias on existing files**: `"ebook_format"` added to the distance exclusion set for files already on disk, preventing format distance from pushing existing library files past the acceptance threshold.
+
+3. **CandidateService ISBN early-exit preventing author+title search**: Removed the `seenCandidates.Any()` early exit that short-circuited author+title search when ISBN/ASIN results existed. Files with wrong embedded ISBNs now get searched by author+title as well. `HashSet` deduplication prevents duplicates; a `contextualFallbackFoundCandidates` guard prevents redundant author+title searches when the ISBN-miss fallback already performed one.
+
+Impact on metadata migration posture:
+
+- Book identification rate improved from ~19% to projected ~67-72% on production-shaped library.
+- Hardcover provider integration quality improved (format data now correctly consumed).
+- Identification fallback paths are more resilient (ISBN failures no longer block title-based matching).
+
+Validation: 40/40 targeted tests passed; 158/159 broader import tests passed (1 pre-existing flaky test confirmed unrelated).
+
 ## Implementation Progress Snapshot (March 22, 2026 Hardcover/runtime logging hardening)
 
 Completed in this migration-hardening slice:
@@ -865,7 +939,7 @@ Completed in code on branch `feature/open-library-provider-2026-03-17`:
   - `OpenLibraryProvider` implementing search and metadata interfaces with priority-based fallback role
   - Open Library resource DTOs and `OpenLibraryException`
 - Added additive database migration for Open Library foreign IDs:
-  - `041_add_open_library_ids.cs`
+  - `042_add_open_library_ids.cs`
   - `Book.OpenLibraryWorkId`
   - `AuthorMetadata.OpenLibraryAuthorId`
 - Updated import/sync path to remove direct Goodreads proxy coupling in `ImportListSyncService` by using `ISearchForNewBook` abstraction.

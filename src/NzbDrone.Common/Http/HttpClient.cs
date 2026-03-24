@@ -311,7 +311,8 @@ namespace NzbDrone.Common.Http
 
         public void DownloadFile(string url, string fileName, string userAgent = null)
         {
-            // https://docs.microsoft.com/en-us/archive/msdn-magazine/2015/july/async-programming-brownfield-async-development#the-thread-pool-hack
+            // NOTE: Sync-over-async via Task.Run wrapper to avoid deadlocks.
+            // See: https://docs.microsoft.com/en-us/archive/msdn-magazine/2015/july/async-programming-brownfield-async-development#the-thread-pool-hack
             Task.Run(() => DownloadFileAsync(url, fileName, userAgent)).GetAwaiter().GetResult();
         }
 

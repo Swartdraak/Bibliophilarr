@@ -43,7 +43,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
             else
             {
                 // get book distance ignoring whether tracks are missing
-                dist = item.Distance.NormalizedDistanceExcluding(new List<string> { "missing_tracks", "unmatched_tracks" });
+                dist = item.Distance.NormalizedDistanceExcluding(new List<string> { "missing_tracks", "unmatched_tracks", "ebook_format" });
                 reasons = item.Distance.Reasons;
                 if (dist > distanceThreshold)
                 {

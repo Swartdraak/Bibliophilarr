@@ -1,5 +1,5 @@
 > [!WARNING]
-> **ARCHIVED** — This document has been superseded and moved to the archive.
+> **DEPRECATED** — This document has been superseded and moved to the archive.
 >
 > Canonical replacement: [ROADMAP.md](../../../ROADMAP.md)
 > Reason: One-time staged-rollout checklist for completed conflict resolution; superseded by ROADMAP.md.

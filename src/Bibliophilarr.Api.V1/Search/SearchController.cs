@@ -32,6 +32,11 @@ namespace Bibliophilarr.Api.V1.Search
         [HttpGet]
         public object Search([FromQuery] string term)
         {
+            if (string.IsNullOrWhiteSpace(term))
+            {
+                return new List<SearchResource>();
+            }
+
             var searchResults = _searchProxy.SearchForNewEntity(term);
             return MapToResource(searchResults, term).ToList();
         }

@@ -292,7 +292,7 @@ namespace NzbDrone.Core.Books
 
         protected override void PublishRefreshCompleteEvent(Author entity)
         {
-            // little hack - trigger the series update here
+            // NOTE: Trigger the series update here after author refresh completes.
             var series = entity.Series;
             if (series?.Value == null || !series.Value.Any())
             {

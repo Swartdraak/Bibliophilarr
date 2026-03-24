@@ -33,23 +33,23 @@ runBinary();
 
 function resolveTarget() {
   if (platform() === 'linux' && arch() === 'x64') {
-    return { id: 'linux-x64', file: 'linux-x64.tar.gz', binaryPath: 'Readarr/Readarr' };
+    return { id: 'linux-x64', file: 'linux-x64.tar.gz', binaryPath: 'Bibliophilarr/Bibliophilarr' };
   }
 
   if (platform() === 'linux' && arch() === 'arm64') {
-    return { id: 'linux-arm64', file: 'linux-arm64.tar.gz', binaryPath: 'Readarr/Readarr' };
+    return { id: 'linux-arm64', file: 'linux-arm64.tar.gz', binaryPath: 'Bibliophilarr/Bibliophilarr' };
   }
 
   if (platform() === 'darwin' && arch() === 'arm64') {
-    return { id: 'osx-arm64', file: 'osx-arm64.tar.gz', binaryPath: 'Readarr/Readarr' };
+    return { id: 'osx-arm64', file: 'osx-arm64.tar.gz', binaryPath: 'Bibliophilarr/Bibliophilarr' };
   }
 
   if (platform() === 'darwin' && arch() === 'x64') {
-    return { id: 'osx-x64', file: 'osx-x64.tar.gz', binaryPath: 'Readarr/Readarr' };
+    return { id: 'osx-x64', file: 'osx-x64.tar.gz', binaryPath: 'Bibliophilarr/Bibliophilarr' };
   }
 
   if (platform() === 'win32' && arch() === 'x64') {
-    return { id: 'win-x64', file: 'win-x64.zip', binaryPath: 'Readarr/Readarr.exe' };
+    return { id: 'win-x64', file: 'win-x64.zip', binaryPath: 'Bibliophilarr/Bibliophilarr.exe' };
   }
 
   return null;

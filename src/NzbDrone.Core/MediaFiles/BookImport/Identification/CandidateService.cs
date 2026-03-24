@@ -233,6 +233,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             // Will eventually need adding locally if we find a match
             List<Book> remoteBooks;
             var seenCandidates = new HashSet<string>();
+            var contextualFallbackFoundCandidates = false;
 
             var isbns = localEdition.LocalBooks.Select(x => x.FileTrackInfo.Isbn).Distinct().ToList();
             var asins = localEdition.LocalBooks.Select(x => x.FileTrackInfo.Asin).Distinct().ToList();
@@ -263,10 +264,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // If ISBN lookup misses, attempt a few author+title searches before other ID-based lookups.
                 if (!seenCandidates.Any())
                 {
+                    var preContextCount = seenCandidates.Count;
+
                     foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides))
                     {
                         yield return candidate;
                     }
+
+                    contextualFallbackFoundCandidates = seenCandidates.Count > preContextCount;
                 }
             }
 
@@ -312,7 +317,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             // If we got an id result, or any overrides are set, stop
-            if (seenCandidates.Any() ||
+            if (contextualFallbackFoundCandidates ||
                 idOverrides?.Edition != null ||
                 idOverrides?.Book != null ||
                 idOverrides?.Author != null)
@@ -320,7 +325,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 yield break;
             }
 
-            // fall back to author / book name search
+            // Always attempt author / book name search even when ID-based results
+            // were found — embedded ISBNs/ASINs can be incorrect, and the
+            // author+title search may find the correct book. seenCandidates
+            // prevents duplicate editions from being yielded.
             var authorTags = new List<string>();
 
             if (TrackGroupingService.IsVariousAuthors(localEdition.LocalBooks))

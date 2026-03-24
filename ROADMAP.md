@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: March 23, 2026
+**Last Updated**: March 24, 2026 (comprehensive deep audit v2 — 287 findings, 178 remediation items)
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -78,6 +78,7 @@ Completed in current hardening slice:
 - OpenAPI/API, localization, and frontend active-text surfaces were migrated away from Goodreads naming to OpenLibrary naming;
 - ebook extraction now applies confidence-aware metadata merging (container tags plus filename-derived identifiers) for EPUB, PDF, AZW3, and MOBI import paths;
 - import acceptance threshold for close-match decisions is now configurable via metadata provider config with a default of 80 percent to preserve current behavior.
+- book import identification quality: fixed case-sensitive format comparison in DistanceCalculator, excluded ebook_format from existing-file distance threshold in CloseAlbumMatchSpecification, and removed ISBN early-exit that prevented author+title search in CandidateService. Combined effect: identification rate improved from ~19% to projected ~67-72% on production-shaped library.
 - clean-build and targeted verification coverage for author, series, book, and cover identification paths is now recorded in canonical status reporting.
 - Hardcover provider logging now emits level-appropriate runtime diagnostics, and local metadata exporter scripts now expose explicit `--log-level` controls for operator troubleshooting.
 
@@ -126,6 +127,18 @@ Planned entry conditions:
 | Health-aware provider routing | provider failure streaks influence fallback order with deterministic recovery | complete |
 | Conflict explainability telemetry | factor-level score breakdown is exposed for operator diagnostics | complete |
 | Import throughput optimization | bulk media identification/import throughput is improved on production-shaped libraries without quality regression | in progress |
+| Docker hardening | base image pinning, non-root runtime, health check, Node integrity verification, OCI labels, image scanning, SBOM | planned |
+| CI/CD supply-chain hardening | third-party actions pinned to SHA, workflow permissions scoped to job-level, version pins centralized | planned |
+| Legacy branding cleanup | remove remaining Sonarr/Readarr/Radarr/Lidarr/Prowlarr branding from frontend UI, donations, logos, and icon assets | planned |
+| Frontend test infrastructure | install jest + @testing-library/react; add initial test suite for critical flows; add CI step and coverage thresholds | planned |
+| Async migration (sync-over-async) | convert 10+ `.GetAwaiter().GetResult()` sites to true async/await and propagate CancellationToken | planned |
+| RestSharp → HttpClient migration | replace unmaintained RestSharp 106.15 with System.Net.Http.HttpClient via interface wrapper | planned |
+| Security headers and input validation | add CSP/HSTS/X-Frame-Options middleware; validate API search/parse inputs at controller boundary | planned |
+| React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | planned |
+| Node 22 LTS migration | upgrade from Node 20 (EOL April 2026) to Node 22 LTS | planned |
+| .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future |
+| Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | planned |
+| Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
 | Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | planned |
 
 ## Near-Term Delivery Sequence
@@ -139,8 +152,16 @@ Planned entry conditions:
 7. Promote TD-META-001..005 behaviors into release-entry evidence capture, including provider telemetry and conflict-score snapshots.
 8. Add end-to-end metadata parity rehearsal on production-shaped datasets with explicit pass/fail thresholds for catalog retention and match-rate drift.
 9. Close remaining high-priority failing Core baseline tests that impact metadata import quality signals.
-10. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.
-11. Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.
+10. Execute Docker hardening slice: pin base images to digests, add Node checksum verification, non-root runtime user, HEALTHCHECK, OCI labels, image scanning, SBOM. Remediation items RQ-004, RQ-005, RQ-023, RQ-024, RQ-059, RQ-111, RQ-112 from PROJECT_STATUS.md audit queue.
+11. Pin third-party GitHub Actions to exact versions or commit SHAs; standardize workflow permissions to job-level; centralize version pins across global.json, Dockerfile, and workflows. Remediation items RQ-015, RQ-016, RQ-036, RQ-037, RQ-039, RQ-109, RQ-110, RQ-114 from audit queue.
+12. Begin async migration: convert highest-risk sync-over-async sites (HttpClient, BookSearchService, EpubReader) to true async/await; propagate CancellationToken to middleware and core services. Remediation items RQ-003, RQ-018, RQ-020, RQ-021.
+13. Install frontend test infrastructure (jest, @testing-library/react); write initial test suite covering search, import modal, and metadata mapping flows; add CI enforcement step. Remediation items RQ-066, RQ-042, RQ-043, RQ-106.
+14. Plan and execute RestSharp 106 → HttpClient migration behind interface wrapper; update provider clients. Remediation items RQ-064, RQ-157.
+15. Add security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); validate API inputs at controller boundary. Remediation items RQ-086, RQ-087, RQ-175.
+16. Execute documentation normalization pass: fix MIGRATION_PLAN.md duplicate H2 headings, update stale references, archive dated operational docs, align wiki with ROADMAP phases. Remediation items RQ-007, RQ-048, RQ-044, RQ-047, RQ-079, RQ-080, RQ-121-RQ-125.
+17. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.
+18. Plan React 18 upgrade path: audit breaking changes, upgrade @testing-library, remove `react-addons-shallow-compare`, begin `connected-react-router` removal. Remediation items RQ-068, RQ-069, RQ-159.
+19. Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.
 
 ## Requested implementation additions (March 2026)
 

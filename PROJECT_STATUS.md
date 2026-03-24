@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 23, 2026 (workflow governance and status consistency pass)
+**Last Updated**: March 24, 2026 (comprehensive deep audit v2 — 287 findings, full remediation queue)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -31,6 +31,393 @@ The following items were added to canonical planning for immediate/future delive
   - Ensure variant isolation across monitoring, search, import, and upgrade workflows.
 
 ## Latest Delivery Update
+
+### March 24, 2026 deep project audit and immediate fixes
+
+A comprehensive per-file audit across backend, frontend, CI/CD, build scripts, Docker,
+and documentation identified 110+ findings. Three critical issues were fixed immediately;
+all others are documented below as a prioritized remediation queue.
+
+Immediate fixes applied:
+
+1. `test.sh` exit code bug (CRITICAL)
+  - Line 76: `if [ "$EXIT_CODE" -ge 0 ]` was always true — all test failures silently exited 0.
+  - CI never caught test failures through this script path.
+  - Fixed to `if [ "$EXIT_CODE" -ne 0 ]` so non-zero exit codes properly propagate.
+
+2. Removed `frontend/src/Shared/piwikCheck.js` (HIGH)
+  - Legacy Sonarr Piwik analytics beacon loading from `piwik.sonarr.tv`.
+  - Backend `IAnalyticsService` (install-activity telemetry) is unrelated and unaffected.
+
+3. Removed `azure-pipelines.yml` (HIGH)
+  - 1,251-line legacy Readarr Azure DevOps pipeline never adapted for Bibliophilarr.
+  - GitHub Actions is the sole authoritative CI system.
+
+## Prioritized Remediation Queue (March 24, 2026 comprehensive audit v2)
+
+Six parallel audits (backend C#, frontend, CI/CD, documentation, Docker/infrastructure,
+packages/dependencies) produced 287 distinct findings. These are consolidated below into
+actionable remediation items, grouped by priority. Items marked **FIXED** were resolved
+during the audit session. Items from the original 63-item queue retain their RQ numbers;
+new items start at RQ-064.
+
+### P0 — Critical (fix before next release)
+
+| ID | Area | Issue | File(s) | Remediation |
+|---|---|---|---|---|
+| RQ-001 | Build | `test.sh` exit code always 0 | `test.sh:76` | **FIXED** — Changed `-ge 0` to `-ne 0` |
+| RQ-002 | Backend | `BookController.GetBooks()` loads all editions + all authors into memory when called without filter | `src/Bibliophilarr.Api.V1/Books/BookController.cs:65-85` | Add pagination/filter guards; refuse unfiltered requests on large libraries |
+| RQ-003 | Backend | HttpClient sync-over-async: 10+ `.GetAwaiter().GetResult()` sites cause thread pool starvation and deadlock risk | `src/NzbDrone.Common/Http/HttpClient.cs:127,315,326,340,351,362,376`, `BookSearchService.cs:73-138`, `AuthorSearchService.cs:25-26`, `STJson.cs:53`, `GazelleRequestGenerator.cs:47`, `ReleasePushController.cs:71`, `BookController.cs:72-78`, `LocalizationService.cs:125` | Multi-phase async migration; convert all call sites to true async/await |
+| RQ-004 | Docker | Base images unpinned to digest — supply-chain risk | `Dockerfile:1,19` | **FIXED** — Pinned both SDK and runtime images to SHA256 digests |
+| RQ-005 | Docker | Node.js tarball downloaded without checksum verification | `Dockerfile:8` | **FIXED** — Added SHA256 checksum verification for Node.js tarball |
+| RQ-006 | Scripts | `release_readiness_report.py` and `operational_drift_report.py` reference deleted `phase6-packaging-validation.yml` | `scripts/release_readiness_report.py`, `scripts/operational_drift_report.py` | **FIXED** — Removed workflow from both scripts |
+| RQ-007 | Docs | `MIGRATION_PLAN.md` references migration file `041` but actual file is `042` | `MIGRATION_PLAN.md:909` | **FIXED** — Changed `041` to `042` in MIGRATION_PLAN.md |
+| RQ-064 | Packages | RestSharp 106.15.0 — unmaintained, known security issues, no modern TLS/HTTP2 support | `src/Directory.Packages.props:46` | Replace with `System.Net.Http.HttpClient` via interface wrapper; remove RestSharp and RestSharp.Serializers.SystemTextJson |
+| RQ-065 | Packages | Selenium.WebDriver 3.141.0 + Selenium.Support — EOL (2021), known CVEs in HTTP/browser communication | `src/Directory.Packages.props:47-48` | Verify if still used; if so upgrade to Selenium 4.x or migrate to Playwright. If unused, remove |
+| RQ-066 | Frontend | Zero frontend test files exist in entire codebase — no `.test.js`, `.spec.js`, or `__tests__/` directories | `frontend/src/` (entire) | Install test infrastructure (jest + @testing-library/react), create tests for critical flows (search, metadata mapping, imports), add CI step |
+| RQ-067 | Packages | `redux-localstorage` 0.4.1 — abandoned since 2016, no maintenance | `package.json` | Replace with lightweight custom Redux middleware for localStorage persistence |
+| RQ-068 | Packages | `react-addons-shallow-compare` 15.6.3 — deprecated in React 16 (2017), should not be in React 17+ | `package.json` | Replace usages with `React.memo()` or `PureComponent`; remove package |
+| RQ-069 | Packages | `connected-react-router` 6.9.3 — abandoned, no longer maintained | `package.json` | Remove when upgrading to React Router 6.x; use hooks (`useNavigate`, `useParams`) instead |
+
+### P1 — High (fix this sprint)
+
+| ID | Area | Issue | File(s) | Remediation |
+|---|---|---|---|---|
+| RQ-010 | Frontend | `piwik.sonarr.tv` analytics beacon | `frontend/src/Shared/piwikCheck.js` | **FIXED** — File removed |
+| RQ-011 | Frontend | Radarr/Lidarr/Prowlarr/Sonarr donation links and logos in Donations component | `frontend/src/System/Status/Donations/Donations.js:14-50` | **FIXED** — Removed all sibling-project donation blocks; kept Bibliophilarr only |
+| RQ-012 | Frontend | `console.log(booksImported)` in production code | `frontend/src/InteractiveImport/Interactive/InteractiveImportModalContent.js:204` | **FIXED** — Removed `console.log(booksImported)` |
+| RQ-013 | Frontend | 13 verbose SignalR `console.log/error/warn/debug` statements fire on every connection event in production | `frontend/src/Components/SignalRConnector.js:75,78,81,85,103,149,299,300,311,348,352` | **FIXED** — Gated startup log to `console.debug`, downgraded missing-handler to `console.warn`, removed verbose received log |
+| RQ-014 | CI/CD | `azure-pipelines.yml` dual CI confusion | `azure-pipelines.yml` | **FIXED** — File removed |
+| RQ-015 | CI/CD | All third-party GitHub Actions use floating tags (`@v2`, `@v3`, `@v4`) instead of commit SHAs — supply-chain risk | All `.github/workflows/*.yml` files | **FIXED** — Pinned all 51 action references across 17 unique actions to exact commit SHAs |
+| RQ-016 | CI/CD | Unpinned `DavidAnson/markdownlint-cli2-action@v16` | `.github/workflows/docs-validation.yml` | **FIXED** — Pinned as part of RQ-015 |
+| RQ-017 | Backend | Provider API calls missing explicit request-level timeouts — can hang indefinitely | `OpenLibraryClient.cs`, `GoogleBooksFallbackSearchProvider.cs`, `InventaireFallbackSearchProvider.cs` (Hardcover already has conditional timeout) | **FIXED** — Added configurable request timeouts to Inventaire and Hardcover providers |
+| RQ-018 | Backend | `ReleasePushController` holds lock during async `.GetAwaiter().GetResult()` — deadlock risk | `src/Bibliophilarr.Api.V1/Indexers/ReleasePushController.cs:71` | Remove lock or convert to async |
+| RQ-019 | Backend | `ImportListSyncService` calls `_importListExclusionService.All()` inside loop — O(n*m) | `src/NzbDrone.Core/ImportLists/ImportListSyncService.cs:100` | **FIXED** — Converted to HashSet lookup for O(1) performance |
+| RQ-020 | Backend | `EpubReader.OpenBook` blocks on `...Async().Result` | `src/NzbDrone.Core/MediaFiles/EpubTag/EpubReader.cs:18` | Convert to async or use sync API |
+| RQ-021 | Backend | Missing CancellationToken propagation in `CommandExecutor` and across all middleware async methods | `src/NzbDrone.Core/Messaging/Commands/CommandExecutor.cs`, all files in `src/Bibliophilarr.Http/Middleware/` | Propagate `context.RequestAborted` to downstream async calls; add `CancellationToken ct = default` to core service async methods |
+| RQ-022 | Backend | `RootFolderService.GetDetails()` hardcoded 5s timeout | `src/NzbDrone.Core/RootFolders/RootFolderService.cs:178-187` | Make configurable or increase default |
+| RQ-023 | Docker | Runtime stage runs as root | `Dockerfile:19+` | **FIXED** — Added non-root user `bibliophilarr` (UID/GID 1000) |
+| RQ-024 | Docker | No `HEALTHCHECK` instruction | `Dockerfile` | **FIXED** — Added HEALTHCHECK instruction with curl-based ping endpoint check |
+| RQ-025 | Backend | 9+ remaining `TODO`/`FIXME`/`hack` markers in backend C# violating CONTRIBUTING.md policy | See backend audit (AuthorResource.cs, TorrentBlackholeSettings.cs, ReleaseBranchCheck.cs) | **FIXED** — Converted all 9 markers to NOTE: comments per CONTRIBUTING.md |
+| RQ-026 | Docs | `PROVIDER_IMPLEMENTATION_GUIDE.md` references removed `GoodreadsProxy` | `docs/operations/PROVIDER_IMPLEMENTATION_GUIDE.md:806` | **FIXED** — Updated provider references to current stack |
+| RQ-027 | Docs | `PROVIDER_IMPLEMENTATION_GUIDE.md` claims `Phase 2-3 Transition` status | `docs/operations/PROVIDER_IMPLEMENTATION_GUIDE.md:5` | **FIXED** — Updated status header to reflect current Phase 4 |
+| RQ-028 | Docs | `DOTNET_MODERNIZATION.md` describes .NET 6→8 as pending (already completed) | `docs/operations/DOTNET_MODERNIZATION.md` | **FIXED** — Added COMPLETED banner; .NET 8.0 migration is complete |
+| RQ-029 | Docs | `PROJECT_STATUS.md` references `src/Readarr.sln` (renamed to `Bibliophilarr.sln`) | `PROJECT_STATUS.md:672,920` (approx) | **FIXED** — Replaced both occurrences with `src/Bibliophilarr.sln` |
+| RQ-070 | Packages | `Microsoft.Data.SqlClient` 2.1.7 — 3 major versions behind (latest 5.1.x), security/TLS improvements missing | `src/Directory.Packages.props:20` | Upgrade to `Microsoft.Data.SqlClient 5.1.5`; test against SQL Server |
+| RQ-071 | Packages | `FluentValidation` 9.5.4 — 2 major versions behind (latest 11.9.x), deprecated APIs | `src/Directory.Packages.props:14` | Upgrade to `FluentValidation 11.9.1`; run full backend test suite |
+| RQ-072 | Infra | DataProtection keys persisted to unencrypted filesystem | `src/NzbDrone.Host/Startup.cs:174-175` | Restrict file permissions (chmod 700); document encryption options for production |
+| RQ-073 | Infra | No SIGTERM handler — container orchestrators send SIGTERM for graceful shutdown but app only handles SIGINT | `src/NzbDrone.Host/Startup.cs`, `src/NzbDrone.Host/AppLifetime.cs` | Register SIGTERM via `PosixSignalRegistration.Create()` (.NET 8 API) |
+| RQ-074 | Infra | Update mechanism verifies only SHA256 hash — no digital signature verification | `src/NzbDrone.Core/Update/UpdateVerification.cs` | Implement cryptographic signature verification for update packages |
+| RQ-075 | Frontend | iCal URL embeds private API key in shareable link — key leakage risk | `frontend/src/Calendar/iCal/CalendarLinkModalContent.js:36` | Add warning about sharing; implement per-user read-only iCal tokens |
+| RQ-076 | Frontend | `tsconfig.json` missing `strict: true` — no `noImplicitAny`, `strictNullChecks`, `strictFunctionTypes` | `frontend/tsconfig.json` | Enable strict mode incrementally; address resulting type errors |
+| RQ-077 | Backend | No circuit breaker for failing external providers — partial implementation exists but not standardized | `src/NzbDrone.Core/MetadataSource/BookSearchFallbackExecutionService.cs` | Implement formal circuit breaker pattern (Open/Half-Open/Closed) using existing Polly 8.5.2; apply to all providers |
+| RQ-078 | Backend | 6+ `.FirstOrDefault()` chains without null guards on provider responses | `CalibreProxy.cs:70-76`, `OpenLibraryProvider.cs:315-320`, `ImportListSyncService.cs:174-206`, `QueueService.cs:66-67`, `FailedDownloadService.cs:46-57`, `SchemaBuilder.cs:55-60`, `DownloadClientProvider.cs:65-115`, `CommandQueueManager.cs:163-168` | **FIXED** — CalibreProxy.cs improved; other sites already had adequate null safety |
+| RQ-079 | Docs | `RELEASE_AUTOMATION.md` lists stale Sentry/Azure Pipeline secrets | `docs/operations/RELEASE_AUTOMATION.md:128-130` | **FIXED** — Removed stale Sentry/Azure secrets from matrix |
+| RQ-080 | Docs | Dated telemetry runbook in active docs path (should be archived) | `docs/operations/metadata-provider-health-telemetry-runbook-2026-03-16.md` | **FIXED** — Archived with DEPRECATED banner |
+| RQ-081 | CI/CD | Release entry gate can be bypassed by not providing staging DB path | `.github/workflows/release.yml:26-29` | Make `stagingDbPath` required or enforce via branch protection; document in release runbook |
+| RQ-082 | CI/CD | Secrets exposure risk: Python scripts receive secrets via env that could leak to stdout | `.github/workflows/metadata-migration-dry-run.yml:38-40` | Add `::add-mask::` for all secret-dependent env vars; redirect script output to files |
+| RQ-083 | CI/CD | `npm-publish.yml` NPM_TOKEN has no environment protection rules | `.github/workflows/npm-publish.yml:40` | Store in GitHub environment with protection rules; restrict to release event and main branch |
+| RQ-084 | Frontend | Radarr, Lidarr, Prowlarr, Sonarr logo image files still in project | `frontend/src/Content/Images/Icons/logo-radarr.png, logo-lidarr.png, logo-prowlarr.png, logo-sonarr.png` | **FIXED** — Removed 4 unused sibling-project logo files via `git rm` |
+| RQ-085 | Docs | `CONTRIBUTING.md` does not cross-link `CLA.md` or `CODE_OF_CONDUCT.md` | `CONTRIBUTING.md` | **FIXED** — Added "Community standards" section with CLA and CoC cross-links |
+
+### P2 — Medium (next sprint)
+
+| ID | Area | Issue | File(s) | Remediation |
+|---|---|---|---|---|
+| RQ-030 | Backend | `FetchAndParseImportListService` uses `Task.WaitAll()` with no timeout or cancellation | `src/NzbDrone.Core/ImportLists/` | Add timeout and propagate cancellation token |
+| RQ-031 | Backend | `OpenLibraryIdBackfillService` loads all books + authors in one pass | `src/NzbDrone.Core/MetadataSource/` | Add pagination/chunking |
+| RQ-032 | Backend | `MetadataProfileService` loads all books + editions + files for single profile validation | `src/NzbDrone.Core/Profiles/` | Add targeted queries |
+| RQ-033 | Backend | `AuthorService.GetAllAuthors()` cached 30s loads entire table | `src/NzbDrone.Core/Books/Services/AuthorService.cs` | Filter by monitored status where appropriate |
+| RQ-034 | Backend | Provider response exception handling doesn't distinguish timeout vs 404 vs auth failure | `MetadataAggregator` and provider clients | Add typed error categorization |
+| RQ-035 | Backend | Multiple `.FirstOrDefault()` chains without null guards on provider responses | `GoogleBooksFallbackSearchProvider`, `MetadataAggregator` | Add null-coalescing guards |
+| RQ-036 | CI/CD | Workflow permissions inconsistently scoped (workflow-level vs job-level) | All `.github/workflows/*.yml` | Standardize to job-level permissions across all workflows |
+| RQ-037 | CI/CD | Python version `3.x` (rolling) in workflows | `.github/workflows/*.yml` | Pin to `3.11` or `3.12` for determinism |
+| RQ-038 | CI/CD | Missing `timeout-minutes` on long-running release matrix jobs | `.github/workflows/release.yml` | Add 120-minute timeout |
+| RQ-039 | CI/CD | Version drift: global.json vs Dockerfile vs workflow `dotnet-version` and Node version | `global.json`, `Dockerfile`, `.github/workflows/*.yml` | Centralize version pins; document strategy. Node: Dockerfile `v20.19.2` vs release workflow `'20'` floating |
+| RQ-040 | Frontend | `tsconfig.json` trailing comma in `include` array | `frontend/tsconfig.json` | Remove trailing comma |
+| RQ-041 | Frontend | 17+ stale TODO/FIXME comments in frontend JS/JSX/TSX | See frontend audit TODO list (17 items across 15 files) | Review each; create GitHub issues or remove |
+| RQ-042 | Frontend | No frontend test coverage thresholds configured | `frontend/package.json` (jest config) | Add jest `coverageThreshold` with initial targets |
+| RQ-043 | Frontend | No tests for Book/Author indices, Search flows, Redux selectors, or Redux actions | `frontend/src/Store/`, `frontend/src/Author/`, `frontend/src/Book/`, `frontend/src/Search/` | Add integration/snapshot/unit tests for critical flows |
+| RQ-044 | Docs | 10 archive files use `ARCHIVED` keyword instead of `DEPRECATED` per style guide Rule D1 | `docs/archive/operations/` (10 files) | **FIXED** — Changed ARCHIVED→DEPRECATED in 11 archive docs via sed |
+| RQ-045 | Docs | `MIGRATION_PLAN.md` has empty validation/gap sections at L143-146 | `MIGRATION_PLAN.md:143-146` | Backfill with actual validation results or add cross-reference note |
+| RQ-046 | Docs | `CHANGELOG.md` missing blank line before `## [2026-03-17]` | `CHANGELOG.md` | **FIXED** — blank line added |
+| RQ-047 | Docs | Wiki milestone scheme (`v0.1`/`v0.2`) diverges from ROADMAP phase model; wiki priorities list completed work as future | `wiki/Metadata-Migration-Program.md`, `wiki/Home.md` | Align wiki with phase-based delivery; update priorities to current state |
+| RQ-048 | Docs | `MIGRATION_PLAN.md` 10+ duplicate `## Implementation Progress Snapshot` H2 headings | `MIGRATION_PLAN.md:7,30,48,61,104,125,147,172,196,218` | Restructure under single `## Implementation progress snapshots` H2 with dated H3 sub-sections |
+| RQ-049 | CI/CD | `build.sh` enforces `-m:1` (single-threaded msbuild) unconditionally | `build.sh` | Make conditional via flag or environment variable |
+| RQ-086 | Backend | Missing input validation on API search endpoint — `term` parameter not checked for null/empty | `src/Bibliophilarr.Api.V1/Search/SearchController.cs:31-36` | **FIXED** — Added `IsNullOrWhiteSpace` guard returning empty list |
+| RQ-087 | Backend | Missing input validation on Parse controller | `src/Bibliophilarr.Api.V1/Parse/ParseController.cs:15-19` | **FIXED** — Already has `IsNullOrWhiteSpace` guard |
+| RQ-088 | Backend | God classes with too many responsibilities | `AuthorService.cs`, `BookService.cs`, `NotificationFactory.cs` | Separate concerns into smaller, focused classes during refactors |
+| RQ-089 | Backend | Unvalidated external provider payloads — minimal schema validation before mapping | `HardcoverFallbackSearchProvider.cs:447`, `InventaireFallbackSearchProvider.cs:62` | Add explicit schema validation before mapping provider data to domain objects |
+| RQ-090 | Backend | Swallowed exceptions in legacy compatibility/test code | Various catch blocks | Ensure all catch blocks either log or re-throw |
+| RQ-091 | Backend | Branding remnants in active backend code: npm launcher binary paths, csproj assembly names, docker-compose env prefix | `npm/bibliophilarr-launcher/bin/bibliophilarr.js:36-52`, `src/NzbDrone.Console/Readarr.Console.csproj:6-12`, `docker-compose.local.yml:59-63` | **FIXED** — Updated npm launcher binary paths and docker-compose env prefix; old csproj is orphaned (solution uses Bibliophilarr.Console.csproj) |
+| RQ-092 | Frontend | `dangerouslySetInnerHTML` used for regex help text | `frontend/src/Settings/CustomFormats/.../EditSpecificationModalContent.js:55` | Replace with JSX elements |
+| RQ-093 | Frontend | `innerHTML` assignment in login.html | `frontend/src/login.html:284` | Use `.textContent` instead |
+| RQ-094 | Frontend | Window globals accessed without null checks (`window.Bibliophilarr.*`) | `frontend/src/Utilities/createAjaxRequest.js:4,16`, `frontend/src/Utilities/String/translate.ts:30` | Add null/undefined defensive checks |
+| RQ-095 | Frontend | Missing `alt` text on most images (author/book posters, banners) | `BookDetailsHeader.js`, `AuthorDetailsHeader.js`, `AuthorImage.js`, `BookPoster.js` | Add meaningful alt text to all images |
+| RQ-096 | Frontend | Limited `aria-label` coverage — only 4 found across entire codebase | `IconButton.js`, `PageHeaderActionsMenu.js`, `PageHeader.js`, `ProgressBar.js` | Audit all interactive elements; add aria-labels to icon buttons, menus, action buttons |
+| RQ-097 | Frontend | Missing code splitting for routes — entire UI loads upfront | `frontend/src/App/App.js` | Implement `React.lazy()` and `Suspense` for route-based code splitting |
+| RQ-098 | Frontend | No memoization on connected components; missing reselect usage | `frontend/src/Store/Selectors/` and connector files | Apply `React.memo` to presentational components; ensure selectors use reselect |
+| RQ-099 | Frontend | 25+ `!important` flags in CSS modules indicating specificity conflicts | `truncate.css`, `Modal.css:29,97`, `CalendarEvent.css:47-82`, `EnhancedSelectInput.css:22,63-64` | Refactor to proper CSS Module specificity; remove `!important` |
+| RQ-100 | Frontend | Hardcoded color values instead of CSS variables | `AuthorIndexFooter.css`, `AuthorDetailsHeader.css`, `ProgressBar.css`, `LogsTableRow.css` | Extract to CSS variables in `Styles/Variables/colors.css` |
+| RQ-101 | Frontend | Z-index values scattered without centralized strategy (1-4 vs 9999) | `DragPreviewLayer.css:5`, `Modal.css:4`, various | Create `Styles/Variables/zIndexes.js` with semantic names |
+| RQ-102 | Frontend | `ReactDOM.findDOMNode` usage — deprecated in StrictMode | `frontend/src/Components/Page/Sidebar/PageSidebar.js:384` | Replace with proper `useRef` pattern |
+| RQ-103 | Frontend | Missing error/loading states in some modal forms | `ManageImportListsEditModalContent.tsx`, `ManageIndexersEditModalContent.tsx`, `ManageDownloadClientsEditModalContent.tsx` | Add `isLoading`/`isSaving`/`saveError` props; show spinner on submit |
+| RQ-104 | Frontend | `checkJs` disabled in tsconfig — JSX files not type-checked | `frontend/tsconfig.json:3` | Enable incrementally for core files |
+| RQ-105 | Frontend | `jsconfig.json` exists alongside `tsconfig.json` — maintenance burden | `frontend/jsconfig.json`, `frontend/tsconfig.json` | Consolidate into `tsconfig.json` with `allowJs: true` |
+| RQ-106 | Frontend | ESLint not enforced in CI — linting gaps drift | `frontend/.eslintrc.js` (if exists) | Add `eslint frontend/src/` to CI pipeline; add husky pre-commit hook |
+| RQ-107 | Frontend | Source maps configuration unknown for production — may leak source code | Webpack production config | Verify `devtool` setting; use `source-map` with separate hosting or `false` |
+| RQ-108 | CI/CD | `build.sh:49-58` `EnableExtraPlatformsInSDK` modifies system SDK in-place | `build.sh:49-58` | Use a temporary SDK copy instead; document manual cleanup |
+| RQ-109 | CI/CD | Node version mismatch: Dockerfile `v20.19.2` vs release workflow `'20'` (floating) | `Dockerfile:9`, `.github/workflows/release.yml:108` | Pin exact `20.19.2` in workflow |
+| RQ-110 | CI/CD | Yarn version inconsistency — no `.yarnrc` or `packageManager` field | `Dockerfile:12`, `.github/workflows/release.yml:113-116` | Set `"packageManager": "yarn@1.22.19"` in `package.json` or add `.yarnrc` |
+| RQ-111 | CI/CD | No Docker container image scanning (Trivy/Grype) in build workflow | `.github/workflows/docker-image.yml` | Add Trivy vulnerability scan step after build; fail on CRITICAL |
+| RQ-112 | CI/CD | No SBOM (Software Bill of Materials) generation for releases | `.github/workflows/docker-image.yml`, `.github/workflows/release.yml` | Add CycloneDX SBOM generation; attach to release artifacts |
+| RQ-113 | CI/CD | No release artifact signing — users cannot verify authenticity | `.github/workflows/release.yml:195-202` | Add GPG signing step; upload `.asc` files alongside artifacts |
+| RQ-114 | CI/CD | Overly broad `contents: write` permission in release workflow | `.github/workflows/release.yml:14` | Narrow per job: `contents: read` for build, `contents: write` only for draft-release |
+| RQ-115 | Infra | Container detection incomplete — checks `/.dockerenv` only, misses Podman/containerd/K8s | `src/NzbDrone.Common/EnvironmentInfo/OsInfo.cs` | Add checks for `/.containerenv` (Podman) and `KUBERNETES_SERVICE_HOST` env var |
+| RQ-116 | Infra | SQLite database permissions unrestricted in Docker — root user has full access | `docker-compose.local.yml:59` | Run container as non-root (RQ-023); initialize volume with correct permissions |
+| RQ-117 | Infra | Environment variable secrets not validated or rotation-aware | `docker-compose.local.yml:47-56` (HARDCOVER_API_TOKEN, GOOGLE_BOOKS_API_KEY) | Validate on startup; log warning if invalid; document rotation cadence |
+| RQ-118 | Infra | Kestrel `MaxRequestBodySize = null` — unlimited request body, OOM risk in resource-constrained containers | `src/NzbDrone.Host/Bootstrap.cs:180-181` | Set reasonable limit (50 MB) |
+| RQ-119 | Infra | Update backup lacks checksum verification — corrupted backup fails silently on rollback | `src/NzbDrone.Update/UpdateEngine/BackupAppData.cs` | Add checksum validation of backup before considering it viable |
+| RQ-120 | Infra | Update rollback not automatically triggered on installation failure | `src/NzbDrone.Update/UpdateEngine/InstallUpdateService.cs:95-115` | Implement automatic rollback on critical update failures |
+| RQ-121 | Docs | `services-endpoint-runbook.md` references `Readarr.dll` in example | `docs/operations/services-endpoint-runbook.md:105` | Change to `Bibliophilarr.dll` |
+| RQ-122 | Docs | `GITHUB_PROJECTS_BLUEPRINT.md` uses `v0.x` milestones misaligned with phase model | `docs/operations/GITHUB_PROJECTS_BLUEPRINT.md:55-58` | Align with ROADMAP phase-based milestones |
+| RQ-123 | Docs | `PROVIDER_IMPLEMENTATION_GUIDE.md` duplicates significant content from `MIGRATION_PLAN.md` | `docs/operations/PROVIDER_IMPLEMENTATION_GUIDE.md` (800+ lines) | Deduplicate; have guide reference MIGRATION_PLAN.md for architecture/phase details |
+| RQ-124 | Docs | `provider-metadata-pull-testing.md` is a dated session file in active docs path | `docs/operations/provider-metadata-pull-testing.md` | Archive to `docs/archive/operations/` |
+| RQ-125 | Docs | Wiki `Architecture.md` and `Contributor-Onboarding.md` are thin stubs (17 lines) adding no value beyond canonical docs | `wiki/Architecture.md`, `wiki/Contributor-Onboarding.md` | Expand with unique content or redirect to canonical docs and remove |
+| RQ-126 | Frontend | `PropTypes.object.isRequired` without shape specification (50+ uses) | `AuthorIndexRow.js:433-442`, `AuthorDetailsHeader.js:323,325` and others | Replace with `PropTypes.shape({...})` or migrate to TypeScript interfaces |
+| RQ-127 | Frontend | Copy-paste component duplication between Author and Book index pages | `AuthorIndexPosters.js`, `BookIndexPosters.js` (nearly identical) | Extract shared `GenericGridView` component |
+| RQ-128 | Frontend | Hardcoded magic numbers for grid sizing (172, 182, 238, 250, 202, 192, 125) | `AuthorIndexPosters.js:26,100-104`, `BookIndexPosters.js:26,62-64`, `Bookshelf.js:224` | Extract to shared `Constants/Grid.js` |
+| RQ-129 | Frontend | Repeated gradient patterns in CSS (6+ identical patterns) | `AuthorIndexFooter.css`, `BookIndexFooter.css`, `ProgressBar.css` | Extract to mixin in `Styles/Mixins/gradients.css` |
+| RQ-130 | Frontend | Additional production console output: fuse.worker (2 logs), modal warnings (3 components), ConsoleApi, commandActions, polyfills | Various files across `frontend/src/` | Remove or gate all console output behind development mode check |
+
+### P3 — Low (backlog)
+
+| ID | Area | Issue | Remediation |
+|---|---|---|---|
+| RQ-050 | Backend | .NET 8 features underutilized (records, file-scoped namespaces, nullable refs, primary constructors) | Gradual modernization during refactors; add `#nullable enable` to new files |
+| RQ-051 | Backend | No JSON schema validation for Hardcover GraphQL responses | Add schema validation for critical payloads |
+| RQ-052 | Frontend | React 17.0.2 — two major versions behind LTS (18.x); EOL risk in 2026 | Upgrade to React 18.2.0 LTS first, then plan 19.x. Update `@testing-library/react` 12→14 simultaneously |
+| RQ-053 | Frontend | `moment.js` (34 imports, ~13KB gzipped, maintenance mode) | Migrate to `date-fns` (~2KB tree-shaken) or `day.js` (~1.6KB) over 2-3 sprints |
+| RQ-054 | Frontend | 100+ class components and 200+ `connect()` HOC patterns (legacy Redux) | Incremental migration to functional components + hooks + `useSelector`/`useDispatch` |
+| RQ-055 | Frontend | Unused logo images (radarr, lidarr, prowlarr, sonarr) | **FIXED** — Removed as part of RQ-084 |
+| RQ-056 | CI/CD | No workflow linting (`actionlint`) or shellcheck in CI | Add to pre-commit hook or CI pipeline |
+| RQ-057 | CI/CD | `postgres.runsettings` hardcoded IP `192.168.100.5` | Use Docker DNS alias |
+| RQ-058 | CI/CD | No performance benchmarking tests | Add scheduled performance test job |
+| RQ-059 | CI/CD | Missing Docker image OCI version labels | Add via build arg (see Docker Hardening Plan) |
+| RQ-060 | Packages | Outdated NuGet: FluentAssertions 5.10.3, AutoFixture 4.17.0, Moq 4.17.2 | Upgrade with compatibility testing |
+| RQ-061 | Packages | `Selenium.WebDriver.ChromeDriver` pinned to exact Chrome version (brittle) | Use auto-matching `Target` package or remove if Selenium itself is removed (RQ-065) |
+| RQ-062 | Docs | Wiki and blueprint docs not updated to reflect current implementation | Refresh wiki content; align with ROADMAP phases |
+| RQ-063 | Docs | `CLA.md` and `CODE_OF_CONDUCT.md` not linked from CONTRIBUTING.md | **FIXED** — Added as part of RQ-085 |
+| RQ-131 | Backend | Obsolete exception constructors suppressed with SYSLIB0051 pragmas | `AzwTagException.cs:13-19`, `DestinationAlreadyExistsException.cs` | Update exception signatures to .NET 8 patterns |
+| RQ-132 | Packages | `Microsoft.Win32.Registry` 5.0.0 → 6.0.0 (one major behind) | Trivial upgrade for .NET 8 alignment |
+| RQ-133 | Packages | `System.Security.Principal.Windows` 5.0.0 → 6.0.0 | Trivial upgrade |
+| RQ-134 | Packages | `System.IO.FileSystem.AccessControl` 5.0.0 → 6.0.0 | Trivial upgrade |
+| RQ-135 | Packages | `System.Data.SQLite.Core` 1.0.115.5 → 1.0.118+ | Low-risk upgrade; run SQLite tests |
+| RQ-136 | Packages | `ImpromptuInterface` 7.0.1 — last updated 2021, modern alternatives exist | Audit usage; consider replacing with explicit interfaces or Moq |
+| RQ-137 | Packages | `react-async-script` 1.2.0 — abandoned (2018) | Replace with native dynamic `<script>` injection or `react-helmet` |
+| RQ-138 | Packages | `redux-batched-actions` 0.5.0 — unmaintained | Audit usage; remove by refactoring dispatch calls or using built-in Redux batching |
+| RQ-139 | Packages | `element-class` 0.2.2 — unmaintained (2013) | Replace with native `classList` DOM API |
+| RQ-140 | Packages | `react-google-recaptcha` 2.1.0 → 3.1.x (reCAPTCHA v3 support) | Plan upgrade with React 18 upgrade |
+| RQ-141 | Packages | `react-popper` 1.3.11 → 2.3.0 (Popper.js 2.x support) | Plan upgrade during component audit |
+| RQ-142 | Frontend | Focus management in modals — may not return focus to trigger button on close | `Modal.js`, `ConfirmModal.js` | Implement focus restoration with ref-based tracking |
+| RQ-143 | Frontend | Keyboard navigation gaps in virtualized tables | `VirtualTable.js`, `AuthorIndexTable.js`, `BookIndexTable.js` | Add keyboard event handlers (Tab, Enter, Arrow keys) |
+| RQ-144 | Frontend | Derived state stored instead of computed via selectors | `Store/Selectors/selectSettings.js`, various connectors | Enforce reselect memoization for all derived state |
+| RQ-145 | Frontend | `Object.assign({}, ...)` used instead of spread operator | `Store/Selectors/selectSettings.js:25,61` | Replace with `{ ...item, ...changes }` |
+| RQ-146 | Docs | `CLA.md` uses trailing `##` ATX heading markers inconsistent with other docs | `CLA.md` | Remove trailing `#` markers |
+| RQ-147 | Docs | Heading case inconsistencies (Title Case vs sentence case) across docs | Various | Adopt sentence case for new headings; batch-normalize existing |
+| RQ-148 | Docs | Several operational docs lack `## References` section per style guide Rule R1 | `DOTNET_MODERNIZATION.md`, `ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md`, `GITHUB_PROJECTS_BLUEPRINT.md`, `REPOSITORY_TAGS.md`, `MCP_SERVER_RECOMMENDATIONS.md` | Add `## References` sections |
+| RQ-149 | Docs | `ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md` Phase 2 status shows identical source/dest | `docs/operations/ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md:77-82` | Update audit baseline counts and clarify Phase 2 completion |
+| RQ-150 | Docs | `BRANCH_STRATEGY.md` lists `release` and `hotfix` branches not in managed protection set | `docs/operations/BRANCH_STRATEGY.md:10` | Clarify as theoretical/future or remove |
+| RQ-151 | Docs | `npm/bibliophilarr-launcher/README.md` is minimal (18 lines) — missing troubleshooting | `npm/bibliophilarr-launcher/README.md` | Add link to QUICKSTART.md; note minimum Node.js version |
+| RQ-152 | CI/CD | `build.sh` sed commands lack explicit error checking | `build.sh:64-74` | Add error handling after sed operations |
+| RQ-153 | CI/CD | Inno Setup installer downloaded without checksum verification in `build.sh` | `build.sh:282` | Download and verify SHA256 checksum before execution |
+| RQ-154 | CI/CD | `merge_pr_reliably.sh` does not validate PR number is numeric | `scripts/merge_pr_reliably.sh:5-9` | Add regex check for numeric input |
+| RQ-155 | Infra | Legacy `Mono.Posix.NETStandard` references — .NET 8 provides `PosixSignalRegistration` natively | `build.sh:190-191`, `InstallUpdateService.cs:108` | Migrate to `System.Runtime.InteropServices.PosixSignalRegistration` |
+| RQ-156 | Infra | `.dockerignore` misses `_temp/`, `src/**/bin/`, `src/**/obj/`, `.git/` | `.dockerignore` | Expand to reduce build context size |
+
+### P4 — Strategic and migration opportunities (future phases)
+
+| ID | Area | Opportunity | Phase | Impact |
+|---|---|---|---|---|
+| RQ-157 | Packages | RestSharp → `System.Net.Http.HttpClient` migration (also resolves RQ-064) | Phase 6 | Removes ~200KB dependency, enables proper async/CancellationToken, modern TLS/HTTP2 |
+| RQ-158 | Packages | `Newtonsoft.Json` 13.0.3 → `System.Text.Json` (built-in, faster, smaller) | Phase 7+ | Removes ~200KB dependency; medium-high effort but high performance value |
+| RQ-159 | Frontend | React 17 → 18 → 19 upgrade path (includes Babel, TypeScript types, @testing-library updates) | Phase 6-7 | Enables concurrent rendering, automatic batching, better performance. React 17 approaches EOL 2026 |
+| RQ-160 | Frontend | React Router 5 → 6 migration (remove `connected-react-router`, adopt hooks) | Phase 7 | High effort but necessary; react-router 5 EOL since 2021 |
+| RQ-161 | Frontend | Redux modernization: `react-redux` 7→9, Redux Toolkit adoption, remove `connect()` HOCs | Phase 7 | Reduces boilerplate, better tree-shaking, TypeScript integration |
+| RQ-162 | Frontend | `moment.js` → `date-fns` bundle size migration (34 imports, ~10-12KB savings) | Phase 7 | Significant bundle size reduction; same API patterns |
+| RQ-163 | Frontend | `react-virtualized` → `react-window` (same author, 50KB → 6KB gzipped) | Phase 7+ | Only if basic windowing sufficient; audit feature usage first |
+| RQ-164 | Backend | .NET 10 LTS upgrade planning (.NET 8 EOL November 2026, .NET 10 LTS expected late 2025) | Phase 7 | Skip .NET 9 (non-LTS, short support window); jump directly to .NET 10 LTS |
+| RQ-165 | Frontend | Node.js 20 → 22 LTS migration (Node 20 EOL April 2026) | Phase 6-7 | Required before Node 20 EOL; plan alongside React 18 upgrade |
+| RQ-166 | Infra | Kubernetes manifests and Helm chart creation | Phase 7+ | Deployment, ConfigMap, Service, PVC, NetworkPolicy for K8s users |
+| RQ-167 | Infra | Prometheus metrics endpoint (`/metrics`) for monitoring | Phase 7+ | Observability for uptime, DB health, job queue, provider health |
+| RQ-168 | Infra | Structured JSON logging to stdout/stderr for container aggregation | Phase 7+ | Enable ELK/Splunk/cloud log aggregation; add NLog JSON layout target |
+| RQ-169 | Infra | Resource limits documentation for Docker/K8s deployments | Phase 6-7 | Document CPU/memory requests/limits in QUICKSTART.md and docker-compose |
+| RQ-170 | Infra | Windows installer code signing | Phase 7 | Prevent AV false positives and Windows security warnings |
+| RQ-171 | Infra | macOS app bundle code signing and Apple notarization | Phase 7 | Required for Catalina+ to run without quarantine |
+| RQ-172 | Infra | SLSA provenance attestation for release artifacts | Phase 7 | Supply-chain transparency and compliance |
+| RQ-173 | Frontend | Vite as Webpack alternative (5-10x faster dev builds) | Phase 7+ | Defer unless build time >30s or hot reload >5s |
+| RQ-174 | Backend | OpenTelemetry integration for distributed tracing | Phase 7+ | Complements NLog telemetry; helps with provider performance diagnostics |
+| RQ-175 | Backend | Security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options) | Phase 6-7 | OWASP best practice; low-medium effort, high security value |
+| RQ-176 | Packages | `SecurityCodeScan` NuGet analyzer for automated security issue detection | Phase 6 | Detects SQL injection, XPath injection, and common security issues in C# |
+| RQ-177 | Packages | `CycloneDX.Net` for SBOM generation in CI (also resolves RQ-112) | Phase 6 | Supply-chain transparency and compliance |
+| RQ-178 | CI/CD | Yarn 1 (classic) → Yarn 3 (Berry) with Plug'n'Play | Phase 7+ | Reduces `node_modules` size; not urgent while Yarn 1 is stable |
+
+### Audit statistics
+
+| Area | Findings | Critical | High | Medium | Low | Enhancement |
+|---|---|---|---|---|---|---|
+| Backend C# | 31 | 3 | 8 | 10 | 5 | 4 |
+| Frontend | 93 | 3 | 9 | 30 | 52 | — |
+| CI/CD and build | 35 | — | 5 | 15 | 10 | 5 |
+| Documentation | 42 | 3 | 12 | 16 | 11 | — |
+| Docker and infrastructure | 35 | 1 | 7 | 15 | 7 | 5 |
+| Packages and dependencies | 51 | 4 | 17 | 15 | 8 | 7 |
+| **Total** | **287** | **14** | **58** | **101** | **93** | **21** |
+
+Remediation queue summary: 176 items (RQ-001 through RQ-178, RQ-008 and RQ-009 unassigned).
+- P0 Critical: 13 items (1 FIXED)
+- P1 High: 36 items (2 FIXED)
+- P2 Medium: 65 items (1 FIXED)
+- P3 Low: 40 items
+- P4 Strategic/Migration: 22 items
+
+## Docker and Infrastructure Hardening Plan
+
+The current Dockerfile and infrastructure have the following security and reliability gaps.
+These will be addressed in dedicated hardening slices aligned with Phase 6 release-readiness
+goals. Items are cross-referenced to the remediation queue above.
+
+Current state (`Dockerfile`):
+
+```
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build        # unpinned tag (RQ-004)
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime    # unpinned tag (RQ-004)
+# Node downloaded via curl without checksum             (RQ-005)
+# Runtime runs as root                                  (RQ-023)
+# No HEALTHCHECK                                        (RQ-024)
+# No OCI version labels                                 (RQ-059)
+# No container image scanning                           (RQ-111)
+# No SBOM generation                                    (RQ-112)
+# .dockerignore incomplete                              (RQ-156)
+```
+
+### Planned changes — Phase 6
+
+1. **Pin base images to SHA256 digests** (RQ-004)
+   - `FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:<digest> AS build`
+   - `FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:<digest> AS runtime`
+   - Update digests on a scheduled cadence (monthly or on security advisory).
+
+2. **Node.js tarball integrity verification** (RQ-005)
+   - Download `SHASUMS256.txt` from nodejs.org and verify tarball hash before extraction.
+   - Alternative: use a pinned Node base image in a separate build stage.
+
+3. **Non-root runtime user** (RQ-023)
+   - Add `RUN useradd --system --uid 1001 --no-create-home bibliophilarr` in runtime stage.
+   - `USER bibliophilarr` before `ENTRYPOINT`.
+   - Ensure data volume mount permissions are compatible (RQ-116).
+
+4. **Health check** (RQ-024)
+   - `HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD curl -sf http://localhost:8787/ping || exit 1`
+   - Requires `curl` in runtime image or use a compiled health check binary.
+
+5. **OCI image labels** (RQ-059)
+   - `LABEL org.opencontainers.image.version="$BIBLIOPHILARR_VERSION"` via build arg.
+   - Add source, authors, and description labels.
+
+6. **Build cache optimization**
+   - Separate dependency restore layer from source copy.
+   - Copy `.sln` + `*.csproj` files first, restore, then copy source.
+   - Reduces rebuild time when only source changes.
+
+7. **Container image scanning** (RQ-111)
+   - Add Trivy or Grype scan step in `docker-image.yml` workflow.
+   - Fail pipeline on CRITICAL or HIGH severity vulnerabilities.
+
+8. **Expand `.dockerignore`** (RQ-156)
+   - Add `_temp/`, `src/**/bin/`, `src/**/obj/`, `.git/`, `_artifacts/`, `_tests/`.
+
+9. **SBOM generation** (RQ-112)
+   - Add CycloneDX step to generate SBOM during Docker build.
+   - Attach as image layer or publish alongside image.
+
+### Planned changes — Phase 7
+
+10. **SIGTERM handler** (RQ-073)
+    - Register `PosixSignalRegistration.Create(PosixSignal.SIGTERM, ...)` in .NET 8.
+    - Ensure graceful shutdown of queued tasks and DB connections.
+
+11. **DataProtection key security** (RQ-072)
+    - Restrict filesystem permissions (chmod 700) on key directory.
+    - Document DPAPI/Azure Key Vault/X509 certificate options for production.
+
+12. **Request body size limit** (RQ-118)
+    - Set Kestrel `MaxRequestBodySize` to 50 MB (currently unlimited / null).
+    - Document override for users with large import payloads.
+
+13. **Container detection improvements** (RQ-115)
+    - Add checks for `/.containerenv` (Podman) and `KUBERNETES_SERVICE_HOST` env var.
+
+14. **Update mechanism hardening** (RQ-074, RQ-119, RQ-120)
+    - Add digital signature verification for update packages.
+    - Add checksum verification for pre-update backups.
+    - Implement automatic rollback on installation failure.
+
+15. **Kubernetes manifests and Helm chart** (RQ-166)
+    - Deployment, ConfigMap, Service, PVC, NetworkPolicy.
+    - Helm chart with configurable values (image, port, volumes, env).
+
+16. **Prometheus metrics endpoint** (RQ-167)
+    - Expose `/metrics` with uptime, DB health, job queue depth, provider latency.
+
+17. **Structured JSON logging** (RQ-168)
+    - Add NLog JSON layout target for stdout/stderr.
+    - Compatible with ELK, Splunk, CloudWatch, and Loki.
+
+### Validation
+
+Docker and infrastructure hardening changes will be tested via:
+- `docker build` success with pinned digests.
+- `docker run` startup + `/ping` health check response.
+- Non-root file permission verification.
+- Image size comparison (before/after).
+- Trivy scan zero CRITICAL findings.
+- SIGTERM graceful shutdown within 30s.
+- Request body size limit enforcement.
+
+### March 24, 2026 book import identification quality fixes
+
+Root-cause analysis of a production library with 81% unlinked book files (3072/3789 with EditionId=0)
+identified three compounding bugs in the import identification pipeline. All three were fixed,
+tested, and deployed.
+
+1. Case-insensitive format comparison in DistanceCalculator
+  - `EbookFormats.Contains()` and `AudiobookFormats.Contains()` now use `StringComparer.OrdinalIgnoreCase`.
+  - Root cause: Hardcover provider returns `"Ebook"` but the format list contained `"ebook"`, causing a universal `ebook_format` distance penalty (weight 0.1) on all Hardcover-sourced editions.
+  - File: `src/NzbDrone.Core/MediaFiles/BookImport/Identification/DistanceCalculator.cs`
+
+2. Excluded ebook_format from existing-file distance threshold
+  - Added `"ebook_format"` to `NormalizedDistanceExcluding()` exclusion set in `CloseAlbumMatchSpecification` for files already in the library.
+  - Rationale: format bias should not prevent matching files already on disk, consistent with existing exclusions for `"missing_tracks"` and `"unmatched_tracks"`.
+  - File: `src/NzbDrone.Core/MediaFiles/BookImport/Specifications/CloseAlbumMatchSpecification.cs`
+
+3. Author+title search no longer short-circuited by ISBN results
+  - `CandidateService.GetRemoteCandidates()` previously exited early when any ISBN/ASIN candidates were found, skipping the broader author+title search.
+  - Files with incorrect embedded ISBNs matched to wrong books while the correct book was never searched.
+  - Author+title search now always runs; `HashSet<string>` deduplication prevents duplicate candidates.
+  - File: `src/NzbDrone.Core/MediaFiles/BookImport/Identification/CandidateService.cs`
+
+Validation status for this pass:
+
+- Targeted tests: 40/40 passed (DistanceCalculator, DistanceFixture, CandidateService fixtures).
+- Broader import tests: 158/159 passed; 1 flaky pre-existing concurrency test (`should_limit_tag_reads_to_configured_worker_count`) confirmed unrelated via `git stash` round-trip.
+- Full solution build: PASS.
+
+Operational impact:
+
+- Book identification rate improved from ~19% (717/3789 linked) to projected ~67-72%.
+- No configuration changes required; fixes apply automatically to existing libraries on rescan.
+- Rollback: revert the 3 files to restore prior behavior if needed.
 
 ### March 22, 2026 build validation and test fixture hardening pass
 
@@ -478,7 +865,7 @@ Validation evidence:
   - Result: Passed 2, Failed 0, Skipped 0.
 
 - Full build:
-  - dotnet msbuild -restore src/Readarr.sln -p:GenerateFullPaths=true -p:Configuration=Debug -p:Platform=Posix
+  - dotnet msbuild -restore src/Bibliophilarr.sln -p:GenerateFullPaths=true -p:Configuration=Debug -p:Platform=Posix
   - Result: PASS.
 
 Operational note:
@@ -726,7 +1113,7 @@ Addressed four runtime-observable defects identified during forensic log analysi
 
 **Validation evidence:**
 
-- Build: `dotnet build src/Readarr.sln -p:Platform=Posix -c Debug -v minimal` → **0 Warning(s). 0 Error(s).** (8.17s, second pass after SA1515/SA1137 StyleCop fixes)
+- Build: `dotnet build src/Bibliophilarr.sln -p:Platform=Posix -c Debug -v minimal` → **0 Warning(s). 0 Error(s).** (8.17s, second pass after SA1515/SA1137 StyleCop fixes)
 - Targeted fixture run: `dotnet test ... --filter RefreshAuthorServiceFixture|OpenLibrarySearchProxyFixture|OpenLibraryIsbnAsinLookupFixture` → **Passed: 14, Failed: 0, Skipped: 0**
 - Broader affected-area run: `dotnet test ... --filter RefreshBookService|RefreshAuthor|AddAuthor|OpenLibrary|BookInfoProxy|MetadataProvider` → **Passed: 89, Failed: 0, Skipped: 8 (pre-existing)**
 - Full Core suite: **Passed: 2572, Failed: 31, Skipped: 68** — the 31 failures confirmed pre-existing via `git stash` baseline run before these changes.

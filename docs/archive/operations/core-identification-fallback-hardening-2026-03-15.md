@@ -1,5 +1,5 @@
 > [!WARNING]
-> **ARCHIVED** — This document has been superseded and moved to the archive.
+> **DEPRECATED** — This document has been superseded and moved to the archive.
 >
 > Canonical replacement: [MIGRATION_PLAN.md](../../../MIGRATION_PLAN.md)
 > Reason: Session hardening checkpoint, superseded by MIGRATION_PLAN.md.

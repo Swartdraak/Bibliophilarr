@@ -2,7 +2,7 @@
 
 **Version**: 1.1  
 **Last Updated**: March 16, 2026  
-**Status**: Phase 2-3 Transition
+**Status**: Phase 4 — OpenLibrary/Inventaire/GoogleBooks/Hardcover providers implemented
 
 ---
 
@@ -803,8 +803,8 @@ Keep real API credentials in local `.env` only and never commit secret values.
 
 ## Next Steps
 
-1. Review existing provider implementations (BookInfoProxy, GoodreadsProxy)
-2. Start with Open Library provider implementation
+1. Review existing provider implementations (BookInfoProxy, OpenLibraryProvider, HardcoverFallbackSearchProvider)
+2. Extend coverage with additional provider integrations
 3. Write comprehensive tests
 4. Document API quirks and edge cases
 5. Monitor performance and health metrics

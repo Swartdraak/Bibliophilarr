@@ -299,10 +299,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 RateLimitKey = ProviderName
             };
 
-            if (_configService.HardcoverRequestTimeoutSeconds > 0)
-            {
-                request.RequestTimeout = TimeSpan.FromSeconds(_configService.HardcoverRequestTimeoutSeconds);
-            }
+            var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
+            var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
+            request.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
 
             request.Headers.ContentType = "application/json; charset=utf-8";
             request.Headers["authorization"] = $"Bearer {token}";

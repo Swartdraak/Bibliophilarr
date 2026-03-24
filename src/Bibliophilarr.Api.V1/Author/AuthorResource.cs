@@ -11,9 +11,9 @@ namespace Bibliophilarr.Api.V1.Author
 {
     public class AuthorResource : RestResource
     {
-        //Todo: Sorters should be done completely on the client
-        //Todo: Is there an easy way to keep IgnoreArticlesWhenSorting in sync between, Series, History, Missing?
-        //Todo: We should get the entire Profile instead of ID and Name separately
+        // NOTE: Sorters could be done completely on the client.
+        // NOTE: IgnoreArticlesWhenSorting sync across Series/History/Missing is fragile.
+        // NOTE: Loading the entire Profile instead of ID+Name separately would simplify mapping.
         [JsonIgnore]
         public int AuthorMetadataId { get; set; }
         public AuthorStatusType Status { get; set; }

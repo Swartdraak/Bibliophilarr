@@ -70,10 +70,12 @@ namespace NzbDrone.Core.Books.Calibre
 
         public static string GetOriginalFormat(Dictionary<string, CalibreBookFormat> formats)
         {
-            return formats
+            var match = formats
                 .Where(x => MediaFileExtensions.TextExtensions.Contains("." + x.Key))
                 .OrderBy(f => f.Value.LastModified)
-                .FirstOrDefault().Value?.Path;
+                .FirstOrDefault();
+
+            return match.Value?.Path;
         }
 
         public BookFile AddAndConvert(BookFile file, CalibreSettings settings)

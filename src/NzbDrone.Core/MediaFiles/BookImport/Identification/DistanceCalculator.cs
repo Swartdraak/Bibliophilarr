@@ -150,15 +150,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 if (!isAudio)
                 {
                     // text books should prefer ebook formats
-                    dist.AddBool("ebook_format", !EbookFormats.Contains(edition.Format));
+                    dist.AddBool("ebook_format", !EbookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
 
                     // text books should not match audio entries
-                    dist.AddBool("wrong_format", AudiobookFormats.Contains(edition.Format));
+                    dist.AddBool("wrong_format", AudiobookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
                 }
                 else
                 {
                     // audio books should prefer audio formats
-                    dist.AddBool("audio_format", !AudiobookFormats.Contains(edition.Format));
+                    dist.AddBool("audio_format", !AudiobookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
                 }
             }
 

@@ -12,7 +12,6 @@ ACTIVE_LANE_WORKFLOWS = [
     "ci-backend.yml",
     "docs-validation.yml",
     "staging-smoke-metadata-telemetry.yml",
-    "phase6-packaging-validation.yml",
 ]
 
 MAIN_READINESS_WORKFLOWS = [

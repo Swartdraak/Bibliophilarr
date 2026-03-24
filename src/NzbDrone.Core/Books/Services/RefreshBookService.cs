@@ -304,7 +304,7 @@ namespace NzbDrone.Core.Books
 
         protected override void AddChildren(List<Edition> children)
         {
-            // hack - add the chilren in refresh children so we can control monitored status
+            // NOTE: Intentionally empty — children are added in RefreshChildren to control monitored status.
         }
 
         private void MonitorSingleEdition(SortedChildren children)

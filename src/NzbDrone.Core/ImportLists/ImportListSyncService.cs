@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -103,6 +104,7 @@ namespace NzbDrone.Core.ImportLists
             var reportNumber = 1;
 
             var listExclusions = _importListExclusionService.All();
+            var exclusionSet = new HashSet<string>(listExclusions.Select(e => e.ForeignId), StringComparer.OrdinalIgnoreCase);
 
             foreach (var report in items)
             {
@@ -119,7 +121,7 @@ namespace NzbDrone.Core.ImportLists
                         MapBookReport(report);
                     }
 
-                    ProcessBookReport(importList, report, listExclusions, booksToAdd, authorsToAdd);
+                    ProcessBookReport(importList, report, exclusionSet, booksToAdd, authorsToAdd);
                 }
                 else if (report.Author.IsNotNullOrWhiteSpace() || report.AuthorOpenLibraryId.IsNotNullOrWhiteSpace())
                 {
@@ -128,7 +130,7 @@ namespace NzbDrone.Core.ImportLists
                         MapAuthorReport(report);
                     }
 
-                    ProcessAuthorReport(importList, report, listExclusions, authorsToAdd);
+                    ProcessAuthorReport(importList, report, exclusionSet, authorsToAdd);
                 }
             }
 
@@ -216,24 +218,24 @@ namespace NzbDrone.Core.ImportLists
             }
         }
 
-        private void ProcessBookReport(ImportListDefinition importList, ImportListItemInfo report, List<ImportListExclusion> listExclusions, List<Book> booksToAdd, List<Author> authorsToAdd)
+        private void ProcessBookReport(ImportListDefinition importList, ImportListItemInfo report, HashSet<string> exclusionSet, List<Book> booksToAdd, List<Author> authorsToAdd)
         {
             // Check to see if book in DB
             var existingBook = _bookService.FindById(report.BookOpenLibraryId);
 
             // Check to see if book excluded
-            var excludedBook = listExclusions.SingleOrDefault(s => s.ForeignId == report.BookOpenLibraryId);
+            var excludedBook = exclusionSet.Contains(report.BookOpenLibraryId);
 
             // Check to see if author excluded
-            var excludedAuthor = listExclusions.SingleOrDefault(s => s.ForeignId == report.AuthorOpenLibraryId);
+            var excludedAuthor = exclusionSet.Contains(report.AuthorOpenLibraryId ?? string.Empty);
 
-            if (excludedBook != null)
+            if (excludedBook)
             {
                 _logger.Debug("{0} [{1}] Rejected due to list exclusion", report.EditionOpenLibraryId, report.Book);
                 return;
             }
 
-            if (excludedAuthor != null)
+            if (excludedAuthor)
             {
                 _logger.Debug("{0} [{1}] Rejected due to list exclusion for parent author", report.EditionOpenLibraryId, report.Book);
                 return;
@@ -306,7 +308,7 @@ namespace NzbDrone.Core.ImportLists
 
                 if (report.AuthorOpenLibraryId != null && report.Author != null)
                 {
-                    toAddAuthor = ProcessAuthorReport(importList, report, listExclusions, authorsToAdd);
+                    toAddAuthor = ProcessAuthorReport(importList, report, exclusionSet, authorsToAdd);
                 }
 
                 var toAdd = new Book
@@ -402,7 +404,7 @@ namespace NzbDrone.Core.ImportLists
             return new List<Book>();
         }
 
-        private Author ProcessAuthorReport(ImportListDefinition importList, ImportListItemInfo report, List<ImportListExclusion> listExclusions, List<Author> authorsToAdd)
+        private Author ProcessAuthorReport(ImportListDefinition importList, ImportListItemInfo report, HashSet<string> exclusionSet, List<Author> authorsToAdd)
         {
             if (report.AuthorOpenLibraryId == null)
             {
@@ -413,12 +415,12 @@ namespace NzbDrone.Core.ImportLists
             var existingAuthor = _authorService.FindById(report.AuthorOpenLibraryId);
 
             // Check to see if author excluded
-            var excludedAuthor = listExclusions.SingleOrDefault(s => s.ForeignId == report.AuthorOpenLibraryId);
+            var isExcluded = exclusionSet.Contains(report.AuthorOpenLibraryId);
 
             // Check to see if author in import
             var existingImportAuthor = authorsToAdd.Find(i => i.ForeignAuthorId == report.AuthorOpenLibraryId);
 
-            if (excludedAuthor != null)
+            if (isExcluded)
             {
                 _logger.Debug("{0} [{1}] Rejected due to list exclusion", report.AuthorOpenLibraryId, report.Author);
                 return null;
