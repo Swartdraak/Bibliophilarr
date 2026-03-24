@@ -179,5 +179,21 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
             parsed.AuthorConfidence.Should().Be(0.5);
             parsed.BookTitleConfidence.Should().Be(0.5);
         }
+
+        [Test]
+        public void should_swap_filename_identity_when_reversed_order_scores_better()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".epub");
+            fileInfo.Setup(x => x.FullName).Returns("/tmp/Dune - Frank Herbert.epub");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Authors.Should().ContainSingle().Which.Should().Be("Frank Herbert");
+            result.BookTitle.Should().Be("Dune");
+        }
     }
 }

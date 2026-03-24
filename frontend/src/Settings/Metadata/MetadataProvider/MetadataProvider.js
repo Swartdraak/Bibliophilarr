@@ -371,6 +371,48 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
+                <FormLabel>Identification Workers</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="identificationWorkerCount"
+                  min={1}
+                  max={8}
+                  helpText="Maximum concurrent release-identification jobs during import. Default 4. Lower this if providers begin rate limiting or the host is CPU-constrained."
+                  onChange={onInputChange}
+                  {...settings.identificationWorkerCount}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>Tag Read Workers</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="importTagReadWorkerCount"
+                  min={1}
+                  max={8}
+                  helpText="Maximum concurrent file tag reads before identification starts. Default 2. Raise carefully on fast local storage; keep low for network storage."
+                  onChange={onInputChange}
+                  {...settings.importTagReadWorkerCount}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>Remote Candidate Search Workers</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="remoteCandidateSearchWorkerCount"
+                  min={1}
+                  max={8}
+                  helpText="Maximum concurrent OpenLibrary primary candidate searches for author/title variants. Default 3. Reduce this if provider throttling is observed."
+                  onChange={onInputChange}
+                  {...settings.remoteCandidateSearchWorkerCount}
+                />
+              </FormGroup>
+
+              <FormGroup>
                 <FormLabel>{translate('EnableMetadataConflictStrategyVariants')}</FormLabel>
 
                 <FormInputGroup

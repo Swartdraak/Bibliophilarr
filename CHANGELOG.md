@@ -9,6 +9,13 @@ process.
 
 ### Changed
 
+- Improved library build-out identification performance and resilience:
+  - `HardcoverFallbackSearchProvider` no longer sends the broken GraphQL `fields` search parameter that triggered deterministic `query_by_weights` errors.
+  - Added a Hardcover cooldown after repeated deterministic provider errors so one bad upstream/search-shape response does not stall every identification attempt.
+  - Lowered Hardcover default routing priority behind OpenLibrary/other providers for general search operations.
+  - Added swapped filename-derived author/title handling so reversed filenames like `Book - Author` can recover as `Author` + `Book` during fallback and remote identification retry.
+  - Added configurable bounded parallelism for import tag reading, release identification, and primary remote candidate search fan-out, exposed through `/config/metadataProvider` and the frontend metadata settings UI with conservative defaults.
+  Validation: targeted `Bibliophilarr.Core.Test` fixtures for Hardcover search, candidate identification, and ebook filename fallback passed; full `build dotnet` solution build passed.
 - Added requested implementation planning tracks to canonical docs for:
   - import/identification throughput optimization on large media libraries,
   - single-instance dual ebook/audiobook variant management with independent policy and tracking.

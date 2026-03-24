@@ -1,11 +1,14 @@
 using System.Linq;
+using System.Text;
 using FluentAssertions;
 using Moq;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MetadataSource
 {
@@ -109,6 +112,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             capturedRequest.Headers.ContentType.Should().Contain("application/json");
             capturedRequest.Headers.GetSingleValue("authorization").Should().Be("Bearer hardcover-token");
             capturedRequest.ContentData.Should().NotBeNull();
+            JObject.Parse(Encoding.UTF8.GetString(capturedRequest.ContentData)).SelectToken("variables.fields").Should().BeNull();
         }
 
         [Test]
@@ -124,6 +128,25 @@ namespace NzbDrone.Core.Test.MetadataSource
             var books = Subject.Search("The Stand", "Stephen King");
 
             books.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_enter_cooldown_after_repeated_deterministic_provider_errors()
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                    new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, "{\"data\":{\"search\":{\"error\":\"Number of weights in query_by_weights does not match number of query_by fields.\",\"ids\":[],\"results\":{\"found\":0,\"hits\":[]}}}}")));
+
+            Subject.Search("Dune", "Frank Herbert").Should().BeEmpty();
+            Subject.Search("Dune", "Frank Herbert").Should().BeEmpty();
+            Subject.Search("Dune", "Frank Herbert").Should().BeEmpty();
+            Subject.Search("Dune", "Frank Herbert").Should().BeEmpty();
+
+            Mocker.GetMock<IHttpClient>()
+                .Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Exactly(3));
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

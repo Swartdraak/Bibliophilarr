@@ -379,6 +379,24 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("BookImportMatchThresholdPercent", value); }
         }
 
+        public int IdentificationWorkerCount
+        {
+            get { return GetValueInt("IdentificationWorkerCount", 4); }
+            set { SetValue("IdentificationWorkerCount", value); }
+        }
+
+        public int ImportTagReadWorkerCount
+        {
+            get { return GetValueInt("ImportTagReadWorkerCount", 2); }
+            set { SetValue("ImportTagReadWorkerCount", value); }
+        }
+
+        public int RemoteCandidateSearchWorkerCount
+        {
+            get { return GetValueInt("RemoteCandidateSearchWorkerCount", 3); }
+            set { SetValue("RemoteCandidateSearchWorkerCount", value); }
+        }
+
         public int FirstDayOfWeek
         {
             get { return GetValueInt("FirstDayOfWeek", (int)CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek); }

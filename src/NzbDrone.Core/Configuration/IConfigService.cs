@@ -83,6 +83,9 @@ namespace NzbDrone.Core.Configuration
         string MetadataAuthorAliases { get; set; }
         string MetadataTitleStripPatterns { get; set; }
         int BookImportMatchThresholdPercent { get; set; }
+        int IdentificationWorkerCount { get; set; }
+        int ImportTagReadWorkerCount { get; set; }
+        int RemoteCandidateSearchWorkerCount { get; set; }
 
         //Forms Auth
         string RijndaelPassphrase { get; }

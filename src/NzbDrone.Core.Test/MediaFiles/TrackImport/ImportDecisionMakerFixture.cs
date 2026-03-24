@@ -2,11 +2,13 @@ using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
+using System.Threading;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.History;
@@ -138,6 +140,10 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             Mocker.GetMock<IHistoryService>()
                 .Setup(x => x.FindByDownloadId(It.IsAny<string>()))
                 .Returns(new List<EntityHistory>());
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.ImportTagReadWorkerCount)
+                .Returns(2);
 
             GivenSpecifications(_bookpass1);
         }
@@ -379,6 +385,72 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             Subject.GetImportDecisions(_fileInfos, _idOverrides, null, _idConfig).Should().HaveCount(1);
 
             ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_limit_tag_reads_to_configured_worker_count()
+        {
+            GivenAudioFiles(new[]
+                {
+                    @"C:\Test\Unsorted\book1.epub".AsOsAgnostic(),
+                    @"C:\Test\Unsorted\book2.epub".AsOsAgnostic(),
+                    @"C:\Test\Unsorted\book3.epub".AsOsAgnostic()
+                });
+
+            var activeWorkers = 0;
+            var maxObservedWorkers = 0;
+            var reachedParallelWindow = new ManualResetEventSlim(false);
+            var releaseWorkers = new ManualResetEventSlim(false);
+            var syncLock = new object();
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.ImportTagReadWorkerCount)
+                .Returns(2);
+
+            Mocker.GetMock<IMetadataTagService>()
+                .Setup(s => s.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(() =>
+                {
+                    lock (syncLock)
+                    {
+                        activeWorkers++;
+                        if (activeWorkers > maxObservedWorkers)
+                        {
+                            maxObservedWorkers = activeWorkers;
+                        }
+
+                        if (activeWorkers >= 2)
+                        {
+                            reachedParallelWindow.Set();
+                        }
+                    }
+
+                    if (maxObservedWorkers < 2)
+                    {
+                        reachedParallelWindow.Wait();
+                    }
+
+                    releaseWorkers.Wait();
+
+                    lock (syncLock)
+                    {
+                        activeWorkers--;
+                    }
+
+                    return new ParsedTrackInfo();
+                });
+
+            GivenAugmentationSuccess();
+
+            var importThread = new Thread(() => Subject.GetImportDecisions(_fileInfos, null, null, _idConfig));
+            importThread.Start();
+
+            var observedParallelWindow = reachedParallelWindow.Wait(5000);
+            releaseWorkers.Set();
+            importThread.Join(5000).Should().BeTrue();
+
+            observedParallelWindow.Should().BeTrue();
+            maxObservedWorkers.Should().Be(2);
         }
     }
 }

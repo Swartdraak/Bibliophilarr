@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
@@ -350,17 +351,21 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             // Search by author+book
             if (titleVariants.Any() && authorVariants.Any())
             {
+                var authorTitleQueries = new List<(string Title, string Author, string Mode)>();
+
                 foreach (var titleVariant in titleVariants)
                 {
                     foreach (var authorTag in authorVariants)
                     {
-                        remoteBooks = SearchPrimary(titleVariant, authorTag, "author/title search");
-
-                        foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
-                        {
-                            yield return candidate;
-                        }
+                        authorTitleQueries.Add((titleVariant, authorTag, "author/title search"));
                     }
+                }
+
+                remoteBooks = SearchPrimaryWithFanOut(authorTitleQueries, _configService.RemoteCandidateSearchWorkerCount);
+
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                {
+                    yield return candidate;
                 }
             }
 
@@ -370,24 +375,38 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 yield break;
             }
 
+            foreach (var swappedPair in BuildSwappedAuthorTitleFallbackPairs(bookTag, authorTags))
+            {
+                remoteBooks = SearchPrimary(swappedPair.Title, swappedPair.Author, "swapped author/title search");
+
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                {
+                    yield return candidate;
+                }
+
+                if (seenCandidates.Any())
+                {
+                    yield break;
+                }
+            }
+
             // Search by just book title
             if (titleVariants.Any())
             {
-                foreach (var titleVariant in titleVariants)
-                {
-                    remoteBooks = SearchPrimary(titleVariant, null, "book title search");
+                var titleOnlyQueries = titleVariants.Select(titleVariant => (titleVariant, (string)null, "book title search")).ToList();
+                remoteBooks = SearchPrimaryWithFanOut(titleOnlyQueries, _configService.RemoteCandidateSearchWorkerCount);
 
-                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
-                    {
-                        yield return candidate;
-                    }
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                {
+                    yield return candidate;
                 }
             }
 
             // Search by just author
-            foreach (var a in authorVariants)
+            if (authorVariants.Any())
             {
-                remoteBooks = SearchPrimary(a, null, "author search");
+                var authorOnlyQueries = authorVariants.Select(author => (author, (string)null, "author search")).ToList();
+                remoteBooks = SearchPrimaryWithFanOut(authorOnlyQueries, _configService.RemoteCandidateSearchWorkerCount);
 
                 foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
                 {
@@ -574,6 +593,48 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
         }
 
+        private List<Book> SearchPrimaryWithFanOut(List<(string Title, string Author, string Mode)> queries, int configuredWorkers)
+        {
+            if (queries == null || queries.Count == 0)
+            {
+                return new List<Book>();
+            }
+
+            var maxWorkers = Math.Max(1, Math.Min(configuredWorkers, queries.Count));
+
+            _logger.Debug(
+                "Running {0} primary candidate search query(ies) with up to {1} worker(s)",
+                queries.Count,
+                maxWorkers);
+
+            if (maxWorkers == 1)
+            {
+                var sequentialResults = new List<Book>();
+
+                foreach (var query in queries)
+                {
+                    sequentialResults.AddRange(SearchPrimary(query.Title, query.Author, query.Mode));
+                }
+
+                return sequentialResults;
+            }
+
+            var allResults = new ConcurrentBag<Book>();
+            var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
+
+            Parallel.ForEach(queries, options, query =>
+            {
+                var results = SearchPrimary(query.Title, query.Author, query.Mode);
+
+                foreach (var result in results)
+                {
+                    allResults.Add(result);
+                }
+            });
+
+            return allResults.ToList();
+        }
+
         private List<Book> SearchFallback(IBookSearchFallbackProvider provider, string title, string author)
         {
             var results = _fallbackExecutionService.Search(provider, title, author);
@@ -647,6 +708,37 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return variants.Where(v => v.IsNotNullOrWhiteSpace()).Distinct().ToList();
+        }
+
+        private IEnumerable<(string Title, string Author)> BuildSwappedAuthorTitleFallbackPairs(string bookTag, IEnumerable<string> authorTags)
+        {
+            var normalizedTitle = (bookTag ?? string.Empty).Trim();
+            var normalizedAuthors = NormalizeAuthorCandidates(authorTags);
+
+            if (normalizedTitle.IsNullOrWhiteSpace() || normalizedAuthors.Count != 1)
+            {
+                yield break;
+            }
+
+            var swappedTitle = normalizedAuthors[0];
+            var swappedAuthor = normalizedTitle;
+
+            if (string.Equals(swappedTitle, swappedAuthor, StringComparison.OrdinalIgnoreCase))
+            {
+                yield break;
+            }
+
+            _logger.Debug("Trying swapped filename fallback search: title='{0}', author='{1}'", swappedTitle, swappedAuthor);
+            yield return (swappedTitle, swappedAuthor);
+        }
+
+        private static List<string> NormalizeAuthorCandidates(IEnumerable<string> authorTags)
+        {
+            return (authorTags ?? new List<string>())
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private void LogCandidateRejectionTelemetry(LocalEdition localEdition, string reason, int attempts, int cacheHits, int seenCandidates)

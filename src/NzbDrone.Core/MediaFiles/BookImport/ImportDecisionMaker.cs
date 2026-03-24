@@ -2,10 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
@@ -52,6 +55,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IMetadataTagService _metadataTagService;
         private readonly IAugmentingService _augmentingService;
         private readonly IIdentificationService _identificationService;
+        private readonly IConfigService _configService;
         private readonly IRootFolderService _rootFolderService;
         private readonly IQualityProfileService _qualityProfileService;
         private readonly Logger _logger;
@@ -62,6 +66,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IMetadataTagService metadataTagService,
                                    IAugmentingService augmentingService,
                                    IIdentificationService identificationService,
+                                   IConfigService configService,
                                    IRootFolderService rootFolderService,
                                    IQualityProfileService qualityProfileService,
                                    Logger logger)
@@ -72,6 +77,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _metadataTagService = metadataTagService;
             _augmentingService = augmentingService;
             _identificationService = identificationService;
+            _configService = configService;
             _rootFolderService = rootFolderService;
             _qualityProfileService = qualityProfileService;
             _logger = logger;
@@ -84,15 +90,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             var files = _mediaFileService.FilterUnchangedFiles(musicFiles, filter);
 
-            var localTracks = new List<LocalBook>();
-            var decisions = new List<ImportDecision<LocalBook>>();
-
             _logger.Debug("Analyzing {0}/{1} files.", files.Count, musicFiles.Count);
 
             if (!files.Any())
             {
-                return Tuple.Create(localTracks, decisions);
+                return Tuple.Create(new List<LocalBook>(), new List<ImportDecision<LocalBook>>());
             }
+
+            var localTrackResults = new LocalBook[files.Count];
+            var decisionResults = new ImportDecision<LocalBook>[files.Count];
 
             ParsedBookInfo downloadClientItemInfo = null;
 
@@ -101,10 +107,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 downloadClientItemInfo = Parser.Parser.ParseBookTitle(downloadClientItem.Title);
             }
 
-            var i = 1;
-            foreach (var file in files)
+            var maxWorkers = GetSafeWorkerCount(_configService.ImportTagReadWorkerCount, files.Count);
+
+            _logger.Debug($"Using up to {maxWorkers} tag read worker(s) for {files.Count} file(s)");
+
+            var processed = 0;
+            var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
+
+            Parallel.ForEach(Enumerable.Range(0, files.Count), options, index =>
             {
-                _logger.ProgressInfo($"Reading file {i++}/{files.Count}");
+                var file = files[index];
+                var current = Interlocked.Increment(ref processed);
+                _logger.ProgressInfo($"Reading file {current}/{files.Count}");
 
                 var fileTrackInfo = _metadataTagService.ReadTags(file);
 
@@ -124,23 +138,36 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 {
                     // NOTE fix otherfiles?
                     _augmentingService.Augment(localTrack, true);
-                    localTracks.Add(localTrack);
+                    localTrackResults[index] = localTrack;
                 }
                 catch (AugmentingFailedException)
                 {
-                    decisions.Add(new ImportDecision<LocalBook>(localTrack, new Rejection("Unable to parse file")));
+                    decisionResults[index] = new ImportDecision<LocalBook>(localTrack, new Rejection("Unable to parse file"));
                 }
                 catch (Exception e)
                 {
                     _logger.Error(e, "Couldn't import file. {0}", localTrack.Path);
 
-                    decisions.Add(new ImportDecision<LocalBook>(localTrack, new Rejection("Unexpected error processing file")));
+                    decisionResults[index] = new ImportDecision<LocalBook>(localTrack, new Rejection("Unexpected error processing file"));
                 }
-            }
+            });
+
+            var localTracks = localTrackResults.Where(x => x != null).ToList();
+            var decisions = decisionResults.Where(x => x != null).ToList();
 
             _logger.Debug($"Tags parsed for {files.Count} files in {watch.ElapsedMilliseconds}ms");
 
             return Tuple.Create(localTracks, decisions);
+        }
+
+        private static int GetSafeWorkerCount(int configuredWorkers, int itemCount)
+        {
+            if (itemCount <= 0)
+            {
+                return 1;
+            }
+
+            return Math.Max(1, Math.Min(configuredWorkers, itemCount));
         }
 
         public List<ImportDecision<LocalBook>> GetImportDecisions(List<IFileInfo> musicFiles, IdentificationOverrides idOverrides, ImportDecisionMakerInfo itemInfo, ImportDecisionMakerConfig config)

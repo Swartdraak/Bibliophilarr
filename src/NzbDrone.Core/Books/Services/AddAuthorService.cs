@@ -130,12 +130,20 @@ namespace NzbDrone.Core.Books
             }
             catch (AuthorNotFoundException)
             {
-                _logger.Error("BibliophilarrId {0} was not found, it may have been removed from OpenLibrary.", newAuthor.Metadata.Value.ForeignAuthorId);
-
-                throw new ValidationException(new List<ValidationFailure>
+                // Only treat as fatal for canonical OpenLibrary IDs; Hardcover and other
+                // provider IDs should fall back gracefully to the data already in hand.
+                if (newAuthor.Metadata.Value.ForeignAuthorId.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase))
                 {
-                    new ("ForeignAuthorId", "An author with this ID was not found", newAuthor.Metadata.Value.ForeignAuthorId)
-                });
+                    _logger.Error("BibliophilarrId {0} was not found, it may have been removed from OpenLibrary.", newAuthor.Metadata.Value.ForeignAuthorId);
+
+                    throw new ValidationException(new List<ValidationFailure>
+                    {
+                        new ("ForeignAuthorId", "An author with this ID was not found", newAuthor.Metadata.Value.ForeignAuthorId)
+                    });
+                }
+
+                _logger.Warn("Author metadata lookup returned no results for {0}; using request payload fallback", newAuthor.Metadata.Value.ForeignAuthorId);
+                author = BuildFallbackAuthor(newAuthor);
             }
             catch (Exception ex)
             {

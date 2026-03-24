@@ -192,6 +192,39 @@ dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
   --filter "CandidateServiceFixture"
 ```
 
+## Import concurrency tuning
+
+Bibliophilarr now exposes import/identification worker controls under
+Settings -> Metadata -> Metadata Query Normalization.
+
+Recommended starting values:
+
+- `Identification Workers`: `4`
+- `Tag Read Workers`: `2`
+- `Remote Candidate Search Workers`: `3`
+
+Operational guidance:
+
+- Reduce `Tag Read Workers` first when importing from network storage (NFS/SMB).
+- Reduce `Identification Workers` and `Remote Candidate Search Workers` if
+  OpenLibrary/provider throttling appears in logs.
+- Increase by one step at a time and re-run a representative library import
+  batch before further changes.
+
+API configuration example:
+
+```bash
+curl -sS "http://127.0.0.1:8787/api/v1/config/metadataprovider?apikey=$API_KEY" \
+  | jq '.identificationWorkerCount=4 | .importTagReadWorkerCount=2 | .remoteCandidateSearchWorkerCount=3' \
+  | curl -sS -X PUT "http://127.0.0.1:8787/api/v1/config/metadataprovider/1?apikey=$API_KEY" \
+      -H 'Content-Type: application/json' --data-binary @-
+```
+
+Expected outcome:
+
+- Import logs show bounded worker usage for tag reading and identification.
+- Metadata search fan-out remains controlled under provider throttling.
+
 ## Install-readiness loop
 
 Use this loop for startup, packaging, updater, or metadata-provider changes.

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NLog;
@@ -27,13 +28,17 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
     {
         private const string Endpoint = "https://api.hardcover.app/v1/graphql";
         private const string HardcoverApiTokenEnvironmentVariable = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
-        private const string SearchResultFields = "id,title,slug,description,author_names,contributions,release_year,release_date,series_names,featured_series,isbns,image,rating,ratings_count,pages,language,has_audiobook,has_ebook";
         private const int SearchPageSize = 20;
         private const int AuthorPageSize = 40;
+        private const int DeterministicErrorThreshold = 3;
+        private static readonly TimeSpan DeterministicErrorCooldown = TimeSpan.FromMinutes(15);
 
         private readonly IConfigService _configService;
         private readonly IHttpClient _httpClient;
         private readonly Logger _logger;
+
+        private int _consecutiveDeterministicSearchErrors;
+        private DateTime? _deterministicSearchCooldownUntilUtc;
 
         public HardcoverFallbackSearchProvider(IConfigService configService, IHttpClient httpClient, Logger logger)
         {
@@ -44,7 +49,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         public string ProviderName => "Hardcover";
 
-        public int Priority => 1;
+        public int Priority => 4;
 
         public bool IsEnabled => _configService.EnableHardcoverFallback && HasConfiguredToken();
 
@@ -194,6 +199,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             var metadata = books.First().AuthorMetadata.Value;
             metadata.ForeignAuthorId = BuildHardcoverAuthorId(authorName);
+            metadata.TitleSlug ??= metadata.ForeignAuthorId;
             metadata.Name = authorName;
             metadata.SortName = authorName.ToLowerInvariant();
             metadata.NameLastFirst = authorName.ToLastFirst();
@@ -278,6 +284,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 return new List<Book>();
             }
 
+            if (IsDeterministicErrorCooldownActive(out var cooldownUntilUtc))
+            {
+                _logger.Debug("Hardcover search skipped for query '{0}' because the provider is cooling down until {1:u} after repeated deterministic errors.", queryText, cooldownUntilUtc.Value);
+                return new List<Book>();
+            }
+
             _logger.Trace("Hardcover search request: query='{0}', perPage={1}, tokenSource={2}", queryText, perPage, tokenSource);
 
             var request = new HttpRequest(Endpoint, HttpAccept.Json)
@@ -296,11 +308,10 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             request.Headers["authorization"] = $"Bearer {token}";
             request.SetContent(new
             {
-                query = "query SearchBooks($query: String!, $fields: String, $perPage: Int!, $page: Int!) { search(query: $query, query_type: \"Book\", fields: $fields, per_page: $perPage, page: $page) { error ids results } }",
+                query = "query SearchBooks($query: String!, $perPage: Int!, $page: Int!) { search(query: $query, query_type: \"Book\", per_page: $perPage, page: $page) { error ids results } }",
                 variables = new
                 {
                     query = queryText,
-                    fields = SearchResultFields,
                     perPage = perPage,
                     page = 1
                 }
@@ -318,6 +329,16 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             if (payload.Error.IsNotNullOrWhiteSpace())
             {
                 _logger.Debug("Hardcover search returned provider error for query '{0}': {1}", queryText, payload.Error);
+
+                if (IsDeterministicSearchError(payload.Error))
+                {
+                    RegisterDeterministicSearchError(payload.Error);
+                    return new List<Book>();
+                }
+            }
+            else
+            {
+                ResetDeterministicSearchErrorState();
             }
 
             var results = ParseSearchResults(payload);
@@ -333,9 +354,54 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 .DistinctBy(x => x.ForeignBookId)
                 .ToList();
 
+            ResetDeterministicSearchErrorState();
+
             _logger.Debug("Hardcover returned {0} unique mapped result(s) for query '{1}'.", mapped.Count, queryText);
 
             return mapped;
+        }
+
+        private bool IsDeterministicErrorCooldownActive(out DateTime? cooldownUntilUtc)
+        {
+            cooldownUntilUtc = _deterministicSearchCooldownUntilUtc;
+            return cooldownUntilUtc.HasValue && cooldownUntilUtc.Value > DateTime.UtcNow;
+        }
+
+        private static bool IsDeterministicSearchError(string error)
+        {
+            if (error.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            return error.IndexOf("query_by_weights", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   error.IndexOf("query_by fields", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   error.IndexOf("number of weights", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private void RegisterDeterministicSearchError(string error)
+        {
+            var failureCount = Interlocked.Increment(ref _consecutiveDeterministicSearchErrors);
+
+            if (failureCount < DeterministicErrorThreshold)
+            {
+                return;
+            }
+
+            var cooldownUntilUtc = DateTime.UtcNow.Add(DeterministicErrorCooldown);
+            _deterministicSearchCooldownUntilUtc = cooldownUntilUtc;
+            _logger.Warn("Hardcover search entering cooldown until {0:u} after {1} consecutive deterministic provider errors: {2}", cooldownUntilUtc, failureCount, error);
+        }
+
+        private void ResetDeterministicSearchErrorState()
+        {
+            if (_consecutiveDeterministicSearchErrors == 0 && !_deterministicSearchCooldownUntilUtc.HasValue)
+            {
+                return;
+            }
+
+            Interlocked.Exchange(ref _consecutiveDeterministicSearchErrors, 0);
+            _deterministicSearchCooldownUntilUtc = null;
         }
 
         private bool HasConfiguredToken()
@@ -469,6 +535,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var authorMetadata = new AuthorMetadata
             {
                 ForeignAuthorId = BuildHardcoverAuthorId(authorName),
+                TitleSlug = BuildHardcoverAuthorId(authorName),
                 Name = authorName,
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),

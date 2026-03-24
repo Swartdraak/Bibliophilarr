@@ -35,6 +35,9 @@ namespace Bibliophilarr.Api.V1.Config
         public string MetadataAuthorAliases { get; set; }
         public string MetadataTitleStripPatterns { get; set; }
         public int BookImportMatchThresholdPercent { get; set; }
+        public int IdentificationWorkerCount { get; set; }
+        public int ImportTagReadWorkerCount { get; set; }
+        public int RemoteCandidateSearchWorkerCount { get; set; }
     }
 
     public static class MetadataProviderConfigResourceMapper
@@ -73,7 +76,10 @@ namespace Bibliophilarr.Api.V1.Config
                 EnableMetadataConflictStrategyVariants = model.EnableMetadataConflictStrategyVariants,
                 MetadataAuthorAliases = model.MetadataAuthorAliases,
                 MetadataTitleStripPatterns = model.MetadataTitleStripPatterns,
-                BookImportMatchThresholdPercent = model.BookImportMatchThresholdPercent
+                BookImportMatchThresholdPercent = model.BookImportMatchThresholdPercent,
+                IdentificationWorkerCount = model.IdentificationWorkerCount,
+                ImportTagReadWorkerCount = model.ImportTagReadWorkerCount,
+                RemoteCandidateSearchWorkerCount = model.RemoteCandidateSearchWorkerCount
             };
         }
     }

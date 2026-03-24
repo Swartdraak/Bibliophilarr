@@ -465,6 +465,13 @@ namespace NzbDrone.Core.MediaFiles
                 parsedTitle = filenamePair.Title;
             }
 
+            var swappedFilenamePair = SwapFilenamePair(filenamePair);
+            if (ShouldPreferSwappedFilenameIdentity(parsedAuthors, parsedTitle, swappedFilenamePair))
+            {
+                parsedAuthors = new List<string> { swappedFilenamePair.Author };
+                parsedTitle = swappedFilenamePair.Title;
+            }
+
             var parsedIsbn = NormalizeIsbn(parsed.Isbn) ?? TryExtractIsbnFromText(filename) ?? TryExtractIsbnFromText(file);
             var parsedAsin = NormalizeAsin(parsed.Asin) ?? TryExtractAsinFromText(filename) ?? TryExtractAsinFromText(file);
 
@@ -643,6 +650,41 @@ namespace NzbDrone.Core.MediaFiles
             var title = SanitizeFallbackTitle(string.Join(" - ", parts.Skip(1)));
 
             return (author, title);
+        }
+
+        private static (string Author, string Title) SwapFilenamePair((string Author, string Title) pair)
+        {
+            return (SanitizeFallbackAuthor(pair.Title), SanitizeFallbackTitle(pair.Author));
+        }
+
+        private static bool ShouldPreferSwappedFilenameIdentity(List<string> currentAuthors, string currentTitle, (string Author, string Title) swappedPair)
+        {
+            if (swappedPair.Author.IsNullOrWhiteSpace() || swappedPair.Title.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            var currentScore = ScoreFilenameIdentity(currentAuthors, currentTitle);
+            var swappedScore = ScoreFilenameIdentity(new List<string> { swappedPair.Author }, swappedPair.Title);
+
+            return swappedScore > currentScore;
+        }
+
+        private static int ScoreFilenameIdentity(List<string> authors, string title)
+        {
+            var score = 0;
+
+            if (authors != null && authors.Any())
+            {
+                score += LooksLikeLowQualityAuthor(authors) ? 0 : 4;
+            }
+
+            if (title.IsNotNullOrWhiteSpace())
+            {
+                score += LooksLikeLowQualityTitle(title) ? 0 : 3;
+            }
+
+            return score;
         }
 
         private static string SanitizeFallbackAuthor(string author)

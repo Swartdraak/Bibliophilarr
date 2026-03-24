@@ -151,6 +151,78 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
         }
 
         [Test]
+        public void should_try_swapped_author_title_search_when_primary_author_title_search_fails()
+        {
+            var metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = "openlibrary:author:OL1A",
+                Name = "Frank Herbert"
+            };
+
+            var matchedBook = new Book
+            {
+                ForeignBookId = "openlibrary:work:OL1W",
+                Title = "Dune",
+                AuthorMetadata = metadata,
+                Author = new Author
+                {
+                    Metadata = metadata,
+                    AuthorMetadataId = metadata.Id
+                }
+            };
+
+            matchedBook.Editions = new List<Edition>
+            {
+                new Edition
+                {
+                    ForeignEditionId = "openlibrary:edition:OL1M",
+                    Title = "Dune",
+                    Book = matchedBook
+                }
+            };
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
+                .Returns((string title, string author, bool _) =>
+                {
+                    if (title == "Frank Herbert" && author == "Dune")
+                    {
+                        return new List<Book>();
+                    }
+
+                    if (title == "Dune" && author == "Frank Herbert")
+                    {
+                        return new List<Book> { matchedBook };
+                    }
+
+                    return new List<Book>();
+                });
+
+            var edition = new LocalEdition
+            {
+                LocalBooks = new List<LocalBook>
+                {
+                    new LocalBook
+                    {
+                        FileTrackInfo = new ParsedTrackInfo
+                        {
+                            Authors = new List<string> { "Dune" },
+                            BookTitle = "Frank Herbert"
+                        }
+                    }
+                }
+            };
+
+            var candidates = Subject.GetRemoteCandidates(edition, null).ToList();
+
+            candidates.Should().NotBeEmpty();
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(x => x.SearchForNewBook("Frank Herbert", "Dune", true), Times.Once());
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(x => x.SearchForNewBook("Dune", "Frank Herbert", true), Times.Once());
+        }
+
+        [Test]
         public void should_use_tertiary_fallback_provider_when_primary_returns_no_candidates()
         {
             Mocker.GetMock<IMetadataProviderOrchestrator>()

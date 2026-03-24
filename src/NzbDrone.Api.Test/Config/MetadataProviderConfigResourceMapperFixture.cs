@@ -32,6 +32,9 @@ namespace NzbDrone.Api.Test.Config
             config.SetupGet(x => x.WriteBookTags).Returns(WriteBookTagsType.AllFiles);
             config.SetupGet(x => x.UpdateCovers).Returns(true);
             config.SetupGet(x => x.EmbedMetadata).Returns(false);
+            config.SetupGet(x => x.IdentificationWorkerCount).Returns(4);
+            config.SetupGet(x => x.ImportTagReadWorkerCount).Returns(2);
+            config.SetupGet(x => x.RemoteCandidateSearchWorkerCount).Returns(3);
 
             var resource = MetadataProviderConfigResourceMapper.ToResource(config.Object);
 
@@ -54,6 +57,9 @@ namespace NzbDrone.Api.Test.Config
             resource.WriteBookTags.Should().Be(WriteBookTagsType.AllFiles);
             resource.UpdateCovers.Should().BeTrue();
             resource.EmbedMetadata.Should().BeFalse();
+            resource.IdentificationWorkerCount.Should().Be(4);
+            resource.ImportTagReadWorkerCount.Should().Be(2);
+            resource.RemoteCandidateSearchWorkerCount.Should().Be(3);
         }
     }
 }

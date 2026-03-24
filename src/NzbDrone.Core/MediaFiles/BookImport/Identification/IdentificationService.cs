@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.Parser.Model;
 
@@ -22,18 +25,21 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private readonly IMetadataTagService _metadataTagService;
         private readonly IAugmentingService _augmentingService;
         private readonly ICandidateService _candidateService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public IdentificationService(ITrackGroupingService trackGroupingService,
                                      IMetadataTagService metadataTagService,
                                      IAugmentingService augmentingService,
                                      ICandidateService candidateService,
+                                     IConfigService configService,
                                      Logger logger)
         {
             _trackGroupingService = trackGroupingService;
             _metadataTagService = metadataTagService;
             _augmentingService = augmentingService;
             _candidateService = candidateService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -77,12 +83,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _logger.Debug("Starting book identification");
 
             var releases = GetLocalBookReleases(localTracks, config.SingleRelease);
+            var maxWorkers = GetSafeWorkerCount(_configService.IdentificationWorkerCount, releases.Count);
 
-            var i = 0;
-            foreach (var localRelease in releases)
+            _logger.Debug($"Using up to {maxWorkers} identification worker(s) for {releases.Count} release(s)");
+
+            var processed = 0;
+            var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
+
+            Parallel.ForEach(releases, options, localRelease =>
             {
-                i++;
-                _logger.ProgressInfo($"Identifying book {i}/{releases.Count}");
+                var current = Interlocked.Increment(ref processed);
+                _logger.ProgressInfo($"Identifying book {current}/{releases.Count}");
                 _logger.Debug($"Identifying book files:\n{localRelease.LocalBooks.Select(x => x.Path).ConcatToString("\n")}");
 
                 try
@@ -93,13 +104,23 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     _logger.Error(e, "Error identifying release");
                 }
-            }
+            });
 
             watch.Stop();
 
             _logger.Debug($"Track identification for {localTracks.Count} tracks took {watch.ElapsedMilliseconds}ms");
 
             return releases;
+        }
+
+        private static int GetSafeWorkerCount(int configuredWorkers, int itemCount)
+        {
+            if (itemCount <= 0)
+            {
+                return 1;
+            }
+
+            return Math.Max(1, Math.Min(configuredWorkers, itemCount));
         }
 
         private List<LocalBook> ToLocalTrack(IEnumerable<BookFile> trackfiles, LocalEdition localRelease)

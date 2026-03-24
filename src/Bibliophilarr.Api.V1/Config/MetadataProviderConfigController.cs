@@ -55,6 +55,18 @@ namespace Bibliophilarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.BookImportMatchThresholdPercent)
                 .InclusiveBetween(50, 100)
                 .WithMessage("Book import match threshold must be between 50 and 100 percent");
+
+            SharedValidator.RuleFor(c => c.IdentificationWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Identification worker count must be between 1 and 8");
+
+            SharedValidator.RuleFor(c => c.ImportTagReadWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Import tag read worker count must be between 1 and 8");
+
+            SharedValidator.RuleFor(c => c.RemoteCandidateSearchWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Remote candidate search worker count must be between 1 and 8");
         }
 
         protected override MetadataProviderConfigResource ToResource(IConfigService model)
