@@ -17,10 +17,9 @@ import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
 import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
 import {
   BOOKSHELF_ENTRY_WIDTH,
-  BOOKSHELF_SIDEBAR_WIDTH,
   BOOKSHELF_ROW_HEIGHT,
-  BOOKSHELF_ROW_PADDING
-} from 'Utilities/Constants/grid';
+  BOOKSHELF_ROW_PADDING,
+  BOOKSHELF_SIDEBAR_WIDTH } from 'Utilities/Constants/grid';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 import getSelectedIds from 'Utilities/Table/getSelectedIds';

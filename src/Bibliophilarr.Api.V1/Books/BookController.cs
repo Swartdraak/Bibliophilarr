@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Bibliophilarr.Http;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
@@ -32,6 +33,11 @@ namespace Bibliophilarr.Api.V1.Books
         IHandle<TrackImportedEvent>,
         IHandle<BookFileDeletedEvent>
     {
+        private const int DefaultPageSize = 100;
+        private const int MaxPageSize = 1000;
+        private const int LargeLibraryWarningThreshold = 5000;
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         protected readonly IAuthorService _authorService;
         protected readonly IEditionService _editionService;
         protected readonly IAddBookService _addBookService;
@@ -65,13 +71,20 @@ namespace Bibliophilarr.Api.V1.Books
         public async Task<List<BookResource>> GetBooks([FromQuery] int? authorId,
             [FromQuery] List<int> bookIds,
             [FromQuery] string titleSlug,
-            [FromQuery] bool includeAllAuthorBooks = false)
+            [FromQuery] bool includeAllAuthorBooks = false,
+            [FromQuery] int? page = null,
+            [FromQuery] int? pageSize = null)
         {
             if (!authorId.HasValue && !bookIds.Any() && titleSlug.IsNullOrWhiteSpace())
             {
                 var editionTask = Task.Run(() => _editionService.GetAllMonitoredEditions());
                 var metadataTask = Task.Run(() => _authorService.GetAllAuthors());
                 var books = _bookService.GetAllBooks();
+
+                if (books.Count >= LargeLibraryWarningThreshold)
+                {
+                    Logger.Warn("GetBooks called without filters on large library ({0} books). Consider using authorId or pagination parameters for better performance.", books.Count);
+                }
 
                 var editions = (await editionTask).GroupBy(x => x.BookId).ToDictionary(x => x.Key, y => y.ToList());
 
@@ -88,6 +101,14 @@ namespace Bibliophilarr.Api.V1.Books
                     {
                         book.Editions = new List<Edition>();
                     }
+                }
+
+                // Apply optional pagination for large libraries
+                if (page.HasValue && pageSize.HasValue)
+                {
+                    var effectivePageSize = global::System.Math.Min(pageSize.Value, MaxPageSize);
+                    var skip = (page.Value - 1) * effectivePageSize;
+                    books = books.Skip(skip).Take(effectivePageSize).ToList();
                 }
 
                 return MapToResource(books, false);

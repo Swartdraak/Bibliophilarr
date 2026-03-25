@@ -7,11 +7,10 @@ import dimensions from 'Styles/Variables/dimensions';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
 import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
 import {
-  COLUMN_WIDTH_SMALL_SCREEN,
-  COLUMN_WIDTH_DEFAULT,
+  AUTHOR_POSTER_HEIGHT,
   AUTHOR_POSTER_WIDTH,
-  AUTHOR_POSTER_HEIGHT
-} from 'Utilities/Constants/grid';
+  COLUMN_WIDTH_DEFAULT,
+  COLUMN_WIDTH_SMALL_SCREEN } from 'Utilities/Constants/grid';
 import hasDifferentItemsOrOrder from 'Utilities/Object/hasDifferentItemsOrOrder';
 import AuthorIndexPoster from './AuthorIndexPoster';
 import styles from './AuthorIndexPosters.css';

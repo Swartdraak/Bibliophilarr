@@ -7,11 +7,10 @@ import dimensions from 'Styles/Variables/dimensions';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
 import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
 import {
-  COLUMN_WIDTH_SMALL_SCREEN,
-  COLUMN_WIDTH_DEFAULT,
+  BOOK_POSTER_HEIGHT,
   BOOK_POSTER_WIDTH,
-  BOOK_POSTER_HEIGHT
-} from 'Utilities/Constants/grid';
+  COLUMN_WIDTH_DEFAULT,
+  COLUMN_WIDTH_SMALL_SCREEN } from 'Utilities/Constants/grid';
 import hasDifferentItemsOrOrder from 'Utilities/Object/hasDifferentItemsOrOrder';
 import BookIndexPoster from './BookIndexPoster';
 import styles from './BookIndexPosters.css';

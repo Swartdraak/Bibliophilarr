@@ -140,6 +140,9 @@ process.
 - **RQ-135**: Upgraded `System.Data.SQLite.Core` from 1.0.115.5 to 1.0.119 in `Directory.Packages.props`.
 - **RQ-129**: Extracted repeated CSS gradient patterns to `Styles/Mixins/colorImpairedGradients.css` with `colorImpairedDangerGradient` and `colorImpairedWarningGradient` mixins; updated `AuthorIndexFooter.css`, `BookIndexFooter.css`, `ProgressBar.css` to use mixins.
 - **RQ-104**: Added `// @ts-check` directive to 5 core utility JS files (`isString.js`, `roundNumber.js`, `combinePath.js`, `convertToBytes.js`, `titleCase.js`) for incremental TypeScript checking.
+- **RQ-050** (partial): Added `#nullable enable` directive to 5 C# DTO files (`AlternateTitleResource.cs`, `BookEditorResource.cs`, `BookshelfAuthorResource.cs`, `CalibreLibraryInfo.cs`, `CalibreConversionStatus.cs`) with proper nullable reference type annotations.
+- **RQ-002**: Added optional `page` and `pageSize` query parameters to `BookController.GetBooks()` for pagination; added warning log for unfiltered requests on large libraries (5000+ books); pagination capped at 1000 per page.
+- **RQ-096**: Updated `IconButton.js` to use dynamic `aria-label={title}` instead of hardcoded string; added missing `title` props to 8 IconButton/SpinnerIconButton usages across BackupRow, QueueRow, ScheduledTaskRow, BookSearchCell, AuthorIndexHeader, BookIndexHeader for proper accessibility.
 
 ### Removed
 

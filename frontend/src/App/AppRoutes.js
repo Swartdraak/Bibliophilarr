@@ -49,231 +49,231 @@ function AppRoutes(props) {
   return (
     <Suspense fallback={<LoadingIndicator />}>
       <Switch>
-      {/*
+        {/*
         Author
       */}
 
-      <Route
-        exact={true}
-        path="/"
-        component={AuthorIndexConnector}
-      />
+        <Route
+          exact={true}
+          path="/"
+          component={AuthorIndexConnector}
+        />
 
-      {
-        window.Bibliophilarr.urlBase &&
-          <Route
-            exact={true}
-            path="/"
-            addUrlBase={false}
-            render={() => {
-              return (
-                <Redirect
-                  to={getPathWithUrlBase('/')}
-                  component={app}
-                />
-              );
-            }}
-          />
-      }
+        {
+          window.Bibliophilarr.urlBase &&
+            <Route
+              exact={true}
+              path="/"
+              addUrlBase={false}
+              render={() => {
+                return (
+                  <Redirect
+                    to={getPathWithUrlBase('/')}
+                    component={app}
+                  />
+                );
+              }}
+            />
+        }
 
-      <Route
-        path="/authors"
-        component={AuthorIndexConnector}
-      />
+        <Route
+          path="/authors"
+          component={AuthorIndexConnector}
+        />
 
-      <Route
-        path="/add/search"
-        component={AddNewItemConnector}
-      />
+        <Route
+          path="/add/search"
+          component={AddNewItemConnector}
+        />
 
-      <Route
-        exact={true}
-        path="/shelf"
-        component={BookshelfConnector}
-      />
+        <Route
+          exact={true}
+          path="/shelf"
+          component={BookshelfConnector}
+        />
 
-      <Route
-        exact={true}
-        path="/books"
-        component={BookIndexConnector}
-      />
+        <Route
+          exact={true}
+          path="/books"
+          component={BookIndexConnector}
+        />
 
-      <Route
-        path="/unmapped"
-        component={UnmappedFilesTableConnector}
-      />
+        <Route
+          path="/unmapped"
+          component={UnmappedFilesTableConnector}
+        />
 
-      <Route
-        path="/author/:titleSlug"
-        component={AuthorDetailsPageConnector}
-      />
+        <Route
+          path="/author/:titleSlug"
+          component={AuthorDetailsPageConnector}
+        />
 
-      <Route
-        path="/book/:titleSlug"
-        component={BookDetailsPageConnector}
-      />
+        <Route
+          path="/book/:titleSlug"
+          component={BookDetailsPageConnector}
+        />
 
-      {/*
+        {/*
         Calendar
       */}
 
-      <Route
-        path="/calendar"
-        component={CalendarPageConnector}
-      />
+        <Route
+          path="/calendar"
+          component={CalendarPageConnector}
+        />
 
-      {/*
+        {/*
         Activity
       */}
 
-      <Route
-        path="/activity/history"
-        component={HistoryConnector}
-      />
+        <Route
+          path="/activity/history"
+          component={HistoryConnector}
+        />
 
-      <Route
-        path="/activity/queue"
-        component={QueueConnector}
-      />
+        <Route
+          path="/activity/queue"
+          component={QueueConnector}
+        />
 
-      <Route
-        path="/activity/blocklist"
-        component={BlocklistConnector}
-      />
+        <Route
+          path="/activity/blocklist"
+          component={BlocklistConnector}
+        />
 
-      {/*
+        {/*
         Wanted
       */}
 
-      <Route
-        path="/wanted/missing"
-        component={MissingConnector}
-      />
+        <Route
+          path="/wanted/missing"
+          component={MissingConnector}
+        />
 
-      <Route
-        path="/wanted/cutoffunmet"
-        component={CutoffUnmetConnector}
-      />
+        <Route
+          path="/wanted/cutoffunmet"
+          component={CutoffUnmetConnector}
+        />
 
-      {/*
+        {/*
         Settings
       */}
 
-      <Route
-        exact={true}
-        path="/settings"
-        component={Settings}
-      />
+        <Route
+          exact={true}
+          path="/settings"
+          component={Settings}
+        />
 
-      <Route
-        path="/settings/mediamanagement"
-        component={MediaManagementConnector}
-      />
+        <Route
+          path="/settings/mediamanagement"
+          component={MediaManagementConnector}
+        />
 
-      <Route
-        path="/settings/profiles"
-        component={Profiles}
-      />
+        <Route
+          path="/settings/profiles"
+          component={Profiles}
+        />
 
-      <Route
-        path="/settings/quality"
-        component={QualityConnector}
-      />
+        <Route
+          path="/settings/quality"
+          component={QualityConnector}
+        />
 
-      <Route
-        path="/settings/customformats"
-        component={CustomFormatSettingsConnector}
-      />
+        <Route
+          path="/settings/customformats"
+          component={CustomFormatSettingsConnector}
+        />
 
-      <Route
-        path="/settings/indexers"
-        component={IndexerSettingsConnector}
-      />
+        <Route
+          path="/settings/indexers"
+          component={IndexerSettingsConnector}
+        />
 
-      <Route
-        path="/settings/downloadclients"
-        component={DownloadClientSettingsConnector}
-      />
+        <Route
+          path="/settings/downloadclients"
+          component={DownloadClientSettingsConnector}
+        />
 
-      <Route
-        path="/settings/importlists"
-        component={ImportListSettingsConnector}
-      />
+        <Route
+          path="/settings/importlists"
+          component={ImportListSettingsConnector}
+        />
 
-      <Route
-        path="/settings/connect"
-        component={NotificationSettings}
-      />
+        <Route
+          path="/settings/connect"
+          component={NotificationSettings}
+        />
 
-      <Route
-        path="/settings/metadata"
-        component={MetadataSettings}
-      />
+        <Route
+          path="/settings/metadata"
+          component={MetadataSettings}
+        />
 
-      <Route
-        path="/settings/tags"
-        component={TagSettings}
-      />
+        <Route
+          path="/settings/tags"
+          component={TagSettings}
+        />
 
-      <Route
-        path="/settings/general"
-        component={GeneralSettingsConnector}
-      />
+        <Route
+          path="/settings/general"
+          component={GeneralSettingsConnector}
+        />
 
-      <Route
-        path="/settings/ui"
-        component={UISettingsConnector}
-      />
+        <Route
+          path="/settings/ui"
+          component={UISettingsConnector}
+        />
 
-      <Route
-        path="/settings/development"
-        component={DevelopmentSettingsConnector}
-      />
+        <Route
+          path="/settings/development"
+          component={DevelopmentSettingsConnector}
+        />
 
-      {/*
+        {/*
         System
       */}
 
-      <Route
-        path="/system/status"
-        component={Status}
-      />
+        <Route
+          path="/system/status"
+          component={Status}
+        />
 
-      <Route
-        path="/system/tasks"
-        component={Tasks}
-      />
+        <Route
+          path="/system/tasks"
+          component={Tasks}
+        />
 
-      <Route
-        path="/system/backup"
-        component={BackupsConnector}
-      />
+        <Route
+          path="/system/backup"
+          component={BackupsConnector}
+        />
 
-      <Route
-        path="/system/updates"
-        component={Updates}
-      />
+        <Route
+          path="/system/updates"
+          component={Updates}
+        />
 
-      <Route
-        path="/system/events"
-        component={LogsTableConnector}
-      />
+        <Route
+          path="/system/events"
+          component={LogsTableConnector}
+        />
 
-      <Route
-        path="/system/logs/files"
-        component={Logs}
-      />
+        <Route
+          path="/system/logs/files"
+          component={Logs}
+        />
 
-      {/*
+        {/*
         Not Found
       */}
 
-      <Route
-        path="*"
-        component={NotFound}
-      />
+        <Route
+          path="*"
+          component={NotFound}
+        />
 
-    </Switch>
+      </Switch>
     </Suspense>
   );
 }
