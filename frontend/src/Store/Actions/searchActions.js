@@ -234,7 +234,7 @@ export const reducers = createHandleActions({
       ...otherDefaultState
     } = defaultState;
 
-    return Object.assign({}, state, otherDefaultState);
+    return { ...state, ...otherDefaultState };
   }
 
 }, defaultState, section);

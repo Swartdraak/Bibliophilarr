@@ -1,4 +1,4 @@
-# Provider Metadata Pull Testing (Random /media Sample)
+> [!WARNING]\n> **DEPRECATED** — This document has been superseded.\n> Canonical replacement: [METADATA_PROVIDER_RUNBOOK.md](../../docs/operations/METADATA_PROVIDER_RUNBOOK.md)\n> Reason: Dated testing session file; operational guidance consolidated into runbook\n> Deprecation date: 2026-03-25\n\n# Provider Metadata Pull Testing (Random /media Sample)
 
 ## Date
 

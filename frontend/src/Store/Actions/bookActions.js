@@ -487,12 +487,12 @@ export const reducers = createHandleActions({
   [SET_BOOK_VALUE]: createSetSettingValueReducer(section),
 
   [CLEAR_BOOKS]: (state) => {
-    return Object.assign({}, state, {
+    return { ...state,
       isFetching: false,
       isPopulated: false,
       error: null,
       items: []
-    });
+    };
   }
 
 }, defaultState, section);

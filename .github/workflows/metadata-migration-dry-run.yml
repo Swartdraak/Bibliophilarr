@@ -20,6 +20,7 @@ permissions:
 jobs:
   dry-run:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -36,6 +37,9 @@ jobs:
           SKIP_COMMAND: ${{ github.event.inputs.skipCommand || 'false' }}
           MAX_LOOKUPS: ${{ github.event.inputs.maxLookups || '200' }}
         run: |
+          echo "::add-mask::${BIBLIOPHILARR_STAGING_BASE_URL}"
+          echo "::add-mask::${BIBLIOPHILARR_API_KEY}"
+
           EXTRA_ARGS=""
           if [ "$SKIP_COMMAND" = "true" ]; then
             EXTRA_ARGS="--skip-command"

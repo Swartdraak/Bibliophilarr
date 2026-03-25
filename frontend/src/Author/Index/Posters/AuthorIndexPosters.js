@@ -6,6 +6,12 @@ import Measure from 'Components/Measure';
 import dimensions from 'Styles/Variables/dimensions';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
 import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
+import {
+  COLUMN_WIDTH_SMALL_SCREEN,
+  COLUMN_WIDTH_DEFAULT,
+  AUTHOR_POSTER_WIDTH,
+  AUTHOR_POSTER_HEIGHT
+} from 'Utilities/Constants/grid';
 import hasDifferentItemsOrOrder from 'Utilities/Object/hasDifferentItemsOrOrder';
 import AuthorIndexPoster from './AuthorIndexPoster';
 import styles from './AuthorIndexPosters.css';
@@ -23,7 +29,7 @@ const additionalColumnCount = {
 };
 
 function calculateColumnWidth(width, posterSize, isSmallScreen) {
-  const maxiumColumnWidth = isSmallScreen ? 172 : 182;
+  const maxiumColumnWidth = isSmallScreen ? COLUMN_WIDTH_SMALL_SCREEN : COLUMN_WIDTH_DEFAULT;
   const columns = Math.floor(width / maxiumColumnWidth);
   const remainder = width % maxiumColumnWidth;
 
@@ -97,11 +103,11 @@ class AuthorIndexPosters extends Component {
 
     this.state = {
       width: 0,
-      columnWidth: 182,
+      columnWidth: COLUMN_WIDTH_DEFAULT,
       columnCount: 1,
-      posterWidth: 238,
-      posterHeight: 238,
-      rowHeight: calculateRowHeight(238, null, props.isSmallScreen, {}),
+      posterWidth: AUTHOR_POSTER_WIDTH,
+      posterHeight: AUTHOR_POSTER_HEIGHT,
+      rowHeight: calculateRowHeight(AUTHOR_POSTER_HEIGHT, null, props.isSmallScreen, {}),
       scrollRestored: false
     };
 

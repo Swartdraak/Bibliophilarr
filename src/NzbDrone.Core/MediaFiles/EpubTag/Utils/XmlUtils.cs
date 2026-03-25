@@ -26,6 +26,16 @@ namespace VersOne.Epub.Internal
             }
         }
 
+        public static XDocument LoadDocument(Stream stream)
+        {
+            using (var memoryStream = new MemoryStream())
+            {
+                stream.CopyTo(memoryStream);
+                memoryStream.Position = 0;
+                return LoadXDocument(memoryStream);
+            }
+        }
+
         private static XDocument LoadXDocument(MemoryStream memoryStream)
         {
             try

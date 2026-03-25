@@ -1,5 +1,4 @@
 import classNames from 'classnames';
-import elementClass from 'element-class';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
@@ -77,9 +76,9 @@ class Modal extends Component {
         setScrollLock(true);
         const scrollTop = document.body.scrollTop;
         this._bodyScrollTop = scrollTop;
-        elementClass(document.body).add(styles.modalOpenIOS);
+        document.body.classList.add(styles.modalOpenIOS);
       } else {
-        elementClass(document.body).add(styles.modalOpen);
+        document.body.classList.add(styles.modalOpen);
       }
     }
   }
@@ -92,10 +91,10 @@ class Modal extends Component {
       setScrollLock(false);
 
       if (isIOS()) {
-        elementClass(document.body).remove(styles.modalOpenIOS);
+        document.body.classList.remove(styles.modalOpenIOS);
         document.body.scrollTop = this._bodyScrollTop;
       } else {
-        elementClass(document.body).remove(styles.modalOpen);
+        document.body.classList.remove(styles.modalOpen);
       }
     }
   }
@@ -104,7 +103,7 @@ class Modal extends Component {
     const targetElement = this._findEventTarget(event);
 
     if (targetElement) {
-      const backgroundElement = ReactDOM.findDOMNode(this._backgroundRef);
+      const backgroundElement = this._backgroundRef;
 
       return backgroundElement.isEqualNode(targetElement);
     }
@@ -182,7 +181,7 @@ class Modal extends Component {
     }
 
     return ReactDOM.createPortal(
-      <FocusLock disabled={false}>
+      <FocusLock disabled={false} returnFocus={true}>
         <div
           className={styles.modalContainer}
         >

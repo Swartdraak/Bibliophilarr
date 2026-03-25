@@ -19,6 +19,7 @@ permissions:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -65,3 +66,33 @@ jobs:
           sleep 20
           docker logs bibliophilarr-local | tail -n 100 || true
           docker rm -f bibliophilarr-local
+
+      - name: Build local image for scanning
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: bibliophilarr:scan
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          image-ref: bibliophilarr:scan
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+
+      - name: Generate SBOM with Trivy
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          image-ref: bibliophilarr:scan
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6db9a6b7c67862cd61e8cbb7cd813 # v4
+        with:
+          name: sbom
+          path: sbom.cdx.json

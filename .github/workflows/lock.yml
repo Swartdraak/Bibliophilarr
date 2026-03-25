@@ -12,6 +12,7 @@ permissions:
 jobs:
   lock:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: dessant/lock-threads@be8aa5be94131386884a6da4189effda9b14aa21 # v4
         with:

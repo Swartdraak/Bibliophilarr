@@ -20,5 +20,19 @@ module.exports = {
     '^.+\\.[jt]sx?$': ['babel-jest', { configFile: path.join(__dirname, 'frontend/babel.config.js'), envName: 'test' }]
   },
   setupFilesAfterEnv: ['<rootDir>/frontend/build/jest.setup.js'],
-  transformIgnorePatterns: ['/node_modules/']
+  transformIgnorePatterns: ['/node_modules/'],
+  collectCoverageFrom: [
+    'frontend/src/**/*.{js,jsx,ts,tsx}',
+    '!frontend/src/**/*.css',
+    '!frontend/src/**/index.js'
+  ],
+  coverageDirectory: '<rootDir>/coverage',
+  coverageThreshold: {
+    global: {
+      statements: 0,
+      branches: 0,
+      functions: 0,
+      lines: 0
+    }
+  }
 };

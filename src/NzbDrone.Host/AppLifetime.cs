@@ -1,3 +1,5 @@
+using System;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -21,6 +23,7 @@ namespace NzbDrone.Host
         private readonly IProcessProvider _processProvider;
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
+        private PosixSignalRegistration _sigtermRegistration;
 
         public AppLifetime(IHostApplicationLifetime appLifetime,
             IConfigFileProvider configFileProvider,
@@ -42,6 +45,16 @@ namespace NzbDrone.Host
 
             appLifetime.ApplicationStarted.Register(OnAppStarted);
             appLifetime.ApplicationStopped.Register(OnAppStopped);
+
+            if (!OperatingSystem.IsWindows())
+            {
+                _sigtermRegistration = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
+                {
+                    _logger.Info("Received SIGTERM, initiating graceful shutdown.");
+                    context.Cancel = true;
+                    _appLifetime.StopApplication();
+                });
+            }
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -51,6 +64,7 @@ namespace NzbDrone.Host
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            _sigtermRegistration?.Dispose();
             return Task.CompletedTask;
         }
 

@@ -12,12 +12,12 @@ function createFetchServerSideCollectionHandler(section, url, fetchDataAugmenter
     const sectionState = getSectionState(getState(), section, true);
     const page = payload.page || sectionState.page || 1;
 
-    const data = Object.assign({ page },
-      _.pick(sectionState, [
+    const data = { page,
+      ..._.pick(sectionState, [
         'pageSize',
         'sortDirection',
         'sortKey'
-      ]));
+      ]) };
 
     if (fetchDataAugmenter) {
       fetchDataAugmenter(getState, payload, data);

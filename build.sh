@@ -41,9 +41,9 @@ UpdateVersionNumber()
     local appVersion="${BIBLIOPHILARRVERSION:-$BIBLIOPHILARRVERSION}"
     if [ "$appVersion" != "" ]; then
         echo "Updating Version Info"
-        sed -i'' -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>$appVersion<\/AssemblyVersion>/g" src/Directory.Build.props
-        sed -i'' -e "s/<AssemblyConfiguration>[\$()A-Za-z-]\+<\/AssemblyConfiguration>/<AssemblyConfiguration>${BUILD_SOURCEBRANCHNAME}<\/AssemblyConfiguration>/g" src/Directory.Build.props
-        sed -i'' -e "s/<string>10.0.0.0<\/string>/<string>$appVersion<\/string>/g" "distribution/osx/${APP_MAC_APP_NAME}/Contents/Info.plist"
+        sed -i'' -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>$appVersion<\/AssemblyVersion>/g" src/Directory.Build.props || { echo "ERROR: sed failed updating AssemblyVersion"; exit 1; }
+        sed -i'' -e "s/<AssemblyConfiguration>[\$()A-Za-z-]\+<\/AssemblyConfiguration>/<AssemblyConfiguration>${BUILD_SOURCEBRANCHNAME}<\/AssemblyConfiguration>/g" src/Directory.Build.props || { echo "ERROR: sed failed updating AssemblyConfiguration"; exit 1; }
+        sed -i'' -e "s/<string>10.0.0.0<\/string>/<string>$appVersion<\/string>/g" "distribution/osx/${APP_MAC_APP_NAME}/Contents/Info.plist" || { echo "ERROR: sed failed updating Info.plist version"; exit 1; }
     fi
 }
 
@@ -51,18 +51,18 @@ EnableExtraPlatformsInSDK()
 {
     SDK_PATH=$(dotnet --list-sdks | grep -P '8\.\d\.\d+' | head -1 | sed 's/\(8\.[0-9]*\.[0-9]*\).*\[\(.*\)\]/\2\/\1/g')
     BUNDLEDVERSIONS="${SDK_PATH}/Microsoft.NETCoreSdk.BundledVersions.props"
-    if grep -q freebsd-x64 $BUNDLEDVERSIONS; then
+    if grep -q freebsd-x64 "$BUNDLEDVERSIONS"; then
         echo "Extra platforms already enabled"
     else
         echo "Enabling extra platform support"
-        sed -i.ORI 's/osx-x64/osx-x64;freebsd-x64;linux-x86/' $BUNDLEDVERSIONS
+        sed -i.ORI 's/osx-x64/osx-x64;freebsd-x64;linux-x86/' "$BUNDLEDVERSIONS" || { echo "ERROR: sed failed updating BundledVersions"; exit 1; }
     fi
 }
 
 EnableExtraPlatforms()
 {
     if grep -qv freebsd-x64 src/Directory.Build.props; then
-        sed -i'' -e "s^<RuntimeIdentifiers>\(.*\)</RuntimeIdentifiers>^<RuntimeIdentifiers>\1;freebsd-x64;linux-x86</RuntimeIdentifiers>^g" src/Directory.Build.props
+        sed -i'' -e "s^<RuntimeIdentifiers>\(.*\)</RuntimeIdentifiers>^<RuntimeIdentifiers>\1;freebsd-x64;linux-x86</RuntimeIdentifiers>^g" src/Directory.Build.props || { echo "ERROR: sed failed updating RuntimeIdentifiers"; exit 1; }
     fi
 }
 
@@ -101,7 +101,9 @@ Build()
 
     # PublishAllRids writes multiple test projects into shared RID-specific _tests paths.
     # Serializing msbuild avoids transient file-copy contention and MSB3026 retry noise.
-    local msbuild_args=("-m:1" "-restore" "$slnFile" "-p:Configuration=Release" "-p:Platform=$platform")
+    # Override with MSBUILD_PARALLELISM env var (e.g. MSBUILD_PARALLELISM=-m:4) for faster local builds.
+    local parallelism="${MSBUILD_PARALLELISM:--m:1}"
+    local msbuild_args=("$parallelism" "-restore" "$slnFile" "-p:Configuration=Release" "-p:Platform=$platform")
 
     if [[ -z "$RID" || -z "$FRAMEWORK" ]];
     then
@@ -278,8 +280,22 @@ InstallInno()
 {
     ProgressStart "Installing portable Inno Setup"
     
+    local INNO_VER="${INNOVERSION:-6.2.0}"
+    local INNO_SHA256="${INNO_SETUP_SHA256:-}"
+
     rm -rf _inno
-    curl -s --output innosetup.exe "https://files.jrsoftware.org/is/6/innosetup-${INNOVERSION:-6.2.0}.exe"
+    curl -s --output innosetup.exe "https://files.jrsoftware.org/is/6/innosetup-${INNO_VER}.exe"
+
+    if [ -n "$INNO_SHA256" ]; then
+        echo "${INNO_SHA256}  innosetup.exe" | sha256sum --check --strict || {
+            echo "ERROR: Inno Setup SHA256 checksum verification failed"
+            rm -f innosetup.exe
+            exit 1
+        }
+    else
+        echo "WARNING: INNO_SETUP_SHA256 not set — skipping checksum verification"
+    fi
+
     mkdir _inno
     ./innosetup.exe //portable=1 //silent //currentuser //dir=.\\_inno
     rm innosetup.exe

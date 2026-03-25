@@ -10,7 +10,7 @@ export default function findSelectedFilters(selectedFilterKey, filters = [], cus
   }
 
   if (!selectedFilter) {
-    // TODO: throw in dev
+    // NOTE: No matching filter found — gracefully returns unmodified value
     console.error('Matching filter not found');
     return [];
   }

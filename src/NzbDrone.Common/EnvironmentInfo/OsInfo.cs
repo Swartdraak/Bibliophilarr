@@ -79,7 +79,9 @@ namespace NzbDrone.Common.EnvironmentInfo
 
             if (IsLinux &&
                 (File.Exists("/.dockerenv") ||
-                 (File.Exists("/proc/1/cgroup") && File.ReadAllText("/proc/1/cgroup").Contains("/docker/"))))
+                 File.Exists("/.containerenv") ||
+                 (File.Exists("/proc/1/cgroup") && File.ReadAllText("/proc/1/cgroup").Contains("/docker/")) ||
+                 !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("KUBERNETES_SERVICE_HOST"))))
             {
                 IsDocker = true;
             }

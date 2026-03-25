@@ -26,6 +26,8 @@ This guide provides comprehensive instructions for implementing metadata provide
 
 ## Provider Interface Hierarchy
 
+> For the canonical interface design rationale and architecture overview, see [MIGRATION_PLAN.md § Architecture Design](../../MIGRATION_PLAN.md#architecture-design). This guide focuses on implementation details.
+
 The V2 provider system is built on a modular interface hierarchy:
 
 ```
@@ -355,6 +357,8 @@ public async Task<List<Book>> SearchByIsbnAsync(string isbn, BookSearchOptions o
 ---
 
 ## Quality Scoring
+
+> For the design rationale and field-weight tiers, see [MIGRATION_PLAN.md § Technical Specifications](../../MIGRATION_PLAN.md#technical-specifications).
 
 Use the `MetadataQualityScorer` to assess metadata quality:
 
@@ -740,7 +744,7 @@ The primary in-app search path in `BookInfoProxy` now uses Open Library first fo
 - Client: `OpenLibrarySearchProxy` (`https://openlibrary.org/search.json`)
 - Behavior:
     - Executes query-driven search (`q`, `limit=10`) and maps docs to `Book`/`Edition` candidates.
-    - On empty/error results, gracefully falls back to Goodreads search path.
+    - Part of fallback chain: Hardcover (primary) → OpenLibrary → Inventaire → Google Books.
     - Does not require API keys for baseline usage.
 
 ### Fallback providers
@@ -803,20 +807,18 @@ Keep real API credentials in local `.env` only and never commit secret values.
 
 ## Next Steps
 
-1. Review existing provider implementations (BookInfoProxy, OpenLibraryProvider, HardcoverFallbackSearchProvider)
-2. Extend coverage with additional provider integrations
-3. Write comprehensive tests
-4. Document API quirks and edge cases
-5. Monitor performance and health metrics
+For current priorities and phase-aligned delivery milestones, see [ROADMAP.md](../../ROADMAP.md) and [PROJECT_STATUS.md](../../PROJECT_STATUS.md).
 
 ---
 
-## Additional Resources
+## References
 
 - [Open Library API Documentation](https://openlibrary.org/developers/api)
 - [Inventaire API Documentation](https://api.inventaire.io/)
-- [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md) - Complete migration plan
-- [CONTRIBUTING.md](../../CONTRIBUTING.md) - Contribution guidelines
+- [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md) — Complete migration plan and architecture design.
+- [ROADMAP.md](../../ROADMAP.md) — Phased delivery milestones.
+- [PROJECT_STATUS.md](../../PROJECT_STATUS.md) — Remediation queue and operational state.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — Contribution guidelines.
 
 ---
 

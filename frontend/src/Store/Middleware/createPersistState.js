@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import persistState from 'redux-localstorage';
 import actions from 'Store/Actions';
 import migrate from 'Store/Migrators/migrate';
 
@@ -53,7 +52,7 @@ function mergeColumns(path, initialState, persistedState, computedState) {
   // Add any columns added to the app in the initial position.
   initialColumns.forEach((initialColumn, index) => {
     const persistedColumnIndex = persistedColumns.findIndex((i) => i.name === initialColumn.name);
-    const column = Object.assign({}, initialColumn);
+    const column = { ...initialColumn };
 
     if (persistedColumnIndex === -1) {
       columns.splice(index, 0, column);
@@ -109,5 +108,16 @@ export default function createPersistState() {
   migrate(persistedState);
   localStorage.setItem(config.key, serialize(persistedState));
 
-  return persistState(paths, config);
+  return (createStore) => (reducer, initialState, enhancer) => {
+    const finalInitialState = merge(initialState, persistedState);
+    const store = createStore(reducer, finalInitialState, enhancer);
+
+    store.subscribe(() => {
+      const state = store.getState();
+      const subset = config.slicer(paths)(state);
+      localStorage.setItem(config.key, config.serialize(subset));
+    });
+
+    return store;
+  };
 }

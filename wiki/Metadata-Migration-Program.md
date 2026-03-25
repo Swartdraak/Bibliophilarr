@@ -28,7 +28,10 @@ Move Bibliophilarr from legacy/proprietary metadata dependencies to sustainable 
 
 ## Program milestones
 
-- `v0.1`: Interfaces and scaffolding.
-- `v0.2`: Open Library MVP.
-- `v0.3`: Inventaire + aggregation.
-- `v1.0`: Production-ready FOSS metadata pipeline.
+- **Phase 1–3** (complete): Provider abstractions, Open Library integration, Inventaire integration.
+- **Phase 4** (complete): Hardcover integration, multi-provider aggregation, fallback chain.
+- **Phase 5** (active): Consolidation — identification accuracy, provider resilience hardening, telemetry.
+- **Phase 6** (active): Infrastructure hardening — CI/CD, Docker, security, operational tooling.
+- **Phase 7** (planned): Frontend modernization, React 18, test infrastructure.
+
+See [ROADMAP.md](../ROADMAP.md) for detailed phase definitions and delivery sequence.

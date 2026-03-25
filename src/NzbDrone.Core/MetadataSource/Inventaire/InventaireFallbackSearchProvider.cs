@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
+using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
@@ -15,11 +16,13 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
         private readonly IConfigService _configService;
         private readonly IHttpClient _httpClient;
         private readonly IHttpRequestBuilderFactory _requestBuilder;
+        private readonly Logger _logger;
 
-        public InventaireFallbackSearchProvider(IConfigService configService, IHttpClient httpClient)
+        public InventaireFallbackSearchProvider(IConfigService configService, IHttpClient httpClient, Logger logger)
         {
             _configService = configService;
             _httpClient = httpClient;
+            _logger = logger;
 
             _requestBuilder = new HttpRequestBuilder("https://inventaire.io/api/search")
                 .Accept(HttpAccept.Json)
@@ -62,9 +65,35 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
             var response = _httpClient.Get<InventaireSearchResponse>(request);
             var results = response.Resource?.Results ?? new List<InventaireSearchResult>();
 
+            ValidateSearchResults(results, query);
+
             return results.Select(MapBook)
                 .Where(x => x != null)
                 .ToList();
+        }
+
+        private void ValidateSearchResults(List<InventaireSearchResult> results, string queryText)
+        {
+            if (!results.Any())
+            {
+                return;
+            }
+
+            var missingUris = results.Count(r => r.Uri.IsNullOrWhiteSpace());
+            var missingLabels = results.Count(r =>
+                r.Label.IsNullOrWhiteSpace() &&
+                r.Name.IsNullOrWhiteSpace() &&
+                r.Title.IsNullOrWhiteSpace());
+
+            if (missingUris > 0)
+            {
+                _logger.Warn("Inventaire returned {0}/{1} result(s) with missing URIs for query '{2}' — these will be skipped", missingUris, results.Count, queryText);
+            }
+
+            if (missingLabels > 0)
+            {
+                _logger.Debug("Inventaire returned {0}/{1} result(s) with no title/label for query '{2}' — work ID will be used as fallback", missingLabels, results.Count, queryText);
+            }
         }
 
         private static string BuildQuery(string title, string author)

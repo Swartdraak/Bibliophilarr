@@ -264,10 +264,10 @@ export const reducers = createHandleActions({
 
   [UPDATE_INTERACTIVE_IMPORT_ITEM]: (state, { payload }) => {
     const id = payload.id;
-    const newState = Object.assign({}, state);
+    const newState = { ...state };
     const items = newState.items;
     const index = items.findIndex((item) => item.id === id);
-    const item = Object.assign({}, items[index], payload);
+    const item = { ...items[index], ...payload };
 
     newState.items = [...items];
     newState.items.splice(index, 1, item);
@@ -277,12 +277,12 @@ export const reducers = createHandleActions({
 
   [UPDATE_INTERACTIVE_IMPORT_ITEMS]: (state, { payload }) => {
     const ids = payload.ids;
-    const newState = Object.assign({}, state);
+    const newState = { ...state };
     const items = [...newState.items];
 
     ids.forEach((id) => {
       const index = items.findIndex((item) => item.id === id);
-      const item = Object.assign({}, items[index], payload);
+      const item = { ...items[index], ...payload };
 
       items.splice(index, 1, item);
     });
@@ -306,7 +306,7 @@ export const reducers = createHandleActions({
 
     const sliceIndex = Math.max(recentFolders.length - MAXIMUM_RECENT_FOLDERS, 0);
 
-    return Object.assign({}, state, { recentFolders: recentFolders.slice(sliceIndex) });
+    return { ...state, recentFolders: recentFolders.slice(sliceIndex) };
   },
 
   [REMOVE_RECENT_FOLDER]: function(state, { payload }) {
@@ -316,7 +316,7 @@ export const reducers = createHandleActions({
 
     recentFolders.splice(index, 1);
 
-    return Object.assign({}, state, { recentFolders });
+    return { ...state, recentFolders };
   },
 
   [CLEAR_INTERACTIVE_IMPORT]: function(state) {
@@ -332,7 +332,7 @@ export const reducers = createHandleActions({
   [SET_INTERACTIVE_IMPORT_SORT]: createSetClientSideCollectionSortReducer(section),
 
   [SET_INTERACTIVE_IMPORT_MODE]: function(state, { payload }) {
-    return Object.assign({}, state, { importMode: payload.importMode });
+    return { ...state, importMode: payload.importMode };
   },
 
   [SET_INTERACTIVE_IMPORT_BOOKS_SORT]: createSetClientSideCollectionSortReducer(booksSection),

@@ -84,7 +84,10 @@ namespace NzbDrone.Core.ImportLists
                 taskList.Add(task);
             }
 
-            Task.WaitAll(taskList.ToArray());
+            if (!Task.WaitAll(taskList.ToArray(), TimeSpan.FromMinutes(5)))
+            {
+                _logger.Warn("Import list sync timed out after 5 minutes");
+            }
 
             result = result.DistinctBy(r => new { r.Author, r.Book }).ToList();
 
@@ -133,7 +136,10 @@ namespace NzbDrone.Core.ImportLists
 
             taskList.Add(task);
 
-            Task.WaitAll(taskList.ToArray());
+            if (!Task.WaitAll(taskList.ToArray(), TimeSpan.FromMinutes(5)))
+            {
+                _logger.Warn("Single import list sync timed out after 5 minutes");
+            }
 
             result = result.DistinctBy(r => new { r.Author, r.Book }).ToList();
 

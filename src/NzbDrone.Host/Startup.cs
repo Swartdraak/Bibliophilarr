@@ -171,8 +171,20 @@ namespace NzbDrone.Host
                 options.PayloadSerializerOptions = STJson.GetSerializerSettings();
             });
 
+            var dataProtectionDir = new DirectoryInfo(Configuration["dataProtectionFolder"]);
+
+            if (!dataProtectionDir.Exists)
+            {
+                dataProtectionDir.Create();
+            }
+
+            if (!OperatingSystem.IsWindows())
+            {
+                dataProtectionDir.UnixFileMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+            }
+
             services.AddDataProtection()
-                .PersistKeysToFileSystem(new DirectoryInfo(Configuration["dataProtectionFolder"]));
+                .PersistKeysToFileSystem(dataProtectionDir);
 
             services.AddSingleton<IAuthorizationPolicyProvider, UiAuthorizationPolicyProvider>();
             services.AddSingleton<IAuthorizationHandler, UiAuthorizationHandler>();
@@ -244,6 +256,7 @@ namespace NzbDrone.Host
 
             app.UseForwardedHeaders();
             app.UseMiddleware<LoggingMiddleware>();
+            app.UseMiddleware<SecurityHeadersMiddleware>();
             app.UsePathBase(new PathString(configFileProvider.UrlBase));
             app.UseExceptionHandler(new ExceptionHandlerOptions
             {

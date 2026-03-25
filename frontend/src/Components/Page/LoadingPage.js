@@ -11,6 +11,7 @@ function LoadingPage() {
       <img
         className={styles.logoFull}
         src={bibliophilarrLogo}
+        alt="Bibliophilarr"
       />
       <LoadingMessage />
       <LoadingIndicator />

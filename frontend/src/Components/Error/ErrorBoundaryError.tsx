@@ -46,6 +46,7 @@ function ErrorBoundaryError(props: ErrorBoundaryErrorProps) {
         <img
           className={styles.image}
           src={`${window.Bibliophilarr.urlBase}/Content/Images/error.png`}
+          alt="An error occurred"
         />
       </div>
 

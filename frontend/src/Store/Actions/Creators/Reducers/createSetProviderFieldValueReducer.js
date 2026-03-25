@@ -6,8 +6,8 @@ function createSetProviderFieldValueReducer(section) {
     if (section === payload.section) {
       const { name, value } = payload;
       const newState = getSectionState(state, section);
-      newState.pendingChanges = Object.assign({}, newState.pendingChanges);
-      const fields = Object.assign({}, newState.pendingChanges.fields || {});
+      newState.pendingChanges = { ...newState.pendingChanges };
+      const fields = { ...(newState.pendingChanges.fields || {}) };
 
       fields[name] = value;
 

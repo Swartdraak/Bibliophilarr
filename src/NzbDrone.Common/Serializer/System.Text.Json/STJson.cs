@@ -50,7 +50,7 @@ namespace NzbDrone.Common.Serializer
 
         public static object Deserialize(Stream input, Type type)
         {
-            return JsonSerializer.DeserializeAsync(input, type, SerializerSettings).GetAwaiter().GetResult();
+            return JsonSerializer.Deserialize(input, type, SerializerSettings);
         }
 
         public static bool TryDeserialize<T>(string json, out T result)

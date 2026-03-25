@@ -9,6 +9,11 @@
       "moduleResolution": "node",
       "noEmit": true,
       "esModuleInterop": true,
+      "strictFunctionTypes": true,
+      "strictBindCallApply": true,
+      "noImplicitThis": true,
+      "noUnusedLocals": false,
+      "noUnusedParameters": false,
       "typeRoots": ["node_modules/@types", "typings"],
       "paths": {
           "*": [
@@ -21,7 +26,7 @@
       "./src/**/*",
       "./.eslintrc.js",
       "./build/webpack.config.js",
-      "./typings/*.ts",
+      "./typings/*.ts"
   ],
   "exclude": [
     "node_modules"

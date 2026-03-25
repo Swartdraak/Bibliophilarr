@@ -4,7 +4,9 @@
 
 This document outlines the comprehensive technical plan for migrating Bibliophilarr from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
-## Implementation Progress Snapshot (March 24, 2026 comprehensive deep audit v2)
+## Implementation Progress Snapshots
+
+### March 24, 2026 — Comprehensive Deep Audit v2
 
 Comprehensive audit v2 across six parallel audits (backend C#, frontend, CI/CD and build,
 documentation, Docker and infrastructure, packages and dependencies) identified **287 distinct
@@ -60,7 +62,7 @@ in `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 
 Full prioritized remediation queue: see `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 
-## Implementation Progress Snapshot (March 24, 2026 book import identification quality fixes)
+### March 24, 2026 — Book Import Identification Quality Fixes
 
 Three compounding bugs in the import identification pipeline were identified during production library analysis (81% unlinked files) and fixed:
 
@@ -78,7 +80,7 @@ Impact on metadata migration posture:
 
 Validation: 40/40 targeted tests passed; 158/159 broader import tests passed (1 pre-existing flaky test confirmed unrelated).
 
-## Implementation Progress Snapshot (March 22, 2026 Hardcover/runtime logging hardening)
+### March 22, 2026 — Hardcover/Runtime Logging Hardening
 
 Completed in this migration-hardening slice:
 
@@ -91,7 +93,7 @@ Validation status for this slice:
 - Targeted Hardcover provider fixture coverage updated for environment-token routing.
 - Script syntax and solution build validation executed after the logging changes.
 
-## Implementation Progress Snapshot (March 22, 2026 release-evidence/test-runner completion)
+### March 22, 2026 — Release-Evidence/Test-Runner Completion
 
 Additional verification update (March 22, 2026):
 
@@ -134,7 +136,7 @@ Migration risk posture update:
 - Tooling and CI controls for replay and frontend regressions are now in place.
 - Primary migration blocker remains runtime series persistence and duplicate author convergence in staging DB state.
 
-## Implementation Progress Snapshot (March 18, 2026)
+### March 18, 2026 — Provider Orchestration Integration
 
 Completed in the current migration slice:
 
@@ -155,7 +157,7 @@ Validation status for this slice:
 - Core targeted tests: pass for `MetadataProviderOrchestratorFixture` and `ImportListSyncServiceFixture`
 - Import-list edge-case handling updated to avoid adding unresolved external-ID books
 
-## Implementation Progress Snapshot (March 21, 2026 TD-META completion)
+### March 21, 2026 — TD-META Completion
 
 Completed in this migration-hardening slice:
 
@@ -177,7 +179,7 @@ Migration safety posture:
 - No destructive schema changes were introduced in this slice.
 - Existing fallback behavior is preserved while routing now uses health-aware ordering.
 
-## Implementation Progress Snapshot (March 21, 2026 routing/dedupe/import hardening continuation)
+### March 21, 2026 — Routing/Dedupe/Import Hardening Continuation
 
 Completed in this continuation slice:
 
@@ -202,7 +204,7 @@ Validation status:
 Known gap:
 
 
-## Implementation Progress Snapshot (March 22, 2026 hardening pass)
+### March 22, 2026 — Hardening Pass
 
 Completed in this hardening and validation slice:
 
@@ -226,7 +228,7 @@ Migration safety posture:
 - All changes backward-compatible and non-breaking.
 - No temporary files or test artifacts remain in working tree.
 
-## Implementation Progress Snapshot (March 21, 2026 hardening follow-up)
+### March 21, 2026 — Hardening Follow-up
 
 Completed in this hardening slice:
 
@@ -248,7 +250,7 @@ Validation status for this slice:
 - API targeted fixtures: pass (2/2).
 - Full solution build: pass.
 
-## Implementation progress snapshot (March 21, 2026 full-library QA triage)
+### March 21, 2026 — Full-Library QA Triage
 
 A full-library validation run identified additional migration-critical gaps and one
 newly confirmed provider mapping fault.

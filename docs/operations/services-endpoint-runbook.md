@@ -105,7 +105,7 @@ privacy-sensitive deployments. No internet access required.
 
 ```bash
 # Nothing to configure; cloud features silently degrade to no-ops.
-dotnet /opt/bibliophilarr/Readarr.dll -nobrowser
+dotnet /opt/bibliophilarr/Bibliophilarr -nobrowser
 ```
 
 ### Pattern B — Self-hosted services endpoint

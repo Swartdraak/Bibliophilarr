@@ -19,6 +19,12 @@ RUN ./build.sh --packages -r linux-x64 -f net8.0
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:d0f61936dbf46d6ba1520a2e4e1ac4cca44617e66ba139f344831c046ee99512 AS runtime
 
+LABEL org.opencontainers.image.title="Bibliophilarr" \
+      org.opencontainers.image.description="Ebook and audiobook library manager" \
+      org.opencontainers.image.url="https://github.com/Readarr/Readarr" \
+      org.opencontainers.image.source="https://github.com/Readarr/Readarr" \
+      org.opencontainers.image.licenses="GPL-3.0-only"
+
 RUN groupadd --gid 1000 bibliophilarr \
     && useradd --uid 1000 --gid bibliophilarr --shell /bin/false --create-home bibliophilarr \
     && apt-get update && apt-get install -y --no-install-recommends curl \
@@ -38,4 +44,4 @@ EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8787/ping || exit 1
 
-ENTRYPOINT ["./Bibliophilarr"]
+ENTRYPOINT ["sh", "-c", "umask 077 && exec ./Bibliophilarr \"$@\"", "--"]

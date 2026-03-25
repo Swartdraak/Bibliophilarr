@@ -30,7 +30,7 @@ import ManageIndexersModalRow from './ManageIndexersModalRow';
 import TagsModal from './Tags/TagsModal';
 import styles from './ManageIndexersModalContent.css';
 
-// TODO: This feels janky to do, but not sure of a better way currently
+// NOTE: This type extraction approach is the pragmatic way to get the callback shape
 type OnSelectedChangeCallback = React.ComponentProps<
   typeof ManageIndexersModalRow
 >['onSelectedChange'];

@@ -13,7 +13,7 @@ This blueprint defines recommended GitHub Projects for Bibliophilarr's current r
 - `Provider` (Open Library, Inventaire, Google Books, Internal)
 - `Priority` (P0..P3)
 - `Risk` (Low, Medium, High)
-- `Target Release` (v0.x milestones)
+- `Target Phase` (Phase 4..7 aligned with ROADMAP.md)
 
 **Views**
 
@@ -64,7 +64,15 @@ This blueprint defines recommended GitHub Projects for Bibliophilarr's current r
 
 ## Milestone Mapping
 
-- `v0.1` Foundation and interface stabilization.
-- `v0.2` Open Library provider GA.
-- `v0.3` Inventaire integration and quality scoring improvements.
-- `v1.0` Multi-provider production readiness.
+Milestones align with the phase-based delivery model in `ROADMAP.md`:
+
+- **Phase 4** — Multi-provider consolidation and quality scoring.
+- **Phase 5** — Provider reliability hardening and performance optimization.
+- **Phase 6** — Packaging, infrastructure, and supply-chain hardening.
+- **Phase 7** — Platform modernization (React 18, .NET 10, Node 22).
+
+## References
+
+- [ROADMAP.md](../../ROADMAP.md) — Phased delivery milestones and current priorities.
+- [PROJECT_STATUS.md](../../PROJECT_STATUS.md) — Remediation queue and operational state.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — Contribution guidelines and issue labels.

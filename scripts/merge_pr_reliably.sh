@@ -15,6 +15,11 @@ PR_NUMBER="$1"
 MERGE_METHOD="${2:-merge}"
 REPO="${GITHUB_REPOSITORY_OVERRIDE:-Swartdraak/Bibliophilarr}"
 
+if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+  echo "PR number must be a positive integer: $PR_NUMBER" >&2
+  exit 2
+fi
+
 if [[ "$MERGE_METHOD" != "merge" && "$MERGE_METHOD" != "squash" && "$MERGE_METHOD" != "rebase" ]]; then
   echo "Unsupported merge method: $MERGE_METHOD" >&2
   exit 2

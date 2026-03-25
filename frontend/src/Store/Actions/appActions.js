@@ -162,7 +162,7 @@ export const reducers = createHandleActions({
 
     const dimensions = getDimensions(width, height);
 
-    return Object.assign({}, state, { dimensions });
+    return { ...state, dimensions };
   },
 
   [SHOW_MESSAGE]: function(state, { payload }) {
@@ -193,7 +193,7 @@ export const reducers = createHandleActions({
   },
 
   [SET_APP_VALUE]: function(state, { payload }) {
-    const newState = Object.assign(getSectionState(state, section), payload);
+    const newState = { ...getSectionState(state, section), ...payload };
 
     return updateSectionState(state, section, newState);
   },
@@ -212,7 +212,7 @@ export const reducers = createHandleActions({
       newState.isUpdated = true;
     }
 
-    return Object.assign({}, state, newState);
+    return { ...state, ...newState };
   },
 
   [SET_IS_SIDEBAR_VISIBLE]: function(state, { payload }) {
@@ -220,7 +220,7 @@ export const reducers = createHandleActions({
       isSidebarVisible: payload.isSidebarVisible
     };
 
-    return Object.assign({}, state, newState);
+    return { ...state, ...newState };
   }
 
 }, defaultState, section);

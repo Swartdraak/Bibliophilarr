@@ -11,6 +11,7 @@ permissions:
 jobs:
   action:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: dessant/label-actions@ade7bcd4c1b30de6ba8e556cc31301fd4f79ca65 # v3
         with:

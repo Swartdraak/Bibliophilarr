@@ -6,6 +6,12 @@ import Measure from 'Components/Measure';
 import dimensions from 'Styles/Variables/dimensions';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
 import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
+import {
+  COLUMN_WIDTH_SMALL_SCREEN,
+  COLUMN_WIDTH_DEFAULT,
+  BOOK_POSTER_WIDTH,
+  BOOK_POSTER_HEIGHT
+} from 'Utilities/Constants/grid';
 import hasDifferentItemsOrOrder from 'Utilities/Object/hasDifferentItemsOrOrder';
 import BookIndexPoster from './BookIndexPoster';
 import styles from './BookIndexPosters.css';
@@ -23,7 +29,7 @@ const additionalColumnCount = {
 };
 
 function calculateColumnWidth(width, posterSize, isSmallScreen) {
-  const maxiumColumnWidth = isSmallScreen ? 172 : 182;
+  const maxiumColumnWidth = isSmallScreen ? COLUMN_WIDTH_SMALL_SCREEN : COLUMN_WIDTH_DEFAULT;
   const columns = Math.floor(width / maxiumColumnWidth);
   const remainder = width % maxiumColumnWidth;
 
@@ -102,11 +108,11 @@ class BookIndexPosters extends Component {
 
     this.state = {
       width: 0,
-      columnWidth: 182,
+      columnWidth: COLUMN_WIDTH_DEFAULT,
       columnCount: 1,
-      posterWidth: 162,
-      posterHeight: 253,
-      rowHeight: calculateRowHeight(253, null, props.isSmallScreen, {}),
+      posterWidth: BOOK_POSTER_WIDTH,
+      posterHeight: BOOK_POSTER_HEIGHT,
+      rowHeight: calculateRowHeight(BOOK_POSTER_HEIGHT, null, props.isSmallScreen, {}),
       scrollRestored: false
     };
 

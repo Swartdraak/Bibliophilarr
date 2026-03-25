@@ -182,6 +182,7 @@ class CalendarLinkModalContent extends Component {
                 value={iCalHttpUrl}
                 readOnly={true}
                 helpText={translate('ICalHttpUrlHelpText')}
+                helpTextWarning="This URL contains your API key. Do not share it publicly."
                 buttons={[
                   <ClipboardButton
                     key="copy"

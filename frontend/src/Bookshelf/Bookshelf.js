@@ -15,6 +15,12 @@ import VirtualTableRow from 'Components/Table/VirtualTableRow';
 import { align, sortDirections } from 'Helpers/Props';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
 import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
+import {
+  BOOKSHELF_ENTRY_WIDTH,
+  BOOKSHELF_SIDEBAR_WIDTH,
+  BOOKSHELF_ROW_HEIGHT,
+  BOOKSHELF_ROW_PADDING
+} from 'Utilities/Constants/grid';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 import getSelectedIds from 'Utilities/Table/getSelectedIds';
@@ -94,7 +100,7 @@ class Bookshelf extends Component {
       this.setState(selectAll(this.state.selectedState, false));
     }
 
-    // nasty hack to fix react-virtualized jumping incorrectly
+    // NOTE: Workaround for react-virtualized scroll position jump on re-render
     // due to variable row heights
     if (isValidScrollIndex(scrollIndex)) {
       if (jumpCount === 0) {
@@ -219,14 +225,14 @@ class Bookshelf extends Component {
       return 100;
     }
 
-    // guess 250px per book entry
-    // available width is total width less 186px for select, status etc
-    const cols = Math.max(Math.floor((width - 186) / 250), 1);
+    // guess BOOKSHELF_ENTRY_WIDTH per book entry
+    // available width is total width less BOOKSHELF_SIDEBAR_WIDTH for select, status etc
+    const cols = Math.max(Math.floor((width - BOOKSHELF_SIDEBAR_WIDTH) / BOOKSHELF_ENTRY_WIDTH), 1);
     const booksPerAuthor = bookCount / items.length;
     const bookRowsPerAuthor = booksPerAuthor / cols;
 
-    // each row is 23px per book row plus 16px padding
-    return bookRowsPerAuthor * 23 + 16;
+    // each row is BOOKSHELF_ROW_HEIGHT per book row plus BOOKSHELF_ROW_PADDING padding
+    return bookRowsPerAuthor * BOOKSHELF_ROW_HEIGHT + BOOKSHELF_ROW_PADDING;
   };
 
   rowRenderer = ({ key, rowIndex, parent, style }) => {

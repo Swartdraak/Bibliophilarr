@@ -317,6 +317,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }.ToJson());
 
             var response = _httpClient.Post<HardcoverGraphQlResponse>(request);
+
+            if (!ValidateGraphQlResponse(response.Resource, queryText))
+            {
+                return new List<Book>();
+            }
+
             var payload = response.Resource?.Data?.Search;
 
             if (payload == null)
@@ -347,6 +353,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 _logger.Debug("Hardcover returned no matches for query '{0}'.", queryText);
                 return new List<Book>();
             }
+
+            ValidateSearchResults(results, queryText);
 
             var mapped = results.Select(MapBook)
                 .Where(x => x != null)
@@ -480,6 +488,58 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 .Select(x => x?.Document)
                 .Where(x => x != null)
                 .ToList();
+        }
+
+        private bool ValidateGraphQlResponse(HardcoverGraphQlResponse response, string queryText)
+        {
+            if (response == null)
+            {
+                _logger.Warn("Hardcover returned null response for query '{0}'.", queryText);
+                return false;
+            }
+
+            if (response.Errors != null && response.Errors.Any())
+            {
+                var errorMessages = string.Join("; ", response.Errors.Select(e => e.Message ?? "unknown error"));
+                _logger.Warn("Hardcover GraphQL returned error(s) for query '{0}': {1}", queryText, errorMessages);
+
+                if (response.Data == null)
+                {
+                    return false;
+                }
+            }
+
+            if (response.Data == null)
+            {
+                _logger.Warn("Hardcover GraphQL response missing 'data' envelope for query '{0}'.", queryText);
+                return false;
+            }
+
+            return true;
+        }
+
+        private void ValidateSearchResults(List<HardcoverSearchResult> results, string queryText)
+        {
+            var missingIds = results.Count(r => r.Id.IsNullOrWhiteSpace());
+            var missingTitles = results.Count(r => r.Title.IsNullOrWhiteSpace());
+            var missingAuthors = results.Count(r =>
+                (r.Contributions == null || !r.Contributions.Any()) &&
+                (r.AuthorNames == null || !r.AuthorNames.Any()));
+
+            if (missingIds > 0)
+            {
+                _logger.Warn("Hardcover returned {0}/{1} result(s) with missing IDs for query '{2}' — these will be skipped", missingIds, results.Count, queryText);
+            }
+
+            if (missingTitles > 0)
+            {
+                _logger.Debug("Hardcover returned {0}/{1} result(s) with missing titles for query '{2}' — ID will be used as fallback title", missingTitles, results.Count, queryText);
+            }
+
+            if (missingAuthors > 0)
+            {
+                _logger.Debug("Hardcover returned {0}/{1} result(s) with no author information for query '{2}' — 'Unknown Author' will be used", missingAuthors, results.Count, queryText);
+            }
         }
 
         private static string BuildSearchQuery(string title, string author)
@@ -837,6 +897,18 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
     public class HardcoverGraphQlResponse
     {
         public HardcoverGraphQlData Data { get; set; }
+
+        [JsonProperty("errors")]
+        public List<HardcoverGraphQlError> Errors { get; set; }
+    }
+
+    public class HardcoverGraphQlError
+    {
+        [JsonProperty("message")]
+        public string Message { get; set; }
+
+        [JsonProperty("extensions")]
+        public JToken Extensions { get; set; }
     }
 
     public class HardcoverGraphQlData
