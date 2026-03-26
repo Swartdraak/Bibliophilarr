@@ -1,25 +1,23 @@
-import { getBookSearchResultFlags } from './AddNewItem';
+import createExistingBookSelector from 'Store/Selectors/createExistingBookSelector';
 
-describe('AddNewItem book result flags', () => {
-  test('handles null author payload without throwing', () => {
-    const flags = getBookSearchResultFlags({
-      id: 42,
-      author: null
-    });
-
-    expect(flags.isExistingBook).toBe(true);
-    expect(flags.isExistingAuthor).toBe(false);
+describe('createExistingBookSelector', () => {
+  test('returns false when book is not in library', () => {
+    const selector = createExistingBookSelector();
+    const state = { books: { items: [] } };
+    const props = { foreignBookId: 'openlibrary:work:OW123' };
+    expect(selector(state, props)).toBe(false);
   });
 
-  test('marks existing author when author id is present', () => {
-    const flags = getBookSearchResultFlags({
-      id: 42,
-      author: {
-        id: 7
+  test('returns true when book foreignBookId matches', () => {
+    const selector = createExistingBookSelector();
+    const state = {
+      books: {
+        items: [
+          { foreignBookId: 'openlibrary:work:OW123', id: 42, title: 'Test' }
+        ]
       }
-    });
-
-    expect(flags.isExistingBook).toBe(true);
-    expect(flags.isExistingAuthor).toBe(true);
+    };
+    const props = { foreignBookId: 'openlibrary:work:OW123' };
+    expect(selector(state, props)).toBe(true);
   });
 });

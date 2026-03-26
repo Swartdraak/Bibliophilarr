@@ -118,18 +118,6 @@ jobs:
           corepack prepare yarn@1.22.19 --activate
           yarn --version
 
-      - name: Build backend
-        shell: bash
-        run: ./build.sh --backend -r ${{ matrix.rid }} -f net8.0
-
-      - name: Build frontend
-        shell: bash
-        run: ./build.sh --frontend
-
-      - name: Build package
-        shell: bash
-        run: ./build.sh --packages -r ${{ matrix.rid }} -f net8.0
-
       - name: Resolve version metadata
         id: ver
         shell: bash
@@ -142,6 +130,20 @@ jobs:
           VERSION="${TAG#v}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build backend
+        shell: bash
+        env:
+          BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
+        run: ./build.sh --backend -r ${{ matrix.rid }} -f net8.0
+
+      - name: Build frontend
+        shell: bash
+        run: ./build.sh --frontend
+
+      - name: Build package
+        shell: bash
+        run: ./build.sh --packages -r ${{ matrix.rid }} -f net8.0
 
       - name: Archive package (unix)
         if: runner.os != 'Windows'

@@ -18,6 +18,7 @@ namespace NzbDrone.Core.Books
         Author AddAuthor(Author newAuthor, bool doRefresh);
         List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh);
         Author FindById(string foreignAuthorId);
+        Author FindByTitleSlug(string titleSlug);
         Author FindByName(string title);
         Author FindByNameInexact(string title);
         List<Author> GetCandidates(string title);
@@ -88,6 +89,11 @@ namespace NzbDrone.Core.Books
         public Author FindById(string foreignAuthorId)
         {
             return _authorRepository.FindById(foreignAuthorId);
+        }
+
+        public Author FindByTitleSlug(string titleSlug)
+        {
+            return _authorRepository.FindByTitleSlug(titleSlug);
         }
 
         public Author FindByName(string title)

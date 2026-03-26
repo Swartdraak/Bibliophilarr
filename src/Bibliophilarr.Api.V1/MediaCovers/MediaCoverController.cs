@@ -12,7 +12,7 @@ namespace Bibliophilarr.Api.V1.MediaCovers
     [V1ApiController]
     public class MediaCoverController : Controller
     {
-        private static readonly Regex RegexResizedImage = new Regex(@"-\d+(?=\.(jpg|png|gif)$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RegexResizedImage = new Regex(@"-\d+(?=\.(jpe?g|png|gif)$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly IAppFolderInfo _appFolderInfo;
         private readonly IDiskProvider _diskProvider;
@@ -25,7 +25,7 @@ namespace Bibliophilarr.Api.V1.MediaCovers
             _mimeTypeProvider = new FileExtensionContentTypeProvider();
         }
 
-        [HttpGet(@"author/{authorId:int}/{filename:regex((.+)\.(jpg|png|gif))}")]
+        [HttpGet(@"author/{authorId:int}/{filename:regex((.+)\.(jpe?g|png|gif))}")]
         public IActionResult GetAuthorMediaCover(int authorId, string filename)
         {
             var filePath = Path.Combine(_appFolderInfo.GetAppDataPath(), "MediaCover", authorId.ToString(), filename);
@@ -46,7 +46,7 @@ namespace Bibliophilarr.Api.V1.MediaCovers
             return PhysicalFile(filePath, GetContentType(filePath));
         }
 
-        [HttpGet(@"book/{bookId:int}/{filename:regex((.+)\.(jpg|png|gif))}")]
+        [HttpGet(@"book/{bookId:int}/{filename:regex((.+)\.(jpe?g|png|gif))}")]
         public IActionResult GetBookMediaCover(int bookId, string filename)
         {
             var filePath = Path.Combine(_appFolderInfo.GetAppDataPath(), "MediaCover", "Books", bookId.ToString(), filename);

@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 24, 2026 (comprehensive deep audit v2 — 287 findings, full remediation queue)
+**Last Updated**: March 26, 2026 (Hardcover metadata expansion, frontend UX fixes, crash guard hardening)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -31,6 +31,267 @@ The following items were added to canonical planning for immediate/future delive
   - Ensure variant isolation across monitoring, search, import, and upgrade workflows.
 
 ## Latest Delivery Update
+
+### March 26, 2026 Hardcover metadata expansion, frontend UX fixes, and crash guard hardening
+
+User-reported issues from full-library rescan were investigated and resolved. All code
+fixes are deployed and running. RefreshAuthor command triggered for all 430 library authors
+to backfill metadata from the Hardcover provider.
+
+#### Issue #1 — Authors only have book metadata for files with media on disk
+
+- Root cause: `FetchAuthorBooks` GraphQL query used `contributions(limit: 100)`, which
+  truncated the full bibliography for prolific authors (e.g. Stephen King has 200+ works).
+- Fix: Increased `contributions(limit: 500)` in the Hardcover `FetchAuthorBooks` query.
+- Result: Books grew from 1882 to 3944+ after RefreshAuthor batch began.
+- File: `src/NzbDrone.Core/MetadataSource/Hardcover/HardcoverFallbackSearchProvider.cs`
+
+#### Issue #2 — AuthorDetailsHeader links not displaying Hardcover/OpenLibrary/GoogleBooks
+
+- Root cause: `GetAuthorInfo` never populated `metadata.Links` — the Links property was
+  always empty.
+- Fix: Added `out string authorSlug` parameter to `FetchAuthorBooks`; extracted
+  `authorData.Value<string>("slug")` from the GraphQL response; built and assigned a
+  `Links` list with the Hardcover author URL
+  (`https://hardcover.app/authors/{authorSlug}`).
+- Verified: 35 authors now have links in the database. API returns links data to the
+  frontend correctly.
+- File: `src/NzbDrone.Core/MetadataSource/Hardcover/HardcoverFallbackSearchProvider.cs`
+
+#### Issue #3 — PageJumpBar A–Z buttons not responding on Bookshelf page
+
+- Root cause: `Bookshelf.js` `componentDidMount()` was missing the `setJumpBarItems()`
+  call that other index pages (e.g. `AuthorIndex`) include.
+- Fix: Added `this.setJumpBarItems()` in `componentDidMount()`.
+- File: `frontend/src/Bookshelf/Bookshelf.js`
+
+#### Issue #4 — Bookshelf contentBody not populated with data
+
+- Root cause: `Bookshelf.js` referenced `styles.innerContentBody` as the
+  `innerClassName` prop on VirtualTable, but `Bookshelf.css` only defines
+  `tableInnerContentBody`. The nonexistent CSS class produced no styling/layout
+  output.
+- Fix: Changed to `styles.tableInnerContentBody`.
+- File: `frontend/src/Bookshelf/Bookshelf.js`
+
+#### Issue #5 — Author Book Series data not displayed on frontend
+
+- Root cause: Series data (210 series, 515 book links) was missing because
+  `RefreshAuthor` had only run for 4 of 430 authors before code fixes were deployed.
+- Fix: Triggered RefreshAuthor for all 430 authors via API. Series data is populating
+  as each author refreshes.
+- Verified: API returns series data correctly (e.g. Stephen King: 33 series via
+  `/api/v1/series?authorId=80`).
+
+#### Bonus fix — MediaCoverProxy file:// scheme crash
+
+- Root cause: `MediaCoverProxy.GetImage()` attempted an HTTP request for `file://` URLs,
+  causing `System.NotSupportedException: The 'file' scheme is not supported`.
+- Fix: Added scheme check; uses `new Uri(url).LocalPath` + `File.ReadAllBytes()` for
+  `file://` URLs instead of HTTP.
+- File: `src/NzbDrone.Core/MediaCover/MediaCoverProxy.cs`
+
+#### Bonus fix — TrackedDownloadService AuthorId 0 crash
+
+- Root cause: `TrackedDownloadService.UpdateCachedItem` called
+  `_parsingService.Map(parsedBookInfo, firstHistoryItem.AuthorId, ...)` when
+  `AuthorId` was 0, causing `_authorService.GetAuthor(0)` to throw
+  `ModelNotFoundException`.
+- Fix: Added `firstHistoryItem.AuthorId > 0` guard at both call sites in
+  `UpdateCachedItem`. When AuthorId is 0, falls back to
+  `_parsingService.Map(parsedBookInfo)` (name-based resolution).
+- File: `src/NzbDrone.Core/Download/TrackedDownloads/TrackedDownloadService.cs`
+
+#### Operational status
+
+- RefreshAuthor command queued for all 430 authors (command 1080, queued behind
+  RescanFolders and BackfillOpenLibraryIds).
+- Hardcover API intermittently returns 408 timeouts and 500 errors under load; these
+  are handled gracefully (logged and skipped). Affected authors will succeed on the
+  next refresh cycle.
+- 17 authors completed before server restart; remaining authors processing via
+  command 1080.
+
+#### Database state snapshot (March 26, 2026)
+
+| Metric | Before fixes | After fixes |
+|---|---:|---:|
+| Authors | 430 | 430 |
+| Books | 1,882 | 3,944 |
+| Series | 33 | 210 |
+| SeriesBookLink | 56 | 515 |
+| BookFiles | 3,792 | 3,792 |
+| Authors with links | 1 | 35 |
+
+#### Validation
+
+- Backend build: 0 warnings, 0 errors.
+- Frontend build: webpack production build pass.
+- Server smoke test: `/ping` returns HTTP 200.
+- API verification: author links, series data, and book counts confirmed via API
+  queries against running server.
+- All fixes deployed to running instance (PID 223072).
+
+### March 25, 2026 UX rebranding, critical bug fixes, versioning, and production diagnostics
+
+#### UX rebranding
+
+1. Loading page logo — replaced legacy Readarr logo and base64 inline image in
+   `LoadingPage.js` with new Bibliophilarr PNG (`Logo/Bibliophilarr_128x128.png`).
+   Updated `LoadingPage.css` to 128x128 sizing with 0.9 opacity.
+
+2. Color palette — extracted Navy `#193555`, Dark Navy `#122336`, Teal `#54939C` /
+   `#609497` from the new logo. Replaced the red `#ca302d` accent across
+   `light.js`, `dark.js`, `login.html`, and `index.ejs` (theme-color meta tags,
+   panel-header backgrounds, safari pinned-tab color).
+
+3. Loading page SVG — replaced `logo.svg` with new Bibliophilarr brand SVG.
+
+#### Critical bug fixes
+
+4. **Author/book slug 404 fix** — Raw provider foreign keys like
+   `hardcover:author:Frank%20W.%20Abagnale` were used as URL slugs, causing 404s
+   on author and book detail pages. Created `ToUrlSlug()` extension method in
+   `StringExtensions.cs` (URL-decodes, removes diacritics, lowercases, replaces
+   non-alphanumeric characters with hyphens, trims). Applied to all 18 TitleSlug
+   fallback assignments across 9 files:
+   - `AddAuthorService.cs` (1 site)
+   - `HardcoverFallbackSearchProvider.cs` (4 sites)
+   - `OpenLibraryMapper.cs` (3 sites)
+   - `OpenLibraryProvider.cs` (1 site)
+   - `OpenLibrarySearchProxy.cs` (4 sites)
+   - `GoogleBooksFallbackSearchProvider.cs` (2 sites)
+   - `InventaireFallbackSearchProvider.cs` (2 sites)
+   - `ImportApprovedBooks.cs` (2 sites)
+
+   **Known limitation**: existing database records (517 authors, 1738 books) retain
+   malformed slugs with colons and URL-encoded characters. A database migration or
+   on-access normalizer is needed (see follow-up items below).
+
+5. **Add Search green check fix** — Book search results used
+   `getBookSearchResultFlags()` checking `book.id !== 0` from API response data,
+   which was lost on page refresh/navigation. Fixed by creating
+   `createExistingBookSelector.js` (Redux-backed, checks `foreignBookId` against
+   `state.books.items`) and inline `createExistingAuthorForBookSelector` in the
+   connector. Removed the stateless `getBookSearchResultFlags()` function from
+   `AddNewItem.js`. Green checks now persist correctly across navigation.
+
+#### Semantic versioning codification
+
+6. Added "Release versioning" section to `CONTRIBUTING.md` defining SemVer 2.0
+   policy, bump trigger table (MAJOR/MINOR/PATCH), pre-release format
+   (`X.Y.Z-beta.N`), version sources, and contributor/agent responsibilities.
+
+7. Fixed `release.yml` — moved "Resolve version metadata" step before build steps
+   and added `BIBLIOPHILARRVERSION` env var to the backend build step. Previously
+   binaries shipped with placeholder version `10.0.0.*`.
+
+8. Created `.github/workflows/validate-release-version.yml` — CI validation that
+   checks release tag format matches SemVer pattern and `CHANGELOG.md` contains a
+   matching `## [X.Y.Z]` entry.
+
+9. Updated `Directory.Build.props` comment to clarify CI version injection
+   mechanism.
+
+#### Operational analysis (no code changes)
+
+10. **Bookshelf blank page** — Investigated and confirmed not a code bug.
+    `PageConnector.componentDidMount()` already fetches both authors and books at
+    startup. Blank page is operational (no authors added yet or import failures).
+
+11. **Activity Queue not processing** — Analysis identified multiple operational
+    causes: `EnableCompletedDownloadHandling` disabled, download client offline,
+    missing author/book in library for new downloads, path permissions, stale
+    SignalR cache. Not a code bug.
+
+12. **Unmapped Files proposal** — Created `docs/proposals/unmapped-files-upgrade.md`
+    with P1-P6 prioritized enhancements (filter/search, heuristic matching, bulk
+    assign, ignore list, duplicate detection, folder scoping).
+
+#### Production database and log diagnostics
+
+Analysis of the live production database (`bibliophilarr.db`, 6.4 MB) and log
+database (`logs.db`, 3.3 MB) on March 25, 2026.
+
+**Database statistics:**
+
+| Metric | Count | Notes |
+|---|---|---|
+| Authors | 517 | All sourced from Hardcover |
+| Books | 1,738 | 1,736 Hardcover, 1 OpenLibrary, 1 GoogleBooks |
+| Editions | 1,738 | 1,444 have ISBN13; 0 have ASIN |
+| Book files (total) | 3,789 | |
+| Mapped files (EditionId ≠ 0) | 1,736 | 45.8% mapped |
+| Unmapped files (EditionId = 0) | 2,053 | 54.2% unmapped |
+| Editions missing ISBN13 | 294 | 16.9% of editions |
+| Download history entries | 289 | |
+| History events | 32 | (7 grabbed, 7 download-folder-imported, 18 book-file-imported) |
+
+**TitleSlug quality (pre-fix):**
+
+- 100% of author slugs (517/517) contain colons — format: `hardcover:author:Name`
+- 100% of book slugs (1,738/1,738) contain colons — format: `hardcover:work:ID`
+- All include URL-encoded characters (e.g. `%20`, `%2C`)
+- The `ToUrlSlug()` fix prevents new malformed slugs; existing records require migration
+
+**Log severity distribution (logs.db):**
+
+| Level | Count |
+|---|---|
+| Error | 5 |
+| Warn | 130 |
+| Info | 23,333 |
+
+**Error entries (5 total):**
+
+1. `RefreshBookService` — Book `hardcover:work:560004` ("Thunder Moon") not found
+   in any metadata source during refresh
+2. `RefreshBookService` — Book `hardcover:work:2472200` ("Any Given Doomsday") not
+   found in any metadata source during refresh
+3. `CommandExecutor` — `BulkRefreshAuthor` expected 525 rows but returned 517
+   (8-row mismatch suggests authors were deleted or merged upstream)
+
+**Warning breakdown by source (130 total):**
+
+| Logger | Count | Pattern |
+|---|---|---|
+| `EBookTagService` | 85 | Corrupt/unreadable files: EPUB (broken central directory), PDF (invalid headers), MOBI (invalid headers). Actionable via Calibre repair. |
+| `MetadataProviderOrchestrator` | 18 | Hardcover provider failures: 408 timeouts, 429 rate limits, author-not-found for URL-encoded IDs (`Agatha%20Christie`, `David%20%20Weber`, `J.%20R.%20R.%20Tolkien`, etc.) |
+| `FetchAndParseRssService` | 13 | "No available indexers" — no RSS indexers configured (hourly) |
+| `DownloadedBooksImportService` | 6 | Book files detected in `/media/torrents/ebooks/` but not imported |
+| `AddAuthorService` | 6 | Author metadata lookup returned no results for URL-encoded Hardcover IDs; fell back to request payload |
+| `HttpClient` | 2 | HTTP request failures |
+
+**Key findings and recommended follow-ups:**
+
+1. **DB slug migration needed** (CRITICAL) — All 2,255 existing TitleSlug values
+   (517 authors + 1,738 books) contain colons and URL-encoded characters. The code
+   fix only prevents new bad slugs. **FIXED** — Created migration 044
+   (`044_normalize_title_slugs.cs`) that applies `ToUrlSlug()` to all existing
+   `AuthorMetadata.TitleSlug`, `Books.TitleSlug`, and `Editions.TitleSlug` values.
+   No uniqueness collisions detected (517/517 authors, 1738/1738 books unique
+   after normalization). Migration runs automatically on next application start.
+
+2. **54% unmapped files** — 2,053 of 3,789 book files have no edition link. The
+   identification quality fixes from March 24 (case-insensitive format comparison,
+   author+title search not short-circuited) should improve this on next rescan.
+   Monitor unmapped count after full library rescan.
+
+3. **Hardcover author lookup failures** — 6 authors fail metadata lookup because
+   their foreign IDs contain URL-encoded spaces (`%20`) that Hardcover's API does
+   not recognize. The `ToUrlSlug()` fix addresses this for new entries. Existing
+   entries need the slug migration (item 1 above) plus a bulk metadata refresh.
+
+4. **85 corrupt ebook files** — EPUB, PDF, and MOBI files with structural damage
+   (broken central directories, invalid headers). These map correctly via filename
+   fallback but lack embedded metadata. User action: repair via Calibre.
+
+5. **No RSS indexers configured** — 13 hourly warnings from
+   `FetchAndParseRssService`. User should configure RSS indexers in Settings or
+   disable RSS sync if not needed.
+
+6. **Zero ASIN coverage** — No editions have ASIN values populated. This limits
+   audiobook identification and Amazon cross-referencing.
 
 ### March 24, 2026 deep project audit and immediate fixes
 

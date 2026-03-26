@@ -6,6 +6,29 @@ This document outlines the comprehensive technical plan for migrating Bibliophil
 
 ## Implementation Progress Snapshots
 
+### March 26, 2026 — Hardcover Metadata Expansion and Series Persistence Progress
+
+Hardcover metadata provider fixes deployed and RefreshAuthor triggered for all 430 library
+authors. Key improvements:
+
+- **Full bibliography**: Increased Hardcover GraphQL `contributions(limit: 500)` (was 100).
+  Books grew from 1,882 to 3,944+.
+- **Author links**: `GetAuthorInfo` now populates `metadata.Links` with the Hardcover author
+  page URL. 35 authors have links so far.
+- **Series persistence progress**: Series table grew from 33 to 210; SeriesBookLink from
+  56 to 515. RefreshAuthor (command 1080) is queued for all 430 authors — counts will
+  continue growing.
+- **Crash guards**: Fixed `TrackedDownloadService` AuthorId=0 crash and
+  `MediaCoverProxy` file:// scheme crash.
+
+Migration risk posture update:
+
+- Series persistence blocker is showing significant progress (210 series, 515 links)
+  as the Hardcover provider now returns richer data. Full resolution expected after
+  RefreshAuthor completes for all 430 authors.
+- Hardcover API intermittently rate-limits under batch load (408/500 errors); handled
+  gracefully but some authors require re-refresh.
+
 ### March 24, 2026 — Comprehensive Deep Audit v2
 
 Comprehensive audit v2 across six parallel audits (backend C#, frontend, CI/CD and build,
@@ -134,7 +157,10 @@ Validation status for this slice:
 Migration risk posture update:
 
 - Tooling and CI controls for replay and frontend regressions are now in place.
-- Primary migration blocker remains runtime series persistence and duplicate author convergence in staging DB state.
+- Series persistence blocker is actively resolving — 210 series and 515 links populated
+  as of March 26, 2026 (was zero in staging). RefreshAuthor for all 430 authors is in
+  progress via Hardcover provider.
+- Duplicate author convergence in staging DB state remains a secondary concern.
 
 ### March 18, 2026 — Provider Orchestration Integration
 

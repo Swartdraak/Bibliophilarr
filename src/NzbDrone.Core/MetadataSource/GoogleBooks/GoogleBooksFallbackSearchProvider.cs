@@ -390,6 +390,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             var authorMetadata = new AuthorMetadata
             {
                 ForeignAuthorId = BuildGoogleAuthorId(authorName),
+                TitleSlug = BuildGoogleAuthorId(authorName).ToUrlSlug(),
                 Name = authorName,
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
@@ -407,7 +408,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             var book = new Book
             {
                 ForeignBookId = $"googlebooks:work:{item.Id}",
-                TitleSlug = $"googlebooks:work:{item.Id}",
+                TitleSlug = $"googlebooks:work:{item.Id}".ToUrlSlug(),
                 Title = title,
                 CleanTitle = title,
                 Author = author,
@@ -425,7 +426,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             var edition = new Edition
             {
                 ForeignEditionId = $"googlebooks:edition:{item.Id}",
-                TitleSlug = $"googlebooks:edition:{item.Id}",
+                TitleSlug = $"googlebooks:edition:{item.Id}".ToUrlSlug(),
                 Title = title,
                 Publisher = volume.Publisher,
                 ReleaseDate = publishedDate,
@@ -555,6 +556,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             var metadata = new AuthorMetadata
             {
                 ForeignAuthorId = BuildGoogleAuthorId(name),
+                TitleSlug = BuildGoogleAuthorId(name).ToUrlSlug(),
                 Name = name.Trim(),
                 SortName = name.Trim().ToLowerInvariant(),
                 NameLastFirst = name.Trim().ToLastFirst(),

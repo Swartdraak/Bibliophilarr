@@ -12,6 +12,9 @@
   flex: 0 1 250px;
   padding-right: 20px;
   line-height: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sizeLimit {

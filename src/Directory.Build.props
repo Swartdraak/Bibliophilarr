@@ -77,7 +77,8 @@
     <Company>Bibliophilarr Community</Company>
     <Copyright>Copyright 2017-$([System.DateTime]::Now.ToString('yyyy')) Bibliophilarr (GNU General Public v3)</Copyright>
 
-    <!-- Should be replaced by CI -->
+    <!-- CI injects actual SemVer version via BIBLIOPHILARRVERSION env var in build.sh.
+         Do not edit this placeholder manually. See CONTRIBUTING.md "Release versioning". -->
     <AssemblyVersion>10.0.0.*</AssemblyVersion>
     <AssemblyConfiguration>$(Configuration)-dev</AssemblyConfiguration>
     <NeutralLanguage>en</NeutralLanguage>

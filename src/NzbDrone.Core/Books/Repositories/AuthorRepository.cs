@@ -12,6 +12,7 @@ namespace NzbDrone.Core.Books
         bool AuthorPathExists(string path);
         Author FindByName(string cleanName);
         Author FindById(string foreignAuthorId);
+        Author FindByTitleSlug(string titleSlug);
         Dictionary<int, string> AllAuthorPaths();
         Dictionary<int, List<int>> AllAuthorTags();
         Author GetAuthorByMetadataId(int authorMetadataId);
@@ -48,6 +49,11 @@ namespace NzbDrone.Core.Books
         public Author FindById(string foreignAuthorId)
         {
             return Query(Builder().Where<AuthorMetadata>(m => m.ForeignAuthorId == foreignAuthorId)).SingleOrDefault();
+        }
+
+        public Author FindByTitleSlug(string titleSlug)
+        {
+            return Query(Builder().Where<AuthorMetadata>(m => m.TitleSlug == titleSlug)).SingleOrDefault();
         }
 
         public Author FindByName(string cleanName)

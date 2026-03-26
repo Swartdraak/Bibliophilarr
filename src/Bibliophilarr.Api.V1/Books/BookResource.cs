@@ -78,7 +78,7 @@ namespace Bibliophilarr.Api.V1.Books
                 SeriesTitle = seriesTitle,
                 Disambiguation = selectedEdition?.Disambiguation,
                 Images = selectedEdition?.Images ?? new List<MediaCover>(),
-                Links = model.Links.Concat(selectedEdition?.Links ?? new List<Links>()).ToList(),
+                Links = model.Links.Concat(selectedEdition?.Links ?? new List<Links>()).GroupBy(l => l.Url).Select(g => g.First()).ToList(),
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,
                 LastSearchTime = model.LastSearchTime

@@ -81,6 +81,7 @@ class Bookshelf extends Component {
   }
 
   componentDidMount() {
+    this.setJumpBarItems();
     this.setSelectedState();
   }
 
@@ -365,7 +366,7 @@ class Bookshelf extends Component {
           <PageContentBody
             registerScroller={this.setScrollerRef}
             className={styles.contentBody}
-            innerClassName={styles.innerContentBody}
+            innerClassName={styles.tableInnerContentBody}
           >
             {
               isFetching && !isPopulated &&

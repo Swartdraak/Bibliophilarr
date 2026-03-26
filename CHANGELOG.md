@@ -9,6 +9,35 @@ process.
 
 ### Added
 
+- Hardcover author links: `GetAuthorInfo` now populates `metadata.Links` with the author's Hardcover page URL extracted from the `slug` field in the GraphQL response. 35 authors have links populated so far.
+- `ToUrlSlug()` string extension method in `StringExtensions.cs` — URL-decodes, removes diacritics, lowercases, replaces non-alphanumeric characters with hyphens, trims. Used by all metadata providers and import services for TitleSlug generation.
+- `createExistingBookSelector.js` — Redux selector that checks if a book exists in the library by `foreignBookId` against `state.books.items`.
+- `.github/workflows/validate-release-version.yml` — CI workflow that validates release tag format (SemVer pattern) and checks `CHANGELOG.md` contains a matching version entry.
+- `docs/proposals/unmapped-files-upgrade.md` — Comprehensive proposal for Unmapped Files page enhancements with P1-P6 prioritized features (filter/search, heuristic matching, bulk assign, ignore list, duplicate detection, folder scoping).
+- "Release versioning" section in `CONTRIBUTING.md` defining SemVer 2.0 policy, bump trigger table, pre-release format, version sources, and contributor/agent responsibilities.
+- Production database and log diagnostics section in `PROJECT_STATUS.md` with database statistics, TitleSlug quality assessment, log severity breakdown, and 6 recommended follow-up items.
+- Database migration 044 (`044_normalize_title_slugs.cs`) — applies `ToUrlSlug()` to all existing `AuthorMetadata.TitleSlug`, `Books.TitleSlug`, and `Editions.TitleSlug` values. Cleans up malformed slugs with colons and URL-encoded characters from Hardcover/OpenLibrary foreign IDs. Runs automatically on next application start.
+
+### Changed
+
+- Hardcover `FetchAuthorBooks` GraphQL query: increased `contributions(limit: 100)` to `contributions(limit: 500)` to fetch full bibliography for prolific authors. Books grew from 1,882 to 3,944+ after RefreshAuthor.
+- Loading page logo: replaced legacy Readarr base64 inline image in `LoadingPage.js` with new Bibliophilarr PNG (`Logo/Bibliophilarr_128x128.png`); updated `LoadingPage.css` to 128x128 sizing.
+- Loading page SVG: replaced `logo.svg` with new Bibliophilarr brand SVG.
+- Color palette: replaced red `#ca302d` accent with Navy `#193555` and Teal `#54939C` across `light.js`, `dark.js`, `login.html`, and `index.ejs` (theme-color meta tags, panel-header backgrounds, safari pinned-tab color).
+- `Directory.Build.props` version comment updated to clarify CI version injection mechanism via `BIBLIOPHILARRVERSION` env var.
+
+### Fixed
+
+- Bookshelf CSS class mismatch: `Bookshelf.js` referenced nonexistent `styles.innerContentBody`; changed to `styles.tableInnerContentBody` (the class defined in `Bookshelf.css`).
+- Bookshelf JumpBar initialization: added missing `this.setJumpBarItems()` call in `Bookshelf.js` `componentDidMount()`. Other index pages (e.g. `AuthorIndex`) already had this call.
+- `MediaCoverProxy.GetImage()` crash on `file://` URLs: added scheme check and `File.ReadAllBytes()` path for local file URLs instead of HTTP request. Eliminates `System.NotSupportedException`.
+- `TrackedDownloadService.UpdateCachedItem` crash when `AuthorId` is 0: added `firstHistoryItem.AuthorId > 0` guard at both `_parsingService.Map()` call sites. Falls back to name-based resolution when AuthorId is 0 instead of throwing `ModelNotFoundException`.
+- Author/book slug 404 bug: raw provider foreign keys (e.g. `hardcover:author:Frank%20W.%20Abagnale`) used as URL slugs caused broken routes. Applied `ToUrlSlug()` to all 18 TitleSlug fallback assignments across 9 files (`AddAuthorService`, `HardcoverFallbackSearchProvider`, `OpenLibraryMapper`, `OpenLibraryProvider`, `OpenLibrarySearchProxy`, `GoogleBooksFallbackSearchProvider`, `InventaireFallbackSearchProvider`, `ImportApprovedBooks`).
+- Add Search green check disappearing on page refresh: `getBookSearchResultFlags()` checked `book.id !== 0` from API response (lost on navigation). Replaced with Redux-backed `createExistingBookSelector` and `createExistingAuthorForBookSelector` in `AddNewBookSearchResultConnector.js`; removed stateless function from `AddNewItem.js`.
+- `release.yml` version injection: moved "Resolve version metadata" step before build steps and added `BIBLIOPHILARRVERSION` env var to backend build step. Previously binaries shipped with placeholder version `10.0.0.*`.
+
+### Added (previous session)
+
 - Comprehensive deep audit v2: six parallel audits (backend C#, frontend, CI/CD, documentation, Docker/infrastructure, packages/dependencies) produced 287 distinct findings consolidated into 176 remediation items (RQ-001 through RQ-178) in `PROJECT_STATUS.md`.
   - 14 Critical, 58 High, 101 Medium, 93 Low, 21 Enhancement/Migration opportunities.
   - New priority tier P4 (Strategic/Migration Opportunities) tracks React 18, React Router 6, RestSharp→HttpClient, .NET 10, Node 22, and other long-horizon migrations.

@@ -128,10 +128,12 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
             var authorMetadata = new AuthorMetadata
             {
                 ForeignAuthorId = $"inventaire:author:{authorId}",
+                TitleSlug = $"inventaire:author:{authorId}".ToUrlSlug(),
                 Name = authorName,
                 SortName = authorName,
                 NameLastFirst = authorName,
-                SortNameLastFirst = authorName
+                SortNameLastFirst = authorName,
+                Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
             AddAuthorImage(authorMetadata, result);
@@ -145,7 +147,7 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
             var book = new Book
             {
                 ForeignBookId = $"inventaire:work:{workId}",
-                TitleSlug = $"inventaire:work:{workId}",
+                TitleSlug = $"inventaire:work:{workId}".ToUrlSlug(),
                 Title = title,
                 CleanTitle = title,
                 Author = author,
@@ -158,7 +160,7 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
             var edition = new Edition
             {
                 ForeignEditionId = $"inventaire:edition:{workId}",
-                TitleSlug = $"inventaire:edition:{workId}",
+                TitleSlug = $"inventaire:edition:{workId}".ToUrlSlug(),
                 Title = title,
                 Isbn13 = result.Isbn13,
                 IsEbook = true,

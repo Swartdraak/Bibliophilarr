@@ -89,6 +89,46 @@ Minimum pre-commit checklist:
 
 Reference: [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md)
 
+## Release versioning
+
+Bibliophilarr follows [Semantic Versioning 2.0.0](https://semver.org/).
+
+Version format: `MAJOR.MINOR.PATCH` (e.g. `1.2.3`).
+
+### When to bump each component
+
+| Bump | Trigger | Examples |
+|---|---|---|
+| **MAJOR** | Breaking changes to REST API contracts, database schema changes that require migration, removal of supported provider interfaces | API resource field removed, edition schema restructured |
+| **MINOR** | New features, new provider integrations, new API endpoints, non-breaking behavioral changes | New metadata provider added, new search endpoint, new filter option |
+| **PATCH** | Bug fixes, performance improvements, documentation corrections, dependency updates with no API impact | Slug fix, query optimization, typo correction |
+
+### Pre-release versions
+
+Use `-alpha.N`, `-beta.N`, or `-rc.N` suffixes for pre-release tags
+(e.g. `v1.0.0-beta.1`).
+
+### Version sources
+
+- **Git tags** are the source of truth: `v{MAJOR}.{MINOR}.{PATCH}`.
+- **Build-time injection**: CI sets `BIBLIOPHILARRVERSION` env var, which
+  `build.sh` writes into `src/Directory.Build.props` `<AssemblyVersion>`.
+- **CHANGELOG.md** must have a matching `## [X.Y.Z]` entry before tagging.
+- **package.json** root version is updated by the release workflow.
+
+### Contributor responsibilities
+
+- Do not manually edit version numbers in source files.
+- Add a changelog entry under `## [Unreleased]` for every user-facing change.
+- Maintainers handle version tagging and release coordination.
+
+### Agent and automation responsibilities
+
+- All agents and automation must respect the version in `CHANGELOG.md`.
+- Agents must add changelog entries for behavioral changes, bug fixes,
+  and new features under `## [Unreleased]` in the same change set.
+- Version bumping is a maintainer-only action via git tags.
+
 ## Pull request requirements
 
 Every pull request should state:

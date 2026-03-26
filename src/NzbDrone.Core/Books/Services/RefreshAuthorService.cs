@@ -294,6 +294,7 @@ namespace NzbDrone.Core.Books
         {
             // NOTE: Trigger the series update here after author refresh completes.
             var series = entity.Series;
+
             if (series?.Value == null || !series.Value.Any())
             {
                 series = BuildSeriesFromBookLinks(entity);

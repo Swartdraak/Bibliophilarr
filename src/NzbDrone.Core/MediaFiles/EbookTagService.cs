@@ -451,7 +451,7 @@ namespace NzbDrone.Core.MediaFiles
                 return;
             }
 
-            var filenamePair = ExtractAuthorTitleFromFilename(filename);
+            var filenamePair = ExtractAuthorTitleFromFilename(file);
             var parsedAuthors = NormalizeAuthors(parsed.Authors);
             var parsedTitle = NormalizeMetadataText(parsed.BookTitle);
 
@@ -620,8 +620,9 @@ namespace NzbDrone.Core.MediaFiles
             return tokens.Length == 1 && MetadataNoiseTokens.Contains(tokens[0]);
         }
 
-        private static (string Author, string Title) ExtractAuthorTitleFromFilename(string filename)
+        private static (string Author, string Title) ExtractAuthorTitleFromFilename(string filePath)
         {
+            var filename = Path.GetFileName(filePath);
             if (filename.IsNullOrWhiteSpace())
             {
                 return (null, null);
@@ -646,10 +647,75 @@ namespace NzbDrone.Core.MediaFiles
                 return (null, null);
             }
 
-            var author = SanitizeFallbackAuthor(parts[0]);
-            var title = SanitizeFallbackTitle(string.Join(" - ", parts.Skip(1)));
+            // Use directory context to determine author/title order.
+            // Readarr-managed: {Author}/{BookTitle (ID)}/{Title} - {Author}.ext
+            // Legacy:          {Author}/{Author} - {Title}.ext
+            var lastPart = NormalizeMetadataText(parts[parts.Count - 1]);
+            var firstPart = NormalizeMetadataText(parts[0]);
 
-            return (author, title);
+            var parentDir = GetDirectoryName(filePath, 1);
+            var grandparentDir = GetDirectoryName(filePath, 2);
+
+            if (lastPart.IsNotNullOrWhiteSpace() &&
+                (FuzzyMatchDirectoryName(lastPart, parentDir) || FuzzyMatchDirectoryName(lastPart, grandparentDir)))
+            {
+                // Last segment matches a parent directory — format is {Title} - {Author}
+                var author = SanitizeFallbackAuthor(lastPart);
+                var title = SanitizeFallbackTitle(string.Join(" - ", parts.Take(parts.Count - 1)));
+                return (author, title);
+            }
+
+            if (firstPart.IsNotNullOrWhiteSpace() &&
+                (FuzzyMatchDirectoryName(firstPart, parentDir) || FuzzyMatchDirectoryName(firstPart, grandparentDir)))
+            {
+                // First segment matches a parent directory — format is {Author} - {Title}
+                var author = SanitizeFallbackAuthor(firstPart);
+                var title = SanitizeFallbackTitle(string.Join(" - ", parts.Skip(1)));
+                return (author, title);
+            }
+
+            // No directory match — default to parts[0] = author
+            var defaultAuthor = SanitizeFallbackAuthor(parts[0]);
+            var defaultTitle = SanitizeFallbackTitle(string.Join(" - ", parts.Skip(1)));
+
+            return (defaultAuthor, defaultTitle);
+        }
+
+        private static string GetDirectoryName(string filePath, int levels)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(filePath);
+                for (var i = 1; i < levels && dir != null; i++)
+                {
+                    dir = Path.GetDirectoryName(dir);
+                }
+
+                return dir == null ? null : NormalizeMetadataText(Path.GetFileName(dir));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool FuzzyMatchDirectoryName(string candidate, string directoryName)
+        {
+            if (candidate.IsNullOrWhiteSpace() || directoryName.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            // Strip bracketed suffixes like " (1083)" from Readarr-managed directory names
+            var cleanDir = BracketedMetadataPattern.Replace(directoryName, " ");
+            cleanDir = NormalizeMetadataText(cleanDir);
+
+            if (cleanDir.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            return string.Equals(candidate, cleanDir, StringComparison.OrdinalIgnoreCase);
         }
 
         private static (string Author, string Title) SwapFilenamePair((string Author, string Title) pair)

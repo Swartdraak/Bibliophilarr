@@ -258,12 +258,7 @@ namespace NzbDrone.Core.MediaFiles
 
             if (author == null)
             {
-                _logger.Debug("Unknown Author for file: {0}", fileInfo.Name);
-
-                return new List<ImportResult>
-                       {
-                           UnknownAuthorResult(string.Format("Unknown Author for file: {0}", fileInfo.Name), fileInfo.FullName)
-                       };
+                _logger.Debug("Could not parse author from filename: {0}, will try identification from file metadata", fileInfo.Name);
             }
 
             return ProcessFile(fileInfo, importMode, author, downloadClientItem);

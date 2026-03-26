@@ -66,7 +66,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             {
                 ForeignBookId = $"openlibrary:work:{workId}",
                 OpenLibraryWorkId = workId,
-                TitleSlug = $"openlibrary:work:{workId}",
+                TitleSlug = $"openlibrary:work:{workId}".ToUrlSlug(),
                 Title = doc.Title.CleanSpaces(),
                 CleanTitle = Parser.Parser.CleanAuthorName(doc.Title ?? string.Empty),
                 ReleaseDate = ToYearDate(doc.FirstPublishYear),
@@ -111,7 +111,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             {
                 ForeignBookId = $"openlibrary:work:{workId}",
                 OpenLibraryWorkId = workId,
-                TitleSlug = $"openlibrary:work:{workId}",
+                TitleSlug = $"openlibrary:work:{workId}".ToUrlSlug(),
                 Title = (work.Title ?? string.Empty).CleanSpaces(),
                 CleanTitle = Parser.Parser.CleanAuthorName(work.Title ?? string.Empty),
                 ReleaseDate = ParseYear(work.FirstPublishDate),
@@ -241,7 +241,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             {
                 ForeignAuthorId = foreignAuthorId,
                 OpenLibraryAuthorId = authorId,
-                TitleSlug = foreignAuthorId,
+                TitleSlug = foreignAuthorId.ToUrlSlug(),
                 Name = authorName,
                 Status = AuthorStatusType.Continuing,
                 Ratings = new Ratings { Votes = 0, Value = 0 }

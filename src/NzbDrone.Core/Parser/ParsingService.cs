@@ -62,6 +62,19 @@ namespace NzbDrone.Core.Parser
                 authorInfo = _authorService.FindByNameInexact(title);
             }
 
+            // If author not found and we have a parsed book title, try it as the author name
+            // This handles common ebook naming: "BookTitle - AuthorName.epub"
+            if (authorInfo == null && parsedBookInfo != null && !parsedBookInfo.BookTitle.IsNullOrWhiteSpace())
+            {
+                _logger.Debug("Author not found from parsed name, trying book title field as author: {0}", parsedBookInfo.BookTitle);
+                authorInfo = _authorService.FindByName(parsedBookInfo.BookTitle);
+
+                if (authorInfo == null)
+                {
+                    authorInfo = _authorService.FindByNameInexact(parsedBookInfo.BookTitle);
+                }
+            }
+
             return authorInfo;
         }
 

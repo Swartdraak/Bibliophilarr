@@ -378,6 +378,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             {
                 var dbAuthor = _authorService.FindById(author.ForeignAuthorId);
 
+                // If not found by ForeignAuthorId, check by TitleSlug to handle
+                // variant ID formats that normalize to the same slug
+                // (e.g. "J.D.%20Robb" vs "J.%20D.%20Robb" both produce "hardcover-author-j-d-robb")
+                if (dbAuthor == null)
+                {
+                    var expectedSlug = author.ForeignAuthorId.ToUrlSlug();
+                    if (expectedSlug.IsNotNullOrWhiteSpace())
+                    {
+                        dbAuthor = _authorService.FindByTitleSlug(expectedSlug);
+                        if (dbAuthor != null)
+                        {
+                            _logger.Debug("Found existing author by TitleSlug {0} (variant ForeignAuthorId: {1})", expectedSlug, author.ForeignAuthorId);
+                        }
+                    }
+                }
+
                 if (dbAuthor == null)
                 {
                     _logger.Debug("Adding remote author {0}", author);
@@ -606,7 +622,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (book.TitleSlug.IsNullOrWhiteSpace())
             {
-                book.TitleSlug = FirstNonEmpty(book.ForeignBookId, book.OpenLibraryWorkId, book.CleanTitle, book.Title);
+                book.TitleSlug = FirstNonEmpty(book.ForeignBookId, book.OpenLibraryWorkId, book.CleanTitle, book.Title)?.ToUrlSlug();
             }
 
             var editions = book.Editions?.Value;
@@ -635,7 +651,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (edition.TitleSlug.IsNullOrWhiteSpace())
             {
-                edition.TitleSlug = FirstNonEmpty(edition.ForeignEditionId, edition.Title, book?.TitleSlug, book?.ForeignBookId);
+                edition.TitleSlug = FirstNonEmpty(edition.ForeignEditionId, edition.Title, book?.TitleSlug, book?.ForeignBookId)?.ToUrlSlug();
             }
         }
 

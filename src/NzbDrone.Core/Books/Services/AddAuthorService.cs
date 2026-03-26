@@ -68,6 +68,14 @@ namespace NzbDrone.Core.Books
             _authorMetadataService.Upsert(newAuthor.Metadata.Value);
             newAuthor.AuthorMetadataId = newAuthor.Metadata.Value.Id;
 
+            // If metadata was reused (slug collision), an Author may already exist
+            var existingAuthor = _authorService.GetAuthorByMetadataId(newAuthor.AuthorMetadataId);
+            if (existingAuthor != null)
+            {
+                _logger.Info("Author already exists for metadata {0}; returning existing author {1}", newAuthor.AuthorMetadataId, existingAuthor);
+                return existingAuthor;
+            }
+
             // add the author itself
             return _authorService.AddAuthor(newAuthor, doRefresh);
         }
@@ -112,7 +120,23 @@ namespace NzbDrone.Core.Books
             _authorMetadataService.UpsertMany(authorsToAdd.Select(x => x.Metadata.Value).ToList());
             authorsToAdd.ForEach(x => x.AuthorMetadataId = x.Metadata.Value.Id);
 
-            var inserted = _authorService.AddAuthors(authorsToAdd, doRefresh);
+            // Filter out authors whose metadata was reused (an Author already exists)
+            var actuallyNew = new List<Author>();
+            foreach (var author in authorsToAdd)
+            {
+                var existingAuthor = _authorService.GetAuthorByMetadataId(author.AuthorMetadataId);
+                if (existingAuthor != null)
+                {
+                    _logger.Info("Author already exists for metadata {0}; skipping insert for {1}", author.AuthorMetadataId, existingAuthor);
+                    existingMatches.Add(existingAuthor);
+                }
+                else
+                {
+                    actuallyNew.Add(author);
+                }
+            }
+
+            var inserted = actuallyNew.Any() ? _authorService.AddAuthors(actuallyNew, doRefresh) : new List<Author>();
             return inserted.Concat(existingMatches).DistinctBy(x => x.Id).ToList();
         }
 
@@ -194,7 +218,7 @@ namespace NzbDrone.Core.Books
 
             metadata.TitleSlug = metadata.TitleSlug.IsNotNullOrWhiteSpace()
                 ? metadata.TitleSlug
-                : metadata.ForeignAuthorId;
+                : metadata.ForeignAuthorId.ToUrlSlug();
 
             metadata.Links ??= new List<Links>();
             metadata.Images ??= new List<MediaCover.MediaCover>();

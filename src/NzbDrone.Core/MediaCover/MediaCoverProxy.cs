@@ -62,6 +62,12 @@ namespace NzbDrone.Core.MediaCover
         {
             var url = GetUrl(hash);
 
+            if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                var filePath = new Uri(url).LocalPath;
+                return File.ReadAllBytes(filePath);
+            }
+
             var request = new HttpRequest(url);
 
             return _httpClient.Get(request).ResponseData;

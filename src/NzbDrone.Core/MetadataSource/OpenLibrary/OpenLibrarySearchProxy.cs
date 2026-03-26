@@ -237,21 +237,25 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var publishYear = ParseEditionPublishYear(edition.PublishDate);
             var releaseDate = ParseReleaseDate(publishYear);
 
+            var foreignAuthorId = authorKey.IsNotNullOrWhiteSpace()
+                ? $"openlibrary:author:{authorKey}"
+                : "openlibrary:author:unknown-author";
+
             var authorMetadata = new AuthorMetadata
             {
-                ForeignAuthorId = authorKey.IsNotNullOrWhiteSpace()
-                    ? $"openlibrary:author:{authorKey}"
-                    : "openlibrary:author:unknown-author",
+                ForeignAuthorId = foreignAuthorId,
+                TitleSlug = foreignAuthorId.ToUrlSlug(),
                 Name = authorName,
                 SortName = authorName,
                 NameLastFirst = authorName,
-                SortNameLastFirst = authorName
+                SortNameLastFirst = authorName,
+                Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
             var book = new Book
             {
                 ForeignBookId = bookForeignId,
-                TitleSlug = bookForeignId,
+                TitleSlug = bookForeignId.ToUrlSlug(),
                 Title = title,
                 CleanTitle = title,
                 AuthorMetadata = authorMetadata,
@@ -268,7 +272,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var mappedEdition = new Edition
             {
                 ForeignEditionId = $"openlibrary:edition:{editionKey}",
-                TitleSlug = $"openlibrary:edition:{editionKey}",
+                TitleSlug = $"openlibrary:edition:{editionKey}".ToUrlSlug(),
                 Title = title,
                 Isbn13 = isbn13,
                 Publisher = edition.Publishers?.FirstOrDefault()?.Trim(),
@@ -321,7 +325,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var book = new Book
             {
                 ForeignBookId = $"openlibrary:work:{workKey}",
-                TitleSlug = $"openlibrary:work:{workKey}",
+                TitleSlug = $"openlibrary:work:{workKey}".ToUrlSlug(),
                 Title = title,
                 CleanTitle = title,
                 AuthorMetadata = authorMetadata,
@@ -340,7 +344,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var mappedEdition = new Edition
             {
                 ForeignEditionId = $"openlibrary:edition:{workKey}",
-                TitleSlug = $"openlibrary:edition:{workKey}",
+                TitleSlug = $"openlibrary:edition:{workKey}".ToUrlSlug(),
                 Title = title,
                 Isbn13 = isbn13,
                 ReleaseDate = book.ReleaseDate,

@@ -142,7 +142,15 @@ namespace NzbDrone.Core.Books
             foreach (var s in remoteData.Series.Value)
             {
                 s.LinkItems.Value.ForEach(x => x.Series = s);
-                links.AddRange(s.LinkItems.Value.Where(x => bookDict.ContainsKey(x.Book.Value.ForeignBookId)));
+                foreach (var link in s.LinkItems.Value)
+                {
+                    if (bookDict.TryGetValue(link.Book.Value.ForeignBookId, out var dbBook))
+                    {
+                        // Replace stub/remote book with the real DB book so Id is correct
+                        link.Book = dbBook;
+                        links.Add(link);
+                    }
+                }
             }
 
             var grouped = links.GroupBy(x => x.Series.Value);

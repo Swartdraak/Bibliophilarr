@@ -163,6 +163,19 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 throw new BookNotFoundException(foreignBookId);
             }
 
+            // Try direct work ID lookup first (numeric IDs only)
+            if (int.TryParse(requestedId, out var numericId))
+            {
+                var directResult = FetchBookByWorkId(numericId);
+                if (directResult != null)
+                {
+                    var metadata = directResult.AuthorMetadata?.Value;
+                    var metadataList = metadata != null ? new List<AuthorMetadata> { metadata } : new List<AuthorMetadata>();
+                    return Tuple.Create(metadata?.ForeignAuthorId ?? "hardcover:author:unknown", directResult, metadataList);
+                }
+            }
+
+            // Fallback to text search
             var books = SearchBooks(BuildScopedQueryFromBookId(requestedId), SearchPageSize);
             var book = books.FirstOrDefault(x => string.Equals(ExtractBookToken(x.ForeignBookId), requestedId, StringComparison.OrdinalIgnoreCase));
 
@@ -171,10 +184,10 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 throw new BookNotFoundException(foreignBookId);
             }
 
-            var metadata = book.AuthorMetadata?.Value;
-            var metadataList = metadata != null ? new List<AuthorMetadata> { metadata } : new List<AuthorMetadata>();
+            var meta = book.AuthorMetadata?.Value;
+            var metaList = meta != null ? new List<AuthorMetadata> { meta } : new List<AuthorMetadata>();
 
-            return Tuple.Create(metadata?.ForeignAuthorId ?? "hardcover:author:unknown", book, metadataList);
+            return Tuple.Create(meta?.ForeignAuthorId ?? "hardcover:author:unknown", book, metaList);
         }
 
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
@@ -187,10 +200,18 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 throw new AuthorNotFoundException(foreignAuthorId);
             }
 
-            var books = SearchBooks(authorName.Trim(), AuthorPageSize)
-                .Where(x => IsMatchingAuthor(x.AuthorMetadata?.Value?.Name, authorName))
-                .DistinctBy(x => x.ForeignBookId)
-                .ToList();
+            // Prefer author-specific search first (gets more books + author image)
+            var books = FetchAuthorBooks(authorName, out var authorImageUrl, out var hardcoverAuthorId, out var authorSlug);
+
+            // Fallback to book search if author search returned nothing
+            if (!books.Any())
+            {
+                _logger.Debug("Author-specific search found no results for '{0}', trying book search.", authorName);
+                books = SearchBooks(authorName.Trim(), AuthorPageSize)
+                    .Where(x => IsMatchingAuthor(x.AuthorMetadata?.Value?.Name, authorName))
+                    .DistinctBy(x => x.ForeignBookId)
+                    .ToList();
+            }
 
             if (!books.Any())
             {
@@ -199,11 +220,32 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             var metadata = books.First().AuthorMetadata.Value;
             metadata.ForeignAuthorId = BuildHardcoverAuthorId(authorName);
-            metadata.TitleSlug ??= metadata.ForeignAuthorId;
+            metadata.TitleSlug ??= metadata.ForeignAuthorId.ToUrlSlug();
             metadata.Name = authorName;
             metadata.SortName = authorName.ToLowerInvariant();
             metadata.NameLastFirst = authorName.ToLastFirst();
             metadata.SortNameLastFirst = metadata.NameLastFirst.ToLowerInvariant();
+
+            // Set author links
+            var authorLinks = new List<Links>();
+            if (authorSlug.IsNotNullOrWhiteSpace())
+            {
+                authorLinks.Add(new Links { Name = "Hardcover", Url = $"https://hardcover.app/authors/{authorSlug}" });
+            }
+
+            metadata.Links = authorLinks;
+
+            // Set author image if available
+            if (authorImageUrl.IsNotNullOrWhiteSpace() && (metadata.Images == null || !metadata.Images.Any()))
+            {
+                metadata.Images = new List<MediaCover.MediaCover>
+                {
+                    new MediaCover.MediaCover(MediaCoverTypes.Poster, authorImageUrl)
+                    {
+                        RemoteUrl = authorImageUrl
+                    }
+                };
+            }
 
             foreach (var book in books)
             {
@@ -215,12 +257,25 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
             }
 
+            // Fetch comprehensive series data via the book_series table
+            // This captures ALL series for the author, not just those on fetched books
+            var authorSeries = hardcoverAuthorId > 0
+                ? FetchAuthorSeries(hardcoverAuthorId)
+                : BuildAuthorSeries(books);
+
+            if (!authorSeries.Any())
+            {
+                authorSeries = BuildAuthorSeries(books);
+            }
+
+            _logger.Debug("GetAuthorInfo: {0} books, {1} series for '{2}'", books.Count, authorSeries.Count, authorName);
+
             return new Author
             {
                 Metadata = metadata,
                 CleanName = Parser.Parser.CleanAuthorName(authorName),
                 Books = books,
-                Series = BuildAuthorSeries(books)
+                Series = authorSeries
             };
         }
 
@@ -366,6 +421,523 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             _logger.Debug("Hardcover returned {0} unique mapped result(s) for query '{1}'.", mapped.Count, queryText);
 
             return mapped;
+        }
+
+        private Book FetchBookByWorkId(int workId)
+        {
+            if (!_configService.EnableHardcoverFallback)
+            {
+                return null;
+            }
+
+            if (!TryResolveToken(out var token, out var tokenSource))
+            {
+                return null;
+            }
+
+            _logger.Trace("Hardcover direct work lookup: id={0}, tokenSource={1}", workId, tokenSource);
+
+            var request = new HttpRequest(Endpoint, HttpAccept.Json)
+            {
+                Method = HttpMethod.Post,
+                RateLimit = TimeSpan.FromSeconds(1),
+                RateLimitKey = ProviderName
+            };
+
+            var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
+            var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
+            request.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
+
+            request.Headers.ContentType = "application/json; charset=utf-8";
+            request.Headers["authorization"] = $"Bearer {token}";
+            request.SetContent(new
+            {
+                query = @"query GetBook($id: Int!) {
+                    books(where: {id: {_eq: $id}}, limit: 1) {
+                        id
+                        title
+                        slug
+                        description
+                        release_date
+                        release_year
+                        pages
+                        cached_image
+                        cached_contributors
+                        rating
+                        ratings_count
+                        book_series {
+                            position
+                            series {
+                                id
+                                name
+                                books_count
+                                primary_books_count
+                            }
+                        }
+                        editions(limit: 1) {
+                            isbn_13
+                        }
+                    }
+                }",
+                variables = new { id = workId }
+            }.ToJson());
+
+            try
+            {
+                var response = _httpClient.Post<JObject>(request);
+                var booksArray = response.Resource?.SelectToken("data.books") as JArray;
+
+                if (booksArray == null || !booksArray.Any())
+                {
+                    _logger.Debug("Hardcover direct lookup returned no result for work ID {0}.", workId);
+                    return null;
+                }
+
+                var bookData = booksArray.First;
+                var result = MapDirectBookResult(bookData);
+                if (result != null)
+                {
+                    _logger.Debug("Hardcover direct lookup succeeded for work ID {0}: '{1}'.", workId, result.Title);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Hardcover direct work lookup failed for ID {0}.", workId);
+                return null;
+            }
+        }
+
+        private List<Book> FetchAuthorBooks(string authorName, out string authorImageUrl, out int authorIdResult, out string authorSlug)
+        {
+            authorImageUrl = null;
+            authorIdResult = 0;
+            authorSlug = null;
+
+            if (!_configService.EnableHardcoverFallback)
+            {
+                return new List<Book>();
+            }
+
+            if (!TryResolveToken(out var token, out var tokenSource))
+            {
+                return new List<Book>();
+            }
+
+            // Step 1: Search for the author to get their Hardcover ID
+            _logger.Trace("Hardcover author search: name='{0}', tokenSource={1}", authorName, tokenSource);
+
+            var searchRequest = new HttpRequest(Endpoint, HttpAccept.Json)
+            {
+                Method = HttpMethod.Post,
+                RateLimit = TimeSpan.FromSeconds(1),
+                RateLimitKey = ProviderName
+            };
+
+            var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
+            var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
+            searchRequest.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
+
+            searchRequest.Headers.ContentType = "application/json; charset=utf-8";
+            searchRequest.Headers["authorization"] = $"Bearer {token}";
+            searchRequest.SetContent(new
+            {
+                query = @"query SearchAuthors($query: String!, $perPage: Int!) {
+                    search(query: $query, query_type: ""Author"", per_page: $perPage, page: 1) {
+                        error
+                        ids
+                    }
+                }",
+                variables = new { query = authorName, perPage = 5 }
+            }.ToJson());
+
+            try
+            {
+                var searchResponse = _httpClient.Post<JObject>(searchRequest);
+                var searchData = searchResponse.Resource?.SelectToken("data.search");
+                var idsArray = searchData?.SelectToken("ids") as JArray;
+
+                if (idsArray == null || !idsArray.Any())
+                {
+                    _logger.Debug("Hardcover author search returned no results for '{0}'.", authorName);
+                    return new List<Book>();
+                }
+
+                var authorId = idsArray.First.Value<int>();
+                authorIdResult = authorId;
+                _logger.Debug("Hardcover author search found ID {0} for '{1}'.", authorId, authorName);
+
+                // Step 2: Fetch the author's contributions with book details
+                var booksRequest = new HttpRequest(Endpoint, HttpAccept.Json)
+                {
+                    Method = HttpMethod.Post,
+                    RateLimit = TimeSpan.FromSeconds(1),
+                    RateLimitKey = ProviderName
+                };
+
+                booksRequest.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
+                booksRequest.Headers.ContentType = "application/json; charset=utf-8";
+                booksRequest.Headers["authorization"] = $"Bearer {token}";
+                booksRequest.SetContent(new
+                {
+                    query = @"query GetAuthorBooks($id: Int!) {
+                        authors(where: {id: {_eq: $id}}) {
+                            id
+                            name
+                            slug
+                            image { url }
+                            contributions(limit: 500, where: {contributable_type: {_eq: ""Book""}}) {
+                                book {
+                                    id
+                                    title
+                                    slug
+                                    description
+                                    release_date
+                                    release_year
+                                    pages
+                                    cached_image
+                                    cached_contributors
+                                    rating
+                                    ratings_count
+                                    book_series {
+                                        position
+                                        series {
+                                            id
+                                            name
+                                            books_count
+                                            primary_books_count
+                                        }
+                                    }
+                                    editions(limit: 1) {
+                                        isbn_13
+                                    }
+                                }
+                            }
+                        }
+                    }",
+                    variables = new { id = authorId }
+                }.ToJson());
+
+                var booksResponse = _httpClient.Post<JObject>(booksRequest);
+                var authorsArray = booksResponse.Resource?.SelectToken("data.authors") as JArray;
+
+                if (authorsArray == null || !authorsArray.Any())
+                {
+                    _logger.Debug("Hardcover author lookup returned no results for ID {0}.", authorId);
+                    return new List<Book>();
+                }
+
+                var authorData = authorsArray.First;
+
+                // Extract author image URL and slug
+                authorImageUrl = authorData.SelectToken("image.url")?.Value<string>();
+                authorSlug = authorData.Value<string>("slug");
+
+                var contributions = authorData.SelectToken("contributions") as JArray;
+
+                if (contributions == null || !contributions.Any())
+                {
+                    _logger.Debug("Hardcover author {0} has no contributions.", authorId);
+                    return new List<Book>();
+                }
+
+                var books = new List<Book>();
+                var seenIds = new HashSet<string>();
+                var seriesCount = 0;
+
+                foreach (var contribution in contributions)
+                {
+                    var bookData = contribution.SelectToken("book");
+                    if (bookData == null || bookData.Type == JTokenType.Null)
+                    {
+                        continue;
+                    }
+
+                    var book = MapDirectBookResult(bookData);
+                    if (book != null && seenIds.Add(book.ForeignBookId))
+                    {
+                        books.Add(book);
+                        if (book.SeriesLinks?.Value?.Any() == true)
+                        {
+                            seriesCount++;
+                        }
+                    }
+                }
+
+                _logger.Debug("Hardcover author search for '{0}' returned {1} books via contributions ({2} with series).", authorName, books.Count, seriesCount);
+                return books;
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Hardcover author search failed for '{0}'.", authorName);
+                return new List<Book>();
+            }
+        }
+
+        private List<Series> FetchAuthorSeries(int authorId)
+        {
+            if (!TryResolveToken(out var token, out var tokenSource))
+            {
+                return new List<Series>();
+            }
+
+            _logger.Trace("Hardcover series fetch for author ID {0}, tokenSource={1}", authorId, tokenSource);
+
+            var request = new HttpRequest(Endpoint, HttpAccept.Json)
+            {
+                Method = HttpMethod.Post,
+                RateLimit = TimeSpan.FromSeconds(1),
+                RateLimitKey = ProviderName
+            };
+
+            var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
+            var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
+            request.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
+
+            request.Headers.ContentType = "application/json; charset=utf-8";
+            request.Headers["authorization"] = $"Bearer {token}";
+            request.SetContent(new
+            {
+                query = @"query GetAuthorSeries($authorId: Int!) {
+                    book_series(where: {book: {contributions: {author_id: {_eq: $authorId}, contributable_type: {_eq: ""Book""}}}}) {
+                        book_id
+                        series_id
+                        position
+                        series {
+                            id
+                            name
+                            books_count
+                            primary_books_count
+                        }
+                    }
+                }",
+                variables = new { authorId }
+            }.ToJson());
+
+            try
+            {
+                var response = _httpClient.Post<JObject>(request);
+                var seriesArray = response.Resource?.SelectToken("data.book_series") as JArray;
+
+                if (seriesArray == null || !seriesArray.Any())
+                {
+                    _logger.Debug("Hardcover series fetch returned no results for author ID {0}.", authorId);
+                    return new List<Series>();
+                }
+
+                // Group by series ID and build Series objects with LinkItems
+                var grouped = seriesArray
+                    .GroupBy(entry => entry.SelectToken("series.id")?.Value<int>() ?? 0)
+                    .Where(g => g.Key > 0)
+                    .ToList();
+
+                var result = new List<Series>();
+
+                foreach (var group in grouped)
+                {
+                    var firstEntry = group.First();
+                    var seriesName = firstEntry.SelectToken("series.name")?.Value<string>();
+                    if (seriesName.IsNullOrWhiteSpace())
+                    {
+                        continue;
+                    }
+
+                    var series = new Series
+                    {
+                        ForeignSeriesId = $"hardcover:series:{group.Key}",
+                        Title = seriesName,
+                        WorkCount = firstEntry.SelectToken("series.books_count")?.Value<int>() ?? 0,
+                        PrimaryWorkCount = firstEntry.SelectToken("series.primary_books_count")?.Value<int>() ?? 0,
+                        Numbered = true
+                    };
+
+                    var links = new List<SeriesBookLink>();
+
+                    foreach (var entry in group)
+                    {
+                        var bookId = entry.Value<int?>("book_id");
+                        if (bookId == null || bookId <= 0)
+                        {
+                            continue;
+                        }
+
+                        var position = entry.Value<decimal?>("position");
+
+                        var stubBook = new Book
+                        {
+                            ForeignBookId = $"hardcover:work:{bookId}"
+                        };
+
+                        var link = new SeriesBookLink
+                        {
+                            IsPrimary = true,
+                            Position = position?.ToString(CultureInfo.InvariantCulture),
+                            SeriesPosition = (int)(position ?? 0),
+                            Book = stubBook,
+                            Series = series
+                        };
+
+                        links.Add(link);
+                    }
+
+                    if (links.Any())
+                    {
+                        series.LinkItems = links;
+                        result.Add(series);
+                    }
+                }
+
+                _logger.Debug(
+                    "Hardcover series fetch for author ID {0} returned {1} series with {2} total book links.",
+                    authorId,
+                    result.Count,
+                    result.Sum(s => s.LinkItems.Value.Count));
+
+                return result.OrderBy(x => x.Title).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Hardcover series fetch failed for author ID {0}.", authorId);
+                return new List<Series>();
+            }
+        }
+
+        private static Book MapDirectBookResult(JToken bookData)
+        {
+            if (bookData == null)
+            {
+                return null;
+            }
+
+            var id = bookData.Value<int?>("id")?.ToString();
+            if (id.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var title = bookData.Value<string>("title") ?? id;
+            var slug = bookData.Value<string>("slug");
+            var description = bookData.Value<string>("description");
+            var releaseDate = bookData.Value<string>("release_date");
+            var releaseYear = bookData.Value<int?>("release_year");
+            var pages = bookData.Value<int?>("pages");
+            var rating = bookData.Value<double?>("rating");
+            var ratingsCount = bookData.Value<int?>("ratings_count");
+
+            var coverUrl = bookData.SelectToken("cached_image.url")?.Value<string>();
+            var authorName = bookData.SelectToken("cached_contributors[0].author.name")?.Value<string>()
+                             ?? "Unknown Author";
+            var isbn13 = bookData.SelectToken("editions[0].isbn_13")?.Value<string>();
+
+            var publishedDate = ParseDate(releaseDate, releaseYear);
+
+            var authorMetadata = new AuthorMetadata
+            {
+                ForeignAuthorId = BuildHardcoverAuthorId(authorName),
+                TitleSlug = BuildHardcoverAuthorId(authorName).ToUrlSlug(),
+                Name = authorName,
+                SortName = authorName.ToLowerInvariant(),
+                NameLastFirst = authorName.ToLastFirst(),
+                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant(),
+                Overview = description,
+                Ratings = new Ratings
+                {
+                    Votes = ratingsCount ?? 0,
+                    Value = (decimal)(rating ?? 0)
+                }
+            };
+
+            var author = new Author
+            {
+                Metadata = authorMetadata,
+                AuthorMetadataId = authorMetadata.Id
+            };
+
+            var book = new Book
+            {
+                ForeignBookId = $"hardcover:work:{id}",
+                TitleSlug = $"hardcover:work:{id}".ToUrlSlug(),
+                Title = title,
+                CleanTitle = title,
+                AuthorMetadata = authorMetadata,
+                AuthorMetadataId = authorMetadata.Id,
+                Author = author,
+                ReleaseDate = publishedDate,
+                Ratings = new Ratings
+                {
+                    Votes = ratingsCount ?? 0,
+                    Value = (decimal)(rating ?? 0)
+                },
+                Genres = new List<string>()
+            };
+
+            var bookSeriesArray = bookData.SelectToken("book_series") as JArray;
+            var firstSeries = bookSeriesArray?.FirstOrDefault();
+            if (firstSeries != null && firstSeries.Type != JTokenType.Null)
+            {
+                var seriesName = firstSeries.SelectToken("series.name")?.Value<string>();
+                if (seriesName.IsNotNullOrWhiteSpace())
+                {
+                    var series = new Series
+                    {
+                        ForeignSeriesId = $"hardcover:series:{firstSeries.SelectToken("series.id")?.Value<int>()}",
+                        Title = seriesName,
+                        WorkCount = firstSeries.SelectToken("series.books_count")?.Value<int>() ?? 0,
+                        PrimaryWorkCount = firstSeries.SelectToken("series.primary_books_count")?.Value<int>() ?? 0,
+                        Numbered = true
+                    };
+
+                    var position = firstSeries.Value<decimal?>("position");
+                    var seriesLink = new SeriesBookLink
+                    {
+                        IsPrimary = true,
+                        Position = position?.ToString(CultureInfo.InvariantCulture),
+                        SeriesPosition = (int)(position ?? 0),
+                        Book = book,
+                        Series = series
+                    };
+
+                    series.LinkItems = new List<SeriesBookLink> { seriesLink };
+                    book.SeriesLinks = new List<SeriesBookLink> { seriesLink };
+                }
+            }
+
+            var edition = new Edition
+            {
+                ForeignEditionId = $"hardcover:edition:{id}",
+                TitleSlug = $"hardcover:edition:{id}".ToUrlSlug(),
+                Title = title,
+                ReleaseDate = publishedDate,
+                Language = null,
+                Isbn13 = isbn13,
+                Book = book,
+                PageCount = pages ?? 0,
+                Overview = description,
+                Ratings = new Ratings
+                {
+                    Votes = ratingsCount ?? 0,
+                    Value = (decimal)(rating ?? 0)
+                }
+            };
+
+            if (coverUrl.IsNotNullOrWhiteSpace())
+            {
+                edition.Images.Add(new MediaCover.MediaCover
+                {
+                    Url = coverUrl,
+                    CoverType = MediaCoverTypes.Cover
+                });
+            }
+
+            book.Editions = new List<Edition> { edition };
+
+            var bookSlug = slug.IsNotNullOrWhiteSpace() ? slug : id;
+            var hardcoverBookUrl = $"https://hardcover.app/books/{bookSlug}";
+            book.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
+            edition.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
+
+            return book;
         }
 
         private bool IsDeterministicErrorCooldownActive(out DateTime? cooldownUntilUtc)
@@ -594,7 +1166,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var authorMetadata = new AuthorMetadata
             {
                 ForeignAuthorId = BuildHardcoverAuthorId(authorName),
-                TitleSlug = BuildHardcoverAuthorId(authorName),
+                TitleSlug = BuildHardcoverAuthorId(authorName).ToUrlSlug(),
                 Name = authorName,
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
@@ -616,7 +1188,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var book = new Book
             {
                 ForeignBookId = $"hardcover:work:{result.Id}",
-                TitleSlug = $"hardcover:work:{result.Id}",
+                TitleSlug = $"hardcover:work:{result.Id}".ToUrlSlug(),
                 Title = title,
                 CleanTitle = title,
                 AuthorMetadata = authorMetadata,
@@ -658,7 +1230,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var edition = new Edition
             {
                 ForeignEditionId = $"hardcover:edition:{result.Id}",
-                TitleSlug = $"hardcover:edition:{result.Id}",
+                TitleSlug = $"hardcover:edition:{result.Id}".ToUrlSlug(),
                 Title = title,
                 ReleaseDate = publishedDate,
                 Language = result.Language,
@@ -685,6 +1257,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
 
             book.Editions = new List<Edition> { edition };
+
+            // Populate Links for author, book, and edition
+            var bookSlug = result.Slug.IsNotNullOrWhiteSpace() ? result.Slug : result.Id;
+            var hardcoverBookUrl = $"https://hardcover.app/books/{bookSlug}";
+            book.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
+            edition.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
 
             return book;
         }
@@ -741,6 +1319,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var metadata = new AuthorMetadata
             {
                 ForeignAuthorId = BuildHardcoverAuthorId(trimmed),
+                TitleSlug = BuildHardcoverAuthorId(trimmed).ToUrlSlug(),
                 Name = trimmed,
                 SortName = trimmed.ToLowerInvariant(),
                 NameLastFirst = trimmed.ToLastFirst(),

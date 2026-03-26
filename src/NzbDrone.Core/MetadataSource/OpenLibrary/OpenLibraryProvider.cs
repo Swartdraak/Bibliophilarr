@@ -837,7 +837,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             {
                 ForeignAuthorId = foreignAuthorId,
                 OpenLibraryAuthorId = authorId,
-                TitleSlug = foreignAuthorId,
+                TitleSlug = foreignAuthorId.ToUrlSlug(),
                 Name = "Unknown Author",
                 Status = AuthorStatusType.Continuing,
                 Ratings = new Ratings { Votes = 0, Value = 0 }

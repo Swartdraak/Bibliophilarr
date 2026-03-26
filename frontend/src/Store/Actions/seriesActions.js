@@ -42,7 +42,7 @@ export const defaultState = {
       name: 'series',
       label: 'Series',
       isSortable: true,
-      isVisible: false
+      isVisible: true
     },
     {
       name: 'position',

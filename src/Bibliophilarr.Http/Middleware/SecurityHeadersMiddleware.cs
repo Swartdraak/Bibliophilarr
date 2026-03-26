@@ -40,6 +40,7 @@ namespace Bibliophilarr.Http.Middleware
                 "img-src 'self' data: https:; " +
                 "font-src 'self'; " +
                 "connect-src 'self' ws: wss:; " +
+                "worker-src 'self' blob:; " +
                 "object-src 'none'; " +
                 "frame-ancestors 'none'; " +
                 "base-uri 'self'";
