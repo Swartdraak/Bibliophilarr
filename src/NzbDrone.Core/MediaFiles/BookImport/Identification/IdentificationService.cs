@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.Parser.Model;
@@ -25,6 +26,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private readonly IMetadataTagService _metadataTagService;
         private readonly IAugmentingService _augmentingService;
         private readonly ICandidateService _candidateService;
+        private readonly IAuthorService _authorService;
         private readonly IConfigService _configService;
         private readonly Logger _logger;
 
@@ -32,6 +34,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                                      IMetadataTagService metadataTagService,
                                      IAugmentingService augmentingService,
                                      ICandidateService candidateService,
+                                     IAuthorService authorService,
                                      IConfigService configService,
                                      Logger logger)
         {
@@ -39,6 +42,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _metadataTagService = metadataTagService;
             _augmentingService = augmentingService;
             _candidateService = candidateService;
+            _authorService = authorService;
             _configService = configService;
             _logger = logger;
         }
@@ -165,7 +169,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides);
                 if (!config.AddNewAuthors)
                 {
-                    candidateReleases = candidateReleases.Where(x => x.Edition.Book.Value.Id > 0 && x.Edition.Book.Value.AuthorId > 0);
+                    candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition));
                 }
 
                 usedRemote = true;
@@ -196,7 +200,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 if (!config.AddNewAuthors)
                 {
-                    candidateReleases = candidateReleases.Where(x => x.Edition.Book.Value.Id > 0);
+                    candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition));
                 }
 
                 GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out _);
@@ -255,6 +259,40 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             watch.Stop();
             _logger.Debug($"Best release: {localBookRelease.Edition} Distance {localBookRelease.Distance.NormalizedDistance()} found in {watch.ElapsedMilliseconds}ms");
+        }
+
+        private bool AuthorExistsLocally(Edition edition)
+        {
+            // Allow candidates where the book is already in the local DB
+            if (edition.Book.Value.Id > 0)
+            {
+                return true;
+            }
+
+            // Allow candidates whose author already exists in the local library,
+            // even if this specific book hasn't been added to the bibliography yet.
+            var foreignAuthorId = edition.Book?.Value?.Author?.Value?.ForeignAuthorId;
+            if (foreignAuthorId.IsNotNullOrWhiteSpace())
+            {
+                var localAuthor = _authorService.FindById(foreignAuthorId);
+                if (localAuthor != null)
+                {
+                    return true;
+                }
+            }
+
+            // Also try matching by author name for providers that may not set ForeignAuthorId
+            var authorName = edition.Book?.Value?.Author?.Value?.Name;
+            if (authorName.IsNotNullOrWhiteSpace())
+            {
+                var localAuthor = _authorService.FindByName(authorName);
+                if (localAuthor != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

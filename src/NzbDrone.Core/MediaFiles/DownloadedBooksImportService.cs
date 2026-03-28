@@ -14,6 +14,7 @@ using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.RemotePathMappings;
 
 namespace NzbDrone.Core.MediaFiles
 {
@@ -32,6 +33,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IParsingService _parsingService;
         private readonly IMakeImportDecision _importDecisionMaker;
         private readonly IImportApprovedBooks _importApprovedTracks;
+        private readonly IRemotePathMappingService _remotePathMappingService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IRuntimeInfo _runtimeInfo;
         private readonly Logger _logger;
@@ -42,6 +44,7 @@ namespace NzbDrone.Core.MediaFiles
                                              IParsingService parsingService,
                                              IMakeImportDecision importDecisionMaker,
                                              IImportApprovedBooks importApprovedTracks,
+                                             IRemotePathMappingService remotePathMappingService,
                                              IEventAggregator eventAggregator,
                                              IRuntimeInfo runtimeInfo,
                                              Logger logger)
@@ -52,6 +55,7 @@ namespace NzbDrone.Core.MediaFiles
             _parsingService = parsingService;
             _importDecisionMaker = importDecisionMaker;
             _importApprovedTracks = importApprovedTracks;
+            _remotePathMappingService = remotePathMappingService;
             _eventAggregator = eventAggregator;
             _runtimeInfo = runtimeInfo;
             _logger = logger;
@@ -102,6 +106,18 @@ namespace NzbDrone.Core.MediaFiles
                 }
 
                 return ProcessFile(fileInfo, importMode, author, downloadClientItem);
+            }
+
+            // Safety net: try host-agnostic remote path mapping if path doesn't exist
+            if (downloadClientItem != null)
+            {
+                var remappedPath = _remotePathMappingService.TryRemapRemoteToLocal(new OsPath(path));
+
+                if (remappedPath.FullPath != path && (_diskProvider.FolderExists(remappedPath.FullPath) || _diskProvider.FileExists(remappedPath.FullPath)))
+                {
+                    _logger.Warn("Path [{0}] was not remapped by download client. Safety-net remapped to [{1}]", path, remappedPath.FullPath);
+                    return ProcessPath(remappedPath.FullPath, importMode, author, downloadClientItem);
+                }
             }
 
             LogInaccessiblePathError(path);

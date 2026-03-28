@@ -394,6 +394,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             foreach (var groupedTrackedDownload in importedTrackedDownload.GroupBy(i => i.TrackedDownload.DownloadItem.DownloadId).ToList())
             {
                 var trackedDownload = groupedTrackedDownload.First().TrackedDownload;
+
+                if (trackedDownload.ImportItem == null)
+                {
+                    trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+                }
+
                 var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
 
                 if (_diskProvider.FolderExists(outputPath))

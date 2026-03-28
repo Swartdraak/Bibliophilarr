@@ -194,23 +194,47 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         {
             _logger.Debug("HardcoverProvider.GetAuthorInfo: {0}", foreignAuthorId);
 
-            var authorName = DecodeAuthorToken(foreignAuthorId);
-            if (authorName.IsNullOrWhiteSpace())
-            {
-                throw new AuthorNotFoundException(foreignAuthorId);
-            }
+            List<Book> books;
+            string authorImageUrl;
+            int hardcoverAuthorId;
+            string authorSlug;
+            string authorName;
 
-            // Prefer author-specific search first (gets more books + author image)
-            var books = FetchAuthorBooks(authorName, out var authorImageUrl, out var hardcoverAuthorId, out var authorSlug);
+            // If the ForeignAuthorId already contains a numeric Hardcover ID,
+            // fetch directly by ID (skip the name search step).
+            if (TryParseNumericHardcoverAuthorId(foreignAuthorId, out var parsedNumericId))
+            {
+                books = FetchAuthorBooksById(parsedNumericId, out authorImageUrl, out authorSlug, out authorName);
+                hardcoverAuthorId = parsedNumericId;
+
+                if (authorName.IsNullOrWhiteSpace())
+                {
+                    authorName = foreignAuthorId;
+                }
+            }
+            else
+            {
+                authorName = DecodeAuthorToken(foreignAuthorId);
+                if (authorName.IsNullOrWhiteSpace())
+                {
+                    throw new AuthorNotFoundException(foreignAuthorId);
+                }
+
+                // Prefer author-specific search first (gets more books + author image)
+                books = FetchAuthorBooks(authorName, out authorImageUrl, out hardcoverAuthorId, out authorSlug);
+            }
 
             // Fallback to book search if author search returned nothing
             if (!books.Any())
             {
-                _logger.Debug("Author-specific search found no results for '{0}', trying book search.", authorName);
-                books = SearchBooks(authorName.Trim(), AuthorPageSize)
-                    .Where(x => IsMatchingAuthor(x.AuthorMetadata?.Value?.Name, authorName))
-                    .DistinctBy(x => x.ForeignBookId)
-                    .ToList();
+                if (authorName.IsNotNullOrWhiteSpace() && !int.TryParse(authorName, out _))
+                {
+                    _logger.Debug("Author-specific search found no results for '{0}', trying book search.", authorName);
+                    books = SearchBooks(authorName.Trim(), AuthorPageSize)
+                        .Where(x => IsMatchingAuthor(x.AuthorMetadata?.Value?.Name, authorName))
+                        .DistinctBy(x => x.ForeignBookId)
+                        .ToList();
+                }
             }
 
             if (!books.Any())
@@ -219,8 +243,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
 
             var metadata = books.First().AuthorMetadata.Value;
-            metadata.ForeignAuthorId = BuildHardcoverAuthorId(authorName);
-            metadata.TitleSlug ??= metadata.ForeignAuthorId.ToUrlSlug();
+
+            // Use numeric Hardcover author ID when available for stable identification
+            metadata.ForeignAuthorId = hardcoverAuthorId > 0
+                ? BuildHardcoverAuthorId(hardcoverAuthorId)
+                : BuildHardcoverAuthorId(authorName);
+            metadata.TitleSlug = metadata.ForeignAuthorId.ToUrlSlug();
             metadata.Name = authorName;
             metadata.SortName = authorName.ToLowerInvariant();
             metadata.NameLastFirst = authorName.ToLastFirst();
@@ -671,6 +699,145 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             catch (Exception ex)
             {
                 _logger.Debug(ex, "Hardcover author search failed for '{0}'.", authorName);
+                return new List<Book>();
+            }
+        }
+
+        /// <summary>
+        /// Fetches an author's books directly by numeric Hardcover author ID,
+        /// skipping the name-search step. Used when the ForeignAuthorId already
+        /// contains a resolved numeric ID (e.g. "hardcover:author:154441").
+        /// </summary>
+        private List<Book> FetchAuthorBooksById(int authorId, out string authorImageUrl, out string authorSlug, out string authorName)
+        {
+            authorImageUrl = null;
+            authorSlug = null;
+            authorName = null;
+
+            if (!_configService.EnableHardcoverFallback)
+            {
+                return new List<Book>();
+            }
+
+            if (!TryResolveToken(out var token, out var tokenSource))
+            {
+                return new List<Book>();
+            }
+
+            _logger.Trace("Hardcover direct author fetch: id={0}, tokenSource={1}", authorId, tokenSource);
+
+            var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
+            var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
+
+            var request = new HttpRequest(Endpoint, HttpAccept.Json)
+            {
+                Method = HttpMethod.Post,
+                RateLimit = TimeSpan.FromSeconds(1),
+                RateLimitKey = ProviderName
+            };
+
+            request.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
+            request.Headers.ContentType = "application/json; charset=utf-8";
+            request.Headers["authorization"] = $"Bearer {token}";
+            request.SetContent(new
+            {
+                query = @"query GetAuthorBooks($id: Int!) {
+                    authors(where: {id: {_eq: $id}}) {
+                        id
+                        name
+                        slug
+                        image { url }
+                        contributions(limit: 500, where: {contributable_type: {_eq: ""Book""}}) {
+                            book {
+                                id
+                                title
+                                slug
+                                description
+                                release_date
+                                release_year
+                                pages
+                                cached_image
+                                cached_contributors
+                                rating
+                                ratings_count
+                                book_series {
+                                    position
+                                    series {
+                                        id
+                                        name
+                                        books_count
+                                        primary_books_count
+                                    }
+                                }
+                                editions(limit: 1) {
+                                    isbn_13
+                                }
+                            }
+                        }
+                    }
+                }",
+                variables = new { id = authorId }
+            }.ToJson());
+
+            try
+            {
+                var response = _httpClient.Post<JObject>(request);
+                var authorsArray = response.Resource?.SelectToken("data.authors") as JArray;
+
+                if (authorsArray == null || !authorsArray.Any())
+                {
+                    _logger.Debug("Hardcover direct author fetch returned no results for ID {0}.", authorId);
+                    return new List<Book>();
+                }
+
+                var authorData = authorsArray.First;
+
+                authorImageUrl = authorData.SelectToken("image.url")?.Value<string>();
+                authorSlug = authorData.Value<string>("slug");
+                authorName = authorData.Value<string>("name")?.Trim();
+
+                var contributions = authorData.SelectToken("contributions") as JArray;
+
+                if (contributions == null || !contributions.Any())
+                {
+                    _logger.Debug("Hardcover author {0} has no contributions.", authorId);
+                    return new List<Book>();
+                }
+
+                var books = new List<Book>();
+                var seenIds = new HashSet<string>();
+                var seriesCount = 0;
+
+                foreach (var contribution in contributions)
+                {
+                    var bookData = contribution.SelectToken("book");
+                    if (bookData == null || bookData.Type == JTokenType.Null)
+                    {
+                        continue;
+                    }
+
+                    var book = MapDirectBookResult(bookData);
+                    if (book != null && seenIds.Add(book.ForeignBookId))
+                    {
+                        books.Add(book);
+                        if (book.SeriesLinks?.Value?.Any() == true)
+                        {
+                            seriesCount++;
+                        }
+                    }
+                }
+
+                _logger.Debug(
+                    "Hardcover direct author fetch for ID {0} ('{1}') returned {2} books ({3} with series).",
+                    authorId,
+                    authorName ?? "?",
+                    books.Count,
+                    seriesCount);
+                return books;
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Hardcover direct author fetch failed for ID {0}.", authorId);
                 return new List<Book>();
             }
         }
@@ -1426,6 +1593,36 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         {
             var value = authorName.IsNotNullOrWhiteSpace() ? authorName.Trim() : "unknown";
             return $"hardcover:author:{Uri.EscapeDataString(value)}";
+        }
+
+        private static string BuildHardcoverAuthorId(int numericId)
+        {
+            return $"hardcover:author:{numericId}";
+        }
+
+        /// <summary>
+        /// Attempts to parse a numeric Hardcover author ID from a ForeignAuthorId string.
+        /// Returns true if the token after "hardcover:author:" is a positive integer.
+        /// </summary>
+        private static bool TryParseNumericHardcoverAuthorId(string foreignAuthorId, out int numericId)
+        {
+            numericId = 0;
+
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            const string prefix = "hardcover:author:";
+            var raw = foreignAuthorId.Trim();
+
+            if (!raw.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var token = raw.Substring(prefix.Length);
+            return int.TryParse(token, out numericId) && numericId > 0;
         }
 
         private static string DecodeAuthorToken(string foreignAuthorId)

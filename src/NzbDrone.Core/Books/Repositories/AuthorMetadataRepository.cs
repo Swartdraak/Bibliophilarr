@@ -35,6 +35,11 @@ namespace NzbDrone.Core.Books
             var addMetadataList = new List<AuthorMetadata>();
             var upToDateMetadataCount = 0;
 
+            // For Hardcover numeric ID migration: collect unmatched entries that
+            // use numeric IDs so we can try matching them by name against existing
+            // name-based records.
+            var unmatchedNumericEntries = new List<AuthorMetadata>();
+
             foreach (var meta in data)
             {
                 var existing = existingMetadata.SingleOrDefault(x => x.ForeignAuthorId == meta.ForeignAuthorId);
@@ -53,9 +58,55 @@ namespace NzbDrone.Core.Books
                         upToDateMetadataCount++;
                     }
                 }
+                else if (IsNumericHardcoverAuthorId(meta.ForeignAuthorId) && meta.Name.IsNotNullOrWhiteSpace())
+                {
+                    // Numeric Hardcover ID not found by direct lookup — may be a
+                    // migration from a name-based ID. Defer for name-based matching.
+                    unmatchedNumericEntries.Add(meta);
+                }
                 else
                 {
                     addMetadataList.Add(meta);
+                }
+            }
+
+            // Try to match unmatched numeric Hardcover entries by author name
+            // against existing name-based records (handles the ID format migration).
+            if (unmatchedNumericEntries.Any())
+            {
+                var names = unmatchedNumericEntries
+                    .Select(x => x.Name)
+                    .Where(x => x.IsNotNullOrWhiteSpace())
+                    .Distinct(System.StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var existingByName = names.Any()
+                    ? Query(x => Enumerable.Contains(names, x.Name))
+                    : new List<AuthorMetadata>();
+
+                foreach (var meta in unmatchedNumericEntries)
+                {
+                    var nameMatch = existingByName.FirstOrDefault(x =>
+                        string.Equals(x.Name, meta.Name, System.StringComparison.OrdinalIgnoreCase) &&
+                        x.ForeignAuthorId.StartsWith("hardcover:", System.StringComparison.OrdinalIgnoreCase));
+
+                    if (nameMatch != null)
+                    {
+                        _logger.Info(
+                            "Migrating author '{0}' ForeignAuthorId from '{1}' to numeric '{2}'",
+                            meta.Name,
+                            nameMatch.ForeignAuthorId,
+                            meta.ForeignAuthorId);
+
+                        meta.UseDbFieldsFrom(nameMatch);
+
+                        // Update the ForeignAuthorId to the new numeric format
+                        updateMetadataList.Add(meta);
+                    }
+                    else
+                    {
+                        addMetadataList.Add(meta);
+                    }
                 }
             }
 
@@ -127,6 +178,25 @@ namespace NzbDrone.Core.Books
             _logger.Debug($"{upToDateMetadataCount} author metadata up to date; Updating {updateMetadataList.Count}, Adding {addMetadataList.Count} author metadata entries.");
 
             return updateMetadataList.Count > 0 || addMetadataList.Count > 0;
+        }
+
+        private static bool IsNumericHardcoverAuthorId(string foreignAuthorId)
+        {
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            const string prefix = "hardcover:author:";
+            var raw = foreignAuthorId.Trim();
+
+            if (!raw.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var token = raw.Substring(prefix.Length);
+            return int.TryParse(token, out var id) && id > 0;
         }
     }
 }

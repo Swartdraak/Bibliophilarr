@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 26, 2026 (Hardcover metadata expansion, frontend UX fixes, crash guard hardening)
+**Last Updated**: March 28, 2026 (P9 import pipeline throughput + remote-author hotfix chain)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -32,7 +32,207 @@ The following items were added to canonical planning for immediate/future delive
 
 ## Latest Delivery Update
 
-### March 26, 2026 Hardcover metadata expansion, frontend UX fixes, and crash guard hardening
+### March 28, 2026 — P9 monitored-download import pipeline hardening and throughput delivery
+
+P9 was implemented and deployed to address four user-prioritized outcomes in one cycle:
+
+- Lower automatic import match threshold to improve acceptance for noisy ebook metadata.
+- Allow imports when author exists locally but the specific book is not yet in the local DB.
+- Confirm and preserve book-title-based remote candidate search behavior.
+- Remove sequential import bottleneck for monitored download processing.
+
+#### What changed
+
+- `BookImportMatchThresholdPercent` default changed from `80` to `70`.
+- Added `DownloadProcessingWorkerCount` config (default `3`) and parallelized `ImportPending` processing in `DownloadProcessingService`.
+- `IdentificationService` now accepts remote candidates when local author exists (`FindById`/`FindByName`) even with `AddNewAuthors=false`.
+- Hotfix chain for remote author stubs flowing through import specs/services:
+  - Null-safe author/root-folder handling in `ImportDecisionMaker.EnsureData()`.
+  - Null-safe quality profile handling in `BookUpgradeSpecification`.
+  - `AuthorPathInRootFolderSpecification` now resolves managed author path via ID with name fallback for name-based Hardcover IDs.
+  - `ImportApprovedBooks.EnsureAuthorAdded()` now falls back to author-name lookup before attempting remote author add.
+  - Exception recovery in `DownloadProcessingService` sets `ImportFailed` for thrown import operations previously left in ambiguous states.
+
+#### Why it changed
+
+- Existing identification matched many real titles from remote providers, but filtering and downstream assumptions about hydrated local author objects rejected or crashed valid imports.
+- Name-based remote `ForeignAuthorId` tokens from title search (for example `hardcover:author:Charlaine%20Harris`) did not match numeric IDs in local DB, causing false new-author flows and root-folder rejection.
+- Sequential monitored-download processing was a major throughput bottleneck for large queues.
+
+#### Validation evidence
+
+- Backend build and publish succeeded after each hotfix iteration.
+- End-to-end monitored-download reprocessing completed without the earlier NRE failure chain.
+- Import throughput improved materially via bounded parallelism (previously ~24 minutes sequential; observed ~8 minutes for equivalent queue sizes with 3 workers).
+- After final name-fallback fixes, monitored downloads resumed successful imports in automated runs (no longer stuck at 0 imported).
+- Final queue state shifted to normal business-rule outcomes (no-match/threshold/same-size/not-upgrade/destination-exists) rather than systemic root-folder/NRE blocker failure.
+
+#### Operational impact
+
+- Faster monitored-download import processing on large backlogs.
+- More successful auto-imports for existing-library authors with incomplete bibliography sync.
+- Reduced manual intervention for queue items previously blocked by remote-author ID format mismatches.
+
+#### Rollback and mitigation
+
+- Rollback path: restore prior defaults by setting `BookImportMatchThresholdPercent` back to `80` and `DownloadProcessingWorkerCount` to `1`.
+- If matching becomes too permissive in a specific library, operators can raise threshold incrementally while keeping author-resolution fixes.
+- If provider identity variance resurfaces, name fallback in author resolution remains as a safety net to avoid false new-author root-path flows.
+
+### March 27, 2026 — P5: TitleSlug corruption fix
+
+User reports of needing to manually import an author and a book still showing as
+pending import after WebUI association led to discovery of a critical TitleSlug
+corruption bug affecting 344 of 432 AuthorMetadata records.
+
+#### Root cause
+
+`GetAuthorInfo()` in `HardcoverFallbackSearchProvider.cs` used `??=` (null-coalescing
+assignment) when setting `metadata.TitleSlug`:
+
+```csharp
+metadata.TitleSlug ??= metadata.ForeignAuthorId.ToUrlSlug();
+```
+
+The `metadata` object came from `books.First().AuthorMetadata.Value`, which was
+created by `MapDirectBookResult()` using `cached_contributors[0].author.name` — the
+first contributor of the first book, which could be an editor or co-author, not the
+queried author. Since `TitleSlug` was already set (not null), `??=` did nothing,
+leaving the slug derived from the wrong person.
+
+#### Impact
+
+- 344 of 432 AuthorMetadata records had TitleSlug values from wrong authors
+  (e.g., Jodi Picoult → "hardcover-author-neil-gaiman", John Wyndham →
+  "hardcover-author-isaac-asimov", John Grisham → "hardcover-author-james-shapiro")
+- When adding new authors, `AuthorMetadataRepository.UpsertMany()` matched on
+  TitleSlug, causing new authors to silently merge into wrong existing records
+  (e.g., Sylvia Day was merged into John Grisham's record and lost)
+- Sylvia Day will need to be re-added manually after the fix
+
+#### Fix
+
+- Changed `??=` to `=` on line 251 of `HardcoverFallbackSearchProvider.cs`,
+  ensuring TitleSlug is always derived from the correct ForeignAuthorId
+- Repaired all 344 corrupted TitleSlug values in the database via a Python
+  script that replicated the `ToUrlSlug()` logic (URI decoding, accent removal,
+  lowercase, non-alphanumeric → hyphens)
+- Database backed up before repair (`bibliophilarr.db.bak.slug-fix`)
+- Rebuilt and redeployed server (PID 313753)
+- Triggered `RefreshAuthor` (command 1412) to propagate corrected metadata
+
+#### Queue items (46 remaining)
+
+The 46 queue items with "Couldn't find similar book" errors are a separate issue:
+- All affected authors exist in the library
+- The specific downloaded books don't match tracked titles in the library
+- 1 item (Charlaine Harris "Many Bloody Returns") is `importPending` because the
+  download only contains `.html` and `.txt` files — no supported ebook format
+- These items require either: manual import, or the specific books to be added to
+  the author's tracked library
+
+#### Validation
+
+- Backend build: 0 warnings, 0 errors
+- Slug repair: 344 records fixed, 0 duplicate slugs, 2-phase update to avoid
+  UNIQUE constraint violations
+- Post-deploy verification: Abraham Verghese and Adam Carolla processed with
+  correct slugs (`hardcover-author-114024`, `hardcover-author-107462`)
+- Server operational on port 8787
+
+### March 27, 2026 — Critical refresh pipeline fixes (P0–P4)
+
+Deep analysis of database state, logs, and code revealed a five-part failure chain
+that caused: zero series in the database, incomplete author bibliography, 144 authors
+missing cover images, and the need to re-add authors to discover more books. All five
+root causes were fixed and deployed.
+
+#### Root cause analysis findings
+
+| Metric | Before fixes | Notes |
+|---|---:|---|
+| Series | 0 | Completely empty |
+| SeriesBookLink | 0 | Completely empty |
+| Authors without images | 144 (34%) | `Images = '[]'` |
+| Authors without overview | 192 (45%) | Empty biography |
+| BulkRefreshAuthor attempts | 1 | Crashed — never succeeded |
+| Stephen King books | 53 | Hardcover returned 100+ but only file-matched books saved |
+
+Complete failure chain: `ImportApprovedBooks.EnsureAuthorAdded()` called
+`AddAuthor(doRefresh=false)` → full bibliography (books + series) fetched from
+Hardcover but discarded → `BulkRefreshAuthorCommand` queued with 701 IDs (274
+duplicates) → `BasicRepository.Get()` crashed on count mismatch (expected 701,
+got 427) → refresh never completed → no series, no full bibliography, missing
+metadata.
+
+#### P0 — Fix BulkRefreshAuthor crash on duplicate IDs
+
+- Root cause: `BasicRepository.Get(IEnumerable<int> ids)` threw
+  `ApplicationException` when callers passed duplicate IDs because SQL deduplicates
+  results but the assertion compared against the original (non-unique) count.
+- Fix: Added `ids.Distinct().ToList()` before the query and count assertion.
+- File: `src/NzbDrone.Core/Datastore/BasicRepository.cs`
+
+#### P1 — Deduplicate IDs in BulkRefreshAuthorCommand construction
+
+- Root cause: `ImportApprovedBooks.Import()` built the `BulkRefreshAuthorCommand`
+  from `addedAuthors.Select(x => x.Id).ToList()` which could contain duplicate IDs
+  when the same author appeared in multiple import batches.
+- Fix: Added `.Distinct()` to the ID list before constructing the command.
+- File: `src/NzbDrone.Core/MediaFiles/BookImport/ImportApprovedBooks.cs`
+
+#### P2 — Store numeric Hardcover author IDs
+
+- Root cause: `BuildHardcoverAuthorId()` used `Uri.EscapeDataString(authorName)` to
+  create ForeignAuthorId values like `hardcover:author:Stephen%20King`. This was
+  fragile (encoding variants, special characters) and wasted an API call on every
+  refresh (search by name → resolve numeric ID → fetch by ID).
+- Fix:
+  - Added `BuildHardcoverAuthorId(int numericId)` overload producing
+    `hardcover:author:154441` format.
+  - Added `TryParseNumericHardcoverAuthorId()` to detect numeric tokens.
+  - Added `FetchAuthorBooksById()` for direct ID-based API calls (skips name search).
+  - Modified `GetAuthorInfo()` to use numeric ID when available.
+  - Modified `AuthorMetadataRepository.UpsertMany()` to handle the name-to-numeric
+    transition: when a numeric ID is not found by direct lookup, falls back to
+    matching by author name against existing hardcover records.
+- Migration: Existing name-based IDs are converted to numeric on next successful
+  RefreshAuthor. No database migration needed — the transition is handled at runtime.
+- Files: `src/NzbDrone.Core/MetadataSource/Hardcover/HardcoverFallbackSearchProvider.cs`,
+  `src/NzbDrone.Core/Books/Repositories/AuthorMetadataRepository.cs`
+
+#### P3 — Allow series to persist without all local books
+
+- Root cause: `RefreshSeriesService.RefreshSeriesInfo()` only created series rows
+  for series that had at least one book in the local database. Since only
+  file-matched books were imported (not the full bibliography), most series had
+  zero matching local books and were discarded.
+- Fix: Modified `RefreshSeriesInfo()` to create series metadata rows for ALL remote
+  series, regardless of local book presence. `SeriesBookLink` rows are still only
+  created for books that exist locally. Series without local books are now visible
+  in the UI with accurate title, work count, and position metadata.
+- File: `src/NzbDrone.Core/Books/Services/RefreshSeriesService.cs`
+
+#### P4 — Retrigger RefreshAuthor for all 427 authors
+
+- Deployed all P0–P3 fixes, restarted server, and triggered
+  `RefreshAuthor` command (ID 1106) for all 427 authors via API.
+- The refresh is processing authors alphabetically and populating:
+  - Series metadata (growing from 0)
+  - Numeric ForeignAuthorIds (migration in progress)
+  - Full bibliography expansion
+  - Missing author images and biographies
+
+#### Validation
+
+- Backend build: 0 warnings, 0 errors.
+- Core test suite: 2634 passed, 10 failed (all pre-existing), 59 skipped.
+- Server smoke test: `/ping` returns HTTP 200.
+- Series populating: 17+ series, 43+ book links after initial refresh pass.
+- Numeric ID migration: 6 authors converted during first minutes of refresh.
+- All fixes deployed to running instance.
+
+### March 26, 2026 — Hardcover metadata expansion, frontend UX fixes, and crash guard hardening
 
 User-reported issues from full-library rescan were investigated and resolved. All code
 fixes are deployed and running. RefreshAuthor command triggered for all 430 library authors

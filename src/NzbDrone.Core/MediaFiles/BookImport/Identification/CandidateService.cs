@@ -139,6 +139,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
             }
 
+            // Include existing linked editions from BookFiles as candidates.
+            // This avoids expensive remote searches when re-identifying files
+            // that were already matched (e.g. after tag writes changed file timestamps).
+            if (idOverrides?.Edition == null)
+            {
+                var existingEditions = GetExistingFileEditions(localEdition);
+                if (existingEditions.Any())
+                {
+                    var existingIds = candidateReleases.Select(c => c.Edition.Id).ToHashSet();
+                    var newEditions = existingEditions.Where(e => !existingIds.Contains(e.Id)).ToList();
+                    if (newEditions.Any())
+                    {
+                        _logger.Debug("Adding {0} existing linked edition(s) as candidates", newEditions.Count);
+                        candidateReleases.AddRange(GetDbCandidatesByEdition(newEditions, includeExisting));
+                    }
+                }
+            }
+
             watch.Stop();
             _logger.Debug($"Getting {candidateReleases.Count} candidates from tags for {localEdition.LocalBooks.Count} tracks took {watch.ElapsedMilliseconds}ms");
 
@@ -165,6 +183,37 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return GetDbCandidatesByEdition(_editionService.GetEditionsByBook(book.Id)
                                             .OrderByDescending(x => x.Ratings.Popularity)
                                             .ToList(), includeExisting);
+        }
+
+        private List<Edition> GetExistingFileEditions(LocalEdition localEdition)
+        {
+            var paths = localEdition.LocalBooks.Select(x => x.Path).ToList();
+            var existingFiles = _mediaFileService.GetFileWithPath(paths);
+            var editionIds = existingFiles
+                .Where(x => x.EditionId > 0)
+                .Select(x => x.EditionId)
+                .Distinct()
+                .ToList();
+
+            if (!editionIds.Any())
+            {
+                return new List<Edition>();
+            }
+
+            return editionIds
+                .Select(id =>
+                {
+                    try
+                    {
+                        return _editionService.GetEdition(id);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                })
+                .Where(e => e != null)
+                .ToList();
         }
 
         private List<CandidateEdition> GetDbCandidatesByAuthor(LocalEdition localEdition, Author author, bool includeExisting)
@@ -349,6 +398,29 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var bookTag = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.BookTitle) ?? "";
             var authorVariants = BuildRobustAuthorVariants(authorTags);
             var titleVariants = BuildRobustTitleVariants(bookTag);
+
+            // If author tags are empty, try extracting from directory path structure
+            // Handles patterns like: /Author Name/Book Title/file.epub
+            if (!authorVariants.Any() && localEdition.LocalBooks.Any())
+            {
+                var dirAuthor = ExtractAuthorFromDirectoryPath(localEdition.LocalBooks.First().Path);
+                if (dirAuthor.IsNotNullOrWhiteSpace())
+                {
+                    _logger.Debug("Extracted author from directory path: '{0}'", dirAuthor);
+                    authorVariants = BuildRobustAuthorVariants(new List<string> { dirAuthor });
+                }
+            }
+
+            // If title tags are empty, try extracting from directory or filename
+            if (!titleVariants.Any() && localEdition.LocalBooks.Any())
+            {
+                var dirTitle = ExtractTitleFromDirectoryPath(localEdition.LocalBooks.First().Path);
+                if (dirTitle.IsNotNullOrWhiteSpace())
+                {
+                    _logger.Debug("Extracted title from directory path: '{0}'", dirTitle);
+                    titleVariants = BuildRobustTitleVariants(dirTitle);
+                }
+            }
 
             // If neither author nor title tags are available, stop.
             if (!authorVariants.Any() && !titleVariants.Any())
@@ -917,6 +989,122 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Extracts a likely author name from the directory path containing a book file.
+        /// Handles patterns like /downloads/ebooks/Author Name/Book Title/file.epub
+        /// and /downloads/ebooks/Correia, Larry/Son of the Black Sword/file.epub
+        /// </summary>
+        private static string ExtractAuthorFromDirectoryPath(string filePath)
+        {
+            try
+            {
+                var dir = System.IO.Path.GetDirectoryName(filePath);
+                if (dir == null)
+                {
+                    return null;
+                }
+
+                var dirName = System.IO.Path.GetFileName(dir);
+                var parentDir = System.IO.Path.GetDirectoryName(dir);
+
+                if (parentDir == null || dirName == null)
+                {
+                    return null;
+                }
+
+                var parentDirName = System.IO.Path.GetFileName(parentDir);
+
+                // If the parent directory looks like an author name (contains letters, has
+                // more than one word OR is in "Last, First" format), use it
+                if (parentDirName.IsNotNullOrWhiteSpace() && LooksLikeAuthorName(parentDirName))
+                {
+                    return CleanDirectoryNameForSearch(parentDirName);
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Extracts a likely book title from the directory or file name.
+        /// Handles patterns like /Author/Book Title/file.epub
+        /// </summary>
+        private static string ExtractTitleFromDirectoryPath(string filePath)
+        {
+            try
+            {
+                var dir = System.IO.Path.GetDirectoryName(filePath);
+                if (dir == null)
+                {
+                    return null;
+                }
+
+                var dirName = System.IO.Path.GetFileName(dir);
+                if (dirName.IsNotNullOrWhiteSpace() && dirName.Any(char.IsLetter))
+                {
+                    return CleanDirectoryNameForSearch(dirName);
+                }
+
+                // Try file name without extension
+                var fileName = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                if (fileName.IsNotNullOrWhiteSpace() && fileName.Any(char.IsLetter))
+                {
+                    return CleanDirectoryNameForSearch(fileName);
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool LooksLikeAuthorName(string name)
+        {
+            if (name.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            // Must contain letters
+            if (!name.Any(char.IsLetter))
+            {
+                return false;
+            }
+
+            // "Last, First" format
+            if (name.Contains(',') && name.Split(',').Length == 2)
+            {
+                return true;
+            }
+
+            // Multi-word name (at least two words with letters)
+            var words = name.Split(new[] { ' ', '_', '.' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Any(char.IsLetter))
+                .ToList();
+
+            return words.Count >= 2;
+        }
+
+        private static string CleanDirectoryNameForSearch(string name)
+        {
+            // Strip bracketed suffixes like (1083), [epub]
+            var cleaned = Regex.Replace(name, @"\s*[\(\[][^\)\]]*[\)\]]\s*", " ");
+
+            // Replace underscores and dots with spaces
+            cleaned = cleaned.Replace('_', ' ').Replace('.', ' ');
+
+            // Collapse whitespace
+            cleaned = Regex.Replace(cleaned.Trim(), @"\s+", " ");
+
+            return cleaned.IsNullOrWhiteSpace() ? null : cleaned;
         }
     }
 }

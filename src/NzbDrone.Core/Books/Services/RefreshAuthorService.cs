@@ -355,16 +355,18 @@ namespace NzbDrone.Core.Books
         {
             var commands = _commandQueueManager.All() ?? new List<CommandModel>();
             var expectedFolders = (folders ?? new List<string>()).OrderBy(x => x).ToList();
-            var expectedAuthors = (authorIds ?? new List<int>()).OrderBy(x => x).ToList();
 
+            // Only match on folders and filter type — authorIds are only used for
+            // post-scan AuthorScannedEvent and do not affect the actual disk scan.
+            // Matching on authorIds caused each individual author refresh to queue
+            // a separate (but functionally identical) rescan command.
             return commands.Any(command =>
                 (command.Status == CommandStatus.Queued || command.Status == CommandStatus.Started) &&
                 string.Equals(command.Name, nameof(RescanFoldersCommand), StringComparison.Ordinal) &&
                 command.Body is RescanFoldersCommand existing &&
                 existing.Filter == FilterFilesType.Matched &&
                 !existing.AddNewAuthors &&
-                (existing.Folders ?? new List<string>()).OrderBy(x => x).SequenceEqual(expectedFolders) &&
-                (existing.AuthorIds ?? new List<int>()).OrderBy(x => x).SequenceEqual(expectedAuthors));
+                (existing.Folders ?? new List<string>()).OrderBy(x => x).SequenceEqual(expectedFolders));
         }
 
         private static List<Series> BuildSeriesFromBookLinks(Author entity)

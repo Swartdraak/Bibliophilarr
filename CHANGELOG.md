@@ -9,6 +9,10 @@ process.
 
 ### Added
 
+- `FetchAuthorBooksById()` method in `HardcoverFallbackSearchProvider` for direct numeric-ID-based author book fetching, skipping the name search step. Saves one API round-trip per refresh for authors with numeric IDs.
+- `BuildHardcoverAuthorId(int numericId)` overload for creating stable `hardcover:author:154441` format IDs.
+- `TryParseNumericHardcoverAuthorId()` helper to detect numeric vs name-based Hardcover author tokens.
+- Name-to-numeric Hardcover author ID migration in `AuthorMetadataRepository.UpsertMany()`: when a numeric ID is not found by direct lookup, falls back to matching by author name against existing hardcover records and updates the ForeignAuthorId in place.
 - Hardcover author links: `GetAuthorInfo` now populates `metadata.Links` with the author's Hardcover page URL extracted from the `slug` field in the GraphQL response. 35 authors have links populated so far.
 - `ToUrlSlug()` string extension method in `StringExtensions.cs` — URL-decodes, removes diacritics, lowercases, replaces non-alphanumeric characters with hyphens, trims. Used by all metadata providers and import services for TitleSlug generation.
 - `createExistingBookSelector.js` — Redux selector that checks if a book exists in the library by `foreignBookId` against `state.books.items`.
@@ -17,17 +21,31 @@ process.
 - "Release versioning" section in `CONTRIBUTING.md` defining SemVer 2.0 policy, bump trigger table, pre-release format, version sources, and contributor/agent responsibilities.
 - Production database and log diagnostics section in `PROJECT_STATUS.md` with database statistics, TitleSlug quality assessment, log severity breakdown, and 6 recommended follow-up items.
 - Database migration 044 (`044_normalize_title_slugs.cs`) — applies `ToUrlSlug()` to all existing `AuthorMetadata.TitleSlug`, `Books.TitleSlug`, and `Editions.TitleSlug` values. Cleans up malformed slugs with colons and URL-encoded characters from Hardcover/OpenLibrary foreign IDs. Runs automatically on next application start.
+- `DownloadProcessingWorkerCount` configuration key in `IConfigService`/`ConfigService` (default `3`) to control parallel monitored-download processing concurrency.
 
 ### Changed
 
+- `GetAuthorInfo()` in `HardcoverFallbackSearchProvider`: now uses numeric Hardcover author IDs when available (e.g., `hardcover:author:154441` instead of `hardcover:author:Stephen%20King`). Existing name-based IDs are automatically converted to numeric format during the next successful author refresh.
+- `RefreshSeriesService.RefreshSeriesInfo()`: now creates series metadata rows for ALL remote series regardless of local book presence. Previously, series with zero matching local books were silently discarded, resulting in empty Series tables.
+- `ImportApprovedBooks.Import()`: `BulkRefreshAuthorCommand` construction now deduplicates author IDs before command creation.
 - Hardcover `FetchAuthorBooks` GraphQL query: increased `contributions(limit: 100)` to `contributions(limit: 500)` to fetch full bibliography for prolific authors. Books grew from 1,882 to 3,944+ after RefreshAuthor.
 - Loading page logo: replaced legacy Readarr base64 inline image in `LoadingPage.js` with new Bibliophilarr PNG (`Logo/Bibliophilarr_128x128.png`); updated `LoadingPage.css` to 128x128 sizing.
 - Loading page SVG: replaced `logo.svg` with new Bibliophilarr brand SVG.
 - Color palette: replaced red `#ca302d` accent with Navy `#193555` and Teal `#54939C` across `light.js`, `dark.js`, `login.html`, and `index.ejs` (theme-color meta tags, panel-header backgrounds, safari pinned-tab color).
 - `Directory.Build.props` version comment updated to clarify CI version injection mechanism via `BIBLIOPHILARRVERSION` env var.
+- `BookImportMatchThresholdPercent` default changed from `80` to `70` for better match acceptance on noisy ebook metadata.
+- `DownloadProcessingService.Execute()` now processes `ImportPending` tracked downloads with bounded `Parallel.ForEach` concurrency rather than sequential per-item execution.
+- `IdentificationService` now uses local-author existence checks (`FindById` / `FindByName`) when `AddNewAuthors=false`, allowing remote book matches for authors already in the library even when the specific book is missing locally.
 
 ### Fixed
 
+- **P5: TitleSlug corruption causing silent author merges** — `GetAuthorInfo()` used `??=`
+  (null-coalescing assignment) for `metadata.TitleSlug`, which failed to override the
+  wrong slug inherited from `MapDirectBookResult()`'s `cached_contributors[0]` (could be
+  an editor or co-author). Changed to unconditional `=` assignment. 344 of 432 corrupted
+  database records repaired.
+  File: `src/NzbDrone.Core/MetadataSource/Hardcover/HardcoverFallbackSearchProvider.cs`
+- **BulkRefreshAuthor crash on duplicate IDs**: `BasicRepository.Get(IEnumerable<int> ids)` threw `ApplicationException("Expected query to return N rows but returned M")` when callers passed duplicate IDs. SQL deduplicates results but the assertion compared against the original non-unique count. Fixed by deduplicating IDs with `Distinct()` before the query and count check. This was the root cause of all author refresh failures — the only `BulkRefreshAuthor` command ever attempted (ID 668) crashed with "expected 701 rows but returned 427" due to 274 duplicate IDs.
 - Bookshelf CSS class mismatch: `Bookshelf.js` referenced nonexistent `styles.innerContentBody`; changed to `styles.tableInnerContentBody` (the class defined in `Bookshelf.css`).
 - Bookshelf JumpBar initialization: added missing `this.setJumpBarItems()` call in `Bookshelf.js` `componentDidMount()`. Other index pages (e.g. `AuthorIndex`) already had this call.
 - `MediaCoverProxy.GetImage()` crash on `file://` URLs: added scheme check and `File.ReadAllBytes()` path for local file URLs instead of HTTP request. Eliminates `System.NotSupportedException`.
@@ -35,6 +53,12 @@ process.
 - Author/book slug 404 bug: raw provider foreign keys (e.g. `hardcover:author:Frank%20W.%20Abagnale`) used as URL slugs caused broken routes. Applied `ToUrlSlug()` to all 18 TitleSlug fallback assignments across 9 files (`AddAuthorService`, `HardcoverFallbackSearchProvider`, `OpenLibraryMapper`, `OpenLibraryProvider`, `OpenLibrarySearchProxy`, `GoogleBooksFallbackSearchProvider`, `InventaireFallbackSearchProvider`, `ImportApprovedBooks`).
 - Add Search green check disappearing on page refresh: `getBookSearchResultFlags()` checked `book.id !== 0` from API response (lost on navigation). Replaced with Redux-backed `createExistingBookSelector` and `createExistingAuthorForBookSelector` in `AddNewBookSearchResultConnector.js`; removed stateless function from `AddNewItem.js`.
 - `release.yml` version injection: moved "Resolve version metadata" step before build steps and added `BIBLIOPHILARRVERSION` env var to backend build step. Previously binaries shipped with placeholder version `10.0.0.*`.
+- Import pipeline null-reference chain for remote author stubs encountered during monitored download processing:
+  - `ImportDecisionMaker.EnsureData()` now null-guards author chain and root-folder lookup.
+  - `BookUpgradeSpecification` now safely handles missing quality profiles.
+  - `AuthorPathInRootFolderSpecification` now resolves local author path by foreign ID and falls back to author-name lookup for name-based Hardcover IDs.
+  - `ImportApprovedBooks.EnsureAuthorAdded()` now falls back to author-name lookup before attempting remote author creation, preventing false new-author flows from download paths outside managed root folders.
+- `DownloadProcessingService` exception recovery now transitions stuck `Importing` items to `ImportFailed` with status messaging when import throws.
 
 ### Added (previous session)
 

@@ -68,6 +68,21 @@ namespace NzbDrone.Core.Parser
             new Regex(@"^(?<book>.+)\bby\b(?<author>.+?)(?:\[|\()",
                 RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
+            //Ebook: Author - [Series NN] - Title
+            //ex. Enge, James - [Morlock 01] - Blood of Ambrose
+            //ex. R F Kuang - [Poppy War 03] - The Burning God
+            new Regex(@"^(?<author>.+?)\s+-\s+\[.+?\]\s+-\s+(?<book>.+?)$",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+            //Ebook: Author - [Series NN] - Title (Year/something)
+            new Regex(@"^(?<author>.+?)\s+-\s+\[.+?\]\s+-\s+(?<book>.+?)\s*(?:\(|\[)",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+            //Ebook: Title by Author (no brackets required)
+            //ex. Brave New World by Aldous Huxley
+            new Regex(@"^(?<book>.+?)\s+by\s+(?<author>[A-Z][a-zA-Z]+(?:\s+[A-Za-z][a-zA-Z]+)+)\s*$",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
             //ruTracker - (Genre) [Source]? Author - Book - Year
             new Regex(@"^(?:\(.+?\))(?:\W*(?:\[(?<source>.+?)\]))?\W*(?<author>.+?)(?: - )(?<book>.+?)(?: - )(?<releaseyear>\d{4})",
                 RegexOptions.IgnoreCase | RegexOptions.Compiled),
@@ -130,6 +145,12 @@ namespace NzbDrone.Core.Parser
             // Hypen with no or more spaces between author/book/year
             new Regex(@"^(?:(?<author>.+?)(?:-))(?<releaseyear>\d{4})(?:-)(?<book>[^-]+)",
                 RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+            //Ebook fallback: Author - Book (no year, no brackets required)
+            //ex. Fire Touched - Patricia Briggs, Joe Abercrombie - Sharp Ends
+            //Must have space-dash-space separator and both parts must have letters
+            new Regex(@"^(?<author>[A-Za-z][^-]+?)\s+-\s+(?<book>[A-Za-z].+?)$",
+                RegexOptions.Compiled),
         };
 
         private static readonly Regex[] RejectHashedReleasesRegex = new Regex[]
@@ -229,6 +250,79 @@ namespace NzbDrone.Core.Parser
 
         private static readonly Regex AfterDashRegex = new Regex(@"[-:].*", RegexOptions.Compiled);
 
+        // Ebook filename normalization patterns
+        // Scene-release format: Author.Name.-.Book.Title.Year.Retail.EPUB.eBook-Group
+        private static readonly Regex SceneReleaseRegex = new Regex(
+            @"^(?<author>[A-Za-z][A-Za-z.]+(?:\.[A-Za-z][A-Za-z.]+)+)\s*[.-]\s*(?<book>[A-Za-z][A-Za-z.]+(?:\.[A-Za-z][A-Za-z.]+)+)\.(?:\d{4}\.)?(?:Retail|retail|RETAIL)?\.?(?:EPUB|MOBI|PDF|AZW3|M4B)\.?(?:eBook|ebook|Audiobook)?(?:-\w+)?$",
+            RegexOptions.Compiled);
+
+        // Dot-separated words: convert dots between alpha tokens to spaces
+        private static readonly Regex DotSeparatedWordsRegex = new Regex(@"(?<=[A-Za-z])\.(?=[A-Za-z])", RegexOptions.Compiled);
+
+        // Parenthesized numeric IDs like (3119), (14594), (v1.0)
+        private static readonly Regex ParenthesizedIdRegex = new Regex(@"\s*\((?!(?:19|20)\d{2}\))\d{3,}\)\s*", RegexOptions.Compiled);
+        private static readonly Regex ParenthesizedVersionRegex = new Regex(@"\s*\(v[\d.]+\)\s*", RegexOptions.Compiled);
+
+        // Ebook noise tokens at end of string: ebook, mobi, epub, pdf, Retail, etc.
+        private static readonly Regex EbookNoiseTokensRegex = new Regex(
+            @"\s*\b(?:ebook|e-book|audiobook|retail|unabridged|abridged)\b\s*",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Format/quality tags at end: [epub], (mobi & epub), [pdf], [ePub-pdf]
+        private static readonly Regex FormatBracketRegex = new Regex(
+            @"\s*[\[\(](?:epub|mobi|pdf|azw3|m4b|mp3|flac|txt|rtf|html|lit)(?:\s*[&,]\s*(?:epub|mobi|pdf|azw3|m4b|mp3|flac|txt|rtf|html|lit))*(?:\s*[-](?:epub|mobi|pdf|azw3|m4b|mp3|flac|txt|rtf|html|lit))*[\]\)]\s*$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Numbered prefix: "276. " or "01 " at start of title
+        private static readonly Regex NumberedPrefixRegex = new Regex(@"^\d{1,4}\.?\s+", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Normalizes ebook-style filenames for better parsing.
+        /// Handles scene names (dots to spaces), underscores, mangled apostrophes,
+        /// and strips noise like parenthesized IDs, format tags, and release groups.
+        /// </summary>
+        public static string NormalizeEbookTitle(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+
+            var result = title;
+
+            // Strip format bracket suffixes like [ePub-pdf], (mobi & epub)
+            result = FormatBracketRegex.Replace(result, " ");
+
+            // Strip parenthesized numeric IDs: (3119), (14594)
+            result = ParenthesizedIdRegex.Replace(result, " ");
+
+            // Strip version markers: (v1.0)
+            result = ParenthesizedVersionRegex.Replace(result, " ");
+
+            // Scene-release detection: if mostly dot-separated, convert dots to spaces
+            // Only apply when the title has 3+ dot-separated alpha tokens
+            var dotTokens = result.Split('.');
+            if (dotTokens.Length >= 3 && dotTokens.Count(t => t.Length > 0 && t.All(c => char.IsLetter(c) || c == '-' || c == '\'')) >= 3)
+            {
+                result = DotSeparatedWordsRegex.Replace(result, " ");
+            }
+
+            // Replace underscores with spaces
+            result = result.Replace('_', ' ');
+
+            // Restore mangled apostrophes: " s " → "'s ", " t " → "'t "
+            result = Regex.Replace(result, @"(?<=\w)\s+s\b", "'s");
+            result = Regex.Replace(result, @"(?<=\w)\s+t\b", "'t");
+
+            // Strip ebook noise tokens
+            result = EbookNoiseTokensRegex.Replace(result, " ");
+
+            // Clean up multiple spaces
+            result = DuplicateSpacesRegex.Replace(result.Trim(), " ");
+
+            return result;
+        }
+
         public static ParsedTrackInfo ParseMusicPath(string path)
         {
             var fileInfo = new FileInfo(path);
@@ -291,29 +385,40 @@ namespace NzbDrone.Core.Parser
                     }
                 }
 
-                foreach (var regex in ReportMusicTitleRegex)
+                // Try with original title first, then with normalized ebook title as fallback
+                var titlesToTry = new List<string> { simpleTitle };
+                var normalizedTitle = NormalizeEbookTitle(simpleTitle);
+                if (normalizedTitle != simpleTitle)
                 {
-                    var match = regex.Matches(simpleTitle);
+                    titlesToTry.Add(normalizedTitle);
+                }
 
-                    if (match.Count != 0)
+                foreach (var candidateTitle in titlesToTry)
+                {
+                    foreach (var regex in ReportMusicTitleRegex)
                     {
-                        Logger.Trace(regex);
-                        try
-                        {
-                            var result = ParseMatchMusicCollection(match);
+                        var match = regex.Matches(candidateTitle);
 
-                            if (result != null)
+                        if (match.Count != 0)
+                        {
+                            Logger.Trace(regex);
+                            try
                             {
-                                result.Quality = QualityParser.ParseQuality(title);
-                                Logger.Debug("Quality parsed: {0}", result.Quality);
+                                var result = ParseMatchMusicCollection(match);
 
-                                return result;
+                                if (result != null)
+                                {
+                                    result.Quality = QualityParser.ParseQuality(title);
+                                    Logger.Debug("Quality parsed: {0}", result.Quality);
+
+                                    return result;
+                                }
                             }
-                        }
-                        catch (InvalidDateException ex)
-                        {
-                            Logger.Debug(ex, ex.Message);
-                            break;
+                            catch (InvalidDateException ex)
+                            {
+                                Logger.Debug(ex, ex.Message);
+                                break;
+                            }
                         }
                     }
                 }
@@ -483,45 +588,56 @@ namespace NzbDrone.Core.Parser
                     }
                 }
 
-                foreach (var regex in ReportBookTitleRegex)
+                // Try with original title first, then with normalized ebook title as fallback
+                var titlesToTry = new List<string> { simpleTitle };
+                var normalizedTitle = NormalizeEbookTitle(simpleTitle);
+                if (normalizedTitle != simpleTitle)
                 {
-                    var match = regex.Matches(simpleTitle);
+                    titlesToTry.Add(normalizedTitle);
+                }
 
-                    if (match.Count != 0)
+                foreach (var candidateTitle in titlesToTry)
+                {
+                    foreach (var regex in ReportBookTitleRegex)
                     {
-                        Logger.Trace(regex);
-                        try
-                        {
-                            var result = ParseBookMatchCollection(match, releaseTitle);
+                        var match = regex.Matches(candidateTitle);
 
-                            if (result != null)
+                        if (match.Count != 0)
+                        {
+                            Logger.Trace(regex);
+                            try
                             {
-                                result.Quality = QualityParser.ParseQuality(title);
-                                Logger.Debug("Quality parsed: {0}", result.Quality);
+                                var result = ParseBookMatchCollection(match, releaseTitle);
 
-                                result.ReleaseGroup = ParseReleaseGroup(releaseTitle);
-
-                                var subGroup = GetSubGroup(match);
-                                if (!subGroup.IsNullOrWhiteSpace())
+                                if (result != null)
                                 {
-                                    result.ReleaseGroup = subGroup;
+                                    result.Quality = QualityParser.ParseQuality(title);
+                                    Logger.Debug("Quality parsed: {0}", result.Quality);
+
+                                    result.ReleaseGroup = ParseReleaseGroup(releaseTitle);
+
+                                    var subGroup = GetSubGroup(match);
+                                    if (!subGroup.IsNullOrWhiteSpace())
+                                    {
+                                        result.ReleaseGroup = subGroup;
+                                    }
+
+                                    Logger.Debug("Release Group parsed: {0}", result.ReleaseGroup);
+
+                                    result.ReleaseHash = GetReleaseHash(match);
+                                    if (!result.ReleaseHash.IsNullOrWhiteSpace())
+                                    {
+                                        Logger.Debug("Release Hash parsed: {0}", result.ReleaseHash);
+                                    }
+
+                                    return result;
                                 }
-
-                                Logger.Debug("Release Group parsed: {0}", result.ReleaseGroup);
-
-                                result.ReleaseHash = GetReleaseHash(match);
-                                if (!result.ReleaseHash.IsNullOrWhiteSpace())
-                                {
-                                    Logger.Debug("Release Hash parsed: {0}", result.ReleaseHash);
-                                }
-
-                                return result;
                             }
-                        }
-                        catch (InvalidDateException ex)
-                        {
-                            Logger.Debug(ex, ex.Message);
-                            break;
+                            catch (InvalidDateException ex)
+                            {
+                                Logger.Debug(ex, ex.Message);
+                                break;
+                            }
                         }
                     }
                 }

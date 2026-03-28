@@ -348,7 +348,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             // Refresh any authors we added
             if (addedAuthors.Any())
             {
-                _commandQueueManager.Push(new BulkRefreshAuthorCommand(addedAuthors.Select(x => x.Id).ToList(), true));
+                var distinctAuthorIds = addedAuthors.Select(x => x.Id).Distinct().ToList();
+                _commandQueueManager.Push(new BulkRefreshAuthorCommand(distinctAuthorIds, true));
             }
 
             var addedAuthorMetadataIds = addedAuthors.Select(x => x.AuthorMetadataId).ToHashSet();
@@ -391,6 +392,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         {
                             _logger.Debug("Found existing author by TitleSlug {0} (variant ForeignAuthorId: {1})", expectedSlug, author.ForeignAuthorId);
                         }
+                    }
+                }
+
+                // If still not found, try matching by author name — remote stubs from book-title
+                // searches may have a name-based ForeignAuthorId (e.g. "hardcover:author:Charlaine%20Harris")
+                // that doesn't match the numeric ID stored in the local DB.
+                if (dbAuthor == null && author.Name.IsNotNullOrWhiteSpace())
+                {
+                    dbAuthor = _authorService.FindByName(author.Name);
+                    if (dbAuthor != null)
+                    {
+                        _logger.Debug("Found existing author by name '{0}' (ForeignAuthorId: {1})", author.Name, author.ForeignAuthorId);
                     }
                 }
 

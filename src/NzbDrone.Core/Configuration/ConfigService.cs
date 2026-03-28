@@ -375,7 +375,7 @@ namespace NzbDrone.Core.Configuration
 
         public int BookImportMatchThresholdPercent
         {
-            get { return GetValueInt("BookImportMatchThresholdPercent", 80); }
+            get { return GetValueInt("BookImportMatchThresholdPercent", 70); }
             set { SetValue("BookImportMatchThresholdPercent", value); }
         }
 
@@ -395,6 +395,12 @@ namespace NzbDrone.Core.Configuration
         {
             get { return GetValueInt("RemoteCandidateSearchWorkerCount", 3); }
             set { SetValue("RemoteCandidateSearchWorkerCount", value); }
+        }
+
+        public int DownloadProcessingWorkerCount
+        {
+            get { return GetValueInt("DownloadProcessingWorkerCount", 3); }
+            set { SetValue("DownloadProcessingWorkerCount", value); }
         }
 
         public int FirstDayOfWeek

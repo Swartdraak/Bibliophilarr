@@ -210,12 +210,19 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
         private void EnsureData(LocalEdition edition)
         {
-            if (edition.Edition != null && edition.Edition.Book.Value.Author.Value.QualityProfileId == 0)
+            var author = edition.Edition?.Book?.Value?.Author?.Value;
+
+            if (author != null && author.QualityProfileId == 0)
             {
                 var rootFolder = _rootFolderService.GetBestRootFolder(edition.LocalBooks.First().Path);
+
+                if (rootFolder == null)
+                {
+                    return;
+                }
+
                 var qualityProfile = _qualityProfileService.Get(rootFolder.DefaultQualityProfileId);
 
-                var author = edition.Edition.Book.Value.Author.Value;
                 author.QualityProfileId = qualityProfile.Id;
                 author.QualityProfile = qualityProfile;
             }
