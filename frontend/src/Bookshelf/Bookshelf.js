@@ -67,7 +67,7 @@ class Bookshelf extends Component {
       scroller: null,
       jumpBarItems: { order: [] },
       scrollIndex: null,
-      jumpCount: 0,
+      jumpToCharacter: null,
       allSelected: false,
       allUnselected: false,
       lastToggled: null,
@@ -85,40 +85,36 @@ class Bookshelf extends Component {
     this.setSelectedState();
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps, prevState) {
     const {
       isSaving,
-      saveError
+      saveError,
+      items,
+      sortKey
     } = this.props;
 
     const {
-      scrollIndex,
-      jumpCount
+      jumpToCharacter
     } = this.state;
 
     if (prevProps.isSaving && !isSaving && !saveError) {
       this.setState(selectAll(this.state.selectedState, false));
     }
 
-    // NOTE: Workaround for react-virtualized scroll position jump on re-render
-    // due to variable row heights
-    if (isValidScrollIndex(scrollIndex)) {
-      if (jumpCount === 0) {
-        this.setState({
-          scrollIndex: scrollIndex + 1,
-          jumpCount: 1
-        });
-      } else if (jumpCount === 1) {
-        this.setState({
-          scrollIndex: scrollIndex - 1,
-          jumpCount: 2
-        });
-      } else {
-        this.setState({
-          scrollIndex: null,
-          jumpCount: 0
-        });
+    // Handle A-Z jump bar navigation
+    if (jumpToCharacter != null && jumpToCharacter !== prevState.jumpToCharacter) {
+      const scrollIndex = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
+
+      if (isValidScrollIndex(scrollIndex)) {
+        this.setState({ scrollIndex });
       }
+    } else if (jumpToCharacter == null && prevState.jumpToCharacter != null) {
+      this.setState({ scrollIndex: null });
+    }
+
+    // Clear jumpToCharacter after scroll is triggered
+    if (jumpToCharacter != null) {
+      this.setState({ jumpToCharacter: null });
     }
   }
 
@@ -296,16 +292,7 @@ class Bookshelf extends Component {
   };
 
   onJumpBarItemPress = (jumpToCharacter) => {
-    const {
-      items,
-      sortKey
-    } = this.props;
-
-    const scrollIndex = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
-
-    if (isValidScrollIndex(scrollIndex)) {
-      this.setState({ scrollIndex });
-    }
+    this.setState({ jumpToCharacter });
   };
 
   onGridRecompute = (width) => {
@@ -369,7 +356,7 @@ class Bookshelf extends Component {
             innerClassName={styles.tableInnerContentBody}
           >
             {
-              isFetching && !isPopulated &&
+              (!isPopulated || !scroller) && !error &&
                 <LoadingIndicator />
             }
 

@@ -49,6 +49,10 @@ class VirtualTable extends Component {
       items,
       scrollIndex,
       scrollTop,
+      scroller,
+      rowHeight,
+      headerHeight,
+      isSmallScreen,
       onRecompute
     } = this.props;
 
@@ -71,10 +75,21 @@ class VirtualTable extends Component {
     }
 
     if (scrollIndex != null && scrollIndex !== prevProps.scrollIndex) {
-      this._grid.scrollToCell({
-        rowIndex: scrollIndex,
-        columnIndex: 0
-      });
+      // Calculate actual row height (may be a function or number)
+      const rowHeightValue = typeof rowHeight === 'function' ? rowHeight({ index: scrollIndex }) : rowHeight;
+      const targetScrollTop = (scrollIndex * rowHeightValue) + headerHeight;
+
+      // Scroll the actual scroll container instead of relying on Grid.scrollToCell
+      // which doesn't work properly with WindowScroller + autoHeight
+      const scrollContainer = isSmallScreen ? window : scroller;
+
+      if (scrollContainer) {
+        if (scrollContainer === window) {
+          window.scrollTo({ top: targetScrollTop, behavior: 'instant' });
+        } else {
+          scrollContainer.scrollTop = targetScrollTop;
+        }
+      }
     }
   }
 

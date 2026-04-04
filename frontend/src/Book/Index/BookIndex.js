@@ -453,7 +453,7 @@ class BookIndex extends Component {
             onScroll={onScroll}
           >
             {
-              isFetching && !isPopulated &&
+              (!isPopulated || !scroller) && !error &&
                 <LoadingIndicator />
             }
 

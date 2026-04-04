@@ -161,13 +161,22 @@ class AuthorIndexPosters extends Component {
     if (jumpToCharacter != null && jumpToCharacter !== prevProps.jumpToCharacter) {
       const index = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
 
-      if (this._grid && isValidScrollIndex(index)) {
+      if (isValidScrollIndex(index)) {
+        const { scroller } = this.props;
         const row = Math.floor(index / columnCount);
+        const targetScrollTop = row * rowHeight;
 
-        this._grid.scrollToCell({
-          rowIndex: row,
-          columnIndex: 0
-        });
+        // Scroll the actual scroll container instead of relying on Grid.scrollToCell
+        // which doesn't work properly with WindowScroller + autoHeight
+        const scrollContainer = isSmallScreen ? window : scroller;
+
+        if (scrollContainer) {
+          if (scrollContainer === window) {
+            window.scrollTo({ top: targetScrollTop, behavior: 'instant' });
+          } else {
+            scrollContainer.scrollTop = targetScrollTop;
+          }
+        }
       }
     }
   }

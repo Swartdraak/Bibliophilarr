@@ -231,7 +231,7 @@ class UnmappedFilesTable extends Component {
           registerScroller={this.setScrollerRef}
         >
           {
-            isFetching && !isPopulated &&
+            (!isPopulated || !scroller) && !error &&
               <LoadingIndicator />
           }
 

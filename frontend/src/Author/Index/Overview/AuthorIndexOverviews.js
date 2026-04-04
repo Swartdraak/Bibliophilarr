@@ -75,6 +75,8 @@ class AuthorIndexOverviews extends Component {
       overviewOptions,
       jumpToCharacter,
       scrollTop,
+      isSmallScreen,
+      scroller,
       isEditorActive,
       selectedState
     } = this.props;
@@ -109,12 +111,20 @@ class AuthorIndexOverviews extends Component {
     if (jumpToCharacter != null && jumpToCharacter !== prevProps.jumpToCharacter) {
       const index = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
 
-      if (this._grid && isValidScrollIndex(index)) {
+      if (isValidScrollIndex(index)) {
+        const targetScrollTop = index * rowHeight;
 
-        this._grid.scrollToCell({
-          rowIndex: index,
-          columnIndex: 0
-        });
+        // Scroll the actual scroll container instead of relying on Grid.scrollToCell
+        // which doesn't work properly with WindowScroller + autoHeight
+        const scrollContainer = isSmallScreen ? window : scroller;
+
+        if (scrollContainer) {
+          if (scrollContainer === window) {
+            window.scrollTo({ top: targetScrollTop, behavior: 'instant' });
+          } else {
+            scrollContainer.scrollTop = targetScrollTop;
+          }
+        }
       }
     }
   }

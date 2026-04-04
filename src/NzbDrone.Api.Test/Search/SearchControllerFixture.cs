@@ -53,7 +53,7 @@ namespace NzbDrone.Api.Test.Search
                 }
             };
 
-            var searchProxy = new Mock<ISearchForNewEntity>();
+            var searchProxy = new Mock<IMetadataProviderOrchestrator>();
             searchProxy.Setup(v => v.SearchForNewEntity("anne"))
                 .Returns(new List<object> { author, new Version(1, 0) });
 

@@ -16,12 +16,12 @@ namespace Bibliophilarr.Api.V1.Search
     {
         private static readonly Logger Logger = LogManager.GetLogger("Search");
 
-        private readonly ISearchForNewEntity _searchProxy;
+        private readonly IMetadataProviderOrchestrator _searchProxy;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IMapCoversToLocal _coverMapper;
         private readonly ISearchTelemetryService _searchTelemetry;
 
-        public SearchController(ISearchForNewEntity searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper, ISearchTelemetryService searchTelemetry)
+        public SearchController(IMetadataProviderOrchestrator searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper, ISearchTelemetryService searchTelemetry)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
