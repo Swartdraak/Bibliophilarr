@@ -7,6 +7,7 @@ using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles.BookImport;
@@ -29,6 +30,7 @@ namespace NzbDrone.Core.MediaFiles
     {
         private readonly IDiskProvider _diskProvider;
         private readonly IDiskScanService _diskScanService;
+        private readonly IConfigService _configService;
         private readonly IAuthorService _authorService;
         private readonly IParsingService _parsingService;
         private readonly IMakeImportDecision _importDecisionMaker;
@@ -40,6 +42,7 @@ namespace NzbDrone.Core.MediaFiles
 
         public DownloadedBooksImportService(IDiskProvider diskProvider,
                                              IDiskScanService diskScanService,
+                                             IConfigService configService,
                                              IAuthorService authorService,
                                              IParsingService parsingService,
                                              IMakeImportDecision importDecisionMaker,
@@ -51,6 +54,7 @@ namespace NzbDrone.Core.MediaFiles
         {
             _diskProvider = diskProvider;
             _diskScanService = diskScanService;
+            _configService = configService;
             _authorService = authorService;
             _parsingService = parsingService;
             _importDecisionMaker = importDecisionMaker;
@@ -238,7 +242,7 @@ namespace NzbDrone.Core.MediaFiles
                 NewDownload = true,
                 SingleRelease = false,
                 IncludeExisting = false,
-                AddNewAuthors = false
+                AddNewAuthors = true
             };
 
             var decisions = _importDecisionMaker.GetImportDecisions(audioFiles, idOverrides, idInfo, idConfig);
@@ -317,7 +321,7 @@ namespace NzbDrone.Core.MediaFiles
                 NewDownload = true,
                 SingleRelease = false,
                 IncludeExisting = false,
-                AddNewAuthors = false
+                AddNewAuthors = true
             };
 
             var decisions = _importDecisionMaker.GetImportDecisions(new List<IFileInfo>() { fileInfo }, idOverrides, idInfo, idConfig);

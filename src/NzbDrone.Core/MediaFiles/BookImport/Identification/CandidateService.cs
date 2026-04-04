@@ -26,11 +26,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private static readonly Regex Isbn13Regex = new Regex(@"(?<!\d)(97[89][\d-]{10,16})(?!\d)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex Isbn10Regex = new Regex(@"(?<![\dXx])([\d-]{9}[\dXx])(?![\dXx])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex AsinRegex = new Regex(@"\b(B0[0-9A-Z]{8})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        // Fallback provider priority: lower number = tried first.
+        // Hardcover is the primary provider, so these are the fallback order when primary fails.
         private static readonly Dictionary<string, int> FallbackProviderPriorities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
-            ["Inventaire"] = 10,
-            ["GoogleBooks"] = 20,
-            ["Hardcover"] = 30
+            ["OpenLibrary"] = 10,
+            ["Inventaire"] = 20,
+            ["GoogleBooks"] = 30,
+            ["Hardcover"] = 100  // Hardcover is primary, so it's tried last as fallback (already tried first)
         };
 
         private readonly IMetadataProviderOrchestrator _metadataOrchestrator;

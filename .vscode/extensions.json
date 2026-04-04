@@ -1,6 +1,8 @@
 {
   "recommendations": [
+    "continue.continue",
     "esbenp.prettier-vscode",
+    "johnny-zhao.oai-compatible-copilot",
     "ms-dotnettools.csdevkit",
     "ms-vscode-remote.remote-containers"
   ]

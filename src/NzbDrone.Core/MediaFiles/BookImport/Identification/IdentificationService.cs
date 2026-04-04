@@ -22,6 +22,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
     public class IdentificationService : IIdentificationService
     {
+        // Maximum distance allowed when auto-adding a new author during import.
+        // Lower distance = better match. 0.25 allows reasonably confident matches
+        // while preventing false positives from badly tagged files.
+        private const double AutoAddAuthorDistanceThreshold = 0.25;
+
         private readonly ITrackGroupingService _trackGroupingService;
         private readonly IMetadataTagService _metadataTagService;
         private readonly IAugmentingService _augmentingService;
@@ -207,6 +212,27 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             _logger.Debug($"Best release found in {watch.ElapsedMilliseconds}ms");
+
+            // If auto-adding authors is enabled and this match would add a new author,
+            // verify the match quality meets the threshold before proceeding.
+            // This prevents adding authors based on poorly-tagged or misidentified files.
+            if (config.AddNewAuthors &&
+                localBookRelease.Edition != null &&
+                !AuthorExistsLocally(localBookRelease.Edition) &&
+                localBookRelease.Distance.NormalizedDistance() > AutoAddAuthorDistanceThreshold)
+            {
+                var authorName = localBookRelease.Edition.Book?.Value?.AuthorMetadata?.Value?.Name ?? "Unknown";
+                _logger.Info("Rejecting match: would add author '{0}' but distance {1:F3} exceeds auto-add threshold {2:F2}. " +
+                             "Add the author manually if this is correct.",
+                             authorName,
+                             localBookRelease.Distance.NormalizedDistance(),
+                             AutoAddAuthorDistanceThreshold);
+
+                // Clear the match to prevent auto-adding a low-confidence author
+                localBookRelease.Edition = null;
+                localBookRelease.Distance = new Distance();
+                localBookRelease.ExistingTracks = new List<LocalBook>();
+            }
 
             localBookRelease.PopulateMatch(config.KeepAllEditions);
 

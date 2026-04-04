@@ -1,3 +1,4 @@
+import _ from 'lodash';
 import moment from 'moment';
 import { createAction } from 'redux-actions';
 import { batchActions } from 'redux-batched-actions';
@@ -175,6 +176,16 @@ export const actionHandlers = handleThunks({
   },
 
   [SAVE_INTERACTIVE_IMPORT_ITEM]: function(getState, payload, dispatch) {
+    const ids = _.chain(payload.ids ?? payload.id)
+      .castArray()
+      .compact()
+      .uniq()
+      .value();
+
+    if (!ids.length) {
+      return;
+    }
+
     if (abortCurrentRequest) {
       abortCurrentRequest();
     }
@@ -186,7 +197,7 @@ export const actionHandlers = handleThunks({
         isReprocessing: false,
         updateOnly: true
       })),
-      ...payload.ids.map((id) => updateItem({
+      ...ids.map((id) => updateItem({
         section,
         id,
         isReprocessing: true,
@@ -196,15 +207,19 @@ export const actionHandlers = handleThunks({
 
     const items = getState()[section].items;
 
-    const requestPayload = payload.ids.map((id) => {
+    const requestPayload = ids.map((id) => {
       const item = items.find((i) => i.id === id);
+
+      if (!item) {
+        return null;
+      }
 
       return {
         id,
         path: item.path,
         authorId: item.author ? item.author.id : undefined,
         bookId: item.book ? item.book.id : undefined,
-        foreignEditionId: item.foreignEditionId ? item.ForeignEditionId : undefined,
+        foreignEditionId: item.foreignEditionId,
         quality: item.quality,
         releaseGroup: item.releaseGroup,
         indexerFlags: item.indexerFlags,
@@ -213,7 +228,11 @@ export const actionHandlers = handleThunks({
         replaceExistingFiles: item.replaceExistingFiles,
         disableReleaseSwitching: item.disableReleaseSwitching
       };
-    });
+    }).filter((item) => item !== null);
+
+    if (!requestPayload.length) {
+      return;
+    }
 
     const { request, abortRequest } = createAjaxRequest({
       method: 'POST',
@@ -223,7 +242,7 @@ export const actionHandlers = handleThunks({
     });
 
     abortCurrentRequest = abortRequest;
-    currentIds = payload.ids;
+    currentIds = ids;
 
     request.done((data) => {
       dispatch(batchActions(
@@ -242,7 +261,7 @@ export const actionHandlers = handleThunks({
       }
 
       dispatch(batchActions(
-        payload.ids.map((id) => updateItem({
+        ids.map((id) => updateItem({
           section,
           id,
           isReprocessing: false,

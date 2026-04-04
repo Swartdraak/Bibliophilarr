@@ -49,7 +49,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         public string ProviderName => "Hardcover";
 
-        public int Priority => 4;
+        public int Priority => 1;
 
         public bool IsEnabled => _configService.EnableHardcoverFallback && HasConfiguredToken();
 
@@ -72,6 +72,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         public List<Book> Search(string title, string author)
         {
+            if (!IsEnabled)
+            {
+                _logger.Trace("HardcoverProvider.Search skipped because provider is disabled.");
+                return new List<Book>();
+            }
+
             var queryText = BuildSearchQuery(title, author);
             if (queryText.IsNullOrWhiteSpace())
             {

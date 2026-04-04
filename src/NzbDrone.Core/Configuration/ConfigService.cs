@@ -306,14 +306,14 @@ namespace NzbDrone.Core.Configuration
 
         public bool EnableInventaireFallback
         {
-            get { return GetValueBoolean("EnableInventaireFallback", true); }
+            get { return GetValueBoolean("EnableInventaireFallback", false); }
 
             set { SetValue("EnableInventaireFallback", value); }
         }
 
         public bool EnableGoogleBooksFallback
         {
-            get { return GetValueBoolean("EnableGoogleBooksFallback", true); }
+            get { return GetValueBoolean("EnableGoogleBooksFallback", false); }
 
             set { SetValue("EnableGoogleBooksFallback", value); }
         }
@@ -511,7 +511,7 @@ namespace NzbDrone.Core.Configuration
 
         public bool EnableOpenLibraryProvider
         {
-            get { return GetValueBoolean("EnableOpenLibraryProvider", true); }
+            get { return GetValueBoolean("EnableOpenLibraryProvider", false); }
             set { SetValue("EnableOpenLibraryProvider", value); }
         }
 
@@ -523,7 +523,7 @@ namespace NzbDrone.Core.Configuration
 
         public bool EnableInventaireProvider
         {
-            get { return GetValueBoolean("EnableInventaireProvider", true); }
+            get { return GetValueBoolean("EnableInventaireProvider", false); }
             set { SetValue("EnableInventaireProvider", value); }
         }
 

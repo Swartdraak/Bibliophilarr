@@ -14,5 +14,10 @@ namespace NzbDrone.Core.MediaFiles.Commands
         {
             AuthorIds = new List<int>();
         }
+
+        public RenameAuthorCommand(List<int> authorIds)
+        {
+            AuthorIds = authorIds;
+        }
     }
 }

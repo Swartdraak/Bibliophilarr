@@ -87,16 +87,70 @@ function MetadataProvider(props) {
       {
         hasSettings && !isFetching && !error &&
           <Form>
-            <FieldSet legend={translate('MetadataProviders')}>
+            <FieldSet legend="Primary Metadata Provider (Hardcover)">
+              <Alert kind={kinds.INFO}>
+                Hardcover is the primary metadata provider for Bibliophilarr. Configure your API token below to enable metadata lookups for authors, books, and series.
+              </Alert>
+
               <FormGroup>
                 <FormLabel>
-                  Enable Open Library Provider
+                  Enable Hardcover Provider
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableHardcoverFallback"
+                  helpText="Enable Hardcover as the primary metadata provider. Requires a valid API token from hardcover.app."
+                  onChange={onInputChange}
+                  {...settings.enableHardcoverFallback}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Hardcover API Token
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.PASSWORD}
+                  name="hardcoverApiToken"
+                  helpText="Your Hardcover API token. Get one from hardcover.app/account/api. Can also be set via BIBLIOPHILARR_HARDCOVER_API_TOKEN environment variable."
+                  onChange={onInputChange}
+                  {...settings.hardcoverApiToken}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Hardcover Request Timeout (seconds)
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="hardcoverRequestTimeoutSeconds"
+                  min={0}
+                  max={120}
+                  helpText="HTTP timeout for Hardcover API requests. Set to 0 for default timeout."
+                  onChange={onInputChange}
+                  {...settings.hardcoverRequestTimeoutSeconds}
+                />
+              </FormGroup>
+            </FieldSet>
+
+            <FieldSet legend="Additional Metadata Providers (Optional)">
+              <Alert kind={kinds.INFO}>
+                These providers are disabled by default. Enable them as fallback sources when Hardcover cannot find matches.
+              </Alert>
+
+              <FormGroup>
+                <FormLabel>
+                  Enable Open Library
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
                   name="enableOpenLibraryProvider"
-                  helpText="Enable Open Library as FOSS provider and fallback source."
+                  helpText="Enable Open Library as a fallback FOSS metadata source."
                   onChange={onInputChange}
                   {...settings.enableOpenLibraryProvider}
                 />
@@ -104,13 +158,13 @@ function MetadataProvider(props) {
 
               <FormGroup>
                 <FormLabel>
-                  Enable Inventaire Provider
+                  Enable Inventaire
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
                   name="enableInventaireProvider"
-                  helpText="Enable Inventaire as additional fallback provider. Environment kill switch: BIBLIOPHILARR_DISABLE_INVENTAIRE=1"
+                  helpText="Enable Inventaire as an additional fallback provider."
                   onChange={onInputChange}
                   {...settings.enableInventaireProvider}
                 />
@@ -118,29 +172,15 @@ function MetadataProvider(props) {
 
               <FormGroup>
                 <FormLabel>
-                  Enable Google Books Provider
+                  Enable Google Books
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
                   name="enableGoogleBooksProvider"
-                  helpText="Enable Google Books provider for additional metadata coverage when available."
+                  helpText="Enable Google Books provider for additional metadata coverage."
                   onChange={onInputChange}
                   {...settings.enableGoogleBooksProvider}
-                />
-              </FormGroup>
-
-              <FormGroup>
-                <FormLabel>
-                  Enable Google Books Fallback
-                </FormLabel>
-
-                <FormInputGroup
-                  type={inputTypes.CHECK}
-                  name="enableGoogleBooksFallback"
-                  helpText="Allow Google Books fallback query expansion when primary lookup returns no usable result."
-                  onChange={onInputChange}
-                  {...settings.enableGoogleBooksFallback}
                 />
               </FormGroup>
 
@@ -152,7 +192,7 @@ function MetadataProvider(props) {
                 <FormInputGroup
                   type={inputTypes.PASSWORD}
                   name="googleBooksApiKey"
-                  helpText="Optional but recommended for higher Google Books request quota and consistency."
+                  helpText="Optional API key for higher Google Books request quota."
                   onChange={onInputChange}
                   {...settings.googleBooksApiKey}
                 />
@@ -166,7 +206,7 @@ function MetadataProvider(props) {
                 <FormInputGroup
                   type={inputTypes.TEXT}
                   name="metadataProviderPriorityOrder"
-                  helpText="Comma-separated provider order, e.g. OpenLibrary,GoogleBooks,Inventaire"
+                  helpText="Comma-separated provider order. Default: Hardcover,OpenLibrary,GoogleBooks,Inventaire"
                   onChange={onInputChange}
                   {...settings.metadataProviderPriorityOrder}
                 />
@@ -305,54 +345,32 @@ function MetadataProvider(props) {
 
             </FieldSet>
 
-            <FieldSet legend={translate('MetadataQueryNormalization')}>
+            <FieldSet legend="Import Identification Settings">
               <FormGroup>
-                <FormLabel>{translate('EnableInventaireFallback')}</FormLabel>
+                <FormLabel>
+                  Enable Fallback Searches
+                </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
                   name="enableInventaireFallback"
-                  helpText={translate('EnableInventaireFallbackHelpText')}
+                  helpText="Allow fallback searches through additional providers when the primary lookup fails."
                   onChange={onInputChange}
                   {...settings.enableInventaireFallback}
                 />
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>{translate('EnableHardcoverFallback')}</FormLabel>
+                <FormLabel>
+                  Enable Google Books Fallback
+                </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
-                  name="enableHardcoverFallback"
-                  helpText={translate('EnableHardcoverFallbackHelpText')}
+                  name="enableGoogleBooksFallback"
+                  helpText="Allow Google Books fallback query expansion when primary lookup returns no result."
                   onChange={onInputChange}
-                  {...settings.enableHardcoverFallback}
-                />
-              </FormGroup>
-
-              <FormGroup>
-                <FormLabel>{translate('HardcoverApiToken')}</FormLabel>
-
-                <FormInputGroup
-                  type={inputTypes.PASSWORD}
-                  name="hardcoverApiToken"
-                  helpText={translate('HardcoverApiTokenHelpText')}
-                  onChange={onInputChange}
-                  {...settings.hardcoverApiToken}
-                />
-              </FormGroup>
-
-              <FormGroup>
-                <FormLabel>{translate('HardcoverRequestTimeoutSeconds')}</FormLabel>
-
-                <FormInputGroup
-                  type={inputTypes.NUMBER}
-                  name="hardcoverRequestTimeoutSeconds"
-                  min={0}
-                  max={120}
-                  helpText={translate('HardcoverRequestTimeoutSecondsHelpText')}
-                  onChange={onInputChange}
-                  {...settings.hardcoverRequestTimeoutSeconds}
+                  {...settings.enableGoogleBooksFallback}
                 />
               </FormGroup>
 
@@ -406,7 +424,7 @@ function MetadataProvider(props) {
                   name="remoteCandidateSearchWorkerCount"
                   min={1}
                   max={8}
-                  helpText="Maximum concurrent OpenLibrary primary candidate searches for author/title variants. Default 3. Reduce this if provider throttling is observed."
+                  helpText="Maximum concurrent remote candidate searches for author/title variants. Default 3. Reduce this if provider throttling is observed."
                   onChange={onInputChange}
                   {...settings.remoteCandidateSearchWorkerCount}
                 />

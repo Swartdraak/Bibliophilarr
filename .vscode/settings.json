@@ -1,0 +1,142 @@
+{
+  "oaicopilot.baseUrl": "http://192.168.40.200:11434",
+  "oaicopilot.models": [
+    {
+      "id": "qwen35-27b-claude46-opus-jagjeevan-q8:reasoning",
+      "displayName": "Ollama Qwen3.5 27B Q8 (Max Reasoning)",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 262144,
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": true,
+        "effort": "high"
+      },
+      "enable_thinking": true,
+      "thinking_budget": 4096,
+      "temperature": 0.2
+    },
+    {
+      "id": "qwen35-27b-claude46-opus-jagjeevan-q4:reasoning",
+      "displayName": "Ollama Qwen3.5 27B Q4 (Balanced Reasoning)",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 262144,
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": true,
+        "effort": "high"
+      },
+      "enable_thinking": true,
+      "thinking_budget": 3072,
+      "temperature": 0.15
+    },
+    {
+      "id": "qwen2.5-coder:14b",
+      "displayName": "Ollama Qwen2.5 Coder 14B (Main Agent)",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 32768,
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": true,
+        "effort": "medium"
+      },
+      "temperature": 0.1,
+      "useForCommitGeneration": true
+    },
+    {
+      "id": "qwen2.5-coder:7b",
+      "displayName": "Ollama Qwen2.5 Coder 7B (Fast)",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 32768,
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": true,
+        "effort": "medium"
+      },
+      "temperature": 0.1
+    },
+    {
+      "id": "deepseek-r1:8b",
+      "displayName": "Ollama DeepSeek R1 8B",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 131072,
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": true,
+        "effort": "high"
+      },
+      "enable_thinking": true,
+      "thinking_budget": 2048,
+      "temperature": 0.2
+    },
+    {
+      "id": "qwen3.5:9b",
+      "displayName": "Ollama Qwen3.5 9B",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 262144,
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": true,
+        "effort": "medium"
+      },
+      "temperature": 0.2
+    },
+    {
+      "id": "qwen3.5:4b",
+      "displayName": "Ollama Qwen3.5 4B",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 262144,
+      "max_tokens": 2048,
+      "temperature": 0.2
+    },
+    {
+      "id": "llama3.1:8b",
+      "displayName": "Ollama Llama3.1 8B",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 131072,
+      "max_tokens": 3072,
+      "temperature": 0.2
+    },
+    {
+      "id": "phi4-mini:3.8b",
+      "displayName": "Ollama Phi4 Mini 3.8B",
+      "provider": "ollama",
+      "baseUrl": "http://192.168.40.200:11434",
+      "apiMode": "ollama",
+      "context_length": 131072,
+      "max_tokens": 2048,
+      "temperature": 0.2
+    }
+  ],
+  "oaicopilot.retry": {
+    "enabled": true,
+    "max_attempts": 5,
+    "interval_ms": 1500,
+    "status_codes": [
+      408,
+      409,
+      429,
+      500,
+      502,
+      503,
+      504
+    ]
+  },
+  "oaicopilot.delay": 100,
+  "oaicopilot.readFileLines": 600
+}

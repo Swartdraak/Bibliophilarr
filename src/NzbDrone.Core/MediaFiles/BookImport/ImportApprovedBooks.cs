@@ -50,6 +50,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IHistoryService _historyService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly IMonitorNewBookService _monitorNewBookService;
         private readonly Logger _logger;
 
         public ImportApprovedBooks(IUpgradeMediaFiles bookFileUpgrader,
@@ -66,6 +67,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IHistoryService historyService,
                                    IEventAggregator eventAggregator,
                                    IManageCommandQueue commandQueueManager,
+                                   IMonitorNewBookService monitorNewBookService,
                                    Logger logger)
         {
             _bookFileUpgrader = bookFileUpgrader;
@@ -82,6 +84,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _historyService = historyService;
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
+            _monitorNewBookService = monitorNewBookService;
             _logger = logger;
         }
 
@@ -539,7 +542,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     try
                     {
                         NormalizeBookForInsert(book);
-                        book.Monitored = book.Author.Value.Monitored;
+                        var existingBooks = _bookService.GetBooksByAuthor(book.Author.Value.Id);
+                        book.Monitored = _monitorNewBookService.ShouldMonitorNewBook(book, existingBooks, book.Author.Value.MonitorNewItems);
                         book.Added = DateTime.UtcNow;
                         _bookService.InsertMany(new List<Book> { book });
                         addedBooks.Add(book);
