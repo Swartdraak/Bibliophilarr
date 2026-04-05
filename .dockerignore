@@ -16,3 +16,4 @@ wiki
 schemas
 *.md
 !README.md
+!LICENSE.md
