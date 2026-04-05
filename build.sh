@@ -282,7 +282,7 @@ InstallInno()
     
     local INNO_VER="${INNOVERSION:-6.2.0}"
     # Default hash for Inno Setup 6.2.0.  Override with INNO_SETUP_SHA256 env var when upgrading.
-    local INNO_SHA256="${INNO_SETUP_SHA256:-b47e5b47e8a4c3cc8be820b38fa42b51c6ad72780a1816306b3e7dbb50282522}"
+    local INNO_SHA256="${INNO_SETUP_SHA256:-d5a89e26beae0bc03ad18a0b0d1d3d75f87c32047879d25da11970cb5c4662a3}"
 
     rm -rf _inno
     curl -s --output innosetup.exe "https://files.jrsoftware.org/is/6/innosetup-${INNO_VER}.exe"
