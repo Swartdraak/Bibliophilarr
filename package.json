@@ -33,7 +33,7 @@
     "@fortawesome/free-solid-svg-icons": "6.7.2",
     "@fortawesome/react-fontawesome": "0.2.6",
     "@microsoft/signalr": "6.0.25",
-    "@types/node": "20.19.37",
+    "@types/node": "25.5.2",
     "@types/react": "18.3.28",
     "@types/react-dom": "18.3.7",
     "classnames": "2.5.1",
