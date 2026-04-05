@@ -15,7 +15,7 @@ Start in this order:
 ## Prerequisites
 
 - .NET 8 SDK
-- Node.js 20.x
+- Node.js 22.x
 - Yarn 1.22.x
 - Git
 

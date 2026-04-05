@@ -555,7 +555,7 @@ new items start at RQ-064.
 | RQ-005 | Docker | Node.js tarball downloaded without checksum verification — `Dockerfile:8` | **FIXED** — Added SHA256 checksum verification for Node.js tarball |
 | RQ-006 | Scripts | `release_readiness_report.py` and `operational_drift_report.py` reference deleted `phase6-packaging-validation.yml` — `scripts/release_readiness_report.py`, `scripts/operational_drift_report.py` | **FIXED** — Removed workflow from both scripts |
 | RQ-007 | Docs | `MIGRATION_PLAN.md` references migration file `041` but actual file is `042` — `MIGRATION_PLAN.md:909` | **FIXED** — Changed `041` to `042` in MIGRATION_PLAN.md |
-| RQ-064 | Packages | RestSharp 106.15.0 — unmaintained, known security issues, no modern TLS/HTTP2 support — `src/Directory.Packages.props:46` | Replace with `System.Net.Http.HttpClient` via interface wrapper; remove RestSharp and RestSharp.Serializers.SystemTextJson |
+| RQ-064 | Packages | RestSharp 106.15.0 — unmaintained, known security issues, no modern TLS/HTTP2 support — `src/Directory.Packages.props:46` | **FIXED** — RestSharp fully removed, replaced by `System.Net.Http.HttpClient` |
 | RQ-065 | Packages | **FIXED** — Removed dead `Bibliophilarr.Automation.Test` project from solution (zero CI integration, no test runs); removed Selenium.Support and Selenium.WebDriver.ChromeDriver from Directory.Packages.props — `Bibliophilarr.sln`, `Directory.Packages.props` | ~~Verify if still used; if so upgrade to Selenium 4.x~~ |
 | RQ-066 | Frontend | Zero frontend test files exist in entire codebase — no `.test.js`, `.spec.js`, or `__tests__/` directories — `frontend/src/` (entire) | Install test infrastructure (jest + @testing-library/react), create tests for critical flows (search, metadata mapping, imports), add CI step |
 | RQ-067 | Packages | **FIXED** — Replaced `redux-localstorage` with custom store enhancer in `createPersistState.js`; removed dependency from package.json — `createPersistState.js`, `package.json` | ~~Replace with lightweight custom Redux middleware for localStorage persistence~~ |
@@ -722,7 +722,7 @@ new items start at RQ-064.
 
 | ID | Area | Opportunity — Phase | Impact |
 |---|---| --- — --- |---|
-| RQ-157 | Packages | RestSharp → `System.Net.Http.HttpClient` migration (also resolves RQ-064) — Phase 6 | Removes ~200KB dependency, enables proper async/CancellationToken, modern TLS/HTTP2 |
+| RQ-157 | Packages | RestSharp → `System.Net.Http.HttpClient` migration (also resolves RQ-064) — Phase 6 | **FIXED** — RestSharp fully removed, replaced by `System.Net.Http.HttpClient` |
 | RQ-158 | Packages | `Newtonsoft.Json` 13.0.3 → `System.Text.Json` (built-in, faster, smaller) — Phase 7+ | Removes ~200KB dependency; medium-high effort but high performance value |
 | RQ-159 | Frontend | React 17 → 18 → 19 upgrade path (includes Babel, TypeScript types, @testing-library updates) — Phase 6-7 | Enables concurrent rendering, automatic batching, better performance. React 17 approaches EOL 2026 |
 | RQ-160 | Frontend | React Router 5 → 6 migration (remove `connected-react-router`, adopt hooks) — Phase 7 (Dependabot PR [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) closed; DMQ-003) | High effort but necessary; react-router 5 EOL since 2021 |
@@ -774,59 +774,28 @@ The current Dockerfile and infrastructure have the following security and reliab
 These will be addressed in dedicated hardening slices aligned with Phase 6 release-readiness
 goals. Items are cross-referenced to the remediation queue above.
 
-Current state (`Dockerfile`):
+Current state (`Dockerfile`) — **Phase 6 hardening complete** (April 2026):
 
-```
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build        # unpinned tag (RQ-004)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime    # unpinned tag (RQ-004)
-# Node downloaded via curl without checksum             (RQ-005)
-# Runtime runs as root                                  (RQ-023)
-# No HEALTHCHECK                                        (RQ-024)
-# No OCI version labels                                 (RQ-059)
-# No container image scanning                           (RQ-111)
-# No SBOM generation                                    (RQ-112)
-# .dockerignore incomplete                              (RQ-156)
-```
+- Base images pinned to SHA256 digests (RQ-004 FIXED)
+- Node.js tarball SHA256 checksum verified (RQ-005 FIXED)
+- Non-root runtime user `bibliophilarr` (RQ-023 FIXED)
+- `HEALTHCHECK` directive present (RQ-024 FIXED)
+- OCI labels including version and vendor (RQ-059 FIXED)
+- Trivy container image scanning in CI (RQ-111 FIXED)
+- CycloneDX SBOM generation (RQ-112 FIXED)
+- `.dockerignore` expanded (RQ-156 FIXED)
 
-### Planned changes — Phase 6
+### Completed changes — Phase 6
 
-1. **Pin base images to SHA256 digests** (RQ-004)
-   - `FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:<digest> AS build`
-   - `FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:<digest> AS runtime`
-   - Update digests on a scheduled cadence (monthly or on security advisory).
-
-2. **Node.js tarball integrity verification** (RQ-005)
-   - Download `SHASUMS256.txt` from nodejs.org and verify tarball hash before extraction.
-   - Alternative: use a pinned Node base image in a separate build stage.
-
-3. **Non-root runtime user** (RQ-023)
-   - Add `RUN useradd --system --uid 1001 --no-create-home bibliophilarr` in runtime stage.
-   - `USER bibliophilarr` before `ENTRYPOINT`.
-   - Ensure data volume mount permissions are compatible (RQ-116).
-
-4. **Health check** (RQ-024)
-   - `HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD curl -sf http://localhost:8787/ping || exit 1`
-   - Requires `curl` in runtime image or use a compiled health check binary.
-
-5. **OCI image labels** (RQ-059)
-   - `LABEL org.opencontainers.image.version="$BIBLIOPHILARR_VERSION"` via build arg.
-   - Add source, authors, and description labels.
-
-6. **Build cache optimization**
-   - Separate dependency restore layer from source copy.
-   - Copy `.sln` + `*.csproj` files first, restore, then copy source.
-   - Reduces rebuild time when only source changes.
-
-7. **Container image scanning** (RQ-111)
-   - Add Trivy or Grype scan step in `docker-image.yml` workflow.
-   - Fail pipeline on CRITICAL or HIGH severity vulnerabilities.
-
-8. **Expand `.dockerignore`** (RQ-156)
-   - Add `_temp/`, `src/**/bin/`, `src/**/obj/`, `.git/`, `_artifacts/`, `_tests/`.
-
-9. **SBOM generation** (RQ-112)
-   - Add CycloneDX step to generate SBOM during Docker build.
-   - Attach as image layer or publish alongside image.
+1. **Pin base images to SHA256 digests** (RQ-004) — **COMPLETED**
+2. **Node.js tarball integrity verification** (RQ-005) — **COMPLETED**
+3. **Non-root runtime user** (RQ-023) — **COMPLETED**
+4. **Health check** (RQ-024) — **COMPLETED**
+5. **OCI image labels** (RQ-059) — **COMPLETED**
+6. **Build cache optimization** — **COMPLETED**
+7. **Container image scanning** (RQ-111) — **COMPLETED** (Trivy in `docker-image.yml`)
+8. **Expand `.dockerignore`** (RQ-156) — **COMPLETED**
+9. **SBOM generation** (RQ-112) — **COMPLETED** (CycloneDX)
 
 ### Planned changes — Phase 7
 

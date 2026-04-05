@@ -13,8 +13,14 @@ process.
 - Release gate checklist in `CONTRIBUTING.md` enforcing CI, CHANGELOG, artifact, and rollback verification before tagging releases.
 - Enhanced PR template with type-of-change checkboxes, production safety checklist, and CHANGELOG update requirement.
 
+### Fixed
+
+- `test: fix 13 failing Core unit tests for updated metadata profiles and import behavior`
+
 ### Changed
 
+- `refactor: migrate test infrastructure from RestSharp to System.Net.Http.HttpClient`
+- `docs: normalize canonical documentation, fix stale Node.js versions and milestone statuses`
 - Upgraded Node.js 20.19.2 → 22.22.2 LTS across Dockerfile, `ci-frontend.yml`, `npm-publish.yml`, and `release.yml`. Node 20 reached EOL April 2026.
 - Added `org.opencontainers.image.vendor` OCI label to Dockerfile.
 - Bumped GitHub Actions: `docker/metadata-action` v5 → v6, `actions/setup-node` v4 → v6, `actions/github-script` v7 → v8, `docker/login-action` v3 → v4, `docker/setup-buildx-action` v3 → v4.

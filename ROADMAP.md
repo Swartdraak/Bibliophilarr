@@ -131,9 +131,9 @@ Planned entry conditions:
 | CI/CD supply-chain hardening | third-party actions pinned to SHA, workflow permissions scoped to job-level, version pins centralized | complete |
 | Legacy branding cleanup | remove remaining Sonarr/Readarr/Radarr/Lidarr/Prowlarr branding from frontend UI, donations, logos, and icon assets | complete |
 | Frontend test infrastructure | install jest + @testing-library/react; add initial test suite for critical flows; add CI step and coverage thresholds | planned |
-| Async migration (sync-over-async) | convert 10+ `.GetAwaiter().GetResult()` sites to true async/await and propagate CancellationToken | planned |
-| RestSharp → HttpClient migration | replace unmaintained RestSharp 106.15 with System.Net.Http.HttpClient via interface wrapper | planned |
-| Security headers and input validation | add CSP/HSTS/X-Frame-Options middleware; validate API search/parse inputs at controller boundary | planned |
+| Async migration (sync-over-async) | convert 10+ `.GetAwaiter().GetResult()` sites to true async/await and propagate CancellationToken | assessed — no action required (all patterns acceptable) |
+| RestSharp → HttpClient migration | replace unmaintained RestSharp 106.15 with System.Net.Http.HttpClient via interface wrapper | complete |
+| Security headers and input validation | add CSP/HSTS/X-Frame-Options middleware; validate API search/parse inputs at controller boundary | complete |
 | React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | planned (DMQ-003, DMQ-004) |
 | Node 22 LTS migration | upgrade from Node 20 (EOL April 2026) to Node 22 LTS | complete |
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
@@ -207,11 +207,11 @@ Phase 7 (requires React 18 first):
 7. Promote TD-META-001..005 behaviors into release-entry evidence capture, including provider telemetry and conflict-score snapshots.
 8. Add end-to-end metadata parity rehearsal on production-shaped datasets with explicit pass/fail thresholds for catalog retention and match-rate drift.
 9. Close remaining high-priority failing Core baseline tests that impact metadata import quality signals.
-10. Execute Docker hardening slice: pin base images to digests, add Node checksum verification, non-root runtime user, HEALTHCHECK, OCI labels, image scanning, SBOM. Remediation items RQ-004, RQ-005, RQ-023, RQ-024, RQ-059, RQ-111, RQ-112 from PROJECT_STATUS.md audit queue.
-11. Pin third-party GitHub Actions to exact versions or commit SHAs; standardize workflow permissions to job-level; centralize version pins across global.json, Dockerfile, and workflows. Remediation items RQ-015, RQ-016, RQ-036, RQ-037, RQ-039, RQ-109, RQ-110, RQ-114 from audit queue.
+10. ~~Execute Docker hardening slice: pin base images to digests, add Node checksum verification, non-root runtime user, HEALTHCHECK, OCI labels, image scanning, SBOM. Remediation items RQ-004, RQ-005, RQ-023, RQ-024, RQ-059, RQ-111, RQ-112 from PROJECT_STATUS.md audit queue.~~ **COMPLETED**
+11. ~~Pin third-party GitHub Actions to exact versions or commit SHAs; standardize workflow permissions to job-level; centralize version pins across global.json, Dockerfile, and workflows. Remediation items RQ-015, RQ-016, RQ-036, RQ-037, RQ-039, RQ-109, RQ-110, RQ-114 from audit queue.~~ **COMPLETED**
 12. Begin async migration: convert highest-risk sync-over-async sites (HttpClient, BookSearchService, EpubReader) to true async/await; propagate CancellationToken to middleware and core services. Remediation items RQ-003, RQ-018, RQ-020, RQ-021.
 13. Install frontend test infrastructure (jest, @testing-library/react); write initial test suite covering search, import modal, and metadata mapping flows; add CI enforcement step. Remediation items RQ-066, RQ-042, RQ-043, RQ-106.
-14. Plan and execute RestSharp 106 → HttpClient migration behind interface wrapper; update provider clients. Remediation items RQ-064, RQ-157.
+14. ~~Plan and execute RestSharp 106 → HttpClient migration behind interface wrapper; update provider clients. Remediation items RQ-064, RQ-157.~~ **COMPLETED** — RestSharp fully removed, replaced by `System.Net.Http.HttpClient`.
 15. Add security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); validate API inputs at controller boundary. Remediation items RQ-086, RQ-087, RQ-175.
 16. Execute documentation normalization pass: fix MIGRATION_PLAN.md duplicate H2 headings, update stale references, archive dated operational docs, align wiki with ROADMAP phases. Remediation items RQ-007, RQ-048, RQ-044, RQ-047, RQ-079, RQ-080, RQ-121-RQ-125.
 17. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.

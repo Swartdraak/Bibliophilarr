@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - .NET SDK 8.0+ (see `global.json` for exact version)
-- Node.js 20.19.x (see `Dockerfile` for exact version)
+- Node.js 22.x (see `Dockerfile` for exact version)
 - Yarn 1.22.19 (see `package.json` `packageManager` field)
 - Git
 

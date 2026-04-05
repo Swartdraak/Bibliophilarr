@@ -1694,6 +1694,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Appendix: API Comparison
 
+> **Note:** Goodreads has been removed from the runtime. The column is retained for historical comparison only.
+
 | Feature | Open Library | Inventaire | Google Books | Goodreads (Legacy) |
 |---------|--------------|------------|--------------|-------------------|
 | **License** | AGPL (Open) | AGPL (Open) | Proprietary | Proprietary |
@@ -1721,6 +1723,6 @@ Major revisions are tracked via git history. Key milestones:
 
 ---
 
-**Last Updated**: March 23, 2026  
+**Last Updated**: April 5, 2026  
 **Status**: Active migration program (Phase 5 consolidation, Phase 6 hardening)  
 **Next Review**: Next canonical roadmap/status update cycle
