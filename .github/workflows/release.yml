@@ -173,6 +173,10 @@ jobs:
       - name: Build installer (windows only)
         if: runner.os == 'Windows'
         shell: bash
+        env:
+          MAJORVERSION: ${{ steps.ver.outputs.version }}
+          MINORVERSION: '0'
+          BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
         run: |
           ./build.sh --installer -r win-x64 -f net8.0
           cp distribution/windows/setup/output/*.exe release/ || true
