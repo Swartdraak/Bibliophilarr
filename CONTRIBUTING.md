@@ -179,6 +179,30 @@ Version format: `MAJOR.MINOR.PATCH` (e.g. `1.2.3`).
 Use `-alpha.N`, `-beta.N`, or `-rc.N` suffixes for pre-release tags
 (e.g. `v1.0.0-beta.1`).
 
+### Develop branch versioning
+
+The `develop` branch uses tagged pre-release versions to track progress between
+sprints. Tags use the format `v{MAJOR}.{MINOR}.{PATCH}-dev.{N}` where `N` is
+a monotonically increasing sprint counter.
+
+**Convention:**
+
+- Tag `develop` at the end of each sprint or when a logical set of changes is
+  complete.
+- The `MAJOR.MINOR.PATCH` portion reflects the *next planned release* version.
+- Increment `N` for each successive dev tag within the same target version.
+- Example progression: `v1.1.0-dev.1` → `v1.1.0-dev.2` → `v1.1.0-rc.1` →
+  `v1.1.0`.
+
+**Tagging command:**
+
+```bash
+git tag -a v1.1.0-dev.N -m "v1.1.0-dev.N: <sprint summary>"
+```
+
+Dev tags are *not* pushed to origin automatically — maintainers push them
+after verifying the sprint's changes pass CI.
+
 ### Version sources
 
 - **Git tags** are the source of truth: `v{MAJOR}.{MINOR}.{PATCH}`.

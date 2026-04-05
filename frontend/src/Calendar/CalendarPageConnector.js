@@ -1,4 +1,4 @@
-import moment from 'moment';
+import { isAfter as isAfterFn, isBefore as isBeforeFn, parseISO } from 'date-fns';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import withCurrentPage from 'Components/withCurrentPage';
@@ -22,8 +22,8 @@ function createMissingBookIdsSelector() {
 
         if (
           book.percentOfBooks < 100 &&
-          moment(releaseDate).isAfter(start) &&
-          moment(releaseDate).isBefore(end) &&
+          isAfterFn(parseISO(releaseDate), parseISO(start)) &&
+          isBeforeFn(parseISO(releaseDate), parseISO(end)) &&
           isBefore(book.releaseDate) &&
           !queueDetails.some((details) => !!details.book && details.book.id === book.id)
         ) {

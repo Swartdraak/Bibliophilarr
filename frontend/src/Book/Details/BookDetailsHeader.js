@@ -1,4 +1,4 @@
-import moment from 'moment';
+import { format, parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import TextTruncate from 'react-text-truncate';
@@ -13,6 +13,7 @@ import MonitorToggleButton from 'Components/MonitorToggleButton';
 import Tooltip from 'Components/Tooltip/Tooltip';
 import { icons, kinds, sizes, tooltipPositions } from 'Helpers/Props';
 import fonts from 'Styles/Variables/fonts';
+import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
 import formatBytes from 'Utilities/Number/formatBytes';
 import stripHtml from 'Utilities/String/stripHtml';
 import BookDetailsLinks from './BookDetailsLinks';
@@ -166,7 +167,7 @@ class BookDetailsHeader extends Component {
 
                     <span className={styles.sizeOnDisk}>
                       {
-                        moment(releaseDate).format(shortDateFormat)
+                        format(parseISO(releaseDate), momentFormatToDateFns(shortDateFormat))
                       }
                     </span>
                   </Label>

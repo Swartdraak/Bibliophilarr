@@ -1,11 +1,15 @@
-import moment from 'moment';
+import parseTimeSpan from 'Utilities/Date/parseTimeSpan';
 
 function formatShortTimeSpan(timeSpan) {
   if (!timeSpan) {
     return '';
   }
 
-  const duration = moment.duration(timeSpan);
+  const duration = parseTimeSpan(timeSpan);
+
+  if (!duration) {
+    return '';
+  }
 
   const hours = Math.floor(duration.asHours());
   const minutes = Math.floor(duration.asMinutes());

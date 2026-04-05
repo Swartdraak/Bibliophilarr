@@ -1,5 +1,6 @@
-import moment from 'moment';
+import { format, parseISO } from 'date-fns';
 import translate from 'Utilities/String/translate';
+import momentFormatToDateFns from './momentFormatToDateFns';
 import formatTime from './formatTime';
 import isToday from './isToday';
 import isTomorrow from './isTomorrow';
@@ -31,7 +32,7 @@ function formatDateTime(date, dateFormat, timeFormat, { includeSeconds = false, 
   }
 
   const relativeDay = getRelativeDay(date, includeRelativeDay);
-  const formattedDate = moment(date).format(dateFormat);
+  const formattedDate = format(parseISO(date), momentFormatToDateFns(dateFormat));
   const formattedTime = formatTime(date, timeFormat, { includeMinuteZero: true, includeSeconds });
 
   return `${relativeDay}${formattedDate} ${formattedTime}`;

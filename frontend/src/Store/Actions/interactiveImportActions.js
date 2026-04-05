@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import moment from 'moment';
 import { createAction } from 'redux-actions';
 import { batchActions } from 'redux-batched-actions';
 import { sortDirections } from 'Helpers/Props';
@@ -313,7 +312,7 @@ export const reducers = createHandleActions({
 
   [ADD_RECENT_FOLDER]: function(state, { payload }) {
     const folder = payload.folder;
-    const recentFolder = { folder, lastUsed: moment().toISOString() };
+    const recentFolder = { folder, lastUsed: new Date().toISOString() };
     const recentFolders = [...state.recentFolders];
     const index = recentFolders.findIndex((r) => r.folder === folder);
 

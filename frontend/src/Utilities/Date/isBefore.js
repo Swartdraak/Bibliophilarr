@@ -1,17 +1,31 @@
-import moment from 'moment';
+import { addDays, addHours, addMinutes, addMonths, addSeconds, addWeeks, addYears, isBefore as isBeforeFn, parseISO } from 'date-fns';
+
+const addFns = {
+  years: addYears,
+  months: addMonths,
+  weeks: addWeeks,
+  days: addDays,
+  hours: addHours,
+  minutes: addMinutes,
+  seconds: addSeconds
+};
 
 function isBefore(date, offsets = {}) {
   if (!date) {
     return false;
   }
 
-  const offsetTime = moment();
+  let offsetTime = new Date();
 
   Object.keys(offsets).forEach((key) => {
-    offsetTime.add(offsets[key], key);
+    const fn = addFns[key];
+
+    if (fn) {
+      offsetTime = fn(offsetTime, offsets[key]);
+    }
   });
 
-  return moment(date).isBefore(offsetTime);
+  return isBeforeFn(parseISO(date), offsetTime);
 }
 
 export default isBefore;

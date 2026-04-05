@@ -1,11 +1,11 @@
-import moment from 'moment';
+import { isSameWeek as isSameWeekFn, parseISO } from 'date-fns';
 
 function isSameWeek(date) {
   if (!date) {
     return false;
   }
 
-  return moment(date).isSame(moment(), 'week');
+  return isSameWeekFn(parseISO(date), new Date());
 }
 
 export default isSameWeek;

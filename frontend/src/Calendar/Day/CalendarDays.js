@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import moment from 'moment';
+import { addDays, differenceInMilliseconds, startOfDay } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import * as calendarViews from 'Calendar/calendarViews';
@@ -18,7 +18,7 @@ class CalendarDays extends Component {
     this._touchStart = null;
 
     this.state = {
-      todaysDate: moment().startOf('day').toISOString(),
+      todaysDate: startOfDay(new Date()).toISOString(),
       isEventModalOpen: false
     };
 
@@ -54,8 +54,8 @@ class CalendarDays extends Component {
 
   scheduleUpdate = () => {
     this.clearUpdateTimeout();
-    const todaysDate = moment().startOf('day');
-    const diff = moment().diff(todaysDate.clone().add(1, 'day'));
+    const todaysDate = startOfDay(new Date());
+    const diff = differenceInMilliseconds(addDays(todaysDate, 1), new Date());
 
     this.setState({ todaysDate: todaysDate.toISOString() });
 

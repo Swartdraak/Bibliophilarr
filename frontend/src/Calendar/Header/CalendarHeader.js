@@ -1,5 +1,5 @@
 /* eslint max-params: 0 */
-import moment from 'moment';
+import { format, isSameMonth, isSameYear, parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import * as calendarViews from 'Calendar/calendarViews';
@@ -11,34 +11,35 @@ import MenuButton from 'Components/Menu/MenuButton';
 import MenuContent from 'Components/Menu/MenuContent';
 import ViewMenuItem from 'Components/Menu/ViewMenuItem';
 import { align, icons } from 'Helpers/Props';
+import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
 import CalendarHeaderViewButton from './CalendarHeaderViewButton';
 import styles from './CalendarHeader.css';
 
 function getTitle(time, start, end, view, longDateFormat) {
-  const timeMoment = moment(time);
-  const startMoment = moment(start);
-  const endMoment = moment(end);
+  const timeDate = parseISO(time);
+  const startDate = parseISO(start);
+  const endDate = parseISO(end);
 
   if (view === 'day') {
-    return timeMoment.format(longDateFormat);
+    return format(timeDate, momentFormatToDateFns(longDateFormat));
   } else if (view === 'month') {
-    return timeMoment.format('MMMM YYYY');
+    return format(timeDate, 'MMMM yyyy');
   } else if (view === 'agenda') {
     return 'Agenda';
   }
 
-  let startFormat = 'MMM D YYYY';
-  let endFormat = 'MMM D YYYY';
+  let startFormat = 'MMM d yyyy';
+  let endFormat = 'MMM d yyyy';
 
-  if (startMoment.isSame(endMoment, 'month')) {
-    startFormat = 'MMM D';
-    endFormat = 'D YYYY';
-  } else if (startMoment.isSame(endMoment, 'year')) {
-    startFormat = 'MMM D';
-    endFormat = 'MMM D YYYY';
+  if (isSameMonth(startDate, endDate)) {
+    startFormat = 'MMM d';
+    endFormat = 'd yyyy';
+  } else if (isSameYear(startDate, endDate)) {
+    startFormat = 'MMM d';
+    endFormat = 'MMM d yyyy';
   }
 
-  return `${startMoment.format(startFormat)} \u2014 ${endMoment.format(endFormat)}`;
+  return `${format(startDate, startFormat)} \u2014 ${format(endDate, endFormat)}`;
 }
 
 // NOTE: Uses ref-based approach; a stateful component would allow internal book view tracking

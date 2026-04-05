@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import moment from 'moment';
 import React from 'react';
 import { createAction } from 'redux-actions';
 import { batchActions } from 'redux-batched-actions';
@@ -83,7 +82,7 @@ export const filters = [
       },
       {
         key: 'releaseDate',
-        value: moment(),
+        value: new Date(),
         type: filterTypes.LESS_THAN
       }
     ]

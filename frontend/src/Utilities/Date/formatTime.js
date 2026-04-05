@@ -1,21 +1,22 @@
-import moment from 'moment';
+import { format, getMinutes, parseISO } from 'date-fns';
+import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
 
 function formatTime(date, timeFormat, { includeMinuteZero = false, includeSeconds = false } = {}) {
   if (!date) {
     return '';
   }
 
-  const time = moment(date);
+  const time = parseISO(date);
 
   if (includeSeconds) {
     timeFormat = timeFormat.replace(/\(?:mm\)?/, ':mm:ss');
-  } else if (includeMinuteZero || time.minute() !== 0) {
+  } else if (includeMinuteZero || getMinutes(time) !== 0) {
     timeFormat = timeFormat.replace('(:mm)', ':mm');
   } else {
     timeFormat = timeFormat.replace('(:mm)', '');
   }
 
-  return time.format(timeFormat);
+  return format(time, momentFormatToDateFns(timeFormat));
 }
 
 export default formatTime;

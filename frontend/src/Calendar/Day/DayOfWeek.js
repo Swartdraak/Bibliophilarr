@@ -1,9 +1,10 @@
 import classNames from 'classnames';
-import moment from 'moment';
+import { format, parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import * as calendarViews from 'Calendar/calendarViews';
 import getRelativeDate from 'Utilities/Date/getRelativeDate';
+import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
 import styles from './DayOfWeek.css';
 
 class DayOfWeek extends Component {
@@ -22,11 +23,11 @@ class DayOfWeek extends Component {
     } = this.props;
 
     const highlightToday = view !== calendarViews.MONTH && isTodaysDate;
-    const momentDate = moment(date);
-    let formatedDate = momentDate.format('dddd');
+    const parsedDate = parseISO(date);
+    let formatedDate = format(parsedDate, 'EEEE');
 
     if (view === calendarViews.WEEK) {
-      formatedDate = momentDate.format(calendarWeekColumnHeader);
+      formatedDate = format(parsedDate, momentFormatToDateFns(calendarWeekColumnHeader));
     } else if (view === calendarViews.FORECAST) {
       formatedDate = getRelativeDate(date, shortDateFormat, showRelativeDates);
     }

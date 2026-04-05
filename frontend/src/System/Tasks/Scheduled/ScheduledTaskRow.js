@@ -1,4 +1,4 @@
-import moment from 'moment';
+import { formatDistanceToNow, isAfter as isAfterFn, parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
@@ -10,6 +10,22 @@ import formatDateTime from 'Utilities/Date/formatDateTime';
 import formatTimeSpan from 'Utilities/Date/formatTimeSpan';
 import translate from 'Utilities/String/translate';
 import styles from './ScheduledTaskRow.css';
+
+function humanizeMinutes(totalMinutes) {
+  if (totalMinutes < 60) {
+    return `${totalMinutes} minute${totalMinutes !== 1 ? 's' : ''}`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+
+  if (hours < 24) {
+    return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  }
+
+  const days = Math.floor(hours / 24);
+
+  return `${days} day${days !== 1 ? 's' : ''}`;
+}
 
 function getFormattedDates(props) {
   const {
@@ -24,8 +40,8 @@ function getFormattedDates(props) {
 
   if (showRelativeDates) {
     return {
-      lastExecutionTime: moment(lastExecution).fromNow(),
-      nextExecutionTime: isDisabled ? '-' : moment(nextExecution).fromNow()
+      lastExecutionTime: formatDistanceToNow(parseISO(lastExecution), { addSuffix: true }),
+      nextExecutionTime: isDisabled ? '-' : formatDistanceToNow(parseISO(nextExecution), { addSuffix: true })
     };
   }
 
@@ -109,10 +125,10 @@ class ScheduledTaskRow extends Component {
     } = this.state;
 
     const isDisabled = interval === 0;
-    const executeNow = !isDisabled && moment().isAfter(nextExecution);
+    const executeNow = !isDisabled && isAfterFn(new Date(), parseISO(nextExecution));
     const hasNextExecutionTime = !isDisabled && !executeNow;
-    const duration = moment.duration(interval, 'minutes').humanize().replace(/an?(?=\s)/, '1');
-    const hasLastStartTime = moment(lastStartTime).isAfter('2010-01-01');
+    const duration = humanizeMinutes(interval);
+    const hasLastStartTime = isAfterFn(parseISO(lastStartTime), new Date('2010-01-01'));
 
     return (
       <TableRow>
