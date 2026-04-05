@@ -7,8 +7,16 @@ process.
 
 ## [Unreleased]
 
+### Added
+
+- Commit message convention (Conventional Commits format) with type/scope rules, branch naming convention, and production readiness expectations in `CONTRIBUTING.md`.
+- Release gate checklist in `CONTRIBUTING.md` enforcing CI, CHANGELOG, artifact, and rollback verification before tagging releases.
+- Enhanced PR template with type-of-change checkboxes, production safety checklist, and CHANGELOG update requirement.
+
 ### Changed
 
+- Upgraded Node.js 20.19.2 → 22.22.2 LTS across Dockerfile, `ci-frontend.yml`, `npm-publish.yml`, and `release.yml`. Node 20 reached EOL April 2026.
+- Added `org.opencontainers.image.vendor` OCI label to Dockerfile.
 - Bumped GitHub Actions: `docker/metadata-action` v5 → v6, `actions/setup-node` v4 → v6, `actions/github-script` v7 → v8, `docker/login-action` v3 → v4, `docker/setup-buildx-action` v3 → v4.
 - Bumped npm dev dependencies: `@types/node` 20 → 25, `jest` 30.1.2 → 30.3.0.
 - Bumped NuGet packages: `coverlet.collector` 3.1.0 → 8.0.1, `Dapper` 2.0.151 → 2.1.72.

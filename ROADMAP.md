@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: April 5, 2026 (dependency migration queue added for deferred upgrades)
+**Last Updated**: April 5, 2026 (Node 22 migration, change management codification, Docker/CI/branding milestones completed)
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -127,15 +127,15 @@ Planned entry conditions:
 | Health-aware provider routing | provider failure streaks influence fallback order with deterministic recovery | complete |
 | Conflict explainability telemetry | factor-level score breakdown is exposed for operator diagnostics | complete |
 | Import throughput optimization | bulk media identification/import throughput is improved on production-shaped libraries without quality regression | in progress |
-| Docker hardening | base image pinning, non-root runtime, health check, Node integrity verification, OCI labels, image scanning, SBOM | planned |
-| CI/CD supply-chain hardening | third-party actions pinned to SHA, workflow permissions scoped to job-level, version pins centralized | planned |
-| Legacy branding cleanup | remove remaining Sonarr/Readarr/Radarr/Lidarr/Prowlarr branding from frontend UI, donations, logos, and icon assets | in progress |
+| Docker hardening | base image pinning, non-root runtime, health check, Node integrity verification, OCI labels, vendor label | complete |
+| CI/CD supply-chain hardening | third-party actions pinned to SHA, workflow permissions scoped to job-level, version pins centralized | complete |
+| Legacy branding cleanup | remove remaining Sonarr/Readarr/Radarr/Lidarr/Prowlarr branding from frontend UI, donations, logos, and icon assets | complete |
 | Frontend test infrastructure | install jest + @testing-library/react; add initial test suite for critical flows; add CI step and coverage thresholds | planned |
 | Async migration (sync-over-async) | convert 10+ `.GetAwaiter().GetResult()` sites to true async/await and propagate CancellationToken | planned |
 | RestSharp → HttpClient migration | replace unmaintained RestSharp 106.15 with System.Net.Http.HttpClient via interface wrapper | planned |
 | Security headers and input validation | add CSP/HSTS/X-Frame-Options middleware; validate API search/parse inputs at controller boundary | planned |
 | React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | planned (DMQ-003, DMQ-004) |
-| Node 22 LTS migration | upgrade from Node 20 (EOL April 2026) to Node 22 LTS | planned |
+| Node 22 LTS migration | upgrade from Node 20 (EOL April 2026) to Node 22 LTS | complete |
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | planned |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |

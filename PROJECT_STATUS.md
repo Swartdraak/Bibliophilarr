@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 5, 2026 (dependency migration queue tracking added)
+**Last Updated**: April 5, 2026 (Node 22 LTS migration, change management codification)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -730,7 +730,7 @@ new items start at RQ-064.
 | RQ-162 | Frontend | `moment.js` → `date-fns` bundle size migration (34 imports, ~10-12KB savings) — Phase 7 | Significant bundle size reduction; same API patterns |
 | RQ-163 | Frontend | `react-virtualized` → `react-window` (same author, 50KB → 6KB gzipped) — Phase 7+ | Only if basic windowing sufficient; audit feature usage first |
 | RQ-164 | Backend | .NET 10 LTS upgrade planning (.NET 8 EOL November 2026, .NET 10 LTS expected late 2025) — Phase 7 (Dependabot PRs [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) and [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) closed; DMQ-001, DMQ-002) | Skip .NET 9 (non-LTS, short support window); jump directly to .NET 10 LTS |
-| RQ-165 | Frontend | Node.js 20 → 22 LTS migration (Node 20 EOL April 2026) — Phase 6-7 | Required before Node 20 EOL; plan alongside React 18 upgrade |
+| RQ-165 | Frontend | **FIXED** — Node.js 20.19.2 → 22.22.2 LTS migration completed across Dockerfile, ci-frontend.yml, npm-publish.yml, and release.yml (Node 20 EOL April 2026) | ~~Required before Node 20 EOL; plan alongside React 18 upgrade~~ |
 | RQ-166 | Infra | Kubernetes manifests and Helm chart creation — Phase 7+ | Deployment, ConfigMap, Service, PVC, NetworkPolicy for K8s users |
 | RQ-167 | Infra | Prometheus metrics endpoint (`/metrics`) for monitoring — Phase 7+ | Observability for uptime, DB health, job queue, provider health |
 | RQ-168 | Infra | Structured JSON logging to stdout/stderr for container aggregation — Phase 7+ | Enable ELK/Splunk/cloud log aggregation; add NLog JSON layout target |
