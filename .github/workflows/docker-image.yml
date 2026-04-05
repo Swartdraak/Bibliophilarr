@@ -63,7 +63,7 @@ jobs:
 
       - name: Install cosign
         if: github.event_name == 'push' || github.event.inputs.push == 'true'
-        uses: sigstore/cosign-installer@3454372f970814c7028ab2f6b4dd93b4e6a279ed # v3
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Sign Docker image with cosign (keyless)
         if: github.event_name == 'push' || github.event.inputs.push == 'true'
@@ -112,7 +112,7 @@ jobs:
 
       - name: Upload SBOM artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6db9a6b7c67862cd61e8cbb7cd813 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom
           path: sbom.cdx.json
