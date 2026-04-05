@@ -165,9 +165,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
-          Compress-Archive \
-            -Path "_artifacts/${{ matrix.rid }}/net8.0/Bibliophilarr/*" \
-            -DestinationPath "release/bibliophilarr-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" \
+          Compress-Archive `
+            -Path "_artifacts/${{ matrix.rid }}/net8.0/Bibliophilarr/*" `
+            -DestinationPath "release/bibliophilarr-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" `
             -Force
 
       - name: Build installer (windows only)
