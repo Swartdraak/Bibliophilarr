@@ -1,5 +1,13 @@
 # Bibliophilarr
 
+[![Backend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml)
+[![Frontend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml)
+[![Docs Validation](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=release)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
+[![Docker Image](https://img.shields.io/badge/ghcr.io-bibliophilarr-blue?logo=docker)](https://github.com/Swartdraak/Bibliophilarr/pkgs/container/bibliophilarr)
+[![npm](https://img.shields.io/npm/v/bibliophilarr?logo=npm&label=npm)](https://www.npmjs.com/package/bibliophilarr)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.md)
+
 Bibliophilarr is a community-maintained fork of Readarr focused on replacing
 fragile or proprietary metadata dependencies with sustainable FOSS providers
 while preserving reliable ebook and audiobook library automation.
@@ -7,9 +15,9 @@ while preserving reliable ebook and audiobook library automation.
 ## Current status
 
 The repository is operating in Phase 5 consolidation with Phase 6 hardening
-active. Metadata delivery currently centers on Open Library as the primary
-provider, Inventaire as secondary coverage, and config-driven fallback,
-telemetry, diagnostics, and rollout controls.
+active. Metadata delivery uses Hardcover as the primary provider, Open Library
+as secondary coverage, and config-driven fallback, telemetry, diagnostics, and
+rollout controls.
 
 Use the core docs as the authoritative set:
 
@@ -38,6 +46,39 @@ maintained here include:
 
 Only one edition type is supported per instance. Run separate instances if you
 need both ebook and audiobook management for the same title.
+
+## Installation
+
+### Docker (recommended)
+
+```bash
+docker run -d \
+  --name bibliophilarr \
+  -p 8787:8787 \
+  -v /path/to/config:/config \
+  -v /path/to/books:/books \
+  ghcr.io/swartdraak/bibliophilarr:latest
+```
+
+### GitHub Releases
+
+Download pre-built binaries for Linux (x64), macOS (ARM64), or Windows (x64)
+from the [Releases](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
+page. Extract the archive and run the `Bibliophilarr` binary.
+
+### npm launcher
+
+```bash
+npm install -g bibliophilarr
+bibliophilarr
+```
+
+The npm launcher downloads the correct platform binary from GitHub Releases
+automatically.
+
+### Build from source
+
+See [QUICKSTART.md](QUICKSTART.md) for prerequisites and build commands.
 
 ## Repository documentation model
 

@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: March 28, 2026 (P9 import pipeline throughput + remote-author hotfix chain)
+**Last Updated**: April 5, 2026 (v1.0.0 release published)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -33,6 +33,22 @@ The following items were added to canonical planning for immediate/future delive
 - Ensure variant isolation across monitoring, search, import, and upgrade workflows.
 
 ## Latest Delivery Update
+
+### April 5, 2026 — v1.0.0 release published
+
+The first release of Bibliophilarr has been published from `main`.
+
+#### Artifacts
+
+- **GitHub Release**: [v1.0.0](https://github.com/Swartdraak/Bibliophilarr/releases/tag/v1.0.0) with Linux x64, macOS ARM64, and Windows x64 binaries plus SHA256 checksums.
+- **Docker**: `ghcr.io/swartdraak/bibliophilarr:v1.0.0` and `:latest` pushed to GHCR, cosign-signed, Trivy-scanned.
+- **npm**: [`bibliophilarr@1.0.0`](https://www.npmjs.com/package/bibliophilarr) launcher published to npmjs.org.
+
+#### Workflow status
+
+- `release.yml`: all three platform builds succeeded, draft release created and published.
+- `docker-image.yml`: multi-platform build, GHCR push, cosign signing, and Trivy scan completed.
+- `npm-publish.yml`: triggered by release publish event, package published successfully.
 
 ### March 28, 2026 — P9 monitored-download import pipeline hardening and throughput delivery
 

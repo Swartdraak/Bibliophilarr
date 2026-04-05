@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: March 24, 2026 (comprehensive deep audit v2 — 287 findings, 178 remediation items)
+**Last Updated**: April 5, 2026 (v1.0.0 release published)
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -8,8 +8,8 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 
 - Current phase: Phase 5 consolidation with Phase 6 hardening active.
 - Active delivery lanes: `develop` and `staging`.
-- Default branch posture: `main` is the operator-facing readiness and release-entry branch, not the primary packaging-validation lane.
-- Packaging scope: release confidence is tracked through active smoke/build/readiness flows while dedicated Phase 6 packaging-matrix workflow lanes have been retired.
+- Default branch posture: `main` is the default branch, release-entry branch, and the source for tagged releases.
+- Packaging scope: v1.0.0 released with binary builds (Linux x64, macOS ARM64, Windows x64), Docker image on GHCR, and npm launcher on npmjs.org.
 - Actions token posture: branch-policy and readiness workflows remain report-only when GitHub Actions integration tokens cannot read admin or Dependabot APIs.
 
 ## Delivery Lanes
@@ -18,7 +18,7 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 |---|---|---|
 | `develop` | Active integration lane for metadata migration and operational hardening slices | `build-test`, `Markdown lint`, `triage`, smoke telemetry |
 | `staging` | Pre-release validation lane mirroring `develop` with tighter release-readiness scrutiny | same required contexts as `develop`, plus current readiness/drift report evidence |
-| `main` | Default branch for operator runbooks, readiness reporting, branch-policy auditing, and release-entry confirmation | `build-test`, `Markdown lint`, `triage`, smoke telemetry, successful readiness and branch-policy report runs |
+| `main` | Default branch for releases, operator runbooks, readiness reporting, and branch-policy auditing | `build-test`, `Markdown lint`, `triage`, smoke telemetry, successful readiness and branch-policy report runs |
 
 ## Phase Summary
 

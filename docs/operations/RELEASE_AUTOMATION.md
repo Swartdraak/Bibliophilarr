@@ -117,6 +117,7 @@ gh workflow run "Metadata Migration Dry Run" \
 | Name | Scope | Required | Used by | Notes |
 |---|---|---|---|---|
 | `GITHUB_TOKEN` | Built-in Actions token | Auto | current GitHub Actions workflows | Used for workflow API access and artifact publication within granted permissions. |
+| `NPM_TOKEN` | `npm-publish` environment secret | Required for npm publish | `npm-publish.yml` | npmjs.org access token for publishing the `bibliophilarr` launcher package. |
 | `Bibliophilarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL host key during rename migration. |
 | `Bibliophilarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL port key during rename migration. |
 | `Bibliophilarr__Postgres__User` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL user key during rename migration. |
@@ -134,8 +135,11 @@ gh workflow run "Metadata Migration Dry Run" \
 
 1. Merge validated changes to `main` only after readiness criteria are met.
 2. Review the latest readiness, branch-policy, and operational drift artifacts.
-3. Cut release tags only after the repository gains a documented tag-driven
-  release workflow or maintainers explicitly choose a manual release path.
+3. Tag the release: `git tag v<major>.<minor>.<patch> && git push origin v<major>.<minor>.<patch>`.
+4. `release.yml` triggers automatically on the tag push: builds all platform binaries and creates a draft GitHub Release with artifacts and SHA256 checksums.
+5. Review the draft release on GitHub and publish it.
+6. Publishing triggers `npm-publish.yml` automatically, which publishes the launcher to npmjs.org.
+7. `docker-image.yml` triggers on the tag push in parallel with `release.yml`.
 
 ## Release entry criteria
 
@@ -185,8 +189,10 @@ Legacy symbol guard:
 
 Packaging scope note:
 
-- Packaging validation is intentionally required on `develop` and `staging` today.
-- `main` remains the operator-facing release-entry lane until binary, Docker, and npm installation paths are fully validated for direct promotion on the default branch.
+- Packaging validation has been completed on `main` with the v1.0.0 release.
+- `release.yml` builds Linux x64, macOS ARM64, and Windows x64 binaries and creates a GitHub Release.
+- `docker-image.yml` builds multi-platform Docker images, pushes to GHCR, signs with cosign, and runs Trivy scanning.
+- `npm-publish.yml` publishes the launcher package to npmjs.org when a release is published.
 
 Operator decision note:
 
