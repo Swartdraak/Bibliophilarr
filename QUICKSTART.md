@@ -117,6 +117,16 @@ Hardcover token startup override:
 - This value now participates in Hardcover provider enablement as well as request authentication, so a pre-start environment token is sufficient even when the persisted `HardcoverApiToken` config value is empty.
 - Both plain tokens and `Bearer ...` values are accepted.
 
+### Logging and Diagnostics
+
+To enable trace-level logs for debugging:
+
+1. Go to Settings → General → Logging in the web UI
+2. Set Log Level to `Trace`
+3. Restart Bibliophilarr to apply
+4. Reproduce the issue
+5. Logs are written to `~/.config/Bibliophilarr/logs/` (Linux) or the equivalent config directory
+
 Hardcover logging:
 
 - `Trace` logs capture Hardcover search entry points and query execution details.

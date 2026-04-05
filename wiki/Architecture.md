@@ -9,6 +9,11 @@
 
 ## Solution Structure
 
+> **Note:** The `NzbDrone.*` project naming is a historical artifact from the
+> Sonarr/Radarr/Readarr codebase lineage and does not reflect current product
+> identity. The Bibliophilarr fork preserves these names for upstream
+> compatibility while new API assemblies use `Bibliophilarr.*` naming.
+
 | Project | Purpose |
 |---|---|
 | `NzbDrone.Host` | Application entry point, Kestrel server, DI bootstrap |
@@ -37,6 +42,6 @@
 
 ## References
 
-- [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md) — Provider migration strategy and work packages.
-- [ROADMAP.md](../../ROADMAP.md) — Phased delivery milestones.
-- [PROVIDER_IMPLEMENTATION_GUIDE.md](../operations/PROVIDER_IMPLEMENTATION_GUIDE.md) — Provider development reference.
+- [MIGRATION_PLAN.md](../MIGRATION_PLAN.md) — Provider migration strategy and work packages.
+- [ROADMAP.md](../ROADMAP.md) — Phased delivery milestones.
+- [PROVIDER_IMPLEMENTATION_GUIDE.md](../docs/operations/PROVIDER_IMPLEMENTATION_GUIDE.md) — Provider development reference.

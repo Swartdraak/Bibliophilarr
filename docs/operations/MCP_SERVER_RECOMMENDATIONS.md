@@ -209,3 +209,9 @@ Example minimal config for priority servers (with version pinning for security):
 - Fewer integration regressions in metadata provider PRs.
 - Faster triage of migration issues and API drift.
 - Better visibility into fallback and quality scoring behavior.
+
+## References
+
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — contribution workflow and quality gates
+- [QUICKSTART.md](../../QUICKSTART.md) — local development setup
+- [PROVIDER_IMPLEMENTATION_GUIDE.md](PROVIDER_IMPLEMENTATION_GUIDE.md) — provider development reference

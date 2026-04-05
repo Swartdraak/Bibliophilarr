@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+      "ignoreDeprecations": "6.0",
       "target": "esnext",
       "allowJs": true,
       "checkJs": false,

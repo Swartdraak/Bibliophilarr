@@ -13,8 +13,10 @@ operations runbooks.
 - [dotnet8-and-library-finalization-2026-03-15.md](dotnet8-and-library-finalization-2026-03-15.md)
 - [live-provider-library-enrichment-2026-03-15.md](live-provider-library-enrichment-2026-03-15.md)
 - [live-provider-replay-comparison-2026-03-16.md](live-provider-replay-comparison-2026-03-16.md)
+- [metadata-provider-health-telemetry-runbook-2026-03-16.md](metadata-provider-health-telemetry-runbook-2026-03-16.md)
 - [phase5-inventaire-openlibrary-consolidation-plan-2026-03-16.md](phase5-inventaire-openlibrary-consolidation-plan-2026-03-16.md)
 - [phase6-packaging-validation-matrix-2026-03-16.md](phase6-packaging-validation-matrix-2026-03-16.md)
+- [provider-metadata-pull-testing-2026-03-15.md](provider-metadata-pull-testing-2026-03-15.md)
 - [release-readiness-report-2026-03-16.md](release-readiness-report-2026-03-16.md)
 - [status-audit-2026-03-16.md](status-audit-2026-03-16.md)
 

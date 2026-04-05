@@ -1710,8 +1710,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Document Version History
 
+Major revisions are tracked via git history. Key milestones:
+
 - **v1.0** (2024-02-16): Initial comprehensive migration plan
-- Future updates will be tracked in git history
+- **v2.0** (2026-03): Phase 5/6 consolidation, Hardcover primary provider, telemetry integration
 
 ---
 
