@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: April 5, 2026 (v1.0.0 release published)
+**Last Updated**: April 5, 2026 (dependency migration queue added for deferred upgrades)
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -134,12 +134,67 @@ Planned entry conditions:
 | Async migration (sync-over-async) | convert 10+ `.GetAwaiter().GetResult()` sites to true async/await and propagate CancellationToken | planned |
 | RestSharp → HttpClient migration | replace unmaintained RestSharp 106.15 with System.Net.Http.HttpClient via interface wrapper | planned |
 | Security headers and input validation | add CSP/HSTS/X-Frame-Options middleware; validate API search/parse inputs at controller boundary | planned |
-| React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | planned |
+| React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | planned (DMQ-003, DMQ-004) |
 | Node 22 LTS migration | upgrade from Node 20 (EOL April 2026) to Node 22 LTS | planned |
-| .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future |
+| .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | planned |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
 | Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | planned |
+
+## Dependency Migration Queue
+
+Structured tracking for breaking-change dependency upgrades deferred from Dependabot PRs
+(April 2026 triage). Each entry requires dedicated migration effort and is sequenced
+according to EOL urgency, coupling risk, and prerequisite dependencies.
+
+| ID | Component | Current → Target | Dependabot PR | Category | Effort | Prerequisites | Target phase | Status |
+|---|---|---|---|---|---|---|---|---|
+| DMQ-001 | `dotnet/sdk` Docker image | 8.0 → 10.0 | [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) | Backend / Docker | High | DMQ-002, net8.0→net10.0 TFM migration across 24 projects | Phase 7 | planned |
+| DMQ-002 | `dotnet/aspnet` Docker image | 8.0 → 10.0 | [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) | Backend / Docker | High | .NET 10 GA release (Nov 2025), TFM migration, runtime compatibility validation | Phase 7 | planned |
+| DMQ-003 | `react-router-dom` | 5.3.4 → 6.x | [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) | Frontend | High | React 18 upgrade (DMQ-007 / RQ-159), remove `connected-react-router`, migrate Switch→Routes, class→hooks | Phase 7 | planned |
+| DMQ-004 | `react-google-recaptcha` | 2.1.0 → 3.x | [#36](https://github.com/Swartdraak/Bibliophilarr/pull/36) | Frontend | Medium | React 18 upgrade, reCAPTCHA v3 API integration | Phase 7 | planned |
+| DMQ-005 | `stylelint` | 15.11.0 → 16.x | [#39](https://github.com/Swartdraak/Bibliophilarr/pull/39) | Frontend / CI | Medium | Migrate config format, update plugin compatibility, validate all CSS rules | Phase 6-7 | planned |
+| DMQ-006 | `FluentAssertions` | 5.10.3 → 8.x | [#44](https://github.com/Swartdraak/Bibliophilarr/pull/44) | Backend / Test | High | Update assertion syntax across 100+ test files, validate API compatibility | Phase 6-7 | planned |
+| DMQ-007 | `FluentMigrator.Runner` | 3.3.2 → 8.x | [#45](https://github.com/Swartdraak/Bibliophilarr/pull/45) | Backend | High | Audit 44+ migration files, validate runner API changes, coordinate with DMQ-008 | Phase 7 | planned |
+| DMQ-008 | `FluentMigrator.Runner.Postgres` | 3.3.2 → 8.x | [#46](https://github.com/Swartdraak/Bibliophilarr/pull/46) | Backend | High | Must upgrade with DMQ-007 in single coordinated slice | Phase 7 | planned |
+
+### Migration sequencing and dependencies
+
+```
+Phase 6-7 (independent, can start now):
+  DMQ-005 stylelint 16          — standalone config migration
+  DMQ-006 FluentAssertions 8    — test-only, no runtime impact
+
+Phase 7 (requires .NET 10 GA):
+  DMQ-002 dotnet/aspnet 10      — runtime image first
+  DMQ-001 dotnet/sdk 10         — build image, depends on DMQ-002 + TFM migration
+  DMQ-007 FluentMigrator 8  ──┐
+  DMQ-008 FluentMigrator.PG 8 ┘  coordinated upgrade
+
+Phase 7 (requires React 18 first):
+  DMQ-003 react-router-dom 6   — after React 18 + connected-react-router removal
+  DMQ-004 react-google-recaptcha 3 — after React 18
+```
+
+### Rollout approach
+
+- Each migration gets a dedicated feature branch with its own PR.
+- Migrations with test-only impact (DMQ-005, DMQ-006) can proceed independently.
+- .NET 10 migrations (DMQ-001, DMQ-002) are blocked until .NET 10 LTS reaches GA.
+- Frontend migrations (DMQ-003, DMQ-004) are sequenced after React 18 upgrade (RQ-159).
+- FluentMigrator pair (DMQ-007, DMQ-008) must ship as a single coordinated change.
+- Re-open Dependabot PRs or create fresh PRs against the target version available at migration time.
+
+### Cross-references
+
+- RQ-060: FluentAssertions upgrade (partial — AutoFixture/Moq done, assertions deferred)
+- RQ-140: react-google-recaptcha upgrade
+- RQ-159: React 17→18 upgrade path
+- RQ-160: React Router 5→6 migration
+- RQ-164: .NET 10 LTS planning
+- RQ-179: stylelint 15→16 migration (new)
+- RQ-180: FluentMigrator.Runner 3→8 migration (new)
+- RQ-181: FluentMigrator.Runner.Postgres 3→8 migration (new)
 
 ## Near-Term Delivery Sequence
 

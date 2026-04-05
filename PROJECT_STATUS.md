@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 5, 2026 (v1.0.0 release published)
+**Last Updated**: April 5, 2026 (dependency migration queue tracking added)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -687,7 +687,7 @@ new items start at RQ-064.
 | RQ-057 | CI/CD | `postgres.runsettings` hardcoded IP `192.168.100.5` | **FIXED** — Changed to `localhost` |
 | RQ-058 | CI/CD | No performance benchmarking tests | Add scheduled performance test job |
 | RQ-059 | CI/CD | Missing Docker image OCI version labels | **FIXED** — Added OCI labels (title, description, url, source, licenses) to Dockerfile |
-| RQ-060 | Packages | **PARTIAL** — Upgraded AutoFixture 4.17.0→4.18.1, Moq 4.17.2→4.20.72; FluentAssertions 5→6 deferred (breaking API changes across 100+ test files) — Directory.Packages.props | ~~Upgrade with compatibility testing~~ |
+| RQ-060 | Packages | **PARTIAL** — Upgraded AutoFixture 4.17.0→4.18.1, Moq 4.17.2→4.20.72; FluentAssertions 5→8 deferred (breaking API changes across 100+ test files) — Directory.Packages.props (Dependabot PR [#44](https://github.com/Swartdraak/Bibliophilarr/pull/44) closed; DMQ-006) | ~~Upgrade with compatibility testing~~ |
 | RQ-061 | Packages | **FIXED** — Resolved by RQ-065: `Selenium.WebDriver.ChromeDriver` removed entirely along with Automation.Test project — `Directory.Packages.props` | ~~Use auto-matching Target package or remove if Selenium itself is removed~~ |
 | RQ-062 | Docs | Wiki and blueprint docs not updated to reflect current implementation | **FIXED** — Refreshed wiki/Home.md with full doc table, operations links, and current priorities |
 | RQ-063 | Docs | `CLA.md` and `CODE_OF_CONDUCT.md` not linked from CONTRIBUTING.md | **FIXED** — Added as part of RQ-085 |
@@ -700,7 +700,7 @@ new items start at RQ-064.
 | RQ-137 | Packages | `react-async-script` 1.2.0 — abandoned (2018) | Replace with native dynamic `<script>` injection or `react-helmet` |
 | RQ-138 | Packages | `redux-batched-actions` 0.5.0 — unmaintained | Audit usage; remove by refactoring dispatch calls or using built-in Redux batching |
 | RQ-139 | Packages | `element-class` 0.2.2 — unmaintained (2013) | **FIXED** — Replaced all 4 usages with native `document.body.classList` in Modal.js; removed `element-class` from package.json |
-| RQ-140 | Packages | `react-google-recaptcha` 2.1.0 → 3.1.x (reCAPTCHA v3 support) | Plan upgrade with React 18 upgrade |
+| RQ-140 | Packages | `react-google-recaptcha` 2.1.0 → 3.x (reCAPTCHA v3 support) (Dependabot PR [#36](https://github.com/Swartdraak/Bibliophilarr/pull/36) closed; DMQ-004) | Plan upgrade with React 18 upgrade |
 | RQ-141 | Packages | `react-popper` 1.3.11 → 2.3.0 (Popper.js 2.x support) | Plan upgrade during component audit |
 | RQ-142 | Frontend | **FIXED** — Added `returnFocus={true}` to `FocusLock` in Modal.js to restore focus to the trigger element when modal closes — `Modal.js` | ~~Implement focus restoration with ref-based tracking~~ |
 | RQ-143 | Frontend | Keyboard navigation gaps in virtualized tables — `VirtualTable.js`, `AuthorIndexTable.js`, `BookIndexTable.js` | Add keyboard event handlers (Tab, Enter, Arrow keys) |
@@ -725,11 +725,11 @@ new items start at RQ-064.
 | RQ-157 | Packages | RestSharp → `System.Net.Http.HttpClient` migration (also resolves RQ-064) — Phase 6 | Removes ~200KB dependency, enables proper async/CancellationToken, modern TLS/HTTP2 |
 | RQ-158 | Packages | `Newtonsoft.Json` 13.0.3 → `System.Text.Json` (built-in, faster, smaller) — Phase 7+ | Removes ~200KB dependency; medium-high effort but high performance value |
 | RQ-159 | Frontend | React 17 → 18 → 19 upgrade path (includes Babel, TypeScript types, @testing-library updates) — Phase 6-7 | Enables concurrent rendering, automatic batching, better performance. React 17 approaches EOL 2026 |
-| RQ-160 | Frontend | React Router 5 → 6 migration (remove `connected-react-router`, adopt hooks) — Phase 7 | High effort but necessary; react-router 5 EOL since 2021 |
+| RQ-160 | Frontend | React Router 5 → 6 migration (remove `connected-react-router`, adopt hooks) — Phase 7 (Dependabot PR [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) closed; DMQ-003) | High effort but necessary; react-router 5 EOL since 2021 |
 | RQ-161 | Frontend | Redux modernization: `react-redux` 7→9, Redux Toolkit adoption, remove `connect()` HOCs — Phase 7 | Reduces boilerplate, better tree-shaking, TypeScript integration |
 | RQ-162 | Frontend | `moment.js` → `date-fns` bundle size migration (34 imports, ~10-12KB savings) — Phase 7 | Significant bundle size reduction; same API patterns |
 | RQ-163 | Frontend | `react-virtualized` → `react-window` (same author, 50KB → 6KB gzipped) — Phase 7+ | Only if basic windowing sufficient; audit feature usage first |
-| RQ-164 | Backend | .NET 10 LTS upgrade planning (.NET 8 EOL November 2026, .NET 10 LTS expected late 2025) — Phase 7 | Skip .NET 9 (non-LTS, short support window); jump directly to .NET 10 LTS |
+| RQ-164 | Backend | .NET 10 LTS upgrade planning (.NET 8 EOL November 2026, .NET 10 LTS expected late 2025) — Phase 7 (Dependabot PRs [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) and [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) closed; DMQ-001, DMQ-002) | Skip .NET 9 (non-LTS, short support window); jump directly to .NET 10 LTS |
 | RQ-165 | Frontend | Node.js 20 → 22 LTS migration (Node 20 EOL April 2026) — Phase 6-7 | Required before Node 20 EOL; plan alongside React 18 upgrade |
 | RQ-166 | Infra | Kubernetes manifests and Helm chart creation — Phase 7+ | Deployment, ConfigMap, Service, PVC, NetworkPolicy for K8s users |
 | RQ-167 | Infra | Prometheus metrics endpoint (`/metrics`) for monitoring — Phase 7+ | Observability for uptime, DB health, job queue, provider health |
@@ -744,6 +744,9 @@ new items start at RQ-064.
 | RQ-176 | Packages | `SecurityCodeScan` NuGet analyzer for automated security issue detection — Phase 6 | Detects SQL injection, XPath injection, and common security issues in C# |
 | RQ-177 | Packages | `CycloneDX.Net` for SBOM generation in CI (also resolves RQ-112) — Phase 6 | Supply-chain transparency and compliance |
 | RQ-178 | CI/CD | Yarn 1 (classic) → Yarn 3 (Berry) with Plug'n'Play — Phase 7+ | Reduces `node_modules` size; not urgent while Yarn 1 is stable |
+| RQ-179 | Frontend | `stylelint` 15.11.0 → 16.x migration — config format changes, plugin compatibility audit — Phase 6-7 (Dependabot PR [#39](https://github.com/Swartdraak/Bibliophilarr/pull/39) closed; DMQ-005) | Standalone migration; validate all CSS rules against new config format |
+| RQ-180 | Packages | `FluentMigrator.Runner` 3.3.2 → 8.x — runner API migration across 44+ migration files — Phase 7 (Dependabot PR [#45](https://github.com/Swartdraak/Bibliophilarr/pull/45) closed; DMQ-007) | High effort; must coordinate with RQ-181 |
+| RQ-181 | Packages | `FluentMigrator.Runner.Postgres` 3.3.2 → 8.x — coordinated with RQ-180 — Phase 7 (Dependabot PR [#46](https://github.com/Swartdraak/Bibliophilarr/pull/46) closed; DMQ-008) | Must upgrade simultaneously with RQ-180 |
 
 ### Audit statistics
 
@@ -757,13 +760,13 @@ new items start at RQ-064.
 | Packages and dependencies | 51 | 4 — 17 — 15 — 8 | 7 |
 | **Total** | **287** | **14** — **58** — **101** — **93** | **21** |
 
-Remediation queue summary: 176 items (RQ-001 through RQ-178, RQ-008 and RQ-009 unassigned).
+Remediation queue summary: 179 items (RQ-001 through RQ-181, RQ-008 and RQ-009 unassigned).
 
 - P0 Critical: 13 items (1 FIXED)
 - P1 High: 36 items (2 FIXED)
 - P2 Medium: 65 items (1 FIXED)
 - P3 Low: 40 items
-- P4 Strategic/Migration: 22 items
+- P4 Strategic/Migration: 25 items
 
 ## Docker and Infrastructure Hardening Plan
 
