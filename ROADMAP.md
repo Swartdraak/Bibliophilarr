@@ -170,9 +170,9 @@ Immediate track: import and identification throughput
 - Add import pipeline timing telemetry for queue wait, provider lookup, candidate scoring, and persistence phases.
 - Add bounded concurrency controls (configurable worker count and provider request ceilings) for large-library runs.
 - Add phased identification path:
-   - phase A: low-cost local/identifier match
-   - phase B: constrained provider search
-   - phase C: fallback expansion only when confidence remains below threshold
+  - phase A: low-cost local/identifier match
+  - phase B: constrained provider search
+  - phase C: fallback expansion only when confidence remains below threshold
 - Add checkpoint/resume-friendly processing for long-running library imports so interrupted runs do not restart from zero.
 - Add performance acceptance gates using production-shaped fixture cohorts (throughput, match-rate stability, and provider error-rate ceilings).
 

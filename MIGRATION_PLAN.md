@@ -40,6 +40,7 @@ in `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 ### Migration-relevant findings
 
 **Provider reliability:**
+
 - All provider API calls (Hardcover, Inventaire, GoogleBooks, OpenLibrary) lack explicit
   per-request timeouts; can hang indefinitely during import identification. Uniform
   20-30s timeout enforcement planned (RQ-017).
@@ -50,6 +51,7 @@ in `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 - Provider response exception handling does not distinguish timeout vs 404 vs auth (RQ-034).
 
 **Performance and scalability:**
+
 - `BookController.GetBooks()` loads entire edition + author table without pagination;
   OOM risk on large libraries (RQ-002).
 - `ImportListSyncService` has O(n*m) exclusion fetch pattern (RQ-019).
@@ -58,12 +60,14 @@ in `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 - Kestrel `MaxRequestBodySize` is null (unlimited) — container OOM risk (RQ-118).
 
 **Async/threading:**
+
 - 10+ sync-over-async `.GetAwaiter().GetResult()` sites risk thread pool starvation and
   deadlock under load (RQ-003). Affects HttpClient, BookSearchService,
   AuthorSearchService, EpubReader, LocalizationService, and others.
 - Missing `CancellationToken` propagation across middleware and core services (RQ-021).
 
 **Supply chain and infrastructure:**
+
 - Docker supply-chain: unpinned base images, unverified Node tarball, root runtime,
   no image scanning, no SBOM. Expanded hardening plan in PROJECT_STATUS.md (RQ-004,
   RQ-005, RQ-023, RQ-024, RQ-111, RQ-112).
@@ -73,12 +77,14 @@ in `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 - All GitHub Actions pinned by floating tags, not commit SHAs (RQ-015).
 
 **Frontend:**
+
 - Zero frontend test files — no unit, integration, or component tests exist (RQ-066).
 - React 17.0.2 approaching EOL; React Router 5.x already EOL (RQ-159, RQ-160).
 - moment.js adds ~13KB gzipped; 34 import sites (RQ-162).
 - 5+ deprecated/abandoned npm packages still in dependency tree (RQ-067, RQ-068, RQ-069).
 
 **Documentation:**
+
 - This file references migration `041` at line ~909; actual file is `042` (RQ-007).
 - Scripts reference deleted `phase6-packaging-validation.yml` (RQ-006).
 - 10+ duplicate `## Implementation Progress Snapshot` H2 headings in this file (RQ-048).
@@ -122,11 +128,11 @@ Additional verification update (March 22, 2026):
 
 - Executed a fresh full solution build and confirmed success.
 - Re-verified targeted extraction and import-identification suites covering:
-    - ISBN fallback extraction,
-    - ASIN fallback extraction,
-    - distance calculation,
-    - import decision behavior,
-    - candidate ranking behavior.
+  - ISBN fallback extraction,
+  - ASIN fallback extraction,
+  - distance calculation,
+  - import decision behavior,
+  - candidate ranking behavior.
 - Verification scope explicitly included author, series, book, and cover
     identification paths.
 
@@ -210,25 +216,23 @@ Migration safety posture:
 Completed in this continuation slice:
 
 - ID-scoped provider compatibility routing:
-    - `MetadataProviderOrchestrator` now filters provider execution for scoped IDs in `GetAuthorInfo` and `GetBookInfo`.
-    - OpenLibrary ID namespaces are constrained to compatible provider execution before fallback.
+  - `MetadataProviderOrchestrator` now filters provider execution for scoped IDs in `GetAuthorInfo` and `GetBookInfo`.
+  - OpenLibrary ID namespaces are constrained to compatible provider execution before fallback.
 - Canonical dedupe and merge tooling:
-    - Added `CanonicalizeAuthorsCommand` and `AuthorCanonicalizationService`.
-    - Added confidence-scored canonical match policy and bounded merge execution.
-    - Integrated dedupe policy into author add flows to prevent high-confidence duplicate inserts.
+  - Added `CanonicalizeAuthorsCommand` and `AuthorCanonicalizationService`.
+  - Added confidence-scored canonical match policy and bounded merge execution.
+  - Integrated dedupe policy into author add flows to prevent high-confidence duplicate inserts.
 - Import/identification robustness:
-    - Added import preflight guards for invalid author IDs and root-folder conflicts.
-    - Expanded identification fallback query variants and no-candidate diagnostics.
+  - Added import preflight guards for invalid author IDs and root-folder conflicts.
+  - Expanded identification fallback query variants and no-candidate diagnostics.
 - Series persistence and release evidence support:
-    - Added series reconstruction fallback in author refresh when author-level series payload is empty.
-    - Added `scripts/series_persistence_gate.py` and integrated series snapshot requirement into `scripts/release_entry_gate.py`.
-    - Added `scripts/replay_comparison.py` for baseline vs post-fix replay comparison metrics.
+  - Added series reconstruction fallback in author refresh when author-level series payload is empty.
+  - Added `scripts/series_persistence_gate.py` and integrated series snapshot requirement into `scripts/release_entry_gate.py`.
+  - Added `scripts/replay_comparison.py` for baseline vs post-fix replay comparison metrics.
 
 Validation status:
 
-
 Known gap:
-
 
 ### March 22, 2026 — Hardening Pass
 
@@ -260,12 +264,12 @@ Completed in this hardening slice:
 
 - Event handler stability (`TD-EVENT-001`): guarded `BookFileDeletedEvent` subscriber paths to prevent null-chain faults.
 - Cover pipeline resilience (`TD-COVER-001`, `TD-COVER-002`, `TD-COVER-003`):
-    - host-aware OpenLibrary cover throttling/cooldown,
-    - invalid cover-id URL suppression,
-    - stale local cover reconciliation and safer missing-file URL fallback.
+  - host-aware OpenLibrary cover throttling/cooldown,
+  - invalid cover-id URL suppression,
+  - stale local cover reconciliation and safer missing-file URL fallback.
 - Series contract hardening (`TD-META-SERIES-001`, `TD-META-SERIES-002`):
-    - OpenLibrary search now requests series fields,
-    - deterministic works-identity + search-enrichment merge contract implemented.
+  - OpenLibrary search now requests series fields,
+  - deterministic works-identity + search-enrichment merge contract implemented.
 - OpenLibrary operation tuning (`TD-OPENLIB-001`, `TD-ORCH-001`): per-operation timeout and retry settings (`search`, `isbn`, `work`) added across config/API/client plumbing.
 - Refresh deletion safeguards (`TD-IMPORT-001`): two-phase stale mark/delete with degraded-provider suppression.
 - Operational warning-noise control (`TD-OPS-INDEXER-001`): rate-limited no-indexer warning behavior with actionable guidance.
@@ -434,9 +438,9 @@ Measurement plan:
 - Baseline dataset: production-shaped cohort used by replay/perf runs.
 - Primary KPI: `objects_per_minute`.
 - Guardrail KPIs:
-    - `accepted_match_rate_delta`
-    - `provider_timeout_rate`
-    - `unresolved_ratio_delta`
+  - `accepted_match_rate_delta`
+  - `provider_timeout_rate`
+  - `unresolved_ratio_delta`
 - Success threshold (initial target): at least 30 percent throughput gain with no quality regressions beyond accepted threshold profile.
 
 #### TD-DUAL-FORMAT-001: Single-instance ebook and audiobook variant management
@@ -507,12 +511,12 @@ Implementation task outline:
 Measurement plan:
 
 - Correctness KPIs:
-    - `variant_conflict_count` (target: 0)
-    - `cross_variant_overwrite_count` (target: 0)
+  - `variant_conflict_count` (target: 0)
+  - `cross_variant_overwrite_count` (target: 0)
 - Usability KPI:
-    - `variant_policy_apply_success_rate` (target: 100 percent in acceptance suite)
+  - `variant_policy_apply_success_rate` (target: 100 percent in acceptance suite)
 - Compatibility KPI:
-    - `legacy_library_regression_failures` (target: 0)
+  - `legacy_library_regression_failures` (target: 0)
 
 Primary touch points:
 

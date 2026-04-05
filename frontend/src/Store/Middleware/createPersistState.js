@@ -1,3 +1,12 @@
+/**
+ * LocalStorage persistence enhancer.
+ * On startup, loads persisted Redux paths (sort keys, column visibility, etc.)
+ * from localStorage, merges them into the initial state via store.replaceReducer,
+ * and subscribes to the store to write those paths back on every change.
+ * Column schemas are reconciled against the current codebase to handle additions
+ * and removals between versions.
+ */
+
 import _ from 'lodash';
 import actions from 'Store/Actions';
 import migrate from 'Store/Migrators/migrate';

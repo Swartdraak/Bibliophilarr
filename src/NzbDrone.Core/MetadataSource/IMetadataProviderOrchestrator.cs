@@ -4,6 +4,12 @@ using NzbDrone.Core.Books;
 
 namespace NzbDrone.Core.MetadataSource
 {
+    /// <summary>
+    /// High-level metadata operations facade. Routes each operation through the
+    /// provider registry, applying ID-scope compatibility filtering and priority-based
+    /// fallback. Consumers should use this interface rather than interacting with
+    /// individual providers directly.
+    /// </summary>
     public interface IMetadataProviderOrchestrator
     {
         List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true);

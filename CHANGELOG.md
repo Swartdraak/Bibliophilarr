@@ -248,6 +248,7 @@ process.
 - Consolidated label and project governance guidance into `CONTRIBUTING.md`.
 
 ## [2026-03-17]
+
 - Fixed ConfigService property setters: removed clamping logic from `IsbnContextFallbackLimit` and `BookImportMatchThresholdPercent` to preserve exact config values (validation moved to API controller layer).
 - Fixed 16 test fixture failures across 6 core test suites:
   - EbookTagServiceFixture: added warn suppression for malformed-file and filename-fallback tests (11/11 passing).

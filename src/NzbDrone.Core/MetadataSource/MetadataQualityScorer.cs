@@ -10,6 +10,8 @@ namespace NzbDrone.Core.MetadataSource
     /// </summary>
     public class MetadataQualityScorer : IMetadataQualityScorer
     {
+        // Books scoring below this threshold are considered low-quality and may
+        // trigger additional provider lookups or operator warnings.
         private const int MinimumAcceptableScore = 50;
 
         /// <summary>
@@ -20,6 +22,15 @@ namespace NzbDrone.Core.MetadataSource
             return GetBookScoreBreakdown(book).Values.Sum();
         }
 
+        /// <summary>
+        /// Scoring rationale — weights reflect operational priority:
+        ///   Essential (60 pts): title + author + ID uniquely identify a book; without these
+        ///                      the library cannot match, merge, or display entries correctly.
+        ///   Important (20 pts): release-date, edition-id, edition count, and ratings
+        ///                      improve accuracy of matching and user-facing display.
+        ///   Nice-to-have (20 pts): genres, links, series, related books, and cover images
+        ///                         enhance discoverability but do not block core workflows.
+        /// </summary>
         public static System.Collections.Generic.Dictionary<string, int> GetBookScoreBreakdown(Book book)
         {
             var breakdown = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase)
@@ -115,6 +126,16 @@ namespace NzbDrone.Core.MetadataSource
         /// <summary>
         /// Calculate a quality score for author metadata (0-100)
         /// </summary>
+        /// <summary>
+        /// Author scoring rationale — weights reflect operational priority:
+        ///   Essential (60 pts): name (25) + foreign-id (20) + has books (15).
+        ///                      Name and ID are required for matching and display;
+        ///                      books list indicates the author record is useful.
+        ///   Important (20 pts): overview (10), images (5), ratings (5).
+        ///                      Improve author pages but library functions without them.
+        ///   Nice-to-have (20 pts): birth date (5), links (5), series (5), genres (5).
+        ///                         Enrich the author profile for discovery.
+        /// </summary>
         public int CalculateAuthorScore(Author author)
         {
             if (author == null)
@@ -185,7 +206,16 @@ namespace NzbDrone.Core.MetadataSource
         }
 
         /// <summary>
-        /// Calculate a quality score for edition metadata (0-100)
+        /// Edition scoring rationale — weights reflect operational priority:
+        ///   Essential (60 pts): title (20) + foreign-edition-id (20) + ISBN-13 (20, ASIN=15).
+        ///                      Title and ID are required for matching; ISBN/ASIN enables
+        ///                      cross-provider correlation. ASIN scores lower as it is
+        ///                      Amazon-specific and less universal than ISBN-13.
+        ///   Important (25 pts): release-date (5), publisher (5), page-count (5),
+        ///                      format (5), cover images (5). Needed for accurate
+        ///                      edition differentiation and user display.
+        ///   Nice-to-have (15 pts): overview (5), ratings (5), links (3), language (2).
+        ///                         Enhance edition detail pages but are not required.
         /// </summary>
         public int CalculateEditionScore(Edition edition)
         {

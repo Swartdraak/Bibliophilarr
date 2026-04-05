@@ -7,6 +7,15 @@ using NzbDrone.Core.Configuration;
 
 namespace NzbDrone.Core.MetadataSource
 {
+    /// <summary>
+    /// Thread-safe registry of all available metadata providers. Manages provider
+    /// lifecycle (register/unregister), enabled state, priority ordering, and health
+    /// status overrides. Provider ordering is determined by:
+    ///   1. Config-driven order (if configured)
+    ///   2. Priority overrides
+    ///   3. Provider.Priority property (lower = higher preference)
+    /// All mutable state is protected by a lock (_syncRoot).
+    /// </summary>
     public class MetadataProviderRegistry : IMetadataProviderRegistry
     {
         private readonly object _syncRoot = new object();

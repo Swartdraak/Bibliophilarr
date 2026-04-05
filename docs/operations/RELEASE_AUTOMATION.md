@@ -151,13 +151,17 @@ Before tagging a release from `main`, all of the following must be true:
 Mandatory checklist flow:
 
 1. Operator updates the latest dated entries in:
-  - `docs/operations/metadata-dry-run-snapshots/`
-  - `docs/operations/metadata-telemetry-checkpoints/`
-  - `docs/operations/install-test-snapshots/`
+
+- `docs/operations/metadata-dry-run-snapshots/`
+- `docs/operations/metadata-telemetry-checkpoints/`
+- `docs/operations/install-test-snapshots/`
+
 2. Each snapshot must include explicit gate lines:
-  - `Verdict: PASS|WARNING|CRITICAL|BLOCKED` (dry-run snapshots)
-  - `Overall threshold verdict: PASS|WARNING|CRITICAL|BLOCKED` (telemetry checkpoints)
-  - `Overall matrix verdict: PASS|BLOCKED` (install snapshots)
+
+- `Verdict: PASS|WARNING|CRITICAL|BLOCKED` (dry-run snapshots)
+- `Overall threshold verdict: PASS|WARNING|CRITICAL|BLOCKED` (telemetry checkpoints)
+- `Overall matrix verdict: PASS|BLOCKED` (install snapshots)
+
 3. Operator runs:
 
 ```bash
@@ -210,9 +214,11 @@ If `gh pr merge` returns policy-prohibited despite green checks and `MERGEABLE`,
 Recommended operator sequence:
 
 1. Verify preconditions first:
-  - `mergeable == MERGEABLE`
-  - no pending checks in progress
-  - no failing required checks
+
+- `mergeable == MERGEABLE`
+- no pending checks in progress
+- no failing required checks
+
 2. Try `gh pr merge` first.
 3. If `gh pr merge` still reports policy-prohibited while all preconditions are
    green, use the REST merge endpoint fallback:

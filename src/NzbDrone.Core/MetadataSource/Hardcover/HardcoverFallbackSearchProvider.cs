@@ -17,6 +17,15 @@ using NzbDrone.Core.MediaCover;
 
 namespace NzbDrone.Core.MetadataSource.Hardcover
 {
+    /// <summary>
+    /// Metadata provider backed by the Hardcover GraphQL API (https://hardcover.app).
+    /// Supports author/book search, author detail retrieval, book info lookup, and
+    /// ISBN/ASIN resolution. Requires a Hardcover API token configured via the UI
+    /// or the BIBLIOPHILARR_HARDCOVER_API_TOKEN environment variable.
+    ///
+    /// GraphQL responses are mapped to the internal Book/Author/AuthorMetadata models
+    /// through MapAuthorSearchResult, MapBook, and MapEdition helper methods.
+    /// </summary>
     public class HardcoverFallbackSearchProvider :
         IBookSearchFallbackProvider,
         IMetadataProvider,
@@ -28,8 +37,14 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
     {
         private const string Endpoint = "https://api.hardcover.app/v1/graphql";
         private const string HardcoverApiTokenEnvironmentVariable = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
+
+        // Hardcover API default page sizes — aligned with their typical result limits.
         private const int SearchPageSize = 20;
         private const int AuthorPageSize = 40;
+
+        // After this many consecutive deterministic errors (e.g. 400 Bad Request from
+        // malformed queries), suppress further searches for the cooldown period to avoid
+        // hammering the API with known-bad requests.
         private const int DeterministicErrorThreshold = 3;
         private static readonly TimeSpan DeterministicErrorCooldown = TimeSpan.FromMinutes(15);
 

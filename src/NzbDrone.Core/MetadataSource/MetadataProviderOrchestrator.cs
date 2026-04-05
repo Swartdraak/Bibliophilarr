@@ -10,8 +10,15 @@ using NzbDrone.Core.Exceptions;
 
 namespace NzbDrone.Core.MetadataSource
 {
+    /// <summary>
+    /// Dispatches metadata operations to the appropriate provider via the registry.
+    /// Uses an ID-scope compatibility check to route requests for provider-scoped IDs
+    /// (e.g. "hardcover:author:12345") to the correct provider, and falls back through
+    /// enabled providers in priority order when the primary fails or returns null.
+    /// </summary>
     public class MetadataProviderOrchestrator : IMetadataProviderOrchestrator
     {
+        // Matches bare Open Library identifiers like OL123A (author), OL456W (work), OL789M (edition).
         private static readonly Regex BareOpenLibraryTokenRegex = new Regex("^OL\\d+[AWM]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly IMetadataProviderRegistry _registry;

@@ -20,15 +20,39 @@ namespace NzbDrone.Core.MetadataSource
         List<Book> Search(IBookSearchFallbackProvider provider, string title, string author);
     }
 
+    /// <summary>
+    /// Orchestrates book search requests with rate-limit awareness, circuit-breaker
+    /// protection, and provider health tracking. Wraps each provider's Search method
+    /// with Polly-based resilience policies and adaptive request spacing.
+    ///
+    /// Health states: Normal → Degraded (near rate limit) → Unhealthy (breaker open).
+    /// Transitions are logged and emitted to telemetry.
+    /// </summary>
     public class BookSearchFallbackExecutionService : IBookSearchFallbackExecutionService
     {
+        // When request count reaches this fraction of the provider's MaxRequests
+        // within its time window, switch to degraded (slower) request spacing.
         private const double NearCeilingRatio = 0.85;
+
+        // Number of consecutive failures before the circuit breaker opens.
         private const int CircuitBreakerFailureThreshold = 3;
+
+        // How long the circuit breaker stays open before allowing a probe request.
         private static readonly TimeSpan CircuitBreakerBreakDuration = TimeSpan.FromMinutes(2);
+
+        // Request spacing under normal conditions.
         private static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(2);
+
+        // Slower request spacing when near the rate-limit ceiling.
         private static readonly TimeSpan DegradedInterval = TimeSpan.FromSeconds(15);
+
+        // How long to suppress all requests after the provider becomes unhealthy.
         private static readonly TimeSpan UnhealthySuppression = TimeSpan.FromMinutes(10);
+
+        // Cooldown after receiving a 5xx server error before retrying.
         private static readonly TimeSpan ServerErrorCooldown = TimeSpan.FromMinutes(2);
+
+        // Cooldown after a non-server failure (e.g. timeout, parse error).
         private static readonly TimeSpan FailureCooldown = TimeSpan.FromSeconds(45);
 
         private readonly IRateLimitService _rateLimitService;

@@ -1,3 +1,10 @@
+/**
+ * Server-side collection handler factory.
+ * Wires up paginated fetch, page navigation (first/prev/next/last/exact),
+ * sorting, and filtering handlers for sections backed by server-side
+ * paging (e.g., history, queue, blocklist, wanted).
+ */
+
 import pages from 'Utilities/pages';
 import serverSideCollectionHandlers from 'Utilities/serverSideCollectionHandlers';
 import createFetchServerSideCollectionHandler from './createFetchServerSideCollectionHandler';

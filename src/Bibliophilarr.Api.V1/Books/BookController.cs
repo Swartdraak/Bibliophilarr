@@ -23,6 +23,11 @@ using NzbDrone.SignalR;
 
 namespace Bibliophilarr.Api.V1.Books
 {
+    /// <summary>
+    /// REST API controller for book resources. Supports listing, creating, updating,
+    /// and deleting books with optional filtering by author, title, and monitored status.
+    /// Broadcasts real-time updates via SignalR on book state changes.
+    /// </summary>
     [V1ApiController]
     public class BookController : BookControllerWithSignalR,
         IHandle<BookGrabbedEvent>,

@@ -1,3 +1,11 @@
+/**
+ * Action module registry.
+ * Each imported module exposes: section (string), defaultState, actionHandlers,
+ * reducers, and optionally filters/persistState.  The default export array is
+ * consumed by createReducers.js to build the root reducer and by
+ * createPersistState.js to determine which paths survive page reloads.
+ */
+
 import * as app from './appActions';
 import * as author from './authorActions';
 import * as authorDetails from './authorDetailsActions';

@@ -257,11 +257,11 @@ How to read score breakdown values:
 
 - Values are emitted per provider as comma-separated `factor:points` entries.
 - Typical high-impact factors include:
-   - `title`
-   - `author`
-   - `foreign-book-id`
-   - `has-editions`
-   - `cover-images`
+  - `title`
+  - `author`
+  - `foreign-book-id`
+  - `has-editions`
+  - `cover-images`
 - Higher totals generally indicate richer metadata completeness and are used by
    conflict policy quality-score selection.
 
