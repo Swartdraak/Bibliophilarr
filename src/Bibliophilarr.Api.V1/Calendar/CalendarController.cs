@@ -29,7 +29,7 @@ namespace Bibliophilarr.Api.V1.Calendar
         [HttpGet]
         public List<BookResource> GetCalendar(DateTime? start, DateTime? end, bool unmonitored = false, bool includeAuthor = false)
         {
-            //TODO: Add Book Image support to BookControllerWithSignalR
+            //NOTE: Add Book Image support to BookControllerWithSignalR
             var includeBookImages = Request.GetBooleanQueryParameter("includeBookImages");
 
             var startUse = start ?? DateTime.Today;

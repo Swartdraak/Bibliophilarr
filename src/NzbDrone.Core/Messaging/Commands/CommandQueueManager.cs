@@ -225,6 +225,38 @@ namespace NzbDrone.Core.Messaging.Commands
 
         public void Cancel(int id)
         {
+            var command = _commandQueue.Find(id);
+
+            if (command == null)
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "Unable to cancel task");
+            }
+
+            if (command.Status == CommandStatus.Queued)
+            {
+                if (!_commandQueue.RemoveIfQueued(id))
+                {
+                    throw new NzbDroneClientException(HttpStatusCode.Conflict, "Unable to cancel task");
+                }
+
+                return;
+            }
+
+            if (command.Status == CommandStatus.Started)
+            {
+                command.Message = "Cancelled";
+                command.Status = CommandStatus.Cancelled;
+                command.EndedAt = DateTime.UtcNow;
+                command.Duration = command.StartedAt.HasValue
+                    ? command.EndedAt.Value.Subtract(command.StartedAt.Value)
+                    : TimeSpan.Zero;
+
+                _repo.End(command);
+                _commandQueue.PulseAllConsumers();
+
+                return;
+            }
+
             if (!_commandQueue.RemoveIfQueued(id))
             {
                 throw new NzbDroneClientException(HttpStatusCode.Conflict, "Unable to cancel task");

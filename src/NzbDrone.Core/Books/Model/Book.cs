@@ -27,6 +27,7 @@ namespace NzbDrone.Core.Books
         public int AuthorMetadataId { get; set; }
         public string ForeignBookId { get; set; }
         public string ForeignEditionId { get; set; }
+        public string OpenLibraryWorkId { get; set; }
         public string TitleSlug { get; set; }
         public string Title { get; set; }
         public DateTime? ReleaseDate { get; set; }
@@ -75,6 +76,7 @@ namespace NzbDrone.Core.Books
         {
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
+            OpenLibraryWorkId = other.OpenLibraryWorkId;
             TitleSlug = other.TitleSlug;
             Title = other.Title;
             ReleaseDate = other.ReleaseDate;
@@ -101,6 +103,7 @@ namespace NzbDrone.Core.Books
         {
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
+            OpenLibraryWorkId = other.OpenLibraryWorkId;
             AddOptions = other.AddOptions;
             Monitored = other.Monitored;
             AnyEditionOk = other.AnyEditionOk;

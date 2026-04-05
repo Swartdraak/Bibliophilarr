@@ -1,6 +1,4 @@
-using System;
 using Bibliophilarr.Http;
-using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Notifications;
 
 namespace Bibliophilarr.Api.V1.Notifications
@@ -14,18 +12,6 @@ namespace Bibliophilarr.Api.V1.Notifications
         public NotificationController(NotificationFactory notificationFactory)
             : base(notificationFactory, "notification", ResourceMapper, BulkResourceMapper)
         {
-        }
-
-        [NonAction]
-        public override ActionResult<NotificationResource> UpdateProvider([FromBody] NotificationBulkResource providerResource)
-        {
-            throw new NotImplementedException();
-        }
-
-        [NonAction]
-        public override object DeleteProviders([FromBody] NotificationBulkResource resource)
-        {
-            throw new NotImplementedException();
         }
     }
 }

@@ -840,7 +840,7 @@
     "MonitorAuthor": "Monitora Autore",
     "ExistingItems": "Elementi Esistenti",
     "ExistingBooks": "Libri Esistenti",
-    "SearchBoxPlaceHolder": "es. Guerra e Pace, goodreads:656, isbn:067003469X, asin:B00JCDK5ME",
+    "SearchBoxPlaceHolder": "es. Guerra e Pace, openlibrary:656, isbn:067003469X, asin:B00JCDK5ME",
     "RefreshInformation": "Aggiorna informazioni",
     "RenameBooks": "Rinomina Libri",
     "MonitorNewItemsHelpText": "Quale libri nuovi dovrebbero essere monitorati",

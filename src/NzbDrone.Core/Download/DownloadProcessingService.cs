@@ -1,6 +1,9 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using NLog;
+using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Messaging.Commands;
@@ -51,22 +54,58 @@ namespace NzbDrone.Core.Download
                                                           .Where(t => t.IsTrackable)
                                                           .ToList();
 
-            foreach (var trackedDownload in trackedDownloads)
+            // Process failed downloads sequentially (rare, quick operations)
+            var failedDownloads = trackedDownloads
+                .Where(t => t.State == TrackedDownloadState.DownloadFailedPending)
+                .ToList();
+
+            foreach (var trackedDownload in failedDownloads)
             {
                 try
                 {
-                    if (trackedDownload.State == TrackedDownloadState.DownloadFailedPending)
-                    {
-                        _failedDownloadService.ProcessFailed(trackedDownload);
-                    }
-                    else if (enableCompletedDownloadHandling && trackedDownload.State == TrackedDownloadState.ImportPending)
-                    {
-                        _completedDownloadService.Import(trackedDownload);
-                    }
+                    _failedDownloadService.ProcessFailed(trackedDownload);
                 }
                 catch (Exception e)
                 {
-                    _logger.Debug(e, "Failed to process download: {0}", trackedDownload.DownloadItem.Title);
+                    _logger.Debug(e, "Failed to process failed download: {0}", trackedDownload.DownloadItem.Title);
+                }
+            }
+
+            // Process completed downloads in parallel (I/O-bound: file reads, identification, API calls)
+            if (enableCompletedDownloadHandling)
+            {
+                var pendingImports = trackedDownloads
+                    .Where(t => t.State == TrackedDownloadState.ImportPending)
+                    .ToList();
+
+                if (pendingImports.Any())
+                {
+                    var maxWorkers = Math.Max(1, Math.Min(_configService.DownloadProcessingWorkerCount, pendingImports.Count));
+                    var processed = 0;
+
+                    _logger.Debug("Processing {0} pending import(s) with up to {1} worker(s)", pendingImports.Count, maxWorkers);
+
+                    var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
+                    Parallel.ForEach(pendingImports, options, trackedDownload =>
+                    {
+                        var current = Interlocked.Increment(ref processed);
+                        _logger.ProgressInfo($"Processing download {current}/{pendingImports.Count}: {trackedDownload.DownloadItem.Title}");
+
+                        try
+                        {
+                            _completedDownloadService.Import(trackedDownload);
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.Debug(e, "Failed to process download: {0}", trackedDownload.DownloadItem.Title);
+
+                            if (trackedDownload.State == TrackedDownloadState.Importing)
+                            {
+                                trackedDownload.State = TrackedDownloadState.ImportFailed;
+                                trackedDownload.Warn("Import error: {0}", e.Message);
+                            }
+                        }
+                    });
                 }
             }
 

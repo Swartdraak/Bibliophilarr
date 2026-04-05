@@ -8,7 +8,7 @@ using NzbDrone.Core.Configuration;
 
 namespace Bibliophilarr.Http.Frontend
 {
-    [Authorize(Policy = "UI")]
+    [AllowAnonymous]
     [ApiController]
     [ApiExplorerSettings(IgnoreApi = true)]
     public class InitializeJsonController : Controller

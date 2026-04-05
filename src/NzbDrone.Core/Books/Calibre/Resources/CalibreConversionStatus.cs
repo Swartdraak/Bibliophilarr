@@ -1,3 +1,5 @@
+#nullable enable
+
 using Newtonsoft.Json;
 
 namespace NzbDrone.Core.Books.Calibre
@@ -11,8 +13,8 @@ namespace NzbDrone.Core.Books.Calibre
         [JsonProperty("was_aborted")]
         public bool WasAborted { get; set; }
 
-        public string Traceback { get; set; }
+        public string? Traceback { get; set; }
 
-        public string Log { get; set; }
+        public string? Log { get; set; }
     }
 }

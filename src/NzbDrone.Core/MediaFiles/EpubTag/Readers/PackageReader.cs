@@ -65,6 +65,61 @@ namespace VersOne.Epub.Internal
             return result;
         }
 
+        public static EpubPackage ReadPackage(ZipArchive epubArchive, string rootFilePath)
+        {
+            var rootFileEntry = epubArchive.GetEntry(rootFilePath);
+            if (rootFileEntry == null)
+            {
+                throw new Exception("EPUB parsing error: root file not found in archive.");
+            }
+
+            XDocument containerDocument;
+
+            using (var containerStream = rootFileEntry.Open())
+            {
+                containerDocument = XmlUtils.LoadDocument(containerStream);
+            }
+
+            XNamespace opfNamespace = "http://www.idpf.org/2007/opf";
+            var packageNode = containerDocument.Element(opfNamespace + "package");
+
+            if (packageNode == null)
+            {
+                throw new Exception("Invalid epub file");
+            }
+
+            var epubVersionValue = packageNode.Attribute("version").Value;
+            EpubVersion epubVersion;
+            switch (epubVersionValue)
+            {
+                case "1.0":
+                case "2.0":
+                    epubVersion = EpubVersion.EPUB_2;
+                    break;
+                case "3.0":
+                    epubVersion = EpubVersion.EPUB_3_0;
+                    break;
+                case "3.1":
+                    epubVersion = EpubVersion.EPUB_3_1;
+                    break;
+                default:
+                    throw new Exception($"Unsupported EPUB version: {epubVersionValue}.");
+            }
+
+            var result = new EpubPackage();
+            result.EpubVersion = epubVersion;
+            var metadataNode = packageNode.Element(opfNamespace + "metadata");
+            if (metadataNode == null)
+            {
+                throw new Exception("EPUB parsing error: metadata not found in the package.");
+            }
+
+            var metadata = ReadMetadata(metadataNode, result.EpubVersion);
+            result.Metadata = metadata;
+
+            return result;
+        }
+
         private static EpubMetadata ReadMetadata(XElement metadataNode, EpubVersion epubVersion)
         {
             var result = new EpubMetadata

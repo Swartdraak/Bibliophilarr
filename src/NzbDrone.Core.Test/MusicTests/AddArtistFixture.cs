@@ -36,7 +36,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
         private void GivenValidAuthor(string bibliophilarrId)
         {
-            Mocker.GetMock<IProvideAuthorInfo>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(s => s.GetAuthorInfo(bibliophilarrId, false))
                 .Returns(_fakeAuthor);
         }
@@ -112,13 +112,14 @@ namespace NzbDrone.Core.Test.MusicTests
         {
             var newAuthor = new Author
             {
-                ForeignAuthorId = "ce09ea31-3d4a-4487-a797-e315175457a0",
+                ForeignAuthorId = "OL12345A",
                 Path = @"C:\Test\Music\Name1"
             };
 
-            Mocker.GetMock<IProvideAuthorInfo>()
-                  .Setup(s => s.GetAuthorInfo(newAuthor.ForeignAuthorId, false))
-                  .Throws(new AuthorNotFoundException(newAuthor.ForeignAuthorId));
+            // After ID normalization the orchestrator receives the bare OL token
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                  .Setup(s => s.GetAuthorInfo("OL12345A", false))
+                  .Throws(new AuthorNotFoundException("OL12345A"));
 
             Mocker.GetMock<IAddAuthorValidator>()
                   .Setup(s => s.Validate(It.IsAny<Author>()))
@@ -130,6 +131,38 @@ namespace NzbDrone.Core.Test.MusicTests
             Assert.Throws<ValidationException>(() => Subject.AddAuthor(newAuthor));
 
             ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_fallback_to_request_payload_when_metadata_provider_temporarily_fails()
+        {
+            var newAuthor = new Author
+            {
+                ForeignAuthorId = "OL999999A",
+                Path = @"C:\Test\Music\Fallback",
+                Metadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = "OL999999A",
+                    Name = "Fallback Author"
+                }
+            };
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(s => s.GetAuthorInfo(newAuthor.ForeignAuthorId, false))
+                .Throws(new System.Exception("upstream unavailable"));
+
+            Mocker.GetMock<IAddAuthorValidator>()
+                .Setup(s => s.Validate(It.IsAny<Author>()))
+                .Returns(new ValidationResult());
+
+            var author = Subject.AddAuthor(newAuthor, false);
+
+            author.Should().NotBeNull();
+            author.ForeignAuthorId.Should().Be("openlibrary:author:OL999999A");
+            author.Name.Should().Be("Fallback Author");
+            author.Path.Should().Be(@"C:\Test\Music\Fallback");
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

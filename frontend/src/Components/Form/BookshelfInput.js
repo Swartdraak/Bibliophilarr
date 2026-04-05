@@ -105,21 +105,21 @@ class BookshelfInput extends Component {
         {
           !isPopulated && !isFetching &&
             <div>
-              Authenticate with Goodreads to retrieve bookshelves.
+              Authenticate with the configured provider to retrieve bookshelves.
             </div>
         }
 
         {
           isPopulated && !isFetching && !user &&
             <div>
-              Could not retrieve data from Goodreads.  Try re-authenticating.
+              Could not retrieve bookshelf data. Try re-authenticating.
             </div>
         }
 
         {
           isPopulated && !isFetching && user && !items.length &&
             <div>
-              No bookshelves found for Goodreads user {user}.
+              No bookshelves found for user {user}.
             </div>
         }
 

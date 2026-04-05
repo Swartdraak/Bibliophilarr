@@ -23,6 +23,11 @@ using NzbDrone.SignalR;
 
 namespace Bibliophilarr.Api.V1.Author
 {
+    /// <summary>
+    /// REST API controller for author resources. Provides CRUD operations for managed
+    /// authors, triggers metadata refresh commands, and broadcasts real-time updates
+    /// via SignalR when author state changes (add, edit, delete, import, rename).
+    /// </summary>
     [V1ApiController]
     public class AuthorController : RestControllerWithSignalR<AuthorResource, NzbDrone.Core.Books.Author>,
                                 IHandle<BookImportedEvent>,
@@ -138,7 +143,7 @@ namespace Bibliophilarr.Api.V1.Author
         }
 
         [RestPostById]
-        public ActionResult<AuthorResource> AddAuthor(AuthorResource authorResource)
+        public ActionResult<AuthorResource> AddAuthor([FromBody] AuthorResource authorResource)
         {
             var author = _addAuthorService.AddAuthor(authorResource.ToModel());
 
@@ -146,7 +151,7 @@ namespace Bibliophilarr.Api.V1.Author
         }
 
         [RestPutById]
-        public ActionResult<AuthorResource> UpdateAuthor(AuthorResource authorResource, bool moveFiles = false)
+        public ActionResult<AuthorResource> UpdateAuthor([FromBody] AuthorResource authorResource, bool moveFiles = false)
         {
             var author = _authorService.GetAuthor(authorResource.Id);
 

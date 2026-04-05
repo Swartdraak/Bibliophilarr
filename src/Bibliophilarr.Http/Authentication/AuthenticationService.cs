@@ -1,6 +1,7 @@
 using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Http;
 using NLog;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
 
@@ -62,7 +63,7 @@ namespace Bibliophilarr.Http.Authentication
 
         public void LogUnauthorized(HttpRequest context)
         {
-            _authLogger.Info("Auth-Unauthorized ip {0} url '{1}'", context.GetRemoteIP(), context.Path);
+            _authLogger.Info("Auth-Unauthorized ip {0} url '{1}'", context.GetRemoteIP(), LogSanitizer.Sanitize(context.Path));
         }
 
         private void LogInvalidated(HttpRequest context)
@@ -72,17 +73,17 @@ namespace Bibliophilarr.Http.Authentication
 
         private void LogFailure(HttpRequest context, string username)
         {
-            _authLogger.Warn("Auth-Failure ip {0} username '{1}'", context.GetRemoteIP(), username);
+            _authLogger.Warn("Auth-Failure ip {0} username '{1}'", context.GetRemoteIP(), LogSanitizer.Sanitize(username));
         }
 
         private void LogSuccess(HttpRequest context, string username)
         {
-            _authLogger.Info("Auth-Success ip {0} username '{1}'", context.GetRemoteIP(), username);
+            _authLogger.Info("Auth-Success ip {0} username '{1}'", context.GetRemoteIP(), LogSanitizer.Sanitize(username));
         }
 
         private void LogLogout(HttpRequest context, string username)
         {
-            _authLogger.Info("Auth-Logout ip {0} username '{1}'", context.GetRemoteIP(), username);
+            _authLogger.Info("Auth-Logout ip {0} username '{1}'", context.GetRemoteIP(), LogSanitizer.Sanitize(username));
         }
     }
 }

@@ -3,7 +3,7 @@ import updateSectionState from 'Utilities/State/updateSectionState';
 
 function createClearReducer(section, defaultState) {
   return (state) => {
-    const newState = Object.assign(getSectionState(state, section), defaultState);
+    const newState = { ...getSectionState(state, section), ...defaultState };
 
     return updateSectionState(state, section, newState);
   };

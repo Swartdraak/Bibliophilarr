@@ -35,7 +35,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var conflictTelemetry = new MetadataConflictTelemetryService(logger);
             var conflictPolicy = new MetadataConflictResolutionPolicy(conflictTelemetry, logger, configService.Object);
             var providerTelemetry = new ProviderTelemetryService(registry, logger);
-            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry);
+            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry, LogManager.GetCurrentClassLogger());
 
             var books = await aggregator.SearchBooksAsync("Dune", "Frank Herbert", new AggregationOptions
             {
@@ -73,7 +73,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var conflictTelemetry = new MetadataConflictTelemetryService(logger);
             var conflictPolicy = new MetadataConflictResolutionPolicy(conflictTelemetry, logger, configService.Object);
             var providerTelemetry = new ProviderTelemetryService(registry, logger);
-            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry);
+            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry, LogManager.GetCurrentClassLogger());
 
             var books = await aggregator.SearchBooksAsync("Dune", "Frank Herbert", new AggregationOptions
             {
@@ -119,7 +119,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var conflictTelemetry = new MetadataConflictTelemetryService(logger);
             var conflictPolicy = new MetadataConflictResolutionPolicy(conflictTelemetry, logger, configService.Object);
             var providerTelemetry = new ProviderTelemetryService(registry, logger);
-            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry);
+            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry, LogManager.GetCurrentClassLogger());
 
             var result = await aggregator.GetBookMetadataAsync("value-123", identifierType, new AggregationOptions
             {
@@ -154,7 +154,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var conflictTelemetry = new MetadataConflictTelemetryService(logger);
             var conflictPolicy = new MetadataConflictResolutionPolicy(conflictTelemetry, logger, configService.Object);
             var providerTelemetry = new ProviderTelemetryService(registry, logger);
-            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry);
+            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry, LogManager.GetCurrentClassLogger());
 
             var result = await aggregator.GetAuthorMetadataAsync("OL23919A", "openlibrary", new AggregationOptions
             {
@@ -201,7 +201,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var conflictTelemetry = new MetadataConflictTelemetryService(logger);
             var conflictPolicy = new MetadataConflictResolutionPolicy(conflictTelemetry, logger, configService.Object);
             var providerTelemetry = new ProviderTelemetryService(registry, logger);
-            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry);
+            var aggregator = new MetadataAggregator(registry, new MetadataQualityScorer(), conflictPolicy, providerTelemetry, LogManager.GetCurrentClassLogger());
 
             var results = await aggregator.SearchAuthorsAsync("Frank Herbert", new AggregationOptions
             {

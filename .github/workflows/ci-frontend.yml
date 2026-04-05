@@ -1,4 +1,4 @@
-name: Bibliophilarr Frontend CI
+name: Frontend CI
 
 on:
   pull_request:
@@ -11,9 +11,6 @@ on:
     branches:
       - main
       - develop
-      - staging
-      - release
-      - hotfix
     paths:
       - 'frontend/**'
       - 'package.json'
@@ -26,20 +23,24 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: '20'
+          node-version: '20.19.2'
           cache: yarn
           cache-dependency-path: yarn.lock
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+
+      - name: Test
+        run: yarn test:frontend
 
       - name: Lint
         run: yarn lint

@@ -199,7 +199,7 @@ namespace NzbDrone.Host
                     builder.ConfigureKestrel(serverOptions =>
                     {
                         serverOptions.AllowSynchronousIO = false;
-                        serverOptions.Limits.MaxRequestBodySize = null;
+                        serverOptions.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
                     });
                     builder.UseStartup<Startup>();
                 });

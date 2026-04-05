@@ -100,7 +100,7 @@ class SignalRConnector extends Component {
   }
 
   componentDidMount() {
-    console.log('[signalR] starting');
+    console.debug('[signalR] starting');
 
     const url = `${window.Bibliophilarr.urlBase}/signalr/messages`;
 
@@ -146,7 +146,7 @@ class SignalRConnector extends Component {
       return;
     }
 
-    console.error(`signalR: Unable to find handler for ${name}`);
+    console.warn(`signalR: Unable to find handler for ${name}`);
   };
 
   handleCalendar = (body) => {
@@ -349,8 +349,6 @@ class SignalRConnector extends Component {
   };
 
   onReceiveMessage = (message) => {
-    console.debug('[signalR] received', message.name, message.body);
-
     this.handleMessage(message);
   };
 

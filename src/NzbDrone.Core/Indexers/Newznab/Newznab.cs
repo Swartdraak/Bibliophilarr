@@ -150,9 +150,9 @@ namespace NzbDrone.Core.Indexers.Newznab
                         categories = _capabilitiesProvider.GetCapabilities(Settings).Categories;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Use default categories
+                    _logger.Debug(ex, "Failed to fetch indexer categories, using defaults");
                 }
 
                 return new
@@ -170,8 +170,9 @@ namespace NzbDrone.Core.Indexers.Newznab
             {
                 return Math.Min(100, Math.Max(_capabilitiesProvider.GetCapabilities(Settings).DefaultPageSize, _capabilitiesProvider.GetCapabilities(Settings).MaxPageSize));
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.Debug(ex, "Failed to read indexer page size capabilities, using default");
                 return 100;
             }
         }

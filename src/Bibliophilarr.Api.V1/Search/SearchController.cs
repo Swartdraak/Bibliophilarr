@@ -1,10 +1,11 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
+using NLog;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
@@ -14,25 +15,34 @@ namespace Bibliophilarr.Api.V1.Search
     [V1ApiController]
     public class SearchController : Controller
     {
-        private readonly ISearchForNewEntity _searchProxy;
+        private static readonly Logger Logger = LogManager.GetLogger("Search");
+
+        private readonly IMetadataProviderOrchestrator _searchProxy;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IMapCoversToLocal _coverMapper;
+        private readonly ISearchTelemetryService _searchTelemetry;
 
-        public SearchController(ISearchForNewEntity searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper)
+        public SearchController(IMetadataProviderOrchestrator searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper, ISearchTelemetryService searchTelemetry)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
             _coverMapper = coverMapper;
+            _searchTelemetry = searchTelemetry;
         }
 
         [HttpGet]
         public object Search([FromQuery] string term)
         {
+            if (string.IsNullOrWhiteSpace(term))
+            {
+                return new List<SearchResource>();
+            }
+
             var searchResults = _searchProxy.SearchForNewEntity(term);
-            return MapToResource(searchResults).ToList();
+            return MapToResource(searchResults, term).ToList();
         }
 
-        private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results)
+        private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term)
         {
             var id = 1;
             foreach (var result in results)
@@ -59,9 +69,12 @@ namespace Bibliophilarr.Api.V1.Search
                 else if (result is NzbDrone.Core.Books.Book book)
                 {
                     resource.Book = book.ToResource();
-                    resource.Book.Overview = book.Editions.Value.Single(x => x.Monitored).Overview;
-                    resource.Book.Author = book.Author.Value.ToResource();
-                    resource.Book.Editions = book.Editions.Value.ToResource();
+                    var editions = book.Editions?.Value ?? new List<NzbDrone.Core.Books.Edition>();
+                    var selectedEdition = editions.FirstOrDefault(x => x.Monitored) ?? editions.FirstOrDefault();
+
+                    resource.Book.Overview = selectedEdition?.Overview;
+                    resource.Book.Author = book.Author?.Value?.ToResource();
+                    resource.Book.Editions = editions.ToResource();
                     resource.ForeignId = book.ForeignBookId;
 
                     _coverMapper.ConvertToLocalUrls(resource.Book.Id, MediaCoverEntity.Book, resource.Book.Images);
@@ -73,11 +86,16 @@ namespace Bibliophilarr.Api.V1.Search
                         resource.Book.RemoteCover = cover.RemoteUrl;
                     }
 
-                    resource.Book.Author.Folder = _fileNameBuilder.GetAuthorFolder(book.Author);
+                    if (resource.Book.Author != null)
+                    {
+                        resource.Book.Author.Folder = _fileNameBuilder.GetAuthorFolder(book.Author);
+                    }
                 }
                 else
                 {
-                    throw new NotImplementedException("Bad response from search all proxy");
+                    _searchTelemetry.RecordUnsupportedEntityType(term, result?.GetType());
+                    Logger.Warn("Ignoring unsupported search entity type [{0}] for search term [{1}]", result?.GetType().FullName ?? "<null>", LogSanitizer.Sanitize(term));
+                    continue;
                 }
 
                 yield return resource;

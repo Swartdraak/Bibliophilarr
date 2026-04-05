@@ -14,7 +14,7 @@ function createMapStateToProps() {
       const items = qualityDefinitions.items.map((item) => {
         const pendingChanges = qualityDefinitions.pendingChanges[item.id] || {};
 
-        return Object.assign({}, item, pendingChanges);
+        return { ...item, ...pendingChanges };
       });
 
       return {

@@ -23,6 +23,50 @@ namespace Bibliophilarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.HardcoverRequestTimeoutSeconds)
                 .InclusiveBetween(0, 120)
                 .WithMessage("Hardcover request timeout must be between 0 and 120 seconds");
+
+            SharedValidator.RuleFor(c => c.IsbnContextFallbackLimit)
+                .InclusiveBetween(1, 10)
+                .WithMessage("ISBN contextual fallback attempt limit must be between 1 and 10");
+
+            SharedValidator.RuleFor(c => c.OpenLibrarySearchTimeoutSeconds)
+                .InclusiveBetween(0, 120)
+                .WithMessage("OpenLibrary search timeout must be between 0 and 120 seconds");
+
+            SharedValidator.RuleFor(c => c.OpenLibraryIsbnTimeoutSeconds)
+                .InclusiveBetween(0, 120)
+                .WithMessage("OpenLibrary ISBN timeout must be between 0 and 120 seconds");
+
+            SharedValidator.RuleFor(c => c.OpenLibraryWorkTimeoutSeconds)
+                .InclusiveBetween(0, 120)
+                .WithMessage("OpenLibrary work timeout must be between 0 and 120 seconds");
+
+            SharedValidator.RuleFor(c => c.OpenLibrarySearchRetryBudget)
+                .InclusiveBetween(-1, 10)
+                .WithMessage("OpenLibrary search retry budget must be between -1 and 10");
+
+            SharedValidator.RuleFor(c => c.OpenLibraryIsbnRetryBudget)
+                .InclusiveBetween(-1, 10)
+                .WithMessage("OpenLibrary ISBN retry budget must be between -1 and 10");
+
+            SharedValidator.RuleFor(c => c.OpenLibraryWorkRetryBudget)
+                .InclusiveBetween(-1, 10)
+                .WithMessage("OpenLibrary work retry budget must be between -1 and 10");
+
+            SharedValidator.RuleFor(c => c.BookImportMatchThresholdPercent)
+                .InclusiveBetween(50, 100)
+                .WithMessage("Book import match threshold must be between 50 and 100 percent");
+
+            SharedValidator.RuleFor(c => c.IdentificationWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Identification worker count must be between 1 and 8");
+
+            SharedValidator.RuleFor(c => c.ImportTagReadWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Import tag read worker count must be between 1 and 8");
+
+            SharedValidator.RuleFor(c => c.RemoteCandidateSearchWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Remote candidate search worker count must be between 1 and 8");
         }
 
         protected override MetadataProviderConfigResource ToResource(IConfigService model)

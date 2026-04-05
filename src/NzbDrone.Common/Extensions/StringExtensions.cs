@@ -403,5 +403,36 @@ namespace NzbDrone.Common.Extensions
         {
             return input.Contains(":") ? $"[{input}]" : input;
         }
+
+        private static readonly Regex NonAlphanumeric = new Regex(@"[^a-z0-9]+", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Converts an arbitrary string (name, foreign ID, etc.) into a URL-safe
+        /// kebab-case slug suitable for use as a TitleSlug / URL path segment.
+        /// </summary>
+        public static string ToUrlSlug(this string input)
+        {
+            if (input.IsNullOrWhiteSpace())
+            {
+                return string.Empty;
+            }
+
+            // Decode any percent-encoded characters first
+            var decoded = Uri.UnescapeDataString(input);
+
+            // Remove diacritics
+            decoded = decoded.RemoveAccent();
+
+            // Lowercase
+            var slug = decoded.ToLowerInvariant();
+
+            // Replace any non-alphanumeric run with a single hyphen
+            slug = NonAlphanumeric.Replace(slug, "-");
+
+            // Trim leading/trailing hyphens
+            slug = slug.Trim('-');
+
+            return slug;
+        }
     }
 }

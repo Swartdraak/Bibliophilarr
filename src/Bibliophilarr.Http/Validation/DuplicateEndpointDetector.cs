@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using ImpromptuInterface;
+using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Matching;
@@ -10,23 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliophilarr.Http.Validation
 {
-    public interface IDfaMatcherBuilder
-    {
-        void AddEndpoint(RouteEndpoint endpoint);
-        object BuildDfaTree(bool includeLabel = false);
-    }
-
-    // https://github.com/dotnet/aspnetcore/blob/cc3d47f5501cdfae3e5b5be509ef2c0fb8cca069/src/Http/Routing/src/Matching/DfaNode.cs
-    public interface IDfaNode
-    {
-        public string Label { get; set; }
-        public List<Endpoint> Matches { get; }
-        public IDictionary Literals { get; }
-        public object Parameters { get; }
-        public object CatchAll { get; }
-        public IDictionary PolicyEdges { get; }
-    }
-
     public class DuplicateEndpointDetector
     {
         private readonly IServiceProvider _services;
@@ -38,33 +21,34 @@ namespace Bibliophilarr.Http.Validation
 
         public Dictionary<string, List<string>> GetDuplicateEndpoints(EndpointDataSource dataSource)
         {
-            // get the DfaMatcherBuilder - internal, so needs reflection :(
-            var matcherBuilder = typeof(IEndpointSelectorPolicy).Assembly
+            // get the DfaMatcherBuilder - internal, so needs reflection
+            var matcherBuilderType = typeof(IEndpointSelectorPolicy).Assembly
                 .GetType("Microsoft.AspNetCore.Routing.Matching.DfaMatcherBuilder");
 
-            var rawBuilder = _services.GetRequiredService(matcherBuilder);
-            var builder = rawBuilder.ActLike<IDfaMatcherBuilder>();
+            var rawBuilder = _services.GetRequiredService(matcherBuilderType);
+
+            var addEndpointMethod = matcherBuilderType.GetMethod("AddEndpoint");
+            var buildDfaTreeMethod = matcherBuilderType.GetMethod("BuildDfaTree");
 
             var endpoints = dataSource.Endpoints;
             foreach (var t in endpoints)
             {
                 if (t is RouteEndpoint endpoint && (endpoint.Metadata.GetMetadata<ISuppressMatchingMetadata>()?.SuppressMatching ?? false) == false)
                 {
-                    builder.AddEndpoint(endpoint);
+                    addEndpointMethod.Invoke(rawBuilder, new object[] { endpoint });
                 }
             }
 
-            // Assign each node a sequential index.
-            var visited = new Dictionary<IDfaNode, int>();
+            var visited = new Dictionary<object, int>(ReferenceEqualityComparer.Instance);
             var duplicates = new Dictionary<string, List<string>>();
 
-            var rawTree = builder.BuildDfaTree(includeLabel: true);
+            var rawTree = buildDfaTreeMethod.Invoke(rawBuilder, new object[] { true });
 
             Visit(rawTree, LogDuplicates);
 
             return duplicates;
 
-            void LogDuplicates(IDfaNode node)
+            void LogDuplicates(object node)
             {
                 if (!visited.TryGetValue(node, out var label))
                 {
@@ -72,50 +56,63 @@ namespace Bibliophilarr.Http.Validation
                     visited.Add(node, label);
                 }
 
-                // We can safely index into visited because this is a post-order traversal,
-                // all of the children of this node are already in the dictionary.
-                var filteredMatches = node?.Matches?.Where(x => !x.DisplayName.StartsWith("Bibliophilarr.Http.Frontend.StaticResourceController")).ToList();
+                var matches = GetProperty<List<Endpoint>>(node, "Matches");
+                var nodeLabel = GetProperty<string>(node, "Label");
+
+                var filteredMatches = matches?.Where(x => !x.DisplayName.StartsWith("Bibliophilarr.Http.Frontend.StaticResourceController")).ToList();
                 var matchCount = filteredMatches?.Count ?? 0;
                 if (matchCount > 1)
                 {
                     var duplicateEndpoints = filteredMatches.Select(x => x.DisplayName).ToList();
-                    duplicates[node.Label] = duplicateEndpoints;
+                    duplicates[nodeLabel] = duplicateEndpoints;
                 }
             }
         }
 
-        private static void Visit(object rawNode, Action<IDfaNode> visitor)
+        private static void Visit(object rawNode, Action<object> visitor)
         {
-            var node = rawNode.ActLike<IDfaNode>();
-            if (node.Literals?.Values != null)
+            var literals = GetProperty<IDictionary>(rawNode, "Literals");
+            if (literals?.Values != null)
             {
-                foreach (var dictValue in node.Literals.Values)
+                foreach (var dictValue in literals.Values)
                 {
                     Visit(dictValue, visitor);
                 }
             }
 
-            // Break cycles
-            if (node.Parameters != null && !ReferenceEquals(rawNode, node.Parameters))
+            var parameters = GetProperty<object>(rawNode, "Parameters");
+            if (parameters != null && !ReferenceEquals(rawNode, parameters))
             {
-                Visit(node.Parameters, visitor);
+                Visit(parameters, visitor);
             }
 
-            // Break cycles
-            if (node.CatchAll != null && !ReferenceEquals(rawNode, node.CatchAll))
+            var catchAll = GetProperty<object>(rawNode, "CatchAll");
+            if (catchAll != null && !ReferenceEquals(rawNode, catchAll))
             {
-                Visit(node.CatchAll, visitor);
+                Visit(catchAll, visitor);
             }
 
-            if (node.PolicyEdges?.Values != null)
+            var policyEdges = GetProperty<IDictionary>(rawNode, "PolicyEdges");
+            if (policyEdges?.Values != null)
             {
-                foreach (var dictValue in node.PolicyEdges.Values)
+                foreach (var dictValue in policyEdges.Values)
                 {
                     Visit(dictValue, visitor);
                 }
             }
 
-            visitor(node);
+            visitor(rawNode);
+        }
+
+        private static T GetProperty<T>(object obj, string name)
+        {
+            var prop = obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+            if (prop == null)
+            {
+                return default;
+            }
+
+            return (T)prop.GetValue(obj);
         }
     }
 }

@@ -15,7 +15,7 @@ namespace NzbDrone.Core.Notifications.Twitter
             RuleFor(c => c.AccessToken).NotEmpty();
             RuleFor(c => c.AccessTokenSecret).NotEmpty();
 
-            //TODO: Validate that it is a valid username (numbers, letters and underscores - I think)
+            //NOTE: Validate that it is a valid username (numbers, letters and underscores - I think)
             RuleFor(c => c.Mention).NotEmpty().When(c => c.DirectMessage);
 
             RuleFor(c => c.DirectMessage).Equal(true)
@@ -38,10 +38,10 @@ namespace NzbDrone.Core.Notifications.Twitter
             AuthorizeNotification = "startOAuth";
         }
 
-        [FieldDefinition(0, Label = "Consumer Key", Privacy = PrivacyLevel.ApiKey, HelpText = "Consumer key from a Twitter application", HelpLink = "https://wiki.servarr.com/useful-tools#twitter-connect")]
+        [FieldDefinition(0, Label = "Consumer Key", Privacy = PrivacyLevel.ApiKey, HelpText = "Consumer key from a Twitter application")]
         public string ConsumerKey { get; set; }
 
-        [FieldDefinition(1, Label = "Consumer Secret", Privacy = PrivacyLevel.ApiKey, HelpText = "Consumer secret from a Twitter application", HelpLink = "https://wiki.servarr.com/useful-tools#twitter-connect")]
+        [FieldDefinition(1, Label = "Consumer Secret", Privacy = PrivacyLevel.ApiKey, HelpText = "Consumer secret from a Twitter application")]
         public string ConsumerSecret { get; set; }
 
         [FieldDefinition(2, Label = "Access Token", Privacy = PrivacyLevel.ApiKey, Advanced = true)]

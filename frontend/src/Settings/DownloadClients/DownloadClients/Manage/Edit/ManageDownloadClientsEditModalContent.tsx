@@ -113,9 +113,11 @@ function ManageDownloadClientsEditModalContent(
           setRemoveFailedDownloads(value);
           break;
         default:
-          console.warn(
-            `EditDownloadClientsModalContent Unknown Input: '${name}'`
-          );
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(
+              `EditDownloadClientsModalContent Unknown Input: '${name}'`
+            );
+          }
       }
     },
     []

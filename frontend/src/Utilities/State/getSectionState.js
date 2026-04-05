@@ -8,15 +8,15 @@ function getSectionState(state, section, isFullStateTree = false) {
   const [, subSection] = section.split('.');
 
   if (subSection) {
-    return Object.assign({}, state[subSection]);
+    return { ...state[subSection] };
   }
 
-  // TODO: Remove in favour of using subSection
+  // NOTE: Legacy section lookup — consider using subSection pattern for new code
   if (state.hasOwnProperty(section)) {
-    return Object.assign({}, state[section]);
+    return { ...state[section] };
   }
 
-  return Object.assign({}, state);
+  return { ...state };
 }
 
 export default getSectionState;

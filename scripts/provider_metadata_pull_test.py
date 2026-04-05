@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import random
 import re
@@ -26,6 +27,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote_plus
 from urllib.request import urlopen
 from urllib.error import URLError, HTTPError
+
+LOGGER = logging.getLogger("provider_metadata_pull_test")
 
 MEDIA_EXTENSIONS = {
     ".epub",
@@ -86,6 +89,11 @@ class AttemptResult:
     num_found: Optional[int]
     latency_ms: int
     error: Optional[str] = None
+
+
+def configure_logging(level: str) -> None:
+    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    logging.basicConfig(level=numeric_level, format="%(levelname)s %(message)s")
 
 
 def clean_component(value: str) -> str:
@@ -236,6 +244,8 @@ def run(args: argparse.Namespace) -> int:
     if not sampled:
         raise RuntimeError(f"No supported media files found under {args.media_root}")
 
+    LOGGER.info("Sampled %d media file(s) from %s using seed %s", len(sampled), args.media_root, args.seed)
+
     cases: List[Dict[str, Any]] = []
     strategy_success = Counter()
     strategy_attempts = Counter()
@@ -243,6 +253,8 @@ def run(args: argparse.Namespace) -> int:
     extension_counter = Counter()
 
     for path in sampled:
+        LOGGER.debug("Evaluating sampled file: %s", path)
+
         ext = os.path.splitext(path)[1].lower()
         extension_counter[ext] += 1
 
@@ -272,19 +284,23 @@ def run(args: argparse.Namespace) -> int:
             strategy_attempts["isbn"] += 1
             result = ol_search_isbn(isbn)
             attempts.append(result)
+            LOGGER.debug("ISBN attempt for %s: success=%s num_found=%s latency_ms=%s error=%s", path, result.success, result.num_found, result.latency_ms, result.error)
             if result.success:
                 strategy_success["isbn"] += 1
 
         # Open Library does not support ASIN direct endpoint equivalent.
         if asin:
             strategy_attempts["asin"] += 1
-            attempts.append(AttemptResult("asin", False, None, 0, "No direct ASIN endpoint on Open Library"))
+            result = AttemptResult("asin", False, None, 0, "No direct ASIN endpoint on Open Library")
+            attempts.append(result)
+            LOGGER.debug("ASIN attempt for %s: success=%s num_found=%s latency_ms=%s error=%s", path, result.success, result.num_found, result.latency_ms, result.error)
 
         # Stage 1: app-style primary q (title + author).
         if primary:
             strategy_attempts["q_primary"] += 1
             result = ol_search_q(primary)
             attempts.append(result)
+            LOGGER.debug("Primary query attempt for %s: query=%s success=%s num_found=%s latency_ms=%s error=%s", path, primary, result.success, result.num_found, result.latency_ms, result.error)
             if result.success:
                 strategy_success["q_primary"] += 1
 
@@ -293,6 +309,7 @@ def run(args: argparse.Namespace) -> int:
             strategy_attempts["q_title_only"] += 1
             result = ol_search_q(title_only)
             attempts.append(result)
+            LOGGER.debug("Title-only query attempt for %s: query=%s success=%s num_found=%s latency_ms=%s error=%s", path, title_only, result.success, result.num_found, result.latency_ms, result.error)
             if result.success:
                 strategy_success["q_title_only"] += 1
 
@@ -301,6 +318,7 @@ def run(args: argparse.Namespace) -> int:
             strategy_attempts["q_author_only"] += 1
             result = ol_search_q(author_only)
             attempts.append(result)
+            LOGGER.debug("Author-only query attempt for %s: query=%s success=%s num_found=%s latency_ms=%s error=%s", path, author_only, result.success, result.num_found, result.latency_ms, result.error)
             if result.success:
                 strategy_success["q_author_only"] += 1
 
@@ -314,6 +332,7 @@ def run(args: argparse.Namespace) -> int:
             gap_counter["asin_no_direct_provider_lookup"] += 1
         if not resolved:
             gap_counter["unresolved_after_all_fallbacks"] += 1
+            LOGGER.info("Unresolved sample after all fallback attempts: %s", path)
 
         cases.append(
             {
@@ -409,9 +428,9 @@ def run(args: argparse.Namespace) -> int:
     with open(md_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
-    print(f"Wrote: {json_path}")
-    print(f"Wrote: {md_path}")
-    print(f"Resolved rate: {summary['resolved_rate']}% ({summary['resolved_count']}/{summary['sample_size']})")
+    LOGGER.info("Wrote JSON report: %s", json_path)
+    LOGGER.info("Wrote Markdown report: %s", md_path)
+    LOGGER.info("Resolved rate: %s%% (%s/%s)", summary["resolved_rate"], summary["resolved_count"], summary["sample_size"])
 
     return 0
 
@@ -422,8 +441,10 @@ def main() -> int:
     parser.add_argument("--sample-size", type=int, default=75, help="Number of random files to sample (50-100 recommended)")
     parser.add_argument("--seed", type=int, default=20260315, help="Random seed for reproducible sample")
     parser.add_argument("--artifacts-dir", default="/opt/Bibliophilarr/_artifacts/provider-pull-test-2026-03-15", help="Where to write reports")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Python log level for console output")
 
     args = parser.parse_args()
+    configure_logging(args.log_level)
 
     if args.sample_size < 1:
         raise ValueError("sample-size must be >= 1")

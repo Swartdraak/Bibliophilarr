@@ -1,3 +1,10 @@
+/**
+ * Generic fetch-handler factory.
+ * Returns a thunk handler that GETs the given API url, dispatches
+ * UPDATE (list) or UPDATE_ITEM (single id) on success, and sets
+ * isFetching/isPopulated/error flags via the SET base action.
+ */
+
 import { batchActions } from 'redux-batched-actions';
 import createAjaxRequest from 'Utilities/createAjaxRequest';
 import { set, update, updateItem } from '../baseActions';

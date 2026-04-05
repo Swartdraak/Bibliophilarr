@@ -78,9 +78,15 @@ namespace NzbDrone.Core.Configuration
         bool EnableHardcoverFallback { get; set; }
         string HardcoverApiToken { get; set; }
         int HardcoverRequestTimeoutSeconds { get; set; }
+        int IsbnContextFallbackLimit { get; set; }
         bool EnableMetadataConflictStrategyVariants { get; set; }
         string MetadataAuthorAliases { get; set; }
         string MetadataTitleStripPatterns { get; set; }
+        int BookImportMatchThresholdPercent { get; set; }
+        int IdentificationWorkerCount { get; set; }
+        int ImportTagReadWorkerCount { get; set; }
+        int RemoteCandidateSearchWorkerCount { get; set; }
+        int DownloadProcessingWorkerCount { get; set; }
 
         //Forms Auth
         string RijndaelPassphrase { get; }
@@ -105,5 +111,21 @@ namespace NzbDrone.Core.Configuration
 
         CertificateValidationType CertificateValidation { get; }
         string ApplicationUrl { get; }
+
+        // Metadata Providers
+        bool EnableOpenLibraryProvider { get; set; }
+        bool EnableGoogleBooksProvider { get; set; }
+        bool EnableInventaireProvider { get; set; }
+        string MetadataProviderPriorityOrder { get; set; }
+        int MetadataProviderTimeoutSeconds { get; set; }
+        int MetadataProviderRetryBudget { get; set; }
+        int MetadataProviderCircuitBreakerThreshold { get; set; }
+        int MetadataProviderCircuitBreakerDurationSeconds { get; set; }
+        int OpenLibrarySearchTimeoutSeconds { get; set; }
+        int OpenLibraryIsbnTimeoutSeconds { get; set; }
+        int OpenLibraryWorkTimeoutSeconds { get; set; }
+        int OpenLibrarySearchRetryBudget { get; set; }
+        int OpenLibraryIsbnRetryBudget { get; set; }
+        int OpenLibraryWorkRetryBudget { get; set; }
     }
 }

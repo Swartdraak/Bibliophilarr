@@ -4,7 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="FluentValidation" />
-    <PackageReference Include="ImpromptuInterface" />
     <PackageReference Include="NLog" />
   </ItemGroup>
   <ItemGroup>

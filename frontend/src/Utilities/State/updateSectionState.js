@@ -2,15 +2,15 @@ function updateSectionState(state, section, newState) {
   const [, subSection] = section.split('.');
 
   if (subSection) {
-    return Object.assign({}, state, { [subSection]: newState });
+    return { ...state, [subSection]: newState };
   }
 
-  // TODO: Remove in favour of using subSection
+  // NOTE: Legacy section update — consider using subSection pattern for new code
   if (state.hasOwnProperty(section)) {
-    return Object.assign({}, state, { [section]: newState });
+    return { ...state, [section]: newState };
   }
 
-  return Object.assign({}, state, newState);
+  return { ...state, ...newState };
 }
 
 export default updateSectionState;

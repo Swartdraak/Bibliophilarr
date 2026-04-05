@@ -39,5 +39,6 @@ namespace Bibliophilarr.Api.V1.System
         public string PackageAuthor { get; set; }
         public UpdateMechanism PackageUpdateMechanism { get; set; }
         public string PackageUpdateMechanismMessage { get; set; }
+        public bool UpdatesEnabled { get; set; }
     }
 }

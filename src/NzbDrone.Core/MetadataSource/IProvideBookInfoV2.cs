@@ -51,7 +51,7 @@ namespace NzbDrone.Core.MetadataSource
         /// <summary>
         /// Get book information by any supported identifier type
         /// </summary>
-        /// <param name="identifierType">Type of identifier (e.g., "isbn", "asin", "goodreads")</param>
+        /// <param name="identifierType">Type of identifier (e.g., "isbn", "asin", "openlibrary")</param>
         /// <param name="identifier">The identifier value</param>
         /// <param name="options">Retrieval options</param>
         /// <returns>Tuple containing foreign ID, book, and author metadata list</returns>

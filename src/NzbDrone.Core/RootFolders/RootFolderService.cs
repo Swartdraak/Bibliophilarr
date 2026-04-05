@@ -186,7 +186,7 @@ namespace NzbDrone.Core.RootFolders
                     rootFolder.FreeSpace = _diskProvider.GetAvailableSpace(rootFolder.Path);
                     rootFolder.TotalSpace = _diskProvider.GetTotalSize(rootFolder.Path);
                 }
-            }).Wait(5000);
+            }).Wait(15000);
         }
 
         public void Handle(ModelEvent<RemotePathMapping> message)

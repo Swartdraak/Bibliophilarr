@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Bibliophilarr.Http;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
@@ -22,6 +23,11 @@ using NzbDrone.SignalR;
 
 namespace Bibliophilarr.Api.V1.Books
 {
+    /// <summary>
+    /// REST API controller for book resources. Supports listing, creating, updating,
+    /// and deleting books with optional filtering by author, title, and monitored status.
+    /// Broadcasts real-time updates via SignalR on book state changes.
+    /// </summary>
     [V1ApiController]
     public class BookController : BookControllerWithSignalR,
         IHandle<BookGrabbedEvent>,
@@ -32,6 +38,11 @@ namespace Bibliophilarr.Api.V1.Books
         IHandle<TrackImportedEvent>,
         IHandle<BookFileDeletedEvent>
     {
+        private const int DefaultPageSize = 100;
+        private const int MaxPageSize = 1000;
+        private const int LargeLibraryWarningThreshold = 5000;
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         protected readonly IAuthorService _authorService;
         protected readonly IEditionService _editionService;
         protected readonly IAddBookService _addBookService;
@@ -62,10 +73,12 @@ namespace Bibliophilarr.Api.V1.Books
         }
 
         [HttpGet]
-        public List<BookResource> GetBooks([FromQuery] int? authorId,
+        public async Task<List<BookResource>> GetBooks([FromQuery] int? authorId,
             [FromQuery] List<int> bookIds,
             [FromQuery] string titleSlug,
-            [FromQuery] bool includeAllAuthorBooks = false)
+            [FromQuery] bool includeAllAuthorBooks = false,
+            [FromQuery] int? page = null,
+            [FromQuery] int? pageSize = null)
         {
             if (!authorId.HasValue && !bookIds.Any() && titleSlug.IsNullOrWhiteSpace())
             {
@@ -73,9 +86,14 @@ namespace Bibliophilarr.Api.V1.Books
                 var metadataTask = Task.Run(() => _authorService.GetAllAuthors());
                 var books = _bookService.GetAllBooks();
 
-                var editions = editionTask.GetAwaiter().GetResult().GroupBy(x => x.BookId).ToDictionary(x => x.Key, y => y.ToList());
+                if (books.Count >= LargeLibraryWarningThreshold)
+                {
+                    Logger.Warn("GetBooks called without filters on large library ({0} books). Consider using authorId or pagination parameters for better performance.", books.Count);
+                }
 
-                var authors = metadataTask.GetAwaiter().GetResult().ToDictionary(x => x.AuthorMetadataId);
+                var editions = (await editionTask).GroupBy(x => x.BookId).ToDictionary(x => x.Key, y => y.ToList());
+
+                var authors = (await metadataTask).ToDictionary(x => x.AuthorMetadataId);
 
                 foreach (var book in books)
                 {
@@ -88,6 +106,14 @@ namespace Bibliophilarr.Api.V1.Books
                     {
                         book.Editions = new List<Edition>();
                     }
+                }
+
+                // Apply optional pagination for large libraries
+                if (page.HasValue && pageSize.HasValue)
+                {
+                    var effectivePageSize = global::System.Math.Min(pageSize.Value, MaxPageSize);
+                    var skip = (page.Value - 1) * effectivePageSize;
+                    books = books.Skip(skip).Take(effectivePageSize).ToList();
                 }
 
                 return MapToResource(books, false);
@@ -152,7 +178,7 @@ namespace Bibliophilarr.Api.V1.Books
         }
 
         [RestPostById]
-        public ActionResult<BookResource> AddBook(BookResource bookResource)
+        public ActionResult<BookResource> AddBook([FromBody] BookResource bookResource)
         {
             var book = _addBookService.AddBook(bookResource.ToModel());
 
@@ -160,7 +186,7 @@ namespace Bibliophilarr.Api.V1.Books
         }
 
         [RestPutById]
-        public ActionResult<BookResource> UpdateBook(BookResource bookResource)
+        public ActionResult<BookResource> UpdateBook([FromBody] BookResource bookResource)
         {
             var book = _bookService.GetBook(bookResource.Id);
 
@@ -242,6 +268,11 @@ namespace Bibliophilarr.Api.V1.Books
         [NonAction]
         public void Handle(BookFileDeletedEvent message)
         {
+            if (message?.BookFile?.Edition?.Value?.Book?.Value == null)
+            {
+                return;
+            }
+
             if (message.Reason == DeleteMediaFileReason.Upgrade)
             {
                 return;

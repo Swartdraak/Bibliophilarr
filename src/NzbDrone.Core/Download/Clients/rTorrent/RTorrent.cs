@@ -224,7 +224,7 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
 
         public override DownloadClientInfo GetStatus()
         {
-            // XXX: This function's correctness has not been considered
+            // NOTE: This function's correctness has not been considered
             var status = new DownloadClientInfo
             {
                 IsLocalhost = Settings.Host == "127.0.0.1" || Settings.Host == "localhost"

@@ -7,6 +7,7 @@ import VirtualTableHeader from 'Components/Table/VirtualTableHeader';
 import VirtualTableHeaderCell from 'Components/Table/VirtualTableHeaderCell';
 import VirtualTableSelectAllHeaderCell from 'Components/Table/VirtualTableSelectAllHeaderCell';
 import { icons } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import BookIndexTableOptionsConnector from './BookIndexTableOptionsConnector';
 import styles from './BookIndexHeader.css';
 
@@ -67,6 +68,7 @@ function BookIndexHeader(props) {
                   onTableOptionChange={onTableOptionChange}
                 >
                   <IconButton
+                    title={translate('TableOptions')}
                     name={icons.ADVANCED_SETTINGS}
                   />
                 </TableOptionsModalWrapper>

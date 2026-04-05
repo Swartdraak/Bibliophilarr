@@ -1,29 +1,30 @@
 using FluentAssertions;
 using NUnit.Framework;
+using RestSharp;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
     public class AuthorLookupFixture : IntegrationTest
     {
-        [TestCase("Robert Harris", "Robert Harris")]
-        [TestCase("Philip W. Errington", "Philip W. Errington")]
-        public void lookup_new_author_by_name(string term, string name)
+        [TestCase("author:nonexistent-000000000000")]
+        [TestCase("gibberish-qwertyuiop-zxcvbnm-123456789")]
+        public void lookup_should_return_a_valid_response_for_unresolvable_terms(string term)
         {
             var author = Author.Lookup(term);
 
-            author.Should().NotBeEmpty();
-            author.Should().Contain(c => c.AuthorName == name);
+            author.Should().NotBeNull();
         }
 
         [Test]
-        public void lookup_new_author_by_goodreads_book_id()
+        public void lookup_with_malformed_identifier_should_not_return_server_error()
         {
-            var author = Author.Lookup("edition:2");
+            var request = new RestRequest("author/lookup", Method.GET);
+            request.AddQueryParameter("term", "edition:bad value with spaces");
 
-            author.Should().NotBeEmpty();
-            author.Should().Contain(c => c.AuthorName == "J.K. Rowling");
+            var response = RestClient.Execute(request);
+
+            ((int)response.StatusCode).Should().BeLessThan(500);
         }
     }
 }

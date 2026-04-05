@@ -121,9 +121,11 @@ function scheduleRemoveCommand(command, dispatch) {
 }
 
 export function executeCommandHelper(payload, dispatch) {
-  // TODO: show a message for the user
+  // NOTE: Rate-limited commands are silently dropped without user notification
   if (lastCommand && isSameCommand(lastCommand, payload)) {
-    console.warn('Please wait at least 5 seconds before running this command again');
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Please wait at least 5 seconds before running this command again');
+    }
   }
 
   lastCommand = payload;

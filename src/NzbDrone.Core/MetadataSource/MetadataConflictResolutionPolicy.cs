@@ -35,12 +35,14 @@ namespace NzbDrone.Core.MetadataSource
         public int CandidateCount { get; set; }
         public List<string> EvaluatedProviders { get; set; }
         public Dictionary<string, int> ProviderScores { get; set; }
+        public Dictionary<string, Dictionary<string, int>> ProviderScoreBreakdowns { get; set; }
         public Dictionary<string, string> FieldSelections { get; set; }
 
         public MetadataConflictResolutionDecision()
         {
             EvaluatedProviders = new List<string>();
             ProviderScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            ProviderScoreBreakdowns = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
             FieldSelections = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             ResolvedAtUtc = DateTime.UtcNow;
         }
@@ -77,13 +79,13 @@ namespace NzbDrone.Core.MetadataSource
         {
             return new MetadataFieldPrecedenceMatrix(new Dictionary<MetadataConflictField, IReadOnlyList<string>>
             {
-                [MetadataConflictField.Title] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.Subtitle] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.AuthorIdentity] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.Identifiers] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.PublicationDate] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.Language] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "Goodreads" },
-                [MetadataConflictField.CoverLinks] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "Goodreads" }
+                [MetadataConflictField.Title] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.Subtitle] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.AuthorIdentity] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.Identifiers] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.PublicationDate] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.Language] = new[] { "OpenLibrary", "Inventaire", "GoogleBooks", "Hardcover", "OpenLibrary" },
+                [MetadataConflictField.CoverLinks] = new[] { "Inventaire", "OpenLibrary", "GoogleBooks", "Hardcover", "OpenLibrary" }
             });
         }
     }
@@ -112,7 +114,7 @@ namespace NzbDrone.Core.MetadataSource
             ["Inventaire"] = 20,
             ["GoogleBooks"] = 30,
             ["Hardcover"] = 40,
-            ["Goodreads"] = 90
+            ["OpenLibrary"] = 90
         };
 
         private static readonly MetadataFieldPrecedenceMatrix FieldPrecedenceMatrix = MetadataFieldPrecedenceMatrix.CreateDefault();
@@ -137,6 +139,7 @@ namespace NzbDrone.Core.MetadataSource
             foreach (var candidate in normalized)
             {
                 decision.ProviderScores[candidate.ProviderName] = candidate.QualityScore;
+                decision.ProviderScoreBreakdowns[candidate.ProviderName] = MetadataQualityScorer.GetBookScoreBreakdown(candidate.Book);
             }
 
             if (preferredProvider.IsNotNullOrWhiteSpace())
@@ -304,14 +307,23 @@ namespace NzbDrone.Core.MetadataSource
                 ? "none"
                 : string.Join(",", decision.ProviderScores.OrderBy(x => x.Key).Select(x => $"{x.Key}:{x.Value}"));
 
+            var breakdownSummary = decision.ProviderScoreBreakdowns == null || decision.ProviderScoreBreakdowns.Count == 0
+                ? "none"
+                : string.Join(" | ",
+                    decision.ProviderScoreBreakdowns
+                        .OrderBy(x => x.Key)
+                        .Select(kvp =>
+                            $"{kvp.Key}[{string.Join(",", kvp.Value.OrderBy(v => v.Key).Where(v => v.Value > 0).Select(v => $"{v.Key}:{v.Value}"))}]"));
+
             _logger.Info(
-                "Metadata conflict decision: operation={0}, selectedProvider={1}, reason={2}, tieBreak={3}, candidateCount={4}, scores={5}",
+                "Metadata conflict decision: operation={0}, selectedProvider={1}, reason={2}, tieBreak={3}, candidateCount={4}, scores={5}, scoreBreakdowns={6}",
                 operation,
                 decision.SelectedProvider ?? "none",
                 decision.ResolutionReason ?? "none",
                 decision.TieBreakReason ?? "none",
                 decision.CandidateCount,
-                scoreSummary);
+                scoreSummary,
+                breakdownSummary);
         }
 
         private static MetadataConflictResolutionDecision FinalizeDecision(MetadataConflictResolutionDecision decision,

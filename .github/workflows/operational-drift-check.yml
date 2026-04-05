@@ -1,0 +1,41 @@
+name: Operational Drift Check
+
+'on':
+  workflow_dispatch:
+  schedule:
+    - cron: '15 4 * * 2'
+
+permissions:
+  contents: read
+
+jobs:
+  operational-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate operational drift report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p _artifacts/operational-drift
+          python3 scripts/operational_drift_report.py \
+            --owner "${{ github.repository_owner }}" \
+            --repo "${{ github.event.repository.name }}" \
+            --md-out _artifacts/operational-drift/operational-drift.md \
+            --json-out _artifacts/operational-drift/operational-drift.json
+
+      - name: Upload operational drift artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: operational-drift-report
+          path: _artifacts/operational-drift

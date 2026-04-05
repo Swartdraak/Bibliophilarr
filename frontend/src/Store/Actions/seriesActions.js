@@ -42,7 +42,7 @@ export const defaultState = {
       name: 'series',
       label: 'Series',
       isSortable: true,
-      isVisible: false
+      isVisible: true
     },
     {
       name: 'position',
@@ -118,12 +118,12 @@ export const reducers = createHandleActions({
   [SET_SERIES_VALUE]: createSetSettingValueReducer(section),
 
   [CLEAR_SERIES]: (state) => {
-    return Object.assign({}, state, {
+    return { ...state,
       isFetching: false,
       isPopulated: false,
       error: null,
       items: []
-    });
+    };
   }
 
 }, defaultState, section);

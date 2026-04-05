@@ -1,5 +1,6 @@
 name: Bibliophilarr npm Publish
 
+# npm publish workflow — runs only from main branch (via release events or manual dispatch).
 on:
   release:
     types: [published]
@@ -14,19 +15,22 @@ permissions:
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm-publish
     defaults:
       run:
         working-directory: npm/bibliophilarr-launcher
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: '20'
+          node-version: '20.19.2'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Resolve version

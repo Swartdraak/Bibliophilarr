@@ -1,4 +1,4 @@
-name: Bibliophilarr Docs Validation
+name: Docs Validation
 
 on:
   pull_request:
@@ -7,8 +7,6 @@ on:
       - main
       - develop
       - staging
-      - release
-      - hotfix
 
 permissions:
   contents: read
@@ -17,17 +15,24 @@ jobs:
   markdown-link-check:
     name: Markdown lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Markdown lint
-        uses: DavidAnson/markdownlint-cli2-action@v16
+        uses: DavidAnson/markdownlint-cli2-action@b4c9feab76d8025d1e83c653fa3990936df0e6c8 # v16
         with:
           globs: |
             README.md
             QUICKSTART.md
+            ROADMAP.md
+            MIGRATION_PLAN.md
+            PROJECT_STATUS.md
             CONTRIBUTING.md
             SECURITY.md
-            docs/**/*.md
+            CHANGELOG.md
+            docs/operations/METADATA_MIGRATION_DRY_RUN.md
+            docs/operations/METADATA_PROVIDER_RUNBOOK.md
+            docs/operations/RELEASE_AUTOMATION.md

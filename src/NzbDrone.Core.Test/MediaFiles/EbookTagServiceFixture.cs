@@ -1,9 +1,16 @@
+using System.Collections.Generic;
+using System.IO.Abstractions;
 using System.Linq;
+using System.Reflection;
 using FizzWare.NBuilder;
 using FluentAssertions;
+using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 using VersOne.Epub.Schema;
 
 namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
@@ -11,6 +18,18 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
     [TestFixture]
     public class EbookTagServiceFixture : CoreTest<EBookTagService>
     {
+        [Test]
+        public void should_return_null_isbn_for_null_identifier_list()
+        {
+            Subject.GetIsbn(null).Should().BeNull();
+        }
+
+        [Test]
+        public void should_return_null_isbn_for_empty_identifier_list()
+        {
+            Subject.GetIsbn(new List<EpubMetadataIdentifier>()).Should().BeNull();
+        }
+
         [Test]
         public void should_prefer_isbn13()
         {
@@ -24,6 +43,157 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
                 .ToList();
 
             Subject.GetIsbn(ids).Should().Be("9781455546176");
+        }
+
+        [Test]
+        public void should_use_extension_quality_source_when_epub_is_malformed()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".epub");
+            fileInfo.Setup(x => x.FullName).Returns("/nonexistent/corrupt_file.epub");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            // File-read failure and missing-filename-metadata both log at Warn; allow them.
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Quality.Quality.Should().Be(Quality.EPUB);
+            result.Quality.QualityDetectionSource.Should().Be(QualityDetectionSource.Extension);
+        }
+
+        [Test]
+        public void should_use_extension_quality_source_when_azw3_is_malformed()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".azw3");
+            fileInfo.Setup(x => x.FullName).Returns("/nonexistent/corrupt_file.azw3");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Quality.Quality.Should().Be(Quality.AZW3);
+            result.Quality.QualityDetectionSource.Should().Be(QualityDetectionSource.Extension);
+        }
+
+        [Test]
+        public void should_use_extension_quality_source_when_mobi_is_malformed()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".mobi");
+            fileInfo.Setup(x => x.FullName).Returns("/nonexistent/corrupt_file.mobi");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Quality.Quality.Should().Be(Quality.MOBI);
+            result.Quality.QualityDetectionSource.Should().Be(QualityDetectionSource.Extension);
+        }
+
+        [Test]
+        public void should_use_extension_quality_source_when_pdf_is_malformed()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".pdf");
+            fileInfo.Setup(x => x.FullName).Returns("/nonexistent/corrupt_file.pdf");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Quality.Quality.Should().Be(Quality.PDF);
+            result.Quality.QualityDetectionSource.Should().Be(QualityDetectionSource.Extension);
+        }
+
+        [Test]
+        public void should_not_inject_false_positive_isbn_or_asin_for_unparseable_filename()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".epub");
+            fileInfo.Setup(x => x.FullName).Returns("/tmp/abc123xyz.epub");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Isbn.Should().BeNullOrEmpty("filename contains no valid ISBN pattern");
+            result.Asin.Should().BeNullOrEmpty("filename contains no valid ASIN pattern");
+        }
+
+        [Test]
+        public void should_extract_isbn_from_filename_during_fallback()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".pdf");
+            fileInfo.Setup(x => x.FullName).Returns("/tmp/Example Book - Example Author [9781455546176].pdf");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Isbn.Should().Be("9781455546176");
+            result.IsbnConfidence.Should().BeGreaterThan(0.0);
+        }
+
+        [Test]
+        public void should_extract_asin_from_filename_during_fallback()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".azw3");
+            fileInfo.Setup(x => x.FullName).Returns("/tmp/Example Book - Example Author [B08N5WRWNW].azw3");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Asin.Should().Be("B08N5WRWNW");
+            result.AsinConfidence.Should().BeGreaterThan(0.0);
+        }
+
+        [Test]
+        public void should_replace_suspicious_high_confidence_embedded_title_and_author_with_filename_identity()
+        {
+            var applyFallback = typeof(EBookTagService).GetMethod("ApplyFilenameFallback", BindingFlags.NonPublic | BindingFlags.Instance);
+            applyFallback.Should().NotBeNull();
+
+            var parsed = new ParsedTrackInfo
+            {
+                Authors = new List<string> { "medi" },
+                AuthorConfidence = 0.95,
+                BookTitle = "audio retail 2023",
+                BookTitleConfidence = 0.95
+            };
+
+            applyFallback.Invoke(Subject, new object[] { "/tmp/Frank Herbert - Dune (2023).epub", parsed, 0.5 });
+
+            parsed.Authors.Should().Contain("Frank Herbert");
+            parsed.BookTitle.Should().Be("Dune");
+            parsed.AuthorConfidence.Should().Be(0.5);
+            parsed.BookTitleConfidence.Should().Be(0.5);
+        }
+
+        [Test]
+        public void should_swap_filename_identity_when_reversed_order_scores_better()
+        {
+            var fileInfo = new Mock<IFileInfo>();
+            fileInfo.Setup(x => x.Extension).Returns(".epub");
+            fileInfo.Setup(x => x.FullName).Returns("/tmp/Dune - Frank Herbert.epub");
+
+            var result = Subject.ReadTags(fileInfo.Object);
+
+            ExceptionVerification.IgnoreWarns();
+
+            result.Should().NotBeNull();
+            result.Authors.Should().ContainSingle().Which.Should().Be("Frank Herbert");
+            result.BookTitle.Should().Be("Dune");
         }
     }
 }

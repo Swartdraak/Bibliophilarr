@@ -201,6 +201,8 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
             Subject.GetSearchDecision(_reports, new BookSearchCriteria { Author = author, Books = books }).ToList();
 
+            ExceptionVerification.ExpectedErrors(1);
+
             Mocker.GetMock<IParsingService>().Verify(c => c.Map(It.IsAny<ParsedBookInfo>(), It.IsAny<SearchCriteriaBase>()), Times.Never());
 
             _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteBook>(), null), Times.Never());

@@ -45,26 +45,18 @@ namespace NzbDrone.Test.Common
 
             GenerateConfigFile(enableAuth);
 
-            var appName = BuildInfo.AppName;
             string bibliophilarrConsoleExe;
             if (OsInfo.IsWindows)
             {
-                bibliophilarrConsoleExe = $"{appName}.Console.exe";
+                bibliophilarrConsoleExe = "Bibliophilarr.Console.exe";
             }
             else
             {
-                bibliophilarrConsoleExe = appName;
+                bibliophilarrConsoleExe = "Bibliophilarr";
             }
 
             _startupLog = new List<string>();
-            if (BuildInfo.IsDebug)
-            {
-                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "_output", "net8.0", bibliophilarrConsoleExe));
-            }
-            else
-            {
-                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "bin", bibliophilarrConsoleExe));
-            }
+            Start(ResolveConsolePath(bibliophilarrConsoleExe));
 
             while (true)
             {
@@ -72,7 +64,7 @@ namespace NzbDrone.Test.Common
 
                 if (_nzbDroneProcess.HasExited)
                 {
-                    TestContext.Progress.WriteLine("{0} has exited unexpectedly", appName);
+                    TestContext.Progress.WriteLine("Bibliophilarr has exited unexpectedly");
                     Thread.Sleep(2000);
                     var output = _startupLog.Join(Environment.NewLine);
                     Assert.Fail("Process has exited: ExitCode={0} Output={1}", _nzbDroneProcess.ExitCode, output);
@@ -87,11 +79,11 @@ namespace NzbDrone.Test.Common
                 if (statusCall.ResponseStatus == ResponseStatus.Completed)
                 {
                     _startupLog = null;
-                    TestContext.Progress.WriteLine("{0} {1} is started. Running Tests", appName, Port);
+                    TestContext.Progress.WriteLine($"Bibliophilarr {Port} is started. Running Tests");
                     return;
                 }
 
-                TestContext.Progress.WriteLine("Waiting for {0} to start. Response Status : {1}  [{2}] {3}", appName, statusCall.ResponseStatus, statusCall.StatusDescription, statusCall.ErrorException.Message);
+                TestContext.Progress.WriteLine("Waiting for Bibliophilarr to start. Response Status : {0}  [{1}] {2}", statusCall.ResponseStatus, statusCall.StatusDescription, statusCall.ErrorException.Message);
 
                 Thread.Sleep(500);
             }
@@ -106,8 +98,7 @@ namespace NzbDrone.Test.Common
                     _nzbDroneProcess.Refresh();
                     if (_nzbDroneProcess.HasExited)
                     {
-                        var logFileName = $"{BuildInfo.AppName.ToLowerInvariant()}.trace.txt";
-                        var log = File.ReadAllLines(Path.Combine(AppData, "logs", logFileName));
+                        var log = File.ReadAllLines(Path.Combine(AppData, "logs", "bibliophilarr.trace.txt"));
                         var output = log.Join(Environment.NewLine);
                         TestContext.Progress.WriteLine("Process has exited prematurely: ExitCode={0} Output:\n{1}", _nzbDroneProcess.ExitCode, output);
                     }
@@ -163,6 +154,56 @@ namespace NzbDrone.Test.Common
 
             var args = "-nobrowser -nosingleinstancecheck -data=\"" + AppData + "\"";
             _nzbDroneProcess = _processProvider.Start(outputNzbdroneConsoleExe, args, envVars, OnOutputDataReceived, OnOutputDataReceived);
+        }
+
+        private static string ResolveConsolePath(string consoleExeName)
+        {
+            var testDir = TestContext.CurrentContext.TestDirectory;
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidate in EnumerateConsoleCandidates(testDir, consoleExeName))
+            {
+                if (!visited.Add(candidate))
+                {
+                    continue;
+                }
+
+                if (!File.Exists(candidate))
+                {
+                    continue;
+                }
+
+                var candidateDirectory = Path.GetDirectoryName(candidate);
+                if (candidateDirectory == null)
+                {
+                    continue;
+                }
+
+                if (File.Exists(Path.Combine(candidateDirectory, "Bibliophilarr.Common.dll")))
+                {
+                    return candidate;
+                }
+            }
+
+            throw new FileNotFoundException($"Could not locate {consoleExeName} with runtime dependencies. TestDirectory={testDir}");
+        }
+
+        private static IEnumerable<string> EnumerateConsoleCandidates(string testDir, string consoleExeName)
+        {
+            var current = testDir;
+
+            for (var i = 0; i < 6 && !string.IsNullOrEmpty(current); i++)
+            {
+                yield return Path.Combine(current, "_output", "net8.0", consoleExeName);
+                yield return Path.Combine(current, "_output", "net8.0", "linux-x64", consoleExeName);
+                yield return Path.Combine(current, "_output", "net8.0", "linux-x64", "publish", consoleExeName);
+                yield return Path.Combine(current, "_output", "net6.0", consoleExeName);
+                yield return Path.Combine(current, "_tests", "bin", consoleExeName);
+
+                current = Directory.GetParent(current)?.FullName;
+            }
+
+            yield return Path.Combine(testDir, "..", "bin", consoleExeName);
         }
 
         private void OnOutputDataReceived(string data)

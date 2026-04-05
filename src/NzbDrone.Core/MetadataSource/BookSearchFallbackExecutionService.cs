@@ -3,11 +3,15 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.TPL;
 using NzbDrone.Core.Books;
+using Polly;
+using Polly.CircuitBreaker;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -16,13 +20,39 @@ namespace NzbDrone.Core.MetadataSource
         List<Book> Search(IBookSearchFallbackProvider provider, string title, string author);
     }
 
+    /// <summary>
+    /// Orchestrates book search requests with rate-limit awareness, circuit-breaker
+    /// protection, and provider health tracking. Wraps each provider's Search method
+    /// with Polly-based resilience policies and adaptive request spacing.
+    ///
+    /// Health states: Normal → Degraded (near rate limit) → Unhealthy (breaker open).
+    /// Transitions are logged and emitted to telemetry.
+    /// </summary>
     public class BookSearchFallbackExecutionService : IBookSearchFallbackExecutionService
     {
+        // When request count reaches this fraction of the provider's MaxRequests
+        // within its time window, switch to degraded (slower) request spacing.
         private const double NearCeilingRatio = 0.85;
+
+        // Number of consecutive failures before the circuit breaker opens.
+        private const int CircuitBreakerFailureThreshold = 3;
+
+        // How long the circuit breaker stays open before allowing a probe request.
+        private static readonly TimeSpan CircuitBreakerBreakDuration = TimeSpan.FromMinutes(2);
+
+        // Request spacing under normal conditions.
         private static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(2);
+
+        // Slower request spacing when near the rate-limit ceiling.
         private static readonly TimeSpan DegradedInterval = TimeSpan.FromSeconds(15);
+
+        // How long to suppress all requests after the provider becomes unhealthy.
         private static readonly TimeSpan UnhealthySuppression = TimeSpan.FromMinutes(10);
+
+        // Cooldown after receiving a 5xx server error before retrying.
         private static readonly TimeSpan ServerErrorCooldown = TimeSpan.FromMinutes(2);
+
+        // Cooldown after a non-server failure (e.g. timeout, parse error).
         private static readonly TimeSpan FailureCooldown = TimeSpan.FromSeconds(45);
 
         private readonly IRateLimitService _rateLimitService;
@@ -30,6 +60,7 @@ namespace NzbDrone.Core.MetadataSource
         private readonly IMetadataProviderRegistry _providerRegistry;
         private readonly ConcurrentDictionary<string, DateTime> _cooldownStore;
         private readonly ConcurrentDictionary<string, RateLimitWindowState> _rateLimitWindowStore;
+        private readonly ConcurrentDictionary<string, ResiliencePipeline<List<Book>>> _circuitBreakers;
         private readonly Logger _logger;
 
         public BookSearchFallbackExecutionService(IRateLimitService rateLimitService,
@@ -45,6 +76,7 @@ namespace NzbDrone.Core.MetadataSource
                 .Get("fallbackProviderCooldowns", () => new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase));
             _rateLimitWindowStore = cacheManager.GetCache<ConcurrentDictionary<string, RateLimitWindowState>>(GetType(), "fallbackProviderRateLimitWindows")
                 .Get("fallbackProviderRateLimitWindows", () => new ConcurrentDictionary<string, RateLimitWindowState>(StringComparer.OrdinalIgnoreCase));
+            _circuitBreakers = new ConcurrentDictionary<string, ResiliencePipeline<List<Book>>>(StringComparer.OrdinalIgnoreCase);
             _logger = logger;
         }
 
@@ -78,15 +110,24 @@ namespace NzbDrone.Core.MetadataSource
             UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
 
             var watch = Stopwatch.StartNew();
+            var pipeline = GetOrCreateCircuitBreaker(provider.ProviderName);
 
             try
             {
-                var books = provider.Search(title, author) ?? new List<Book>();
+                var books = pipeline.Execute((_) => provider.Search(title, author) ?? new List<Book>(), CancellationToken.None);
                 watch.Stop();
                 _providerTelemetryService.RecordSuccess(provider.ProviderName, "fallback-search", watch.Elapsed.TotalMilliseconds, books.Count);
                 ClearCooldown(provider.ProviderName);
                 UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
                 return books;
+            }
+            catch (BrokenCircuitException)
+            {
+                watch.Stop();
+                _logger.Warn("Circuit breaker is open for provider {0}; skipping search", provider.ProviderName);
+                SetCooldown(provider.ProviderName, CircuitBreakerBreakDuration);
+                UpdateRateLimitHealth(provider, rateLimitSnapshot, CircuitBreakerBreakDuration);
+                return new List<Book>();
             }
             catch (TooManyRequestsException e)
             {
@@ -232,6 +273,38 @@ namespace NzbDrone.Core.MetadataSource
         {
             var healthMap = _providerRegistry.GetProvidersHealthStatus();
             return healthMap.TryGetValue(providerName, out var status) ? status : null;
+        }
+
+        private ResiliencePipeline<List<Book>> GetOrCreateCircuitBreaker(string providerName)
+        {
+            return _circuitBreakers.GetOrAdd(providerName, name =>
+                new ResiliencePipelineBuilder<List<Book>>()
+                    .AddCircuitBreaker(new CircuitBreakerStrategyOptions<List<Book>>
+                    {
+                        FailureRatio = 1.0,
+                        SamplingDuration = TimeSpan.FromSeconds(30),
+                        MinimumThroughput = CircuitBreakerFailureThreshold,
+                        BreakDuration = CircuitBreakerBreakDuration,
+                        ShouldHandle = new PredicateBuilder<List<Book>>()
+                            .Handle<HttpException>()
+                            .Handle<TooManyRequestsException>(),
+                        OnOpened = args =>
+                        {
+                            _logger.Warn("Circuit breaker opened for provider {0}", name);
+                            return ValueTask.CompletedTask;
+                        },
+                        OnHalfOpened = args =>
+                        {
+                            _logger.Info("Circuit breaker half-opened for provider {0}, allowing probe request", name);
+                            return ValueTask.CompletedTask;
+                        },
+                        OnClosed = args =>
+                        {
+                            _logger.Info("Circuit breaker closed for provider {0}, resuming normal operation", name);
+                            return ValueTask.CompletedTask;
+                        }
+                    })
+                    .Build());
         }
 
         private TimeSpan GetRateLimitInterval(IBookSearchFallbackProvider provider, ProviderHealthStatus health)

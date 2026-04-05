@@ -1,3 +1,12 @@
+/**
+ * Base (cross-section) actions.
+ * These low-level action creators are dispatched by every section-specific
+ * thunk to perform generic state mutations: setting flags (SET), replacing items
+ * (UPDATE/UPDATE_ITEM), managing pending edits (SET_SETTING_VALUE /
+ * CLEAR_PENDING_CHANGES), and removing items (REMOVE_ITEM).
+ * createHandleActions.js contains the reducer logic that handles these actions.
+ */
+
 import { createAction } from 'redux-actions';
 
 //

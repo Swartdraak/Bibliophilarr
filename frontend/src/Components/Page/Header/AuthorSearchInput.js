@@ -344,7 +344,7 @@ class AuthorSearchInput extends Component {
 
         <Autosuggest
           ref={this.setAutosuggestRef}
-          id={name}
+          id={'authorSearch'}
           inputProps={inputProps}
           theme={theme}
           focusInputOnSuggestionClick={false}

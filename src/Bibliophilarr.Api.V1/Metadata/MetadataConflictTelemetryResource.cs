@@ -12,6 +12,8 @@ namespace Bibliophilarr.Api.V1.Metadata
         public Dictionary<string, int> DecisionsByProvider { get; set; }
 
         public Dictionary<string, int> FieldSelectionsByProvider { get; set; }
+
+        public Dictionary<string, string> LastDecisionScoreBreakdownByProvider { get; set; }
     }
 
     public static class MetadataConflictTelemetryResourceMapper
@@ -25,7 +27,8 @@ namespace Bibliophilarr.Api.V1.Metadata
                 TotalDecisions = snapshot.TotalDecisions,
                 DecisionsByReason = new Dictionary<string, int>(snapshot.DecisionsByReason),
                 DecisionsByProvider = new Dictionary<string, int>(snapshot.DecisionsByProvider),
-                FieldSelectionsByProvider = new Dictionary<string, int>(snapshot.FieldSelectionsByProvider)
+                FieldSelectionsByProvider = new Dictionary<string, int>(snapshot.FieldSelectionsByProvider),
+                LastDecisionScoreBreakdownByProvider = new Dictionary<string, string>(snapshot.LastDecisionScoreBreakdownByProvider)
             };
         }
     }

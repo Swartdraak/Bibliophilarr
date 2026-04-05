@@ -1,5 +1,6 @@
 name: Bibliophilarr Docker Image
 
+# Docker publish workflow — runs only from main branch (via tags or manual dispatch).
 on:
   push:
     tags:
@@ -15,23 +16,26 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write   # Required for cosign keyless signing via OIDC
 
 jobs:
   docker:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Log in to GHCR
         if: github.event_name == 'push' || github.event.inputs.push == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -39,7 +43,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/bibliophilarr
           tags: |
@@ -47,7 +51,8 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build (and optionally push)
-        uses: docker/build-push-action@v6
+        id: build-push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: ./Dockerfile
@@ -55,6 +60,20 @@ jobs:
           push: ${{ github.event_name == 'push' || github.event.inputs.push == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Install cosign
+        if: github.event_name == 'push' || github.event.inputs.push == 'true'
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Sign Docker image with cosign (keyless)
+        if: github.event_name == 'push' || github.event.inputs.push == 'true'
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          for tag in ${TAGS}; do
+            cosign sign --yes "${tag}@${DIGEST}"
+          done
 
       - name: Smoke test image locally
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.push != 'true'
@@ -65,3 +84,34 @@ jobs:
           sleep 20
           docker logs bibliophilarr-local | tail -n 100 || true
           docker rm -f bibliophilarr-local
+
+      - name: Build local image for scanning
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: bibliophilarr:scan
+
+      - name: Run Trivy vulnerability scanner
+        continue-on-error: true  # Advisory: base image vulns should not block release
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: bibliophilarr:scan
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+
+      - name: Generate SBOM with Trivy
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: bibliophilarr:scan
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: sbom.cdx.json

@@ -1,19 +1,32 @@
-#### Database Migration
+## Summary
 
-YES - XXXX | NO
+Describe the problem this pull request solves and why it should land now.
 
-#### Description
+## Scope
 
-A few sentences describing the overall goals of the pull request's commits.
+- Included changes:
+- Intentionally excluded changes:
 
-#### Screenshot (if UI related)
+## Validation
 
-#### Todos
+- [ ] Targeted tests or checks run
+- [ ] Docs updated for behavior or workflow changes
+- [ ] Rollback or mitigation path described
 
-- [ ] Tests
-- [ ] Translation Keys (./src/NzbDrone.Core/Localization/Core/en.json)
-- [ ] [Wiki Updates](https://wiki.servarr.com)
+Validation evidence:
 
-#### Issues Fixed or Closed by this PR
+```text
+paste commands and outcomes here
+```
 
-- Fixes #XXXX
+## Risk and rollback
+
+State the main behavioral, migration, or operational risk and the rollback path.
+
+## Issue linkage
+
+- Fixes #
+
+## UI evidence
+
+Add screenshots only if the change affects the UI.

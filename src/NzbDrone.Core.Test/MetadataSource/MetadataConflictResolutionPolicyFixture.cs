@@ -25,6 +25,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             decision.ResolutionReason.Should().Be("quality-score");
             decision.TieBreakReason.Should().BeNull();
             decision.ProviderScores["GoogleBooks"].Should().Be(88);
+            decision.ProviderScoreBreakdowns["GoogleBooks"].Should().ContainKey("title");
         }
 
         [Test]
@@ -141,8 +142,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                 openLibrary
             });
 
-            decision.SelectedProvider.Should().Be("OpenLibrary");
-            decision.FieldSelections["identifiers"].Should().Be("OpenLibrary");
+            decision.SelectedProvider.Should().Be("Inventaire");
+            decision.FieldSelections["identifiers"].Should().Be("Inventaire");
         }
 
         private static MetadataProviderBookCandidate BuildCandidate(string provider, int score, bool withCover)

@@ -2,7 +2,7 @@
 <RunSettings>
     <RunConfiguration>
         <EnvironmentVariables>
-            <Bibliophilarr__Postgres__Host>192.168.100.5</Bibliophilarr__Postgres__Host>
+            <Bibliophilarr__Postgres__Host>localhost</Bibliophilarr__Postgres__Host>
 			<Bibliophilarr__Postgres__Port>5432</Bibliophilarr__Postgres__Port>
 			<Bibliophilarr__Postgres__User>abc</Bibliophilarr__Postgres__User>
 			<Bibliophilarr__Postgres__Password>abc</Bibliophilarr__Postgres__Password>

@@ -6,25 +6,22 @@
 }
 
 .none {
-  overflow-x: hidden;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .vertical {
-  overflow-x: hidden;
-  overflow-y: scroll;
+  overflow: hidden scroll;
 
   &.autoScroll {
-    overflow-y: auto;
+    overflow: hidden auto;
   }
 }
 
 .horizontal {
-  overflow-x: scroll;
-  overflow-y: hidden;
+  overflow: scroll hidden;
 
   &.autoScroll {
-    overflow-x: auto;
+    overflow: auto hidden;
   }
 }
 

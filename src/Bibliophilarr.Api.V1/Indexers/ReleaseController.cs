@@ -63,7 +63,7 @@ namespace Bibliophilarr.Api.V1.Indexers
         }
 
         [HttpPost]
-        public async Task<ActionResult<ReleaseResource>> DownloadRelease(ReleaseResource release)
+        public async Task<ActionResult<ReleaseResource>> DownloadRelease([FromBody] ReleaseResource release)
         {
             ValidateResource(release);
 

@@ -171,6 +171,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .Resource($"/isbn/{isbn}.json")
                 .Build();
 
+            // Open Library /isbn/{isbn}.json redirects to /books/OL{id}M.json;
+            // allow the client to follow that redirect so we get the edition JSON
+            // rather than an HTML redirect page that triggers UnexpectedHtmlContentException.
+            request.AllowAutoRedirect = true;
+
             try
             {
                 var response = _httpClient.Get<OpenLibraryEditionResource>(request);
@@ -223,30 +228,34 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var editionKey = ExtractEditionKey(edition.Key);
             var title = edition.Title.IsNotNullOrWhiteSpace() ? edition.Title.Trim() : editionKey;
-            var authorSlug = edition.Authors?.Select(a => a.Key)
-                .Where(k => k.IsNotNullOrWhiteSpace())
-                .Select(k => k.Replace("/authors/", string.Empty).Trim())
-                .FirstOrDefault();
-            var authorName = authorSlug.IsNotNullOrWhiteSpace() ? authorSlug : "Unknown Author";
+            var authorKey = edition.Authors?
+                .Select(a => NormalizeAuthorKey(a.Key))
+                .FirstOrDefault(k => k.IsNotNullOrWhiteSpace());
+            var authorName = authorKey.IsNotNullOrWhiteSpace() ? authorKey : "Unknown Author";
             var isbn13 = edition.Isbn13?.FirstOrDefault(IsThirteenDigitIsbn)
                 ?? (Isbn13Regex.IsMatch(lookupIsbn) ? lookupIsbn : null);
             var publishYear = ParseEditionPublishYear(edition.PublishDate);
-            var releaseDate = publishYear.HasValue
-                ? new DateTime(publishYear.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                : (DateTime?)null;
+            var releaseDate = ParseReleaseDate(publishYear);
+
+            var foreignAuthorId = authorKey.IsNotNullOrWhiteSpace()
+                ? $"openlibrary:author:{authorKey}"
+                : "openlibrary:author:unknown-author";
 
             var authorMetadata = new AuthorMetadata
             {
-                ForeignAuthorId = $"openlibrary:author:{NormalizeId(authorName)}",
+                ForeignAuthorId = foreignAuthorId,
+                TitleSlug = foreignAuthorId.ToUrlSlug(),
                 Name = authorName,
                 SortName = authorName,
                 NameLastFirst = authorName,
-                SortNameLastFirst = authorName
+                SortNameLastFirst = authorName,
+                Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
             var book = new Book
             {
                 ForeignBookId = bookForeignId,
+                TitleSlug = bookForeignId.ToUrlSlug(),
                 Title = title,
                 CleanTitle = title,
                 AuthorMetadata = authorMetadata,
@@ -263,6 +272,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var mappedEdition = new Edition
             {
                 ForeignEditionId = $"openlibrary:edition:{editionKey}",
+                TitleSlug = $"openlibrary:edition:{editionKey}".ToUrlSlug(),
                 Title = title,
                 Isbn13 = isbn13,
                 Publisher = edition.Publishers?.FirstOrDefault()?.Trim(),
@@ -299,7 +309,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             var title = doc.Title.IsNotNullOrWhiteSpace() ? doc.Title.Trim() : workKey;
             var authorName = doc.AuthorNames?.FirstOrDefault(x => x.IsNotNullOrWhiteSpace())?.Trim() ?? "Unknown Author";
-            var authorKey = doc.AuthorKeys?.FirstOrDefault(x => x.IsNotNullOrWhiteSpace());
+            var authorKey = NormalizeAuthorKey(doc.AuthorKeys?.FirstOrDefault(x => x.IsNotNullOrWhiteSpace()));
 
             var authorMetadata = new AuthorMetadata
             {
@@ -315,6 +325,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var book = new Book
             {
                 ForeignBookId = $"openlibrary:work:{workKey}",
+                TitleSlug = $"openlibrary:work:{workKey}".ToUrlSlug(),
                 Title = title,
                 CleanTitle = title,
                 AuthorMetadata = authorMetadata,
@@ -333,6 +344,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var mappedEdition = new Edition
             {
                 ForeignEditionId = $"openlibrary:edition:{workKey}",
+                TitleSlug = $"openlibrary:edition:{workKey}".ToUrlSlug(),
                 Title = title,
                 Isbn13 = isbn13,
                 ReleaseDate = book.ReleaseDate,
@@ -469,7 +481,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 normalized = normalized.Substring("/authors/".Length);
             }
 
-            return normalized.Trim();
+            normalized = normalized.Trim();
+            var canonical = OpenLibraryIdNormalizer.NormalizeAuthorId(normalized);
+
+            return canonical.IsNotNullOrWhiteSpace() ? canonical : normalized;
         }
 
         private static Author MapAuthor(OpenLibraryAuthorResource resource, string authorKey)
@@ -492,6 +507,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var metadata = new AuthorMetadata
             {
                 ForeignAuthorId = $"openlibrary:author:{normalizedKey}",
+                OpenLibraryAuthorId = normalizedKey,
                 TitleSlug = normalizedKey,
                 Name = authorName,
                 SortName = authorName,

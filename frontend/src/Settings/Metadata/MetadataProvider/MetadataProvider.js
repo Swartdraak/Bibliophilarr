@@ -64,9 +64,7 @@ function MetadataProvider(props) {
     error,
     settings,
     hasSettings,
-    onInputChange,
-    validationErrors,
-    validationWarnings
+    onInputChange
   } = props;
 
   const conflictStrategyVariantsEnabled = hasSettings && settings.enableMetadataConflictStrategyVariants.value;
@@ -88,10 +86,191 @@ function MetadataProvider(props) {
 
       {
         hasSettings && !isFetching && !error &&
-          <Form
-            validationErrors={validationErrors}
-            validationWarnings={validationWarnings}
-          >
+          <Form>
+            <FieldSet legend="Primary Metadata Provider (Hardcover)">
+              <Alert kind={kinds.INFO}>
+                Hardcover is the primary metadata provider for Bibliophilarr. Configure your API token below to enable metadata lookups for authors, books, and series.
+              </Alert>
+
+              <FormGroup>
+                <FormLabel>
+                  Enable Hardcover Provider
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableHardcoverFallback"
+                  helpText="Enable Hardcover as the primary metadata provider. Requires a valid API token from hardcover.app."
+                  onChange={onInputChange}
+                  {...settings.enableHardcoverFallback}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Hardcover API Token
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.PASSWORD}
+                  name="hardcoverApiToken"
+                  helpText="Your Hardcover API token. Get one from hardcover.app/account/api. Can also be set via BIBLIOPHILARR_HARDCOVER_API_TOKEN environment variable."
+                  onChange={onInputChange}
+                  {...settings.hardcoverApiToken}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Hardcover Request Timeout (seconds)
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="hardcoverRequestTimeoutSeconds"
+                  min={0}
+                  max={120}
+                  helpText="HTTP timeout for Hardcover API requests. Set to 0 for default timeout."
+                  onChange={onInputChange}
+                  {...settings.hardcoverRequestTimeoutSeconds}
+                />
+              </FormGroup>
+            </FieldSet>
+
+            <FieldSet legend="Additional Metadata Providers (Optional)">
+              <Alert kind={kinds.INFO}>
+                These providers are disabled by default. Enable them as fallback sources when Hardcover cannot find matches.
+              </Alert>
+
+              <FormGroup>
+                <FormLabel>
+                  Enable Open Library
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableOpenLibraryProvider"
+                  helpText="Enable Open Library as a fallback FOSS metadata source."
+                  onChange={onInputChange}
+                  {...settings.enableOpenLibraryProvider}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Enable Inventaire
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableInventaireProvider"
+                  helpText="Enable Inventaire as an additional fallback provider."
+                  onChange={onInputChange}
+                  {...settings.enableInventaireProvider}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Enable Google Books
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="enableGoogleBooksProvider"
+                  helpText="Enable Google Books provider for additional metadata coverage."
+                  onChange={onInputChange}
+                  {...settings.enableGoogleBooksProvider}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Google Books API Key
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.PASSWORD}
+                  name="googleBooksApiKey"
+                  helpText="Optional API key for higher Google Books request quota."
+                  onChange={onInputChange}
+                  {...settings.googleBooksApiKey}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Provider Priority Order
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.TEXT}
+                  name="metadataProviderPriorityOrder"
+                  helpText="Comma-separated provider order. Default: Hardcover,OpenLibrary,GoogleBooks,Inventaire"
+                  onChange={onInputChange}
+                  {...settings.metadataProviderPriorityOrder}
+                />
+              </FormGroup>
+            </FieldSet>
+
+            <FieldSet legend={translate('ProviderResilience')}>
+              <FormGroup>
+                <FormLabel>
+                  Provider Timeout (seconds)
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="metadataProviderTimeoutSeconds"
+                  helpText="HTTP timeout per metadata provider endpoint request."
+                  onChange={onInputChange}
+                  {...settings.metadataProviderTimeoutSeconds}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Retry Budget
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="metadataProviderRetryBudget"
+                  helpText="Number of retries for transient provider failures."
+                  onChange={onInputChange}
+                  {...settings.metadataProviderRetryBudget}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Circuit Breaker Failure Threshold
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="metadataProviderCircuitBreakerThreshold"
+                  helpText="Consecutive failures before endpoint circuit opens."
+                  onChange={onInputChange}
+                  {...settings.metadataProviderCircuitBreakerThreshold}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Circuit Breaker Duration (seconds)
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="metadataProviderCircuitBreakerDurationSeconds"
+                  helpText="How long an endpoint remains open-circuit before retry."
+                  onChange={onInputChange}
+                  {...settings.metadataProviderCircuitBreakerDurationSeconds}
+                />
+              </FormGroup>
+            </FieldSet>
+
             <FieldSet legend={translate('CalibreMetadata')}>
               <FormGroup>
                 <FormLabel>
@@ -102,7 +281,6 @@ function MetadataProvider(props) {
                   type={inputTypes.SELECT}
                   name="writeBookTags"
                   helpTextWarning={translate('WriteBookTagsHelpTextWarning')}
-                  helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#write-metadata-to-book-files"
                   values={writeBookTagOptions}
                   onChange={onInputChange}
                   {...settings.writeBookTags}
@@ -147,7 +325,6 @@ function MetadataProvider(props) {
                   type={inputTypes.SELECT}
                   name="writeAudioTags"
                   helpTextWarning={translate('WriteBookTagsHelpTextWarning')}
-                  helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#write-metadata-to-audio-files"
                   values={writeAudioTagOptions}
                   onChange={onInputChange}
                   {...settings.writeAudioTags}
@@ -168,54 +345,88 @@ function MetadataProvider(props) {
 
             </FieldSet>
 
-            <FieldSet legend={translate('MetadataQueryNormalization')}>
+            <FieldSet legend="Import Identification Settings">
               <FormGroup>
-                <FormLabel>{translate('EnableInventaireFallback')}</FormLabel>
+                <FormLabel>
+                  Enable Fallback Searches
+                </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
                   name="enableInventaireFallback"
-                  helpText={translate('EnableInventaireFallbackHelpText')}
+                  helpText="Allow fallback searches through additional providers when the primary lookup fails."
                   onChange={onInputChange}
                   {...settings.enableInventaireFallback}
                 />
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>{translate('EnableHardcoverFallback')}</FormLabel>
+                <FormLabel>
+                  Enable Google Books Fallback
+                </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
-                  name="enableHardcoverFallback"
-                  helpText={translate('EnableHardcoverFallbackHelpText')}
+                  name="enableGoogleBooksFallback"
+                  helpText="Allow Google Books fallback query expansion when primary lookup returns no result."
                   onChange={onInputChange}
-                  {...settings.enableHardcoverFallback}
+                  {...settings.enableGoogleBooksFallback}
                 />
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>{translate('HardcoverApiToken')}</FormLabel>
-
-                <FormInputGroup
-                  type={inputTypes.PASSWORD}
-                  name="hardcoverApiToken"
-                  helpText={translate('HardcoverApiTokenHelpText')}
-                  onChange={onInputChange}
-                  {...settings.hardcoverApiToken}
-                />
-              </FormGroup>
-
-              <FormGroup>
-                <FormLabel>{translate('HardcoverRequestTimeoutSeconds')}</FormLabel>
+                <FormLabel>ISBN Fallback Attempt Limit</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.NUMBER}
-                  name="hardcoverRequestTimeoutSeconds"
-                  min={0}
-                  max={120}
-                  helpText={translate('HardcoverRequestTimeoutSecondsHelpText')}
+                  name="isbnContextFallbackLimit"
+                  min={1}
+                  max={10}
+                  helpText="Maximum number of title/author search attempts when an ISBN lookup finds no results. Range 1–10."
                   onChange={onInputChange}
-                  {...settings.hardcoverRequestTimeoutSeconds}
+                  {...settings.isbnContextFallbackLimit}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>Identification Workers</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="identificationWorkerCount"
+                  min={1}
+                  max={8}
+                  helpText="Maximum concurrent release-identification jobs during import. Default 4. Lower this if providers begin rate limiting or the host is CPU-constrained."
+                  onChange={onInputChange}
+                  {...settings.identificationWorkerCount}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>Tag Read Workers</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="importTagReadWorkerCount"
+                  min={1}
+                  max={8}
+                  helpText="Maximum concurrent file tag reads before identification starts. Default 2. Raise carefully on fast local storage; keep low for network storage."
+                  onChange={onInputChange}
+                  {...settings.importTagReadWorkerCount}
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>Remote Candidate Search Workers</FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.NUMBER}
+                  name="remoteCandidateSearchWorkerCount"
+                  min={1}
+                  max={8}
+                  helpText="Maximum concurrent remote candidate searches for author/title variants. Default 3. Reduce this if provider throttling is observed."
+                  onChange={onInputChange}
+                  {...settings.remoteCandidateSearchWorkerCount}
                 />
               </FormGroup>
 

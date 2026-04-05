@@ -137,7 +137,7 @@ namespace NzbDrone.Core.Extras.Metadata
             var movedFiles = new List<MetadataFile>();
             var distinctTrackFilePaths = bookFiles.DistinctBy(s => Path.GetDirectoryName(s.Path)).ToList();
 
-            // TODO: Move EpisodeImage and EpisodeMetadata metadata files, instead of relying on consumers to do it
+            // NOTE: Move EpisodeImage and EpisodeMetadata metadata files, instead of relying on consumers to do it
             // (Xbmc's EpisodeImage is more than just the extension)
             foreach (var consumer in _metadataFactory.GetAvailableProviders())
             {

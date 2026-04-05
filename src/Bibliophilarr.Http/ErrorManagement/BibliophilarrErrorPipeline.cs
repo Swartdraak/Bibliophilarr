@@ -6,6 +6,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using NLog;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Exceptions;
@@ -74,11 +75,11 @@ namespace Bibliophilarr.Http.ErrorManagement
                     }
                 }
 
-                _logger.Error(sqLiteException, "[{0} {1}]", context.Request.Method, context.Request.Path);
+                _logger.Error(sqLiteException, "[{0} {1}]", context.Request.Method, LogSanitizer.Sanitize(context.Request.Path));
             }
             else
             {
-                _logger.Fatal(exception, "Request Failed. {0} {1}", context.Request.Method, context.Request.Path);
+                _logger.Fatal(exception, "Request Failed. {0} {1}", context.Request.Method, LogSanitizer.Sanitize(context.Request.Path));
             }
 
             await errorModel.WriteToResponse(response, statusCode);

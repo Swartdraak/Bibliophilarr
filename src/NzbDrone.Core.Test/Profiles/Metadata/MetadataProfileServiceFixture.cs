@@ -22,7 +22,7 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
             Subject.Handle(new ApplicationStartedEvent());
 
             Mocker.GetMock<IMetadataProfileRepository>()
-                  .Verify(v => v.Insert(It.IsAny<MetadataProfile>()), Times.Exactly(2));
+                  .Verify(v => v.Insert(It.IsAny<MetadataProfile>()), Times.Exactly(3));
         }
 
         [Test]
@@ -52,6 +52,35 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
 
             Mocker.GetMock<IMetadataProfileRepository>()
                   .Verify(v => v.Insert(It.Is<MetadataProfile>(x => x.Name == "None")), Times.Once());
+        }
+
+        [Test]
+        public void init_should_add_openlibrary_profile_if_it_doesnt_exist()
+        {
+            Mocker.GetMock<IMetadataProfileRepository>()
+                .Setup(s => s.All())
+                .Returns(Builder<MetadataProfile>.CreateListOfSize(2).Build().ToList());
+
+            Subject.Handle(new ApplicationStartedEvent());
+
+            Mocker.GetMock<IMetadataProfileRepository>()
+                .Verify(v => v.Insert(It.Is<MetadataProfile>(x => x.Name == MetadataProfileService.OPEN_LIBRARY_PROFILE_NAME)), Times.Once());
+        }
+
+        [Test]
+        public void init_should_not_add_openlibrary_profile_if_it_already_exists()
+        {
+            var profiles = Builder<MetadataProfile>.CreateListOfSize(3).Build().ToList();
+            profiles[0].Name = MetadataProfileService.OPEN_LIBRARY_PROFILE_NAME;
+
+            Mocker.GetMock<IMetadataProfileRepository>()
+                .Setup(s => s.All())
+                .Returns(profiles);
+
+            Subject.Handle(new ApplicationStartedEvent());
+
+            Mocker.GetMock<IMetadataProfileRepository>()
+                .Verify(v => v.Insert(It.Is<MetadataProfile>(x => x.Name == MetadataProfileService.OPEN_LIBRARY_PROFILE_NAME)), Times.Never());
         }
 
         [Test]

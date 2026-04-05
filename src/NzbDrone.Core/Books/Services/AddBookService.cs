@@ -4,9 +4,11 @@ using System.Linq;
 using FluentValidation;
 using FluentValidation.Results;
 using NLog;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.Books
 {
@@ -21,21 +23,21 @@ namespace NzbDrone.Core.Books
         private readonly IAuthorService _authorService;
         private readonly IAddAuthorService _addAuthorService;
         private readonly IBookService _bookService;
-        private readonly IProvideBookInfo _bookInfo;
+        private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IImportListExclusionService _importListExclusionService;
         private readonly Logger _logger;
 
         public AddBookService(IAuthorService authorService,
                                IAddAuthorService addAuthorService,
                                IBookService bookService,
-                               IProvideBookInfo bookInfo,
+                               IMetadataProviderOrchestrator orchestrator,
                                IImportListExclusionService importListExclusionService,
                                Logger logger)
         {
             _authorService = authorService;
             _addAuthorService = addAuthorService;
             _bookService = bookService;
-            _bookInfo = bookInfo;
+            _orchestrator = orchestrator;
             _importListExclusionService = importListExclusionService;
             _logger = logger;
         }
@@ -59,7 +61,17 @@ namespace NzbDrone.Core.Books
 
             // Note it's a manual addition so it's not deleted on next refresh
             book.AddOptions.AddType = BookAddType.Manual;
-            book.Editions.Value.Single(x => x.Monitored).ManualAdd = true;
+            var selectedEdition = book.GetPreferredEdition();
+
+            if (selectedEdition == null)
+            {
+                throw new ValidationException(new List<ValidationFailure>
+                                              {
+                                                  new ValidationFailure("Editions", "Book must include at least one edition")
+                                              });
+            }
+
+            selectedEdition.ManualAdd = true;
 
             // Add the author if necessary
             var dbAuthor = _authorService.FindById(book.AuthorMetadata.Value.ForeignAuthorId);
@@ -103,20 +115,31 @@ namespace NzbDrone.Core.Books
 
         private Book AddSkyhookData(Book newBook)
         {
-            var editionId = newBook.Editions.Value.Single(x => x.Monitored).ForeignEditionId;
+            var selectedEdition = newBook.GetPreferredEdition();
+
+            if (selectedEdition == null)
+            {
+                throw new ValidationException(new List<ValidationFailure>
+                                              {
+                                                  new ValidationFailure("Editions", "Book must include at least one edition")
+                                              });
+            }
+
+            var editionId = selectedEdition.ForeignEditionId;
 
             Tuple<string, Book, List<AuthorMetadata>> tuple = null;
             try
             {
-                tuple = _bookInfo.GetBookInfo(newBook.ForeignBookId);
+                var normalizedBookId = OpenLibraryIdNormalizer.NormalizeWorkId(newBook.ForeignBookId) ?? newBook.ForeignBookId;
+                tuple = _orchestrator.GetBookInfo(normalizedBookId);
             }
             catch (BookNotFoundException)
             {
-                _logger.Error("Book with Foreign Id {0} was not found, it may have been removed from Goodreads.", newBook.ForeignBookId);
+                _logger.Error("Book with Foreign Id {0} was not found, it may have been removed from OpenLibrary.", LogSanitizer.Sanitize(newBook.ForeignBookId));
 
                 throw new ValidationException(new List<ValidationFailure>
                                               {
-                                                  new ValidationFailure("GoodreadsId", "A book with this ID was not found", newBook.ForeignBookId)
+                                                  new ValidationFailure("OpenLibraryId", "A book with this ID was not found", newBook.ForeignBookId)
                                               });
             }
 
@@ -125,7 +148,14 @@ namespace NzbDrone.Core.Books
 
             newBook.Editions = tuple.Item2.Editions.Value;
             newBook.Editions.Value.ForEach(x => x.Monitored = false);
-            newBook.Editions.Value.Single(x => x.ForeignEditionId == editionId).Monitored = true;
+
+            var editionToMonitor = newBook.Editions.Value.FirstOrDefault(x => x.ForeignEditionId == editionId) ??
+                                   newBook.GetPreferredEdition();
+
+            if (editionToMonitor != null)
+            {
+                editionToMonitor.Monitored = true;
+            }
 
             var metadata = tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1);
             newBook.AuthorMetadata = metadata;

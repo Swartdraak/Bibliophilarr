@@ -28,6 +28,11 @@ namespace NzbDrone.Api.Test.Metadata
                 {
                     ["title:Inventaire"] = 3,
                     ["cover-links:OpenLibrary"] = 2
+                },
+                LastDecisionScoreBreakdownByProvider =
+                {
+                    ["Inventaire"] = "title:20,author:20,foreign-book-id:20",
+                    ["OpenLibrary"] = "title:20,author:20,foreign-book-id:20,cover-images:3"
                 }
             };
 
@@ -40,6 +45,8 @@ namespace NzbDrone.Api.Test.Metadata
             resource.DecisionsByProvider["OpenLibrary"].Should().Be(1);
             resource.FieldSelectionsByProvider["title:Inventaire"].Should().Be(3);
             resource.FieldSelectionsByProvider["cover-links:OpenLibrary"].Should().Be(2);
+            resource.LastDecisionScoreBreakdownByProvider["Inventaire"].Should().Contain("title:20");
+            resource.LastDecisionScoreBreakdownByProvider["OpenLibrary"].Should().Contain("cover-images:3");
         }
     }
 }

@@ -236,13 +236,13 @@ namespace NzbDrone.Integration.Test
             Assert.Fail("Timed on wait");
         }
 
-        public AuthorResource EnsureAuthor(string authorId, string goodreadsEditionId, string authorName, bool? monitored = null)
+        public AuthorResource EnsureAuthor(string authorId, string openlibraryEditionId, string authorName, bool? monitored = null)
         {
             var result = Author.All().FirstOrDefault(v => v.ForeignAuthorId == authorId);
 
             if (result == null)
             {
-                var lookup = Author.Lookup("edition:" + goodreadsEditionId);
+                var lookup = Author.Lookup("edition:" + openlibraryEditionId);
                 var author = lookup.First();
                 author.QualityProfileId = 1;
                 author.MetadataProfileId = 1;

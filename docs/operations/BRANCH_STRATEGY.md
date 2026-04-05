@@ -4,13 +4,17 @@
 
 Enable low-touch, highly automated release management for a solo maintainer.
 
-## Long-lived branches
+## Long-lived Branches
 
-- `main`: production-ready branch. Tagged releases are cut from here.
-- `develop`: integration branch for feature work.
-- `staging`: pre-release verification branch for release candidates.
-- `release`: optional stabilization lane for last-mile fixes.
-- `hotfix`: emergency patch lane based on production.
+| Branch | Status | Protection | Purpose |
+|---|---|---|---|
+| `main` | Active | Protected | Production-ready branch. Tagged releases are cut from here. |
+| `develop` | Active | Protected | Integration branch for feature work. |
+| `staging` | Active | Protected | Pre-release verification branch for release candidates. |
+| `release` | On-demand | Not protected | Optional stabilization lane for last-mile fixes. Created as needed. |
+| `hotfix` | On-demand | Not protected | Emergency patch lane based on production. Created as needed. |
+
+> **Note:** `release` and `hotfix` are created on-demand and do not have permanent branch protection rules. Only `main`, `develop`, and `staging` have persistent protection policies managed by `scripts/apply_branch_protection.sh`.
 
 ## Short-lived branches
 
@@ -65,3 +69,9 @@ Use the branch bootstrap script to initialize local branch lanes:
 ```
 
 This script is idempotent and only creates missing local branches.
+
+## References
+
+- [BRANCH_PROTECTION_RUNBOOK.md](BRANCH_PROTECTION_RUNBOOK.md) — Branch protection configuration runbook.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — Contribution guidelines.
+- [ROADMAP.md](../../ROADMAP.md) — Phased delivery milestones.

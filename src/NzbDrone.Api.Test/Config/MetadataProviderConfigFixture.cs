@@ -17,7 +17,10 @@ namespace NzbDrone.Api.Test.Config
             bool enableGoogleBooks = false,
             string googleBooksKey = "",
             bool enableInventaire = true,
-            bool enableConflictStrategyVariants = false)
+            bool enableConflictStrategyVariants = false,
+            int identificationWorkerCount = 4,
+            int importTagReadWorkerCount = 2,
+            int remoteCandidateSearchWorkerCount = 3)
         {
             var mock = new Mock<IConfigService>();
             mock.SetupGet(x => x.EnableHardcoverFallback).Returns(enableHardcover);
@@ -29,6 +32,9 @@ namespace NzbDrone.Api.Test.Config
             mock.SetupGet(x => x.EnableMetadataConflictStrategyVariants).Returns(enableConflictStrategyVariants);
             mock.SetupGet(x => x.MetadataAuthorAliases).Returns(string.Empty);
             mock.SetupGet(x => x.MetadataTitleStripPatterns).Returns(string.Empty);
+            mock.SetupGet(x => x.IdentificationWorkerCount).Returns(identificationWorkerCount);
+            mock.SetupGet(x => x.ImportTagReadWorkerCount).Returns(importTagReadWorkerCount);
+            mock.SetupGet(x => x.RemoteCandidateSearchWorkerCount).Returns(remoteCandidateSearchWorkerCount);
             return mock.Object;
         }
 
@@ -38,6 +44,15 @@ namespace NzbDrone.Api.Test.Config
             v.RuleFor(c => c.HardcoverRequestTimeoutSeconds)
                 .InclusiveBetween(0, 120)
                 .WithMessage("Hardcover request timeout must be between 0 and 120 seconds");
+            v.RuleFor(c => c.IdentificationWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Identification worker count must be between 1 and 8");
+            v.RuleFor(c => c.ImportTagReadWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Import tag read worker count must be between 1 and 8");
+            v.RuleFor(c => c.RemoteCandidateSearchWorkerCount)
+                .InclusiveBetween(1, 8)
+                .WithMessage("Remote candidate search worker count must be between 1 and 8");
             return v;
         }
 
@@ -114,23 +129,62 @@ namespace NzbDrone.Api.Test.Config
         }
 
         [Test]
+        public void mapper_should_round_trip_identification_worker_count()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(identificationWorkerCount: 6));
+            resource.IdentificationWorkerCount.Should().Be(6);
+        }
+
+        [Test]
+        public void mapper_should_round_trip_import_tag_read_worker_count()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(importTagReadWorkerCount: 3));
+            resource.ImportTagReadWorkerCount.Should().Be(3);
+        }
+
+        [Test]
+        public void mapper_should_round_trip_remote_candidate_search_worker_count()
+        {
+            var resource = MetadataProviderConfigResourceMapper.ToResource(BuildConfigService(remoteCandidateSearchWorkerCount: 5));
+            resource.RemoteCandidateSearchWorkerCount.Should().Be(5);
+        }
+
+        [Test]
         public void validation_should_accept_timeout_of_zero()
         {
-            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource { HardcoverRequestTimeoutSeconds = 0 });
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource
+            {
+                HardcoverRequestTimeoutSeconds = 0,
+                IdentificationWorkerCount = 4,
+                ImportTagReadWorkerCount = 2,
+                RemoteCandidateSearchWorkerCount = 3
+            });
             result.IsValid.Should().BeTrue();
         }
 
         [Test]
         public void validation_should_accept_timeout_at_max_boundary()
         {
-            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource { HardcoverRequestTimeoutSeconds = 120 });
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource
+            {
+                HardcoverRequestTimeoutSeconds = 120,
+                IdentificationWorkerCount = 4,
+                ImportTagReadWorkerCount = 2,
+                RemoteCandidateSearchWorkerCount = 3
+            });
             result.IsValid.Should().BeTrue();
         }
 
         [Test]
         public void validation_should_reject_timeout_above_maximum()
         {
-            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource { HardcoverRequestTimeoutSeconds = 121 });
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource
+            {
+                HardcoverRequestTimeoutSeconds = 121,
+                IdentificationWorkerCount = 4,
+                ImportTagReadWorkerCount = 2,
+                RemoteCandidateSearchWorkerCount = 3
+            });
             result.IsValid.Should().BeFalse();
             result.Errors.Should().Contain(e => e.PropertyName == "HardcoverRequestTimeoutSeconds");
         }
@@ -138,9 +192,74 @@ namespace NzbDrone.Api.Test.Config
         [Test]
         public void validation_should_reject_negative_timeout()
         {
-            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource { HardcoverRequestTimeoutSeconds = -1 });
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource
+            {
+                HardcoverRequestTimeoutSeconds = -1,
+                IdentificationWorkerCount = 4,
+                ImportTagReadWorkerCount = 2,
+                RemoteCandidateSearchWorkerCount = 3
+            });
             result.IsValid.Should().BeFalse();
             result.Errors.Should().Contain(e => e.PropertyName == "HardcoverRequestTimeoutSeconds");
+        }
+
+        [Test]
+        public void validation_should_accept_worker_settings_within_range()
+        {
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource
+            {
+                HardcoverRequestTimeoutSeconds = 30,
+                IdentificationWorkerCount = 4,
+                ImportTagReadWorkerCount = 2,
+                RemoteCandidateSearchWorkerCount = 3
+            });
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [Test]
+        public void validation_should_reject_identification_worker_count_above_maximum()
+        {
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource
+            {
+                HardcoverRequestTimeoutSeconds = 30,
+                IdentificationWorkerCount = 9,
+                ImportTagReadWorkerCount = 2,
+                RemoteCandidateSearchWorkerCount = 3
+            });
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(e => e.PropertyName == "IdentificationWorkerCount");
+        }
+
+        [Test]
+        public void validation_should_reject_import_tag_read_worker_count_below_minimum()
+        {
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource
+            {
+                HardcoverRequestTimeoutSeconds = 30,
+                IdentificationWorkerCount = 4,
+                ImportTagReadWorkerCount = 0,
+                RemoteCandidateSearchWorkerCount = 3
+            });
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(e => e.PropertyName == "ImportTagReadWorkerCount");
+        }
+
+        [Test]
+        public void validation_should_reject_remote_candidate_search_worker_count_below_minimum()
+        {
+            var result = BuildTimeoutValidator().Validate(new MetadataProviderConfigResource
+            {
+                HardcoverRequestTimeoutSeconds = 30,
+                IdentificationWorkerCount = 4,
+                ImportTagReadWorkerCount = 2,
+                RemoteCandidateSearchWorkerCount = 0
+            });
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(e => e.PropertyName == "RemoteCandidateSearchWorkerCount");
         }
     }
 }

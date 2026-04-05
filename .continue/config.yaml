@@ -1,0 +1,148 @@
+name: Bibliophilarr Ollama Agent
+version: 1.0.0
+schema: v1
+
+models:
+  - name: Ollama Reasoning Max Quality
+    provider: ollama
+    model: qwen35-27b-claude46-opus-jagjeevan-q8:reasoning
+    apiBase: http://192.168.40.200:11434
+    capabilities:
+      - tool_use
+    roles:
+      - chat
+      - edit
+      - apply
+    defaultCompletionOptions:
+      contextLength: 262144
+      maxTokens: 4096
+      temperature: 0.15
+      reasoning: true
+      reasoningBudgetTokens: 4096
+    requestOptions:
+      timeout: 600000
+
+  - name: Ollama Reasoning Balanced
+    provider: ollama
+    model: qwen35-27b-claude46-opus-jagjeevan-q4:reasoning
+    apiBase: http://192.168.40.200:11434
+    capabilities:
+      - tool_use
+    roles:
+      - chat
+      - edit
+      - apply
+    defaultCompletionOptions:
+      contextLength: 262144
+      maxTokens: 4096
+      temperature: 0.1
+      reasoning: true
+      reasoningBudgetTokens: 3072
+    requestOptions:
+      timeout: 420000
+
+  - name: Ollama Main Coding Agent
+    provider: ollama
+    model: qwen2.5-coder:14b
+    apiBase: http://192.168.40.200:11434
+    capabilities:
+      - tool_use
+    roles:
+      - chat
+      - edit
+      - apply
+    defaultCompletionOptions:
+      contextLength: 32768
+      maxTokens: 4096
+      temperature: 0.1
+      reasoning: true
+      reasoningBudgetTokens: 1536
+    requestOptions:
+      timeout: 300000
+
+  - name: Ollama Reasoning Compact
+    provider: ollama
+    model: deepseek-r1:8b
+    apiBase: http://192.168.40.200:11434
+    capabilities:
+      - tool_use
+    roles:
+      - chat
+      - edit
+      - apply
+    defaultCompletionOptions:
+      contextLength: 131072
+      maxTokens: 4096
+      temperature: 0.2
+      reasoning: true
+      reasoningBudgetTokens: 2048
+    requestOptions:
+      timeout: 300000
+
+  - name: Ollama Autocomplete Fast
+    provider: ollama
+    model: qwen2.5-coder:7b
+    apiBase: http://192.168.40.200:11434
+    roles:
+      - autocomplete
+    autocompleteOptions:
+      debounceDelay: 300
+      modelTimeout: 120000
+      maxPromptTokens: 2048
+      onlyMyCode: true
+
+  - name: Ollama General Assistant
+    provider: ollama
+    model: qwen3.5:9b
+    apiBase: http://192.168.40.200:11434
+    roles:
+      - chat
+    defaultCompletionOptions:
+      contextLength: 262144
+      maxTokens: 3072
+      temperature: 0.2
+
+  - name: Ollama Low-Latency Assistant
+    provider: ollama
+    model: qwen3.5:4b
+    apiBase: http://192.168.40.200:11434
+    roles:
+      - chat
+    defaultCompletionOptions:
+      contextLength: 262144
+      maxTokens: 2048
+      temperature: 0.2
+
+  - name: Ollama Baseline Assistant
+    provider: ollama
+    model: llama3.1:8b
+    apiBase: http://192.168.40.200:11434
+    roles:
+      - chat
+    defaultCompletionOptions:
+      contextLength: 131072
+      maxTokens: 3072
+      temperature: 0.2
+
+  - name: Ollama Ultra-Fast Assistant
+    provider: ollama
+    model: phi4-mini:3.8b
+    apiBase: http://192.168.40.200:11434
+    roles:
+      - chat
+    defaultCompletionOptions:
+      contextLength: 131072
+      maxTokens: 2048
+      temperature: 0.2
+
+context:
+  - provider: file
+  - provider: code
+  - provider: diff
+  - provider: terminal
+  - provider: problems
+
+rules:
+  - Keep a concise running plan and provide progress updates for long-running tasks.
+  - Prefer deterministic, incremental edits and validate with focused checks first.
+  - Prefer qwen2.5-coder:14b for main agentic coding, and switch to 27B reasoning models for deep analysis.

@@ -16,10 +16,13 @@ function Tags(props) {
   } = props;
 
   if (!items.length) {
-    const wikiLink = <Link to='https://github.com/Swartdraak/Bibliophilarr/wiki/settings#tags'>here</Link>;
     return (
       <Alert kind={kinds.INFO}>
-        {translate('NoTagsHaveBeenAddedYet', [wikiLink])}
+        {translate('NoTagsHaveBeenAddedYet')}
+        {' '}
+        <Link to='https://github.com/Swartdraak/Bibliophilarr/wiki/settings#tags'>
+          {translate('ClickHereForMoreInfoAboutTags')}
+        </Link>
       </Alert>
     );
   }

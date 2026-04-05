@@ -1,3 +1,9 @@
+/**
+ * Generic item-deletion handler factory.
+ * DELETEs the item by id at the given API url, then dispatches REMOVE_ITEM
+ * to remove it from the section's items array and resets isDeleting flags.
+ */
+
 import $ from 'jquery';
 import { batchActions } from 'redux-batched-actions';
 import createAjaxRequest from 'Utilities/createAjaxRequest';

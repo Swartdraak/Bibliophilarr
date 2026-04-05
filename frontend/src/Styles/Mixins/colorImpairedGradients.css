@@ -1,0 +1,7 @@
+@define-mixin colorImpairedDangerGradient {
+  background: repeating-linear-gradient(90deg, color(#f05050 shade(5%)), color(#f05050 shade(5%)) 5px, color(#f05050 shade(15%)) 5px, color(#f05050 shade(15%)) 10px);
+}
+
+@define-mixin colorImpairedWarningGradient {
+  background: repeating-linear-gradient(45deg, #ffa500, #ffa500 5px, color(#ffa500 tint(15%)) 5px, color(#ffa500 tint(15%)) 10px);
+}

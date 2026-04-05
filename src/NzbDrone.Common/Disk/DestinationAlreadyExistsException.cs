@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Runtime.Serialization;
 
 namespace NzbDrone.Common.Disk
 {
@@ -24,12 +23,5 @@ namespace NzbDrone.Common.Disk
             : base(message, innerException)
         {
         }
-
-#pragma warning disable SYSLIB0051 // Type or member is obsolete
-        protected DestinationAlreadyExistsException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        {
-        }
-#pragma warning restore SYSLIB0051 // Type or member is obsolete
     }
 }

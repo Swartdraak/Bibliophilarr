@@ -161,3 +161,8 @@ _temp_*/**/*
 .env.local
 .env.*.local
 .env.bak*
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo

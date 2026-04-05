@@ -45,7 +45,7 @@ export const actionHandlers = handleThunks({
 export const reducers = createHandleActions({
 
   [CLEAR_RETAG_PREVIEW]: (state) => {
-    return Object.assign({}, state, defaultState);
+    return { ...state, ...defaultState };
   }
 
 }, defaultState, section);

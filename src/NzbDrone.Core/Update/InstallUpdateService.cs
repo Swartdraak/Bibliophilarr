@@ -287,31 +287,7 @@ namespace NzbDrone.Core.Update
 
         public void Execute(ApplicationUpdateCommand message)
         {
-            var latestAvailable = GetUpdatePackage(message.Trigger, message.InstallMajorUpdate);
-
-            if (latestAvailable != null)
-            {
-                try
-                {
-                    InstallUpdate(latestAvailable);
-                    _logger.ProgressDebug("Restarting Bibliophilarr to apply updates");
-                }
-                catch (UpdateFolderNotWritableException ex)
-                {
-                    _logger.Error(ex, "Update process failed");
-                    throw new CommandFailedException("Startup folder not writable by user '{0}'", ex, Environment.UserName);
-                }
-                catch (UpdateVerificationFailedException ex)
-                {
-                    _logger.Error(ex, "Update process failed");
-                    throw new CommandFailedException("Downloaded update package is corrupt", ex);
-                }
-                catch (UpdateFailedException ex)
-                {
-                    _logger.Error(ex, "Update process failed");
-                    throw new CommandFailedException(ex);
-                }
-            }
+            throw new CommandFailedException("Application updates are disabled until release pipeline support is implemented.");
         }
 
         public void Handle(ApplicationStartingEvent message)

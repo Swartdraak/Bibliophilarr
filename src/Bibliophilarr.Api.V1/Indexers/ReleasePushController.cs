@@ -1,11 +1,14 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Bibliophilarr.Http;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
@@ -23,7 +26,7 @@ namespace Bibliophilarr.Api.V1.Indexers
         private readonly IDownloadClientFactory _downloadClientFactory;
         private readonly Logger _logger;
 
-        private static readonly object PushLock = new object();
+        private static readonly SemaphoreSlim PushLock = new SemaphoreSlim(1, 1);
 
         public ReleasePushController(IMakeDownloadDecision downloadDecisionMaker,
                                  IProcessDownloadDecisions downloadDecisionProcessor,
@@ -46,9 +49,9 @@ namespace Bibliophilarr.Api.V1.Indexers
 
         [HttpPost]
         [Consumes("application/json")]
-        public ActionResult<ReleaseResource> Create(ReleaseResource release)
+        public async Task<ActionResult<ReleaseResource>> Create([FromBody] ReleaseResource release)
         {
-            _logger.Info("Release pushed: {0} - {1}", release.Title, release.DownloadUrl ?? release.MagnetUrl);
+            _logger.Info("Release pushed: {0} - {1}", LogSanitizer.Sanitize(release.Title), LogSanitizer.Sanitize(release.DownloadUrl ?? release.MagnetUrl));
 
             ValidateResource(release);
 
@@ -62,13 +65,18 @@ namespace Bibliophilarr.Api.V1.Indexers
 
             DownloadDecision decision;
 
-            lock (PushLock)
+            await PushLock.WaitAsync();
+            try
             {
                 var decisions = _downloadDecisionMaker.GetRssDecision(new List<ReleaseInfo> { info }, true);
 
                 decision = decisions.FirstOrDefault();
 
-                _downloadDecisionProcessor.ProcessDecision(decision, downloadClientId).GetAwaiter().GetResult();
+                await _downloadDecisionProcessor.ProcessDecision(decision, downloadClientId);
+            }
+            finally
+            {
+                PushLock.Release();
             }
 
             if (decision?.RemoteBook.ParsedBookInfo == null)
@@ -88,11 +96,11 @@ namespace Bibliophilarr.Api.V1.Indexers
                 if (indexer != null)
                 {
                     release.IndexerId = indexer.Id;
-                    _logger.Debug("Push Release {0} associated with indexer {1} - {2}.", release.Title, release.IndexerId, release.Indexer);
+                    _logger.Debug("Push Release {0} associated with indexer {1} - {2}.", LogSanitizer.Sanitize(release.Title), release.IndexerId, LogSanitizer.Sanitize(release.Indexer));
                 }
                 else
                 {
-                    _logger.Debug("Push Release {0} not associated with known indexer {1}.", release.Title, release.Indexer);
+                    _logger.Debug("Push Release {0} not associated with known indexer {1}.", LogSanitizer.Sanitize(release.Title), LogSanitizer.Sanitize(release.Indexer));
                 }
             }
             else if (release.IndexerId != 0 && release.Indexer.IsNullOrWhiteSpace())
@@ -101,17 +109,17 @@ namespace Bibliophilarr.Api.V1.Indexers
                 {
                     var indexer = _indexerFactory.Get(release.IndexerId);
                     release.Indexer = indexer.Name;
-                    _logger.Debug("Push Release {0} associated with indexer {1} - {2}.", release.Title, release.IndexerId, release.Indexer);
+                    _logger.Debug("Push Release {0} associated with indexer {1} - {2}.", LogSanitizer.Sanitize(release.Title), release.IndexerId, LogSanitizer.Sanitize(release.Indexer));
                 }
                 catch (ModelNotFoundException)
                 {
-                    _logger.Debug("Push Release {0} not associated with known indexer {1}.", release.Title, release.IndexerId);
+                    _logger.Debug("Push Release {0} not associated with known indexer {1}.", LogSanitizer.Sanitize(release.Title), release.IndexerId);
                     release.IndexerId = 0;
                 }
             }
             else
             {
-                _logger.Debug("Push Release {0} not associated with an indexer.", release.Title);
+                _logger.Debug("Push Release {0} not associated with an indexer.", LogSanitizer.Sanitize(release.Title));
             }
         }
 
@@ -125,12 +133,12 @@ namespace Bibliophilarr.Api.V1.Indexers
 
                 if (downloadClient != null)
                 {
-                    _logger.Debug("Push Release {0} associated with download client {1} - {2}.", release.Title, downloadClientId, release.DownloadClient);
+                    _logger.Debug("Push Release {0} associated with download client {1} - {2}.", LogSanitizer.Sanitize(release.Title), downloadClientId, LogSanitizer.Sanitize(release.DownloadClient));
 
                     return downloadClient.Id;
                 }
 
-                _logger.Debug("Push Release {0} not associated with known download client {1}.", release.Title, release.DownloadClient);
+                _logger.Debug("Push Release {0} not associated with known download client {1}.", LogSanitizer.Sanitize(release.Title), LogSanitizer.Sanitize(release.DownloadClient));
             }
 
             return release.DownloadClientId;

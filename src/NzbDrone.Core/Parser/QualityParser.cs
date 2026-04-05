@@ -265,7 +265,7 @@ namespace NzbDrone.Core.Parser
                 result.Revision.Version = Convert.ToInt32(versionRegexResult.Groups["version"].Value);
             }
 
-            //TODO: re-enable this when we have a reliable way to determine real
+            //NOTE: re-enable this when we have a reliable way to determine real
             var realRegexResult = RealRegex.Matches(name);
 
             if (realRegexResult.Count > 0)

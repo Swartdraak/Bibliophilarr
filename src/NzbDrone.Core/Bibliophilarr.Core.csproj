@@ -6,7 +6,6 @@
     <PackageReference Include="Dapper" />
     <PackageReference Include="Diacritical.Net" />
     <PackageReference Include="LazyCache" />
-    <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Polly" />
     <PackageReference Include="System.Text.Json" />
     <PackageReference Include="System.Text.Encoding.CodePages" />
@@ -33,7 +32,7 @@
     <PackageReference Include="PdfSharpCore" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\NzbDrone.Common\Bibliophilarr.Common.csproj" />
+      <ProjectReference Include="..\NzbDrone.Common\Bibliophilarr.Common.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Localization\Core\**">

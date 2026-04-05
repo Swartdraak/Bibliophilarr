@@ -217,7 +217,7 @@ namespace NzbDrone.Core.Configuration
 
         public bool AnalyticsEnabled => _logOptions.AnalyticsEnabled ?? GetValueBoolean("AnalyticsEnabled", true, persist: false);
 
-        // TODO: Change back to "master" for the first stable release
+        // NOTE: Change back to "master" for the first stable release
         public string Branch => _updateOptions.Branch ?? GetValue("Branch", "develop").ToLowerInvariant();
 
         public string LogLevel => _logOptions.Level ?? GetValue("LogLevel", "debug").ToLowerInvariant();

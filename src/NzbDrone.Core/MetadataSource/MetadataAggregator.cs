@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using NLog;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 
@@ -15,16 +16,19 @@ namespace NzbDrone.Core.MetadataSource
         private readonly IMetadataQualityScorer _qualityScorer;
         private readonly IMetadataConflictResolutionPolicy _conflictPolicy;
         private readonly IProviderTelemetryService _providerTelemetryService;
+        private readonly Logger _logger;
 
         public MetadataAggregator(IMetadataProviderRegistry providerRegistry,
                                   IMetadataQualityScorer qualityScorer,
                                   IMetadataConflictResolutionPolicy conflictPolicy,
-                                  IProviderTelemetryService providerTelemetryService)
+                                  IProviderTelemetryService providerTelemetryService,
+                                  Logger logger)
         {
             _providerRegistry = providerRegistry;
             _qualityScorer = qualityScorer;
             _conflictPolicy = conflictPolicy;
             _providerTelemetryService = providerTelemetryService;
+            _logger = logger;
         }
 
         public async Task<AggregatedResult<Book>> GetBookMetadataAsync(string identifier, string identifierType, AggregationOptions options = null)
@@ -70,6 +74,18 @@ namespace NzbDrone.Core.MetadataSource
                     watch.Stop();
                     result.FailedProviders[provider.ProviderName] = ex.Message;
                     RecordTransientTelemetry(provider.ProviderName, "aggregator-book-metadata", ex);
+                }
+                catch (HttpException ex) when (IsNotFoundStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    _logger.Debug("Provider {0} returned not-found for book identifier during aggregator-book-metadata", provider.ProviderName);
+                }
+                catch (HttpException ex) when (IsAuthFailureStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    result.FailedProviders[provider.ProviderName] = ex.Message;
+                    _logger.Warn("Provider {0} returned auth failure ({1}) during aggregator-book-metadata — check API key configuration", provider.ProviderName, ex.Response.StatusCode);
+                    _providerTelemetryService.RecordFailure(provider.ProviderName, "aggregator-book-metadata", ex);
                 }
                 catch (Exception ex)
                 {
@@ -131,6 +147,17 @@ namespace NzbDrone.Core.MetadataSource
                     watch.Stop();
                     RecordTransientTelemetry(provider.ProviderName, "aggregator-search-books", ex);
                 }
+                catch (HttpException ex) when (IsNotFoundStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    _logger.Debug("Provider {0} returned not-found during aggregator-search-books", provider.ProviderName);
+                }
+                catch (HttpException ex) when (IsAuthFailureStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    _logger.Warn("Provider {0} returned auth failure ({1}) during aggregator-search-books — check API key configuration", provider.ProviderName, ex.Response.StatusCode);
+                    _providerTelemetryService.RecordFailure(provider.ProviderName, "aggregator-search-books", ex);
+                }
                 catch (Exception ex)
                 {
                     _providerTelemetryService.RecordFailure(provider.ProviderName, "aggregator-search-books", ex);
@@ -189,6 +216,18 @@ namespace NzbDrone.Core.MetadataSource
                     result.FailedProviders[provider.ProviderName] = ex.Message;
                     RecordTransientTelemetry(provider.ProviderName, "aggregator-author-metadata", ex);
                 }
+                catch (HttpException ex) when (IsNotFoundStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    _logger.Debug("Provider {0} returned not-found during aggregator-author-metadata", provider.ProviderName);
+                }
+                catch (HttpException ex) when (IsAuthFailureStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    result.FailedProviders[provider.ProviderName] = ex.Message;
+                    _logger.Warn("Provider {0} returned auth failure ({1}) during aggregator-author-metadata — check API key configuration", provider.ProviderName, ex.Response.StatusCode);
+                    _providerTelemetryService.RecordFailure(provider.ProviderName, "aggregator-author-metadata", ex);
+                }
                 catch (Exception ex)
                 {
                     result.FailedProviders[provider.ProviderName] = ex.Message;
@@ -227,6 +266,17 @@ namespace NzbDrone.Core.MetadataSource
                 {
                     watch.Stop();
                     RecordTransientTelemetry(provider.ProviderName, "aggregator-search-authors", ex);
+                }
+                catch (HttpException ex) when (IsNotFoundStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    _logger.Debug("Provider {0} returned not-found during aggregator-search-authors", provider.ProviderName);
+                }
+                catch (HttpException ex) when (IsAuthFailureStatus(ex.Response?.StatusCode))
+                {
+                    watch.Stop();
+                    _logger.Warn("Provider {0} returned auth failure ({1}) during aggregator-search-authors — check API key configuration", provider.ProviderName, ex.Response.StatusCode);
+                    _providerTelemetryService.RecordFailure(provider.ProviderName, "aggregator-search-authors", ex);
                 }
                 catch (Exception ex)
                 {
@@ -304,6 +354,11 @@ namespace NzbDrone.Core.MetadataSource
                 return;
             }
 
+            if (exception?.Response?.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                _logger.Warn("Provider {0} rate-limited during {1}", providerName, operation);
+            }
+
             _providerTelemetryService.RecordFailure(providerName, operation, exception);
         }
 
@@ -317,6 +372,18 @@ namespace NzbDrone.Core.MetadataSource
             return statusCode == HttpStatusCode.RequestTimeout ||
                    statusCode == HttpStatusCode.TooManyRequests ||
                    statusCode == HttpStatusCode.ServiceUnavailable;
+        }
+
+        private static bool IsNotFoundStatus(HttpStatusCode? statusCode)
+        {
+            return statusCode == HttpStatusCode.NotFound ||
+                   statusCode == HttpStatusCode.Gone;
+        }
+
+        private static bool IsAuthFailureStatus(HttpStatusCode? statusCode)
+        {
+            return statusCode == HttpStatusCode.Unauthorized ||
+                   statusCode == HttpStatusCode.Forbidden;
         }
     }
 }

@@ -56,7 +56,7 @@ class CaptchaInputConnector extends Component {
   onCaptchaChange = (captchaResponse) => {
     // If the captcha has expired `captchaResponse` will be null.
     // In the event it's null don't try to get the captchaCookie.
-    // TODO: Should we clear the cookie? or reset the captcha?
+    // NOTE: On error, captcha state is left as-is; cookie and widget are not reset
 
     if (!captchaResponse) {
       return;

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using NzbDrone.Common.Instrumentation;
 
 namespace Bibliophilarr.Http.Frontend
 {
@@ -68,7 +69,7 @@ namespace Bibliophilarr.Http.Frontend
                 return NotFound();
             }
 
-            _logger.Warn("Couldn't find handler for {0}", path);
+            _logger.Warn("Couldn't find handler for {0}", LogSanitizer.Sanitize(path));
 
             return NotFound();
         }

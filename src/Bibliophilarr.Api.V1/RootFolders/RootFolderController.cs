@@ -102,7 +102,7 @@ namespace Bibliophilarr.Api.V1.RootFolders
         }
 
         [RestPostById]
-        public ActionResult<RootFolderResource> CreateRootFolder(RootFolderResource rootFolderResource)
+        public ActionResult<RootFolderResource> CreateRootFolder([FromBody] RootFolderResource rootFolderResource)
         {
             var model = rootFolderResource.ToModel();
 
@@ -115,7 +115,7 @@ namespace Bibliophilarr.Api.V1.RootFolders
         }
 
         [RestPutById]
-        public ActionResult<RootFolderResource> UpdateRootFolder(RootFolderResource rootFolderResource)
+        public ActionResult<RootFolderResource> UpdateRootFolder([FromBody] RootFolderResource rootFolderResource)
         {
             var model = rootFolderResource.ToModel();
 

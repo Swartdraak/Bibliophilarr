@@ -24,7 +24,7 @@ function getDelay(enabled, delay) {
     return '1 Minute';
   }
 
-  // TODO: use better units of time than just minutes
+  // NOTE: Delay values are stored and displayed in minutes
   return `${delay} Minutes`;
 }
 

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
+using NLog;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
@@ -49,9 +50,9 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .SetupGet(x => x.MetadataTitleStripPatterns)
                 .Returns("[\":\\\\s*Book\\\\s*\\\\d+$\"]");
 
-            var inventaire = new InventaireFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
-            var googleBooks = new GoogleBooksFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
-            var hardcover = new HardcoverFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object);
+            var inventaire = new InventaireFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object, LogManager.GetCurrentClassLogger());
+            var googleBooks = new GoogleBooksFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object, LogManager.GetCurrentClassLogger());
+            var hardcover = new HardcoverFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object, LogManager.GetCurrentClassLogger());
 
             var emptySecondary = new Mock<IBookSearchFallbackProvider>();
             emptySecondary.SetupGet(x => x.ProviderName).Returns("EmptyFallback");
@@ -70,7 +71,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Setup(x => x.Search(It.IsAny<IBookSearchFallbackProvider>(), It.IsAny<string>(), It.IsAny<string>()))
                 .Returns((IBookSearchFallbackProvider provider, string title, string author) => provider.Search(title, author));
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(x => x.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
                 .Returns(new List<Book>());
 
@@ -124,7 +125,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             candidates[0].Edition.Title.Should().Be("The Cuckoo's Calling");
             candidates[0].Edition.Book.Value.AuthorMetadata.Value.Name.Should().Be("Robert Galbraith");
 
-            Mocker.GetMock<ISearchForNewBook>()
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Verify(x => x.SearchForNewBook("The Cuckoo's Calling", "Robert Galbraith", It.IsAny<bool>()), Times.Once());
 
             Mocker.GetMock<IHttpClient>()
@@ -210,13 +211,16 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Returns<HttpRequest>(request =>
                 {
                     var payload = "{" +
-                                  "\"data\":{\"search\":{\"results\":[{" +
+                                  "\"data\":{\"search\":{\"error\":null,\"ids\":[1],\"results\":{\"found\":1,\"hits\":[{" +
+                                  "\"document\":{" +
                                   "\"id\":\"hc-1\"," +
                                   "\"title\":\"The Cuckoo's Calling\"," +
-                                  "\"releaseYear\":2013," +
-                                  "\"contributors\":[{\"author\":{\"name\":\"Robert Galbraith\"}}]," +
-                                  "\"editions\":[{\"id\":\"hc-ed-1\",\"title\":\"The Cuckoo's Calling\",\"readingFormat\":\"Ebook\"}]" +
-                                  "}]}}}";
+                                  "\"author_names\":[\"Robert Galbraith\"]," +
+                                  "\"contributions\":[{\"author\":{\"name\":\"Robert Galbraith\"}}]," +
+                                  "\"release_year\":2013," +
+                                  "\"has_ebook\":true," +
+                                  "\"has_audiobook\":false" +
+                                  "}}]}}}}";
 
                     return new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload));
                 });

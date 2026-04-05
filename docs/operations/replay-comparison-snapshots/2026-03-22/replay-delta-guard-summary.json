@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "replayDelta": {
+    "discoveredTargets": 0,
+    "accepted": 0,
+    "unresolved": 0,
+    "identifyRate": 0.0,
+    "coverSuccessRate": 0.0,
+    "providerFailures": 0
+  },
+  "databaseDelta": {
+    "duplicateNormalizedAuthors": 0,
+    "series": 0,
+    "seriesBookLinks": 0
+  },
+  "failures": []
+}

@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-03-22 00:11:09Z",
+  "database": "/home/swartdraak/.config/Bibliophilarr/bibliophilarr.db",
+  "status": "failed",
+  "verdict": "FAIL",
+  "detail": "Series persistence gate failed",
+  "metrics": {
+    "series": 0,
+    "seriesBookLinks": 0,
+    "duplicateNormalizedAuthors": 51
+  },
+  "thresholds": {
+    "minSeries": 1,
+    "minSeriesBookLinks": 1,
+    "maxDuplicateAuthors": 0
+  },
+  "checks": [
+    {
+      "name": "Series rows",
+      "value": 0,
+      "threshold": 1,
+      "passed": false,
+      "detail": "0 >= 1"
+    },
+    {
+      "name": "SeriesBookLink rows",
+      "value": 0,
+      "threshold": 1,
+      "passed": false,
+      "detail": "0 >= 1"
+    },
+    {
+      "name": "Duplicate normalized authors",
+      "value": 51,
+      "threshold": 0,
+      "passed": false,
+      "detail": "51 <= 0"
+    }
+  ]
+}

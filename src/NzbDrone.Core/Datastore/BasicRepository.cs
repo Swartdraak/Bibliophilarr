@@ -110,16 +110,18 @@ namespace NzbDrone.Core.Datastore
 
         public IEnumerable<TModel> Get(IEnumerable<int> ids)
         {
-            if (!ids.Any())
+            var distinctIds = ids.Distinct().ToList();
+
+            if (!distinctIds.Any())
             {
                 return new List<TModel>();
             }
 
-            var result = Query(x => ids.Contains(x.Id));
+            var result = Query(x => distinctIds.Contains(x.Id));
 
-            if (result.Count != ids.Count())
+            if (result.Count != distinctIds.Count)
             {
-                throw new ApplicationException($"Expected query to return {ids.Count()} rows but returned {result.Count}");
+                throw new ApplicationException($"Expected query to return {distinctIds.Count} rows but returned {result.Count}");
             }
 
             return result;

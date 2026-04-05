@@ -2,7 +2,7 @@
 
 ## Mission Context
 
-Bibliophilarr is a community-driven fork of Bibliophilarr focused on replacing fragile/proprietary metadata dependencies with sustainable FOSS providers (especially Open Library and Inventaire), while preserving reliability for ebook/audiobook library management.
+Bibliophilarr is a community-driven fork of Readarr focused on replacing fragile/proprietary metadata dependencies with sustainable FOSS providers (primarily Hardcover, with Open Library and Inventaire as supplementary sources), while preserving reliability for ebook/audiobook library management.
 
 When generating plans, code, tests, or docs:
 
@@ -26,6 +26,28 @@ If there is conflict:
 
 - Prefer explicit repository reality (code/tests) + current roadmap/status docs.
 - Call out ambiguity in PR notes and propose a small follow-up task.
+
+## Canonical Document Registry — No New Tracking Files
+
+The files listed above are the **only** authoritative locations for project status,
+roadmap, migration plans, and contribution guidance. They must be updated in place.
+
+**Hard rules:**
+
+- Do **not** create new root-level or `docs/` Markdown files for topics already covered
+  by a canonical file (status updates → `PROJECT_STATUS.md`, phase/priority changes →
+  `ROADMAP.md`, architecture/migration steps → `MIGRATION_PLAN.md`, setup/commands →
+  `QUICKSTART.md`, changelog entries → `CHANGELOG.md`).
+- Do **not** create ad-hoc tracking docs, progress summaries, or plan files alongside
+  canonical files (e.g. no `PLAN_2026-03-17.md`, `STATUS_sprint3.md`, `NOTES.md`).
+- When a documentation task touches one of the canonical files, **edit that file**;
+  never duplicate its content into a new file.
+- If genuinely new standalone documentation is required (e.g. a runbook for a new
+  subsystem), confirm with the user before creating the file and record it here.
+
+Violations of this rule are documentation drift and must be resolved by the
+`documentation-maintainer` agent (consolidate → archive superseded copy → update
+cross-links) before the change is considered done.
 
 ## Required Working Style: Iterative Cyclic Delivery (DevOps)
 

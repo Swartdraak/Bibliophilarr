@@ -146,7 +146,7 @@ class InteractiveImportModalContent extends Component {
     const selectedItems = _.filter(this.props.items, (x) => _.includes(selectedIds, x.id));
 
     const inconsistent = _(selectedItems)
-      .map((x) => ({ bookId: x.book ? x.book.id : 0, foreignEditionId: x.ForeignEditionId }))
+      .map((x) => ({ bookId: x.book ? x.book.id : 0, foreignEditionId: x.foreignEditionId }))
       .groupBy('bookId')
       .mapValues((book) => _(book).groupBy((x) => x.foreignEditionId).values().value().length)
       .values()
@@ -197,11 +197,17 @@ class InteractiveImportModalContent extends Component {
     const selectedIds = this.getSelectedIds();
     const booksImported = _(this.props.items)
       .filter((x) => _.includes(selectedIds, x.id))
+      .filter((x) => x.book)
       .keyBy((x) => x.book.id)
       .map((x) => x.book)
       .value();
 
-    console.log(booksImported);
+    // If selected rows don't have book mappings, skip replace-confirm modal
+    // and let connector-level validation surface a clear message.
+    if (!booksImported.length) {
+      this.onConfirmImportPress();
+      return;
+    }
 
     this.setState({
       booksImported,
@@ -251,7 +257,7 @@ class InteractiveImportModalContent extends Component {
   };
 
   onGetBookMappingPress = () => {
-    this.props.saveInteractiveImportItem({ id: this.getSelectedIds() });
+    this.props.saveInteractiveImportItem({ ids: this.getSelectedIds() });
   };
 
   onSelectModalClose = () => {
@@ -398,7 +404,7 @@ class InteractiveImportModalContent extends Component {
 
                   <MenuContent>
                     <SelectedMenuItem
-                      name={replaceExistingFiles.COMBINE}
+                      name={replaceExistingFilesOptions.COMBINE}
                       isSelected={!replaceExistingFiles}
                       onPress={this.onReplaceExistingFilesChange}
                     >

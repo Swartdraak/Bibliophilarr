@@ -6,7 +6,7 @@ const filterTypePredicates = {
       return itemValue.some((v) => v === filterValue);
     }
 
-    return itemValue.toLowerCase().contains(filterValue.toLowerCase());
+    return itemValue.toLowerCase().includes(filterValue.toLowerCase());
   },
 
   [filterTypes.EQUAL]: function(itemValue, filterValue) {
@@ -34,7 +34,7 @@ const filterTypePredicates = {
       return !itemValue.some((v) => v === filterValue);
     }
 
-    return !itemValue.toLowerCase().contains(filterValue.toLowerCase());
+    return !itemValue.toLowerCase().includes(filterValue.toLowerCase());
   },
 
   [filterTypes.NOT_EQUAL]: function(itemValue, filterValue) {

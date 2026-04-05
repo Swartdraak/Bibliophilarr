@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -279,13 +280,61 @@ namespace NzbDrone.Common.Test.Http
         }
 
         [Test]
-        public async Task should_not_follow_redirects_when_not_in_production()
+        public async Task should_follow_redirects_by_default()
         {
             var request = new HttpRequest($"https://{_httpBinHost}/redirect/1");
 
-            await Subject.GetAsync(request);
+            var response = await Subject.GetAsync(request);
 
-            ExceptionVerification.ExpectedErrors(1);
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            ExceptionVerification.ExpectedErrors(0);
+        }
+
+        [Test]
+        public async Task should_follow_redirects_from_simulated_metadata_endpoint()
+        {
+            // Find a free local port without binding to it
+            int port;
+            using (var probe = new TcpListener(IPAddress.Loopback, 0))
+            {
+                probe.Start();
+                port = ((IPEndPoint)probe.LocalEndpoint).Port;
+                probe.Stop();
+            }
+
+            var prefix = $"http://127.0.0.1:{port}/";
+            using var listener = new HttpListener();
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+
+            // Serve redirect then target, concurrently with the client request
+            var serverTask = Task.Run(async () =>
+            {
+                // Request 1: redirect /books/OL1M.json → /books/OL1M
+                var ctx1 = await listener.GetContextAsync();
+                ctx1.Response.Redirect($"{prefix}books/OL1M");
+                ctx1.Response.Close();
+
+                // Request 2: respond with stub JSON for the redirect target
+                var ctx2 = await listener.GetContextAsync();
+                ctx2.Response.StatusCode = 200;
+                ctx2.Response.ContentType = "application/json";
+                var body = System.Text.Encoding.UTF8.GetBytes(@"{""key"":""OL1M"",""type"":{""key"":""/type/edition""}}");
+                await ctx2.Response.OutputStream.WriteAsync(body, 0, body.Length);
+                ctx2.Response.Close();
+            });
+
+            var request = new HttpRequest($"{prefix}books/OL1M.json");
+            var response = await Subject.GetAsync(request);
+
+            await serverTask;
+            listener.Stop();
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK, "client should follow the 302 redirect from the metadata endpoint");
+            response.Content.Should().Contain("OL1M", "redirected response body should contain the edition key");
+
+            ExceptionVerification.ExpectedErrors(0);
         }
 
         [Test]
@@ -311,7 +360,7 @@ namespace NzbDrone.Common.Test.Http
 
             response.StatusCode.Should().Be(HttpStatusCode.Found);
 
-            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedErrors(0);
         }
 
         [Test]
@@ -426,7 +475,7 @@ namespace NzbDrone.Common.Test.Http
                 response.StatusCode.Should().Be(HttpStatusCode.Moved);
             }
 
-            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedErrors(0);
 
             File.Exists(file).Should().BeTrue();
 

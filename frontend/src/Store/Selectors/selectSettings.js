@@ -22,7 +22,7 @@ function selectSettings(item, pendingChanges, saveError) {
   // Merge all settings from the item along with pending
   // changes to ensure any settings that were not included
   // with the item are included.
-  const allSettings = Object.assign({}, item, pendingChanges);
+  const allSettings = { ...item, ...pendingChanges };
 
   const settings = _.reduce(allSettings, (result, value, key) => {
     if (key === 'fields') {
@@ -58,7 +58,7 @@ function selectSettings(item, pendingChanges, saveError) {
   }, {});
 
   const fields = _.reduce(item.fields, (result, f) => {
-    const field = Object.assign({ pending: false }, f);
+    const field = { pending: false, ...f };
     const hasPendingFieldChange = pendingChanges.fields && pendingChanges.fields.hasOwnProperty(field.name);
 
     if (hasPendingFieldChange) {

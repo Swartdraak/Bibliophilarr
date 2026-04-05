@@ -1,3 +1,11 @@
+/**
+ * Generic provider-save handler factory.
+ * Reads pending changes from the section state, POST/PUTs them to the API,
+ * and updates the store on success.  Supports both single-item and bulk
+ * (array-of-ids) saves.  Detects duplicate payloads and sets forceSave
+ * to allow re-saving without modifications.
+ */
+
 import $ from 'jquery';
 import _ from 'lodash';
 import { batchActions } from 'redux-batched-actions';

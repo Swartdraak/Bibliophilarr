@@ -18,7 +18,11 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
         [SetUp]
         public void Setup()
         {
-            Mocker.SetConstant<IBibliophilarrCloudRequestBuilder>(new BibliophilarrCloudRequestBuilder());
+            var cloudBuilder = new Mock<IBibliophilarrCloudRequestBuilder>();
+            cloudBuilder.SetupGet(x => x.HasServices).Returns(true);
+            cloudBuilder.SetupGet(x => x.Services).Returns(new HttpRequestBuilder("https://services.example.test/v1/").CreateFactory());
+
+            Mocker.SetConstant(cloudBuilder.Object);
         }
 
         private void GivenServerTime(DateTime dateTime)

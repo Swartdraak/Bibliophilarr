@@ -146,7 +146,7 @@ export const actionHandlers = handleThunks({
 export const reducers = createHandleActions({
 
   [TOGGLE_ADVANCED_SETTINGS]: (state, { payload }) => {
-    return Object.assign({}, state, { advancedSettings: !state.advancedSettings });
+    return { ...state, advancedSettings: !state.advancedSettings };
   },
 
   ...customFormatSpecifications.reducers,

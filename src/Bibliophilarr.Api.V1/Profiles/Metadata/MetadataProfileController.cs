@@ -35,7 +35,7 @@ namespace Bibliophilarr.Api.V1.Profiles.Metadata
         }
 
         [RestPostById]
-        public ActionResult<MetadataProfileResource> Create(MetadataProfileResource resource)
+        public ActionResult<MetadataProfileResource> Create([FromBody] MetadataProfileResource resource)
         {
             var model = resource.ToModel();
             model = _profileService.Add(model);
@@ -49,7 +49,7 @@ namespace Bibliophilarr.Api.V1.Profiles.Metadata
         }
 
         [RestPutById]
-        public ActionResult<MetadataProfileResource> Update(MetadataProfileResource resource)
+        public ActionResult<MetadataProfileResource> Update([FromBody] MetadataProfileResource resource)
         {
             var model = resource.ToModel();
 

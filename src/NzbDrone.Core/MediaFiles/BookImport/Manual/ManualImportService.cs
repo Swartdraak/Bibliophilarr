@@ -371,17 +371,20 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                 else
                 {
                     var trackedDownload = _trackedDownloadService.Find(downloadId);
-                    var importResults = _importApprovedBooks.Import(bookImportDecisions, message.ReplaceExistingFiles, trackedDownload.DownloadItem, message.ImportMode);
+                    var importResults = _importApprovedBooks.Import(bookImportDecisions, message.ReplaceExistingFiles, trackedDownload?.DownloadItem, message.ImportMode);
 
                     imported.AddRange(importResults);
 
-                    foreach (var importResult in importResults)
+                    if (trackedDownload != null)
                     {
-                        importedTrackedDownload.Add(new ManuallyImportedFile
+                        foreach (var importResult in importResults)
                         {
-                            TrackedDownload = trackedDownload,
-                            ImportResult = importResult
-                        });
+                            importedTrackedDownload.Add(new ManuallyImportedFile
+                            {
+                                TrackedDownload = trackedDownload,
+                                ImportResult = importResult
+                            });
+                        }
                     }
                 }
             }
@@ -391,6 +394,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             foreach (var groupedTrackedDownload in importedTrackedDownload.GroupBy(i => i.TrackedDownload.DownloadItem.DownloadId).ToList())
             {
                 var trackedDownload = groupedTrackedDownload.First().TrackedDownload;
+
+                if (trackedDownload.ImportItem == null)
+                {
+                    trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+                }
+
                 var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
 
                 if (_diskProvider.FolderExists(outputPath))

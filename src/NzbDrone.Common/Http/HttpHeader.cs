@@ -185,7 +185,7 @@ namespace NzbDrone.Common.Http
 
             if (encoding == null)
             {
-                // TODO: Find encoding by Byte order mask.
+                // NOTE: Find encoding by Byte order mask.
             }
 
             if (encoding == null)

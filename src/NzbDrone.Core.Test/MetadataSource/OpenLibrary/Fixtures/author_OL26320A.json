@@ -1,0 +1,13 @@
+{
+  "key": "/authors/OL26320A",
+  "name": "J.R.R. Tolkien",
+  "personal_name": "John Ronald Reuel Tolkien",
+  "bio": {
+    "type": "/type/text",
+    "value": "English author, poet, philologist, and university professor."
+  },
+  "photos": [9765709],
+  "birth_date": "3 January 1892",
+  "death_date": "2 September 1973",
+  "wikipedia": "https://en.wikipedia.org/wiki/J._R._R._Tolkien"
+}

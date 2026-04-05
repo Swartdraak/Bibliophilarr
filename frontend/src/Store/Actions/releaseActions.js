@@ -317,12 +317,12 @@ export const reducers = createHandleActions({
       ...otherDefaultState
     } = defaultState;
 
-    return Object.assign({}, state, otherDefaultState);
+    return { ...state, ...otherDefaultState };
   },
 
   [UPDATE_RELEASE]: (state, { payload }) => {
     const guid = payload.guid;
-    const newState = Object.assign({}, state);
+    const newState = { ...state };
     const items = newState.items;
 
     // Return early if there aren't any items (the user closed the modal)
@@ -331,7 +331,7 @@ export const reducers = createHandleActions({
     }
 
     const index = items.findIndex((item) => item.guid === guid);
-    const item = Object.assign({}, items[index], payload);
+    const item = { ...items[index], ...payload };
 
     newState.items = [...items];
     newState.items.splice(index, 1, item);

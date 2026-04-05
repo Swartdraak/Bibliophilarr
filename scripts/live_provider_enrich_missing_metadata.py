@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import random
 import re
@@ -28,6 +29,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote_plus
 from urllib.request import urlopen
+
+LOGGER = logging.getLogger("live_provider_enrich_missing_metadata")
 
 try:
     from mutagen import File as MutagenFile
@@ -113,6 +116,11 @@ class ProviderMatch:
     raw: Dict[str, Any]
     isbn_values: List[str]
     first_publish_year: Optional[Any]
+
+
+def configure_logging(level: str) -> None:
+    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    logging.basicConfig(level=numeric_level, format="%(levelname)s %(message)s")
 
 
 def clean_component(value: str) -> str:
@@ -606,6 +614,8 @@ def discover_targets(root: Path, sample_size: Optional[int] = None, sample_seed:
             )
         )
 
+        LOGGER.debug("Discovered target folder %s with local identity title='%s' author='%s' source=%s", folder, clean_component(title_guess), clean_component(author_guess), local_identity_source)
+
     targets.sort(key=lambda candidate: candidate.folder)
     discovered_count = len(targets)
 
@@ -740,22 +750,27 @@ def write_metadata_json(folder: Path, match: ProviderMatch, confidence: float, a
     }
 
     (folder / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    LOGGER.info("Wrote metadata.json for %s via %s (%s / %s, confidence %.4f)", folder, accepted_by, match.title, match.author, confidence)
 
 
 def enrich_root(root: Path, report_dir: Path, sample_size: Optional[int] = None, sample_seed: Optional[int] = None) -> Dict[str, Any]:
     targets, discovered_count = discover_targets(root, sample_size=sample_size, sample_seed=sample_seed)
     report_dir.mkdir(parents=True, exist_ok=True)
 
+    LOGGER.info("Discovered %d target folder(s) under %s; processing %d after sampling", discovered_count, root, len(targets))
+
     accepted = []
     unresolved = []
 
     for candidate in targets:
+        LOGGER.debug("Processing candidate folder %s (title='%s', author='%s', isbn='%s', asin='%s', source=%s)", candidate.folder, candidate.title_guess, candidate.author_guess, candidate.isbn_guess, candidate.asin_guess, candidate.local_identity_source)
         attempts: List[QueryAttempt] = []
         accepted_match = None
         accepted_confidence = None
         accepted_strategy = None
 
         for provider, strategy_name, query in query_plan(candidate):
+            LOGGER.debug("Querying %s using %s for %s: %s", provider, strategy_name, candidate.folder, query)
             try:
                 if provider == "openlibrary" and strategy_name == "isbn":
                     isbn_match = openlibrary_by_isbn(query)
@@ -774,6 +789,7 @@ def enrich_root(root: Path, report_dir: Path, sample_size: Optional[int] = None,
                     matches = provider_matches_from_googlebooks(google_data)[:10]
                     num_found = int(google_data.get("totalItems") or len(google_data.get("items") or []))
             except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+                LOGGER.warning("Provider query failed for %s via %s:%s: %s", candidate.folder, provider, strategy_name, exc)
                 attempts.append(QueryAttempt(provider, strategy_name, query, 0, False, None, None, None, None, str(exc)))
                 continue
 
@@ -798,6 +814,7 @@ def enrich_root(root: Path, report_dir: Path, sample_size: Optional[int] = None,
                 match_author = best_match.author
                 match_key = best_match.key
                 is_accepted = should_accept(candidate, best_match, best_confidence)
+                LOGGER.debug("Best %s result for %s via %s:%s -> %s / %s (confidence %.4f, accepted=%s)", provider, candidate.folder, provider, strategy_name, match_title, match_author, best_confidence, is_accepted)
                 if is_accepted:
                     accepted_match = best_match
                     accepted_confidence = best_confidence
@@ -842,6 +859,7 @@ def enrich_root(root: Path, report_dir: Path, sample_size: Optional[int] = None,
                 }
             )
         else:
+            LOGGER.info("No accepted provider match for %s after %d attempt(s)", candidate.folder, len(attempts))
             unresolved.append(
                 {
                     "candidate": asdict(candidate),
@@ -917,16 +935,16 @@ def enrich_root(root: Path, report_dir: Path, sample_size: Optional[int] = None,
 
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    print(f"Root: {root}")
-    print(f"Discovered targets before sampling: {summary['discovered_targets']}")
-    print(f"Targets: {summary['targets']}")
-    print(f"Accepted: {summary['accepted']}")
-    print(f"Unresolved: {summary['unresolved']}")
-    print(f"Sample size requested: {summary['sample_size_requested']}")
-    print(f"Sample seed: {summary['sample_seed']}")
-    print(f"Providers: {', '.join(summary['providers'])}")
-    print(f"Report JSON: {json_path}")
-    print(f"Report MD: {md_path}")
+    LOGGER.info("Root: %s", root)
+    LOGGER.info("Discovered targets before sampling: %s", summary["discovered_targets"])
+    LOGGER.info("Targets: %s", summary["targets"])
+    LOGGER.info("Accepted: %s", summary["accepted"])
+    LOGGER.info("Unresolved: %s", summary["unresolved"])
+    LOGGER.info("Sample size requested: %s", summary["sample_size_requested"])
+    LOGGER.info("Sample seed: %s", summary["sample_seed"])
+    LOGGER.info("Providers: %s", ", ".join(summary["providers"]))
+    LOGGER.info("Report JSON: %s", json_path)
+    LOGGER.info("Report MD: %s", md_path)
 
     return summary
 
@@ -937,7 +955,10 @@ def main() -> int:
     parser.add_argument("--report-dir", default="/opt/Bibliophilarr/_artifacts/live-provider-enrich")
     parser.add_argument("--sample-size", type=int, default=None)
     parser.add_argument("--sample-seed", type=int, default=None)
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Python log level for console output")
     args = parser.parse_args()
+
+    configure_logging(args.log_level)
 
     enrich_root(Path(args.root), Path(args.report_dir), sample_size=args.sample_size, sample_seed=args.sample_seed)
     return 0

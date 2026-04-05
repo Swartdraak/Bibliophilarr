@@ -8,6 +8,12 @@ namespace NzbDrone.Core.MetadataSource
         List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true);
         List<Book> SearchByIsbn(string isbn);
         List<Book> SearchByAsin(string asin);
-        List<Book> SearchByGoodreadsBookId(int goodreadsId, bool getAllEditions);
+
+        /// <summary>
+        /// Provider-agnostic identifier lookup.
+        /// Supported idType values: "openlibrary" and "olid" (Open Library OL tokens like OL...W/OL...M/OL...A), "isbn", "asin".
+        /// Unknown or unsupported idTypes return an empty list.
+        /// </summary>
+        List<Book> SearchByExternalId(string idType, string id);
     }
 }

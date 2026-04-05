@@ -14,6 +14,7 @@ using NzbDrone.Core.MediaFiles.BookImport.Manual;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.ProgressMessaging;
+using NzbDrone.Core.Update.Commands;
 using NzbDrone.Http.REST.Attributes;
 using NzbDrone.SignalR;
 
@@ -49,12 +50,17 @@ namespace Bibliophilarr.Api.V1.Commands
         }
 
         [RestPostById]
-        public ActionResult<CommandResource> StartCommand(CommandResource commandResource)
+        public ActionResult<CommandResource> StartCommand([FromBody] CommandResource commandResource)
         {
             var commandType =
                 _knownTypes.GetImplementations(typeof(Command))
                                .Single(c => c.Name.Replace("Command", "")
                                              .Equals(commandResource.Name, StringComparison.InvariantCultureIgnoreCase));
+
+            if (commandType == typeof(ApplicationUpdateCommand))
+            {
+                throw new BadRequestException("Application updates are disabled until release pipeline support is implemented.");
+            }
 
             Request.Body.Seek(0, SeekOrigin.Begin);
             using var reader = new StreamReader(Request.Body);

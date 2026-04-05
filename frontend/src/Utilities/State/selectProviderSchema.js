@@ -9,7 +9,7 @@ function applySchemaDefaults(selectedSchema, schemaDefaults) {
     return schemaDefaults(selectedSchema);
   }
 
-  return Object.assign(selectedSchema, schemaDefaults);
+  return { ...selectedSchema, ...schemaDefaults };
 }
 
 function selectProviderSchema(state, section, payload, schemaDefaults) {

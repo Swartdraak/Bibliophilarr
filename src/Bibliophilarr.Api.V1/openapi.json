@@ -10894,7 +10894,7 @@
       "ImportListType": {
         "enum": [
           "program",
-          "goodreads",
+          "openlibrary",
           "other"
         ],
         "type": "string"
@@ -12066,7 +12066,7 @@
             "type": "string",
             "nullable": true
           },
-          "goodreadsId": {
+          "openlibraryId": {
             "type": "string",
             "nullable": true
           },

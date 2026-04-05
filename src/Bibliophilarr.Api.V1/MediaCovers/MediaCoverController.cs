@@ -12,7 +12,7 @@ namespace Bibliophilarr.Api.V1.MediaCovers
     [V1ApiController]
     public class MediaCoverController : Controller
     {
-        private static readonly Regex RegexResizedImage = new Regex(@"-\d+(?=\.(jpg|png|gif)$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RegexResizedImage = new Regex(@"-\d+(?=\.(jpe?g|png|gif)$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly IAppFolderInfo _appFolderInfo;
         private readonly IDiskProvider _diskProvider;
@@ -25,7 +25,7 @@ namespace Bibliophilarr.Api.V1.MediaCovers
             _mimeTypeProvider = new FileExtensionContentTypeProvider();
         }
 
-        [HttpGet(@"author/{authorId:int}/{filename:regex((.+)\.(jpg|png|gif))}")]
+        [HttpGet(@"author/{authorId:int}/{filename:regex((.+)\.(jpe?g|png|gif))}")]
         public IActionResult GetAuthorMediaCover(int authorId, string filename)
         {
             var filePath = Path.Combine(_appFolderInfo.GetAppDataPath(), "MediaCover", authorId.ToString(), filename);
@@ -33,7 +33,7 @@ namespace Bibliophilarr.Api.V1.MediaCovers
             if (!_diskProvider.FileExists(filePath) || _diskProvider.GetFileSize(filePath) == 0)
             {
                 // Return the full sized image if someone requests a non-existing resized one.
-                // TODO: This code can be removed later once everyone had the update for a while.
+                // NOTE: This code can be removed later once everyone had the update for a while.
                 var basefilePath = RegexResizedImage.Replace(filePath, "");
                 if (basefilePath == filePath || !_diskProvider.FileExists(basefilePath))
                 {
@@ -46,7 +46,7 @@ namespace Bibliophilarr.Api.V1.MediaCovers
             return PhysicalFile(filePath, GetContentType(filePath));
         }
 
-        [HttpGet(@"book/{bookId:int}/{filename:regex((.+)\.(jpg|png|gif))}")]
+        [HttpGet(@"book/{bookId:int}/{filename:regex((.+)\.(jpe?g|png|gif))}")]
         public IActionResult GetBookMediaCover(int bookId, string filename)
         {
             var filePath = Path.Combine(_appFolderInfo.GetAppDataPath(), "MediaCover", "Books", bookId.ToString(), filename);
@@ -54,7 +54,7 @@ namespace Bibliophilarr.Api.V1.MediaCovers
             if (!_diskProvider.FileExists(filePath) || _diskProvider.GetFileSize(filePath) == 0)
             {
                 // Return the full sized image if someone requests a non-existing resized one.
-                // TODO: This code can be removed later once everyone had the update for a while.
+                // NOTE: This code can be removed later once everyone had the update for a while.
                 var basefilePath = RegexResizedImage.Replace(filePath, "");
                 if (basefilePath == filePath || !_diskProvider.FileExists(basefilePath))
                 {

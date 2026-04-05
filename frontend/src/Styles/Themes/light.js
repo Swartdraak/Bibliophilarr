@@ -1,4 +1,4 @@
-const bibliophilarrRed = '#ca302d';
+const bibliophilarrNavy = '#193555';
 const darkGray = '#888';
 const gray = '#adadad';
 const black = '#000';
@@ -7,6 +7,7 @@ const offWhite = '#f5f7fa';
 const purple = '#7a43b6';
 const pink = '#ff69b4';
 const lightGray = '#ddd';
+const teal = '#54939C';
 
 module.exports = {
   textColor: '#515253',
@@ -22,10 +23,10 @@ module.exports = {
   successColor: '#27c24c',
   dangerColor: '#f05050',
   warningColor: '#ffa500',
-  infoColor: bibliophilarrRed,
+  infoColor: teal,
   purple,
   pink,
-  bibliophilarrRed,
+  bibliophilarrRed: bibliophilarrNavy,
   helpTextColor: '#909293',
   darkGray,
   gray,
@@ -33,11 +34,11 @@ module.exports = {
 
   // Theme Colors
 
-  themeRed: bibliophilarrRed,
-  themeAlternateRed: '#a41726',
-  themeDarkRed: '#66001a',
-  themeDarkColor: '#353535',
-  themeLightColor: '#810020',
+  themeRed: bibliophilarrNavy,
+  themeAlternateRed: teal,
+  themeDarkRed: '#122336',
+  themeDarkColor: '#122336',
+  themeLightColor: teal,
   pageBackground: '#f5f7fa',
   pageFooterBackgroud: '#f1f1f1',
 
@@ -56,19 +57,19 @@ module.exports = {
   linkHoverColor: '#1b72e2',
 
   // Header
-  pageHeaderBackgroundColor: bibliophilarrRed,
+  pageHeaderBackgroundColor: bibliophilarrNavy,
 
   // Sidebar
 
   sidebarColor: '#e1e2e3',
-  sidebarBackgroundColor: '#353535',
-  sidebarActiveBackgroundColor: '#252525',
+  sidebarBackgroundColor: '#1a2e44',
+  sidebarActiveBackgroundColor: '#122336',
 
   // Toolbar
   toolbarColor: '#e1e2e3',
-  toolbarBackgroundColor: '#810020',
-  toolbarMenuItemBackgroundColor: '#66001a',
-  toolbarMenuItemHoverBackgroundColor: '#353535',
+  toolbarBackgroundColor: '#122336',
+  toolbarMenuItemBackgroundColor: '#0e1b2a',
+  toolbarMenuItemHoverBackgroundColor: '#1a2e44',
   toolbarLabelColor: '#e1e2e3',
 
   // Accents
@@ -133,8 +134,8 @@ module.exports = {
   //
   // Toolbar
 
-  toobarButtonHoverColor: '#ca302d',
-  toobarButtonSelectedColor: '#ca302d',
+  toobarButtonHoverColor: teal,
+  toobarButtonSelectedColor: teal,
 
   //
   // Scroller

@@ -30,7 +30,16 @@ class ConfirmImportModalContentConnector extends Component {
       books
     } = this.props;
 
-    this.props.fetchInteractiveImportBookFiles({ bookId: books.map((x) => x.id) });
+    const bookIds = books
+      .map((x) => x && x.id)
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    if (!bookIds.length) {
+      this.props.onConfirmImportPress();
+      return;
+    }
+
+    this.props.fetchInteractiveImportBookFiles({ bookId: bookIds });
   }
 
   componentWillUnmount() {
@@ -54,6 +63,7 @@ ConfirmImportModalContentConnector.propTypes = {
   items: PropTypes.arrayOf(PropTypes.object).isRequired,
   fetchInteractiveImportBookFiles: PropTypes.func.isRequired,
   clearInteractiveImportBookFiles: PropTypes.func.isRequired,
+  onConfirmImportPress: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired
 };
 

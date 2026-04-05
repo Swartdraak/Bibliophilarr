@@ -38,7 +38,12 @@ namespace Bibliophilarr.Api.V1.Queue
 
         protected override QueueStatusResource GetResourceById(int id)
         {
-            throw new NotImplementedException();
+            if (id != 1)
+            {
+                throw new NotFoundException();
+            }
+
+            return GetQueueStatus();
         }
 
         [HttpGet]

@@ -12,7 +12,6 @@ WORKFLOWS = [
     "ci-backend.yml",
     "docs-validation.yml",
     "staging-smoke-metadata-telemetry.yml",
-    "phase6-packaging-validation.yml",
 ]
 
 
@@ -60,11 +59,20 @@ def protection_summary(owner: str, repo: str, branch: str) -> Dict[str, Any]:
     }
 
 
+def is_integration_403(message: str) -> bool:
+    return "HTTP 403" in message and "Resource not accessible by integration" in message
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate release-readiness markdown/json report")
     parser.add_argument("--owner", default="Swartdraak")
     parser.add_argument("--repo", default="Bibliophilarr")
     parser.add_argument("--branches", nargs="+", default=["develop", "staging", "main"])
+    parser.add_argument(
+        "--allow-integration-403",
+        action="store_true",
+        help="Treat GitHub integration-token 403 responses as permission-limited in report output",
+    )
     parser.add_argument("--md-out", required=True)
     parser.add_argument("--json-out", required=True)
     args = parser.parse_args()
@@ -88,7 +96,17 @@ def main() -> int:
             except RuntimeError as exc:
                 workflow_data[branch][wf] = {"error": str(exc)}
 
-    alerts = gh_api(f"repos/{args.owner}/{args.repo}/dependabot/alerts?state=open&per_page=100")
+    alerts: List[Dict[str, Any]] = []
+    dependabot_error = None
+    try:
+        alerts = gh_api(f"repos/{args.owner}/{args.repo}/dependabot/alerts?state=open&per_page=100")
+    except RuntimeError as exc:
+        message = str(exc)
+        if args.allow_integration_403 and is_integration_403(message):
+            dependabot_error = message
+        else:
+            raise
+
     severity_counts = Counter(a["security_vulnerability"]["severity"] for a in alerts)
 
     report = {
@@ -99,6 +117,7 @@ def main() -> int:
         "dependabot": {
             "open_alert_count": len(alerts),
             "severity_counts": dict(severity_counts),
+            "error": dependabot_error,
         },
     }
 
@@ -154,6 +173,12 @@ def main() -> int:
         "| Severity | Count |",
         "|---|---:|",
     ])
+
+    if dependabot_error:
+        lines.extend([
+            "",
+            f"Dependabot alert API note: {dependabot_error}",
+        ])
 
     for sev in ["critical", "high", "medium", "low"]:
         lines.append(f"| {sev} | {severity_counts.get(sev, 0)} |")

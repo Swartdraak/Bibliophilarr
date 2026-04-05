@@ -109,7 +109,7 @@ namespace Bibliophilarr.Api.V1.BookFiles
         }
 
         [RestPutById]
-        public ActionResult<BookFileResource> SetQuality(BookFileResource bookFileResource)
+        public ActionResult<BookFileResource> SetQuality([FromBody] BookFileResource bookFileResource)
         {
             var bookFile = _mediaFileService.Get(bookFileResource.Id);
             bookFile.Quality = bookFileResource.Quality;

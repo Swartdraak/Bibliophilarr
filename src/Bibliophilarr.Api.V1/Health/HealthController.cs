@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.REST;
@@ -30,7 +29,14 @@ namespace Bibliophilarr.Api.V1.Health
 
         protected override HealthResource GetResourceById(int id)
         {
-            throw new NotImplementedException();
+            var healthCheck = _healthCheckService.Results().Find(x => x.Id == id);
+
+            if (healthCheck == null)
+            {
+                throw new NotFoundException();
+            }
+
+            return healthCheck.ToResource();
         }
 
         [HttpGet]

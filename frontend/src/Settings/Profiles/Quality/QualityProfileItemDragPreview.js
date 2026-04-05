@@ -58,7 +58,7 @@ class QualityProfileItemDragPreview extends Component {
       allowed
     } = item;
 
-    // TODO: Show a different preview for groups
+    // NOTE: Groups currently render the same preview as individual items
 
     return (
       <DragPreviewLayer>

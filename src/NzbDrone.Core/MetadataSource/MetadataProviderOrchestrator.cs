@@ -1,0 +1,237 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text.RegularExpressions;
+using NLog;
+using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Exceptions;
+
+namespace NzbDrone.Core.MetadataSource
+{
+    /// <summary>
+    /// Dispatches metadata operations to the appropriate provider via the registry.
+    /// Uses an ID-scope compatibility check to route requests for provider-scoped IDs
+    /// (e.g. "hardcover:author:12345") to the correct provider, and falls back through
+    /// enabled providers in priority order when the primary fails or returns null.
+    /// </summary>
+    public class MetadataProviderOrchestrator : IMetadataProviderOrchestrator
+    {
+        // Matches bare Open Library identifiers like OL123A (author), OL456W (work), OL789M (edition).
+        private static readonly Regex BareOpenLibraryTokenRegex = new Regex("^OL\\d+[AWM]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private readonly IMetadataProviderRegistry _registry;
+        private readonly IMetadataProviderTelemetryService _telemetry;
+        private readonly Logger _logger;
+
+        public MetadataProviderOrchestrator(IMetadataProviderRegistry registry, IMetadataProviderTelemetryService telemetry, Logger logger)
+        {
+            _registry = registry;
+            _telemetry = telemetry;
+            _logger = logger;
+        }
+
+        public List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true)
+        {
+            return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
+                p => p.SearchForNewBook(title, author, getAllEditions),
+                "search-for-new-book",
+                p => p.SupportsBookSearch);
+        }
+
+        public List<Book> SearchByIsbn(string isbn)
+        {
+            return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
+                p => p.SearchByIsbn(isbn),
+                "search-by-isbn",
+                p => p.SupportsIsbnLookup);
+        }
+
+        public List<Book> SearchByAsin(string asin)
+        {
+            return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
+                p => p.SearchByAsin(asin),
+                "search-by-asin",
+                p => p.SupportsBookSearch);
+        }
+
+        public List<Book> SearchByExternalId(string idType, string id)
+        {
+            return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
+                p => p.SearchByExternalId(idType, id),
+                "search-by-external-id",
+                p => p.SupportsBookSearch || p.SupportsIsbnLookup);
+        }
+
+        public List<Author> SearchForNewAuthor(string title)
+        {
+            return ExecuteFirstNonEmpty<ISearchForNewAuthor, List<Author>>(
+                p => p.SearchForNewAuthor(title),
+                "search-for-new-author",
+                p => p.SupportsAuthorSearch);
+        }
+
+        public List<object> SearchForNewEntity(string title)
+        {
+            return ExecuteFirstNonEmpty<ISearchForNewEntity, List<object>>(
+                p => p.SearchForNewEntity(title),
+                "search-for-new-entity",
+                p => p.SupportsAuthorSearch || p.SupportsBookSearch);
+        }
+
+        public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
+        {
+            var result = ExecuteFirst<IProvideBookInfo, Tuple<string, Book, List<AuthorMetadata>>>(
+                p => p.GetBookInfo(id),
+                "get-book-info",
+                p => p.SupportsBookSearch || p.SupportsIsbnLookup,
+                p => IsProviderCompatibleWithIdScope(p, id));
+
+            if (result == null)
+            {
+                throw new BookNotFoundException(id);
+            }
+
+            return result;
+        }
+
+        public Author GetAuthorInfo(string id, bool useCache = true)
+        {
+            var result = ExecuteFirst<IProvideAuthorInfo, Author>(
+                p => p.GetAuthorInfo(id, useCache),
+                "get-author-info",
+                p => p.SupportsAuthorSearch,
+                p => IsProviderCompatibleWithIdScope(p, id));
+
+            if (result == null)
+            {
+                throw new AuthorNotFoundException(id);
+            }
+
+            return result;
+        }
+
+        public HashSet<string> GetChangedAuthors(DateTime startTime)
+        {
+            return ExecuteFirst<IProvideAuthorInfo, HashSet<string>>(
+                p => p.GetChangedAuthors(startTime),
+                "get-changed-authors",
+                p => p.SupportsAuthorSearch);
+        }
+
+        private T ExecuteFirst<TContract, T>(Func<TContract, T> operation,
+                                             string operationName,
+                                             Func<IMetadataProvider, bool> supports,
+                                             Func<IMetadataProvider, bool> compatibility = null)
+            where TContract : class
+            where T : class
+        {
+            var providers = _registry.GetProviders()
+                .Where(p => p is TContract)
+                .Where(supports)
+                .ToList();
+
+            if (compatibility != null)
+            {
+                var compatible = providers.Where(compatibility).ToList();
+
+                // Keep legacy behavior if nothing matches compatibility so non-ID operations continue to work.
+                if (compatible.Any())
+                {
+                    providers = compatible;
+                }
+            }
+
+            Exception lastError = null;
+
+            for (var i = 0; i < providers.Count; i++)
+            {
+                var provider = providers[i];
+                var stopwatch = Stopwatch.StartNew();
+
+                try
+                {
+                    var result = operation((TContract)provider);
+                    stopwatch.Stop();
+
+                    var returnedNull = result == null;
+                    _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, !returnedNull, returnedNull, i > 0 && !returnedNull);
+
+                    if (!returnedNull)
+                    {
+                        return result;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    stopwatch.Stop();
+                    _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, false, false);
+                    _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operationName);
+                    lastError = ex;
+                }
+            }
+
+            if (lastError != null)
+            {
+                _logger.Warn(lastError, "All providers failed for operation {0}", operationName);
+            }
+
+            return null;
+        }
+
+        private static bool IsProviderCompatibleWithIdScope(IMetadataProvider provider, string providerScopedId)
+        {
+            var expectedProvider = InferProviderFromScopedId(providerScopedId);
+
+            if (expectedProvider == null)
+            {
+                return true;
+            }
+
+            return string.Equals(provider.ProviderName, expectedProvider, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string InferProviderFromScopedId(string providerScopedId)
+        {
+            if (providerScopedId.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var candidate = providerScopedId.Trim();
+
+            if (candidate.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase) ||
+                candidate.StartsWith("/authors/OL", StringComparison.OrdinalIgnoreCase) ||
+                candidate.StartsWith("/works/OL", StringComparison.OrdinalIgnoreCase) ||
+                BareOpenLibraryTokenRegex.IsMatch(candidate))
+            {
+                return "OpenLibrary";
+            }
+
+            if (candidate.StartsWith("googlebooks:", StringComparison.OrdinalIgnoreCase))
+            {
+                return "GoogleBooks";
+            }
+
+            if (candidate.StartsWith("inventaire:", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Inventaire";
+            }
+
+            if (candidate.StartsWith("hardcover:", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Hardcover";
+            }
+
+            return null;
+        }
+
+        private T ExecuteFirstNonEmpty<TContract, T>(Func<TContract, T> operation, string operationName, Func<IMetadataProvider, bool> supports)
+            where TContract : class
+            where T : class
+        {
+            return ExecuteFirst(operation, operationName, supports);
+        }
+    }
+}

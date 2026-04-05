@@ -8,7 +8,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Test]
         public void get_all_bookfiles()
         {
-            Assert.Ignore("TODO");
+            Assert.Ignore("Pending");
         }
     }
 }

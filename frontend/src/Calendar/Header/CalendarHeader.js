@@ -41,7 +41,7 @@ function getTitle(time, start, end, view, longDateFormat) {
   return `${startMoment.format(startFormat)} \u2014 ${endMoment.format(endFormat)}`;
 }
 
-// TODO Convert to a stateful Component so we can book view internally when changed
+// NOTE: Uses ref-based approach; a stateful component would allow internal book view tracking
 
 class CalendarHeader extends Component {
 
