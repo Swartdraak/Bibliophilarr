@@ -17,7 +17,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 {
     public interface IIdentificationService
     {
-        List<LocalEdition> Identify(List<LocalBook> localTracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config);
+        List<LocalEdition> Identify(List<LocalBook> localTracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary runSummary = null);
     }
 
     public class IdentificationService : IIdentificationService
@@ -33,6 +33,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private readonly ICandidateService _candidateService;
         private readonly IAuthorService _authorService;
         private readonly IConfigService _configService;
+        private readonly IImportRunTracker _importRunTracker;
         private readonly Logger _logger;
 
         public IdentificationService(ITrackGroupingService trackGroupingService,
@@ -41,6 +42,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                                      ICandidateService candidateService,
                                      IAuthorService authorService,
                                      IConfigService configService,
+                                     IImportRunTracker importRunTracker,
                                      Logger logger)
         {
             _trackGroupingService = trackGroupingService;
@@ -49,6 +51,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _candidateService = candidateService;
             _authorService = authorService;
             _configService = configService;
+            _importRunTracker = importRunTracker;
             _logger = logger;
         }
 
@@ -82,7 +85,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return releases;
         }
 
-        public List<LocalEdition> Identify(List<LocalBook> localTracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config)
+        public List<LocalEdition> Identify(List<LocalBook> localTracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary runSummary = null)
         {
             // 1 group localTracks so that we think they represent a single release
             // 2 get candidates given specified author, book and release.  Candidates can include extra files already on disk.
@@ -92,6 +95,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _logger.Debug("Starting book identification");
 
             var releases = GetLocalBookReleases(localTracks, config.SingleRelease);
+
+            if (runSummary != null)
+            {
+                runSummary.GroupingMs = watch.ElapsedMilliseconds;
+                runSummary.ReleasesGrouped = releases.Count;
+            }
+
             var maxWorkers = GetSafeWorkerCount(_configService.IdentificationWorkerCount, releases.Count);
 
             _logger.Debug($"Using up to {maxWorkers} identification worker(s) for {releases.Count} release(s)");
@@ -107,15 +117,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 try
                 {
-                    IdentifyRelease(localRelease, idOverrides, config);
+                    IdentifyRelease(localRelease, idOverrides, config, runSummary);
                 }
                 catch (Exception e)
                 {
                     _logger.Error(e, "Error identifying release");
+                    if (runSummary != null)
+                    {
+                        Interlocked.Increment(ref runSummary.ErrorsRef);
+                    }
                 }
             });
 
             watch.Stop();
+
+            if (runSummary != null)
+            {
+                runSummary.IdentificationMs = watch.ElapsedMilliseconds;
+            }
 
             _logger.Debug($"Track identification for {localTracks.Count} tracks took {watch.ElapsedMilliseconds}ms");
 
@@ -153,7 +172,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return localTracks;
         }
 
-        private void IdentifyRelease(LocalEdition localBookRelease, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config)
+        private void IdentifyRelease(LocalEdition localBookRelease, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary runSummary)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var usedRemote = false;
@@ -178,6 +197,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
 
                 usedRemote = true;
+                _importRunTracker.IncrementRemoteSearches(runSummary);
             }
 
             GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out var seenCandidate);
@@ -208,6 +228,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition));
                 }
 
+                _importRunTracker.IncrementRemoteSearches(runSummary);
                 GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out _);
             }
 
@@ -232,6 +253,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 localBookRelease.Edition = null;
                 localBookRelease.Distance = new Distance();
                 localBookRelease.ExistingTracks = new List<LocalBook>();
+            }
+
+            if (runSummary != null && localBookRelease.Edition != null)
+            {
+                _importRunTracker.RecordMatchQuality(runSummary, localBookRelease.Distance.NormalizedDistance());
             }
 
             localBookRelease.PopulateMatch(config.KeepAllEditions);
