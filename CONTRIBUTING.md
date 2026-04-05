@@ -148,7 +148,7 @@ Use consistent labels so migration and hardening work can be triaged quickly.
 Recommended labels:
 
 - type: `type: bug`, `type: feature`, `type: docs`, `type: refactor`, `type: test`, `type: chore`
-- area: `area: metadata`, `area: open-library`, `area: inventaire`, `area: migration`, `area: api`, `area: frontend`, `area: backend`, `area: database`, `area: ci-cd`, `area: docs`
+- area: `area: metadata`, `area: hardcover`, `area: open-library`, `area: inventaire`, `area: migration`, `area: api`, `area: frontend`, `area: backend`, `area: database`, `area: ci-cd`, `area: docs`
 - priority: `priority: p0`, `priority: p1`, `priority: p2`, `priority: p3`
 - workflow: `status: needs-triage`, `status: ready`, `status: blocked`, `status: in-progress`, `status: needs-review`, `status: waiting-feedback`
 
