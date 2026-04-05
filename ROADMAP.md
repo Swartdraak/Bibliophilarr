@@ -252,21 +252,18 @@ Current state: Redux 4.2.1, react-redux 7.2.9, redux-thunk 2.4.2, redux-actions 
 
 **Effort estimate**: Very High (~15-20 KLOC refactor). Should be done incrementally per-module after React 18 + Router 6 are complete. Both legacy and modern patterns can coexist during migration.
 
-### moment.js Migration Assessment (completed April 2026)
+### moment.js → date-fns Migration (completed June 2026)
 
-Current state: moment.js 2.30.1 adds ~13KB gzipped. 34 files import moment. date-fns is **not installed**.
+Replaced moment.js 2.30.1 (328KB) with date-fns 4.1.0 (tree-shakeable, ~7KB used) across all 34 frontend source files. moment.js removed from dependencies.
 
-**Usage breakdown**:
+**What was done**:
 
-- **Date formatting** (11 files in `Utilities/Date/`): `moment(date).format(fmt)` — direct date-fns equivalents exist.
-- **Calendar range logic** (10 files in `Calendar/`): `.clone().add/subtract/startOf/endOf()` chains — requires careful mapping to date-fns `addDays/startOfWeek/endOfMonth` etc.
-- **Relative time**: `.fromNow()` — date-fns `formatDistanceToNow()`.
-- **Duration humanization**: `moment.duration(mins, 'minutes').humanize()` — date-fns `formatDuration()` or `intervalToDuration()`.
-- **Comparisons**: `.isSame()`, `.isAfter()`, `.isBefore()`, `.isBetween()` — direct date-fns equivalents.
+- Created `momentFormatToDateFns.js` utility to convert backend format tokens at the formatting boundary — no backend changes required.
+- Created `parseTimeSpan.js` utility to replace `moment.duration()` for .NET TimeSpan string parsing.
+- Migrated 14 `Utilities/Date/` modules, 10 `Calendar/` modules, 3 `Store/Actions/` modules, 3 `System/` modules, and 4 other consumer files.
+- All 9 test suites (19 tests) pass. Frontend build succeeds.
 
-**Migration approach**: Replace `moment` with `date-fns` (tree-shakeable, 4KB gzipped for typical usage). Can be done file-by-file starting with `Utilities/Date/` modules (high reuse), then Calendar components. Independent of React 18 upgrade.
-
-**Effort estimate**: Medium (34 files, well-contained in utility/calendar layers).
+**Effort**: Medium (34 files, completed in single commit).
 
 ## Near-Term Delivery Sequence
 
