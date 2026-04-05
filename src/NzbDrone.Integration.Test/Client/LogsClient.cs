@@ -1,13 +1,13 @@
 using System;
+using System.Net.Http;
 using System.Threading;
-using RestSharp;
 
 namespace NzbDrone.Integration.Test.Client
 {
     public class LogsClient : ClientBase
     {
-        public LogsClient(IRestClient restClient, string apiKey)
-            : base(restClient, apiKey, "log/file")
+        public LogsClient(HttpClient httpClient, string apiKey)
+            : base(httpClient, apiKey, "log/file")
         {
         }
 

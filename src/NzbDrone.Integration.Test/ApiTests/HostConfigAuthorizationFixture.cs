@@ -1,6 +1,7 @@
 using System.Net;
+using System.Net.Http;
 using NUnit.Framework;
-using RestSharp;
+using NzbDrone.Integration.Test.Client;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
@@ -10,10 +11,8 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Test]
         public void get_host_config_should_require_api_key()
         {
-            var anonymousClient = new RestClient(RootUrl + "api/v1/");
-            var request = new RestRequest("config/host", Method.GET);
-
-            var response = anonymousClient.Execute(request);
+            var request = new SimpleRestRequest("config/host");
+            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request);
 
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
         }
@@ -23,12 +22,10 @@ namespace NzbDrone.Integration.Test.ApiTests
         {
             var config = HostConfig.GetSingle();
 
-            var anonymousClient = new RestClient(RootUrl + "api/v1/");
-            var request = new RestRequest("config/host/{id}", Method.PUT);
-            request.AddUrlSegment("id", config.Id);
+            var request = new SimpleRestRequest("config/host/" + config.Id, HttpMethod.Put);
             request.AddJsonBody(config);
 
-            var response = anonymousClient.Execute(request);
+            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request);
 
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
         }
@@ -36,11 +33,10 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Test]
         public void get_host_config_with_malformed_basic_auth_should_return_unauthorized()
         {
-            var anonymousClient = new RestClient(RootUrl + "api/v1/");
-            var request = new RestRequest("config/host", Method.GET);
+            var request = new SimpleRestRequest("config/host");
             request.AddHeader("Authorization", "Basic malformed-base64-value");
 
-            var response = anonymousClient.Execute(request);
+            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request);
 
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
             Assert.That(response.StatusCode, Is.Not.EqualTo(HttpStatusCode.InternalServerError));

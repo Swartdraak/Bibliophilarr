@@ -1,13 +1,13 @@
 using System.Collections.Generic;
+using System.Net.Http;
 using Bibliophilarr.Api.V1.Books;
-using RestSharp;
 
 namespace NzbDrone.Integration.Test.Client
 {
     public class BookClient : ClientBase<BookResource>
     {
-        public BookClient(IRestClient restClient, string apiKey)
-            : base(restClient, apiKey, "book")
+        public BookClient(HttpClient httpClient, string apiKey)
+            : base(httpClient, apiKey, "book")
         {
         }
 
