@@ -19,6 +19,7 @@
       true,
       {
         "ignoreAtRules": [
+          "mixin",
           "/^add\\-mixin$/",
           "/^define\\-mixin$/"
         ]

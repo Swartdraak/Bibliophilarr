@@ -62,7 +62,7 @@ export default {
         const pendingChanges = qualityDefinitions.pendingChanges[id] || {};
         const item = _.find(qualityDefinitions.items, { id });
 
-        return Object.assign({}, item, pendingChanges);
+        return { ...item, ...pendingChanges };
       });
 
       // If there is nothing to save don't bother isSaving

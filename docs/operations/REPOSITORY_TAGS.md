@@ -7,7 +7,7 @@ This file proposes both **GitHub repository topics** and **issue/PR labels** tai
 Use up to 20 highly discoverable topics:
 
 - `bibliophilarr`
-- `readarr-fork`
+- `bibliophilarr-fork`
 - `book-management`
 - `audiobook-management`
 - `metadata`
@@ -82,3 +82,8 @@ Use up to 20 highly discoverable topics:
 - `release: docs`
 
 These labels can drive changelog generation and release-note grouping.
+
+## References
+
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — contribution workflow and quality gates
+- [RELEASE_AUTOMATION.md](RELEASE_AUTOMATION.md) — release process and tagging conventions

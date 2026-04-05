@@ -62,7 +62,7 @@ function Logger(minimumLogLevel) {
 }
 
 Logger.prototype.cleanse = function(message) {
-  const apikey = new RegExp(`access_token=${encodeURIComponent(window.Readarr.apiKey)}`, 'g');
+  const apikey = new RegExp(`access_token=${encodeURIComponent(window.Bibliophilarr.apiKey)}`, 'g');
   return message.replace(apikey, 'access_token=(removed)');
 };
 
@@ -100,13 +100,13 @@ class SignalRConnector extends Component {
   }
 
   componentDidMount() {
-    console.log('[signalR] starting');
+    console.debug('[signalR] starting');
 
-    const url = `${window.Readarr.urlBase}/signalr/messages`;
+    const url = `${window.Bibliophilarr.urlBase}/signalr/messages`;
 
     this.connection = new signalR.HubConnectionBuilder()
       .configureLogging(new Logger(signalR.LogLevel.Information))
-      .withUrl(`${url}?access_token=${encodeURIComponent(window.Readarr.apiKey)}`)
+      .withUrl(`${url}?access_token=${encodeURIComponent(window.Bibliophilarr.apiKey)}`)
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: (retryContext) => {
           if (retryContext.elapsedMilliseconds > 180000) {
@@ -146,7 +146,7 @@ class SignalRConnector extends Component {
       return;
     }
 
-    console.error(`signalR: Unable to find handler for ${name}`);
+    console.warn(`signalR: Unable to find handler for ${name}`);
   };
 
   handleCalendar = (body) => {
@@ -349,8 +349,6 @@ class SignalRConnector extends Component {
   };
 
   onReceiveMessage = (message) => {
-    console.debug('[signalR] received', message.name, message.body);
-
     this.handleMessage(message);
   };
 

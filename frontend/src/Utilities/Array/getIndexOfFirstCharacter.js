@@ -1,13 +1,21 @@
 import _ from 'lodash';
 
 export default function getIndexOfFirstCharacter(items, sortKey, character) {
-  return _.findIndex(items, (item) => {
-    const firstCharacter = item[sortKey].charAt(0);
+  const normalizedCharacter = (character ?? '').toLowerCase();
 
-    if (character === '#') {
+  return _.findIndex(items, (item) => {
+    const value = item?.[sortKey];
+
+    if (typeof value !== 'string' || !value.length) {
+      return false;
+    }
+
+    const firstCharacter = value.charAt(0).toLowerCase();
+
+    if (normalizedCharacter === '#') {
       return !isNaN(firstCharacter);
     }
 
-    return firstCharacter === character;
+    return firstCharacter === normalizedCharacter;
   });
 }

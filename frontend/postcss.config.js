@@ -8,6 +8,7 @@ const cssVarsFiles = [
 ].map(require.resolve);
 
 const mixinsFiles = [
+  'frontend/src/Styles/Mixins/colorImpairedGradients.css',
   'frontend/src/Styles/Mixins/cover.css',
   'frontend/src/Styles/Mixins/linkOverlay.css',
   'frontend/src/Styles/Mixins/scroller.css',
@@ -25,7 +26,7 @@ module.exports = {
           return Object.assign(acc, reload(vars));
         }, {})
     }],
-    'postcss-color-function',
+    '@csstools/postcss-color-function',
     'postcss-nested'
   ]
 };

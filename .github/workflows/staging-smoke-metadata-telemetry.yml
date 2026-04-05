@@ -20,13 +20,14 @@ permissions:
 jobs:
   smoke-metadata-telemetry:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: '8.0.x'
           global-json-file: global.json
@@ -56,13 +57,10 @@ jobs:
           app_path=""
           for candidate in \
             ./_output/net8.0/Bibliophilarr \
-            ./_output/net8.0/Readarr \
             ./_output/net8.0/linux-x64/publish/Bibliophilarr \
-            ./_output/net8.0/linux-x64/publish/Readarr \
             ./_output/net8.0/linux-x64/Bibliophilarr \
-            ./_output/net8.0/linux-x64/Readarr \
             ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
-            ./_artifacts/linux-x64/net8.0/Readarr/Readarr; do
+            ; do
             if [ -x "$candidate" ]; then
               app_path="$candidate"
               break
@@ -71,7 +69,7 @@ jobs:
 
           if [ -z "$app_path" ]; then
             echo "No runnable application binary found"
-            find ./_output ./_artifacts -maxdepth 5 -type f \( -name Readarr -o -name Bibliophilarr \) 2>/dev/null || true
+            find ./_output ./_artifacts -maxdepth 5 -type f \( -name Bibliophilarr -o -name Bibliophilarr \) 2>/dev/null || true
             exit 1
           fi
 
@@ -84,7 +82,7 @@ jobs:
 
       - name: Wait for health endpoint
         run: |
-          for i in $(seq 1 60); do
+          for _i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w "%{http_code}" \
               "http://127.0.0.1:8793/ping" || true)
             if [ "$code" = "200" ]; then
@@ -103,9 +101,9 @@ jobs:
             -w "%{http_code}" -H "X-Api-Key: smoke-ci-key" \
             "http://127.0.0.1:8793/api/v1/metadata/providers/health" || true)
 
-          telemetry_code=$(curl -sS -o _artifacts/staging-smoke/conflict-telemetry.json \
+          telemetry_code=$(curl -sS -o _artifacts/staging-smoke/provider-telemetry.json \
             -w "%{http_code}" -H "X-Api-Key: smoke-ci-key" \
-            "http://127.0.0.1:8793/api/v1/metadata/conflicts/telemetry" || true)
+            "http://127.0.0.1:8793/api/v1/metadata/providers/telemetry" || true)
 
           if [ "$providers_code" = "200" ] && [ "$telemetry_code" = "200" ]; then
             exit 0
@@ -132,7 +130,7 @@ jobs:
 
       - name: Upload smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: staging-smoke-metadata-telemetry
           path: _artifacts/staging-smoke

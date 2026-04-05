@@ -116,7 +116,9 @@ function ManageImportListsEditModalContent(
           setRootFolderPath(value);
           break;
         default:
-          console.warn(`EditImportListModalContent Unknown Input: '${name}'`);
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(`EditImportListModalContent Unknown Input: '${name}'`);
+          }
       }
     },
     []

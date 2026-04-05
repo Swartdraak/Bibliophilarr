@@ -5,6 +5,7 @@ import VirtualTable from 'Components/Table/VirtualTable';
 import VirtualTableRow from 'Components/Table/VirtualTableRow';
 import { sortDirections } from 'Helpers/Props';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
+import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
 import BookIndexHeaderConnector from './BookIndexHeaderConnector';
 import BookIndexRow from './BookIndexRow';
 import styles from './BookIndexTable.css';
@@ -33,7 +34,7 @@ class BookIndexTable extends Component {
 
       const scrollIndex = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
 
-      if (scrollIndex != null) {
+      if (isValidScrollIndex(scrollIndex)) {
         this.setState({ scrollIndex });
       }
     } else if (jumpToCharacter == null && prevProps.jumpToCharacter != null) {

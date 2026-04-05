@@ -78,7 +78,7 @@ namespace NzbDrone.Core.Notifications.Plex.Server
         {
             if (version >= new Version(1, 3, 0) && version < new Version(1, 3, 1))
             {
-                throw new PlexVersionException("Found version {0}, upgrade to PMS 1.3.1 to fix library updating and then restart Readarr", version);
+                throw new PlexVersionException("Found version {0}, upgrade to PMS 1.3.1 to fix library updating and then restart Bibliophilarr", version);
             }
         }
 
@@ -171,9 +171,9 @@ namespace NzbDrone.Core.Notifications.Plex.Server
                 _logger.Error(ex, "Unable to connect to Plex Media Server");
 
                 return new NzbDroneValidationFailure("Host", "Unable to connect to Plex Media Server")
-                       {
-                           DetailedDescription = ex.Message
-                       };
+                {
+                    DetailedDescription = ex.Message
+                };
             }
 
             return null;

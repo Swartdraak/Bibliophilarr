@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using NLog;
 
 namespace NzbDrone.Common.EnsureThat

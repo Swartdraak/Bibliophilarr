@@ -14,6 +14,7 @@ function IconButton(props) {
     size,
     isSpinning,
     isDisabled,
+    title,
     ...otherProps
   } = props;
 
@@ -23,7 +24,7 @@ function IconButton(props) {
         className,
         isDisabled && styles.isDisabled
       )}
-      aria-label="Table Options Button"
+      aria-label={title}
       isDisabled={isDisabled}
       {...otherProps}
     >

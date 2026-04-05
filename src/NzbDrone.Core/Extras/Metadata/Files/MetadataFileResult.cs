@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Extras.Metadata.Files
+namespace NzbDrone.Core.Extras.Metadata.Files
 {
     public class MetadataFileResult
     {

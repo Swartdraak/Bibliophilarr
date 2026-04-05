@@ -99,7 +99,7 @@ class BackupRow extends Component {
 
         <TableRowCell>
           <Link
-            to={`${window.Readarr.urlBase}${path}`}
+            to={`${window.Bibliophilarr.urlBase}${path}`}
             noRouter={true}
           >
             {name}
@@ -116,6 +116,7 @@ class BackupRow extends Component {
 
         <TableRowCell className={styles.actions}>
           <IconButton
+            title={translate('RestoreBackup')}
             name={icons.RESTORE}
             onPress={this.onRestorePress}
           />

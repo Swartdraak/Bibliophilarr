@@ -15,5 +15,16 @@ namespace VersOne.Epub.Internal
             result.Package = package;
             return result;
         }
+
+        public static EpubSchema ReadSchema(ZipArchive epubArchive)
+        {
+            var result = new EpubSchema();
+            var rootFilePath = RootFilePathReader.GetRootFilePath(epubArchive);
+            var contentDirectoryPath = ZipPathUtils.GetDirectoryPath(rootFilePath);
+            result.ContentDirectoryPath = contentDirectoryPath;
+            var package = PackageReader.ReadPackage(epubArchive, rootFilePath);
+            result.Package = package;
+            return result;
+        }
     }
 }

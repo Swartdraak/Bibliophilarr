@@ -299,7 +299,7 @@ class AuthorEditorFooter extends Component {
                   isDisabled={!selectedCount || isOrganizingAuthor || isRetaggingAuthor}
                   onPress={this.onTagsPress}
                 >
-                  {translate('SetReadarrTags')}
+                  {translate('SetBibliophilarrTags')}
                 </SpinnerButton>
 
                 <SpinnerButton

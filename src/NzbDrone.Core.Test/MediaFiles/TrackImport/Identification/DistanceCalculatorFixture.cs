@@ -1,7 +1,10 @@
 using System.Collections.Generic;
+using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
@@ -90,6 +93,50 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             authors.Should().HaveCount(2);
             authors.Should().Contain("First Last");
             authors.Should().Contain("Second Third, Fourth Fifth");
+        }
+
+        [Test]
+        public void should_reduce_book_title_weight_for_low_confidence_embedded_labels()
+        {
+            var edition = Builder<Edition>.CreateNew()
+                .With(x => x.Title = "The Real Book")
+                .Build();
+
+            edition.Book = Builder<Book>.CreateNew()
+                .With(x => x.AuthorMetadata = Builder<AuthorMetadata>.CreateNew().With(a => a.Name = "Known Author").Build())
+                .Build();
+
+            var confident = new LocalBook
+            {
+                Path = "The Real Book.m4b",
+                FileTrackInfo = new ParsedTrackInfo
+                {
+                    Authors = new List<string> { "Known Author" },
+                    BookTitle = "World 1",
+                    BookTitleConfidence = 1.0,
+                    AuthorConfidence = 1.0
+                }
+            };
+
+            var lowConfidence = new LocalBook
+            {
+                Path = "The Real Book (legacy).m4b",
+                FileTrackInfo = new ParsedTrackInfo
+                {
+                    Authors = new List<string> { "Known Author" },
+                    BookTitle = "World 1",
+                    BookTitleConfidence = 0.2,
+                    AuthorConfidence = 1.0,
+                    IdentitySource = "ffprobe:legacy-tags"
+                }
+            };
+
+            var confidentDistance = DistanceCalculator.BookDistance(new List<LocalBook> { confident }, edition);
+            var lowConfidenceDistance = DistanceCalculator.BookDistance(new List<LocalBook> { lowConfidence }, edition);
+
+            confidentDistance.Penalties.Should().ContainKey("book");
+            lowConfidenceDistance.Penalties.Should().ContainKey("book_low_confidence");
+            lowConfidenceDistance.RawDistance().Should().BeLessThan(confidentDistance.RawDistance());
         }
     }
 }

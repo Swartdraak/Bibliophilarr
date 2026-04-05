@@ -1,10 +1,15 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.Goodreads;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.MediaFiles.BookImport.Identification
@@ -17,25 +22,58 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
     public class CandidateService : ICandidateService
     {
-        private readonly ISearchForNewBook _bookSearchService;
+        private const int IsbnFallbackCacheMaxSize = 200;
+        private static readonly Regex Isbn13Regex = new Regex(@"(?<!\d)(97[89][\d-]{10,16})(?!\d)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex Isbn10Regex = new Regex(@"(?<![\dXx])([\d-]{9}[\dXx])(?![\dXx])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex AsinRegex = new Regex(@"\b(B0[0-9A-Z]{8})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        // Fallback provider priority: lower number = tried first.
+        // Hardcover is the primary provider, so these are the fallback order when primary fails.
+        private static readonly Dictionary<string, int> FallbackProviderPriorities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["OpenLibrary"] = 10,
+            ["Inventaire"] = 20,
+            ["GoogleBooks"] = 30,
+            ["Hardcover"] = 100  // Hardcover is primary, so it's tried last as fallback (already tried first)
+        };
+
+        private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IEditionService _editionService;
         private readonly IMediaFileService _mediaFileService;
+        private readonly IMetadataQueryNormalizationService _queryNormalizationService;
+        private readonly IEnumerable<IBookSearchFallbackProvider> _fallbackProviders;
+        private readonly IBookSearchFallbackExecutionService _fallbackExecutionService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
-        public CandidateService(ISearchForNewBook bookSearchService,
+        private readonly ConcurrentDictionary<string, IReadOnlyList<Book>> _isbnFallbackCache =
+            new ConcurrentDictionary<string, IReadOnlyList<Book>>(StringComparer.OrdinalIgnoreCase);
+
+        public CandidateService(IMetadataProviderOrchestrator metadataOrchestrator,
                                 IAuthorService authorService,
                                 IBookService bookService,
                                 IEditionService editionService,
                                 IMediaFileService mediaFileService,
+                                IMetadataQueryNormalizationService queryNormalizationService,
+                                IEnumerable<IBookSearchFallbackProvider> fallbackProviders,
+                                IBookSearchFallbackExecutionService fallbackExecutionService,
+                                IConfigService configService,
                                 Logger logger)
         {
-            _bookSearchService = bookSearchService;
+            _metadataOrchestrator = metadataOrchestrator;
             _authorService = authorService;
             _bookService = bookService;
             _editionService = editionService;
             _mediaFileService = mediaFileService;
+            _queryNormalizationService = queryNormalizationService;
+            _fallbackProviders = (fallbackProviders ?? new List<IBookSearchFallbackProvider>())
+                .OrderBy(GetFallbackProviderPriority)
+                .ThenBy(x => x.ProviderName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            _fallbackExecutionService = fallbackExecutionService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -51,7 +89,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             Book tagMbidRelease = null;
             List<CandidateEdition> tagCandidate = null;
 
-            // TODO: select by ISBN?
+            // NOTE: select by ISBN?
             // var releaseIds = localEdition.LocalTracks.Select(x => x.FileTrackInfo.ReleaseMBId).Distinct().ToList();
             // if (releaseIds.Count == 1 && releaseIds[0].IsNotNullOrWhiteSpace())
             // {
@@ -105,6 +143,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
             }
 
+            // Include existing linked editions from BookFiles as candidates.
+            // This avoids expensive remote searches when re-identifying files
+            // that were already matched (e.g. after tag writes changed file timestamps).
+            if (idOverrides?.Edition == null)
+            {
+                var existingEditions = GetExistingFileEditions(localEdition);
+                if (existingEditions.Any())
+                {
+                    var existingIds = candidateReleases.Select(c => c.Edition.Id).ToHashSet();
+                    var newEditions = existingEditions.Where(e => !existingIds.Contains(e.Id)).ToList();
+                    if (newEditions.Any())
+                    {
+                        _logger.Debug("Adding {0} existing linked edition(s) as candidates", newEditions.Count);
+                        candidateReleases.AddRange(GetDbCandidatesByEdition(newEditions, includeExisting));
+                    }
+                }
+            }
+
             watch.Stop();
             _logger.Debug($"Getting {candidateReleases.Count} candidates from tags for {localEdition.LocalBooks.Count} tracks took {watch.ElapsedMilliseconds}ms");
 
@@ -131,6 +187,37 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return GetDbCandidatesByEdition(_editionService.GetEditionsByBook(book.Id)
                                             .OrderByDescending(x => x.Ratings.Popularity)
                                             .ToList(), includeExisting);
+        }
+
+        private List<Edition> GetExistingFileEditions(LocalEdition localEdition)
+        {
+            var paths = localEdition.LocalBooks.Select(x => x.Path).ToList();
+            var existingFiles = _mediaFileService.GetFileWithPath(paths);
+            var editionIds = existingFiles
+                .Where(x => x.EditionId > 0)
+                .Select(x => x.EditionId)
+                .Distinct()
+                .ToList();
+
+            if (!editionIds.Any())
+            {
+                return new List<Edition>();
+            }
+
+            return editionIds
+                .Select(id =>
+                {
+                    try
+                    {
+                        return _editionService.GetEdition(id);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                })
+                .Where(e => e != null)
+                .ToList();
         }
 
         private List<CandidateEdition> GetDbCandidatesByAuthor(LocalEdition localEdition, Author author, bool includeExisting)
@@ -193,29 +280,32 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
         public IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides)
         {
-            // TODO handle edition override
+            // NOTE handle edition override
 
             // Gets candidate book releases from the metadata server.
             // Will eventually need adding locally if we find a match
             List<Book> remoteBooks;
             var seenCandidates = new HashSet<string>();
+            var contextualFallbackFoundCandidates = false;
 
             var isbns = localEdition.LocalBooks.Select(x => x.FileTrackInfo.Isbn).Distinct().ToList();
             var asins = localEdition.LocalBooks.Select(x => x.FileTrackInfo.Asin).Distinct().ToList();
-            var goodreads = localEdition.LocalBooks.Select(x => x.FileTrackInfo.GoodreadsId).Distinct().ToList();
+            var openlibrary = localEdition.LocalBooks.Select(x => x.FileTrackInfo.OpenLibraryId).Distinct().ToList();
+            var isbn = SelectSingleIsbn(isbns, localEdition);
+            var asin = SelectSingleAsin(asins, localEdition);
 
             // grab possibilities for all the IDs present
-            if (isbns.Count == 1 && isbns[0].IsNotNullOrWhiteSpace())
+            if (isbn.IsNotNullOrWhiteSpace())
             {
-                _logger.Trace($"Searching by isbn {isbns[0]}");
+                _logger.Trace($"Searching by isbn {isbn}");
 
                 try
                 {
-                    remoteBooks = _bookSearchService.SearchByIsbn(isbns[0]);
+                    remoteBooks = _metadataOrchestrator.SearchByIsbn(isbn);
                 }
-                catch (GoodreadsException e)
+                catch (OpenLibraryException e)
                 {
-                    _logger.Info(e, "Skipping ISBN search due to Goodreads Error");
+                    _logger.Info(e, "Skipping ISBN search due to OpenLibrary Error");
                     remoteBooks = new List<Book>();
                 }
 
@@ -223,56 +313,64 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     yield return candidate;
                 }
-            }
 
-            if (asins.Count == 1 &&
-                asins[0].IsNotNullOrWhiteSpace() &&
-                asins[0].Length == 10)
-            {
-                _logger.Trace($"Searching by asin {asins[0]}");
-
-                try
+                // If ISBN lookup misses, attempt a few author+title searches before other ID-based lookups.
+                if (!seenCandidates.Any())
                 {
-                    remoteBooks = _bookSearchService.SearchByAsin(asins[0]);
-                }
-                catch (GoodreadsException e)
-                {
-                    _logger.Info(e, "Skipping ASIN search due to Goodreads Error");
-                    remoteBooks = new List<Book>();
-                }
+                    var preContextCount = seenCandidates.Count;
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
-                {
-                    yield return candidate;
-                }
-            }
-
-            if (goodreads.Count == 1 &&
-                goodreads[0].IsNotNullOrWhiteSpace())
-            {
-                if (int.TryParse(goodreads[0], out var id))
-                {
-                    _logger.Trace($"Searching by goodreads id {id}");
-
-                    try
-                    {
-                        remoteBooks = _bookSearchService.SearchByGoodreadsBookId(id, true);
-                    }
-                    catch (GoodreadsException e)
-                    {
-                        _logger.Info(e, "Skipping Goodreads ID search due to Goodreads Error");
-                        remoteBooks = new List<Book>();
-                    }
-
-                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                    foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides))
                     {
                         yield return candidate;
                     }
+
+                    contextualFallbackFoundCandidates = seenCandidates.Count > preContextCount;
+                }
+            }
+
+            if (asin.IsNotNullOrWhiteSpace() && asin.Length == 10)
+            {
+                _logger.Trace($"Searching by asin {asin}");
+
+                try
+                {
+                    remoteBooks = _metadataOrchestrator.SearchByAsin(asin);
+                }
+                catch (OpenLibraryException e)
+                {
+                    _logger.Info(e, "Skipping ASIN search due to OpenLibrary Error");
+                    remoteBooks = new List<Book>();
+                }
+
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                {
+                    yield return candidate;
+                }
+            }
+
+            if (openlibrary.Count == 1 &&
+                openlibrary[0].IsNotNullOrWhiteSpace())
+            {
+                _logger.Trace($"Searching by openlibrary id {openlibrary[0]}");
+
+                try
+                {
+                    remoteBooks = _metadataOrchestrator.SearchByExternalId("openlibrary", openlibrary[0]);
+                }
+                catch (OpenLibraryException e)
+                {
+                    _logger.Info(e, "Skipping OpenLibrary ID search due to OpenLibrary Error");
+                    remoteBooks = new List<Book>();
+                }
+
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                {
+                    yield return candidate;
                 }
             }
 
             // If we got an id result, or any overrides are set, stop
-            if (seenCandidates.Any() ||
+            if (contextualFallbackFoundCandidates ||
                 idOverrides?.Edition != null ||
                 idOverrides?.Book != null ||
                 idOverrides?.Author != null)
@@ -280,7 +378,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 yield break;
             }
 
-            // fall back to author / book name search
+            // Always attempt author / book name search even when ID-based results
+            // were found — embedded ISBNs/ASINs can be incorrect, and the
+            // author+title search may find the correct book. seenCandidates
+            // prevents duplicate editions from being yielded.
             var authorTags = new List<string>();
 
             if (TrackGroupingService.IsVariousAuthors(localEdition.LocalBooks))
@@ -299,25 +400,52 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             var bookTag = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.BookTitle) ?? "";
+            var authorVariants = BuildRobustAuthorVariants(authorTags);
+            var titleVariants = BuildRobustTitleVariants(bookTag);
 
-            // If no valid author or book tags, stop
-            if (!authorTags.Any() || bookTag.IsNullOrWhiteSpace())
+            // If author tags are empty, try extracting from directory path structure
+            // Handles patterns like: /Author Name/Book Title/file.epub
+            if (!authorVariants.Any() && localEdition.LocalBooks.Any())
+            {
+                var dirAuthor = ExtractAuthorFromDirectoryPath(localEdition.LocalBooks.First().Path);
+                if (dirAuthor.IsNotNullOrWhiteSpace())
+                {
+                    _logger.Debug("Extracted author from directory path: '{0}'", dirAuthor);
+                    authorVariants = BuildRobustAuthorVariants(new List<string> { dirAuthor });
+                }
+            }
+
+            // If title tags are empty, try extracting from directory or filename
+            if (!titleVariants.Any() && localEdition.LocalBooks.Any())
+            {
+                var dirTitle = ExtractTitleFromDirectoryPath(localEdition.LocalBooks.First().Path);
+                if (dirTitle.IsNotNullOrWhiteSpace())
+                {
+                    _logger.Debug("Extracted title from directory path: '{0}'", dirTitle);
+                    titleVariants = BuildRobustTitleVariants(dirTitle);
+                }
+            }
+
+            // If neither author nor title tags are available, stop.
+            if (!authorVariants.Any() && !titleVariants.Any())
             {
                 yield break;
             }
 
             // Search by author+book
-            foreach (var authorTag in authorTags)
+            if (titleVariants.Any() && authorVariants.Any())
             {
-                try
+                var authorTitleQueries = new List<(string Title, string Author, string Mode)>();
+
+                foreach (var titleVariant in titleVariants)
                 {
-                    remoteBooks = _bookSearchService.SearchForNewBook(bookTag, authorTag);
+                    foreach (var authorTag in authorVariants)
+                    {
+                        authorTitleQueries.Add((titleVariant, authorTag, "author/title search"));
+                    }
                 }
-                catch (GoodreadsException e)
-                {
-                    _logger.Info(e, "Skipping author/title search due to Goodreads Error");
-                    remoteBooks = new List<Book>();
-                }
+
+                remoteBooks = SearchPrimaryWithFanOut(authorTitleQueries, _configService.RemoteCandidateSearchWorkerCount);
 
                 foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
                 {
@@ -331,40 +459,481 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 yield break;
             }
 
+            foreach (var swappedPair in BuildSwappedAuthorTitleFallbackPairs(bookTag, authorTags))
+            {
+                remoteBooks = SearchPrimary(swappedPair.Title, swappedPair.Author, "swapped author/title search");
+
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                {
+                    yield return candidate;
+                }
+
+                if (seenCandidates.Any())
+                {
+                    yield break;
+                }
+            }
+
             // Search by just book title
-            try
+            if (titleVariants.Any())
             {
-                remoteBooks = _bookSearchService.SearchForNewBook(bookTag, null);
-            }
-            catch (GoodreadsException e)
-            {
-                _logger.Info(e, "Skipping book title search due to Goodreads Error");
-                remoteBooks = new List<Book>();
-            }
-
-            foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
-            {
-                yield return candidate;
-            }
-
-            // Search by just author
-            foreach (var a in authorTags)
-            {
-                try
-                {
-                    remoteBooks = _bookSearchService.SearchForNewBook(a, null);
-                }
-                catch (GoodreadsException e)
-                {
-                    _logger.Info(e, "Skipping author search due to Goodreads Error");
-                    remoteBooks = new List<Book>();
-                }
+                var titleOnlyQueries = titleVariants.Select(titleVariant => (titleVariant, (string)null, "book title search")).ToList();
+                remoteBooks = SearchPrimaryWithFanOut(titleOnlyQueries, _configService.RemoteCandidateSearchWorkerCount);
 
                 foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
                 {
                     yield return candidate;
                 }
             }
+
+            // Search by just author
+            if (authorVariants.Any())
+            {
+                var authorOnlyQueries = authorVariants.Select(author => (author, (string)null, "author search")).ToList();
+                remoteBooks = SearchPrimaryWithFanOut(authorOnlyQueries, _configService.RemoteCandidateSearchWorkerCount);
+
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                {
+                    yield return candidate;
+                }
+            }
+
+            if (seenCandidates.Any())
+            {
+                yield break;
+            }
+
+            foreach (var provider in _fallbackProviders)
+            {
+                _logger.Debug("Trying tertiary fallback provider {0}", provider.ProviderName);
+
+                if (titleVariants.Any() && authorVariants.Any())
+                {
+                    foreach (var titleVariant in titleVariants)
+                    {
+                        foreach (var authorVariant in authorVariants)
+                        {
+                            foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, authorVariant), seenCandidates, idOverrides))
+                            {
+                                yield return candidate;
+                            }
+                        }
+                    }
+                }
+
+                if (!seenCandidates.Any() && titleVariants.Any())
+                {
+                    foreach (var titleVariant in titleVariants)
+                    {
+                        foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, null), seenCandidates, idOverrides))
+                        {
+                            yield return candidate;
+                        }
+                    }
+                }
+
+                if (!seenCandidates.Any())
+                {
+                    foreach (var authorVariant in authorVariants)
+                    {
+                        foreach (var candidate in ToCandidates(SearchFallback(provider, null, authorVariant), seenCandidates, idOverrides))
+                        {
+                            yield return candidate;
+                        }
+                    }
+                }
+
+                if (seenCandidates.Any())
+                {
+                    _logger.Debug("Provider {0} returned fallback candidates", provider.ProviderName);
+                    yield break;
+                }
+            }
+
+            LogCandidateRejectionTelemetry(localEdition, "all-search-paths-exhausted", 0, 0, seenCandidates.Count);
+        }
+
+        private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides)
+        {
+            var attemptLimit = _configService.IsbnContextFallbackLimit;
+            var attempts = 0;
+            var cacheHits = 0;
+
+            var bookTag = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.BookTitle) ?? string.Empty;
+            var authorTags = localEdition.LocalBooks.MostCommon(x => x.FileTrackInfo.Authors) ?? new List<string>();
+
+            var titleVariants = BuildRobustTitleVariants(bookTag);
+            var authorVariants = BuildRobustAuthorVariants(authorTags);
+
+            if (!titleVariants.Any())
+            {
+                yield break;
+            }
+
+            if (!authorVariants.Any())
+            {
+                authorVariants.Add(null);
+            }
+
+            foreach (var title in titleVariants)
+            {
+                foreach (var author in authorVariants)
+                {
+                    var cacheKey = $"{title}|{author ?? string.Empty}".ToLowerInvariant();
+
+                    if (_isbnFallbackCache.TryGetValue(cacheKey, out var cached))
+                    {
+                        cacheHits++;
+                        _logger.Debug("ISBN contextual fallback cache hit for title='{0}', author='{1}'", title, author ?? "<none>");
+                        foreach (var candidate in ToCandidates(cached, seenCandidates, idOverrides))
+                        {
+                            yield return candidate;
+                        }
+
+                        if (seenCandidates.Any())
+                        {
+                            _logger.Info("ISBN contextual fallback resolved via cache after {0} live attempt(s) and {1} cache hit(s)", attempts, cacheHits);
+                            yield break;
+                        }
+
+                        continue;
+                    }
+
+                    if (attempts >= attemptLimit)
+                    {
+                        yield break;
+                    }
+
+                    attempts++;
+                    _logger.Debug(
+                        "ISBN lookup miss; trying contextual fallback ({0}/{1}): title='{2}', author='{3}'",
+                        attempts,
+                        attemptLimit,
+                        title,
+                        author ?? "<none>");
+
+                    List<Book> remoteBooks;
+                    try
+                    {
+                        remoteBooks = _metadataOrchestrator.SearchForNewBook(title, author, true);
+                    }
+                    catch (OpenLibraryException e)
+                    {
+                        _logger.Info(e, "Skipping ISBN contextual fallback search due to OpenLibrary Error");
+                        LogCandidateRejectionTelemetry(localEdition, "isbn-context-fallback-exhausted", attempts, cacheHits, seenCandidates.Count);
+                        remoteBooks = new List<Book>();
+                    }
+
+                    if (_isbnFallbackCache.Count >= IsbnFallbackCacheMaxSize)
+                    {
+                        _isbnFallbackCache.Clear();
+                    }
+
+                    _isbnFallbackCache[cacheKey] = remoteBooks.AsReadOnly();
+
+                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
+                    {
+                        yield return candidate;
+                    }
+
+                    if (seenCandidates.Any())
+                    {
+                        _logger.Info(
+                            "ISBN contextual fallback hit after {0} attempt(s) and {1} cache hit(s); candidates found",
+                            attempts,
+                            cacheHits);
+                        yield break;
+                    }
+                }
+            }
+
+            if (attempts > 0 || cacheHits > 0)
+            {
+                _logger.Info(
+                    "ISBN contextual fallback exhausted: {0} live attempt(s), {1} cache hit(s), limit={2}, no candidates found",
+                    attempts,
+                    cacheHits,
+                    attemptLimit);
+            }
+        }
+
+        private List<Book> SearchPrimary(string title, string author, string mode)
+        {
+            try
+            {
+                var results = _metadataOrchestrator.SearchForNewBook(title, author);
+
+                if (!results.Any())
+                {
+                    _logger.Debug("Primary identification search returned no candidates: mode={0}, title='{1}', author='{2}'", mode, title ?? "<none>", author ?? "<none>");
+                }
+
+                return results;
+            }
+            catch (OpenLibraryException e)
+            {
+                _logger.Info(e, "Skipping {0} due to OpenLibrary Error", mode);
+                return new List<Book>();
+            }
+        }
+
+        private List<Book> SearchPrimaryWithFanOut(List<(string Title, string Author, string Mode)> queries, int configuredWorkers)
+        {
+            if (queries == null || queries.Count == 0)
+            {
+                return new List<Book>();
+            }
+
+            var maxWorkers = Math.Max(1, Math.Min(configuredWorkers, queries.Count));
+
+            _logger.Debug(
+                "Running {0} primary candidate search query(ies) with up to {1} worker(s)",
+                queries.Count,
+                maxWorkers);
+
+            if (maxWorkers == 1)
+            {
+                var sequentialResults = new List<Book>();
+
+                foreach (var query in queries)
+                {
+                    sequentialResults.AddRange(SearchPrimary(query.Title, query.Author, query.Mode));
+                }
+
+                return sequentialResults;
+            }
+
+            var allResults = new ConcurrentBag<Book>();
+            var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
+
+            Parallel.ForEach(queries, options, query =>
+            {
+                var results = SearchPrimary(query.Title, query.Author, query.Mode);
+
+                foreach (var result in results)
+                {
+                    allResults.Add(result);
+                }
+            });
+
+            return allResults.ToList();
+        }
+
+        private List<Book> SearchFallback(IBookSearchFallbackProvider provider, string title, string author)
+        {
+            var results = _fallbackExecutionService.Search(provider, title, author);
+
+            if (!results.Any())
+            {
+                _logger.Debug("Fallback identification search returned no candidates: provider={0}, title='{1}', author='{2}'", provider?.ProviderName ?? "<null>", title ?? "<none>", author ?? "<none>");
+            }
+
+            return results;
+        }
+
+        private List<string> BuildRobustTitleVariants(string rawTitle)
+        {
+            var variants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var variant in _queryNormalizationService.BuildTitleVariants(rawTitle) ?? new List<string>())
+            {
+                if (variant.IsNotNullOrWhiteSpace())
+                {
+                    variants.Add(variant.Trim());
+                }
+            }
+
+            if (rawTitle.IsNotNullOrWhiteSpace())
+            {
+                var sanitized = Regex.Replace(rawTitle, "\\[[^\\]]+\\]|\\([^\\)]+\\)", " ");
+                sanitized = sanitized.Replace('_', ' ').Replace('-', ' ').CleanSpaces();
+
+                if (sanitized.IsNotNullOrWhiteSpace())
+                {
+                    variants.Add(sanitized);
+                }
+
+                if (sanitized.Contains(':'))
+                {
+                    variants.Add(sanitized.Split(':')[0].CleanSpaces());
+                }
+            }
+
+            return variants.Where(v => v.IsNotNullOrWhiteSpace()).Distinct().ToList();
+        }
+
+        private List<string> BuildRobustAuthorVariants(IEnumerable<string> authorTags)
+        {
+            var variants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var variant in _queryNormalizationService.ExpandAuthorAliases(authorTags) ?? new List<string>())
+            {
+                if (variant.IsNotNullOrWhiteSpace())
+                {
+                    variants.Add(variant.Trim());
+                }
+            }
+
+            foreach (var author in authorTags ?? new List<string>())
+            {
+                if (author.IsNullOrWhiteSpace())
+                {
+                    continue;
+                }
+
+                var parts = author.Split(new[] { '&', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim())
+                    .Where(x => x.IsNotNullOrWhiteSpace());
+
+                foreach (var part in parts)
+                {
+                    variants.Add(part);
+                }
+            }
+
+            return variants.Where(v => v.IsNotNullOrWhiteSpace()).Distinct().ToList();
+        }
+
+        private IEnumerable<(string Title, string Author)> BuildSwappedAuthorTitleFallbackPairs(string bookTag, IEnumerable<string> authorTags)
+        {
+            var normalizedTitle = (bookTag ?? string.Empty).Trim();
+            var normalizedAuthors = NormalizeAuthorCandidates(authorTags);
+
+            if (normalizedTitle.IsNullOrWhiteSpace() || normalizedAuthors.Count != 1)
+            {
+                yield break;
+            }
+
+            var swappedTitle = normalizedAuthors[0];
+            var swappedAuthor = normalizedTitle;
+
+            if (string.Equals(swappedTitle, swappedAuthor, StringComparison.OrdinalIgnoreCase))
+            {
+                yield break;
+            }
+
+            _logger.Debug("Trying swapped filename fallback search: title='{0}', author='{1}'", swappedTitle, swappedAuthor);
+            yield return (swappedTitle, swappedAuthor);
+        }
+
+        private static List<string> NormalizeAuthorCandidates(IEnumerable<string> authorTags)
+        {
+            return (authorTags ?? new List<string>())
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private void LogCandidateRejectionTelemetry(LocalEdition localEdition, string reason, int attempts, int cacheHits, int seenCandidates)
+        {
+            var topTitle = localEdition?.LocalBooks?.MostCommon(x => x.FileTrackInfo.BookTitle) ?? "<unknown>";
+            var topAuthors = (localEdition?.LocalBooks?.MostCommon(x => x.FileTrackInfo.Authors) ?? new List<string>()).ConcatToString();
+
+            _logger.Info("Identification fallback telemetry: reason={0}, attempts={1}, cacheHits={2}, candidates={3}, title='{4}', authors='{5}'",
+                reason,
+                attempts,
+                cacheHits,
+                seenCandidates,
+                topTitle,
+                topAuthors);
+        }
+
+        private string SelectSingleIsbn(List<string> parsedIsbns, LocalEdition localEdition)
+        {
+            var normalizedParsed = parsedIsbns
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Select(NormalizeIsbn)
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Distinct()
+                .ToList();
+
+            if (normalizedParsed.Count == 1)
+            {
+                return normalizedParsed[0];
+            }
+
+            var extracted = localEdition.LocalBooks
+                .Select(x => x.FileTrackInfo.BookTitle)
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .SelectMany(ExtractIsbns)
+                .Distinct()
+                .ToList();
+
+            return extracted.Count == 1 ? extracted[0] : null;
+        }
+
+        private string SelectSingleAsin(List<string> parsedAsins, LocalEdition localEdition)
+        {
+            var normalizedParsed = parsedAsins
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .Select(x => x.Trim().ToUpperInvariant())
+                .Where(x => x.Length == 10)
+                .Distinct()
+                .ToList();
+
+            if (normalizedParsed.Count == 1)
+            {
+                return normalizedParsed[0];
+            }
+
+            var extracted = localEdition.LocalBooks
+                .Select(x => x.FileTrackInfo.BookTitle)
+                .Where(x => x.IsNotNullOrWhiteSpace())
+                .SelectMany(ExtractAsins)
+                .Distinct()
+                .ToList();
+
+            return extracted.Count == 1 ? extracted[0] : null;
+        }
+
+        private static IEnumerable<string> ExtractIsbns(string value)
+        {
+            var isbn13 = Isbn13Regex.Match(value);
+            if (isbn13.Success)
+            {
+                var normalized13 = NormalizeIsbn(isbn13.Value);
+                if (normalized13.IsNotNullOrWhiteSpace())
+                {
+                    yield return normalized13;
+                }
+            }
+
+            var isbn10 = Isbn10Regex.Match(value);
+            if (isbn10.Success)
+            {
+                var normalized10 = NormalizeIsbn(isbn10.Value);
+                if (normalized10.IsNotNullOrWhiteSpace())
+                {
+                    yield return normalized10;
+                }
+            }
+        }
+
+        private static IEnumerable<string> ExtractAsins(string value)
+        {
+            var asin = AsinRegex.Match(value);
+            if (asin.Success)
+            {
+                yield return asin.Value.ToUpperInvariant();
+            }
+        }
+
+        private static string NormalizeIsbn(string value)
+        {
+            var normalized = new string(value.Where(c => char.IsDigit(c) || c == 'X' || c == 'x').ToArray()).ToUpperInvariant();
+
+            if (normalized.Length == 13 && normalized.All(char.IsDigit))
+            {
+                return normalized;
+            }
+
+            if (normalized.Length == 10)
+            {
+                return normalized;
+            }
+
+            return null;
         }
 
         private List<CandidateEdition> ToCandidates(IEnumerable<Book> books, HashSet<string> seenCandidates, IdentificationOverrides idOverrides)
@@ -394,6 +963,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return candidates;
         }
 
+        private static int GetFallbackProviderPriority(IBookSearchFallbackProvider provider)
+        {
+            if (provider == null || provider.ProviderName.IsNullOrWhiteSpace())
+            {
+                return int.MaxValue;
+            }
+
+            return FallbackProviderPriorities.TryGetValue(provider.ProviderName, out var priority)
+                ? priority
+                : 100;
+        }
+
         private bool SatisfiesOverride(Edition edition, IdentificationOverrides idOverride)
         {
             if (idOverride?.Edition != null)
@@ -412,6 +993,122 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Extracts a likely author name from the directory path containing a book file.
+        /// Handles patterns like /downloads/ebooks/Author Name/Book Title/file.epub
+        /// and /downloads/ebooks/Correia, Larry/Son of the Black Sword/file.epub
+        /// </summary>
+        private static string ExtractAuthorFromDirectoryPath(string filePath)
+        {
+            try
+            {
+                var dir = System.IO.Path.GetDirectoryName(filePath);
+                if (dir == null)
+                {
+                    return null;
+                }
+
+                var dirName = System.IO.Path.GetFileName(dir);
+                var parentDir = System.IO.Path.GetDirectoryName(dir);
+
+                if (parentDir == null || dirName == null)
+                {
+                    return null;
+                }
+
+                var parentDirName = System.IO.Path.GetFileName(parentDir);
+
+                // If the parent directory looks like an author name (contains letters, has
+                // more than one word OR is in "Last, First" format), use it
+                if (parentDirName.IsNotNullOrWhiteSpace() && LooksLikeAuthorName(parentDirName))
+                {
+                    return CleanDirectoryNameForSearch(parentDirName);
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Extracts a likely book title from the directory or file name.
+        /// Handles patterns like /Author/Book Title/file.epub
+        /// </summary>
+        private static string ExtractTitleFromDirectoryPath(string filePath)
+        {
+            try
+            {
+                var dir = System.IO.Path.GetDirectoryName(filePath);
+                if (dir == null)
+                {
+                    return null;
+                }
+
+                var dirName = System.IO.Path.GetFileName(dir);
+                if (dirName.IsNotNullOrWhiteSpace() && dirName.Any(char.IsLetter))
+                {
+                    return CleanDirectoryNameForSearch(dirName);
+                }
+
+                // Try file name without extension
+                var fileName = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                if (fileName.IsNotNullOrWhiteSpace() && fileName.Any(char.IsLetter))
+                {
+                    return CleanDirectoryNameForSearch(fileName);
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool LooksLikeAuthorName(string name)
+        {
+            if (name.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            // Must contain letters
+            if (!name.Any(char.IsLetter))
+            {
+                return false;
+            }
+
+            // "Last, First" format
+            if (name.Contains(',') && name.Split(',').Length == 2)
+            {
+                return true;
+            }
+
+            // Multi-word name (at least two words with letters)
+            var words = name.Split(new[] { ' ', '_', '.' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Any(char.IsLetter))
+                .ToList();
+
+            return words.Count >= 2;
+        }
+
+        private static string CleanDirectoryNameForSearch(string name)
+        {
+            // Strip bracketed suffixes like (1083), [epub]
+            var cleaned = Regex.Replace(name, @"\s*[\(\[][^\)\]]*[\)\]]\s*", " ");
+
+            // Replace underscores and dots with spaces
+            cleaned = cleaned.Replace('_', ' ').Replace('.', ' ');
+
+            // Collapse whitespace
+            cleaned = Regex.Replace(cleaned.Trim(), @"\s+", " ");
+
+            return cleaned.IsNullOrWhiteSpace() ? null : cleaned;
         }
     }
 }

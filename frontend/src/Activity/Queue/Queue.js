@@ -303,7 +303,7 @@ class Queue extends Component {
             selectedIds.every((id) => {
               const item = items.find((i) => i.id === id);
 
-              return !!(item && item.authorId && item.bookId);
+              return !!(item && item.authorId);
             })
           )}
           pending={isConfirmRemoveModalOpen && (

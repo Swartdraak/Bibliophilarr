@@ -3,9 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.Parser.Model;
 
@@ -18,22 +22,33 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
     public class IdentificationService : IIdentificationService
     {
+        // Maximum distance allowed when auto-adding a new author during import.
+        // Lower distance = better match. 0.25 allows reasonably confident matches
+        // while preventing false positives from badly tagged files.
+        private const double AutoAddAuthorDistanceThreshold = 0.25;
+
         private readonly ITrackGroupingService _trackGroupingService;
         private readonly IMetadataTagService _metadataTagService;
         private readonly IAugmentingService _augmentingService;
         private readonly ICandidateService _candidateService;
+        private readonly IAuthorService _authorService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public IdentificationService(ITrackGroupingService trackGroupingService,
                                      IMetadataTagService metadataTagService,
                                      IAugmentingService augmentingService,
                                      ICandidateService candidateService,
+                                     IAuthorService authorService,
+                                     IConfigService configService,
                                      Logger logger)
         {
             _trackGroupingService = trackGroupingService;
             _metadataTagService = metadataTagService;
             _augmentingService = augmentingService;
             _candidateService = candidateService;
+            _authorService = authorService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -77,12 +92,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _logger.Debug("Starting book identification");
 
             var releases = GetLocalBookReleases(localTracks, config.SingleRelease);
+            var maxWorkers = GetSafeWorkerCount(_configService.IdentificationWorkerCount, releases.Count);
 
-            var i = 0;
-            foreach (var localRelease in releases)
+            _logger.Debug($"Using up to {maxWorkers} identification worker(s) for {releases.Count} release(s)");
+
+            var processed = 0;
+            var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
+
+            Parallel.ForEach(releases, options, localRelease =>
             {
-                i++;
-                _logger.ProgressInfo($"Identifying book {i}/{releases.Count}");
+                var current = Interlocked.Increment(ref processed);
+                _logger.ProgressInfo($"Identifying book {current}/{releases.Count}");
                 _logger.Debug($"Identifying book files:\n{localRelease.LocalBooks.Select(x => x.Path).ConcatToString("\n")}");
 
                 try
@@ -93,13 +113,23 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     _logger.Error(e, "Error identifying release");
                 }
-            }
+            });
 
             watch.Stop();
 
             _logger.Debug($"Track identification for {localTracks.Count} tracks took {watch.ElapsedMilliseconds}ms");
 
             return releases;
+        }
+
+        private static int GetSafeWorkerCount(int configuredWorkers, int itemCount)
+        {
+            if (itemCount <= 0)
+            {
+                return 1;
+            }
+
+            return Math.Max(1, Math.Min(configuredWorkers, itemCount));
         }
 
         private List<LocalBook> ToLocalTrack(IEnumerable<BookFile> trackfiles, LocalEdition localRelease)
@@ -144,7 +174,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides);
                 if (!config.AddNewAuthors)
                 {
-                    candidateReleases = candidateReleases.Where(x => x.Edition.Book.Value.Id > 0 && x.Edition.Book.Value.AuthorId > 0);
+                    candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition));
                 }
 
                 usedRemote = true;
@@ -167,7 +197,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             // If the result isn't great and we haven't tried remote candidates, try looking for remote candidates
-            // Goodreads may have a better edition of a local book
+            // OpenLibrary may have a better edition of a local book
             if (localBookRelease.Distance.NormalizedDistance() > 0.15 && !usedRemote)
             {
                 _logger.Debug("Match not good enough, trying remote candidates");
@@ -175,13 +205,34 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 if (!config.AddNewAuthors)
                 {
-                    candidateReleases = candidateReleases.Where(x => x.Edition.Book.Value.Id > 0);
+                    candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition));
                 }
 
                 GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out _);
             }
 
             _logger.Debug($"Best release found in {watch.ElapsedMilliseconds}ms");
+
+            // If auto-adding authors is enabled and this match would add a new author,
+            // verify the match quality meets the threshold before proceeding.
+            // This prevents adding authors based on poorly-tagged or misidentified files.
+            if (config.AddNewAuthors &&
+                localBookRelease.Edition != null &&
+                !AuthorExistsLocally(localBookRelease.Edition) &&
+                localBookRelease.Distance.NormalizedDistance() > AutoAddAuthorDistanceThreshold)
+            {
+                var authorName = localBookRelease.Edition.Book?.Value?.AuthorMetadata?.Value?.Name ?? "Unknown";
+                _logger.Info("Rejecting match: would add author '{0}' but distance {1:F3} exceeds auto-add threshold {2:F2}. " +
+                             "Add the author manually if this is correct.",
+                             authorName,
+                             localBookRelease.Distance.NormalizedDistance(),
+                             AutoAddAuthorDistanceThreshold);
+
+                // Clear the match to prevent auto-adding a low-confidence author
+                localBookRelease.Edition = null;
+                localBookRelease.Distance = new Distance();
+                localBookRelease.ExistingTracks = new List<LocalBook>();
+            }
 
             localBookRelease.PopulateMatch(config.KeepAllEditions);
 
@@ -234,6 +285,40 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             watch.Stop();
             _logger.Debug($"Best release: {localBookRelease.Edition} Distance {localBookRelease.Distance.NormalizedDistance()} found in {watch.ElapsedMilliseconds}ms");
+        }
+
+        private bool AuthorExistsLocally(Edition edition)
+        {
+            // Allow candidates where the book is already in the local DB
+            if (edition.Book.Value.Id > 0)
+            {
+                return true;
+            }
+
+            // Allow candidates whose author already exists in the local library,
+            // even if this specific book hasn't been added to the bibliography yet.
+            var foreignAuthorId = edition.Book?.Value?.Author?.Value?.ForeignAuthorId;
+            if (foreignAuthorId.IsNotNullOrWhiteSpace())
+            {
+                var localAuthor = _authorService.FindById(foreignAuthorId);
+                if (localAuthor != null)
+                {
+                    return true;
+                }
+            }
+
+            // Also try matching by author name for providers that may not set ForeignAuthorId
+            var authorName = edition.Book?.Value?.Author?.Value?.Name;
+            if (authorName.IsNotNullOrWhiteSpace())
+            {
+                var localAuthor = _authorService.FindByName(authorName);
+                if (localAuthor != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

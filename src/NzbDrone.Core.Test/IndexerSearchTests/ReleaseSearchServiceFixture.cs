@@ -10,11 +10,12 @@ using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.IndexerSearch.Definitions;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.IndexerSearchTests
 {
-        public class ReleaseSearchServiceFixture : CoreTest<ReleaseSearchService>
+    public class ReleaseSearchServiceFixture : CoreTest<ReleaseSearchService>
     {
         private Mock<IIndexer> _mockIndexer;
         private Author _author;
@@ -162,6 +163,30 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             var criteria = allCriteria.OfType<BookSearchCriteria>().ToList();
 
             criteria.Count.Should().Be(0);
+        }
+
+        [Test]
+        public async Task should_skip_indexers_without_search_capability_when_mixed_with_search_capable_indexers()
+        {
+            var searchCapableIndexer = new Mock<IIndexer>();
+            searchCapableIndexer.SetupGet(s => s.Definition).Returns(new IndexerDefinition { Id = 2, Name = "Search Capable" });
+            searchCapableIndexer.SetupGet(s => s.SupportsSearch).Returns(true);
+            searchCapableIndexer.Setup(s => s.Fetch(It.IsAny<BookSearchCriteria>()))
+                .Returns(Task.FromResult<IList<ReleaseInfo>>(new List<ReleaseInfo>()));
+
+            _mockIndexer.SetupGet(s => s.Definition).Returns(new IndexerDefinition { Id = 1, Name = "RSS Only" });
+            _mockIndexer.SetupGet(s => s.SupportsSearch).Returns(false);
+            _mockIndexer.Setup(s => s.Fetch(It.IsAny<BookSearchCriteria>()))
+                .ThrowsAsync(new System.NotImplementedException());
+
+            Mocker.GetMock<IIndexerFactory>()
+                .Setup(s => s.AutomaticSearchEnabled(true))
+                .Returns(new List<IIndexer> { _mockIndexer.Object, searchCapableIndexer.Object });
+
+            await Subject.BookSearch(_firstBook, false, true, false);
+
+            _mockIndexer.Verify(v => v.Fetch(It.IsAny<BookSearchCriteria>()), Times.Never());
+            searchCapableIndexer.Verify(v => v.Fetch(It.IsAny<BookSearchCriteria>()), Times.Once());
         }
     }
 }

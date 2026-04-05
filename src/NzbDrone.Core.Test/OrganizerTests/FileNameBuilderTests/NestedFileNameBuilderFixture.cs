@@ -60,7 +60,7 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
 
             _trackFile = Builder<BookFile>.CreateNew()
                 .With(e => e.Quality = new QualityModel(Quality.MOBI))
-                .With(e => e.ReleaseGroup = "ReadarrTest")
+                .With(e => e.ReleaseGroup = "BibliophilarrTest")
                 .Build();
 
             Mocker.GetMock<IQualityDefinitionService>()

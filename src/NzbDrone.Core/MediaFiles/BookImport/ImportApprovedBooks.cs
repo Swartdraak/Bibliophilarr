@@ -18,6 +18,7 @@ using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
@@ -33,6 +34,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
     public class ImportApprovedBooks : IImportApprovedBooks
     {
         private static readonly RegexReplace PadNumbers = new RegexReplace(@"\d+", n => n.Value.PadLeft(9, '0'), RegexOptions.Compiled);
+        private static readonly Regex ScopedAuthorIdRegex = new Regex("^(openlibrary|googlebooks|inventaire|hardcover):author:[^:]+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly IUpgradeMediaFiles _bookFileUpgrader;
         private readonly IMediaFileService _mediaFileService;
@@ -48,6 +50,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IHistoryService _historyService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly IMonitorNewBookService _monitorNewBookService;
         private readonly Logger _logger;
 
         public ImportApprovedBooks(IUpgradeMediaFiles bookFileUpgrader,
@@ -64,6 +67,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IHistoryService historyService,
                                    IEventAggregator eventAggregator,
                                    IManageCommandQueue commandQueueManager,
+                                   IMonitorNewBookService monitorNewBookService,
                                    Logger logger)
         {
             _bookFileUpgrader = bookFileUpgrader;
@@ -80,6 +84,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _historyService = historyService;
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
+            _monitorNewBookService = monitorNewBookService;
             _logger = logger;
         }
 
@@ -346,7 +351,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             // Refresh any authors we added
             if (addedAuthors.Any())
             {
-                _commandQueueManager.Push(new BulkRefreshAuthorCommand(addedAuthors.Select(x => x.Id).ToList(), true));
+                var distinctAuthorIds = addedAuthors.Select(x => x.Id).Distinct().ToList();
+                _commandQueueManager.Push(new BulkRefreshAuthorCommand(distinctAuthorIds, true));
             }
 
             var addedAuthorMetadataIds = addedAuthors.Select(x => x.AuthorMetadataId).ToHashSet();
@@ -364,10 +370,45 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private Author EnsureAuthorAdded(List<ImportDecision<LocalBook>> decisions, List<Author> addedAuthors)
         {
             var author = decisions.First().Item.Author;
+            var normalizedForeignAuthorId = NormalizeForeignAuthorId(author.ForeignAuthorId);
+
+            if (normalizedForeignAuthorId.IsNotNullOrWhiteSpace())
+            {
+                author.ForeignAuthorId = normalizedForeignAuthorId;
+                author.Metadata.Value.ForeignAuthorId = normalizedForeignAuthorId;
+            }
 
             if (author.Id == 0)
             {
                 var dbAuthor = _authorService.FindById(author.ForeignAuthorId);
+
+                // If not found by ForeignAuthorId, check by TitleSlug to handle
+                // variant ID formats that normalize to the same slug
+                // (e.g. "J.D.%20Robb" vs "J.%20D.%20Robb" both produce "hardcover-author-j-d-robb")
+                if (dbAuthor == null)
+                {
+                    var expectedSlug = author.ForeignAuthorId.ToUrlSlug();
+                    if (expectedSlug.IsNotNullOrWhiteSpace())
+                    {
+                        dbAuthor = _authorService.FindByTitleSlug(expectedSlug);
+                        if (dbAuthor != null)
+                        {
+                            _logger.Debug("Found existing author by TitleSlug {0} (variant ForeignAuthorId: {1})", expectedSlug, author.ForeignAuthorId);
+                        }
+                    }
+                }
+
+                // If still not found, try matching by author name — remote stubs from book-title
+                // searches may have a name-based ForeignAuthorId (e.g. "hardcover:author:Charlaine%20Harris")
+                // that doesn't match the numeric ID stored in the local DB.
+                if (dbAuthor == null && author.Name.IsNotNullOrWhiteSpace())
+                {
+                    dbAuthor = _authorService.FindByName(author.Name);
+                    if (dbAuthor != null)
+                    {
+                        _logger.Debug("Found existing author by name '{0}' (ForeignAuthorId: {1})", author.Name, author.ForeignAuthorId);
+                    }
+                }
 
                 if (dbAuthor == null)
                 {
@@ -393,6 +434,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     {
                         // calibre has author / book / files
                         author.Path = path.GetParentPath().GetParentPath();
+                    }
+
+                    if (!ValidateAuthorImportPreflight(author, rootFolder, decisions))
+                    {
+                        return null;
                     }
 
                     try
@@ -429,6 +475,53 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return author;
         }
 
+        private static string NormalizeForeignAuthorId(string foreignAuthorId)
+        {
+            var normalizedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId);
+
+            return normalizedAuthorId.IsNotNullOrWhiteSpace()
+                ? $"openlibrary:author:{normalizedAuthorId}"
+                : foreignAuthorId;
+        }
+
+        private bool ValidateAuthorImportPreflight(Author author, RootFolder rootFolder, List<ImportDecision<LocalBook>> decisions)
+        {
+            var foreignAuthorId = author?.Metadata?.Value?.ForeignAuthorId;
+
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                RejectAuthorImport(decisions, "Missing or invalid author identifier in import payload");
+                return false;
+            }
+
+            var normalizedOpenLibraryAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId);
+            var isScopedProviderId = ScopedAuthorIdRegex.IsMatch(foreignAuthorId);
+
+            if (!isScopedProviderId && normalizedOpenLibraryAuthorId.IsNullOrWhiteSpace())
+            {
+                RejectAuthorImport(decisions, $"Unsupported author identifier format: '{foreignAuthorId}'");
+                return false;
+            }
+
+            if (rootFolder?.Path.IsNotNullOrWhiteSpace() == true &&
+                author?.Path.IsNotNullOrWhiteSpace() == true &&
+                rootFolder.Path.Equals(author.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                RejectAuthorImport(decisions, $"Author path '{author.Path}' conflicts with root folder path");
+                return false;
+            }
+
+            return true;
+        }
+
+        private static void RejectAuthorImport(IEnumerable<ImportDecision<LocalBook>> decisions, string reason)
+        {
+            foreach (var decision in decisions)
+            {
+                decision.Reject(new Rejection(reason, RejectionType.Permanent));
+            }
+        }
+
         private Book EnsureBookAdded(List<ImportDecision<LocalBook>> decisions, List<Book> addedBooks)
         {
             var book = decisions.First().Item.Book;
@@ -448,7 +541,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     try
                     {
-                        book.Monitored = book.Author.Value.Monitored;
+                        NormalizeBookForInsert(book);
+                        var existingBooks = _bookService.GetBooksByAuthor(book.Author.Value.Id);
+                        book.Monitored = _monitorNewBookService.ShouldMonitorNewBook(book, existingBooks, book.Author.Value.MonitorNewItems);
                         book.Added = DateTime.UtcNow;
                         _bookService.InsertMany(new List<Book> { book });
                         addedBooks.Add(book);
@@ -502,6 +597,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     try
                     {
+                        NormalizeEditionForInsert(edition, book);
                         edition.BookId = book.Id;
                         edition.Monitored = false;
                         _editionService.InsertMany(new List<Edition> { edition });
@@ -527,6 +623,58 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             return edition;
+        }
+
+        private static void NormalizeBookForInsert(Book book)
+        {
+            if (book == null)
+            {
+                return;
+            }
+
+            if (book.CleanTitle.IsNullOrWhiteSpace())
+            {
+                book.CleanTitle = book.Title;
+            }
+
+            if (book.TitleSlug.IsNullOrWhiteSpace())
+            {
+                book.TitleSlug = FirstNonEmpty(book.ForeignBookId, book.OpenLibraryWorkId, book.CleanTitle, book.Title)?.ToUrlSlug();
+            }
+
+            var editions = book.Editions?.Value;
+            if (editions == null)
+            {
+                return;
+            }
+
+            foreach (var edition in editions)
+            {
+                NormalizeEditionForInsert(edition, book);
+            }
+        }
+
+        private static void NormalizeEditionForInsert(Edition edition, Book book)
+        {
+            if (edition == null)
+            {
+                return;
+            }
+
+            if (edition.Title.IsNullOrWhiteSpace())
+            {
+                edition.Title = book?.Title;
+            }
+
+            if (edition.TitleSlug.IsNullOrWhiteSpace())
+            {
+                edition.TitleSlug = FirstNonEmpty(edition.ForeignEditionId, edition.Title, book?.TitleSlug, book?.ForeignBookId)?.ToUrlSlug();
+            }
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            return values.FirstOrDefault(x => x.IsNotNullOrWhiteSpace())?.Trim();
         }
 
         private void RejectBook(List<ImportDecision<LocalBook>> decisions)

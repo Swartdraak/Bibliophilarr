@@ -1,4 +1,4 @@
-﻿namespace VersOne.Epub.Internal
+namespace VersOne.Epub.Internal
 {
     public static class ZipPathUtils
     {

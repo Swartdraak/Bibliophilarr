@@ -2,7 +2,6 @@ import classNames from 'classnames';
 import _ from 'lodash';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
-import ReactDOM from 'react-dom';
 import QueueStatusConnector from 'Activity/Queue/Status/QueueStatusConnector';
 import OverlayScroller from 'Components/Scroller/OverlayScroller';
 import Scroller from 'Components/Scroller/Scroller';
@@ -315,7 +314,7 @@ class PageSidebar extends Component {
   // Listeners
 
   onWindowClick = (event) => {
-    const sidebar = ReactDOM.findDOMNode(this._sidebarRef);
+    const sidebar = this._sidebarRef;
     const toggleButton = document.getElementById('sidebar-toggle-button');
 
     if (!sidebar) {
@@ -367,9 +366,8 @@ class PageSidebar extends Component {
       return;
     }
 
-    // This is a bit funky when trying to close and you scroll
-    // vertical too much by mistake, commenting out for now.
-    // TODO: Evaluate if this should be nuked
+    // NOTE: Vertical scroll threshold logic disabled — caused
+    // unintended sidebar close on vertical scroll overshoot
 
     // if (Math.abs(this._touchStartY - currentTouchY) > 40) {
     //   const transform = isSidebarVisible ? 0 : SIDEBAR_WIDTH * -1;
@@ -439,7 +437,7 @@ class PageSidebar extends Component {
       transform
     } = this.state;
 
-    const urlBase = window.Readarr.urlBase;
+    const urlBase = window.Bibliophilarr.urlBase;
     const pathname = urlBase ? location.pathname.substr(urlBase.length) || '/' : location.pathname;
     const activeParent = getActiveParent(pathname);
 

@@ -1,5 +1,5 @@
 name: Feature Request
-description: 'Suggest an idea for Readarr'
+description: 'Suggest an idea for Bibliophilarr'
 labels: ['Type: Feature Request', 'Status: Needs Triage']
 body:
 - type: checkboxes

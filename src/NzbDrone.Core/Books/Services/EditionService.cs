@@ -159,10 +159,10 @@ namespace NzbDrone.Core.Books
             const double fuzzGap = 0.4;
 
             var sortedEditions = editions.Select(s => new
-                {
-                    MatchProb = scoreFunction(s, title),
-                    Edition = s
-                })
+            {
+                MatchProb = scoreFunction(s, title),
+                Edition = s
+            })
                 .ToList()
                 .OrderByDescending(s => s.MatchProb)
                 .ToList();

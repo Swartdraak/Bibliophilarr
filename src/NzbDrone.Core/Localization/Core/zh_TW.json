@@ -172,5 +172,9 @@
     "RequiredPlaceHolder": "加入新的限制",
     "RedownloadFailed": "失敗時重新下載",
     "UnableToAddANewRemotePathMappingPleaseTryAgain": "無法加入新的遠程路徑對應，請重試。",
-    "AddRootFolder": "加入根目錄資料夾"
+    "AddRootFolder": "加入根目錄資料夾",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Enable Experimental Conflict Strategy Variants",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Enable alternate tie-break behavior for metadata conflict resolution (staging rollout only)."
 }

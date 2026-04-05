@@ -29,6 +29,7 @@ namespace NzbDrone.Core.Profiles.Metadata
     public class MetadataProfileService : IMetadataProfileService, IHandle<ApplicationStartedEvent>
     {
         public const string NONE_PROFILE_NAME = "None";
+        public const string OPEN_LIBRARY_PROFILE_NAME = "OpenLibrary";
         public const double NONE_PROFILE_MIN_POPULARITY = 1e10;
 
         private static readonly Regex PartOrSetRegex = new Regex(@"(?<from>\d+) of (?<to>\d+)|(?<from>\d+)\s?/\s?(?<to>\d+)|(?<from>\d+)\s?-\s?(?<to>\d+)",
@@ -145,11 +146,12 @@ namespace NzbDrone.Core.Profiles.Metadata
         private List<Book> FilterBooks(IEnumerable<Book> remoteBooks, List<Book> localBooks, List<BookFile> localFiles, Dictionary<Book, List<SeriesBookLink>> seriesLinks, int metadataProfileId)
         {
             var profile = Get(metadataProfileId);
+            var remoteBookList = remoteBooks.ToList();
 
-            _logger.Trace($"Filtering:\n{remoteBooks.Select(x => x.ToString()).Join("\n")}");
+            _logger.Trace($"Filtering:\n{remoteBookList.Select(x => x.ToString()).Join("\n")}");
 
-            var hash = new HashSet<Book>(remoteBooks);
-            var titles = new HashSet<string>(remoteBooks.Select(x => x.Title));
+            var hash = new HashSet<Book>(remoteBookList);
+            var titles = new HashSet<string>(remoteBookList.Select(x => x.Title));
 
             var localHash = new HashSet<string>(localBooks.Where(x => x.AddOptions.AddType == BookAddType.Manual).Select(x => x.ForeignBookId));
             localHash.UnionWith(localFiles.Select(x => x.Edition.Value.Book.Value.ForeignBookId));
@@ -201,7 +203,7 @@ namespace NzbDrone.Core.Profiles.Metadata
 
         private bool BookAllowedByRating(Book b, MetadataProfile p)
         {
-            // hack for the 'none' metadata profile
+            // NOTE: Special-case the 'none' metadata profile to reject all books.
             if (p.MinPopularity == NONE_PROFILE_MIN_POPULARITY)
             {
                 return false;
@@ -266,16 +268,43 @@ namespace NzbDrone.Core.Profiles.Metadata
 
             // Name is a unique property
             var emptyProfile = profiles.FirstOrDefault(x => x.Name == NONE_PROFILE_NAME);
+            var standardProfile = profiles.FirstOrDefault(x => x.Name == "Standard");
 
-            // make sure empty profile exists and is actually empty
-            // TODO: reinstate
-            if (emptyProfile != null &&
-                emptyProfile.MinPopularity == NONE_PROFILE_MIN_POPULARITY)
+            // Remove legacy OpenLibrary profile if it exists
+            var openLibraryProfile = profiles.FirstOrDefault(x => x.Name == OPEN_LIBRARY_PROFILE_NAME);
+            if (openLibraryProfile != null)
             {
-                return;
+                _logger.Info("Removing legacy OpenLibrary metadata profile");
+
+                // Check if any authors/root folders use it and migrate them to Standard
+                var authorsUsingProfile = _authorService.GetAllAuthors().Where(a => a.MetadataProfileId == openLibraryProfile.Id).ToList();
+                var rootFoldersUsingProfile = _rootFolderService.All().Where(r => r.DefaultMetadataProfileId == openLibraryProfile.Id).ToList();
+
+                if (standardProfile != null && (authorsUsingProfile.Any() || rootFoldersUsingProfile.Any()))
+                {
+                    _logger.Info(
+                        "Migrating {0} author(s) and {1} root folder(s) from OpenLibrary to Standard profile",
+                        authorsUsingProfile.Count,
+                        rootFoldersUsingProfile.Count);
+
+                    foreach (var author in authorsUsingProfile)
+                    {
+                        author.MetadataProfileId = standardProfile.Id;
+                        _authorService.UpdateAuthor(author);
+                    }
+
+                    foreach (var rootFolder in rootFoldersUsingProfile)
+                    {
+                        rootFolder.DefaultMetadataProfileId = standardProfile.Id;
+                        _rootFolderService.Update(rootFolder);
+                    }
+                }
+
+                Delete(openLibraryProfile.Id);
             }
 
-            if (!profiles.Any())
+            // Ensure Standard profile exists first (gets lowest ID for default)
+            if (standardProfile == null && !profiles.Any(p => p.Name == "Standard"))
             {
                 _logger.Info("Setting up standard metadata profile");
 
@@ -287,6 +316,12 @@ namespace NzbDrone.Core.Profiles.Metadata
                     SkipPartsAndSets = true,
                     AllowedLanguages = "eng, null"
                 });
+            }
+
+            // Make sure empty profile exists and is configured correctly
+            if (emptyProfile != null && emptyProfile.MinPopularity == NONE_PROFILE_MIN_POPULARITY)
+            {
+                return;
             }
 
             if (emptyProfile != null)

@@ -1,6 +1,6 @@
 .formats {
   margin-top: 10px;
-  /* TODO: This should consider the number of languages in the list */
+  /* NOTE: Height does not dynamically adjust for language list length */
   user-select: none;
 }
 

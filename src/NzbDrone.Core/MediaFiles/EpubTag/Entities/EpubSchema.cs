@@ -1,4 +1,4 @@
-﻿using VersOne.Epub.Schema;
+using VersOne.Epub.Schema;
 
 namespace VersOne.Epub
 {

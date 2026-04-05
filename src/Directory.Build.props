@@ -1,31 +1,35 @@
 <Project>
-  <!-- Common to all Readarr Projects -->
+  <!-- Common to all Bibliophilarr Projects -->
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 
+    <!-- Rename migration knobs: keep internal binary compatibility while allowing staged rename. -->
+    <AppInternalName Condition="'$(AppInternalName)'==''">Bibliophilarr</AppInternalName>
+    <AppUpdateName>$(AppInternalName).Update</AppUpdateName>
+
     <PlatformTarget>AnyCPU</PlatformTarget>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
     <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64;linux-musl-x64;linux-arm;linux-musl-arm;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
 
-    <ReadarrRootDir>$(MSBuildThisFileDirectory)..\</ReadarrRootDir>
+    <BibliophilarrRootDir>$(MSBuildThisFileDirectory)..\</BibliophilarrRootDir>
 
     <!-- Specifies the type of output -->
-    <ReadarrOutputType>Library</ReadarrOutputType>
-    <ReadarrOutputType Condition="$(MSBuildProjectName.Contains('.Test'))">Test</ReadarrOutputType>
-    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='ServiceInstall'">Exe</ReadarrOutputType>
-    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='ServiceUninstall'">Exe</ReadarrOutputType>
-    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='Readarr'">Exe</ReadarrOutputType>
-    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='Readarr.Console'">Exe</ReadarrOutputType>
-    <ReadarrOutputType Condition="'$(MSBuildProjectName)'=='Readarr.Update'">Update</ReadarrOutputType>
+    <BibliophilarrOutputType>Library</BibliophilarrOutputType>
+    <BibliophilarrOutputType Condition="$(MSBuildProjectName.Contains('.Test'))">Test</BibliophilarrOutputType>
+    <BibliophilarrOutputType Condition="'$(MSBuildProjectName)'=='ServiceInstall'">Exe</BibliophilarrOutputType>
+    <BibliophilarrOutputType Condition="'$(MSBuildProjectName)'=='ServiceUninstall'">Exe</BibliophilarrOutputType>
+    <BibliophilarrOutputType Condition="'$(MSBuildProjectName)'=='$(AppInternalName)'">Exe</BibliophilarrOutputType>
+    <BibliophilarrOutputType Condition="'$(MSBuildProjectName)'=='$(AppInternalName).Console'">Exe</BibliophilarrOutputType>
+    <BibliophilarrOutputType Condition="'$(MSBuildProjectName)'=='$(AppUpdateName)'">Update</BibliophilarrOutputType>
 
     <!-- Specifies whether it's one of our own libraries -->
-    <ReadarrProject>false</ReadarrProject>
-    <ReadarrProject Condition="$(MSBuildProjectName.StartsWith('Readarr'))">true</ReadarrProject>
-    <ReadarrProject Condition="$(MSBuildProjectName.StartsWith('ServiceInstall'))">true</ReadarrProject>
-    <ReadarrProject Condition="$(MSBuildProjectName.StartsWith('ServiceUninstall'))">true</ReadarrProject>
+    <BibliophilarrProject>false</BibliophilarrProject>
+    <BibliophilarrProject Condition="$(MSBuildProjectName.StartsWith('$(AppInternalName)'))">true</BibliophilarrProject>
+    <BibliophilarrProject Condition="$(MSBuildProjectName.StartsWith('ServiceInstall'))">true</BibliophilarrProject>
+    <BibliophilarrProject Condition="$(MSBuildProjectName.StartsWith('ServiceUninstall'))">true</BibliophilarrProject>
 
     <!-- A test project gets the test sdk packages automatically added -->
     <TestProject>false</TestProject>
@@ -42,14 +46,14 @@
   <PropertyGroup>
     <Configuration Condition="'$(Configuration)'==''">Release</Configuration>
     <!-- Centralize intermediate and default outputs -->
-    <BaseIntermediateOutputPath>$(ReadarrRootDir)_temp\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
-    <IntermediateOutputPath>$(ReadarrRootDir)_temp\obj\$(MSBuildProjectName)\$(Configuration)\</IntermediateOutputPath>
-    <OutputPath>$(ReadarrRootDir)_temp\bin\$(Configuration)\$(MSBuildProjectName)\</OutputPath>
+    <BaseIntermediateOutputPath>$(BibliophilarrRootDir)_temp\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>$(BibliophilarrRootDir)_temp\obj\$(MSBuildProjectName)\$(Configuration)\</IntermediateOutputPath>
+    <OutputPath>$(BibliophilarrRootDir)_temp\bin\$(Configuration)\$(MSBuildProjectName)\</OutputPath>
 
     <!-- Output to _output and _tests respectively -->
-    <OutputPath Condition="'$(ReadarrProject)'=='true'">$(ReadarrRootDir)_output\</OutputPath>
-    <OutputPath Condition="'$(ReadarrOutputType)'=='Test'">$(ReadarrRootDir)_tests\</OutputPath>
-    <OutputPath Condition="'$(ReadarrOutputType)'=='Update'">$(ReadarrRootDir)_output\Readarr.Update\</OutputPath>
+    <OutputPath Condition="'$(BibliophilarrProject)'=='true'">$(BibliophilarrRootDir)_output\</OutputPath>
+    <OutputPath Condition="'$(BibliophilarrOutputType)'=='Test'">$(BibliophilarrRootDir)_tests\</OutputPath>
+    <OutputPath Condition="'$(BibliophilarrOutputType)'=='Update'">$(BibliophilarrRootDir)_output\$(AppUpdateName)\</OutputPath>
 
     <!-- Paths relative to project file for better readability -->
     <EnableBaseIntermediateOutputPathMismatchWarning>false</EnableBaseIntermediateOutputPathMismatchWarning>
@@ -61,19 +65,20 @@
   </PropertyGroup>
 
   <!-- Test projects need bindingRedirects -->
-  <PropertyGroup Condition="'$(ReadarrOutputType)'=='Test'">
+  <PropertyGroup Condition="'$(BibliophilarrOutputType)'=='Test'">
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
     <SelfContained>false</SelfContained>
   </PropertyGroup>
 
   <!-- Set the Product and Version info for our own projects -->
-  <PropertyGroup Condition="'$(ReadarrProject)'=='true'">
-    <Product>Readarr</Product>
-    <Company>readarr.com</Company>
-    <Copyright>Copyright 2017-$([System.DateTime]::Now.ToString('yyyy')) readarr.com (GNU General Public v3)</Copyright>
+  <PropertyGroup Condition="'$(BibliophilarrProject)'=='true'">
+    <Product>Bibliophilarr</Product>
+    <Company>Bibliophilarr Community</Company>
+    <Copyright>Copyright 2017-$([System.DateTime]::Now.ToString('yyyy')) Bibliophilarr (GNU General Public v3)</Copyright>
 
-    <!-- Should be replaced by CI -->
+    <!-- CI injects actual SemVer version via BIBLIOPHILARRVERSION env var in build.sh.
+         Do not edit this placeholder manually. See CONTRIBUTING.md "Release versioning". -->
     <AssemblyVersion>10.0.0.*</AssemblyVersion>
     <AssemblyConfiguration>$(Configuration)-dev</AssemblyConfiguration>
     <NeutralLanguage>en</NeutralLanguage>
@@ -88,7 +93,7 @@
   </PropertyGroup>
 
   <!-- Set the AssemblyConfiguration attribute for projects -->
-  <ItemGroup Condition="'$(ReadarrProject)'=='true'">
+  <ItemGroup Condition="'$(BibliophilarrProject)'=='true'">
     <AssemblyAttribute Include="System.Reflection.AssemblyConfigurationAttribute">
       <_Parameter1>$(AssemblyConfiguration)</_Parameter1>
     </AssemblyAttribute>
@@ -96,7 +101,7 @@
 
   <PropertyGroup>
     <!-- For now keep the NzbDrone namespace -->
-    <RootNamespace Condition="'$(ReadarrProject)'=='true'">$(MSBuildProjectName.Replace('Readarr','NzbDrone'))</RootNamespace>
+    <RootNamespace Condition="'$(BibliophilarrProject)'=='true'">$(MSBuildProjectName.Replace('$(AppInternalName)','NzbDrone'))</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TestProject)'!='true'">
@@ -119,6 +124,7 @@
     <!-- Upload PDBs to Sentry, enabling stack traces with line numbers and file paths
       without the need to deploy the application with PDBs -->
     <SentryUploadSymbols>true</SentryUploadSymbols>
+    <SentryUploadSymbols Condition="'$(SentryAuthToken)'=='' and '$([System.Environment]::GetEnvironmentVariable(&quot;SENTRY_AUTH_TOKEN&quot;))'==''">false</SentryUploadSymbols>
 
     <!-- Source Link settings -->
     <!-- https://github.com/dotnet/sourcelink/blob/main/docs/README.md#publishrepositoryurl -->
@@ -138,13 +144,13 @@
   </ItemGroup>
 
   <!-- Set up stylecop -->
-  <ItemGroup Condition="'$(ReadarrProject)'=='true' and '$(EnableAnalyzers)'!='false'">
+  <ItemGroup Condition="'$(BibliophilarrProject)'=='true' and '$(EnableAnalyzers)'!='false'">
     <!-- StyleCop analysis -->
     <PackageReference Include="StyleCop.Analyzers" >
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
-    <AdditionalFiles Include="$(SolutionDir)stylecop.json" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" />
   </ItemGroup>
 
   <!--

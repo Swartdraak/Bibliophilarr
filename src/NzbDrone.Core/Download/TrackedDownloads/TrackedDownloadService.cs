@@ -169,12 +169,16 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                         parsedBookInfo = Parser.Parser.ParseBookTitle(firstHistoryItem.SourceTitle);
 
-                        if (parsedBookInfo != null)
+                        if (parsedBookInfo != null && firstHistoryItem.AuthorId > 0)
                         {
                             trackedDownload.RemoteBook = _parsingService.Map(parsedBookInfo,
                                 firstHistoryItem.AuthorId,
                                 historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed).Select(h => h.BookId)
                                     .Distinct());
+                        }
+                        else if (parsedBookInfo != null)
+                        {
+                            trackedDownload.RemoteBook = _parsingService.Map(parsedBookInfo);
                         }
                         else
                         {
@@ -183,12 +187,16 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                                     historyAuthor,
                                     historyBooks);
 
-                            if (parsedBookInfo != null)
+                            if (parsedBookInfo != null && firstHistoryItem.AuthorId > 0)
                             {
                                 trackedDownload.RemoteBook = _parsingService.Map(parsedBookInfo,
                                     firstHistoryItem.AuthorId,
                                     historyItems.Where(v => v.EventType == EntityHistoryEventType.Grabbed).Select(h => h.BookId)
                                         .Distinct());
+                            }
+                            else if (parsedBookInfo != null)
+                            {
+                                trackedDownload.RemoteBook = _parsingService.Map(parsedBookInfo);
                             }
                         }
                     }
@@ -247,7 +255,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 existingItem.CanBeRemoved != downloadItem.CanBeRemoved ||
                 existingItem.CanMoveFiles != downloadItem.CanMoveFiles)
             {
-                _logger.Debug("Tracking '{0}:{1}': ClientState={2}{3} ReadarrStage={4} Book='{5}' OutputPath={6}.",
+                _logger.Debug("Tracking '{0}:{1}': ClientState={2}{3} BibliophilarrStage={4} Book='{5}' OutputPath={6}.",
                     downloadItem.DownloadClientInfo.Name,
                     downloadItem.Title,
                     downloadItem.Status,
@@ -262,7 +270,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         {
             var parsedEpisodeInfo = Parser.Parser.ParseBookTitle(trackedDownload.DownloadItem.Title);
 
-            trackedDownload.RemoteBook = parsedEpisodeInfo == null ? null : _parsingService.Map(parsedEpisodeInfo, 0, new[] { 0 });
+            trackedDownload.RemoteBook = parsedEpisodeInfo == null ? null : _parsingService.Map(parsedEpisodeInfo);
         }
 
         private static TrackedDownloadState GetStateFromHistory(DownloadHistoryEventType eventType)

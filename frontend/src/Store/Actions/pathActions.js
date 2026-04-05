@@ -88,7 +88,7 @@ export const actionHandlers = handleThunks({
 export const reducers = createHandleActions({
 
   [UPDATE_PATHS]: (state, { payload }) => {
-    const newState = Object.assign({}, state);
+    const newState = { ...state };
 
     newState.currentPath = payload.path;
     newState.directories = payload.directories;
@@ -99,7 +99,7 @@ export const reducers = createHandleActions({
   },
 
   [CLEAR_PATHS]: (state, { payload }) => {
-    const newState = Object.assign({}, state);
+    const newState = { ...state };
 
     newState.path = '';
     newState.directories = [];

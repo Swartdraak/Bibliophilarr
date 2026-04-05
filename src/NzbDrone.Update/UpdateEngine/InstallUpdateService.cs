@@ -86,11 +86,11 @@ namespace NzbDrone.Update.UpdateEngine
         public void Start(string installationFolder, int processId)
         {
             _logger.Info("Installation Folder: {0}", installationFolder);
-            _logger.Info("Updating Readarr from version {0} to version {1}", _detectExistingVersion.GetExistingVersion(installationFolder), BuildInfo.Version);
+            _logger.Info("Updating Bibliophilarr from version {0} to version {1}", _detectExistingVersion.GetExistingVersion(installationFolder), BuildInfo.Version);
 
             Verify(installationFolder, processId);
 
-            if (installationFolder.EndsWith(@"\bin\Readarr") || installationFolder.EndsWith(@"/bin/Readarr"))
+            if (installationFolder.EndsWith(@"\bin\Bibliophilarr") || installationFolder.EndsWith(@"/bin/Bibliophilarr"))
             {
                 installationFolder = installationFolder.GetParentPath();
                 _logger.Info("Fixed Installation Folder: {0}", installationFolder);
@@ -98,8 +98,8 @@ namespace NzbDrone.Update.UpdateEngine
 
             var appType = _detectApplicationType.GetAppType();
 
-            _processProvider.FindProcessByName(ProcessProvider.READARR_CONSOLE_PROCESS_NAME);
-            _processProvider.FindProcessByName(ProcessProvider.READARR_PROCESS_NAME);
+            _processProvider.FindProcessByName(ProcessProvider.BIBLIOPHILARR_CONSOLE_PROCESS_NAME);
+            _processProvider.FindProcessByName(ProcessProvider.BIBLIOPHILARR_PROCESS_NAME);
 
             if (OsInfo.IsWindows)
             {
@@ -111,11 +111,16 @@ namespace NzbDrone.Update.UpdateEngine
                 _backupAndRestore.Backup(installationFolder);
                 _backupAppData.Backup();
 
+                if (!_backupAppData.VerifyBackup())
+                {
+                    throw new InvalidOperationException("Backup verification failed — aborting update to prevent data loss");
+                }
+
                 if (OsInfo.IsWindows)
                 {
-                    if (_processProvider.Exists(ProcessProvider.READARR_CONSOLE_PROCESS_NAME) || _processProvider.Exists(ProcessProvider.READARR_PROCESS_NAME))
+                    if (_processProvider.Exists(ProcessProvider.BIBLIOPHILARR_CONSOLE_PROCESS_NAME) || _processProvider.Exists(ProcessProvider.BIBLIOPHILARR_PROCESS_NAME))
                     {
-                        _logger.Error("Readarr was restarted prematurely by external process.");
+                        _logger.Error("Bibliophilarr was restarted prematurely by external process.");
                         return;
                     }
                 }
@@ -128,13 +133,31 @@ namespace NzbDrone.Update.UpdateEngine
                     // Set executable flag on app
                     if (OsInfo.IsOsx || OsInfo.IsLinux)
                     {
-                        _diskProvider.SetFilePermissions(Path.Combine(installationFolder, "Readarr"), "755", null);
+                        _diskProvider.SetFilePermissions(Path.Combine(installationFolder, "Bibliophilarr"), "755", null);
+                    }
+
+                    // Verify the updated binary exists after copy
+                    var updatedBinary = Path.Combine(installationFolder, "Bibliophilarr");
+                    if (!_diskProvider.FileExists(updatedBinary))
+                    {
+                        throw new FileNotFoundException("Updated binary not found after installation copy", updatedBinary);
                     }
                 }
                 catch (Exception e)
                 {
-                    _logger.Error(e, "Failed to copy upgrade package to target folder.");
-                    _backupAndRestore.Restore(installationFolder);
+                    _logger.Error(e, "Failed to install upgrade package to target folder.");
+                    _logger.Info("Initiating automatic rollback...");
+
+                    try
+                    {
+                        _backupAndRestore.Restore(installationFolder);
+                        _logger.Info("Automatic rollback completed successfully");
+                    }
+                    catch (Exception rollbackEx)
+                    {
+                        _logger.Error(rollbackEx, "Automatic rollback also failed — manual intervention required");
+                    }
+
                     throw;
                 }
             }
@@ -149,20 +172,40 @@ namespace NzbDrone.Update.UpdateEngine
                     _terminateNzbDrone.Terminate(processId);
 
                     _logger.Info("Waiting for external auto-restart.");
+                    var restarted = false;
                     for (var i = 0; i < 10; i++)
                     {
                         System.Threading.Thread.Sleep(1000);
 
-                        if (_processProvider.Exists(ProcessProvider.READARR_PROCESS_NAME))
+                        if (_processProvider.Exists(ProcessProvider.BIBLIOPHILARR_PROCESS_NAME))
                         {
-                            _logger.Info("Readarr was restarted by external process.");
+                            _logger.Info("Bibliophilarr was restarted by external process.");
+                            restarted = true;
                             break;
                         }
                     }
 
-                    if (!_processProvider.Exists(ProcessProvider.READARR_PROCESS_NAME))
+                    if (!restarted)
                     {
+                        _logger.Warn("Bibliophilarr did not restart within 10 seconds — attempting manual start");
                         _startNzbDrone.Start(appType, installationFolder);
+
+                        // Give the manual start a chance, then check
+                        System.Threading.Thread.Sleep(5000);
+                        if (!_processProvider.Exists(ProcessProvider.BIBLIOPHILARR_PROCESS_NAME))
+                        {
+                            _logger.Error("Bibliophilarr failed to start after update — initiating rollback");
+                            try
+                            {
+                                _backupAndRestore.Restore(installationFolder);
+                                _logger.Info("Rollback completed — attempting restart with previous version");
+                                _startNzbDrone.Start(appType, installationFolder);
+                            }
+                            catch (Exception rollbackEx)
+                            {
+                                _logger.Error(rollbackEx, "Post-update rollback failed — manual intervention required");
+                            }
+                        }
                     }
                 }
             }

@@ -142,9 +142,14 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 .Setup(c => c.GetFileInfo(It.IsAny<string>()))
                 .Returns((FileInfoBase)fileInfo);
 
+            var proxyUrl = "/MediaCoverProxy/test-hash/banner" + extension;
+            Mocker.GetMock<IMediaCoverProxy>()
+                .Setup(c => c.RegisterUrl("http://dummy.com/test" + extension))
+                .Returns(proxyUrl);
+
             Subject.ConvertToLocalUrls(12, MediaCoverEntity.Author, covers);
 
-            covers.Single().Url.Should().Be("/MediaCover/12/banner" + extension);
+            covers.Single().Url.Should().Be(proxyUrl);
         }
 
         [Test]

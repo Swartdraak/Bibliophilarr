@@ -135,7 +135,7 @@ class AddNewItem extends Component {
                 <Alert kind={kinds.WARNING}>{getErrorMessage(error)}</Alert>
 
                 <div>
-                  <Link to="https://wiki.servarr.com/readarr/troubleshooting#invalid-response-received-from-metadata-api">
+                  <Link to="https://github.com/Swartdraak/Bibliophilarr/wiki/troubleshooting#invalid-response-received-from-metadata-api">
                     {translate('WhySearchesCouldBeFailing')}
                   </Link>
                 </div>
@@ -157,11 +157,10 @@ class AddNewItem extends Component {
                       );
                     } else if (item.book) {
                       const book = item.book;
+
                       return (
                         <AddNewBookSearchResultConnector
                           key={item.id}
-                          isExistingBook={'id' in book && book.id !== 0}
-                          isExistingAuthor={'id' in book.author && book.author.id !== 0}
                           {...book}
                         />
                       );
@@ -180,8 +179,8 @@ class AddNewItem extends Component {
                 </div>
                 <div>
                   You can also search using the
-                  <Link to="https://goodreads.com"> Goodreads ID </Link>
-                  of a book (e.g. edition:656), work (e.g. work:4912783) or author (e.g. author:128382), the isbn (e.g. isbn:067003469X) or the asin (e.g. asin:B00JCDK5ME)
+                  <Link to="/settings/metadata"> external ID </Link>
+                  of a book (e.g. hardcover:work:the-shining), author (e.g. hardcover:author:Stephen%20King), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
                 </div>
               </div>
           }
@@ -195,8 +194,8 @@ class AddNewItem extends Component {
                 </div>
                 <div>
                   You can also search using the
-                  <Link to="https://goodreads.com"> Goodreads ID </Link>
-                  of a book (e.g. edition:656), work (e.g. work:4912783) or author (e.g. author:128382), the isbn (e.g. isbn:067003469X) or the asin (e.g. asin:B00JCDK5ME)
+                  <Link to="/settings/metadata"> external ID </Link>
+                  of a book (e.g. hardcover:work:the-shining), author (e.g. hardcover:author:Stephen%20King), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
                 </div>
               </div>
           }

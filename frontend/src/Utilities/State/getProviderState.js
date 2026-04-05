@@ -8,7 +8,7 @@ function getProviderState(payload, getState, section, keyValueOnly=true) {
   } = payload;
 
   const state = getSectionState(getState(), section, true);
-  const pendingChanges = Object.assign({}, state.pendingChanges, otherPayload);
+  const pendingChanges = { ...state.pendingChanges, ...otherPayload };
   const pendingFields = state.pendingChanges.fields || {};
   delete pendingChanges.fields;
 
@@ -39,7 +39,7 @@ function getProviderState(payload, getState, section, keyValueOnly=true) {
     }, []);
   }
 
-  const result = Object.assign({}, item, pendingChanges);
+  const result = { ...item, ...pendingChanges };
 
   delete result.presets;
 

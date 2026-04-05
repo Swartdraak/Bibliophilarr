@@ -1,10 +1,10 @@
 using System.Linq;
+using Bibliophilarr.Api.V1.Indexers;
+using Bibliophilarr.Http.ClientSchema;
 using FluentAssertions;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using NzbDrone.Core.ThingiProvider;
-using Readarr.Api.V1.Indexers;
-using Readarr.Http.ClientSchema;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.Json.Serialization;
 using NLog;
 using NzbDrone.Common.Instrumentation;

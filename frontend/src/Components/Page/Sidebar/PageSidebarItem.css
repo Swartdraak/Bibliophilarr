@@ -28,6 +28,11 @@
 
 .isActiveLink {
   color: var(--themeAlternateRed);
+
+  &:hover,
+  &:focus {
+    color: var(--white);
+  }
 }
 
 .isActiveParentLink {

@@ -35,7 +35,7 @@ class DeleteBookModalContentConnector extends Component {
 
     this.props.onModalClose(true);
 
-    this.props.push(`${window.Readarr.urlBase}/author/${this.props.authorSlug}`);
+    this.props.push(`${window.Bibliophilarr.urlBase}/author/${this.props.authorSlug}`);
   };
 
   //

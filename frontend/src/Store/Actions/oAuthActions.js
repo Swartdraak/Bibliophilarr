@@ -13,7 +13,7 @@ import createHandleActions from './Creators/createHandleActions';
 // Variables
 
 export const section = 'oAuth';
-const callbackUrl = `${window.location.origin}${window.Readarr.urlBase}/oauth.html`;
+const callbackUrl = `${window.location.origin}${window.Bibliophilarr.urlBase}/oauth.html`;
 
 //
 // State
@@ -194,7 +194,7 @@ export const actionHandlers = handleThunks({
 export const reducers = createHandleActions({
 
   [SET_OAUTH_VALUE]: function(state, { payload }) {
-    const newState = Object.assign(getSectionState(state, section), payload);
+    const newState = { ...getSectionState(state, section), ...payload };
 
     return updateSectionState(state, section, newState);
   },

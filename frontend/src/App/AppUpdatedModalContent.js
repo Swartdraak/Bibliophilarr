@@ -40,7 +40,7 @@ function mergeUpdates(items, version, prevVersion) {
     }
   });
 
-  const mergedUpdate = Object.assign({}, appliedUpdates[0], { changes: appliedChanges });
+  const mergedUpdate = { ...appliedUpdates[0], changes: appliedChanges };
 
   if (!appliedChanges.new.length && !appliedChanges.fixed.length) {
     mergedUpdate.changes = null;
@@ -65,12 +65,12 @@ function AppUpdatedModalContent(props) {
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
-        {translate('AppUpdated', { appName: 'Readarr' })}
+        {translate('AppUpdated', { appName: 'Bibliophilarr' })}
       </ModalHeader>
 
       <ModalBody>
         <div>
-          <InlineMarkdown data={translate('AppUpdatedVersion', { appName: 'Readarr', version })} blockClassName={styles.version} />
+          <InlineMarkdown data={translate('AppUpdatedVersion', { appName: 'Bibliophilarr', version })} blockClassName={styles.version} />
         </div>
 
         {

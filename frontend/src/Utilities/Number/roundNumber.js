@@ -1,3 +1,4 @@
+// @ts-check
 export default function roundNumber(input, decimalPlaces = 1) {
   const multiplier = Math.pow(10, decimalPlaces);
 

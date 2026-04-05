@@ -38,7 +38,7 @@ namespace NzbDrone.Core.Books
         public List<Links> Links { get; set; }
         public Ratings Ratings { get; set; }
 
-        // These are Readarr generated/config
+        // These are Bibliophilarr generated/config
         public bool Monitored { get; set; }
         public bool ManualAdd { get; set; }
 

@@ -10,7 +10,7 @@ namespace NzbDrone.Core.Test.ImportListTests
         {
             _importLists = new List<IImportList>();
 
-            _importLists.Add(Mocker.Resolve<GoodreadsOwnedBooks>());
+            _importLists.Add(Mocker.Resolve<OpenLibraryOwnedBooks>());
 
             Mocker.SetConstant<IEnumerable<IImportList>>(_importLists);
         }
@@ -23,7 +23,7 @@ namespace NzbDrone.Core.Test.ImportListTests
             Mocker.SetConstant<IImportListRepository>(repo);
 
             var existingImportLists = Builder<ImportListDefinition>.CreateNew().BuildNew();
-            existingImportLists.ConfigContract = typeof(ReadarrListsSettings).Name;
+            existingImportLists.ConfigContract = typeof(BibliophilarrListsSettings).Name;
 
             repo.Insert(existingImportLists);
 

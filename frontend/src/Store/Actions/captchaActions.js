@@ -107,7 +107,7 @@ export const actionHandlers = handleThunks({
 export const reducers = createHandleActions({
 
   [SET_CAPTCHA_VALUE]: function(state, { payload }) {
-    const newState = Object.assign(getSectionState(state, section), payload);
+    const newState = { ...getSectionState(state, section), ...payload };
 
     return updateSectionState(state, section, newState);
   },

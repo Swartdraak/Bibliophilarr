@@ -65,7 +65,7 @@ function Link(props: LinkProps) {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       el = RouterLink;
-      linkProps.to = `${window.Readarr.urlBase}/${to.replace(/^\//, '')}`;
+      linkProps.to = `${window.Bibliophilarr.urlBase}/${to.replace(/^\//, '')}`;
       linkProps.target = target;
     }
   }

@@ -27,6 +27,7 @@ namespace NzbDrone.Core.Books
         public int AuthorMetadataId { get; set; }
         public string ForeignBookId { get; set; }
         public string ForeignEditionId { get; set; }
+        public string OpenLibraryWorkId { get; set; }
         public string TitleSlug { get; set; }
         public string Title { get; set; }
         public DateTime? ReleaseDate { get; set; }
@@ -36,7 +37,7 @@ namespace NzbDrone.Core.Books
         public Ratings Ratings { get; set; }
         public DateTime? LastSearchTime { get; set; }
 
-        // These are Readarr generated/config
+        // These are Bibliophilarr generated/config
         public string CleanTitle { get; set; }
         public bool Monitored { get; set; }
         public bool AnyEditionOk { get; set; }
@@ -62,7 +63,8 @@ namespace NzbDrone.Core.Books
         [JsonIgnore]
         public int AuthorId
         {
-            get { return Author?.Value?.Id ?? 0; } set { Author.Value.Id = value; }
+            get { return Author?.Value?.Id ?? 0; }
+            set { Author.Value.Id = value; }
         }
 
         public override string ToString()
@@ -74,6 +76,7 @@ namespace NzbDrone.Core.Books
         {
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
+            OpenLibraryWorkId = other.OpenLibraryWorkId;
             TitleSlug = other.TitleSlug;
             Title = other.Title;
             ReleaseDate = other.ReleaseDate;
@@ -100,6 +103,7 @@ namespace NzbDrone.Core.Books
         {
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
+            OpenLibraryWorkId = other.OpenLibraryWorkId;
             AddOptions = other.AddOptions;
             Monitored = other.Monitored;
             AnyEditionOk = other.AnyEditionOk;

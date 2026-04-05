@@ -25,8 +25,16 @@ namespace NzbDrone.Core.Download
 
         public bool IgnoreDownload(TrackedDownload trackedDownload)
         {
-            var author = trackedDownload.RemoteBook.Author;
-            var books = trackedDownload.RemoteBook.Books;
+            var remoteBook = trackedDownload.RemoteBook;
+
+            if (remoteBook == null)
+            {
+                _logger.Warn("Unable to ignore download for unknown author/book");
+                return false;
+            }
+
+            var author = remoteBook.Author;
+            var books = remoteBook.Books;
 
             if (author == null || books.Empty())
             {
@@ -38,7 +46,7 @@ namespace NzbDrone.Core.Download
             {
                 AuthorId = author.Id,
                 BookIds = books.Select(e => e.Id).ToList(),
-                Quality = trackedDownload.RemoteBook.ParsedBookInfo.Quality,
+                Quality = remoteBook.ParsedBookInfo.Quality,
                 SourceTitle = trackedDownload.DownloadItem.Title,
                 DownloadClientInfo = trackedDownload.DownloadItem.DownloadClientInfo,
                 DownloadId = trackedDownload.DownloadItem.DownloadId,

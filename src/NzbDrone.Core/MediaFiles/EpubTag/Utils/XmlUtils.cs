@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml;
@@ -23,6 +23,16 @@ namespace VersOne.Epub.Internal
                 {
                     return await Task.Run(() => LoadXDocument(memoryStream)).ConfigureAwait(false);
                 }
+            }
+        }
+
+        public static XDocument LoadDocument(Stream stream)
+        {
+            using (var memoryStream = new MemoryStream())
+            {
+                stream.CopyTo(memoryStream);
+                memoryStream.Position = 0;
+                return LoadXDocument(memoryStream);
             }
         }
 

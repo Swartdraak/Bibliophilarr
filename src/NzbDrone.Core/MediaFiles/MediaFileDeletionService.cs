@@ -203,6 +203,11 @@ namespace NzbDrone.Core.MediaFiles
         [EventHandleOrder(EventHandleOrder.Last)]
         public void Handle(BookFileDeletedEvent message)
         {
+            if (message?.BookFile?.Author?.Value == null || message.BookFile.Path.IsNullOrWhiteSpace())
+            {
+                return;
+            }
+
             if (message.Reason == DeleteMediaFileReason.Upgrade)
             {
                 return;

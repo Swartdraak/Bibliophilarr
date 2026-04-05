@@ -14,27 +14,134 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: src
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Enforce explicit HTTP mutation binding
+        working-directory: .
+        run: bash scripts/ops/check_http_binding.sh
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: '8.0.x'
           global-json-file: global.json
 
       - name: Restore
-        run: dotnet restore Readarr.sln -p:Platform=Posix
+        run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
 
       - name: Build
-        run: dotnet build Readarr.sln --configuration Release --no-restore -p:Platform=Posix
+        run: dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Posix
 
       - name: Test
         run: >-
-          dotnet test NzbDrone.Common.Test/Readarr.Common.Test.csproj
+          dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+
+  rid-core-common-targeted:
+    name: RID Core/Common Targeted
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Build backend runtime for RID test resolution
+        run: |
+          cd ..
+          ./build.sh --backend -r linux-x64 -f net8.0
+
+      - name: Run RID-targeted common fixtures
+        run: >-
+          dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
+          --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
+          --filter
+          'FullyQualifiedName~HttpClientFixture|FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture'
+
+      - name: Run RID-targeted core fixtures
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
+          --filter
+          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibraryIsbnAsinLookupFixture'
+
+  metadata-provider-fixtures:
+    name: Metadata Provider Fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
+
+      - name: Run validated metadata core fixtures
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'
+
+      - name: Run metadata API fixtures
+        run: >-
+          dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
+          --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture'
+
+  metadata-diagnostics-integration:
+    name: Metadata Diagnostics Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Build backend runtime for integration harness
+        run: |
+          cd ..
+          ./build.sh --backend -r linux-x64 -f net8.0
+
+      - name: Run metadata diagnostics integration fixture
+        run: >-
+          dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
+          --configuration Debug --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture'

@@ -23,12 +23,12 @@ namespace NzbDrone.Core.Indexers
 
         public virtual IndexerPageableRequestChain GetSearchRequests(BookSearchCriteria searchCriteria)
         {
-            throw new System.NotImplementedException();
+            return new IndexerPageableRequestChain();
         }
 
         public virtual IndexerPageableRequestChain GetSearchRequests(AuthorSearchCriteria searchCriteria)
         {
-            throw new System.NotImplementedException();
+            return new IndexerPageableRequestChain();
         }
     }
 }

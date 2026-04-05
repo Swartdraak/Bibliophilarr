@@ -1,0 +1,65 @@
+using Bibliophilarr.Api.V1.Config;
+using FluentAssertions;
+using Moq;
+using NUnit.Framework;
+using NzbDrone.Core.Configuration;
+
+namespace NzbDrone.Api.Test.Config
+{
+    [TestFixture]
+    public class MetadataProviderConfigResourceMapperFixture
+    {
+        [Test]
+        public void to_resource_should_map_metadata_provider_settings_round_trip_surface()
+        {
+            var config = new Mock<IConfigService>();
+            config.SetupGet(x => x.EnableOpenLibraryProvider).Returns(true);
+            config.SetupGet(x => x.EnableGoogleBooksProvider).Returns(true);
+            config.SetupGet(x => x.EnableInventaireProvider).Returns(false);
+            config.SetupGet(x => x.MetadataProviderPriorityOrder).Returns("OpenLibrary,Inventaire");
+            config.SetupGet(x => x.MetadataProviderTimeoutSeconds).Returns(25);
+            config.SetupGet(x => x.MetadataProviderRetryBudget).Returns(3);
+            config.SetupGet(x => x.MetadataProviderCircuitBreakerThreshold).Returns(4);
+            config.SetupGet(x => x.MetadataProviderCircuitBreakerDurationSeconds).Returns(90);
+            config.SetupGet(x => x.OpenLibrarySearchTimeoutSeconds).Returns(20);
+            config.SetupGet(x => x.OpenLibraryIsbnTimeoutSeconds).Returns(12);
+            config.SetupGet(x => x.OpenLibraryWorkTimeoutSeconds).Returns(25);
+            config.SetupGet(x => x.OpenLibrarySearchRetryBudget).Returns(2);
+            config.SetupGet(x => x.OpenLibraryIsbnRetryBudget).Returns(1);
+            config.SetupGet(x => x.OpenLibraryWorkRetryBudget).Returns(3);
+            config.SetupGet(x => x.WriteAudioTags).Returns(WriteAudioTagsType.Sync);
+            config.SetupGet(x => x.ScrubAudioTags).Returns(true);
+            config.SetupGet(x => x.WriteBookTags).Returns(WriteBookTagsType.AllFiles);
+            config.SetupGet(x => x.UpdateCovers).Returns(true);
+            config.SetupGet(x => x.EmbedMetadata).Returns(false);
+            config.SetupGet(x => x.IdentificationWorkerCount).Returns(4);
+            config.SetupGet(x => x.ImportTagReadWorkerCount).Returns(2);
+            config.SetupGet(x => x.RemoteCandidateSearchWorkerCount).Returns(3);
+
+            var resource = MetadataProviderConfigResourceMapper.ToResource(config.Object);
+
+            resource.EnableOpenLibraryProvider.Should().BeTrue();
+            resource.EnableGoogleBooksProvider.Should().BeTrue();
+            resource.EnableInventaireProvider.Should().BeFalse();
+            resource.MetadataProviderPriorityOrder.Should().Be("OpenLibrary,Inventaire");
+            resource.MetadataProviderTimeoutSeconds.Should().Be(25);
+            resource.MetadataProviderRetryBudget.Should().Be(3);
+            resource.MetadataProviderCircuitBreakerThreshold.Should().Be(4);
+            resource.MetadataProviderCircuitBreakerDurationSeconds.Should().Be(90);
+            resource.OpenLibrarySearchTimeoutSeconds.Should().Be(20);
+            resource.OpenLibraryIsbnTimeoutSeconds.Should().Be(12);
+            resource.OpenLibraryWorkTimeoutSeconds.Should().Be(25);
+            resource.OpenLibrarySearchRetryBudget.Should().Be(2);
+            resource.OpenLibraryIsbnRetryBudget.Should().Be(1);
+            resource.OpenLibraryWorkRetryBudget.Should().Be(3);
+            resource.WriteAudioTags.Should().Be(WriteAudioTagsType.Sync);
+            resource.ScrubAudioTags.Should().BeTrue();
+            resource.WriteBookTags.Should().Be(WriteBookTagsType.AllFiles);
+            resource.UpdateCovers.Should().BeTrue();
+            resource.EmbedMetadata.Should().BeFalse();
+            resource.IdentificationWorkerCount.Should().Be(4);
+            resource.ImportTagReadWorkerCount.Should().Be(2);
+            resource.RemoteCandidateSearchWorkerCount.Should().Be(3);
+        }
+    }
+}

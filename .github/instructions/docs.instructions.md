@@ -33,3 +33,22 @@ When updating docs for a behavior change, include:
 - Encourage iterative cycles (plan → implement → verify → document).
 - Document test strategy and pipeline expectations for each significant initiative.
 - Keep runbooks and checklists current with actual repository workflows.
+
+## No New Tracking Files
+
+The canonical files listed in `copilot-instructions.md` are the **only** authoritative
+locations for project status, roadmap, migration plans, and contribution guidance.
+
+**When performing any documentation task:**
+
+- **Update the existing canonical file** — never create a parallel or supplemental file.
+- **Direct map:** status/workstream updates → `PROJECT_STATUS.md`; phase and priority
+  changes → `ROADMAP.md`; architecture and migration steps → `MIGRATION_PLAN.md`;
+  setup or command changes → `QUICKSTART.md`; release notes → `CHANGELOG.md`.
+- **No ad-hoc tracking files** such as `PLAN_<date>.md`, `STATUS_<sprint>.md`,
+  `NOTES.md`, or similar named variants. These are documentation drift.
+- If a genuinely new document is warranted (e.g. a subsystem runbook not covered by
+  any canonical file), confirm with the user and record it in `copilot-instructions.md`
+  before creating it.
+- When asked to consolidate, use the `documentation-maintainer` agent; do not create a
+  new summary file alongside the canonical ones.

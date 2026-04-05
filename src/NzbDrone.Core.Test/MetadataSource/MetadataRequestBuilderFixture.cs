@@ -18,16 +18,16 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Setup(s => s.MetadataSource)
                 .Returns("");
 
-            Mocker.GetMock<IReadarrCloudRequestBuilder>()
+            Mocker.GetMock<IBibliophilarrCloudRequestBuilder>()
                 .Setup(s => s.Metadata)
-                .Returns(new HttpRequestBuilder("https://api.bookinfo.club/v1/{route}").CreateFactory());
+                .Returns(new HttpRequestBuilder("https://openlibrary.org/{route}").CreateFactory());
         }
 
         private void WithCustomProvider()
         {
             Mocker.GetMock<IConfigService>()
                 .Setup(s => s.MetadataSource)
-                .Returns("http://api.readarr.com/api/testing/");
+                .Returns("http://api.bibliophilarr.com/api/testing/");
         }
 
         [TestCase]
@@ -45,7 +45,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         {
             var details = Subject.GetRequestBuilder().Create();
 
-            details.BaseUrl.ToString().Should().Contain("bookinfo.club/v1");
+            details.BaseUrl.ToString().Should().Contain("openlibrary.org");
         }
     }
 }

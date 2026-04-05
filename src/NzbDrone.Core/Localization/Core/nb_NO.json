@@ -209,5 +209,9 @@
     "UnableToAddANewRemotePathMappingPleaseTryAgain": "Kunne ikke legge til ny ekstern stimapping, vennligst prøv igjen.",
     "AddNewAuthorRootFolderHelpText": "Undermappa \"{folder}\" vil bli automatisk laget",
     "AddRootFolder": "Legg til rotmappe",
-    "History": "Historikk"
+    "History": "Historikk",
+    "EnableInventaireFallback": "Enable Inventaire Fallback",
+    "EnableInventaireFallbackHelpText": "Use Inventaire as a tertiary metadata fallback provider before Google Books and Hardcover.",
+    "EnableMetadataConflictStrategyVariants": "Enable Experimental Conflict Strategy Variants",
+    "EnableMetadataConflictStrategyVariantsHelpText": "Enable alternate tie-break behavior for metadata conflict resolution (staging rollout only)."
 }

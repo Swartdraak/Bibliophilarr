@@ -164,7 +164,7 @@ namespace NzbDrone.Core.Notifications.Webhook
                     Id = 1,
                     Name = "Test Name",
                     Path = "C:\\testpath",
-                    GoodreadsId = "aaaaa-aaa-aaaa-aaaaaa"
+                    OpenLibraryId = "aaaaa-aaa-aaaa-aaaaaa"
                 },
                 Books = new List<WebhookBook>()
                     {

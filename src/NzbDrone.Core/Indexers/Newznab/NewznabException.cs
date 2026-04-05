@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.Indexers.Exceptions;
+using NzbDrone.Core.Indexers.Exceptions;
 
 namespace NzbDrone.Core.Indexers.Newznab
 {

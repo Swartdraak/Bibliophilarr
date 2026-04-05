@@ -142,6 +142,7 @@ class AuthorImage extends Component {
           className={className}
           style={style}
           src={placeholder}
+          alt=""
         />
       );
     }
@@ -157,6 +158,7 @@ class AuthorImage extends Component {
               className={className}
               style={style}
               src={placeholder}
+              alt=""
             />
           }
         >
@@ -164,6 +166,7 @@ class AuthorImage extends Component {
             className={className}
             style={style}
             src={url}
+            alt=""
             onError={this.onError}
             onLoad={this.onLoad}
             rel="noreferrer"
@@ -179,6 +182,7 @@ class AuthorImage extends Component {
             <img
               style={blurStyle}
               src={isLoaded ? url : placeholder}
+              alt=""
               onError={this.onError}
               onLoad={this.onLoad}
             /> :
@@ -189,6 +193,7 @@ class AuthorImage extends Component {
           className={className}
           style={style}
           src={isLoaded ? url : placeholder}
+          alt=""
           onError={this.onError}
           onLoad={this.onLoad}
         />

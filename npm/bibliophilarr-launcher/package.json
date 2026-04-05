@@ -1,0 +1,36 @@
+{
+  "name": "bibliophilarr",
+  "version": "0.1.0",
+  "description": "Bibliophilarr launcher that downloads and runs platform binaries from GitHub Releases",
+  "license": "GPL-3.0",
+  "type": "module",
+  "bin": {
+    "bibliophilarr": "bin/bibliophilarr.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Swartdraak/Bibliophilarr.git"
+  },
+  "homepage": "https://github.com/Swartdraak/Bibliophilarr",
+  "bugs": {
+    "url": "https://github.com/Swartdraak/Bibliophilarr/issues"
+  },
+  "scripts": {
+    "test": "node --check bin/bibliophilarr.js",
+    "prepublishOnly": "npm test"
+  },
+  "keywords": [
+    "bibliophilarr",
+    "books",
+    "audiobooks",
+    "library",
+    "launcher"
+  ]
+}

@@ -12,7 +12,7 @@ namespace NzbDrone.Core.Download.Clients.Blackhole
     {
         public TorrentBlackholeSettingsValidator()
         {
-            //Todo: Validate that the path actually exists
+            // NOTE: Path existence is not validated here; IsValidPath covers format only.
             RuleFor(c => c.TorrentFolder).IsValidPath();
             RuleFor(c => c.MagnetFileExtension).NotEmpty();
         }
@@ -28,10 +28,10 @@ namespace NzbDrone.Core.Download.Clients.Blackhole
 
         private static readonly TorrentBlackholeSettingsValidator Validator = new TorrentBlackholeSettingsValidator();
 
-        [FieldDefinition(0, Label = "Torrent Folder", Type = FieldType.Path, HelpText = "Folder in which Readarr will store the .torrent file")]
+        [FieldDefinition(0, Label = "Torrent Folder", Type = FieldType.Path, HelpText = "Folder in which Bibliophilarr will store the .torrent file")]
         public string TorrentFolder { get; set; }
 
-        [FieldDefinition(1, Label = "Watch Folder", Type = FieldType.Path, HelpText = "Folder from which Readarr should import completed downloads")]
+        [FieldDefinition(1, Label = "Watch Folder", Type = FieldType.Path, HelpText = "Folder from which Bibliophilarr should import completed downloads")]
         public string WatchFolder { get; set; }
 
         [DefaultValue(false)]
@@ -44,7 +44,7 @@ namespace NzbDrone.Core.Download.Clients.Blackhole
 
         [DefaultValue(false)]
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
-        [FieldDefinition(4, Label = "Read Only", Type = FieldType.Checkbox, HelpText = "Instead of moving files this will instruct Readarr to Copy or Hardlink (depending on settings/system configuration)")]
+        [FieldDefinition(4, Label = "Read Only", Type = FieldType.Checkbox, HelpText = "Instead of moving files this will instruct Bibliophilarr to Copy or Hardlink (depending on settings/system configuration)")]
         public bool ReadOnly { get; set; }
 
         public NzbDroneValidationResult Validate()

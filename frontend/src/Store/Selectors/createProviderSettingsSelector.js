@@ -9,7 +9,7 @@ function createProviderSettingsSelector(sectionName) {
     (id, section) => {
       if (!id) {
         const item = _.isArray(section.schema) ? section.selectedSchema : section.schema;
-        const settings = selectSettings(Object.assign({ name: '' }, item), section.pendingChanges, section.saveError);
+        const settings = selectSettings({ name: '', ...item }, section.pendingChanges, section.saveError);
 
         const {
           isSchemaFetching: isFetching,

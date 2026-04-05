@@ -1,226 +1,182 @@
-# How to Contribute to Bibliophilarr
+# Contributing to Bibliophilarr
 
-We're actively seeking contributors to help revive and improve Bibliophilarr! This is a community-driven fork focused on migrating away from proprietary metadata providers to sustainable FOSS alternatives.
+Bibliophilarr contributions should prioritize migration safety, deterministic
+behavior, and operational visibility. The project is actively migrating away
+from proprietary metadata dependencies, so small, testable, reversible changes
+are preferred over broad rewrites.
 
-## 🎯 Priority Areas for Contribution
+## Read before contributing
 
-### 1. Metadata Provider Development
+Start with:
 
-**Most Critical Need**
+1. [README.md](README.md)
+2. [QUICKSTART.md](QUICKSTART.md)
+3. [ROADMAP.md](ROADMAP.md)
+4. [MIGRATION_PLAN.md](MIGRATION_PLAN.md)
+5. [PROJECT_STATUS.md](PROJECT_STATUS.md)
 
-Help implement FOSS metadata providers to replace Goodreads:
+## Priority contribution areas
 
-- **Open Library Integration**: Primary provider implementation
-- **Inventaire Integration**: Secondary provider for additional coverage
-- **Provider Testing**: Comprehensive testing with real-world data
-- **API Mapping**: Transform external APIs to Bibliophilarr data models
+- metadata-provider integration, mapping, fallback, and diagnostics
+- identifier migration and provenance preservation
+- targeted backend and integration tests for provider behavior
+- documentation that closes drift between repo reality and operator guidance
+- release-readiness, security-drift, and branch-policy automation
 
-**Skills Needed**: C#, REST APIs, async/await, JSON parsing
+## Standard workflow
 
-### 2. Migration Tools
+1. Create a focused branch.
+2. Keep the change within one behavior or one operational risk boundary.
+3. Run targeted validation before expanding scope.
+4. Update docs in the same change set when behavior changes.
+5. Open a pull request with clear scope, test evidence, and rollback notes.
 
-Help users transition from Goodreads to new providers:
+## Validation expectations
 
-- **ID Mapping**: Goodreads ID → ISBN → Open Library ID
-- **Bulk Migration**: Tools to update existing libraries
-- **Data Validation**: Verify metadata quality after migration
-- **User Guides**: Document the migration process
+Run only the checks needed for your slice first, then broaden if the change
+touches startup, metadata, packaging, or CI.
 
-**Skills Needed**: C#, SQL, data transformation
+Typical commands:
 
-### 3. Testing & Quality Assurance
+```bash
+bash scripts/ops/check_http_binding.sh
+dotnet test src/Bibliophilarr.sln
+yarn lint
+yarn build
+python3 scripts/audit_branch_protection.py --branches develop staging main --expected-review-count 0
+python3 scripts/release_readiness_report.py --branches develop staging main
+```
 
-- **Unit Tests**: Test provider implementations
-- **Integration Tests**: Test with real APIs (mocked when possible)
-- **Performance Testing**: Benchmark metadata retrieval
-- **User Testing**: Test with real libraries and report issues
+API mutation guidance:
 
-**Skills Needed**: xUnit/NUnit, HTTP mocking, test automation
+- For complex `POST`/`PUT` payloads, always use explicit source binding (`[FromBody]`, `[FromForm]`, `[FromQuery]`, or `[FromRoute]`).
+- Avoid relying on implicit model binding for resource payloads in `src/Bibliophilarr.Api.V1` and `src/Bibliophilarr.Http`.
 
-### 4. Documentation
+Metadata-related changes should add or update deterministic tests for mapping,
+fallback order, unresolved identifiers, or transient provider failures.
 
-- **User Guides**: Help users configure and use new providers
-- **API Documentation**: Document provider interfaces and implementations
-- **Migration Guides**: Step-by-step migration instructions
-- **Troubleshooting**: Common issues and solutions
+Code documentation and comment debt policy:
 
-**Skills Needed**: Technical writing, markdown
+- New or modified public API members in C# should include meaningful XML summary comments.
+- Do not introduce new `TODO`, `FIXME`, or `XXX` markers in source files.
+- If follow-up work is required, record it in an issue/PR note and use `NOTE:` in code comments only when the context is immediately actionable.
 
-### 5. User Interface
+## Documentation policy
 
-- **Provider Settings**: UI for selecting and configuring metadata providers
-- **Metadata Display**: Show which provider supplied metadata
-- **Migration Progress**: UI to track library migration
-- **Provider Health**: Display provider status and performance
+- Update the canonical docs instead of creating new long-lived planning files.
+- Use dated files under `docs/operations` only for evidence, audits, incidents,
+  or one-off checkpoints.
+- When a plan changes, update the authoritative document in the same pull
+  request.
 
-**Skills Needed**: React, TypeScript, CSS
+## Scoped commit process
 
-## 📋 Current Roadmap
+Scoped commits are required for migration and hardening work.
 
-See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the complete technical roadmap.
+For each slice:
 
-**Current Phase**: Foundation & Documentation  
-**Next Phase**: Infrastructure setup for multi-provider architecture
+1. Define the intended behavior change.
+2. Stage only the files for that slice.
+3. Run the smallest validation that proves the slice.
+4. Commit with a descriptive message.
 
-## 🚀 Getting Started
+Minimum pre-commit checklist:
 
-### Development Setup
+- `git status --short` shows only intended files.
+- Tests, lint, or build commands relevant to the change have passed.
+- Docs and runbooks affected by the change are included.
+- `src/NuGet.config` still matches any Servarr-hosted package references added or updated in the slice.
 
-1. **Fork the Repository**
+Reference: [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md)
 
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/Bibliophilarr.git
-   cd Bibliophilarr
-   ```
+## Release versioning
 
-2. **Build the Project**
+Bibliophilarr follows [Semantic Versioning 2.0.0](https://semver.org/).
 
-   ```bash
-   # Backend (C#)
-   cd src
-   dotnet restore
-   dotnet build
-   
-   # Frontend (React/TypeScript)
-   cd frontend
-   yarn install
-   yarn build
-   ```
+Version format: `MAJOR.MINOR.PATCH` (e.g. `1.2.3`).
 
-3. **Run Tests**
+### When to bump each component
 
-   ```bash
-   # Backend tests
-   cd src
-   dotnet test
-   
-   # Frontend tests
-   cd frontend
-   yarn test
-   ```
+| Bump | Trigger | Examples |
+|---|---|---|
+| **MAJOR** | Breaking changes to REST API contracts, database schema changes that require migration, removal of supported provider interfaces | API resource field removed, edition schema restructured |
+| **MINOR** | New features, new provider integrations, new API endpoints, non-breaking behavioral changes | New metadata provider added, new search endpoint, new filter option |
+| **PATCH** | Bug fixes, performance improvements, documentation corrections, dependency updates with no API impact | Slug fix, query optimization, typo correction |
 
-4. **Start Development Server**
+### Pre-release versions
 
-   ```bash
-   ./build.sh --configuration Debug
-   ```
+Use `-alpha.N`, `-beta.N`, or `-rc.N` suffixes for pre-release tags
+(e.g. `v1.0.0-beta.1`).
 
-### Making Changes
+### Version sources
 
-1. **Create a Feature Branch**
+- **Git tags** are the source of truth: `v{MAJOR}.{MINOR}.{PATCH}`.
+- **Build-time injection**: CI sets `BIBLIOPHILARRVERSION` env var, which
+  `build.sh` writes into `src/Directory.Build.props` `<AssemblyVersion>`.
+- **CHANGELOG.md** must have a matching `## [X.Y.Z]` entry before tagging.
+- **package.json** root version is updated by the release workflow.
 
-   ```bash
-   git checkout -b feature/my-new-feature
-   ```
+### Contributor responsibilities
 
-2. **Make Your Changes**
-   - Follow existing code style and conventions
-   - Write tests for new functionality
-   - Update documentation as needed
+- Do not manually edit version numbers in source files.
+- Add a changelog entry under `## [Unreleased]` for every user-facing change.
+- Maintainers handle version tagging and release coordination.
 
-3. **Test Your Changes**
+### Agent and automation responsibilities
 
-   ```bash
-   # Run relevant tests
-   dotnet test
-   yarn test
-   
-   # Run linters
-   yarn lint
-   ```
+- All agents and automation must respect the version in `CHANGELOG.md`.
+- Agents must add changelog entries for behavioral changes, bug fixes,
+  and new features under `## [Unreleased]` in the same change set.
+- Version bumping is a maintainer-only action via git tags.
 
-4. **Commit and Push**
+## Pull request requirements
 
-   ```bash
-   git add .
-   git commit -m "feat: descriptive commit message"
-   git push origin feature/my-new-feature
-   ```
+Every pull request should state:
 
-5. **Open a Pull Request**
-   - Provide clear description of changes
-   - Reference any related issues
-   - Ensure CI passes
+1. What changed
+2. Why it changed now
+3. How it was validated
+4. Operational risk and rollback plan
+5. Any follow-up work intentionally deferred
 
-## 💡 Contribution Guidelines
+Use the repository PR template and keep the checklist accurate.
 
-### Code Style
+## Issue labels and project tracking
 
-- **C#**: Follow existing conventions, use async/await
-- **TypeScript/React**: ESLint configuration in `frontend/.eslintrc.js`
-- **Commits**: Use conventional commit messages (feat:, fix:, docs:, etc.)
+Use consistent labels so migration and hardening work can be triaged quickly.
 
-### Testing Requirements
+Recommended labels:
 
-- **Unit Tests**: Required for new provider implementations
-- **Integration Tests**: Required for API interactions
-- **Coverage**: Aim for >80% coverage on new code
+- type: `type: bug`, `type: feature`, `type: docs`, `type: refactor`, `type: test`, `type: chore`
+- area: `area: metadata`, `area: open-library`, `area: inventaire`, `area: migration`, `area: api`, `area: frontend`, `area: backend`, `area: database`, `area: ci-cd`, `area: docs`
+- priority: `priority: p0`, `priority: p1`, `priority: p2`, `priority: p3`
+- workflow: `status: needs-triage`, `status: ready`, `status: blocked`, `status: in-progress`, `status: needs-review`, `status: waiting-feedback`
 
-### Documentation
+Recommended project fields for program tracking:
 
-- Update relevant docs when changing functionality
-- Add XML comments to public APIs
-- Keep MIGRATION_PLAN.md updated with progress
+- `Status`, `Phase`, `Provider`, `Priority`, `Risk`, `Target Release`, `Owner`
 
-### Pull Request Process
+Recommended automation behaviors:
 
-1. Ensure all tests pass
-2. Update documentation
-3. Request review from maintainers
-4. Address feedback
-5. Squash commits if requested
+- auto-add issues and PRs to project views by `area:*` labels
+- set status to in progress when linked PR is opened
+- set status to in review when review is requested
+- set status to done after merge/close
 
-## 🐛 Reporting Issues
+## Reporting bugs and requesting features
 
-### Bug Reports
+- Use [Bug Report](.github/ISSUE_TEMPLATE/bug_report.yml) for defects.
+- Use [Feature Request](.github/ISSUE_TEMPLATE/feature_request.yml) for new work.
 
-Use the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.yml)
-
-Include:
-
-- Clear description of the issue
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment details (OS, version, etc.)
-- Logs if available
-
-### Feature Requests
-
-Use the [Feature Request template](.github/ISSUE_TEMPLATE/feature_request.yml)
-
-Include:
-
-- Clear use case
-- Proposed solution
-- Alternative approaches considered
-- Willingness to implement
-
-## 🤝 Community
-
-- **GitHub Discussions**: For questions and general discussion
-- **Discord**: Real-time chat and support (coming soon)
-- **Pull Requests**: Code contributions and reviews
-
-## 📚 Additional Resources
-
-### Original Readarr Resources
-
-- [Servarr Wiki](https://wiki.servarr.com/readarr) (may contain outdated info)
-- [Original Contributing Guide](https://wiki.servarr.com/readarr/contributing)
-
-### Bibliophilarr-Specific Resources
-
-- [MIGRATION_PLAN.md](MIGRATION_PLAN.md) - Technical roadmap
-- [README.md](README.md) - Project overview
-- [Open Library API Docs](https://openlibrary.org/developers/api)
-- [Inventaire API Docs](https://api.inventaire.io/)
-
-## 🙏 Thank You
-
-Every contribution helps revive this project and build a sustainable future for book management software. Whether you're fixing a typo, implementing a provider, or helping users migrate, your work is appreciated!
-
----
+Include reproduction steps, expected behavior, actual behavior, and environment
+details where relevant.
 
 **Questions?** Open a discussion or reach out to the maintainers.
 
 **Want to help but not sure where to start?** Look for issues tagged with `good-first-issue` or `help-wanted`.
+
+## Community standards
+
+By contributing you agree to the [Contributor License Agreement](CLA.md) and
+the [Code of Conduct](CODE_OF_CONDUCT.md). Please review both before opening
+your first pull request.

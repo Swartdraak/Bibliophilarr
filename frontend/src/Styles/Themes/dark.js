@@ -1,4 +1,4 @@
-const readarrRed = '#ca302d';
+const bibliophilarrNavy = '#193555';
 const darkGray = '#888';
 const gray = '#adadad';
 const black = '#000';
@@ -7,6 +7,7 @@ const offWhite = '#f5f7fa';
 const purple = '#7a43b6';
 const pink = '#ff69b4';
 const lightGray = '#ddd';
+const teal = '#54939C';
 
 module.exports = {
   textColor: '#ccc',
@@ -22,10 +23,10 @@ module.exports = {
   successColor: '#27c24c',
   dangerColor: '#f05050',
   warningColor: '#ffa500',
-  infoColor: readarrRed,
+  infoColor: teal,
   purple,
   pink,
-  readarrRed,
+  bibliophilarrRed: bibliophilarrNavy,
   helpTextColor: '#909293',
   darkGray,
   gray,
@@ -33,11 +34,11 @@ module.exports = {
 
   // Theme Colors
 
-  themeRed: readarrRed,
-  themeAlternateRed: '#a41726',
-  themeDarkRed: '#66001a',
-  themeDarkColor: '#494949',
-  themeLightColor: '#595959',
+  themeRed: bibliophilarrNavy,
+  themeAlternateRed: teal,
+  themeDarkRed: '#0e1b2a',
+  themeDarkColor: '#1a2e44',
+  themeLightColor: '#54939C',
   pageBackground: '#202020',
   pageFooterBackgroud: 'rgba(0, 0, 0, .25)',
 
@@ -53,22 +54,22 @@ module.exports = {
   // Links
   defaultLinkHoverColor: '#fff',
   linkColor: '#fff',
-  linkHoverColor: '#ca302d',
+  linkHoverColor: teal,
 
   // Header
-  pageHeaderBackgroundColor: '#2a2a2a',
+  pageHeaderBackgroundColor: '#0e1b2a',
 
   // Sidebar
 
   sidebarColor: '#e1e2e3',
-  sidebarBackgroundColor: '#2a2a2a',
-  sidebarActiveBackgroundColor: '#333333',
+  sidebarBackgroundColor: '#0e1b2a',
+  sidebarActiveBackgroundColor: '#193555',
 
   // Toolbar
   toolbarColor: '#e1e2e3',
-  toolbarBackgroundColor: '#262626',
-  toolbarMenuItemBackgroundColor: '#333',
-  toolbarMenuItemHoverBackgroundColor: '#414141',
+  toolbarBackgroundColor: '#0e1b2a',
+  toolbarMenuItemBackgroundColor: '#122336',
+  toolbarMenuItemHoverBackgroundColor: '#1a2e44',
   toolbarLabelColor: '#e1e2e3',
 
   // Accents
@@ -131,14 +132,14 @@ module.exports = {
   //
   // Menu
   menuItemColor: '#e1e2e3',
-  menuItemHoverColor: readarrRed,
+  menuItemHoverColor: teal,
   menuItemHoverBackgroundColor: '#606060',
 
   //
   // Toolbar
 
-  toobarButtonHoverColor: readarrRed,
-  toobarButtonSelectedColor: readarrRed,
+  toobarButtonHoverColor: teal,
+  toobarButtonSelectedColor: teal,
 
   //
   // Scroller

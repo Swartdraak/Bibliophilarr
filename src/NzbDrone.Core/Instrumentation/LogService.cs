@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Instrumentation.Commands;
 using NzbDrone.Core.Messaging.Commands;
 

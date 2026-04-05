@@ -1,0 +1,489 @@
+{
+  "summary": {
+    "timestamp_utc": "2026-03-22T00:12:11.375137+00:00",
+    "root": "_artifacts/replay-comparison-2026-03-22-001134/post-root",
+    "discovered_targets": 4,
+    "targets": 4,
+    "accepted": 1,
+    "unresolved": 3,
+    "sample_size_requested": 64,
+    "sample_seed": 20260316,
+    "providers": [
+      "openlibrary",
+      "inventaire",
+      "googlebooks"
+    ],
+    "ffprobe_available": true,
+    "mutagen_available": true
+  },
+  "accepted": [
+    {
+      "candidate": {
+        "folder": "_artifacts/replay-comparison-2026-03-22-001134/post-root/audiobooks/Octavia Butler - Kindred",
+        "root": "_artifacts/replay-comparison-2026-03-22-001134/post-root",
+        "author_guess": "audiobooks",
+        "title_guess": "kindred",
+        "media_files": [
+          "kindred.mp3"
+        ],
+        "isbn_guess": null,
+        "asin_guess": null,
+        "tag_title_guess": null,
+        "tag_author_guess": null,
+        "local_identity_source": "filename"
+      },
+      "accepted_strategy": "inventaire:title_only",
+      "confidence": 0.9543,
+      "match": {
+        "provider": "inventaire",
+        "title": "Kindred",
+        "author": "A Graphic Novel Adaptation",
+        "key": "inv:7dbd456f70a9d9f8d0b3852aec75dc96",
+        "selected_cover_provider": "inventaire",
+        "selected_cover_url": "/img/entities/08b54f6a7e516cfd56fbb885ccb913022de2a4e0"
+      },
+      "attempts": [
+        {
+          "provider": "openlibrary",
+          "strategy": "primary",
+          "query": "kindred audiobooks",
+          "num_found": 7,
+          "accepted": false,
+          "confidence": 0.6089,
+          "match_title": "Kindred Souls",
+          "match_author": "Edna P. Gurewitsch",
+          "match_key": "/works/OL6214391W",
+          "note": "provider=openlibrary, title=0.70, author=0.30, contains=1.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "openlibrary",
+          "strategy": "title_only",
+          "query": "kindred",
+          "num_found": 3951,
+          "accepted": false,
+          "confidence": 0.8462,
+          "match_title": "Kindred",
+          "match_author": "Octavia E. Butler",
+          "match_key": "/works/OL35616W",
+          "note": "provider=openlibrary, title=1.00, author=0.15, contains=1.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "openlibrary",
+          "strategy": "author_only",
+          "query": "audiobooks",
+          "num_found": 13560,
+          "accepted": false,
+          "confidence": 0.2662,
+          "match_title": "Rebecca",
+          "match_author": "Daphne du Maurier",
+          "match_key": "/works/OL36633W",
+          "note": "provider=openlibrary, title=0.29, author=0.32, contains=0.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "primary",
+          "query": "kindred audiobooks",
+          "num_found": 369,
+          "accepted": false,
+          "confidence": 0.8543,
+          "match_title": "Kindred",
+          "match_author": "A Graphic Novel Adaptation",
+          "match_key": "inv:7dbd456f70a9d9f8d0b3852aec75dc96",
+          "note": "provider=inventaire, title=1.00, author=0.35, contains=1.00, isbn_bonus=0.00, provider_bonus=0.05"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "title_only",
+          "query": "kindred",
+          "num_found": 362,
+          "accepted": true,
+          "confidence": 0.9543,
+          "match_title": "Kindred",
+          "match_author": "A Graphic Novel Adaptation",
+          "match_key": "inv:7dbd456f70a9d9f8d0b3852aec75dc96",
+          "note": "provider=inventaire, title=1.00, author=0.35, contains=1.00, isbn_bonus=0.00, provider_bonus=0.05"
+        }
+      ]
+    }
+  ],
+  "unresolved": [
+    {
+      "candidate": {
+        "folder": "_artifacts/replay-comparison-2026-03-22-001134/post-root/audiobooks/Ursula K Le Guin - A Wizard of Earthsea",
+        "root": "_artifacts/replay-comparison-2026-03-22-001134/post-root",
+        "author_guess": "audiobooks",
+        "title_guess": "earthsea",
+        "media_files": [
+          "earthsea.m4b"
+        ],
+        "isbn_guess": null,
+        "asin_guess": null,
+        "tag_title_guess": null,
+        "tag_author_guess": null,
+        "local_identity_source": "filename"
+      },
+      "attempts": [
+        {
+          "provider": "openlibrary",
+          "strategy": "primary",
+          "query": "earthsea audiobooks",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": null
+        },
+        {
+          "provider": "openlibrary",
+          "strategy": "title_only",
+          "query": "earthsea",
+          "num_found": 54,
+          "accepted": false,
+          "confidence": 0.6261,
+          "match_title": "Tales from Earthsea",
+          "match_author": "Ursula K. Le Guin",
+          "match_key": "/works/OL59812W",
+          "note": "provider=openlibrary, title=0.59, author=0.24, contains=1.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "openlibrary",
+          "strategy": "author_only",
+          "query": "audiobooks",
+          "num_found": 13560,
+          "accepted": false,
+          "confidence": 0.3375,
+          "match_title": "La Peste",
+          "match_author": "Albert Camus",
+          "match_key": "/works/OL1230715W",
+          "note": "provider=openlibrary, title=0.38, author=0.38, contains=0.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "primary",
+          "query": "earthsea audiobooks",
+          "num_found": 16,
+          "accepted": false,
+          "confidence": 0.4556,
+          "match_title": "Tales from Earthsea",
+          "match_author": null,
+          "match_key": "wd:Q2499675",
+          "note": "provider=inventaire, title=0.59, author=0.00, contains=1.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "title_only",
+          "query": "earthsea",
+          "num_found": 9,
+          "accepted": false,
+          "confidence": 0.5556,
+          "match_title": "Tales from Earthsea",
+          "match_author": null,
+          "match_key": "wd:Q2499675",
+          "note": "provider=inventaire, title=0.59, author=0.00, contains=1.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "author_only",
+          "query": "audiobooks",
+          "num_found": 7,
+          "accepted": false,
+          "confidence": 0.2143,
+          "match_title": "News That Stays News (Faber Penguin audiobooks)",
+          "match_author": null,
+          "match_key": "inv:63295e5d2b66b4689f73d19cda754859",
+          "note": "provider=inventaire, title=0.36, author=0.00, contains=0.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "primary",
+          "query": "earthsea audiobooks",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "title_only",
+          "query": "earthsea",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "author_only",
+          "query": "audiobooks",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "folder": "_artifacts/replay-comparison-2026-03-22-001134/post-root/ebooks/Frank Herbert - Dune",
+        "root": "_artifacts/replay-comparison-2026-03-22-001134/post-root",
+        "author_guess": "ebooks",
+        "title_guess": "dune",
+        "media_files": [
+          "dune.epub"
+        ],
+        "isbn_guess": null,
+        "asin_guess": null,
+        "tag_title_guess": null,
+        "tag_author_guess": null,
+        "local_identity_source": "filename"
+      },
+      "attempts": [
+        {
+          "provider": "openlibrary",
+          "strategy": "primary",
+          "query": "dune ebooks",
+          "num_found": 41,
+          "accepted": false,
+          "confidence": 0.4036,
+          "match_title": "Sandworms of Dune",
+          "match_author": "Kevin J. Anderson",
+          "match_key": "/works/OL14961045W",
+          "note": "provider=openlibrary, title=0.38, author=0.25, contains=1.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "openlibrary",
+          "strategy": "title_only",
+          "query": "dune",
+          "num_found": 49169,
+          "accepted": false,
+          "confidence": 0.8857,
+          "match_title": "Dune",
+          "match_author": "Frank Herbert",
+          "match_key": "/works/OL893415W",
+          "note": "provider=openlibrary, title=1.00, author=0.29, contains=1.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "openlibrary",
+          "strategy": "author_only",
+          "query": "ebooks",
+          "num_found": 23848,
+          "accepted": false,
+          "confidence": 0.2457,
+          "match_title": "Bleak House",
+          "match_author": "Charles Dickens",
+          "match_key": "/works/OL14868510W",
+          "note": "provider=openlibrary, title=0.27, author=0.29, contains=0.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "primary",
+          "query": "dune ebooks",
+          "num_found": 3514,
+          "accepted": false,
+          "confidence": 0.8447,
+          "match_title": "Dune",
+          "match_author": "House Corrino",
+          "match_key": "wd:Q437304",
+          "note": "provider=inventaire, title=1.00, author=0.32, contains=1.00, isbn_bonus=0.00, provider_bonus=0.05"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "title_only",
+          "query": "dune",
+          "num_found": 3506,
+          "accepted": false,
+          "confidence": 0.9357,
+          "match_title": "Dune",
+          "match_author": "Frank Herbert",
+          "match_key": "wd:Q190192",
+          "note": "provider=inventaire, title=1.00, author=0.29, contains=1.00, isbn_bonus=0.00, provider_bonus=0.05"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "author_only",
+          "query": "ebooks",
+          "num_found": 12,
+          "accepted": false,
+          "confidence": 0.24,
+          "match_title": "Demons",
+          "match_author": null,
+          "match_key": "inv:8f3ad6deeb1a48bac00f17e7f50dbf35",
+          "note": "provider=inventaire, title=0.40, author=0.00, contains=0.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "primary",
+          "query": "dune ebooks",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "title_only",
+          "query": "dune",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "author_only",
+          "query": "ebooks",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "folder": "_artifacts/replay-comparison-2026-03-22-001134/post-root/ebooks/Isaac Asimov - Foundation",
+        "root": "_artifacts/replay-comparison-2026-03-22-001134/post-root",
+        "author_guess": "ebooks",
+        "title_guess": "foundation",
+        "media_files": [
+          "foundation.azw3"
+        ],
+        "isbn_guess": null,
+        "asin_guess": null,
+        "tag_title_guess": null,
+        "tag_author_guess": null,
+        "local_identity_source": "filename"
+      },
+      "attempts": [
+        {
+          "provider": "openlibrary",
+          "strategy": "primary",
+          "query": "foundation ebooks",
+          "num_found": 154,
+          "accepted": false,
+          "confidence": 0.2561,
+          "match_title": "Orthodoxy",
+          "match_author": "Gilbert Keith Chesterton",
+          "match_key": "/works/OL76350W",
+          "note": "provider=openlibrary, title=0.32, author=0.22, contains=0.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "openlibrary",
+          "strategy": "title_only",
+          "query": "foundation",
+          "num_found": 169892,
+          "accepted": false,
+          "confidence": 0.8462,
+          "match_title": "Foundation",
+          "match_author": "Isaac Asimov",
+          "match_key": "/works/OL46125W",
+          "note": "provider=openlibrary, title=1.00, author=0.15, contains=1.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "openlibrary",
+          "strategy": "author_only",
+          "query": "ebooks",
+          "num_found": 23848,
+          "accepted": false,
+          "confidence": 0.2443,
+          "match_title": "The Jewel of Seven Stars",
+          "match_author": "Bram Stoker",
+          "match_key": "/works/OL85891W",
+          "note": "provider=openlibrary, title=0.18, author=0.46, contains=0.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "primary",
+          "query": "foundation ebooks",
+          "num_found": 2063,
+          "accepted": false,
+          "confidence": 0.7962,
+          "match_title": "Foundation",
+          "match_author": "Isaac Asimov",
+          "match_key": "wd:Q753894",
+          "note": "provider=inventaire, title=1.00, author=0.15, contains=1.00, isbn_bonus=0.00, provider_bonus=0.05"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "title_only",
+          "query": "foundation",
+          "num_found": 2052,
+          "accepted": false,
+          "confidence": 0.8962,
+          "match_title": "Foundation",
+          "match_author": "Isaac Asimov",
+          "match_key": "wd:Q753894",
+          "note": "provider=inventaire, title=1.00, author=0.15, contains=1.00, isbn_bonus=0.00, provider_bonus=0.05"
+        },
+        {
+          "provider": "inventaire",
+          "strategy": "author_only",
+          "query": "ebooks",
+          "num_found": 12,
+          "accepted": false,
+          "confidence": 0.225,
+          "match_title": "Demons",
+          "match_author": null,
+          "match_key": "inv:8f3ad6deeb1a48bac00f17e7f50dbf35",
+          "note": "provider=inventaire, title=0.38, author=0.00, contains=0.00, isbn_bonus=0.00, provider_bonus=0.00"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "primary",
+          "query": "foundation ebooks",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "title_only",
+          "query": "foundation",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "provider": "googlebooks",
+          "strategy": "author_only",
+          "query": "ebooks",
+          "num_found": 0,
+          "accepted": false,
+          "confidence": null,
+          "match_title": null,
+          "match_author": null,
+          "match_key": null,
+          "note": "HTTP Error 429: Too Many Requests"
+        }
+      ]
+    }
+  ]
+}

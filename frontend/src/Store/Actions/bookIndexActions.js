@@ -403,7 +403,7 @@ export const reducers = createHandleActions({
   [SET_BOOK_FILTER]: createSetClientSideCollectionFilterReducer(section),
 
   [SET_BOOK_VIEW]: function(state, { payload }) {
-    return Object.assign({}, state, { view: payload.view });
+    return { ...state, view: payload.view };
   },
 
   [SET_BOOK_TABLE_OPTION]: createSetTableOptionReducer(section),

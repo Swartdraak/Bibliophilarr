@@ -20,7 +20,7 @@ function createMapStateToProps() {
 function createMapDispatchToProps(dispatch, props) {
   return {
     onGoTo(url) {
-      dispatch(push(`${window.Readarr.urlBase}${url}`));
+      dispatch(push(`${window.Bibliophilarr.urlBase}${url}`));
     }
   };
 }

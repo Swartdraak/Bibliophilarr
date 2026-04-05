@@ -1,3 +1,4 @@
+// @ts-check
 export default function combinePath(isWindows, basePath, paths = []) {
   const slash = isWindows ? '\\' : '/';
 

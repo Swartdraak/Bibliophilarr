@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Readarr.Api.V1.DownloadClient;
+using Bibliophilarr.Api.V1.DownloadClient;
 using RestSharp;
 
 namespace NzbDrone.Integration.Test.Client

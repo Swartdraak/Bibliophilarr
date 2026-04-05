@@ -387,6 +387,20 @@ module.exports = {
         'init-declarations': 'off',
         'prettier/prettier': 'off'
       }
+    },
+    {
+      files: [
+        '*.test.js',
+        '*.test.jsx',
+        '*.test.ts',
+        '*.test.tsx'
+      ],
+      env: {
+        jest: true
+      },
+      rules: {
+        'react/prop-types': 'off'
+      }
     }
   ]
 };

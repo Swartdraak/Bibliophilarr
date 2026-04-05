@@ -106,7 +106,7 @@ Example minimal config for priority servers (with version pinning for security):
 
 **Best use in this repo**
 
-- Understanding legacy Goodreads assumptions.
+- Understanding legacy metadata assumptions.
 - Tracking migration deltas over multiple phased PRs.
 
 ### 4) `openapi`
@@ -118,7 +118,7 @@ Example minimal config for priority servers (with version pinning for security):
 
 **Best use in this repo**
 
-- Working with `src/Readarr.Api.V1/openapi.json` for endpoint discovery and contract checks.
+- Working with `src/Bibliophilarr.Api.V1/openapi.json` for endpoint discovery and contract checks.
 
 ---
 
@@ -133,7 +133,7 @@ Example minimal config for priority servers (with version pinning for security):
 
 **Best use in this repo**
 
-- Verifying identifier mapping changes (Goodreads -> OLID/ISBN/etc.).
+- Verifying identifier mapping changes (legacy IDs -> OLID/ISBN/etc.).
 - Auditing migration correctness before production rollout.
 
 ### 6) `http` / `rest` test MCP
@@ -209,3 +209,9 @@ Example minimal config for priority servers (with version pinning for security):
 - Fewer integration regressions in metadata provider PRs.
 - Faster triage of migration issues and API drift.
 - Better visibility into fallback and quality scoring behavior.
+
+## References
+
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — contribution workflow and quality gates
+- [QUICKSTART.md](../../QUICKSTART.md) — local development setup
+- [PROVIDER_IMPLEMENTATION_GUIDE.md](PROVIDER_IMPLEMENTATION_GUIDE.md) — provider development reference

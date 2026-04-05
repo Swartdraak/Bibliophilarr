@@ -20,6 +20,13 @@ const columnPaddingSmallScreen = parseInt(dimensions.authorIndexColumnPaddingSma
 const defaultFontSize = parseInt(fonts.defaultFontSize);
 const lineHeight = parseFloat(fonts.lineHeight);
 
+export function getSafeBookAuthor(author) {
+  return {
+    authorName: author?.authorName ?? '',
+    folder: author?.folder ?? ''
+  };
+}
+
 function calculateHeight(rowHeight, isSmallScreen) {
   let height = rowHeight - 70;
 
@@ -81,7 +88,6 @@ class AddNewBookSearchResult extends Component {
       ratings,
       images,
       author,
-      editions,
       isExistingBook,
       isExistingAuthor,
       isSmallScreen
@@ -92,6 +98,7 @@ class AddNewBookSearchResult extends Component {
     } = this.state;
 
     const linkProps = isExistingBook ? { to: `/book/${titleSlug}` } : { onPress: this.onPress };
+    const safeAuthor = getSafeBookAuthor(author);
 
     const height = calculateHeight(230, isSmallScreen);
 
@@ -138,20 +145,6 @@ class AddNewBookSearchResult extends Component {
                     null
                 }
 
-                {
-                  editions && editions.length > 1 ?
-                    <Link
-                      className={styles.mbLink}
-                      to={`https://goodreads.com/book/show/${editions[0].foreignEditionId}`}
-                      onPress={this.onTVDBLinkPress}
-                    >
-                      <Icon
-                        className={styles.mbLinkIcon}
-                        name={icons.EXTERNAL_LINK}
-                        size={28}
-                      />
-                    </Link> : null
-                }
               </div>
             </div>
 
@@ -201,9 +194,9 @@ class AddNewBookSearchResult extends Component {
           bookTitle={title}
           seriesTitle={seriesTitle}
           disambiguation={disambiguation}
-          authorName={author.authorName}
+          authorName={safeAuthor.authorName}
           overview={overview}
-          folder={author.folder}
+          folder={safeAuthor.folder}
           images={images}
           onModalClose={this.onAddBookModalClose}
         />

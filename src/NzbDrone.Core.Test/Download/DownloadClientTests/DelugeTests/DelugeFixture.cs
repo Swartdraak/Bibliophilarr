@@ -333,8 +333,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.DelugeTests
         [Test]
         public void should_return_status_with_outputdirs_for_directories_in_settings()
         {
-            Subject.Definition.Settings.As<DelugeSettings>().DownloadDirectory =  @"D:\Downloads\Downloading\deluge".AsOsAgnostic();
-            Subject.Definition.Settings.As<DelugeSettings>().CompletedDirectory =  @"D:\Downloads\Finished\deluge".AsOsAgnostic();
+            Subject.Definition.Settings.As<DelugeSettings>().DownloadDirectory = @"D:\Downloads\Downloading\deluge".AsOsAgnostic();
+            Subject.Definition.Settings.As<DelugeSettings>().CompletedDirectory = @"D:\Downloads\Finished\deluge".AsOsAgnostic();
 
             var result = Subject.GetStatus();
 

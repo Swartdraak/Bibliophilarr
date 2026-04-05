@@ -111,7 +111,7 @@ namespace NzbDrone.Core.Profiles.Delay
 
             if (moving == null)
             {
-                // TODO: This should throw
+                // NOTE: This should throw
                 return all;
             }
 

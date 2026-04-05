@@ -16,10 +16,11 @@ namespace NzbDrone.Core.HealthCheck.Checks
         private readonly Logger _logger;
         private readonly IConfigService _configService;
         private readonly IHttpClient _client;
+        private readonly bool _servicesEnabled;
 
         private readonly IHttpRequestBuilderFactory _cloudRequestBuilder;
 
-        public ProxyCheck(IReadarrCloudRequestBuilder cloudRequestBuilder, IConfigService configService, IHttpClient client, ILocalizationService localizationService, Logger logger)
+        public ProxyCheck(IBibliophilarrCloudRequestBuilder cloudRequestBuilder, IConfigService configService, IHttpClient client, ILocalizationService localizationService, Logger logger)
             : base(localizationService)
         {
             _configService = configService;
@@ -27,6 +28,7 @@ namespace NzbDrone.Core.HealthCheck.Checks
             _logger = logger;
 
             _cloudRequestBuilder = cloudRequestBuilder.Services;
+            _servicesEnabled = cloudRequestBuilder.HasServices;
         }
 
         public override HealthCheck Check()
@@ -37,6 +39,11 @@ namespace NzbDrone.Core.HealthCheck.Checks
                 if (!addresses.Any())
                 {
                     return new HealthCheck(GetType(), HealthCheckResult.Error, string.Format(_localizationService.GetLocalizedString("ProxyCheckResolveIpMessage"), _configService.ProxyHostname), "#proxy-failed-resolve-ip");
+                }
+
+                if (!_servicesEnabled || _cloudRequestBuilder == null)
+                {
+                    return new HealthCheck(GetType());
                 }
 
                 var request = _cloudRequestBuilder.Create()

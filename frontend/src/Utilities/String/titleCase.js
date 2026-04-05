@@ -1,3 +1,4 @@
+// @ts-check
 const regex = /\b\w+/g;
 
 function titleCase(input) {

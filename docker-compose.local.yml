@@ -1,0 +1,82 @@
+# docker-compose.local.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Local development container for Bibliophilarr with injected credentials and
+# media directory mounts.
+#
+# Security: credentials are NEVER hardcoded here.  Export them in your shell
+# (or source a private .env.local that is git-ignored) before running.
+#
+# Usage:
+#   # 1. Export your tokens in the terminal you will run docker-compose from:
+#   export HARDCOVER_API_TOKEN="Bearer <your-jwt>"
+#   export GOOGLE_BOOKS_API_KEY="<your-key>"
+#   export OPENALEX_API_KEY="<your-key>"
+#
+#   # 2. Build and start (first run will compile the image):
+#   docker-compose -f docker-compose.local.yml up --build
+#
+#   # 3. Access the UI at http://localhost:8787
+#
+#   # 4. Tear down:
+#   docker-compose -f docker-compose.local.yml down
+#
+# Persisted state:
+#   Application config and SQLite database land in the `bibliophilarr_config`
+#   named volume so they survive container restarts.
+#
+# Media directories:
+#   Mounted read-only by default so a misconfiguration cannot damage your
+#   library.  Change `:ro` to `:rw` only if you want Bibliophilarr to rename /
+#   move files automatically.
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+services:
+  bibliophilarr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bibliophilarr:local
+    container_name: bibliophilarr_local
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      ASPNETCORE_URLS: "http://+:8787"
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+
+      # ── Metadata provider credentials ─────────────────────────────────────
+      # Injected from the host shell environment — never hardcode real values.
+      HARDCOVER_API_TOKEN: "${HARDCOVER_API_TOKEN:-}"
+      GOOGLE_BOOKS_API_KEY: "${GOOGLE_BOOKS_API_KEY:-}"
+      OPENALEX_API_KEY: "${OPENALEX_API_KEY:-}"
+      OPENALEX_DAILY_BUDGET_USD: "${OPENALEX_DAILY_BUDGET_USD:-1}"
+      OPENALEX_MAILTO: "${OPENALEX_MAILTO:-}"
+
+      # ── Optional PostgreSQL override ───────────────────────────────────────
+      # Leave blank to use the default SQLite database stored in /config.
+      # Bibliophilarr__Postgres__Host: "${POSTGRES_HOST:-}"
+      # Bibliophilarr__Postgres__Port: "${POSTGRES_PORT:-5432}"
+      # Bibliophilarr__Postgres__User: "${POSTGRES_USER:-bibliophilarr}"
+      # Bibliophilarr__Postgres__Password: "${POSTGRES_PASSWORD:-}"
+      # Bibliophilarr__Postgres__MainDb: "bibliophilarr-main"
+    volumes:
+      # ── Media libraries (read-only for safety) ─────────────────────────────
+      # Adjust the host-side paths to match your local library layout.
+      - /media/ebooks:/media/ebooks:ro
+      - /media/audiobooks:/media/audiobooks:ro
+
+      # ── Persistent application state ───────────────────────────────────────
+      - bibliophilarr_config:/config
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8787/api/v1/system/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  bibliophilarr_config:
+    driver: local

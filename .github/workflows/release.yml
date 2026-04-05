@@ -1,0 +1,224 @@
+name: Bibliophilarr Release
+
+# Release workflow — runs only from main branch (via tags or manual dispatch).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (example: v1.2.3)'
+        required: true
+      stagingDbPath:
+        description: 'Path to staging bibliophilarr.db for series gate snapshot generation'
+        required: false
+        default: ''
+      draft:
+        description: 'Create release as draft'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  release-entry-gate:
+    name: Release Entry Gate
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate series persistence snapshot
+        env:
+          STAGING_DB_PATH: ${{ github.event.inputs.stagingDbPath }}
+        run: |
+          if [[ -z "${STAGING_DB_PATH}" ]]; then
+            echo "No staging database path provided. Set workflow input 'stagingDbPath'."
+            exit 1
+          fi
+
+          if [[ ! -f "${STAGING_DB_PATH}" ]]; then
+            echo "Staging database path does not exist: ${STAGING_DB_PATH}"
+            exit 1
+          fi
+
+          run_date="$(date +%Y-%m-%d)"
+          snapshot_dir="docs/operations/series-persistence-snapshots"
+          mkdir -p "${snapshot_dir}" _artifacts/release-entry
+
+          python3 scripts/series_persistence_gate.py \
+            --db-path "${STAGING_DB_PATH}" \
+            --json-out "${snapshot_dir}/${run_date}.json" \
+            --md-out "${snapshot_dir}/${run_date}.md"
+
+      - name: Enforce release-entry evidence gates
+        run: |
+          mkdir -p _artifacts/release-entry
+          python3 scripts/release_entry_gate.py \
+            --max-age-days 7 \
+            --md-out _artifacts/release-entry/release-entry-gate.md \
+            --json-out _artifacts/release-entry/release-entry-gate.json
+
+      - name: Upload release-entry gate artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-entry-gate
+          path: |
+            _artifacts/release-entry
+            docs/operations/series-persistence-snapshots
+
+  build-package:
+    name: Build and Package (${{ matrix.rid }})
+    needs: release-entry-gate
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive_ext: tar.gz
+          - os: macos-latest
+            rid: osx-arm64
+            archive_ext: tar.gz
+          - os: windows-latest
+            rid: win-x64
+            archive_ext: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '8.0.x'
+          global-json-file: global.json
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20.19.2'
+
+      - name: Enable Yarn
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare yarn@1.22.19 --activate
+          yarn --version
+
+      - name: Resolve version metadata
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build backend
+        shell: bash
+        env:
+          BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
+        run: ./build.sh --backend -r ${{ matrix.rid }} -f net8.0
+
+      - name: Build frontend
+        shell: bash
+        run: ./build.sh --frontend
+
+      - name: Build package
+        shell: bash
+        run: ./build.sh --packages -r ${{ matrix.rid }} -f net8.0
+
+      - name: Archive package (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p release
+          tar -C "_artifacts/${{ matrix.rid }}/net8.0" \
+            -czf "release/bibliophilarr-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" \
+            Bibliophilarr
+
+      - name: Archive package (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Compress-Archive \
+            -Path "_artifacts/${{ matrix.rid }}/net8.0/Bibliophilarr/*" \
+            -DestinationPath "release/bibliophilarr-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" \
+            -Force
+
+      - name: Build installer (windows only)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          ./build.sh --installer -r win-x64 -f net8.0
+          cp distribution/windows/setup/output/*.exe release/ || true
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ matrix.rid }}
+          path: release/*
+
+  draft-release:
+    name: Draft GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build-package
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        working-directory: release-assets
+        run: |
+          sha256sum ./* > SHA256SUMS.txt
+          echo "::group::SHA256 Checksums"
+          cat SHA256SUMS.txt
+          echo "::endgroup::"
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            release-assets/*

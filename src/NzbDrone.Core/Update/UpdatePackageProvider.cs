@@ -19,21 +19,28 @@ namespace NzbDrone.Core.Update
     {
         private readonly IHttpClient _httpClient;
         private readonly IHttpRequestBuilderFactory _requestBuilder;
+        private readonly bool _servicesEnabled;
         private readonly IPlatformInfo _platformInfo;
         private readonly IAnalyticsService _analyticsService;
         private readonly IMainDatabase _mainDatabase;
 
-        public UpdatePackageProvider(IHttpClient httpClient, IReadarrCloudRequestBuilder requestBuilder, IAnalyticsService analyticsService, IPlatformInfo platformInfo, IMainDatabase mainDatabase)
+        public UpdatePackageProvider(IHttpClient httpClient, IBibliophilarrCloudRequestBuilder requestBuilder, IAnalyticsService analyticsService, IPlatformInfo platformInfo, IMainDatabase mainDatabase)
         {
             _platformInfo = platformInfo;
             _analyticsService = analyticsService;
             _requestBuilder = requestBuilder.Services;
+            _servicesEnabled = requestBuilder.HasServices;
             _httpClient = httpClient;
             _mainDatabase = mainDatabase;
         }
 
         public UpdatePackage GetLatestUpdate(string branch, Version currentVersion)
         {
+            if (!_servicesEnabled || _requestBuilder == null)
+            {
+                return null;
+            }
+
             var request = _requestBuilder.Create()
                                          .Resource("/update/{branch}")
                                          .AddQueryParam("version", currentVersion)
@@ -63,6 +70,11 @@ namespace NzbDrone.Core.Update
 
         public List<UpdatePackage> GetRecentUpdates(string branch, Version currentVersion, Version previousVersion)
         {
+            if (!_servicesEnabled || _requestBuilder == null)
+            {
+                return new List<UpdatePackage>();
+            }
+
             var request = _requestBuilder.Create()
                                          .Resource("/update/{branch}/changes")
                                          .AddQueryParam("version", currentVersion)

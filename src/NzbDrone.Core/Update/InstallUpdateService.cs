@@ -110,7 +110,7 @@ namespace NzbDrone.Core.Update
 
             if (_diskProvider.GetTotalSize(tempFolder) < 1.Gigabytes())
             {
-                _logger.Warn("Temporary location '{0}' has less than 1 GB free space, Readarr may not be able to update itself.", tempFolder);
+                _logger.Warn("Temporary location '{0}' has less than 1 GB free space, Bibliophilarr may not be able to update itself.", tempFolder);
             }
 
             var packageDestination = Path.Combine(updateSandboxFolder, updatePackage.FileName);
@@ -167,7 +167,7 @@ namespace NzbDrone.Core.Update
             }
 
             _logger.Info("Starting update client {0}", updateClientExePath);
-            _logger.ProgressInfo("Readarr will restart shortly.");
+            _logger.ProgressInfo("Bibliophilarr will restart shortly.");
 
             _processProvider.Start(updateClientExePath, GetUpdaterArgs(updateSandboxFolder));
 
@@ -207,7 +207,7 @@ namespace NzbDrone.Core.Update
                 throw new UpdateFailedException("Update Script: '{0}' does not exist", scriptPath);
             }
 
-            _logger.Info("Removing Readarr.Update");
+            _logger.Info("Removing Bibliophilarr.Update");
             _diskProvider.DeleteFolder(_appFolderInfo.GetUpdateClientFolder(), true);
 
             _logger.ProgressInfo("Starting update script: {0}", _configFileProvider.UpdateScriptPath);
@@ -228,7 +228,7 @@ namespace NzbDrone.Core.Update
             if (_appFolderInfo.StartUpFolder.IsParentPath(_appFolderInfo.AppDataFolder) ||
                 _appFolderInfo.StartUpFolder.PathEquals(_appFolderInfo.AppDataFolder))
             {
-                throw new UpdateFailedException("Your Readarr configuration '{0}' is being stored in application folder '{1}' which will cause data lost during the upgrade. Please remove any symlinks or redirects before trying again.", _appFolderInfo.AppDataFolder, _appFolderInfo.StartUpFolder);
+                throw new UpdateFailedException("Your Bibliophilarr configuration '{0}' is being stored in application folder '{1}' which will cause data lost during the upgrade. Please remove any symlinks or redirects before trying again.", _appFolderInfo.AppDataFolder, _appFolderInfo.StartUpFolder);
             }
         }
 
@@ -287,31 +287,7 @@ namespace NzbDrone.Core.Update
 
         public void Execute(ApplicationUpdateCommand message)
         {
-            var latestAvailable = GetUpdatePackage(message.Trigger, message.InstallMajorUpdate);
-
-            if (latestAvailable != null)
-            {
-                try
-                {
-                    InstallUpdate(latestAvailable);
-                    _logger.ProgressDebug("Restarting Readarr to apply updates");
-                }
-                catch (UpdateFolderNotWritableException ex)
-                {
-                    _logger.Error(ex, "Update process failed");
-                    throw new CommandFailedException("Startup folder not writable by user '{0}'", ex, Environment.UserName);
-                }
-                catch (UpdateVerificationFailedException ex)
-                {
-                    _logger.Error(ex, "Update process failed");
-                    throw new CommandFailedException("Downloaded update package is corrupt", ex);
-                }
-                catch (UpdateFailedException ex)
-                {
-                    _logger.Error(ex, "Update process failed");
-                    throw new CommandFailedException(ex);
-                }
-            }
+            throw new CommandFailedException("Application updates are disabled until release pipeline support is implemented.");
         }
 
         public void Handle(ApplicationStartingEvent message)

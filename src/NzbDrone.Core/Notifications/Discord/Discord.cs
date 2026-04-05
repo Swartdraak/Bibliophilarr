@@ -217,7 +217,7 @@ namespace NzbDrone.Core.Notifications.Discord
                     Author = new DiscordAuthor
                     {
                         Name = Settings.Author.IsNullOrWhiteSpace() ? Environment.MachineName : Settings.Author,
-                        IconUrl = "https://raw.githubusercontent.com/Readarr/Readarr/develop/Logo/256.png"
+                        IconUrl = "https://raw.githubusercontent.com/Bibliophilarr/Bibliophilarr/develop/Logo/256.png"
                     },
                     Title = APPLICATION_UPDATE_TITLE,
                     Timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
@@ -256,7 +256,7 @@ namespace NzbDrone.Core.Notifications.Discord
         {
             try
             {
-                var message = $"Test message from Readarr posted at {DateTime.Now}";
+                var message = $"Test message from Bibliophilarr posted at {DateTime.Now}";
                 var payload = CreatePayload(message);
 
                 _proxy.SendPayload(payload, Settings);

@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.DecisionEngine
+namespace NzbDrone.Core.DecisionEngine
 {
     public class Decision
     {

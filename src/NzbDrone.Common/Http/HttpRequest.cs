@@ -4,7 +4,6 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Common.Http
@@ -21,11 +20,6 @@ namespace NzbDrone.Common.Http
             StoreRequestCookie = true;
             LogHttpError = true;
             Cookies = new Dictionary<string, string>();
-
-            if (!RuntimeInfo.IsProduction)
-            {
-                AllowAutoRedirect = false;
-            }
 
             if (httpAccept != null)
             {

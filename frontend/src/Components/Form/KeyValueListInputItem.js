@@ -21,7 +21,7 @@ class KeyValueListInputItem extends Component {
   };
 
   onValueChange = ({ value }) => {
-    // TODO: Validate here or validate at a lower level component
+    // NOTE: Validation happens at the form level, not within this component
 
     const {
       index,

@@ -23,6 +23,7 @@ function AuthenticationRequiredModalContent(props) {
   const {
     isPopulated,
     error,
+    saveError,
     isSaving,
     settings,
     onInputChange,
@@ -68,6 +69,13 @@ function AuthenticationRequiredModalContent(props) {
         </Alert>
 
         {
+          saveError ?
+            <Alert kind={kinds.DANGER}>
+              {translate('ErrorSavingGeneralSettings')}
+            </Alert> :
+            null
+        }
+        {
           isPopulated && !error ?
             <div>
               <FormGroup>
@@ -79,7 +87,7 @@ function AuthenticationRequiredModalContent(props) {
                   values={authenticationMethodOptions}
                   helpText={translate('AuthenticationMethodHelpText')}
                   helpTextWarning={authenticationMethod.value === 'none' ? translate('AuthenticationMethodHelpTextWarning') : undefined}
-                  helpLink="https://wiki.servarr.com/readarr/faq#forced-authentication"
+                  helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/faq#forced-authentication"
                   onChange={onInputChange}
                   {...authenticationMethod}
                 />

@@ -2,13 +2,7 @@
 
 ## Objective
 
-Deliver installable and update-capable Bibliophilarr artifacts with minimal manual effort.
-
-## Release channels
-
-- GitHub Release assets (`vX.Y.Z` tags)
-- Docker images (`ghcr.io/<owner>/bibliophilarr`)
-- npm launcher package (`bibliophilarr`)
+Describe the repository's current readiness and release-entry automation.
 
 ## Workflows
 
@@ -34,54 +28,7 @@ Supporting scripts:
 - `scripts/dependabot_lockfile_triage.py`
 - `scripts/audit_branch_protection.py`
 
-### 1) Release workflow
-
-File: `.github/workflows/release.yml`
-
-Responsibilities:
-
-- Build matrix across Linux, macOS, and Windows
-- Build backend + frontend
-- Package per RID
-- Archive assets
-- Create draft GitHub Release with uploaded artifacts
-
-Trigger model:
-
-- Push tag: `v*`
-- Manual dispatch with tag input
-
-### 2) Docker image workflow
-
-File: `.github/workflows/docker-image.yml`
-
-Responsibilities:
-
-- Build production image from repository Dockerfile
-- Build multi-arch image (`linux/amd64`, `linux/arm64`)
-- Optionally push to GHCR
-- Support local smoke validation in dispatch mode
-
-Trigger model:
-
-- Push tag: `v*`
-- Manual dispatch (`push` true/false)
-
-### 3) npm publish workflow
-
-File: `.github/workflows/npm-publish.yml`
-
-Responsibilities:
-
-- Publish launcher package from `npm/bibliophilarr-launcher`
-- Align package version with release tag or manual input
-
-Trigger model:
-
-- Published GitHub release
-- Manual dispatch with explicit version
-
-### 4) Branch policy audit workflow
+### 1) Branch policy audit workflow
 
 File: `.github/workflows/branch-policy-audit.yml`
 
@@ -96,58 +43,80 @@ Trigger model:
 - Weekly schedule
 - Manual dispatch
 
-## Required repository secrets
+### 2) Operational drift check
 
-- `NPM_TOKEN`: npm registry publish token
+File: `.github/workflows/operational-drift-check.yml`
 
-For GHCR publishing, `GITHUB_TOKEN` is used by default.
+Responsibilities:
+
+- Compare `develop`, `staging`, and `main` against explicit operational drift thresholds
+- Confirm active delivery lanes remain close enough for reliable release promotion
+- Confirm `main` readiness workflows stay fresh and successful
+- Publish markdown and JSON artifacts for operator review
+
+Trigger model:
+
+- Weekly schedule
+- Manual dispatch
+
+### 3) Metadata migration dry run
+
+File: `.github/workflows/metadata-migration-dry-run.yml`
+
+Responsibilities:
+
+- run dry-run metadata migration evidence capture
+- publish dated artifacts for provenance review
+- surface blocked runs when required secrets or staging access are unavailable
+
+Trigger model:
+
+- Manual dispatch
+
+### 4) Backend and docs validation
+
+Files:
+
+- `.github/workflows/ci-backend.yml`
+- `.github/workflows/ci-frontend.yml`
+- `.github/workflows/docs-validation.yml`
+- `.github/workflows/staging-smoke-metadata-telemetry.yml`
+
+Responsibilities:
+
+- validate backend, frontend, docs, and smoke metadata behavior on active lanes
+- emit required protected-branch contexts
+- provide the evidence consumed by readiness reporting
+
+## Current repository posture
+
+The repository currently documents release-entry readiness, branch-policy audit,
+operational drift, and metadata dry-run workflows. Release and publish workflows
+are present in this repository (`release.yml`, `docker-image.yml`, and
+`npm-publish.yml`), while readiness and branch-policy workflows remain the
+authoritative gates for promotion decisions.
 
 ## Workflow dispatch commands (GitHub CLI)
 
 Prerequisite: authenticated `gh` session (`gh auth login`) or `GH_TOKEN` set.
 
 ```bash
-# Branch bootstrap (idempotent)
-gh workflow run "Branch Bootstrap" --repo <owner>/Bibliophilarr
-
 # Branch policy audit
 gh workflow run "Branch Policy Audit" --repo <owner>/Bibliophilarr
 
 # Release readiness report
 gh workflow run "Release Readiness Report" --repo <owner>/Bibliophilarr
 
-# Release workflow (manual)
-gh workflow run "Bibliophilarr Release" \
-  --repo <owner>/Bibliophilarr \
-  -f tag=v0.1.0 -f draft=true
-
-# Docker image workflow (build only)
-gh workflow run "Bibliophilarr Docker Image" \
-  --repo <owner>/Bibliophilarr \
-  -f push=false
-
-# Docker image workflow (build + push)
-gh workflow run "Bibliophilarr Docker Image" \
-  --repo <owner>/Bibliophilarr \
-  -f push=true
-
-# npm publish workflow
-gh workflow run "Bibliophilarr npm Publish" \
-  --repo <owner>/Bibliophilarr \
-  -f version=0.1.0
-
-# Required-check emission smoke sandbox
-gh workflow run "Required Check Emission Smoke" \
-  --repo <owner>/Bibliophilarr \
-  -f base_branch=develop
+# Metadata migration dry run
+gh workflow run "Metadata Migration Dry Run" \
+  --repo <owner>/Bibliophilarr
 ```
 
 ## Secrets and variables matrix
 
 | Name | Scope | Required | Used by | Notes |
 |---|---|---|---|---|
-| `NPM_TOKEN` | GitHub Actions secret | Yes (npm publish) | `.github/workflows/npm-publish.yml` | npm access token with publish permissions for `bibliophilarr` package. |
-| `GITHUB_TOKEN` | Built-in Actions token | Auto | `.github/workflows/release.yml`, `.github/workflows/docker-image.yml`, `.github/workflows/branch-bootstrap.yml` | Used for release creation, branch API operations, and GHCR auth. |
+| `GITHUB_TOKEN` | Built-in Actions token | Auto | current GitHub Actions workflows | Used for workflow API access and artifact publication within granted permissions. |
 | `Bibliophilarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL host key during rename migration. |
 | `Bibliophilarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL port key during rename migration. |
 | `Bibliophilarr__Postgres__User` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL user key during rename migration. |
@@ -155,48 +124,115 @@ gh workflow run "Required Check Emission Smoke" \
 | `Bibliophilarr__Postgres__MainDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL main DB key during rename migration. |
 | `Bibliophilarr__Postgres__LogDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL log DB key during rename migration. |
 | `Bibliophilarr__Postgres__CacheDb` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL cache DB key during rename migration. |
-| `Bibliophilarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Keep compatibility prefix during migration; set only for PostgreSQL mode. |
-| `Bibliophilarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Default `5432` in PostgreSQL mode. |
-| `Bibliophilarr__Postgres__User` | Runtime env var | Optional | app runtime/tests | PostgreSQL user. |
-| `Bibliophilarr__Postgres__Password` | Runtime env var | Optional | app runtime/tests | PostgreSQL password. |
-| `Bibliophilarr__Postgres__MainDb` | Runtime env var | Optional | app runtime/tests | Main database name. |
-| `Bibliophilarr__Postgres__LogDb` | Runtime env var | Optional | app runtime/tests | Log database name. |
-| `Bibliophilarr__Postgres__CacheDb` | Runtime env var | Optional | app runtime/tests | Cache database name. |
 | `ASPNETCORE_URLS` | Runtime env var | Optional | Docker/local run | Defaults to `http://+:8787` in container flow. |
-| `BIBLIOPHILARR_OWNER` | Runtime env var | Optional | npm launcher | Defaults to `Swartdraak`. |
-| `BIBLIOPHILARR_REPO` | Runtime env var | Optional | npm launcher | Defaults to `Bibliophilarr`. |
-| `BIBLIOPHILARR_VERSION` | Runtime env var | Optional | npm launcher | Defaults to `latest`. |
-| `SENTRY_AUTH_TOKEN` | Runtime/CI env var | Optional | Azure pipeline | Only needed if Sentry upload/release steps are used. |
-| `SENTRY_ORG` | Runtime/CI env var | Optional | Azure pipeline | Sentry org identifier. |
-| `SENTRY_URL` | Runtime/CI env var | Optional | Azure pipeline | Self-hosted Sentry base URL if applicable. |
+
+> **Removed**: Sentry (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_URL`) variables
+> were inherited from the legacy Azure Pipelines configuration and are no longer
+> used. Bibliophilarr uses GitHub Actions exclusively.
 
 ## Release procedure
 
-1. Merge validated changes to `main`.
-2. Create and push tag `vX.Y.Z`.
-3. Wait for `release.yml` to complete.
-4. Review draft release notes/assets.
-5. Publish release.
-6. Validate Docker image and npm launcher channel.
+1. Merge validated changes to `main` only after readiness criteria are met.
+2. Review the latest readiness, branch-policy, and operational drift artifacts.
+3. Cut release tags only after the repository gains a documented tag-driven
+  release workflow or maintainers explicitly choose a manual release path.
+
+## Release entry criteria
+
+Before tagging a release from `main`, all of the following must be true:
+
+1. The latest `ci-backend.yml`, `docs-validation.yml`, and `staging-smoke-metadata-telemetry.yml` runs are successful on `develop`.
+2. The latest `ci-backend.yml`, `docs-validation.yml`, and `staging-smoke-metadata-telemetry.yml` runs are successful on `staging`.
+3. The latest `branch-policy-audit.yml` and `release-readiness-report.yml` runs are successful on `main`.
+4. Required contexts on protected branches remain aligned with branch protection policy.
+5. The latest dated install evidence in `docs/operations/install-test-snapshots` still reflects successful local installation validation.
+6. Open security drift is either remediated or explicitly accepted with documented rationale.
+
+Mandatory checklist flow:
+
+1. Operator updates the latest dated entries in:
+
+- `docs/operations/metadata-dry-run-snapshots/`
+- `docs/operations/metadata-telemetry-checkpoints/`
+- `docs/operations/install-test-snapshots/`
+
+2. Each snapshot must include explicit gate lines:
+
+- `Verdict: PASS|WARNING|CRITICAL|BLOCKED` (dry-run snapshots)
+- `Overall threshold verdict: PASS|WARNING|CRITICAL|BLOCKED` (telemetry checkpoints)
+- `Overall matrix verdict: PASS|BLOCKED` (install snapshots)
+
+3. Operator runs:
+
+```bash
+python3 scripts/release_entry_gate.py \
+  --max-age-days 7 \
+  --md-out _artifacts/release-entry/release-entry-gate.md \
+  --json-out _artifacts/release-entry/release-entry-gate.json
+```
+
+Legacy symbol guard:
+
+- `scripts/release_entry_gate.py` now enforces a source scan gate over:
+  - `src/NzbDrone.Core`
+  - `src/Bibliophilarr.Api.V1`
+  - `frontend/src`
+- Release promotion is blocked if the forbidden legacy symbol `goodreads` is detected in those guarded paths.
+- The gate supports an explicit allowlist for approved compatibility shims via `--symbol-allowlist` (defaults include parser model alias files used for backward-compatible JSON deserialization).
+
+4. Promotion is blocked unless the gate report returns `Overall: PASS`.
+5. `release.yml` enforces this gate automatically in the `Release Entry Gate` job.
+
+Packaging scope note:
+
+- Packaging validation is intentionally required on `develop` and `staging` today.
+- `main` remains the operator-facing release-entry lane until binary, Docker, and npm installation paths are fully validated for direct promotion on the default branch.
+
+Operator decision note:
+
+- If readiness or branch-policy workflows on `main` are permission-limited because the Actions integration token cannot read an admin or Dependabot endpoint, use the uploaded artifacts as the decision record rather than treating the limitation itself as a failed release gate.
 
 ## Local verification checklist
 
-- `./build.sh --backend -r linux-x64 -f net8.0`
-- `./build.sh --frontend`
-- `./build.sh --packages -r linux-x64 -f net8.0`
+- `./build.sh`
 - `docker build -t bibliophilarr:local .`
 - `docker run --rm -d -p 8787:8787 bibliophilarr:local`
-- `npm pack` in `npm/bibliophilarr-launcher`
+- `yarn build`
 
 ## Rollback strategy
 
-- Repoint deployment to prior image tag and prior release assets.
-- Retag known-good commit and rerun release workflow.
-- Keep release as draft until smoke checks pass.
+- Revert the slice that broke readiness.
+- Re-run readiness and drift reporting.
+- Delay tagging until active readiness criteria are green again.
 
 ## Merge reliability note
 
 If `gh pr merge` returns policy-prohibited despite green checks and `MERGEABLE`, use:
 
 - `scripts/merge_pr_reliably.sh`
-- `docs/operations/gh-pr-merge-cli-mismatch-2026-03-16.md`
+
+Recommended operator sequence:
+
+1. Verify preconditions first:
+
+- `mergeable == MERGEABLE`
+- no pending checks in progress
+- no failing required checks
+
+2. Try `gh pr merge` first.
+3. If `gh pr merge` still reports policy-prohibited while all preconditions are
+   green, use the REST merge endpoint fallback:
+
+```bash
+gh api -X PUT repos/<owner>/Bibliophilarr/pulls/<PR_NUMBER>/merge \
+  -f merge_method=merge
+```
+
+## References
+
+1. [ROADMAP.md](../../ROADMAP.md) — release-hardening and promotion posture.
+2. [PROJECT_STATUS.md](../../PROJECT_STATUS.md) — current readiness status.
+3. [.github/workflows/release-readiness-report.yml](../../.github/workflows/release-readiness-report.yml) — current readiness workflow.
+4. [.github/workflows/branch-policy-audit.yml](../../.github/workflows/branch-policy-audit.yml) — branch-policy audit workflow.
+5. [.github/workflows/operational-drift-check.yml](../../.github/workflows/operational-drift-check.yml) — drift workflow.
+6. [.github/workflows/metadata-migration-dry-run.yml](../../.github/workflows/metadata-migration-dry-run.yml) — dry-run workflow.

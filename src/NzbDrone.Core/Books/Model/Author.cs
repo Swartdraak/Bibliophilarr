@@ -47,13 +47,15 @@ namespace NzbDrone.Core.Books
         [MemberwiseEqualityIgnore]
         public string Name
         {
-            get { return Metadata.Value.Name; } set { Metadata.Value.Name = value; }
+            get { return Metadata.Value.Name; }
+            set { Metadata.Value.Name = value; }
         }
 
         [MemberwiseEqualityIgnore]
         public string ForeignAuthorId
         {
-            get { return Metadata.Value.ForeignAuthorId; } set { Metadata.Value.ForeignAuthorId = value; }
+            get { return Metadata.Value.ForeignAuthorId; }
+            set { Metadata.Value.ForeignAuthorId = value; }
         }
 
         public override string ToString()

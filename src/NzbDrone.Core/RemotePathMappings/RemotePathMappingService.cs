@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -20,6 +20,7 @@ namespace NzbDrone.Core.RemotePathMappings
 
         OsPath RemapRemoteToLocal(string host, OsPath remotePath);
         OsPath RemapLocalToRemote(string host, OsPath localPath);
+        OsPath TryRemapRemoteToLocal(OsPath remotePath);
     }
 
     public class RemotePathMappingService : IRemotePathMappingService
@@ -180,6 +181,29 @@ namespace NzbDrone.Core.RemotePathMappings
             }
 
             return localPath;
+        }
+
+        public OsPath TryRemapRemoteToLocal(OsPath remotePath)
+        {
+            if (remotePath.IsEmpty)
+            {
+                return remotePath;
+            }
+
+            var mappings = All();
+
+            foreach (var mapping in mappings)
+            {
+                if (new OsPath(mapping.RemotePath).Contains(remotePath))
+                {
+                    var localPath = new OsPath(mapping.LocalPath) + (remotePath - new OsPath(mapping.RemotePath));
+                    _logger.Debug("Safety-net remapped remote path [{0}] to local path [{1}]", remotePath, localPath);
+
+                    return localPath;
+                }
+            }
+
+            return remotePath;
         }
     }
 }

@@ -40,7 +40,7 @@ function QueueDetails(props) {
       );
     }
 
-    // TODO: show an icon when download is complete, but not imported yet?
+    // NOTE: Downloaded-but-not-imported state has no dedicated icon yet
   }
 
   if (errorMessage) {

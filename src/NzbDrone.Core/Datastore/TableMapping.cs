@@ -25,6 +25,7 @@ using NzbDrone.Core.Instrumentation;
 using NzbDrone.Core.Jobs;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Notifications;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser.Model;
@@ -113,7 +114,15 @@ namespace NzbDrone.Core.Datastore
                   .HasOne(a => a.Metadata, a => a.AuthorMetadataId)
                   .HasOne(a => a.QualityProfile, a => a.QualityProfileId)
                   .HasOne(s => s.MetadataProfile, s => s.MetadataProfileId)
-                  .LazyLoad(a => a.Books, (db, a) => db.Query<Book>(new SqlBuilder(db.DatabaseType).Where<Book>(b => b.AuthorMetadataId == a.AuthorMetadataId)).ToList(), a => a.AuthorMetadataId > 0);
+                  .LazyLoad(a => a.Books, (db, a) => db.Query<Book>(new SqlBuilder(db.DatabaseType).Where<Book>(b => b.AuthorMetadataId == a.AuthorMetadataId)).ToList(), a => a.AuthorMetadataId > 0)
+                  .LazyLoad(
+                      a => a.Series,
+                      (db, a) => db.QueryDistinct<Series>(
+                          new SqlBuilder(db.DatabaseType)
+                              .Join<Series, SeriesBookLink>((s, l) => s.Id == l.SeriesId)
+                              .Join<SeriesBookLink, Book>((l, b) => l.BookId == b.Id)
+                              .Where<Book>(b => b.AuthorMetadataId == a.AuthorMetadataId)).ToList(),
+                      a => a.AuthorMetadataId > 0);
 
             Mapper.Entity<Series>("Series").RegisterModel()
                 .Ignore(s => s.ForeignAuthorId)
@@ -214,6 +223,8 @@ namespace NzbDrone.Core.Datastore
             Mapper.Entity<DownloadHistory>("DownloadHistory").RegisterModel();
 
             Mapper.Entity<UpdateHistory>("UpdateHistory").RegisterModel();
+
+            Mapper.Entity<MetadataProviderSettings>("MetadataProviderSettings").RegisterModel();
         }
 
         private static void RegisterMappers()

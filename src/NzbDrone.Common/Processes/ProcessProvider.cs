@@ -35,8 +35,8 @@ namespace NzbDrone.Common.Processes
     {
         private readonly Logger _logger;
 
-        public const string READARR_PROCESS_NAME = "Readarr";
-        public const string READARR_CONSOLE_PROCESS_NAME = "Readarr.Console";
+        public static readonly string BIBLIOPHILARR_PROCESS_NAME = AppIdentity.InternalName;
+        public static readonly string BIBLIOPHILARR_CONSOLE_PROCESS_NAME = AppIdentity.ConsoleProcessName;
 
         public ProcessProvider(Logger logger)
         {
@@ -333,7 +333,7 @@ namespace NzbDrone.Common.Processes
 
         private List<Process> GetProcessesByName(string name)
         {
-            //TODO: move this to an OS specific class
+            //NOTE: move this to an OS specific class
             var monoProcesses = Process.GetProcessesByName("mono")
                                        .Union(Process.GetProcessesByName("mono-sgen"))
                                        .Where(process =>

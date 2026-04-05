@@ -1,5 +1,5 @@
 'Area: API':
-  - src/Readarr.Api.V1/**/*
+  - src/Bibliophilarr.Api.V1/**/*
 
 'Area: Db-migration':
   - src/NzbDrone.Core/Datastore/Migration/*

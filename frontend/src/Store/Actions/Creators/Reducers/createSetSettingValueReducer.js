@@ -7,7 +7,7 @@ function createSetSettingValueReducer(section) {
     if (section === payload.section) {
       const { name, value } = payload;
       const newState = getSectionState(state, section);
-      newState.pendingChanges = Object.assign({}, newState.pendingChanges);
+      newState.pendingChanges = { ...newState.pendingChanges };
 
       const currentValue = newState.item ? newState.item[name] : null;
       const pendingState = newState.pendingChanges;

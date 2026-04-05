@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-03-22 00:13:03Z",
+  "baselineReport": "docs/operations/replay-comparison-snapshots/2026-03-22/baseline/root_live_enrichment_report.json",
+  "postReport": "docs/operations/replay-comparison-snapshots/2026-03-22/post/root_live_enrichment_report.json",
+  "replay": {
+    "baseline": {
+      "discoveredTargets": 4,
+      "accepted": 1,
+      "unresolved": 3,
+      "identifyRate": 0.25,
+      "coverSuccessRate": 1.0,
+      "providerFailures": 31
+    },
+    "post": {
+      "discoveredTargets": 4,
+      "accepted": 1,
+      "unresolved": 3,
+      "identifyRate": 0.25,
+      "coverSuccessRate": 1.0,
+      "providerFailures": 31
+    },
+    "delta": {
+      "discoveredTargets": 0,
+      "accepted": 0,
+      "unresolved": 0,
+      "identifyRate": 0.0,
+      "coverSuccessRate": 0.0,
+      "providerFailures": 0
+    }
+  },
+  "database": {
+    "baseline": {
+      "duplicateNormalizedAuthors": 51,
+      "series": 0,
+      "seriesBookLinks": 0
+    },
+    "post": {
+      "duplicateNormalizedAuthors": 51,
+      "series": 0,
+      "seriesBookLinks": 0
+    },
+    "delta": {
+      "duplicateNormalizedAuthors": 0,
+      "series": 0,
+      "seriesBookLinks": 0
+    }
+  }
+}

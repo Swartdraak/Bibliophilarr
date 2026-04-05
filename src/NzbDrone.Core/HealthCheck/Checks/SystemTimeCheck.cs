@@ -11,18 +11,25 @@ namespace NzbDrone.Core.HealthCheck.Checks
     {
         private readonly IHttpClient _client;
         private readonly IHttpRequestBuilderFactory _cloudRequestBuilder;
+        private readonly bool _servicesEnabled;
         private readonly Logger _logger;
 
-        public SystemTimeCheck(IHttpClient client, IReadarrCloudRequestBuilder cloudRequestBuilder, ILocalizationService localizationService, Logger logger)
+        public SystemTimeCheck(IHttpClient client, IBibliophilarrCloudRequestBuilder cloudRequestBuilder, ILocalizationService localizationService, Logger logger)
             : base(localizationService)
         {
             _client = client;
             _cloudRequestBuilder = cloudRequestBuilder.Services;
+            _servicesEnabled = cloudRequestBuilder.HasServices;
             _logger = logger;
         }
 
         public override HealthCheck Check()
         {
+            if (!_servicesEnabled || _cloudRequestBuilder == null)
+            {
+                return new HealthCheck(GetType());
+            }
+
             var request = _cloudRequestBuilder.Create()
                                               .Resource("/time")
                                               .Build();

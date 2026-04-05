@@ -13,6 +13,9 @@ namespace NzbDrone.Core.Indexers
 
     public class FetchAndParseRssService : IFetchAndParseRss
     {
+        private static readonly TimeSpan NoIndexerWarningInterval = TimeSpan.FromHours(1);
+        private static DateTime _nextNoIndexerWarningUtc = DateTime.MinValue;
+
         private readonly IIndexerFactory _indexerFactory;
         private readonly Logger _logger;
 
@@ -28,7 +31,17 @@ namespace NzbDrone.Core.Indexers
 
             if (!indexers.Any())
             {
-                _logger.Warn("No available indexers. check your configuration.");
+                var now = DateTime.UtcNow;
+
+                if (now >= _nextNoIndexerWarningUtc)
+                {
+                    _nextNoIndexerWarningUtc = now.Add(NoIndexerWarningInterval);
+                    _logger.Warn("No available indexers. Configure at least one RSS-enabled indexer in Settings > Indexers, or ignore this warning if indexers are intentionally disabled.");
+                }
+                else
+                {
+                    _logger.Debug("No available indexers. Suppressing repeated warning until {0:o}", _nextNoIndexerWarningUtc);
+                }
 
                 return new List<ReleaseInfo>();
             }

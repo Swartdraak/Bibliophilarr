@@ -32,7 +32,7 @@ namespace NzbDrone.Core.Datastore
                 return false;
             }
 
-            // This is a bit of a hack but is the only way to see if a type has a handler set in Dapper
+            // NOTE: This is the only way to check if a type has a Dapper handler registered.
 #pragma warning disable 618
             SqlMapper.LookupDbType(propertyInfo.PropertyType, "", false, out var handler);
 #pragma warning restore 618

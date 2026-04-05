@@ -1,0 +1,77 @@
+# Bibliophilarr Branch Strategy
+
+## Goal
+
+Enable low-touch, highly automated release management for a solo maintainer.
+
+## Long-lived Branches
+
+| Branch | Status | Protection | Purpose |
+|---|---|---|---|
+| `main` | Active | Protected | Production-ready branch. Tagged releases are cut from here. |
+| `develop` | Active | Protected | Integration branch for feature work. |
+| `staging` | Active | Protected | Pre-release verification branch for release candidates. |
+| `release` | On-demand | Not protected | Optional stabilization lane for last-mile fixes. Created as needed. |
+| `hotfix` | On-demand | Not protected | Emergency patch lane based on production. Created as needed. |
+
+> **Note:** `release` and `hotfix` are created on-demand and do not have permanent branch protection rules. Only `main`, `develop`, and `staging` have persistent protection policies managed by `scripts/apply_branch_protection.sh`.
+
+## Short-lived branches
+
+- `feature/*`: new functionality and refactors.
+- `fix/*`: non-emergency bug fixes.
+- `release/*`: release candidate hardening.
+- `hotfix/*`: urgent production issue fixes.
+
+## Merge flow
+
+1. `feature/*` -> `develop`
+2. `develop` -> `staging`
+3. `staging` -> `main`
+4. Tag `main` with `vX.Y.Z` to trigger release publish workflows
+
+## Automation expectations
+
+- CI runs on PRs and pushes for `develop`, `staging`, `release`, `hotfix`, and `main`.
+- Release build workflow runs on tags and manual dispatch.
+- Release publish workflow creates draft GitHub releases.
+- Docker workflow publishes images to GHCR on release tags.
+- npm workflow publishes launcher package from `npm/bibliophilarr-launcher`.
+
+## Required check strategy
+
+- Branch protection on `develop`, `staging`, and `main` should require only checks that are emitted on every PR targeting that branch.
+- Do not path-filter required workflows at the trigger level. If a gate is required for merges, the workflow must always report a terminal status so docs-only and operations-only PRs are not blocked waiting on a missing check.
+- Prefer a consistently emitted required check over conditional required-check lists. If runtime cost becomes a problem later, keep the workflow trigger unconditional and optimize inside the workflow.
+- Baseline required contexts are managed by `scripts/apply_branch_protection.sh` and audited by `scripts/audit_branch_protection.py`.
+
+## Safety model for solo maintenance
+
+- Prefer automated checks over manual review requirements.
+- `develop` should not require approving reviews for merge. Green PRs merge based on required automated checks so the solo-maintainer flow does not depend on a second reviewer.
+- `staging` and `main` should use the same review-count baseline (`0`) to avoid policy drift between protected lanes.
+- Keep deployment actions gated by semantic version tags.
+- Use draft release first, then publish after smoke validation.
+- Keep rollback simple: retag previous known-good release and redeploy.
+
+## Deterministic Policy Ops
+
+- Apply policy: `scripts/apply_branch_protection.sh develop staging main`
+- Audit drift: `python3 scripts/audit_branch_protection.py --branches develop staging main`
+- Runbook: `docs/operations/BRANCH_PROTECTION_RUNBOOK.md`
+
+## Local initialization
+
+Use the branch bootstrap script to initialize local branch lanes:
+
+```bash
+./scripts/init-branch-schema.sh
+```
+
+This script is idempotent and only creates missing local branches.
+
+## References
+
+- [BRANCH_PROTECTION_RUNBOOK.md](BRANCH_PROTECTION_RUNBOOK.md) — Branch protection configuration runbook.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — Contribution guidelines.
+- [ROADMAP.md](../../ROADMAP.md) — Phased delivery milestones.

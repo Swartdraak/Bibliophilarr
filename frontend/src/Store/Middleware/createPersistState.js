@@ -1,5 +1,13 @@
+/**
+ * LocalStorage persistence enhancer.
+ * On startup, loads persisted Redux paths (sort keys, column visibility, etc.)
+ * from localStorage, merges them into the initial state via store.replaceReducer,
+ * and subscribes to the store to write those paths back on every change.
+ * Column schemas are reconciled against the current codebase to handle additions
+ * and removals between versions.
+ */
+
 import _ from 'lodash';
-import persistState from 'redux-localstorage';
 import actions from 'Store/Actions';
 import migrate from 'Store/Migrators/migrate';
 
@@ -53,7 +61,7 @@ function mergeColumns(path, initialState, persistedState, computedState) {
   // Add any columns added to the app in the initial position.
   initialColumns.forEach((initialColumn, index) => {
     const persistedColumnIndex = persistedColumns.findIndex((i) => i.name === initialColumn.name);
-    const column = Object.assign({}, initialColumn);
+    const column = { ...initialColumn };
 
     if (persistedColumnIndex === -1) {
       columns.splice(index, 0, column);
@@ -100,7 +108,7 @@ const config = {
   slicer,
   serialize,
   merge,
-  key: 'readarr'
+  key: 'bibliophilarr'
 };
 
 export default function createPersistState() {
@@ -109,5 +117,16 @@ export default function createPersistState() {
   migrate(persistedState);
   localStorage.setItem(config.key, serialize(persistedState));
 
-  return persistState(paths, config);
+  return (createStore) => (reducer, initialState, enhancer) => {
+    const finalInitialState = merge(initialState, persistedState);
+    const store = createStore(reducer, finalInitialState, enhancer);
+
+    store.subscribe(() => {
+      const state = store.getState();
+      const subset = config.slicer(paths)(state);
+      localStorage.setItem(config.key, config.serialize(subset));
+    });
+
+    return store;
+  };
 }

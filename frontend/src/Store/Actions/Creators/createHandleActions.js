@@ -1,3 +1,11 @@
+/**
+ * Section-aware reducer factory.
+ * Wraps redux-actions' handleActions() with generic handlers for the base
+ * action types (SET, UPDATE, UPDATE_ITEM, etc.).  Each invocation binds
+ * these handlers to a specific section key so that a single dispatched
+ * base action is only applied to the section it targets.
+ */
+
 import _ from 'lodash';
 import { handleActions } from 'redux-actions';
 import {
@@ -30,8 +38,8 @@ export default function createHandleActions(handlers, defaultState, section) {
       const [baseSection] = payloadSection.split('.');
 
       if (section === baseSection) {
-        const newState = Object.assign(getSectionState(state, payloadSection),
-          _.omit(payload, omittedProperties));
+        const newState = { ...getSectionState(state, payloadSection),
+          ..._.omit(payload, omittedProperties) };
 
         return updateSectionState(state, payloadSection, newState);
       }
@@ -81,7 +89,7 @@ export default function createHandleActions(handlers, defaultState, section) {
 
         newState.items = [...items];
 
-        // TODO: Move adding to it's own reducer
+        // NOTE: Add/remove logic is inline here; could be separated into dedicated reducer
         if (index >= 0) {
           const item = items[index];
           const newItem = { ...item, ...otherProps };
@@ -157,7 +165,7 @@ export default function createHandleActions(handlers, defaultState, section) {
           itemMap: createItemMap(data.records)
         };
 
-        return updateSectionState(state, payloadSection, Object.assign(newState, serverState, calculatedState));
+        return updateSectionState(state, payloadSection, { ...newState, ...serverState, ...calculatedState });
       }
 
       return state;

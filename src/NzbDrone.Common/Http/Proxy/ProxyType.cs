@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Common.Http.Proxy
+namespace NzbDrone.Common.Http.Proxy
 {
     public enum ProxyType
     {

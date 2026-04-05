@@ -69,7 +69,7 @@ namespace NzbDrone.Core.Notifications
 
         private string GetBookIncompleteImportMessage(string source)
         {
-            return string.Format("Readarr failed to Import all files for {0}",
+            return string.Format("Bibliophilarr failed to Import all files for {0}",
                 source);
         }
 
@@ -100,7 +100,7 @@ namespace NzbDrone.Core.Notifications
                 return true;
             }
 
-            //TODO: this message could be more clear
+            //NOTE: this message could be more clear
             _logger.Debug("{0} does not have any intersecting tags with {1}. Notification will not be sent.", definition.Name, author.Name);
             return false;
         }
@@ -278,6 +278,11 @@ namespace NzbDrone.Core.Notifications
 
         public void Handle(BookFileDeletedEvent message)
         {
+            if (message?.BookFile?.Edition?.Value?.Book == null || message.BookFile.Author == null)
+            {
+                return;
+            }
+
             var deleteMessage = new BookFileDeleteMessage();
 
             var book = new List<Book> { message.BookFile.Edition.Value.Book };
@@ -366,7 +371,7 @@ namespace NzbDrone.Core.Notifications
 
         public void Handle(BookImportIncompleteEvent message)
         {
-            // TODO: Build out this message so that we can pass on what failed and what was successful
+            // NOTE: Build out this message so that we can pass on what failed and what was successful
             var downloadMessage = new BookDownloadMessage
             {
                 Message = GetBookIncompleteImportMessage(message.TrackedDownload.DownloadItem.Title)
@@ -423,7 +428,7 @@ namespace NzbDrone.Core.Notifications
         public void Handle(UpdateInstalledEvent message)
         {
             var updateMessage = new ApplicationUpdateMessage();
-            updateMessage.Message = $"Readarr updated from {message.PreviousVerison.ToString()} to {message.NewVersion.ToString()}";
+            updateMessage.Message = $"Bibliophilarr updated from {message.PreviousVerison.ToString()} to {message.NewVersion.ToString()}";
             updateMessage.PreviousVersion = message.PreviousVerison;
             updateMessage.NewVersion = message.NewVersion;
 

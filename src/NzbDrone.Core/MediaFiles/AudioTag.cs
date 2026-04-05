@@ -44,9 +44,13 @@ namespace NzbDrone.Core.MediaFiles
         public AudioTag()
         {
             IsValid = true;
+            Performers = Array.Empty<string>();
+            BookAuthors = Array.Empty<string>();
+            Genres = Array.Empty<string>();
         }
 
         public AudioTag(string path)
+            : this()
         {
             Read(path);
         }
@@ -425,10 +429,12 @@ namespace NzbDrone.Core.MediaFiles
                 output.Add("Title", Tuple.Create(Title, other.Title));
             }
 
-            if (!Performers.SequenceEqual(other.Performers))
+            var thisPerformers = Performers ?? Array.Empty<string>();
+            var otherPerformers = other.Performers ?? Array.Empty<string>();
+            if (!thisPerformers.SequenceEqual(otherPerformers))
             {
-                var oldValue = Performers.Any() ? string.Join(" / ", Performers) : null;
-                var newValue = other.Performers.Any() ? string.Join(" / ", other.Performers) : null;
+                var oldValue = thisPerformers.Any() ? string.Join(" / ", thisPerformers) : null;
+                var newValue = otherPerformers.Any() ? string.Join(" / ", otherPerformers) : null;
 
                 output.Add("Author", Tuple.Create(oldValue, newValue));
             }
@@ -438,10 +444,12 @@ namespace NzbDrone.Core.MediaFiles
                 output.Add("Book", Tuple.Create(Book, other.Book));
             }
 
-            if (!BookAuthors.SequenceEqual(other.BookAuthors))
+            var thisBookAuthors = BookAuthors ?? Array.Empty<string>();
+            var otherBookAuthors = other.BookAuthors ?? Array.Empty<string>();
+            if (!thisBookAuthors.SequenceEqual(otherBookAuthors))
             {
-                var oldValue = BookAuthors.Any() ? string.Join(" / ", BookAuthors) : null;
-                var newValue = other.BookAuthors.Any() ? string.Join(" / ", other.BookAuthors) : null;
+                var oldValue = thisBookAuthors.Any() ? string.Join(" / ", thisBookAuthors) : null;
+                var newValue = otherBookAuthors.Any() ? string.Join(" / ", otherBookAuthors) : null;
 
                 output.Add("Book Author", Tuple.Create(oldValue, newValue));
             }
@@ -481,7 +489,9 @@ namespace NzbDrone.Core.MediaFiles
             if (OriginalReleaseDate?.Date != other.OriginalReleaseDate?.Date)
             {
                 // Id3v2.3 tags can only store the year, not the full date
+                // Both must have values for the year-only comparison to make sense
                 if (OriginalReleaseDate.HasValue &&
+                    other.OriginalReleaseDate.HasValue &&
                     OriginalReleaseDate.Value.Month == 1 &&
                     OriginalReleaseDate.Value.Day == 1)
                 {
@@ -503,9 +513,11 @@ namespace NzbDrone.Core.MediaFiles
                 output.Add("Label", Tuple.Create(Publisher, other.Publisher));
             }
 
-            if (!Genres.SequenceEqual(other.Genres))
+            var thisGenres = Genres ?? Array.Empty<string>();
+            var otherGenres = other.Genres ?? Array.Empty<string>();
+            if (!thisGenres.SequenceEqual(otherGenres))
             {
-                output.Add("Genres", Tuple.Create(string.Join(" / ", Genres), string.Join(" / ", other.Genres)));
+                output.Add("Genres", Tuple.Create(string.Join(" / ", thisGenres), string.Join(" / ", otherGenres)));
             }
 
             if (ImageSize != other.ImageSize)
@@ -527,10 +539,12 @@ namespace NzbDrone.Core.MediaFiles
                 };
             }
 
-            var authors = tag.BookAuthors.Where(x => x.IsNotNullOrWhiteSpace()).ToList();
+            var bookAuthors = tag.BookAuthors ?? Array.Empty<string>();
+            var performers = tag.Performers ?? Array.Empty<string>();
+            var authors = bookAuthors.Where(x => x.IsNotNullOrWhiteSpace()).ToList();
             if (!authors.Any())
             {
-                authors.AddRange(tag.Performers.Where(x => x.IsNotNullOrWhiteSpace()));
+                authors.AddRange(performers.Where(x => x.IsNotNullOrWhiteSpace()));
             }
 
             return new ParsedTrackInfo

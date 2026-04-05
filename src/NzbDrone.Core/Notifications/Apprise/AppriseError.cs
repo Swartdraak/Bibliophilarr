@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Notifications.Apprise
+namespace NzbDrone.Core.Notifications.Apprise
 {
     public class AppriseError
     {

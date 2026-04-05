@@ -39,7 +39,7 @@ namespace NzbDrone.Core.Backup
 
         private string _backupTempFolder;
 
-        public static readonly Regex BackupFileRegex = new Regex(@"readarr_backup_(v[0-9.]+_)?[._0-9]+\.zip", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        public static readonly Regex BackupFileRegex = new Regex(@"bibliophilarr_backup_(v[0-9.]+_)?[._0-9]+\.zip", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public BackupService(IMainDatabase maindDb,
                              IMakeDatabaseBackup makeDatabaseBackup,
@@ -59,7 +59,7 @@ namespace NzbDrone.Core.Backup
             _configService = configService;
             _logger = logger;
 
-            _backupTempFolder = Path.Combine(_appFolderInfo.TempFolder, "readarr_backup");
+            _backupTempFolder = Path.Combine(_appFolderInfo.TempFolder, "bibliophilarr_backup");
         }
 
         public void Backup(BackupType backupType)
@@ -77,7 +77,7 @@ namespace NzbDrone.Core.Backup
             }
 
             var dateNow = DateTime.Now;
-            var backupFilename = $"readarr_backup_v{BuildInfo.Version}_{dateNow:yyyy.MM.dd_HH.mm.ss}.zip";
+            var backupFilename = $"bibliophilarr_backup_v{BuildInfo.Version}_{dateNow:yyyy.MM.dd_HH.mm.ss}.zip";
             var backupPath = Path.Combine(backupFolder, backupFilename);
 
             Cleanup();
@@ -94,7 +94,7 @@ namespace NzbDrone.Core.Backup
             _logger.ProgressDebug("Creating backup zip");
 
             // Delete journal file created during database backup
-            _diskProvider.DeleteFile(Path.Combine(_backupTempFolder, "readarr.db-journal"));
+            _diskProvider.DeleteFile(Path.Combine(_backupTempFolder, "bibliophilarr.db-journal"));
 
             _archiveService.CreateZip(backupPath, _diskProvider.GetFiles(_backupTempFolder, false));
 
@@ -131,7 +131,7 @@ namespace NzbDrone.Core.Backup
             if (backupFileName.EndsWith(".zip"))
             {
                 var restoredFile = false;
-                var temporaryPath = Path.Combine(_appFolderInfo.TempFolder, "readarr_backup_restore");
+                var temporaryPath = Path.Combine(_appFolderInfo.TempFolder, "bibliophilarr_backup_restore");
 
                 _archiveService.Extract(backupFileName, temporaryPath);
 
@@ -145,7 +145,7 @@ namespace NzbDrone.Core.Backup
                         restoredFile = true;
                     }
 
-                    if (fileName.Equals("readarr.db", StringComparison.InvariantCultureIgnoreCase))
+                    if (fileName.Equals("bibliophilarr.db", StringComparison.InvariantCultureIgnoreCase))
                     {
                         _diskProvider.MoveFile(file, _appFolderInfo.GetDatabaseRestore(), true);
                         restoredFile = true;

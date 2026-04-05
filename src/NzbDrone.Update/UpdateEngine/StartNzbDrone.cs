@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using NLog;
 using NzbDrone.Common;
@@ -31,7 +31,7 @@ namespace NzbDrone.Update.UpdateEngine
 
         public void Start(AppType appType, string installationFolder)
         {
-            _logger.Info("Starting Readarr");
+            _logger.Info("Starting {0}", BuildInfo.AppName);
             if (appType == AppType.Service)
             {
                 try
@@ -40,7 +40,7 @@ namespace NzbDrone.Update.UpdateEngine
                 }
                 catch (InvalidOperationException e)
                 {
-                    _logger.Warn(e, "Couldn't start Readarr Service (Most likely due to permission issues). Falling back to console.");
+                    _logger.Warn(e, "Couldn't start {0} Service (Most likely due to permission issues). Falling back to console.", BuildInfo.AppName);
                     StartConsole(installationFolder);
                 }
             }
@@ -56,18 +56,18 @@ namespace NzbDrone.Update.UpdateEngine
 
         private void StartService()
         {
-            _logger.Info("Starting Readarr service");
+            _logger.Info("Starting {0} service", BuildInfo.AppName);
             _serviceProvider.Start(ServiceProvider.SERVICE_NAME);
         }
 
         private void StartWinform(string installationFolder)
         {
-            Start(installationFolder, "Readarr".ProcessNameToExe());
+            Start(installationFolder, AppIdentity.InternalName.ProcessNameToExe());
         }
 
         private void StartConsole(string installationFolder)
         {
-            Start(installationFolder, "Readarr.Console".ProcessNameToExe());
+            Start(installationFolder, AppIdentity.ConsoleProcessName.ProcessNameToExe());
         }
 
         private void Start(string installationFolder, string fileName)

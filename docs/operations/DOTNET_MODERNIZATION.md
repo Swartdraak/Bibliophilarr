@@ -1,15 +1,19 @@
 # .NET Modernization Project
 
+> **COMPLETED** — Migration from .NET 6 to .NET 8 was finished in Phase 3.
+> The project now targets `net8.0` (SDK 8.0.100 per `global.json`).
+> This document is retained as a historical reference.
+
 ## Issue
 
-The Backend CI workflow is failing due to .NET 6.0 being End of Life (EOL) and End of Support (EOS).
+The Backend CI workflow was failing due to .NET 6.0 being End of Life (EOL) and End of Support (EOS).
 
 ### Current Status
 
-- **Current Framework**: .NET 6.0
-- **EOL Date**: November 12, 2024
-- **Security Status**: No longer receiving security updates
-- **CI Status**: Failing with warnings about EOL framework
+- **Current Framework**: .NET 8.0 (migration complete)
+- **EOL Date**: November 10, 2026
+- **Security Status**: Receiving active security updates
+- **CI Status**: Passing
 
 ### CI Failure Details
 
@@ -166,11 +170,11 @@ dotnet add package SixLabors.ImageSharp --version X.Y.Z
 
 # Build the solution
 cd src
-dotnet restore Readarr.sln
-dotnet build Readarr.sln --configuration Release
+dotnet restore Bibliophilarr.sln
+dotnet build Bibliophilarr.sln --configuration Release
 
 # Run tests
-dotnet test Readarr.sln --configuration Release
+dotnet test Bibliophilarr.sln --configuration Release
 ```
 
 ### Risk Assessment

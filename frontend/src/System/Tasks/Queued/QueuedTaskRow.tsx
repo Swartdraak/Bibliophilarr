@@ -214,9 +214,9 @@ export default function QueuedTaskRow(props: QueuedTaskRowProps) {
       </TableRowCell>
 
       <TableRowCell className={styles.actions}>
-        {status === 'queued' && (
+        {(status === 'queued' || status === 'started') && (
           <IconButton
-            title={translate('RemovedFromTaskQueue')}
+            title={translate('Cancel')}
             name={icons.REMOVE}
             onPress={openCancelConfirmModal}
           />

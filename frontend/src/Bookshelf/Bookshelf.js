@@ -14,6 +14,12 @@ import VirtualTable from 'Components/Table/VirtualTable';
 import VirtualTableRow from 'Components/Table/VirtualTableRow';
 import { align, sortDirections } from 'Helpers/Props';
 import getIndexOfFirstCharacter from 'Utilities/Array/getIndexOfFirstCharacter';
+import isValidScrollIndex from 'Utilities/Array/isValidScrollIndex';
+import {
+  BOOKSHELF_ENTRY_WIDTH,
+  BOOKSHELF_ROW_HEIGHT,
+  BOOKSHELF_ROW_PADDING,
+  BOOKSHELF_SIDEBAR_WIDTH } from 'Utilities/Constants/grid';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 import getSelectedIds from 'Utilities/Table/getSelectedIds';
@@ -61,7 +67,7 @@ class Bookshelf extends Component {
       scroller: null,
       jumpBarItems: { order: [] },
       scrollIndex: null,
-      jumpCount: 0,
+      jumpToCharacter: null,
       allSelected: false,
       allUnselected: false,
       lastToggled: null,
@@ -75,43 +81,40 @@ class Bookshelf extends Component {
   }
 
   componentDidMount() {
+    this.setJumpBarItems();
     this.setSelectedState();
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps, prevState) {
     const {
       isSaving,
-      saveError
+      saveError,
+      items,
+      sortKey
     } = this.props;
 
     const {
-      scrollIndex,
-      jumpCount
+      jumpToCharacter
     } = this.state;
 
     if (prevProps.isSaving && !isSaving && !saveError) {
-      this.onSelectAllChange({ value: false });
+      this.setState(selectAll(this.state.selectedState, false));
     }
 
-    // nasty hack to fix react-virtualized jumping incorrectly
-    // due to variable row heights
-    if (scrollIndex != null) {
-      if (jumpCount === 0) {
-        this.setState({
-          scrollIndex: scrollIndex + 1,
-          jumpCount: 1
-        });
-      } else if (jumpCount === 1) {
-        this.setState({
-          scrollIndex: scrollIndex - 1,
-          jumpCount: 2
-        });
-      } else {
-        this.setState({
-          scrollIndex: null,
-          jumpCount: 0
-        });
+    // Handle A-Z jump bar navigation
+    if (jumpToCharacter != null && jumpToCharacter !== prevState.jumpToCharacter) {
+      const scrollIndex = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
+
+      if (isValidScrollIndex(scrollIndex)) {
+        this.setState({ scrollIndex });
       }
+    } else if (jumpToCharacter == null && prevState.jumpToCharacter != null) {
+      this.setState({ scrollIndex: null });
+    }
+
+    // Clear jumpToCharacter after scroll is triggered
+    if (jumpToCharacter != null) {
+      this.setState({ jumpToCharacter: null });
     }
   }
 
@@ -218,14 +221,14 @@ class Bookshelf extends Component {
       return 100;
     }
 
-    // guess 250px per book entry
-    // available width is total width less 186px for select, status etc
-    const cols = Math.max(Math.floor((width - 186) / 250), 1);
+    // guess BOOKSHELF_ENTRY_WIDTH per book entry
+    // available width is total width less BOOKSHELF_SIDEBAR_WIDTH for select, status etc
+    const cols = Math.max(Math.floor((width - BOOKSHELF_SIDEBAR_WIDTH) / BOOKSHELF_ENTRY_WIDTH), 1);
     const booksPerAuthor = bookCount / items.length;
     const bookRowsPerAuthor = booksPerAuthor / cols;
 
-    // each row is 23px per book row plus 16px padding
-    return bookRowsPerAuthor * 23 + 16;
+    // each row is BOOKSHELF_ROW_HEIGHT per book row plus BOOKSHELF_ROW_PADDING padding
+    return bookRowsPerAuthor * BOOKSHELF_ROW_HEIGHT + BOOKSHELF_ROW_PADDING;
   };
 
   rowRenderer = ({ key, rowIndex, parent, style }) => {
@@ -289,16 +292,7 @@ class Bookshelf extends Component {
   };
 
   onJumpBarItemPress = (jumpToCharacter) => {
-    const {
-      items,
-      sortKey
-    } = this.props;
-
-    const scrollIndex = getIndexOfFirstCharacter(items, sortKey, jumpToCharacter);
-
-    if (scrollIndex != null) {
-      this.setState({ scrollIndex });
-    }
+    this.setState({ jumpToCharacter });
   };
 
   onGridRecompute = (width) => {
@@ -359,10 +353,10 @@ class Bookshelf extends Component {
           <PageContentBody
             registerScroller={this.setScrollerRef}
             className={styles.contentBody}
-            innerClassName={styles.innerContentBody}
+            innerClassName={styles.tableInnerContentBody}
           >
             {
-              isFetching && !isPopulated &&
+              (!isPopulated || !scroller) && !error &&
                 <LoadingIndicator />
             }
 

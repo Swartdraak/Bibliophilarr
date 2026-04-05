@@ -4,6 +4,7 @@ import IconButton from 'Components/Link/IconButton';
 import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
 import TableRowCell from 'Components/Table/Cells/TableRowCell';
 import { icons } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import BookInteractiveSearchModalConnector from './Search/BookInteractiveSearchModalConnector';
 import styles from './BookSearchCell.css';
 
@@ -47,12 +48,14 @@ class BookSearchCell extends Component {
     return (
       <TableRowCell className={styles.BookSearchCell}>
         <SpinnerIconButton
+          title={translate('Search')}
           name={icons.SEARCH}
           isSpinning={isSearching}
           onPress={onSearchPress}
         />
 
         <IconButton
+          title={translate('InteractiveSearch')}
           name={icons.INTERACTIVE}
           onPress={this.onManualSearchPress}
         />

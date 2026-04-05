@@ -12,7 +12,6 @@ WORKFLOWS = [
     "ci-backend.yml",
     "docs-validation.yml",
     "staging-smoke-metadata-telemetry.yml",
-    "phase6-packaging-validation.yml",
 ]
 
 

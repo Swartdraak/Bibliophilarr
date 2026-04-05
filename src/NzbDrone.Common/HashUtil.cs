@@ -11,7 +11,7 @@ namespace NzbDrone.Common
             var bytes = Encoding.UTF8.GetBytes(input);
             foreach (var myByte in bytes)
             {
-                mCrc ^=  (uint)myByte << 24;
+                mCrc ^= (uint)myByte << 24;
                 for (var i = 0; i < 8; i++)
                 {
                     if ((Convert.ToUInt32(mCrc) & 0x80000000) == 0x80000000)

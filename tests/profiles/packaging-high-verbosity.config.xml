@@ -1,0 +1,13 @@
+<Config>
+  <BindAddress>127.0.0.1</BindAddress>
+  <Port>8787</Port>
+  <EnableSsl>False</EnableSsl>
+  <LaunchBrowser>False</LaunchBrowser>
+  <ApiKey>packaging-ci-key</ApiKey>
+  <AuthenticationMethod>None</AuthenticationMethod>
+  <AuthenticationRequired>Enabled</AuthenticationRequired>
+  <LogLevel>trace</LogLevel>
+  <ConsoleLogLevel>trace</ConsoleLogLevel>
+  <Branch>develop</Branch>
+  <InstanceName>BibliophilarrPackagingValidation</InstanceName>
+</Config>

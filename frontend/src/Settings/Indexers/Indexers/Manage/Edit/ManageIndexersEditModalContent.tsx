@@ -113,7 +113,9 @@ function ManageIndexersEditModalContent(
           setPriority(value);
           break;
         default:
-          console.warn(`EditIndexersModalContent Unknown Input: '${name}'`);
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(`EditIndexersModalContent Unknown Input: '${name}'`);
+          }
       }
     },
     []

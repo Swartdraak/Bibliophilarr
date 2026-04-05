@@ -7,8 +7,10 @@ using FluentValidation.Results;
 using NLog;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser;
 
@@ -24,21 +26,24 @@ namespace NzbDrone.Core.Books
     {
         private readonly IAuthorService _authorService;
         private readonly IAuthorMetadataService _authorMetadataService;
-        private readonly IProvideAuthorInfo _authorInfo;
+        private readonly IAuthorCanonicalizationService _authorCanonicalizationService;
+        private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IAddAuthorValidator _addAuthorValidator;
         private readonly Logger _logger;
 
         public AddAuthorService(IAuthorService authorService,
                                 IAuthorMetadataService authorMetadataService,
-                                IProvideAuthorInfo authorInfo,
+                                IAuthorCanonicalizationService authorCanonicalizationService,
+                                IMetadataProviderOrchestrator orchestrator,
                                 IBuildFileNames fileNameBuilder,
                                 IAddAuthorValidator addAuthorValidator,
                                 Logger logger)
         {
             _authorService = authorService;
             _authorMetadataService = authorMetadataService;
-            _authorInfo = authorInfo;
+            _authorCanonicalizationService = authorCanonicalizationService;
+            _orchestrator = orchestrator;
             _fileNameBuilder = fileNameBuilder;
             _addAuthorValidator = addAuthorValidator;
             _logger = logger;
@@ -51,11 +56,26 @@ namespace NzbDrone.Core.Books
             newAuthor = AddSkyhookData(newAuthor);
             newAuthor = SetPropertiesAndValidate(newAuthor);
 
+            var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(newAuthor, out var confidence, out var reason);
+            if (canonical != null)
+            {
+                _logger.Info("Reusing canonical author {0} for incoming {1} (confidence={2:0.000}, reason={3})", canonical, newAuthor, confidence, reason);
+                return canonical;
+            }
+
             _logger.Info("Adding Author {0} Path: [{1}]", newAuthor, newAuthor.Path);
 
             // add metadata
             _authorMetadataService.Upsert(newAuthor.Metadata.Value);
             newAuthor.AuthorMetadataId = newAuthor.Metadata.Value.Id;
+
+            // If metadata was reused (slug collision), an Author may already exist
+            var existingAuthor = _authorService.GetAuthorByMetadataId(newAuthor.AuthorMetadataId);
+            if (existingAuthor != null)
+            {
+                _logger.Info("Author already exists for metadata {0}; returning existing author {1}", newAuthor.AuthorMetadataId, existingAuthor);
+                return existingAuthor;
+            }
 
             // add the author itself
             return _authorService.AddAuthor(newAuthor, doRefresh);
@@ -65,6 +85,7 @@ namespace NzbDrone.Core.Books
         {
             var added = DateTime.UtcNow;
             var authorsToAdd = new List<Author>();
+            var existingMatches = new List<Author>();
 
             foreach (var s in newAuthors)
             {
@@ -72,6 +93,15 @@ namespace NzbDrone.Core.Books
                 {
                     var author = AddSkyhookData(s);
                     author = SetPropertiesAndValidate(author);
+
+                    var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(author, out var confidence, out var reason);
+                    if (canonical != null)
+                    {
+                        _logger.Info("Skipping duplicate author insert for {0}; using canonical {1} (confidence={2:0.000}, reason={3})", author, canonical, confidence, reason);
+                        existingMatches.Add(canonical);
+                        continue;
+                    }
+
                     author.Added = added;
                     authorsToAdd.Add(author);
                 }
@@ -82,34 +112,124 @@ namespace NzbDrone.Core.Books
                 }
             }
 
+            if (!authorsToAdd.Any())
+            {
+                return existingMatches.DistinctBy(x => x.Id).ToList();
+            }
+
             // add metadata
             _authorMetadataService.UpsertMany(authorsToAdd.Select(x => x.Metadata.Value).ToList());
             authorsToAdd.ForEach(x => x.AuthorMetadataId = x.Metadata.Value.Id);
 
-            return _authorService.AddAuthors(authorsToAdd, doRefresh);
+            // Filter out authors whose metadata was reused (an Author already exists)
+            var actuallyNew = new List<Author>();
+            foreach (var author in authorsToAdd)
+            {
+                var existingAuthor = _authorService.GetAuthorByMetadataId(author.AuthorMetadataId);
+                if (existingAuthor != null)
+                {
+                    _logger.Info("Author already exists for metadata {0}; skipping insert for {1}", author.AuthorMetadataId, existingAuthor);
+                    existingMatches.Add(existingAuthor);
+                }
+                else
+                {
+                    actuallyNew.Add(author);
+                }
+            }
+
+            var inserted = actuallyNew.Any() ? _authorService.AddAuthors(actuallyNew, doRefresh) : new List<Author>();
+            return inserted.Concat(existingMatches).DistinctBy(x => x.Id).ToList();
         }
 
         private Author AddSkyhookData(Author newAuthor)
         {
             Author author;
 
+            var normalizedForeignAuthorId = NormalizeForeignAuthorId(newAuthor.Metadata.Value.ForeignAuthorId);
+            newAuthor.Metadata.Value.ForeignAuthorId = normalizedForeignAuthorId;
+
             try
             {
-                author = _authorInfo.GetAuthorInfo(newAuthor.Metadata.Value.ForeignAuthorId, false);
+                var normalizedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(newAuthor.Metadata.Value.ForeignAuthorId) ?? newAuthor.Metadata.Value.ForeignAuthorId;
+                author = _orchestrator.GetAuthorInfo(normalizedAuthorId, false);
             }
             catch (AuthorNotFoundException)
             {
-                _logger.Error("ReadarrId {0} was not found, it may have been removed from Goodreads.", newAuthor.Metadata.Value.ForeignAuthorId);
-
-                throw new ValidationException(new List<ValidationFailure>
+                // Only treat as fatal for canonical OpenLibrary IDs; Hardcover and other
+                // provider IDs should fall back gracefully to the data already in hand.
+                if (newAuthor.Metadata.Value.ForeignAuthorId.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase))
                 {
-                    new ("ForeignAuthorId", "An author with this ID was not found", newAuthor.Metadata.Value.ForeignAuthorId)
-                });
+                    _logger.Error("BibliophilarrId {0} was not found, it may have been removed from OpenLibrary.", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
+
+                    throw new ValidationException(new List<ValidationFailure>
+                    {
+                        new ("ForeignAuthorId", "An author with this ID was not found", newAuthor.Metadata.Value.ForeignAuthorId)
+                    });
+                }
+
+                _logger.Warn("Author metadata lookup returned no results for {0}; using request payload fallback", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
+                author = BuildFallbackAuthor(newAuthor);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Author metadata lookup failed for {0}; using request payload fallback", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
+                author = BuildFallbackAuthor(newAuthor);
             }
 
             author.ApplyChanges(newAuthor);
 
             return author;
+        }
+
+        private static string NormalizeForeignAuthorId(string foreignAuthorId)
+        {
+            var normalizedAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId);
+
+            return normalizedAuthorId.IsNotNullOrWhiteSpace()
+                ? $"openlibrary:author:{normalizedAuthorId}"
+                : foreignAuthorId;
+        }
+
+        private static Author BuildFallbackAuthor(Author requestedAuthor)
+        {
+            var metadata = requestedAuthor.Metadata.Value;
+
+            metadata.ForeignAuthorId = metadata.ForeignAuthorId.IsNotNullOrWhiteSpace()
+                ? metadata.ForeignAuthorId
+                : requestedAuthor.ForeignAuthorId;
+
+            metadata.Name = metadata.Name.IsNotNullOrWhiteSpace()
+                ? metadata.Name
+                : metadata.ForeignAuthorId;
+
+            if (metadata.NameLastFirst.IsNullOrWhiteSpace())
+            {
+                metadata.NameLastFirst = metadata.Name.ToLastFirst();
+            }
+
+            if (metadata.SortName.IsNullOrWhiteSpace())
+            {
+                metadata.SortName = metadata.Name.ToLowerInvariant();
+            }
+
+            if (metadata.SortNameLastFirst.IsNullOrWhiteSpace())
+            {
+                metadata.SortNameLastFirst = metadata.NameLastFirst.ToLowerInvariant();
+            }
+
+            metadata.TitleSlug = metadata.TitleSlug.IsNotNullOrWhiteSpace()
+                ? metadata.TitleSlug
+                : metadata.ForeignAuthorId.ToUrlSlug();
+
+            metadata.Links ??= new List<Links>();
+            metadata.Images ??= new List<MediaCover.MediaCover>();
+            metadata.Genres ??= new List<string>();
+            metadata.Ratings ??= new Ratings { Votes = 0, Value = 0 };
+
+            var fallback = new Author();
+            fallback.Metadata = metadata;
+
+            return fallback;
         }
 
         private Author SetPropertiesAndValidate(Author newAuthor)

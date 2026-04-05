@@ -1,4 +1,4 @@
-﻿using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.Indexers.Gazelle
 {

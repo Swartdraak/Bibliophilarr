@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using NLog.Common;
 using NLog.Targets;
 using NLog.Targets.Wrappers;

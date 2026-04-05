@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.IndexerSearch.Definitions
+namespace NzbDrone.Core.IndexerSearch.Definitions
 {
     public class AuthorSearchCriteria : SearchCriteriaBase
     {

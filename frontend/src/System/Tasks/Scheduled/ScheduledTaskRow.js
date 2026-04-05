@@ -8,6 +8,7 @@ import { icons } from 'Helpers/Props';
 import formatDate from 'Utilities/Date/formatDate';
 import formatDateTime from 'Utilities/Date/formatDateTime';
 import formatTimeSpan from 'Utilities/Date/formatTimeSpan';
+import translate from 'Utilities/String/translate';
 import styles from './ScheduledTaskRow.css';
 
 function getFormattedDates(props) {
@@ -173,6 +174,7 @@ class ScheduledTaskRow extends Component {
           className={styles.actions}
         >
           <SpinnerIconButton
+            title={translate('RunNow')}
             name={icons.REFRESH}
             spinningName={icons.REFRESH}
             isSpinning={isExecuting}

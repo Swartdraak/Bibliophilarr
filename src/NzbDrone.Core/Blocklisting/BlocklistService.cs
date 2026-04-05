@@ -75,18 +75,18 @@ namespace NzbDrone.Core.Blocklisting
         public void Block(RemoteBook remoteEpisode, string message)
         {
             var blocklist = new Blocklist
-                            {
-                                AuthorId = remoteEpisode.Author.Id,
-                                BookIds = remoteEpisode.Books.Select(e => e.Id).ToList(),
-                                SourceTitle =  remoteEpisode.Release.Title,
-                                Quality = remoteEpisode.ParsedBookInfo.Quality,
-                                Date = DateTime.UtcNow,
-                                PublishedDate = remoteEpisode.Release.PublishDate,
-                                Size = remoteEpisode.Release.Size,
-                                Indexer = remoteEpisode.Release.Indexer,
-                                Protocol = remoteEpisode.Release.DownloadProtocol,
-                                Message = message
-                            };
+            {
+                AuthorId = remoteEpisode.Author.Id,
+                BookIds = remoteEpisode.Books.Select(e => e.Id).ToList(),
+                SourceTitle = remoteEpisode.Release.Title,
+                Quality = remoteEpisode.ParsedBookInfo.Quality,
+                Date = DateTime.UtcNow,
+                PublishedDate = remoteEpisode.Release.PublishDate,
+                Size = remoteEpisode.Release.Size,
+                Indexer = remoteEpisode.Release.Indexer,
+                Protocol = remoteEpisode.Release.DownloadProtocol,
+                Message = message
+            };
 
             if (remoteEpisode.Release is TorrentInfo torrentRelease)
             {

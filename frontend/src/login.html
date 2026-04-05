@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- Chrome, Opera, and Firefox OS -->
-    <meta name="theme-color" content="#3a3f51" />
+    <meta name="theme-color" content="#193555" />
     <!-- Windows Phone -->
-    <meta name="msapplication-navbutton-color" content="#3a3f51" />
+    <meta name="msapplication-navbutton-color" content="#193555" />
     <!-- Android/Apple Phone -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="format-detection" content="telephone=no">
 
-    <meta name="description" content="Readarr" />
+    <meta name="description" content="Bibliophilarr" />
 
     <link
       rel="apple-touch-icon"
@@ -37,7 +37,7 @@
     <link
       rel="mask-icon"
       href="/Content/Images/Icons/safari-pinned-tab.svg"
-      color="#00ccff"
+      color="#193555"
     />
     <link
       rel="shortcut icon"
@@ -53,7 +53,7 @@
     <link rel="stylesheet" type="text/css" href="/Content/styles.css" />
     <link rel="stylesheet" type="text/css" href="/Content/Fonts/fonts.css" />
 
-    <title>Login - Readarr</title>
+    <title>Login - Bibliophilarr</title>
 
     <style>
       body {
@@ -88,7 +88,7 @@
         padding: 10px;
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
-        background-color: #3a3f51;
+        background-color: #193555;
       }
 
       .panel-body {
@@ -203,7 +203,7 @@
       <div class="content">
         <div class="panel">
           <div class="panel-header">
-            <img src="/Content/Images/logo.svg" alt="Image" class="logo" />
+            <img src="/Content/Images/Icons/logo-bibliophilarr.png" alt="Bibliophilarr" class="logo" />
           </div>
 
           <div class="panel-body">
@@ -255,7 +255,7 @@
                 </span>
 
                 <a
-                  href="https://wiki.servarr.com/readarr/faq#help-i-have-locked-my-self-out"
+                  href="https://github.com/Swartdraak/Bibliophilarr/wiki/faq#help-i-have-locked-my-self-out"
                   class="forgot-password"
                   >Forgot your password?</a
                 >
@@ -273,7 +273,7 @@
           <span>&copy;</span>
           <span id="year"></span>
           <span>-</span>
-          <span>Readarr</span>
+          <span>Bibliophilarr</span>
         </div>
       </div>
     </div>
@@ -281,7 +281,7 @@
 
   <script type="text/javascript">
     var yearSpan = document.getElementById("year");
-    yearSpan.innerHTML = "2017-" + new Date().getFullYear();
+    yearSpan.textContent = \"2017-\" + new Date().getFullYear();
 
     var copyDiv = document.getElementById("copy");
     copyDiv.classList.remove("hidden");

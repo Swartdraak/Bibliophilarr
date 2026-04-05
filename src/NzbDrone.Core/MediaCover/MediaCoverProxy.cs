@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using NzbDrone.Common.Cache;
@@ -61,6 +61,12 @@ namespace NzbDrone.Core.MediaCover
         public byte[] GetImage(string hash)
         {
             var url = GetUrl(hash);
+
+            if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                var filePath = new Uri(url).LocalPath;
+                return File.ReadAllBytes(filePath);
+            }
 
             var request = new HttpRequest(url);
 

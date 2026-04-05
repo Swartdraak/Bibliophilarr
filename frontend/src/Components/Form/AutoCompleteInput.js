@@ -46,7 +46,7 @@ class AutoCompleteInput extends Component {
     const lowerCaseValue = jdu.replace(value).toLowerCase();
 
     const filteredValues = values.filter((v) => {
-      return jdu.replace(v).toLowerCase().contains(lowerCaseValue);
+      return jdu.replace(v).toLowerCase().includes(lowerCaseValue);
     });
 
     this.setState({ suggestions: filteredValues });

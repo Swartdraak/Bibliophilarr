@@ -86,15 +86,15 @@ function createMapStateToProps() {
 function createMapDispatchToProps(dispatch, props) {
   return {
     onGoToAuthor(titleSlug) {
-      dispatch(push(`${window.Readarr.urlBase}/author/${titleSlug}`));
+      dispatch(push(`${window.Bibliophilarr.urlBase}/author/${titleSlug}`));
     },
 
     onGoToBook(titleSlug) {
-      dispatch(push(`${window.Readarr.urlBase}/book/${titleSlug}`));
+      dispatch(push(`${window.Bibliophilarr.urlBase}/book/${titleSlug}`));
     },
 
     onGoToAddNewAuthor(query) {
-      dispatch(push(`${window.Readarr.urlBase}/add/search?term=${encodeURIComponent(query)}`));
+      dispatch(push(`${window.Bibliophilarr.urlBase}/add/search?term=${encodeURIComponent(query)}`));
     }
   };
 }

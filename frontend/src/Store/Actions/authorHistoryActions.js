@@ -94,7 +94,7 @@ export const actionHandlers = handleThunks({
 export const reducers = createHandleActions({
 
   [CLEAR_AUTHOR_HISTORY]: (state) => {
-    return Object.assign({}, state, defaultState);
+    return { ...state, ...defaultState };
   }
 
 }, defaultState, section);

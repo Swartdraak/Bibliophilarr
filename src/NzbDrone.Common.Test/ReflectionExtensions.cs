@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Common.Test
+namespace NzbDrone.Common.Test
 {
     public static class ReflectionExtensions
     {

@@ -7,6 +7,7 @@ import VirtualTableHeader from 'Components/Table/VirtualTableHeader';
 import VirtualTableHeaderCell from 'Components/Table/VirtualTableHeaderCell';
 import VirtualTableSelectAllHeaderCell from 'Components/Table/VirtualTableSelectAllHeaderCell';
 import { icons } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import AuthorIndexTableOptionsConnector from './AuthorIndexTableOptionsConnector';
 import hasGrowableColumns from './hasGrowableColumns';
 import styles from './AuthorIndexHeader.css';
@@ -69,6 +70,7 @@ function AuthorIndexHeader(props) {
                   onTableOptionChange={onTableOptionChange}
                 >
                   <IconButton
+                    title={translate('TableOptions')}
                     name={icons.ADVANCED_SETTINGS}
                   />
                 </TableOptionsModalWrapper>

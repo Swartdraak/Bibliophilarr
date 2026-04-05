@@ -39,8 +39,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             var authors = GetAuthorVariants(fileAuthors);
 
-            dist.AddString("author", authors, edition.Book.Value.AuthorMetadata.Value.Name);
-            Logger.Trace("author: '{0}' vs '{1}'; {2}", authors.ConcatToString("' or '"), edition.Book.Value.AuthorMetadata.Value.Name, dist.NormalizedDistance());
+            var authorConfidence = GetAuthorConfidence(localTracks);
+            var authorKey = authorConfidence < 0.7 ? "author_low_confidence" : "author";
+
+            dist.AddString(authorKey, authors, edition.Book.Value.AuthorMetadata.Value.Name);
+            Logger.Trace("author: '{0}' vs '{1}' ({2:0.00}); {3}", authors.ConcatToString("' or '"), edition.Book.Value.AuthorMetadata.Value.Name, authorConfidence, dist.NormalizedDistance());
 
             var title = localTracks.MostCommon(x => x.FileTrackInfo.BookTitle) ?? "";
             var titleOptions = new List<string> { edition.Title };
@@ -71,8 +74,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             var fileTitles = new[] { title, CleanTitleCruft.Replace(title) }.Distinct().ToList();
 
-            dist.AddString("book", fileTitles, titleOptions);
-            Logger.Trace("book: '{0}' vs '{1}'; {2}", fileTitles.ConcatToString("' or '"), titleOptions.ConcatToString("' or '"), dist.NormalizedDistance());
+            var titleConfidence = GetBookTitleConfidence(localTracks);
+            var titleKey = titleConfidence < 0.7 ? "book_low_confidence" : "book";
+
+            dist.AddString(titleKey, fileTitles, titleOptions);
+            Logger.Trace("book: '{0}' vs '{1}' ({2:0.00}); {3}", fileTitles.ConcatToString("' or '"), titleOptions.ConcatToString("' or '"), titleConfidence, dist.NormalizedDistance());
 
             var isbn = localTracks.MostCommon(x => x.FileTrackInfo.Isbn);
             if (isbn.IsNotNullOrWhiteSpace() && edition.Isbn13.IsNotNullOrWhiteSpace())
@@ -144,15 +150,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 if (!isAudio)
                 {
                     // text books should prefer ebook formats
-                    dist.AddBool("ebook_format", !EbookFormats.Contains(edition.Format));
+                    dist.AddBool("ebook_format", !EbookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
 
                     // text books should not match audio entries
-                    dist.AddBool("wrong_format", AudiobookFormats.Contains(edition.Format));
+                    dist.AddBool("wrong_format", AudiobookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
                 }
                 else
                 {
                     // audio books should prefer audio formats
-                    dist.AddBool("audio_format", !AudiobookFormats.Contains(edition.Format));
+                    dist.AddBool("audio_format", !AudiobookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
                 }
             }
 
@@ -227,6 +233,20 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return new List<string>();
+        }
+
+        private static double GetBookTitleConfidence(List<LocalBook> localTracks)
+        {
+            return localTracks.Select(x => x.FileTrackInfo?.BookTitleConfidence ?? 1.0)
+                .DefaultIfEmpty(1.0)
+                .Average();
+        }
+
+        private static double GetAuthorConfidence(List<LocalBook> localTracks)
+        {
+            return localTracks.Select(x => x.FileTrackInfo?.AuthorConfidence ?? 1.0)
+                .DefaultIfEmpty(1.0)
+                .Average();
         }
     }
 }

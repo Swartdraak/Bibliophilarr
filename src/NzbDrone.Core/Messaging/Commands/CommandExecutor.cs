@@ -78,16 +78,31 @@ namespace NzbDrone.Core.Messaging.Commands
 
                 handler.Execute(command);
 
+                if (IsCommandCancelled(commandModel))
+                {
+                    return;
+                }
+
                 _commandQueueManager.Complete(commandModel, command.CompletionMessage ?? commandModel.Message);
             }
             catch (CommandFailedException ex)
             {
+                if (IsCommandCancelled(commandModel))
+                {
+                    return;
+                }
+
                 _commandQueueManager.SetMessage(commandModel, "Failed");
                 _commandQueueManager.Fail(commandModel, ex.Message, ex);
                 throw;
             }
             catch (Exception ex)
             {
+                if (IsCommandCancelled(commandModel))
+                {
+                    return;
+                }
+
                 _commandQueueManager.SetMessage(commandModel, "Failed");
                 _commandQueueManager.Fail(commandModel, "Failed", ex);
                 throw;
@@ -105,9 +120,14 @@ namespace NzbDrone.Core.Messaging.Commands
 
                 if (handler != null)
                 {
-                    _logger.Trace("{0} <- {1} [{2}]", command.GetType().Name, handler.GetType().Name, commandModel.Duration.ToString());
+                    _logger.Trace("{0} <- {1} [{2}]", command.GetType().Name, handler.GetType().Name, commandModel.Duration?.ToString() ?? "-");
                 }
             }
+        }
+
+        private static bool IsCommandCancelled(CommandModel commandModel)
+        {
+            return commandModel.Status == CommandStatus.Cancelled || commandModel.Status == CommandStatus.Aborted;
         }
 
         private void BroadcastCommandUpdate(CommandModel command)

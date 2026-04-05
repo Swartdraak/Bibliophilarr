@@ -137,23 +137,29 @@ namespace NzbDrone.Core.Books
 
             var books = _bookService.GetBooksByAuthorMetadataId(authorMetadataId);
             var bookDict = books.ToDictionary(x => x.ForeignBookId);
-            var links = new List<SeriesBookLink>();
 
+            // Build series with links for books we have locally.
+            // Series are preserved even when no local books match so they
+            // remain visible in the UI with accurate metadata.
             foreach (var s in remoteData.Series.Value)
             {
+                var matchedLinks = new List<SeriesBookLink>();
+
                 s.LinkItems.Value.ForEach(x => x.Series = s);
-                links.AddRange(s.LinkItems.Value.Where(x => bookDict.ContainsKey(x.Book.Value.ForeignBookId)));
+                foreach (var link in s.LinkItems.Value)
+                {
+                    if (bookDict.TryGetValue(link.Book.Value.ForeignBookId, out var dbBook))
+                    {
+                        // Replace stub/remote book with the real DB book so Id is correct
+                        link.Book = dbBook;
+                        matchedLinks.Add(link);
+                    }
+                }
+
+                s.LinkItems = matchedLinks;
             }
 
-            var grouped = links.GroupBy(x => x.Series.Value);
-
-            // Put in the links that go with the books we actually have
-            foreach (var group in grouped)
-            {
-                group.Key.LinkItems = group.ToList();
-            }
-
-            remoteSeries = grouped.Select(x => x.Key).ToList();
+            remoteSeries = remoteData.Series.Value;
 
             var toAdd = remoteSeries.ExceptBy(x => x.ForeignSeriesId, existing, x => x.ForeignSeriesId, StringComparer.Ordinal).ToList();
             var all = toAdd.Union(existing).ToList();

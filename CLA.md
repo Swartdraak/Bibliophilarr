@@ -1,9 +1,9 @@
-# Readarr Individual Contributor License Agreement #
+# Bibliophilarr Individual Contributor License Agreement
 
-Thank you for your interest in contributing to Readarr ("We" or "Us").
+Thank you for your interest in contributing to Bibliophilarr ("We" or "Us").
 This contributor agreement ("Agreement") documents the rights granted by contributors to Us. To make this document effective, please complete the form below. This is a legally binding document, so please read it carefully before agreeing to it. The Agreement may cover more than one software project managed by Us.
 
-## 1. Definitions ##
+## 1. Definitions
 
 "You" means the individual who Submits a Contribution to Us.
 "Contribution" means any work of authorship that is Submitted by You to Us in which You own or assert ownership of the Copyright. If You do not own the Copyright in the entire work of authorship, please follow the instructions in .
@@ -13,7 +13,7 @@ This contributor agreement ("Agreement") documents the rights granted by contrib
 "Submission Date" means the date on which You Submit a Contribution to Us.
 "Effective Date" means the date You execute this Agreement or the date You first Submit a Contribution to Us, whichever is earlier.
 
-## 2. Grant of Rights ##
+## 2. Grant of Rights
 
 ### 2.1 Copyright License ###
 
@@ -40,7 +40,7 @@ You acknowledge that We are not obligated to use Your Contribution as part of th
 
 Any rights not expressly licensed under this section are expressly reserved by You.
 
-## 3. Agreement ##
+## 3. Agreement
 
 You confirm that:
 (a) You have the legal authority to enter into this Agreement.
@@ -48,15 +48,15 @@ You confirm that:
 (c) The grant of rights under Section 2 does not violate any grant of rights which You have made to third parties, including Your employer. If You are an employee, You have had Your employer approve this Agreement or sign the Entity version of this document. If You are less than eighteen years old, please have Your parents or guardian sign the Agreement.
 (d) You have followed the instructions in , if You do not own the Copyright in the entire work of authorship Submitted.
 
-## 4. Disclaimer ##
+## 4. Disclaimer
 
 EXCEPT FOR THE EXPRESS WARRANTIES IN SECTION 3, THE CONTRIBUTION IS PROVIDED "AS IS". MORE PARTICULARLY, ALL EXPRESS OR IMPLIED WARRANTIES INCLUDING, WITHOUT LIMITATION, ANY IMPLIED WARRANTY OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE EXPRESSLY DISCLAIMED BY YOU TO US. TO THE EXTENT THAT ANY SUCH WARRANTIES CANNOT BE DISCLAIMED, SUCH WARRANTY IS LIMITED IN DURATION TO THE MINIMUM PERIOD PERMITTED BY LAW.
 
-## 5. Consequential Damage Waiver ##
+## 5. Consequential Damage Waiver
 
 TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT WILL YOU BE LIABLE FOR ANY LOSS OF PROFITS, LOSS OF ANTICIPATED SAVINGS, LOSS OF DATA, INDIRECT, SPECIAL, INCIDENTAL, CONSEQUENTIAL AND EXEMPLARY DAMAGES ARISING OUT OF THIS AGREEMENT REGARDLESS OF THE LEGAL OR EQUITABLE THEORY (CONTRACT, TORT OR OTHERWISE) UPON WHICH THE CLAIM IS BASED.
 
-## 6. Miscellaneous ##
+## 6. Miscellaneous
 
 ### 6.1 ###
 

@@ -30,7 +30,7 @@ namespace NzbDrone.Core.Books
         IExecute<RefreshAuthorCommand>,
         IExecute<BulkRefreshAuthorCommand>
     {
-        private readonly IProvideAuthorInfo _authorInfo;
+        private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IMetadataProfileService _metadataProfileService;
@@ -47,7 +47,7 @@ namespace NzbDrone.Core.Books
         private readonly IImportListExclusionService _importListExclusionService;
         private readonly Logger _logger;
 
-        public RefreshAuthorService(IProvideAuthorInfo authorInfo,
+        public RefreshAuthorService(IMetadataProviderOrchestrator orchestrator,
                                     IAuthorService authorService,
                                     IAuthorMetadataService authorMetadataService,
                                     IBookService bookService,
@@ -66,7 +66,7 @@ namespace NzbDrone.Core.Books
                                     Logger logger)
         : base(logger, authorMetadataService)
         {
-            _authorInfo = authorInfo;
+            _orchestrator = orchestrator;
             _authorService = authorService;
             _bookService = bookService;
             _metadataProfileService = metadataProfileService;
@@ -88,7 +88,7 @@ namespace NzbDrone.Core.Books
         {
             try
             {
-                return _authorInfo.GetAuthorInfo(foreignId);
+                return _orchestrator.GetAuthorInfo(foreignId);
             }
             catch (AuthorNotFoundException)
             {
@@ -138,7 +138,7 @@ namespace NzbDrone.Core.Books
 
             local.UseMetadataFrom(remote);
             local.Metadata = remote.Metadata;
-            local.Series = remote.Series.Value;
+            local.Series = remote.Series?.Value ?? new List<Series>();
             local.LastInfoSync = DateTime.UtcNow;
 
             try
@@ -292,8 +292,15 @@ namespace NzbDrone.Core.Books
 
         protected override void PublishRefreshCompleteEvent(Author entity)
         {
-            // little hack - trigger the series update here
-            _refreshSeriesService.RefreshSeriesInfo(entity.AuthorMetadataId, entity.Series, entity, false, false, null);
+            // NOTE: Trigger the series update here after author refresh completes.
+            var series = entity.Series;
+
+            if (series?.Value == null || !series.Value.Any())
+            {
+                series = BuildSeriesFromBookLinks(entity);
+            }
+
+            _refreshSeriesService.RefreshSeriesInfo(entity.AuthorMetadataId, series, entity, false, false, null);
             _eventAggregator.PublishEvent(new AuthorRefreshCompleteEvent(entity));
         }
 
@@ -334,8 +341,79 @@ namespace NzbDrone.Core.Books
                 // (but don't add new authors to reduce repeated searches against api)
                 var folders = _rootFolderService.All().Select(x => x.Path).ToList();
 
+                if (HasQueuedOrStartedMatchedRescan(authorIds, folders))
+                {
+                    _logger.Trace("Skipping rescan. Reason: matching rescan command already queued or started");
+                    return;
+                }
+
                 _commandQueueManager.Push(new RescanFoldersCommand(folders, FilterFilesType.Matched, false, authorIds));
             }
+        }
+
+        private bool HasQueuedOrStartedMatchedRescan(List<int> authorIds, List<string> folders)
+        {
+            var commands = _commandQueueManager.All() ?? new List<CommandModel>();
+            var expectedFolders = (folders ?? new List<string>()).OrderBy(x => x).ToList();
+
+            // Only match on folders and filter type — authorIds are only used for
+            // post-scan AuthorScannedEvent and do not affect the actual disk scan.
+            // Matching on authorIds caused each individual author refresh to queue
+            // a separate (but functionally identical) rescan command.
+            return commands.Any(command =>
+                (command.Status == CommandStatus.Queued || command.Status == CommandStatus.Started) &&
+                string.Equals(command.Name, nameof(RescanFoldersCommand), StringComparison.Ordinal) &&
+                command.Body is RescanFoldersCommand existing &&
+                existing.Filter == FilterFilesType.Matched &&
+                !existing.AddNewAuthors &&
+                (existing.Folders ?? new List<string>()).OrderBy(x => x).SequenceEqual(expectedFolders));
+        }
+
+        private static List<Series> BuildSeriesFromBookLinks(Author entity)
+        {
+            var links = entity?.Books?.Value?
+                .Where(b => b?.SeriesLinks?.Value?.Any() == true)
+                .SelectMany(b => b.SeriesLinks.Value)
+                .Where(l => l?.Series?.Value != null &&
+                            l.Series.Value.ForeignSeriesId.IsNotNullOrWhiteSpace())
+                .ToList() ?? new List<SeriesBookLink>();
+
+            if (!links.Any())
+            {
+                return new List<Series>();
+            }
+
+            var grouped = links.GroupBy(x => x.Series.Value.ForeignSeriesId, StringComparer.OrdinalIgnoreCase);
+            var series = new List<Series>();
+
+            foreach (var group in grouped)
+            {
+                var first = group.First().Series.Value;
+                var dedupedLinks = group
+                    .GroupBy(x => x.Book?.Value?.ForeignBookId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                    .Select(x => x.First())
+                    .ToList();
+
+                var hydrated = new Series
+                {
+                    ForeignSeriesId = first.ForeignSeriesId,
+                    ForeignAuthorId = entity.ForeignAuthorId,
+                    Title = first.Title,
+                    Numbered = dedupedLinks.Any(x => x.Position.IsNotNullOrWhiteSpace()),
+                    WorkCount = dedupedLinks.Count,
+                    PrimaryWorkCount = dedupedLinks.Count(x => x.IsPrimary),
+                    LinkItems = dedupedLinks
+                };
+
+                foreach (var link in dedupedLinks)
+                {
+                    link.Series = hydrated;
+                }
+
+                series.Add(hydrated);
+            }
+
+            return series;
         }
 
         private void RefreshSelectedAuthors(List<int> authorIds, bool isNew, CommandTrigger trigger)
@@ -379,19 +457,19 @@ namespace NzbDrone.Core.Books
                 var authors = _authorService.GetAllAuthors().OrderBy(c => c.Name).ToList();
                 var authorIds = authors.Select(x => x.Id).ToList();
 
-                var updatedGoodreadsAuthors = new HashSet<string>();
+                var updatedOpenLibraryAuthors = new HashSet<string>();
 
                 if (message.LastExecutionTime.HasValue && message.LastExecutionTime.Value.AddDays(14) > DateTime.UtcNow)
                 {
-                    updatedGoodreadsAuthors = _authorInfo.GetChangedAuthors(message.LastStartTime.Value);
+                    updatedOpenLibraryAuthors = _orchestrator.GetChangedAuthors(message.LastStartTime.Value);
                 }
 
                 foreach (var author in authors)
                 {
                     var manualTrigger = message.Trigger == CommandTrigger.Manual;
 
-                    if ((updatedGoodreadsAuthors == null && _checkIfAuthorShouldBeRefreshed.ShouldRefresh(author)) ||
-                        (updatedGoodreadsAuthors != null && updatedGoodreadsAuthors.Contains(author.ForeignAuthorId)) ||
+                    if ((updatedOpenLibraryAuthors == null && _checkIfAuthorShouldBeRefreshed.ShouldRefresh(author)) ||
+                        (updatedOpenLibraryAuthors != null && updatedOpenLibraryAuthors.Contains(author.ForeignAuthorId)) ||
                         manualTrigger)
                     {
                         try

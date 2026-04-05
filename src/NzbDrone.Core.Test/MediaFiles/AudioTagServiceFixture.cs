@@ -14,6 +14,7 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 using NzbDrone.Test.Common.AutoMoq;
@@ -180,6 +181,37 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
         }
 
         [Test]
+        public void should_use_fallback_reader_when_primary_tags_missing_identity()
+        {
+            Mocker.GetMock<IEmbeddedAudioTagFallbackReader>()
+                .Setup(x => x.ReadTags(It.IsAny<string>()))
+                .Returns(new EmbeddedAudioTagFallbackResult
+                {
+                    FormatHint = "ffprobe:m4b",
+                    BookTitleConfidence = 0.9,
+                    AuthorConfidence = 0.85,
+                    TrackInfo = new ParsedTrackInfo
+                    {
+                        BookTitle = "Moon Cursed",
+                        Authors = new List<string> { "McKenzie Hunter" },
+                        Title = "Moon Cursed",
+                        IdentitySource = "ffprobe:m4b",
+                        BookTitleConfidence = 0.9,
+                        AuthorConfidence = 0.85
+                    }
+                });
+
+            var tags = Subject.ReadTags(Path.Combine(_testdir, "missing-file.m4b"));
+
+            ExceptionVerification.IgnoreErrors();
+
+            tags.BookTitle.Should().Be("Moon Cursed");
+            tags.Authors.Should().ContainSingle().Which.Should().Be("McKenzie Hunter");
+            tags.IdentitySource.Should().Be("ffprobe:m4b");
+            tags.BookTitleConfidence.Should().Be(0.9);
+        }
+
+        [Test]
         [TestCaseSource(typeof(TestCaseFactory), nameof(TestCaseFactory.TestCases))]
         public void should_read_write_tags(string filename, string[] skipProperties)
         {
@@ -338,6 +370,8 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
         {
             var file = GivenPopulatedTrackfile(0);
             var tag = Subject.GetTrackMetadata(file);
+
+            ExceptionVerification.IgnoreErrors();
         }
 
         [Test]

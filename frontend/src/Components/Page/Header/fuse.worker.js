@@ -57,16 +57,12 @@ onmessage = function(e) {
     value
   } = e.data;
 
-  console.log(`got search request ${value} with ${items.length} items`);
-
   const suggestions = getSuggestions(items, value);
 
   const results = {
     value,
     suggestions
   };
-
-  console.log(`return ${suggestions.length} results for search ${value}`);
 
   self.postMessage(results);
 };

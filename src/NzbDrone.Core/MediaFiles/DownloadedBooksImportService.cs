@@ -7,6 +7,7 @@ using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles.BookImport;
@@ -14,6 +15,7 @@ using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.RemotePathMappings;
 
 namespace NzbDrone.Core.MediaFiles
 {
@@ -28,30 +30,36 @@ namespace NzbDrone.Core.MediaFiles
     {
         private readonly IDiskProvider _diskProvider;
         private readonly IDiskScanService _diskScanService;
+        private readonly IConfigService _configService;
         private readonly IAuthorService _authorService;
         private readonly IParsingService _parsingService;
         private readonly IMakeImportDecision _importDecisionMaker;
         private readonly IImportApprovedBooks _importApprovedTracks;
+        private readonly IRemotePathMappingService _remotePathMappingService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IRuntimeInfo _runtimeInfo;
         private readonly Logger _logger;
 
         public DownloadedBooksImportService(IDiskProvider diskProvider,
                                              IDiskScanService diskScanService,
+                                             IConfigService configService,
                                              IAuthorService authorService,
                                              IParsingService parsingService,
                                              IMakeImportDecision importDecisionMaker,
                                              IImportApprovedBooks importApprovedTracks,
+                                             IRemotePathMappingService remotePathMappingService,
                                              IEventAggregator eventAggregator,
                                              IRuntimeInfo runtimeInfo,
                                              Logger logger)
         {
             _diskProvider = diskProvider;
             _diskScanService = diskScanService;
+            _configService = configService;
             _authorService = authorService;
             _parsingService = parsingService;
             _importDecisionMaker = importDecisionMaker;
             _importApprovedTracks = importApprovedTracks;
+            _remotePathMappingService = remotePathMappingService;
             _eventAggregator = eventAggregator;
             _runtimeInfo = runtimeInfo;
             _logger = logger;
@@ -102,6 +110,18 @@ namespace NzbDrone.Core.MediaFiles
                 }
 
                 return ProcessFile(fileInfo, importMode, author, downloadClientItem);
+            }
+
+            // Safety net: try host-agnostic remote path mapping if path doesn't exist
+            if (downloadClientItem != null)
+            {
+                var remappedPath = _remotePathMappingService.TryRemapRemoteToLocal(new OsPath(path));
+
+                if (remappedPath.FullPath != path && (_diskProvider.FolderExists(remappedPath.FullPath) || _diskProvider.FileExists(remappedPath.FullPath)))
+                {
+                    _logger.Warn("Path [{0}] was not remapped by download client. Safety-net remapped to [{1}]", path, remappedPath.FullPath);
+                    return ProcessPath(remappedPath.FullPath, importMode, author, downloadClientItem);
+                }
             }
 
             LogInaccessiblePathError(path);
@@ -222,7 +242,7 @@ namespace NzbDrone.Core.MediaFiles
                 NewDownload = true,
                 SingleRelease = false,
                 IncludeExisting = false,
-                AddNewAuthors = false
+                AddNewAuthors = true
             };
 
             var decisions = _importDecisionMaker.GetImportDecisions(audioFiles, idOverrides, idInfo, idConfig);
@@ -258,12 +278,7 @@ namespace NzbDrone.Core.MediaFiles
 
             if (author == null)
             {
-                _logger.Debug("Unknown Author for file: {0}", fileInfo.Name);
-
-                return new List<ImportResult>
-                       {
-                           UnknownAuthorResult(string.Format("Unknown Author for file: {0}", fileInfo.Name), fileInfo.FullName)
-                       };
+                _logger.Debug("Could not parse author from filename: {0}, will try identification from file metadata", fileInfo.Name);
             }
 
             return ProcessFile(fileInfo, importMode, author, downloadClientItem);
@@ -306,7 +321,7 @@ namespace NzbDrone.Core.MediaFiles
                 NewDownload = true,
                 SingleRelease = false,
                 IncludeExisting = false,
-                AddNewAuthors = false
+                AddNewAuthors = true
             };
 
             var decisions = _importDecisionMaker.GetImportDecisions(new List<IFileInfo>() { fileInfo }, idOverrides, idInfo, idConfig);
@@ -344,13 +359,13 @@ namespace NzbDrone.Core.MediaFiles
 
                 if (mount == null)
                 {
-                    _logger.Error("Import failed, path does not exist or is not accessible by Readarr: {0}. Unable to find a volume mounted for the path. If you're using a mapped network drive see the FAQ for more info", path);
+                    _logger.Error("Import failed, path does not exist or is not accessible by Bibliophilarr: {0}. Unable to find a volume mounted for the path. If you're using a mapped network drive see the FAQ for more info", path);
                     return;
                 }
 
                 if (mount.DriveType == DriveType.Network)
                 {
-                    _logger.Error("Import failed, path does not exist or is not accessible by Readarr: {0}. It's recommended to avoid mapped network drives when running as a Windows service. See the FAQ for more info", path);
+                    _logger.Error("Import failed, path does not exist or is not accessible by Bibliophilarr: {0}. It's recommended to avoid mapped network drives when running as a Windows service. See the FAQ for more info", path);
                     return;
                 }
             }
@@ -359,12 +374,12 @@ namespace NzbDrone.Core.MediaFiles
             {
                 if (path.StartsWith(@"\\"))
                 {
-                    _logger.Error("Import failed, path does not exist or is not accessible by Readarr: {0}. Ensure the user running Readarr has access to the network share", path);
+                    _logger.Error("Import failed, path does not exist or is not accessible by Bibliophilarr: {0}. Ensure the user running Bibliophilarr has access to the network share", path);
                     return;
                 }
             }
 
-            _logger.Error("Import failed, path does not exist or is not accessible by Readarr: {0}. Ensure the path exists and the user running Readarr has the correct permissions to access this file/folder", path);
+            _logger.Error("Import failed, path does not exist or is not accessible by Bibliophilarr: {0}. Ensure the path exists and the user running Bibliophilarr has the correct permissions to access this file/folder", path);
         }
     }
 }

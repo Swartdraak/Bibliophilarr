@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Parser.Model
+namespace NzbDrone.Core.Parser.Model
 {
     public class AuthorTitleInfo
     {

@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Update.History
+namespace NzbDrone.Core.Update.History
 {
     public enum UpdateHistoryEventType
     {

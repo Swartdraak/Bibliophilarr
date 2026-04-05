@@ -121,7 +121,7 @@ class AddNewAuthorSearchResult extends Component {
                   {authorName}
 
                   {
-                    !authorName.contains(year) && year ?
+                    year && !authorName.includes(year.toString()) ?
                       <span className={styles.year}>
                         ({year})
                       </span> :
@@ -146,17 +146,6 @@ class AddNewAuthorSearchResult extends Component {
                     null
                 }
 
-                <Link
-                  className={styles.mbLink}
-                  to={`https://goodreads.com/author/show/${foreignAuthorId}`}
-                  onPress={this.onMBLinkPress}
-                >
-                  <Icon
-                    className={styles.mbLinkIcon}
-                    name={icons.EXTERNAL_LINK}
-                    size={28}
-                  />
-                </Link>
               </div>
             </div>
 

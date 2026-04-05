@@ -61,7 +61,7 @@ namespace NzbDrone.Core.Parser.Model
                     book.BookFiles = fullBook.BookFiles;
                     book.Editions = new List<Edition> { edition };
 
-                    if (fullBook.SeriesLinks.IsLoaded)
+                    if (fullBook.SeriesLinks?.IsLoaded == true)
                     {
                         book.SeriesLinks = fullBook.SeriesLinks.Value.Select(l => new SeriesBookLink
                         {

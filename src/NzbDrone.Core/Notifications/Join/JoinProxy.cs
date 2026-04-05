@@ -44,7 +44,7 @@ namespace NzbDrone.Core.Notifications.Join
         public ValidationFailure Test(JoinSettings settings)
         {
             const string title = "Test Notification";
-            const string body = "This is a test message from Readarr.";
+            const string body = "This is a test message from Bibliophilarr.";
 
             try
             {
@@ -93,8 +93,8 @@ namespace NzbDrone.Core.Notifications.Join
             var request = requestBuilder.AddQueryParam("apikey", settings.ApiKey)
                           .AddQueryParam("title", title)
                           .AddQueryParam("text", message)
-                          .AddQueryParam("icon", "https://cdn.rawgit.com/Readarr/Readarr/develop/Logo/256.png") // Use the Readarr logo.
-                          .AddQueryParam("smallicon", "https://cdn.rawgit.com/Readarr/Readarr/develop/Logo/96-Outline-White.png") // 96x96px with outline at 88x88px on a transparent background.
+                          .AddQueryParam("icon", "https://cdn.rawgit.com/Bibliophilarr/Bibliophilarr/develop/Logo/256.png") // Use the Bibliophilarr logo.
+                          .AddQueryParam("smallicon", "https://cdn.rawgit.com/Bibliophilarr/Bibliophilarr/develop/Logo/96-Outline-White.png") // 96x96px with outline at 88x88px on a transparent background.
                           .AddQueryParam("priority", settings.Priority)
                           .Build();
 

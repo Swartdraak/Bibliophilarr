@@ -17,7 +17,7 @@ export async function fetchTranslations(): Promise<boolean> {
       translations = data.Strings;
 
       resolve(true);
-    } catch (error) {
+    } catch {
       resolve(false);
     }
   });
@@ -27,7 +27,7 @@ export default function translate(
   key: string,
   tokens: Record<string, string | number | boolean> = {}
 ) {
-  const { isProduction = true } = window.Readarr;
+  const { isProduction = true } = window.Bibliophilarr;
 
   if (!isProduction && !(key in translations)) {
     console.warn(`Missing translation for key: ${key}`);
@@ -35,7 +35,7 @@ export default function translate(
 
   const translation = translations[key] || key;
 
-  tokens.appName = 'Readarr';
+  tokens.appName = 'Bibliophilarr';
 
   // Fallback to the old behaviour for translations not yet updated to use named tokens
   Object.values(tokens).forEach((value, index) => {

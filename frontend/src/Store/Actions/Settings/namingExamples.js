@@ -44,7 +44,7 @@ export default {
 
       const promise = createAjaxRequest({
         url: '/config/naming/examples',
-        data: Object.assign({}, naming.item, naming.pendingChanges)
+        data: { ...naming.item, ...naming.pendingChanges }
       }).request;
 
       promise.done((data) => {
