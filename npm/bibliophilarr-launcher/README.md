@@ -48,5 +48,5 @@ rm -rf ~/.cache/bibliophilarr
 ## Links
 
 - [Bibliophilarr Repository](https://github.com/Swartdraak/Bibliophilarr)
-- [QUICKSTART.md](https://github.com/Swartdraak/Bibliophilarr/blob/develop/QUICKSTART.md) — Development setup guide
-- [CONTRIBUTING.md](https://github.com/Swartdraak/Bibliophilarr/blob/develop/CONTRIBUTING.md) — Contribution guidelines
+- [QUICKSTART.md](https://github.com/Swartdraak/Bibliophilarr/blob/main/QUICKSTART.md) — Development setup guide
+- [CONTRIBUTING.md](https://github.com/Swartdraak/Bibliophilarr/blob/main/CONTRIBUTING.md) — Contribution guidelines

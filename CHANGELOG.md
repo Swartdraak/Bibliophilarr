@@ -7,6 +7,13 @@ process.
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped GitHub Actions: `docker/metadata-action` v5 → v6, `actions/setup-node` v4 → v6, `actions/github-script` v7 → v8, `docker/login-action` v3 → v4, `docker/setup-buildx-action` v3 → v4.
+- Bumped npm dev dependencies: `@types/node` 20 → 25, `jest` 30.1.2 → 30.3.0.
+- Bumped NuGet packages: `coverlet.collector` 3.1.0 → 8.0.1, `Dapper` 2.0.151 → 2.1.72.
+- Closed 8 Dependabot PRs for breaking major-version upgrades (dotnet/sdk 10.0, dotnet/aspnet 10.0, react-router-dom 6, FluentAssertions 8, FluentMigrator 8, stylelint 16, react-google-recaptcha 3) — tracked as future P4 strategic migrations in ROADMAP.md.
+
 ## [1.0.0] - 2026-04-05
 
 ### Added
