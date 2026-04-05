@@ -5,6 +5,7 @@
 [![Docs Validation](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=release)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-bibliophilarr-blue?logo=docker)](https://github.com/Swartdraak/Bibliophilarr/pkgs/container/bibliophilarr)
+[![npm](https://img.shields.io/npm/v/bibliophilarr?logo=npm&label=npm)](https://www.npmjs.com/package/bibliophilarr)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.md)
 
 Bibliophilarr is a community-maintained fork of Readarr focused on replacing
