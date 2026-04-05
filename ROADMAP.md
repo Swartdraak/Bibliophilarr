@@ -126,7 +126,7 @@ Planned entry conditions:
 | Identifier normalization convergence | canonical external-ID normalization is enforced at persistence boundaries | complete |
 | Health-aware provider routing | provider failure streaks influence fallback order with deterministic recovery | complete |
 | Conflict explainability telemetry | factor-level score breakdown is exposed for operator diagnostics | complete |
-| Import throughput optimization | bulk media identification/import throughput is improved on production-shaped libraries without quality regression | in progress |
+| Import throughput optimization | bulk media identification/import throughput is improved on production-shaped libraries without quality regression | in progress — Slice A1 (run telemetry) complete |
 | Docker hardening | base image pinning, non-root runtime, health check, Node integrity verification, OCI labels, vendor label | complete |
 | CI/CD supply-chain hardening | third-party actions pinned to SHA, workflow permissions scoped to job-level, version pins centralized | complete |
 | Legacy branding cleanup | remove remaining Sonarr/Readarr/Radarr/Lidarr/Prowlarr branding from frontend UI, donations, logos, and icon assets | complete |
@@ -134,7 +134,7 @@ Planned entry conditions:
 | Async migration (sync-over-async) | convert 10+ `.GetAwaiter().GetResult()` sites to true async/await and propagate CancellationToken | assessed — no action required (all patterns acceptable) |
 | RestSharp → HttpClient migration | replace unmaintained RestSharp 106.15 with System.Net.Http.HttpClient via interface wrapper | complete |
 | Security headers and input validation | add CSP/HSTS/X-Frame-Options middleware; validate API search/parse inputs at controller boundary | complete |
-| React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | planned (DMQ-003, DMQ-004) |
+| React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | **assessed** — migration plan documented below |
 | Node 22 LTS migration | upgrade from Node 20 (EOL April 2026) to Node 22 LTS | complete |
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | planned |
@@ -195,6 +195,78 @@ Phase 7 (requires React 18 first):
 - RQ-179: stylelint 15→16 migration (new)
 - RQ-180: FluentMigrator.Runner 3→8 migration (new)
 - RQ-181: FluentMigrator.Runner.Postgres 3→8 migration (new)
+
+### React 18 Upgrade Path Assessment (completed April 2026)
+
+Readiness assessment completed against the current frontend codebase (React 17.0.2, React Router 5.3.4).
+
+**Critical blockers** (must resolve before React 18 bump):
+
+1. `connected-react-router` 6.9.3 — incompatible with React 18. Used in 6 files (App.js root wrapper, 4 page connectors, middleware/reducer). Must be removed entirely and replaced with React Router 6 built-in location management.
+2. `ReactDOM.render()` in `frontend/src/bootstrap.tsx` — must migrate to `createRoot()` API.
+3. `react-router-dom` 5.3.4 → 6.x — requires `<Switch>` → `<Routes>`, `component` → `element`, `<Redirect>` → `<Navigate>` refactors across all route definitions.
+
+**Medium-impact items**:
+
+- 6 `findDOMNode()` calls in drag-source components (TableOptionsColumnDragSource, QualityProfileItemDragSource, DelayProfileDragSource) — must replace with ref forwarding.
+- 20+ `defaultProps` on function components — deprecated in React 18; convert to default parameter values.
+- `react-redux` 7.2.9 → 8.1.0+ needed for React 18 concurrent features.
+- `@testing-library/react` 12.1.5 → 13.0.0+ needed for React 18 `createRoot`.
+
+**Low-impact items**:
+
+- 1 `UNSAFE_componentWillReceiveProps` in RootFolderSelectInputConnector.
+- 200+ class components may surface side-effect bugs under StrictMode double-render (audit, not blocking).
+- Verify compatibility of react-popper 1.3.11, react-autosuggest 10.1.0, react-custom-scrollbars-2 4.5.0.
+
+**Recommended migration sequence**:
+
+1. Remove `connected-react-router` → use React Router 6 location hooks.
+2. Upgrade `react-router-dom` 5 → 6 (largest refactor, touches all routes).
+3. Bump `react` + `react-dom` to 18.x, update `bootstrap.tsx` to `createRoot()`.
+4. Bump `@testing-library/react` to 13.x, `react-redux` to 8.x.
+5. Replace `findDOMNode()` with ref forwarding in drag-source components.
+6. Convert `defaultProps` to default parameter values on function components.
+
+**Effort estimate**: High — the `connected-react-router` removal and React Router 5→6 migration are extensive refactors touching routing, Redux middleware, and page navigation patterns across the entire frontend.
+
+### Redux Modernization Assessment (completed April 2026)
+
+Current state: Redux 4.2.1, react-redux 7.2.9, redux-thunk 2.4.2, redux-actions 2.6.5. Redux Toolkit is **not installed**.
+
+**Key findings**:
+
+- 224 Connector files using legacy `connect()` HOC pattern — hooks (`useSelector`/`useDispatch`) would eliminate these.
+- 35+ action modules using `redux-actions` `createHandleActions()` wrapper — Redux Toolkit `createSlice` would replace.
+- 100+ thunk action handlers using custom `createThunk()` wrapper — `createAsyncThunk` would standardize.
+- Store created via vanilla `createStore()` — Toolkit's `configureStore()` includes DevTools, middleware defaults.
+- `redux-batched-actions` in use — Toolkit's built-in batching would replace.
+
+**Migration sequence** (must follow React 18 + Router 6 first):
+
+1. Install `@reduxjs/toolkit`, upgrade `react-redux` 7→8.
+2. Migrate store setup: `createStore()` → `configureStore()`.
+3. Incrementally convert action modules to `createSlice` (35+ modules).
+4. Convert Connector HOCs to hooks (224 files, can be done per-module).
+5. Remove `redux-actions` and `redux-batched-actions` dependencies.
+
+**Effort estimate**: Very High (~15-20 KLOC refactor). Should be done incrementally per-module after React 18 + Router 6 are complete. Both legacy and modern patterns can coexist during migration.
+
+### moment.js Migration Assessment (completed April 2026)
+
+Current state: moment.js 2.30.1 adds ~13KB gzipped. 34 files import moment. date-fns is **not installed**.
+
+**Usage breakdown**:
+
+- **Date formatting** (11 files in `Utilities/Date/`): `moment(date).format(fmt)` — direct date-fns equivalents exist.
+- **Calendar range logic** (10 files in `Calendar/`): `.clone().add/subtract/startOf/endOf()` chains — requires careful mapping to date-fns `addDays/startOfWeek/endOfMonth` etc.
+- **Relative time**: `.fromNow()` — date-fns `formatDistanceToNow()`.
+- **Duration humanization**: `moment.duration(mins, 'minutes').humanize()` — date-fns `formatDuration()` or `intervalToDuration()`.
+- **Comparisons**: `.isSame()`, `.isAfter()`, `.isBefore()`, `.isBetween()` — direct date-fns equivalents.
+
+**Migration approach**: Replace `moment` with `date-fns` (tree-shakeable, 4KB gzipped for typical usage). Can be done file-by-file starting with `Utilities/Date/` modules (high reuse), then Calendar components. Independent of React 18 upgrade.
+
+**Effort estimate**: Medium (34 files, well-contained in utility/calendar layers).
 
 ## Near-Term Delivery Sequence
 

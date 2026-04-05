@@ -9,6 +9,7 @@ process.
 
 ### Added
 
+- Import run summary telemetry (Slice A1): structured per-run metrics for files scanned/filtered, match quality distribution, stage timing, throughput, and match rate. Logged at Info level on each import run completion.
 - Commit message convention (Conventional Commits format) with type/scope rules, branch naming convention, and production readiness expectations in `CONTRIBUTING.md`.
 - Release gate checklist in `CONTRIBUTING.md` enforcing CI, CHANGELOG, artifact, and rollback verification before tagging releases.
 - Enhanced PR template with type-of-change checkboxes, production safety checklist, and CHANGELOG update requirement.
@@ -23,6 +24,9 @@ process.
 - `docs: normalize canonical documentation, fix stale Node.js versions and milestone statuses`
 - `build(deps): upgrade stylelint 15.11.0 → 16.26.1 and stylelint-order 6.0.4 → 8.1.1` (DMQ-005)
 - `build(deps): upgrade FluentAssertions 5.10.3 → 8.9.0` — migrated assertion API across 11 test files: `AssertionOptions` → `AssertionConfiguration`, renamed comparison methods, updated `BeCloseTo` precision signatures, replaced `Should().Equals()` with `Should().Be()`, converted `SelectedMemberInfo` exclusions to explicit property exclusions (DMQ-006)
+- React 18 upgrade path assessed: 3 critical blockers (connected-react-router removal, ReactDOM.render→createRoot, Router 5→6), 6-step migration sequence documented in ROADMAP.md.
+- Redux modernization assessed: 224 connect() HOCs, 35+ action modules, 100+ thunks. Migration to Redux Toolkit sequenced after React 18.
+- moment.js migration assessed: 34 import sites across Utilities/Date and Calendar. date-fns replacement planned as independent workstream.
 - Upgraded Node.js 20.19.2 → 22.22.2 LTS across Dockerfile, `ci-frontend.yml`, `npm-publish.yml`, and `release.yml`. Node 20 reached EOL April 2026.
 - Added `org.opencontainers.image.vendor` OCI label to Dockerfile.
 - Bumped GitHub Actions: `docker/metadata-action` v5 → v6, `actions/setup-node` v4 → v6, `actions/github-script` v7 → v8, `docker/login-action` v3 → v4, `docker/setup-buildx-action` v3 → v4.
