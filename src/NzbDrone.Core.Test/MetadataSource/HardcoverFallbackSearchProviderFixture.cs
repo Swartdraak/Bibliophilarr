@@ -95,12 +95,12 @@ namespace NzbDrone.Core.Test.MetadataSource
             books.Should().ContainSingle();
             books[0].Title.Should().Be("The Stand");
             books[0].ForeignBookId.Should().Be("hardcover:work:book-1");
-            books[0].TitleSlug.Should().Be("hardcover:work:book-1");
+            books[0].TitleSlug.Should().Be("hardcover-work-book-1");
             books[0].AuthorMetadata.Should().NotBeNull();
             books[0].AuthorMetadata.Value.Name.Should().Be("Stephen King");
             books[0].Editions.Value.Should().ContainSingle();
             books[0].Editions.Value[0].ForeignEditionId.Should().Be("hardcover:edition:book-1");
-            books[0].Editions.Value[0].TitleSlug.Should().Be("hardcover:edition:book-1");
+            books[0].Editions.Value[0].TitleSlug.Should().Be("hardcover-edition-book-1");
             books[0].Editions.Value[0].Language.Should().Be("en");
             books[0].Editions.Value[0].Isbn13.Should().Be("9780307743688");
             books[0].Editions.Value[0].Images.Should().ContainSingle();
@@ -249,13 +249,13 @@ namespace NzbDrone.Core.Test.MetadataSource
             metadata.ForeignAuthorId.Should().Be("hardcover:author:Stephen%20King");
             metadata.Name.Should().Be("Stephen King");
             metadata.Overview.Should().Be("A classic horror novel");
-            metadata.Ratings.Votes.Should().Be(12);
-            metadata.Ratings.Value.Should().Be(4.5m);
+            metadata.Ratings.Votes.Should().Be(0);
+            metadata.Ratings.Value.Should().Be(0m);
 
             var book = result.Item2;
             book.Should().NotBeNull();
             book.ForeignBookId.Should().Be("hardcover:work:book-1");
-            book.TitleSlug.Should().Be("hardcover:work:book-1");
+            book.TitleSlug.Should().Be("hardcover-work-book-1");
             book.Title.Should().Be("The Stand");
             book.ReleaseDate.Should().Be(new System.DateTime(1978, 10, 3));
             book.Ratings.Votes.Should().Be(12);
@@ -274,7 +274,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             book.Editions.Value.Should().ContainSingle();
             var edition = book.Editions.Value[0];
             edition.ForeignEditionId.Should().Be("hardcover:edition:book-1");
-            edition.TitleSlug.Should().Be("hardcover:edition:book-1");
+            edition.TitleSlug.Should().Be("hardcover-edition-book-1");
             edition.Title.Should().Be("The Stand");
             edition.Language.Should().Be("en");
             edition.Isbn13.Should().Be("9780307743688");

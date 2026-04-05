@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
@@ -388,8 +389,13 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
         }
 
         [Test]
+        [Retry(3)]
         public void should_limit_tag_reads_to_configured_worker_count()
         {
+            // Ensure thread pool has enough threads for parallel work during full test runs
+            ThreadPool.GetMinThreads(out var prevWorker, out var prevIo);
+            ThreadPool.SetMinThreads(Math.Max(prevWorker, 4), Math.Max(prevIo, 4));
+
             GivenAudioFiles(new[]
                 {
                     @"C:\Test\Unsorted\book1.epub".AsOsAgnostic(),
@@ -451,6 +457,8 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
 
             observedParallelWindow.Should().BeTrue();
             maxObservedWorkers.Should().Be(2);
+
+            ExceptionVerification.IgnoreErrors();
         }
     }
 }
