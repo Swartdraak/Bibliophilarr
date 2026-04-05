@@ -265,6 +265,52 @@ Replaced moment.js 2.30.1 (328KB) with date-fns 4.1.0 (tree-shakeable, ~7KB used
 
 **Effort**: Medium (34 files, completed in single commit).
 
+### UI Modernization Assessment (completed June 2026)
+
+Current frontend audit reveals a mature but aging UI architecture with clear modernization opportunities. The component library is entirely custom-built (40+ components), well-structured with CSS Modules and FontAwesome 6.7.2, and includes dark mode, responsive breakpoints, and basic accessibility.
+
+**Current state summary**:
+
+| Area | Status | Details |
+|---|---|---|
+| Component patterns | ~65% class, ~35% functional | ~5% TypeScript (.tsx) |
+| Styling | CSS Modules + JS theme variables | Light/dark themes, 5 breakpoints, color-impaired mode |
+| Component library | Custom (40+ components) | No external library (MUI, etc.) |
+| Accessibility | Minimal | FocusLock in modals, some aria-label; no ARIA roles on tables/live regions |
+| Loading UX | Spinners only | No skeleton screens or content placeholders |
+| Error handling | ErrorBoundary in modals | No page-level boundaries, no toast notifications |
+| Animation | CSS-only | No animation library; transitions work but limited |
+| State management | Redux 4 + connect() HOC | 224 connectors, reselect for memoization, no Context API |
+| Icons | FontAwesome 6.7.2 | 100+ named exports, tree-shaken |
+
+**Recommended modernization priorities** (sequenced for incremental delivery):
+
+1. **Accessibility hardening** (Low effort, high impact) — Add ARIA roles to tables (`role="grid"`), live regions for dynamic updates, `aria-describedby` for form errors. Can be done incrementally without React 18.
+
+2. **Skeleton screens for loading states** (Medium effort) — Replace spinner-only loading with content placeholders for author index, book details, calendar. Improves perceived performance.
+
+3. **Error boundary expansion** (Low effort) — Add page-level error boundaries beyond current modal-only coverage. Add toast notification system for non-blocking errors.
+
+4. **TypeScript expansion** (Ongoing, medium effort) — Convert new/touched components to .tsx. Focus on Store/Actions (type-safe reducers), Utilities, and high-reuse Components first. Currently ~5%.
+
+5. **Class → functional component migration** (High effort, depends on React 18) — Convert ~200 class components to functional components with hooks. Prioritize components with simple state (Labels, Cards, simple forms) first. **Should follow React 18 upgrade** to leverage concurrent features.
+
+6. **Redux → RTK migration** (Very high effort, depends on React 18) — Replace 224 connect() HOCs with `useSelector`/`useDispatch`, convert action creators to RTK slices. Already assessed in Redux Migration Assessment section.
+
+**What NOT to do now**:
+
+- Don't adopt an external component library (MUI, Ant Design) — the custom library is well-structured and a wholesale replacement would be massive churn for marginal benefit.
+- Don't add animation libraries — CSS transitions cover current needs.
+- Don't add Storybook — useful but high setup cost for limited team.
+- Don't consolidate CSS to utility-first (Tailwind) — CSS Modules work well with the current architecture.
+
+**User testing needed**: After items 1-3 are implemented, UI should be tested for:
+- Calendar view: date formatting (date-fns migration), week navigation, month transitions
+- Task scheduler: relative time display ("2 hours ago"), scheduled task intervals
+- Book search: year display in search results
+- Book details: release date formatting
+- Queue: estimated completion time display
+
 ## Near-Term Delivery Sequence
 
 1. Keep `develop` and `staging` green for backend, docs, smoke, and packaging validation.
