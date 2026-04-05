@@ -280,12 +280,12 @@ InstallInno()
 {
     ProgressStart "Installing portable Inno Setup"
     
-    local INNO_VER="${INNOVERSION:-6.2.0}"
-    # Default hash for Inno Setup 6.2.0.  Override with INNO_SETUP_SHA256 env var when upgrading.
-    local INNO_SHA256="${INNO_SETUP_SHA256:-d5a89e26beae0bc03ad18a0b0d1d3d75f87c32047879d25da11970cb5c4662a3}"
+    local INNO_VER="${INNOVERSION:-6.7.1}"
+    # Default hash for Inno Setup 6.7.1.  Override with INNO_SETUP_SHA256 env var when upgrading.
+    local INNO_SHA256="${INNO_SETUP_SHA256:-4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0}"
 
     rm -rf _inno
-    curl -s --output innosetup.exe "https://files.jrsoftware.org/is/6/innosetup-${INNO_VER}.exe"
+    curl -sL --output innosetup.exe "https://github.com/jrsoftware/issrc/releases/download/is-${INNO_VER//./_}/innosetup-${INNO_VER}.exe"
 
     echo "${INNO_SHA256}  innosetup.exe" | sha256sum --check --strict || {
         echo "ERROR: Inno Setup SHA256 checksum verification failed"
