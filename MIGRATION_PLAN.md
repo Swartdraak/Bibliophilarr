@@ -189,6 +189,18 @@ Validation status for this slice:
 - Core targeted tests: pass for `MetadataProviderOrchestratorFixture` and `ImportListSyncServiceFixture`
 - Import-list edge-case handling updated to avoid adding unresolved external-ID books
 
+### March 17, 2026 — Open Library Provider Implementation
+
+Completed in code on branch `feature/open-library-provider-2026-03-17`:
+
+- Added provider abstraction and fallback orchestration (`IMetadataProvider`, `IMetadataProviderRegistry`, `MetadataProviderRegistry`).
+- Refactored search abstraction to be provider-agnostic (`ISearchForNewBook.SearchByExternalId(string idType, string id)` replaces direct `SearchByGoodreadsBookId(...)` interface usage).
+- Implemented Open Library provider stack: `OpenLibraryClient` with endpoint wrappers and 429 retry handling, `OpenLibraryMapper` with deterministic resource-to-domain mapping, `OpenLibraryProvider` implementing search and metadata interfaces.
+- Added additive database migration for Open Library foreign IDs (`042_add_open_library_ids.cs`, `Book.OpenLibraryWorkId`, `AuthorMetadata.OpenLibraryAuthorId`).
+- Updated import/sync path to remove direct Goodreads proxy coupling in `ImportListSyncService` by using `ISearchForNewBook` abstraction.
+
+Validation status: Core and test projects build cleanly. Open Library mapper and model equality tests pass. Provider fixture tests blocked by pre-existing test harness platform assembly naming mismatch (not caused by Open Library implementation).
+
 ### March 21, 2026 — TD-META Completion
 
 Completed in this migration-hardening slice:
@@ -230,9 +242,9 @@ Completed in this continuation slice:
   - Added `scripts/series_persistence_gate.py` and integrated series snapshot requirement into `scripts/release_entry_gate.py`.
   - Added `scripts/replay_comparison.py` for baseline vs post-fix replay comparison metrics.
 
-Validation status:
+Validation status: Deferred — covered by subsequent hardening passes (March 22–26).
 
-Known gap:
+Known gap: Series persistence completeness under concurrent author-refresh scenarios not yet validated end-to-end.
 
 ### March 22, 2026 — Hardening Pass
 
@@ -718,7 +730,21 @@ Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign 
 
 ## FOSS Metadata Provider Options
 
-### Primary Provider: Open Library
+> **Note:** This section was originally written before Hardcover was integrated as the
+> primary provider. The hierarchy below reflects the current operational state.
+> See [README.md](README.md) for the current provider summary.
+
+### Primary Provider: Hardcover
+
+**URL**: <https://hardcover.app/>
+
+Hardcover is the primary metadata source for Bibliophilarr. It provides a GraphQL API
+with comprehensive book, author, and series data. The Hardcover provider was implemented
+with structured GraphQL error handling, rate-limit awareness, and fallback search
+capability. See `HardcoverProxy.cs` and `HardcoverFallbackSearchProvider.cs` in the
+codebase for implementation details.
+
+### Secondary Provider: Open Library
 
 **URL**: <https://openlibrary.org/>
 
@@ -838,7 +864,7 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
         ┌───────────────────┼───────────────────┐
         │                   │                   │
 ┌───────▼────────┐  ┌──────▼──────┐  ┌────────▼─────────┐
-│  Open Library  │  │  Inventaire │  │  Google Books    │
+│   Hardcover    │  │ Open Library│  │  Google Books    │
 │    Provider    │  │   Provider  │  │    Provider      │
 │   (Primary)    │  │ (Secondary) │  │   (Fallback)     │
 └────────────────┘  └─────────────┘  └──────────────────┘
@@ -899,6 +925,9 @@ public interface IMetadataAggregator
 
 To handle the transition from Goodreads IDs to multiple provider IDs:
 
+> **Note:** `GoodreadsId` properties are retained as read-only legacy compatibility fields
+> for existing library databases. They are not populated by active providers.
+
 ```csharp
 public class BookIdentifiers
 {
@@ -955,33 +984,8 @@ public class MetadataCacheManager
 
 ## Implementation Phases
 
-### Session Progress Update (2026-03-17)
-
-Completed in code on branch `feature/open-library-provider-2026-03-17`:
-
-- Added provider abstraction and fallback orchestration:
-  - `IMetadataProvider`
-  - `IMetadataProviderRegistry`
-  - `MetadataProviderRegistry`
-- Refactored search abstraction to be provider-agnostic:
-  - `ISearchForNewBook.SearchByExternalId(string idType, string id)` replaces direct `SearchByGoodreadsBookId(...)` interface usage
-- Implemented Open Library provider stack:
-  - `OpenLibraryClient` with endpoint wrappers (`/search`, `/works`, `/authors`, `/isbn`, `/books`) and 429 retry handling
-  - `OpenLibraryMapper` with deterministic resource-to-domain mapping
-  - `OpenLibraryProvider` implementing search and metadata interfaces with priority-based fallback role
-  - Open Library resource DTOs and `OpenLibraryException`
-- Added additive database migration for Open Library foreign IDs:
-  - `042_add_open_library_ids.cs`
-  - `Book.OpenLibraryWorkId`
-  - `AuthorMetadata.OpenLibraryAuthorId`
-- Updated import/sync path to remove direct Goodreads proxy coupling in `ImportListSyncService` by using `ISearchForNewBook` abstraction.
-
-Validation status:
-
-- `Bibliophilarr.Core.csproj` builds cleanly (0 errors).
-- `Bibliophilarr.Core.Test.csproj` builds cleanly (0 errors).
-- Open Library mapper and model equality tests pass.
-- Provider fixture tests currently fail due to pre-existing test harness platform assembly naming mismatch (`AutoMoqer.LoadPlatformLibrary()` expected name does not match embedded mono assembly name), not due to Open Library implementation logic.
+> **Note:** Phase headings below reflect the original 2024 plan structure.
+> Current delivery is tracked via [ROADMAP.md](ROADMAP.md) phase model.
 
 ### Phase 1: Foundation & Documentation ✓
 
@@ -1611,70 +1615,27 @@ public class MigrationReport
 
 ---
 
-## Timeline and Milestones
+## Historical Milestones
 
-### Milestone 1: Foundation (Current - Week 4)
+> **Note:** This section reflects the original 2024 migration proposal timeline.
+> The project now follows the phase-based delivery model documented in [ROADMAP.md](ROADMAP.md).
+> Milestones 1–4 have been substantially completed; the remaining work is tracked
+> as Phase 6–7 items in the roadmap.
 
-- ✅ Repository analysis
-- ✅ Migration plan creation
-- ✅ Documentation updates
-- 🔄 Community engagement (ongoing)
-
-### Milestone 2: Infrastructure (Week 5-8)
-
-- Provider interfaces
-- Testing framework
-- Quality scoring system
-- Monitoring/logging
-
-### Milestone 3: Open Library Provider (Week 9-14)
-
-- Complete implementation
-- Comprehensive testing
-- Performance optimization
-- Documentation
-
-### Milestone 4: Multi-Provider Support (Week 15-18)
-
-- Inventaire implementation
-- Aggregation layer
-- Fallback logic
-- Provider management UI
-
-### Milestone 5: Migration Tools (Week 19-22)
-
-- Database migration
-- ID mapping tools
-- Bulk updater
-- User migration guide
-
-### Milestone 6: Beta Release (Week 23-26)
-
-- Community testing
-- Bug fixes
-- Performance tuning
-- Documentation updates
-
-### Milestone 7: Stable Release (Week 31-34)
-
-- Final testing
-- Production deployment
-- Goodreads deprecation
-- Celebration! 🎉
+| Milestone | Original scope | Status |
+|---|---|---|
+| 1. Foundation | Repository analysis, migration plan, documentation, community engagement | Complete |
+| 2. Infrastructure | Provider interfaces, testing framework, quality scoring, monitoring | Complete |
+| 3. Provider implementation | Open Library + Hardcover providers, testing, performance | Complete (Hardcover added as primary) |
+| 4. Multi-provider support | Aggregation layer, fallback logic, provider management | Complete |
+| 5. Migration tools | Database migration, ID mapping, bulk updater | Partially complete — see ROADMAP Track A |
+| 6. Beta / Stable release | Community testing, performance tuning, documentation | In progress — see ROADMAP Phase 6–7 |
 
 ---
 
 ## Contributing
 
-We welcome contributions to this migration effort! Priority areas:
-
-1. **Provider Implementation**: Help build Open Library and Inventaire providers
-2. **Testing**: Write tests, report bugs, test with real libraries
-3. **Documentation**: Improve guides, add examples, translate
-4. **UI/UX**: Design provider settings, improve metadata display
-5. **Migration Tools**: Build tools to help users migrate
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and priority areas.
 
 ---
 
@@ -1720,6 +1681,7 @@ Major revisions are tracked via git history. Key milestones:
 
 - **v1.0** (2024-02-16): Initial comprehensive migration plan
 - **v2.0** (2026-03): Phase 5/6 consolidation, Hardcover primary provider, telemetry integration
+- **v2.1** (2026-04): Documentation normalization — updated provider hierarchy to reflect Hardcover as primary, rewrote stale Timeline section, backfilled empty validation sections, aligned with ROADMAP.md phase model
 
 ---
 

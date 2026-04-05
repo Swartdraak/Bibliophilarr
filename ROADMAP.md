@@ -150,7 +150,7 @@ according to EOL urgency, coupling risk, and prerequisite dependencies.
 | ID | Component | Current → Target | Dependabot PR | Category | Effort | Prerequisites | Target phase | Status |
 |---|---|---|---|---|---|---|---|---|
 | DMQ-001 | `dotnet/sdk` Docker image | 8.0 → 10.0 | [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) | Backend / Docker | High | DMQ-002, net8.0→net10.0 TFM migration across 24 projects | Phase 7 | planned |
-| DMQ-002 | `dotnet/aspnet` Docker image | 8.0 → 10.0 | [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) | Backend / Docker | High | .NET 10 GA release (Nov 2025), TFM migration, runtime compatibility validation | Phase 7 | planned |
+| DMQ-002 | `dotnet/aspnet` Docker image | 8.0 → 10.0 | [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) | Backend / Docker | High | .NET 10 GA release (Nov 2025 — now available), TFM migration, runtime compatibility validation | Phase 7 | planned |
 | DMQ-003 | `react-router-dom` | 5.3.4 → 6.x | [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) | Frontend | High | React 18 upgrade (DMQ-007 / RQ-159), remove `connected-react-router`, migrate Switch→Routes, class→hooks | Phase 7 | planned |
 | DMQ-004 | `react-google-recaptcha` | 2.1.0 → 3.x | [#36](https://github.com/Swartdraak/Bibliophilarr/pull/36) | Frontend | Medium | React 18 upgrade, reCAPTCHA v3 API integration | Phase 7 | planned |
 | DMQ-005 | `stylelint` | 15.11.0 → 16.x | [#39](https://github.com/Swartdraak/Bibliophilarr/pull/39) | Frontend / CI | Medium | Migrate config format, update plugin compatibility, validate all CSS rules | Phase 6-7 | **complete** |
@@ -252,7 +252,7 @@ Current state: Redux 4.2.1, react-redux 7.2.9, redux-thunk 2.4.2, redux-actions 
 
 **Effort estimate**: Very High (~15-20 KLOC refactor). Should be done incrementally per-module after React 18 + Router 6 are complete. Both legacy and modern patterns can coexist during migration.
 
-### moment.js → date-fns Migration (completed June 2026)
+### moment.js → date-fns Migration (completed April 2026)
 
 Replaced moment.js 2.30.1 (328KB) with date-fns 4.1.0 (tree-shakeable, ~7KB used) across all 34 frontend source files. moment.js removed from dependencies.
 
@@ -265,7 +265,7 @@ Replaced moment.js 2.30.1 (328KB) with date-fns 4.1.0 (tree-shakeable, ~7KB used
 
 **Effort**: Medium (34 files, completed in single commit).
 
-### UI Modernization Assessment (completed June 2026)
+### UI Modernization Assessment (completed April 2026)
 
 Current frontend audit reveals a mature but aging UI architecture with clear modernization opportunities. The component library is entirely custom-built (40+ components), well-structured with CSS Modules and FontAwesome 6.7.2, and includes dark mode, responsive breakpoints, and basic accessibility.
 

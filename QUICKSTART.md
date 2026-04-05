@@ -10,7 +10,8 @@ Start in this order:
 1. [README.md](README.md)
 2. [ROADMAP.md](ROADMAP.md)
 3. [MIGRATION_PLAN.md](MIGRATION_PLAN.md)
-4. [CONTRIBUTING.md](CONTRIBUTING.md)
+4. [PROJECT_STATUS.md](PROJECT_STATUS.md)
+5. [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Prerequisites
 

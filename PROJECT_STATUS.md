@@ -680,7 +680,7 @@ new items start at RQ-064.
 | RQ-050 | Backend | .NET 8 features underutilized (records, file-scoped namespaces, nullable refs, primary constructors) | **PARTIAL** — Added `#nullable enable` to 5 DTO files (`AlternateTitleResource.cs`, `BookEditorResource.cs`, `BookshelfAuthorResource.cs`, `CalibreLibraryInfo.cs`, `CalibreConversionStatus.cs`) with proper `?` annotations for nullable reference types |
 | RQ-051 | Backend | **FIXED** — Added `ValidateGraphQlResponse()` to Hardcover provider; validates GraphQL error envelope, missing data/search payload, and logs structured warnings. Added `HardcoverGraphQlError` model for typed error parsing — `HardcoverFallbackSearchProvider.cs` | ~~Add schema validation for critical payloads~~ |
 | RQ-052 | Frontend | React 17.0.2 — two major versions behind LTS (18.x); EOL risk in 2026 | Upgrade to React 18.2.0 LTS first, then plan 19.x. Update `@testing-library/react` 12→14 simultaneously |
-| RQ-053 | Frontend | `moment.js` (34 imports, ~13KB gzipped, maintenance mode) | Migrate to `date-fns` (~2KB tree-shaken) or `day.js` (~1.6KB) over 2-3 sprints |
+| RQ-053 | Frontend | **FIXED** — `moment.js` replaced with `date-fns` 4.1.0 across all 34 frontend files (~10-12KB bundle savings). Created `momentFormatToDateFns.js` format converter and `parseTimeSpan.js` TimeSpan parser. All tests pass. | ~~Migrate to `date-fns` (~2KB tree-shaken) or `day.js` (~1.6KB) over 2-3 sprints~~ |
 | RQ-054 | Frontend | 100+ class components and 200+ `connect()` HOC patterns (legacy Redux) | Incremental migration to functional components + hooks + `useSelector`/`useDispatch` |
 | RQ-055 | Frontend | Unused logo images (radarr, lidarr, prowlarr, sonarr) | **FIXED** — Removed as part of RQ-084 |
 | RQ-056 | CI/CD | **FIXED** — Added `lint-workflows.yml` CI workflow that downloads actionlint (pinned v1.7.7) and runs on all workflow file changes — `.github/workflows/lint-workflows.yml` | ~~Add to pre-commit hook or CI pipeline~~ |
@@ -727,7 +727,7 @@ new items start at RQ-064.
 | RQ-159 | Frontend | React 17 → 18 → 19 upgrade path (includes Babel, TypeScript types, @testing-library updates) — Phase 6-7 | Enables concurrent rendering, automatic batching, better performance. React 17 approaches EOL 2026 |
 | RQ-160 | Frontend | React Router 5 → 6 migration (remove `connected-react-router`, adopt hooks) — Phase 7 (Dependabot PR [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) closed; DMQ-003) | High effort but necessary; react-router 5 EOL since 2021 |
 | RQ-161 | Frontend | Redux modernization: `react-redux` 7→9, Redux Toolkit adoption, remove `connect()` HOCs — Phase 7 | Reduces boilerplate, better tree-shaking, TypeScript integration |
-| RQ-162 | Frontend | `moment.js` → `date-fns` bundle size migration (34 imports, ~10-12KB savings) — Phase 7 | Significant bundle size reduction; same API patterns |
+| RQ-162 | Frontend | **FIXED** — `moment.js` → `date-fns` 4.1.0 migration completed (34 files, ~10-12KB savings). See RQ-053 for details. | ~~Significant bundle size reduction; same API patterns~~ |
 | RQ-163 | Frontend | `react-virtualized` → `react-window` (same author, 50KB → 6KB gzipped) — Phase 7+ | Only if basic windowing sufficient; audit feature usage first |
 | RQ-164 | Backend | .NET 10 LTS upgrade planning (.NET 8 EOL November 2026, .NET 10 LTS expected late 2025) — Phase 7 (Dependabot PRs [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) and [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) closed; DMQ-001, DMQ-002) | Skip .NET 9 (non-LTS, short support window); jump directly to .NET 10 LTS |
 | RQ-165 | Frontend | **FIXED** — Node.js 20.19.2 → 22.22.2 LTS migration completed across Dockerfile, ci-frontend.yml, npm-publish.yml, and release.yml (Node 20 EOL April 2026) | ~~Required before Node 20 EOL; plan alongside React 18 upgrade~~ |
@@ -1874,7 +1874,7 @@ Validation completed with exact command evidence and outcomes:
 
 ### Packaging validation
 
-- Phase 6 packaging validation runs on `develop` and `staging`.
+- Packaging validation runs via `release.yml`, `docker-image.yml`, and `npm-publish.yml` workflows.
 - The latest validated matrix state is green for binary, Docker, and npm installation paths.
 
 ## Current Risks And Follow-Up Areas
