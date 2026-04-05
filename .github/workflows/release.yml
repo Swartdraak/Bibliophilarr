@@ -172,6 +172,7 @@ jobs:
 
       - name: Build installer (windows only)
         if: runner.os == 'Windows'
+        continue-on-error: true  # Installer requires net8.0-windows GUI project; portable zip is primary artifact
         shell: bash
         env:
           MAJORVERSION: ${{ steps.ver.outputs.version }}
