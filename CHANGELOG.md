@@ -21,6 +21,8 @@ process.
 
 - `refactor: migrate test infrastructure from RestSharp to System.Net.Http.HttpClient`
 - `docs: normalize canonical documentation, fix stale Node.js versions and milestone statuses`
+- `build(deps): upgrade stylelint 15.11.0 → 16.26.1 and stylelint-order 6.0.4 → 8.1.1` (DMQ-005)
+- `build(deps): upgrade FluentAssertions 5.10.3 → 8.9.0` — migrated assertion API across 11 test files: `AssertionOptions` → `AssertionConfiguration`, renamed comparison methods, updated `BeCloseTo` precision signatures, replaced `Should().Equals()` with `Should().Be()`, converted `SelectedMemberInfo` exclusions to explicit property exclusions (DMQ-006)
 - Upgraded Node.js 20.19.2 → 22.22.2 LTS across Dockerfile, `ci-frontend.yml`, `npm-publish.yml`, and `release.yml`. Node 20 reached EOL April 2026.
 - Added `org.opencontainers.image.vendor` OCI label to Dockerfile.
 - Bumped GitHub Actions: `docker/metadata-action` v5 → v6, `actions/setup-node` v4 → v6, `actions/github-script` v7 → v8, `docker/login-action` v3 → v4, `docker/setup-buildx-action` v3 → v4.

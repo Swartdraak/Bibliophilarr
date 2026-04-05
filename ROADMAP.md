@@ -153,8 +153,8 @@ according to EOL urgency, coupling risk, and prerequisite dependencies.
 | DMQ-002 | `dotnet/aspnet` Docker image | 8.0 → 10.0 | [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) | Backend / Docker | High | .NET 10 GA release (Nov 2025), TFM migration, runtime compatibility validation | Phase 7 | planned |
 | DMQ-003 | `react-router-dom` | 5.3.4 → 6.x | [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) | Frontend | High | React 18 upgrade (DMQ-007 / RQ-159), remove `connected-react-router`, migrate Switch→Routes, class→hooks | Phase 7 | planned |
 | DMQ-004 | `react-google-recaptcha` | 2.1.0 → 3.x | [#36](https://github.com/Swartdraak/Bibliophilarr/pull/36) | Frontend | Medium | React 18 upgrade, reCAPTCHA v3 API integration | Phase 7 | planned |
-| DMQ-005 | `stylelint` | 15.11.0 → 16.x | [#39](https://github.com/Swartdraak/Bibliophilarr/pull/39) | Frontend / CI | Medium | Migrate config format, update plugin compatibility, validate all CSS rules | Phase 6-7 | planned |
-| DMQ-006 | `FluentAssertions` | 5.10.3 → 8.x | [#44](https://github.com/Swartdraak/Bibliophilarr/pull/44) | Backend / Test | High | Update assertion syntax across 100+ test files, validate API compatibility | Phase 6-7 | planned |
+| DMQ-005 | `stylelint` | 15.11.0 → 16.x | [#39](https://github.com/Swartdraak/Bibliophilarr/pull/39) | Frontend / CI | Medium | Migrate config format, update plugin compatibility, validate all CSS rules | Phase 6-7 | **complete** |
+| DMQ-006 | `FluentAssertions` | 5.10.3 → 8.x | [#44](https://github.com/Swartdraak/Bibliophilarr/pull/44) | Backend / Test | High | Update assertion syntax across 100+ test files, validate API compatibility | Phase 6-7 | **complete** |
 | DMQ-007 | `FluentMigrator.Runner` | 3.3.2 → 8.x | [#45](https://github.com/Swartdraak/Bibliophilarr/pull/45) | Backend | High | Audit 44+ migration files, validate runner API changes, coordinate with DMQ-008 | Phase 7 | planned |
 | DMQ-008 | `FluentMigrator.Runner.Postgres` | 3.3.2 → 8.x | [#46](https://github.com/Swartdraak/Bibliophilarr/pull/46) | Backend | High | Must upgrade with DMQ-007 in single coordinated slice | Phase 7 | planned |
 
