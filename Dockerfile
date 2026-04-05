@@ -17,7 +17,7 @@ RUN ./build.sh --backend -r linux-x64 -f net8.0
 RUN ./build.sh --frontend
 RUN ./build.sh --packages -r linux-x64 -f net8.0
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:d0f61936dbf46d6ba1520a2e4e1ac4cca44617e66ba139f344831c046ee99512 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:ccdca44cd4f256d50187f920dc8ccc2a9ea7a8a4597ac1d51e08fddb2e3b3205 AS runtime
 
 LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.description="Ebook and audiobook library manager" \
