@@ -34,8 +34,8 @@ jobs:
 
       - name: Run curated replay sample
         run: |
+          # shellcheck disable=SC2153
           replay_root="${{ runner.temp }}/replay-cohort"
-          # shellcheck disable=SC2153 -- REPLAY_ROOT is set in the job-level env block
           cp -a "${REPLAY_ROOT}" "${replay_root}"
 
           python3 scripts/live_provider_enrich_missing_metadata.py \
