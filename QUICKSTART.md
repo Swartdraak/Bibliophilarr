@@ -25,7 +25,7 @@ the root `package.json`, not from a separate npm launcher package.
 ## Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Bibliophilarr.git
+git clone https://github.com/Swartdraak/Bibliophilarr.git
 cd Bibliophilarr
 
 yarn install --frozen-lockfile
