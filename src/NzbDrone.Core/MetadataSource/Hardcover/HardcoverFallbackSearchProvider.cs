@@ -467,6 +467,10 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         bio
                         image { url }
                         books_count
+                        books(limit: 10, order_by: {ratings_count: desc_nulls_last}) {
+                            rating
+                            ratings_count
+                        }
                     }
                 }",
                 variables = new { ids = authorIds }
@@ -518,6 +522,39 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var imageUrl = authorData.SelectToken("image.url")?.Value<string>();
             var booksCount = authorData.Value<int?>("books_count") ?? 0;
 
+            // Calculate average rating from author's books
+            var booksArray = authorData.SelectToken("books") as JArray;
+            var avgRating = 0m;
+            var totalVotes = 0;
+
+            if (booksArray != null && booksArray.Any())
+            {
+                var validBooks = booksArray
+                    .Where(b => b.Value<double?>("rating") > 0 && b.Value<int?>("ratings_count") > 0)
+                    .ToList();
+
+                if (validBooks.Any())
+                {
+                    // Weighted average by ratings_count
+                    var totalWeightedRating = 0.0;
+                    var totalCount = 0;
+
+                    foreach (var book in validBooks)
+                    {
+                        var rating = book.Value<double>("rating");
+                        var count = book.Value<int>("ratings_count");
+                        totalWeightedRating += rating * count;
+                        totalCount += count;
+                    }
+
+                    if (totalCount > 0)
+                    {
+                        avgRating = (decimal)(totalWeightedRating / totalCount);
+                        totalVotes = totalCount;
+                    }
+                }
+            }
+
             if (name.IsNullOrWhiteSpace())
             {
                 return null;
@@ -549,7 +586,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Overview = bio,
                 Links = links,
                 Images = images,
-                Ratings = new Ratings { Votes = booksCount, Value = 0 }
+                Ratings = new Ratings { Votes = totalVotes > 0 ? totalVotes : booksCount, Value = avgRating }
             };
 
             return new Author
@@ -566,16 +603,30 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             _logger.Trace("HardcoverProvider.SearchForNewEntity: {0}", title);
 
             var output = new List<object>();
-            var seenAuthorIds = new HashSet<string>();
-            var seenBookIds = new HashSet<string>();
+            var seenAuthorIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenAuthorNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenBookIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             // Search for authors first using direct author search
             var authors = SearchAuthors(title, 10);
             foreach (var author in authors)
             {
-                if (author?.ForeignAuthorId.IsNotNullOrWhiteSpace() == true &&
-                    seenAuthorIds.Add(author.ForeignAuthorId))
+                if (author?.Metadata?.Value == null)
                 {
+                    continue;
+                }
+
+                var authorId = author.ForeignAuthorId;
+                var authorName = author.Metadata.Value.Name?.Trim();
+
+                // Deduplicate by both ID and normalized name
+                if (authorId.IsNotNullOrWhiteSpace() && seenAuthorIds.Add(authorId))
+                {
+                    if (authorName.IsNotNullOrWhiteSpace())
+                    {
+                        seenAuthorNames.Add(authorName);
+                    }
+
                     output.Add(author);
                 }
             }
@@ -584,12 +635,23 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var books = SearchForNewBook(title, null, false);
             foreach (var book in books)
             {
-                // Add author from book results if not already present
-                if (book?.Author?.Value != null &&
-                    book.Author.Value.ForeignAuthorId.IsNotNullOrWhiteSpace() &&
-                    seenAuthorIds.Add(book.Author.Value.ForeignAuthorId))
+                // Add author from book results if not already present (by ID or name)
+                if (book?.Author?.Value?.Metadata?.Value != null)
                 {
-                    output.Add(book.Author.Value);
+                    var bookAuthor = book.Author.Value;
+                    var authorId = bookAuthor.ForeignAuthorId;
+                    var authorName = bookAuthor.Metadata.Value.Name?.Trim();
+
+                    // Skip if we've already seen this author by ID or by name
+                    var isNewById = authorId.IsNotNullOrWhiteSpace() && !seenAuthorIds.Contains(authorId);
+                    var isNewByName = authorName.IsNotNullOrWhiteSpace() && !seenAuthorNames.Contains(authorName);
+
+                    if (isNewById && isNewByName)
+                    {
+                        seenAuthorIds.Add(authorId);
+                        seenAuthorNames.Add(authorName);
+                        output.Add(bookAuthor);
+                    }
                 }
 
                 // Add book if not already present
@@ -1588,6 +1650,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var publishedDate = ParseDate(result.ReleaseDate, result.ReleaseYear);
             var isbn13 = result.Isbns?.FirstOrDefault(x => IsIsbn13(x));
             var coverUrl = result.Image?.Url;
+
+            // Don't assign book rating to author - author rating should be fetched separately
+            // during author refresh/add via GetAuthorInfo
             var authorMetadata = new AuthorMetadata
             {
                 ForeignAuthorId = BuildHardcoverAuthorId(authorName),
@@ -1597,11 +1662,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 NameLastFirst = authorName.ToLastFirst(),
                 SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant(),
                 Overview = result.Description,
-                Ratings = new Ratings
-                {
-                    Votes = result.RatingsCount ?? 0,
-                    Value = (decimal)(result.Rating ?? 0)
-                }
+                Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
             var author = new Author

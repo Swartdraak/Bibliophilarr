@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Localization;
@@ -18,42 +19,52 @@ namespace NzbDrone.Core.HealthCheck.Checks
 
         public override HealthCheck Check()
         {
-            var hardcoverToken = Environment.GetEnvironmentVariable(HardcoverApiTokenEnvVar);
-            if (hardcoverToken.IsNullOrWhiteSpace())
+            var issues = new List<string>();
+
+            // Check Hardcover - only if enabled
+            if (_configService.EnableHardcoverFallback)
             {
-                hardcoverToken = _configService.HardcoverApiToken;
+                var hardcoverToken = Environment.GetEnvironmentVariable(HardcoverApiTokenEnvVar);
+                if (hardcoverToken.IsNullOrWhiteSpace())
+                {
+                    hardcoverToken = _configService.HardcoverApiToken;
+                }
+
+                if (hardcoverToken.IsNullOrWhiteSpace())
+                {
+                    issues.Add("Hardcover is enabled but no API token configured. Set BIBLIOPHILARR_HARDCOVER_API_TOKEN environment variable or configure in Settings > Metadata.");
+                }
+                else if (hardcoverToken.Trim().Length < 10)
+                {
+                    issues.Add("Hardcover API token appears invalid (too short). Check your BIBLIOPHILARR_HARDCOVER_API_TOKEN environment variable or Settings > Metadata configuration.");
+                }
             }
 
-            var googleBooksKey = _configService.GoogleBooksApiKey;
-
-            if (hardcoverToken.IsNullOrWhiteSpace() && googleBooksKey.IsNullOrWhiteSpace())
+            // Check Google Books - only if enabled
+            if (_configService.EnableGoogleBooksFallback)
             {
-                return new HealthCheck(
-                    GetType(),
-                    HealthCheckResult.Warning,
-                    "No metadata provider API keys configured. Hardcover and Google Books fallback providers will be unavailable. Set BIBLIOPHILARR_HARDCOVER_API_TOKEN environment variable or configure keys in Settings > Metadata.",
-                    "#metadata-provider-api-keys");
+                var googleBooksKey = _configService.GoogleBooksApiKey;
+
+                if (googleBooksKey.IsNullOrWhiteSpace())
+                {
+                    issues.Add("Google Books is enabled but no API key configured. Configure in Settings > Metadata.");
+                }
+                else if (googleBooksKey.Trim().Length < 10)
+                {
+                    issues.Add("Google Books API key appears invalid (too short). Check your Settings > Metadata configuration.");
+                }
             }
 
-            if (hardcoverToken.IsNotNullOrWhiteSpace() && hardcoverToken.Trim().Length < 10)
+            if (issues.Count == 0)
             {
-                return new HealthCheck(
-                    GetType(),
-                    HealthCheckResult.Warning,
-                    "Hardcover API token appears invalid (too short). Check your BIBLIOPHILARR_HARDCOVER_API_TOKEN environment variable or Settings > Metadata configuration.",
-                    "#metadata-provider-api-keys");
+                return new HealthCheck(GetType());
             }
 
-            if (googleBooksKey.IsNotNullOrWhiteSpace() && googleBooksKey.Trim().Length < 10)
-            {
-                return new HealthCheck(
-                    GetType(),
-                    HealthCheckResult.Warning,
-                    "Google Books API key appears invalid (too short). Check your Settings > Metadata configuration.",
-                    "#metadata-provider-api-keys");
-            }
-
-            return new HealthCheck(GetType());
+            return new HealthCheck(
+                GetType(),
+                HealthCheckResult.Warning,
+                string.Join(" ", issues),
+                "#metadata-provider-api-keys");
         }
 
         public override bool CheckOnStartup => true;

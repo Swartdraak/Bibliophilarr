@@ -18,6 +18,10 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
             Mocker.GetMock<ILocalizationService>()
                   .Setup(s => s.GetLocalizedString(It.IsAny<string>()))
                   .Returns("Some Warning Message");
+
+            Mocker.GetMock<IDownloadClientFactory>()
+                  .Setup(s => s.All())
+                  .Returns(new List<DownloadClientDefinition>());
         }
 
         [Test]
@@ -26,6 +30,23 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
             Mocker.GetMock<IProvideDownloadClient>()
                   .Setup(s => s.GetDownloadClients(It.IsAny<bool>()))
                   .Returns(Array.Empty<IDownloadClient>());
+
+            Subject.Check().ShouldBeWarning();
+        }
+
+        [Test]
+        public void should_return_warning_when_download_client_is_disabled()
+        {
+            Mocker.GetMock<IProvideDownloadClient>()
+                  .Setup(s => s.GetDownloadClients(It.IsAny<bool>()))
+                  .Returns(Array.Empty<IDownloadClient>());
+
+            Mocker.GetMock<IDownloadClientFactory>()
+                  .Setup(s => s.All())
+                  .Returns(new List<DownloadClientDefinition>
+                  {
+                      new DownloadClientDefinition { Name = "Test Client", Enable = false }
+                  });
 
             Subject.Check().ShouldBeWarning();
         }
