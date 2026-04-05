@@ -85,7 +85,7 @@ class VirtualTable extends Component {
 
       if (scrollContainer) {
         if (scrollContainer === window) {
-          window.scrollTo({ top: targetScrollTop, behavior: 'instant' });
+          window.scrollTo({ top: targetScrollTop, behavior: 'auto' });
         } else {
           scrollContainer.scrollTop = targetScrollTop;
         }

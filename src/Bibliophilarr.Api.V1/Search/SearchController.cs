@@ -5,6 +5,7 @@ using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
@@ -93,7 +94,7 @@ namespace Bibliophilarr.Api.V1.Search
                 else
                 {
                     _searchTelemetry.RecordUnsupportedEntityType(term, result?.GetType());
-                    Logger.Warn("Ignoring unsupported search entity type [{0}] for search term [{1}]", result?.GetType().FullName ?? "<null>", term);
+                    Logger.Warn("Ignoring unsupported search entity type [{0}] for search term [{1}]", result?.GetType().FullName ?? "<null>", LogSanitizer.Sanitize(term));
                     continue;
                 }
 

@@ -198,7 +198,7 @@ jobs:
         shell: bash
         working-directory: release-assets
         run: |
-          sha256sum * > SHA256SUMS.txt
+          sha256sum ./* > SHA256SUMS.txt
           echo "::group::SHA256 Checksums"
           cat SHA256SUMS.txt
           echo "::endgroup::"

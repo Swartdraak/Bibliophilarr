@@ -82,7 +82,7 @@ jobs:
 
       - name: Wait for health endpoint
         run: |
-          for i in $(seq 1 60); do
+          for _i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w "%{http_code}" \
               "http://127.0.0.1:8793/ping" || true)
             if [ "$code" = "200" ]; then

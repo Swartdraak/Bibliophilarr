@@ -21,8 +21,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:d0f61936dbf46d6ba1520a2e4e1ac4cc
 
 LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.description="Ebook and audiobook library manager" \
-      org.opencontainers.image.url="https://github.com/Readarr/Readarr" \
-      org.opencontainers.image.source="https://github.com/Readarr/Readarr" \
+      org.opencontainers.image.url="https://github.com/Swartdraak/Bibliophilarr" \
+      org.opencontainers.image.source="https://github.com/Swartdraak/Bibliophilarr" \
       org.opencontainers.image.licenses="GPL-3.0-only"
 
 RUN groupadd --gid 1000 bibliophilarr \

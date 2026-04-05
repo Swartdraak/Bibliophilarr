@@ -180,7 +180,7 @@ class AddNewItem extends Component {
                 <div>
                   You can also search using the
                   <Link to="/settings/metadata"> external ID </Link>
-                  of a book (e.g. edition:656), work (e.g. work:4912783), author (e.g. author:128382), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
+                  of a book (e.g. hardcover:work:the-shining), author (e.g. hardcover:author:Stephen%20King), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
                 </div>
               </div>
           }
@@ -195,7 +195,7 @@ class AddNewItem extends Component {
                 <div>
                   You can also search using the
                   <Link to="/settings/metadata"> external ID </Link>
-                  of a book (e.g. edition:656), work (e.g. work:4912783), author (e.g. author:128382), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
+                  of a book (e.g. hardcover:work:the-shining), author (e.g. hardcover:author:Stephen%20King), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
                 </div>
               </div>
           }

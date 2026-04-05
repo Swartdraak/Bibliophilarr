@@ -4,6 +4,7 @@ using System.Linq;
 using FluentValidation;
 using FluentValidation.Results;
 using NLog;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MetadataSource;
@@ -134,7 +135,7 @@ namespace NzbDrone.Core.Books
             }
             catch (BookNotFoundException)
             {
-                _logger.Error("Book with Foreign Id {0} was not found, it may have been removed from OpenLibrary.", newBook.ForeignBookId);
+                _logger.Error("Book with Foreign Id {0} was not found, it may have been removed from OpenLibrary.", LogSanitizer.Sanitize(newBook.ForeignBookId));
 
                 throw new ValidationException(new List<ValidationFailure>
                                               {

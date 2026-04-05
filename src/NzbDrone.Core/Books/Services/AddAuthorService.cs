@@ -7,6 +7,7 @@ using FluentValidation.Results;
 using NLog;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
@@ -158,7 +159,7 @@ namespace NzbDrone.Core.Books
                 // provider IDs should fall back gracefully to the data already in hand.
                 if (newAuthor.Metadata.Value.ForeignAuthorId.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.Error("BibliophilarrId {0} was not found, it may have been removed from OpenLibrary.", newAuthor.Metadata.Value.ForeignAuthorId);
+                    _logger.Error("BibliophilarrId {0} was not found, it may have been removed from OpenLibrary.", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
 
                     throw new ValidationException(new List<ValidationFailure>
                     {
@@ -166,12 +167,12 @@ namespace NzbDrone.Core.Books
                     });
                 }
 
-                _logger.Warn("Author metadata lookup returned no results for {0}; using request payload fallback", newAuthor.Metadata.Value.ForeignAuthorId);
+                _logger.Warn("Author metadata lookup returned no results for {0}; using request payload fallback", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
                 author = BuildFallbackAuthor(newAuthor);
             }
             catch (Exception ex)
             {
-                _logger.Warn(ex, "Author metadata lookup failed for {0}; using request payload fallback", newAuthor.Metadata.Value.ForeignAuthorId);
+                _logger.Warn(ex, "Author metadata lookup failed for {0}; using request payload fallback", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
                 author = BuildFallbackAuthor(newAuthor);
             }
 

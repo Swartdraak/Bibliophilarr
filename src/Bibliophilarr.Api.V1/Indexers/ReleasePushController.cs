@@ -8,6 +8,7 @@ using FluentValidation.Results;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
@@ -50,7 +51,7 @@ namespace Bibliophilarr.Api.V1.Indexers
         [Consumes("application/json")]
         public async Task<ActionResult<ReleaseResource>> Create([FromBody] ReleaseResource release)
         {
-            _logger.Info("Release pushed: {0} - {1}", release.Title, release.DownloadUrl ?? release.MagnetUrl);
+            _logger.Info("Release pushed: {0} - {1}", LogSanitizer.Sanitize(release.Title), LogSanitizer.Sanitize(release.DownloadUrl ?? release.MagnetUrl));
 
             ValidateResource(release);
 
@@ -95,11 +96,11 @@ namespace Bibliophilarr.Api.V1.Indexers
                 if (indexer != null)
                 {
                     release.IndexerId = indexer.Id;
-                    _logger.Debug("Push Release {0} associated with indexer {1} - {2}.", release.Title, release.IndexerId, release.Indexer);
+                    _logger.Debug("Push Release {0} associated with indexer {1} - {2}.", LogSanitizer.Sanitize(release.Title), release.IndexerId, LogSanitizer.Sanitize(release.Indexer));
                 }
                 else
                 {
-                    _logger.Debug("Push Release {0} not associated with known indexer {1}.", release.Title, release.Indexer);
+                    _logger.Debug("Push Release {0} not associated with known indexer {1}.", LogSanitizer.Sanitize(release.Title), LogSanitizer.Sanitize(release.Indexer));
                 }
             }
             else if (release.IndexerId != 0 && release.Indexer.IsNullOrWhiteSpace())
@@ -108,17 +109,17 @@ namespace Bibliophilarr.Api.V1.Indexers
                 {
                     var indexer = _indexerFactory.Get(release.IndexerId);
                     release.Indexer = indexer.Name;
-                    _logger.Debug("Push Release {0} associated with indexer {1} - {2}.", release.Title, release.IndexerId, release.Indexer);
+                    _logger.Debug("Push Release {0} associated with indexer {1} - {2}.", LogSanitizer.Sanitize(release.Title), release.IndexerId, LogSanitizer.Sanitize(release.Indexer));
                 }
                 catch (ModelNotFoundException)
                 {
-                    _logger.Debug("Push Release {0} not associated with known indexer {1}.", release.Title, release.IndexerId);
+                    _logger.Debug("Push Release {0} not associated with known indexer {1}.", LogSanitizer.Sanitize(release.Title), release.IndexerId);
                     release.IndexerId = 0;
                 }
             }
             else
             {
-                _logger.Debug("Push Release {0} not associated with an indexer.", release.Title);
+                _logger.Debug("Push Release {0} not associated with an indexer.", LogSanitizer.Sanitize(release.Title));
             }
         }
 
@@ -132,12 +133,12 @@ namespace Bibliophilarr.Api.V1.Indexers
 
                 if (downloadClient != null)
                 {
-                    _logger.Debug("Push Release {0} associated with download client {1} - {2}.", release.Title, downloadClientId, release.DownloadClient);
+                    _logger.Debug("Push Release {0} associated with download client {1} - {2}.", LogSanitizer.Sanitize(release.Title), downloadClientId, LogSanitizer.Sanitize(release.DownloadClient));
 
                     return downloadClient.Id;
                 }
 
-                _logger.Debug("Push Release {0} not associated with known download client {1}.", release.Title, release.DownloadClient);
+                _logger.Debug("Push Release {0} not associated with known download client {1}.", LogSanitizer.Sanitize(release.Title), LogSanitizer.Sanitize(release.DownloadClient));
             }
 
             return release.DownloadClientId;

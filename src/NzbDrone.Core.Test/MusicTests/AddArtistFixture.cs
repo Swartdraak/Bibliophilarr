@@ -112,13 +112,14 @@ namespace NzbDrone.Core.Test.MusicTests
         {
             var newAuthor = new Author
             {
-                ForeignAuthorId = "ce09ea31-3d4a-4487-a797-e315175457a0",
+                ForeignAuthorId = "OL12345A",
                 Path = @"C:\Test\Music\Name1"
             };
 
+            // After ID normalization the orchestrator receives the bare OL token
             Mocker.GetMock<IMetadataProviderOrchestrator>()
-                  .Setup(s => s.GetAuthorInfo(newAuthor.ForeignAuthorId, false))
-                  .Throws(new AuthorNotFoundException(newAuthor.ForeignAuthorId));
+                  .Setup(s => s.GetAuthorInfo("OL12345A", false))
+                  .Throws(new AuthorNotFoundException("OL12345A"));
 
             Mocker.GetMock<IAddAuthorValidator>()
                   .Setup(s => s.Validate(It.IsAny<Author>()))
