@@ -28,7 +28,7 @@ namespace NzbDrone.Integration.Test.ApiTests
             var response = _telemetry.Execute<SearchTelemetryResource>(request, HttpStatusCode.OK);
 
             response.Should().NotBeNull();
-            response.UnsupportedEntityCount.Should().BeGreaterOrEqualTo(0);
+            response.UnsupportedEntityCount.Should().BeGreaterThanOrEqualTo(0);
             response.UnsupportedEntityTypes.Should().NotBeNull();
             response.Terms.Should().NotBeNull();
         }
