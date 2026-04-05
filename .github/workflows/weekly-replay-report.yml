@@ -34,14 +34,13 @@ jobs:
 
       - name: Run curated replay sample
         run: |
-          # shellcheck disable=SC2153
           replay_root="${{ runner.temp }}/replay-cohort"
-          cp -a "${REPLAY_ROOT}" "${replay_root}"
+          cp -a "${{ env.REPLAY_ROOT }}" "${replay_root}"
 
           python3 scripts/live_provider_enrich_missing_metadata.py \
             --root "${replay_root}" \
-            --sample-size "${REPLAY_SAMPLE_SIZE}" \
-            --sample-seed "${REPLAY_SAMPLE_SEED}" \
+            --sample-size "${{ env.REPLAY_SAMPLE_SIZE }}" \
+            --sample-seed "${{ env.REPLAY_SAMPLE_SEED }}" \
             --report-dir "${{ steps.prep.outputs.report_dir }}/replay"
 
       - name: Evaluate replay thresholds
