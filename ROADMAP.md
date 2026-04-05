@@ -139,7 +139,7 @@ Planned entry conditions:
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | planned |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
-| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | planned |
+| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **assessed** — architecture design documented in Track B |
 
 ## Dependency Migration Queue
 
@@ -342,6 +342,32 @@ Measurement criteria:
 - Recoverability: interrupted run resumes from checkpoint with no duplicate imports.
 
 ### Track B: Single-instance dual ebook/audiobook management
+
+**Design assessment** (completed April 2026):
+
+Current data model has partial infrastructure for dual-format:
+- `Edition.Format` (string: MOBI, EPUB, AZW3, MP3, M4B, FLAC, PDF) and `Edition.IsEbook` (bool) exist but are not used in search/import decision logic.
+- Quality system has separate ebook (PDF/MOBI/EPUB/AZW3) and audio (MP3/FLAC/M4B) quality definitions with two default profiles ("eBook" and "Spoken").
+- `Book.Monitored` + `Edition.Monitored` provide per-edition control.
+- Format preference is implicit via allowed qualities in author's single `QualityProfile`.
+
+**Gap analysis**:
+- Single `QualityProfile` per author cannot express "want both ebook and audiobook with different cutoffs."
+- `BookEditionSelector.GetPreferredEdition()` returns one monitored edition — no multi-format variant selection.
+- Import identification doesn't filter candidates by target format.
+- Search doesn't distinguish "missing ebook" from "missing audiobook" for the same book.
+- No API/UI surface exposes per-format wanted/available state.
+
+**Recommended architecture** (Slice B1):
+- Add `BookVariant` entity (BookId, FormatType enum [Ebook, Audiobook], Monitored, QualityProfileId). One-to-many from Book.
+- Each variant owns its own monitoring, quality profile, and file tracking.
+- `BookEditionSelector` returns preferred edition per variant format type.
+- Feature-flagged via config: `EnableDualFormatTracking` (default: false). When off, single-variant behavior is preserved exactly.
+
+**Migration strategy**:
+- Additive schema migration: `BookVariant` table, FK to `Books` and `QualityProfiles`.
+- Auto-populate one variant per existing book based on current quality profile format type.
+- No destructive changes; rollback = drop `BookVariant` table and ignore feature flag.
 
 Future implementation slices:
 
