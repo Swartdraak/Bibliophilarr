@@ -139,7 +139,7 @@ Planned entry conditions:
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | planned |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
-| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **designed** — detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
+| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **implemented** — all 10 slices (DF-1 through DF-10) complete, feature-flagged via `EnableDualFormatTracking`. Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
 
 ## Dependency Migration Queue
 
@@ -331,7 +331,7 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 16. Execute documentation normalization pass: fix MIGRATION_PLAN.md duplicate H2 headings, update stale references, archive dated operational docs, align wiki with ROADMAP phases. Remediation items RQ-007, RQ-048, RQ-044, RQ-047, RQ-079, RQ-080, RQ-121-RQ-125.
 17. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.
 18. Plan React 18 upgrade path: audit breaking changes, upgrade @testing-library, remove `react-addons-shallow-compare`, begin `connected-react-router` removal. Remediation items RQ-068, RQ-069, RQ-159.
-19. ~~Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.~~ **DESIGNED** — detailed architecture documented in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md). Implementation slices DF-1 through DF-10 defined. Next: begin DF-1 (domain model and schema).
+19. ~~Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.~~ **IMPLEMENTED** — all 10 slices (DF-1 through DF-10) complete. Feature-flagged via `EnableDualFormatTracking` (Settings > Media Management > Dual Format). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
 
 ## Requested implementation additions (March 2026)
 
@@ -416,16 +416,16 @@ Current data model has partial infrastructure for dual-format:
 
 Implementation slices (detailed design in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md)):
 
-1. DF-1: Domain model and schema — `AuthorFormatProfile` entity, migration 045, `FormatType` enum, feature flag
-2. DF-2: Edition monitoring per format type — lift single-monitored-edition constraint to per-format
-3. DF-3: Decision engine format-aware quality evaluation — resolve quality profile from format profile
-4. DF-4: Download client routing by format — use format profile tags for download client selection
-5. DF-5: Import pipeline format awareness — assign files to format-specific editions and root folders
-6. DF-6: File path building by format — use format profile root folder for path construction
-7. DF-7: Missing and cutoff evaluation by format — per-format wanted/cutoff status
-8. DF-8: API resources and controllers — expose format profiles and per-format book status
-9. DF-9: Frontend format profile UI — author edit, book table, wanted pages with format controls
-10. DF-10: Rollout controls and compatibility gates — feature flag wiring, acceptance suite, runbook
+1. ~~DF-1: Domain model and schema~~ **DONE** — `AuthorFormatProfile` entity, migration 045, `FormatType` enum, feature flag
+2. ~~DF-2: Edition monitoring per format type~~ **DONE** — per-format housekeeping, `BookEditionSelector` overloads
+3. ~~DF-3: Decision engine format-aware quality evaluation~~ **DONE** — format-specific profile resolution
+4. ~~DF-4: Download client routing by format~~ **DONE** — format profile tags in `DownloadService`
+5. ~~DF-5: Import pipeline format awareness~~ **DONE** — format-specific edition/root folder assignment
+6. ~~DF-6: File path building by format~~ **DONE** — format profile root folder in path builder
+7. ~~DF-7: Missing and cutoff evaluation by format~~ **DONE** — format-filtered SQL, controller query params
+8. ~~DF-8: API resources and controllers~~ **DONE** — CRUD controller, format status resources, crash fix
+9. ~~DF-9: Frontend format profile UI~~ **DONE** — author edit modal, detail header badges, Redux store
+10. ~~DF-10: Rollout controls and compatibility gates~~ **DONE** — config API, frontend toggle, feature flag wiring
 
 Measurement criteria:
 

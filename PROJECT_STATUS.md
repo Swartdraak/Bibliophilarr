@@ -29,14 +29,20 @@ The following items were added to canonical planning for immediate/future delive
 
 2. Single-instance ebook and audiobook variant management
 
-- **Implementation in progress** (April 2026). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
+- **Implementation complete** (April 2026). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
 - `AuthorFormatProfile` entity: per-author, per-format (ebook/audiobook) quality profile, root folder, tags, monitoring, and path.
 - 10 implementation slices defined (DF-1 through DF-10). Feature-flagged with `EnableDualFormatTracking`.
 - **DF-1 complete**: domain model, schema migration 045, feature flag, `Quality.GetFormatType()` helper.
 - **DF-2 complete**: edition monitoring per format type — format-aware housekeeping, `BookEditionSelector` overloads, `SetMonitoredByFormat`.
 - **DF-3 complete**: decision engine format-aware quality evaluation — format-specific profile resolution in `QualityAllowedByProfileSpecification`, `UpgradableSpecification.ResolveProfile()`.
 - **DF-4 complete**: download client routing by format — tag resolution from format profiles in `DownloadService`.
-- Next: DF-5 (import pipeline format awareness).
+- **DF-5 complete**: import pipeline format awareness — format-specific edition and root folder assignment in `ImportApprovedBooks`.
+- **DF-6 complete**: file path building by format — format profile root folder resolution in path builder.
+- **DF-7 complete**: missing/cutoff evaluation by format — format-filtered SQL in `BookRepository`, controller query parameters.
+- **DF-8 complete**: API resources and controllers — `AuthorFormatProfileResource`, `BookFormatStatusResource`, CRUD controller, `BookResource.SingleOrDefault` crash fix.
+- **DF-9 complete**: frontend format profile UI — author edit modal, detail header badges, Redux store module.
+- **DF-10 complete**: rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle.
+- **All 10 slices complete.** Feature is opt-in via Settings > Media Management > Dual Format.
 
 ## Latest Delivery Update
 

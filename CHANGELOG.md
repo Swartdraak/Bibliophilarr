@@ -13,6 +13,12 @@ process.
 - **DF-2**: Edition monitoring per format type — format-aware housekeeping (`FixMultipleMonitoredEditions` groups by BookId+IsEbook when flag on), `BookEditionSelector.GetPreferredEdition(FormatType)` overloads, `EditionRepository.SetMonitoredByFormat()`. 17/17 tests pass.
 - **DF-3**: Decision engine format-aware quality evaluation — `QualityAllowedByProfileSpecification` resolves format-specific quality profile, `UpgradableSpecification.ResolveProfile(RemoteBook)` helper, `RemoteBook.ResolvedFormatType` and `ResolvedQualityProfile` properties. 9/9 tests pass.
 - **DF-4**: Download client routing by format — `DownloadService.DownloadReport` uses format profile tags when dual-format enabled, falls back to author tags. 4/4 tests pass.
+- **DF-5**: Import pipeline format awareness — `ImportApprovedBooks` assigns files to format-specific editions and root folders when dual-format enabled. 12/12 tests pass.
+- **DF-6**: File path building by format — path builder resolves format profile root folder for file placement. 8/8 tests pass.
+- **DF-7**: Missing and cutoff evaluation by format — format-filtered SQL builders in `BookRepository`, `FormatType?` query parameter on Missing and Cutoff controllers. 7/7 tests pass.
+- **DF-8**: API resources and controllers — `AuthorFormatProfileResource` with CRUD controller, `BookFormatStatusResource` for per-format book status, format profiles linked in `AuthorResource` and `BookResource`. Fixed `SingleOrDefault` crash in `BookResource` mapper for dual-format editions. 9/9 tests pass.
+- **DF-9**: Frontend format profile UI — author edit modal format profile display, detail header format badges with book/audiobook icons, `authorFormatProfileActions` Redux store module.
+- **DF-10**: Rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle (Settings > Media Management > Dual Format, advanced settings).
 - Import run summary telemetry (Slice A1): structured per-run metrics for files scanned/filtered, match quality distribution, stage timing, throughput, and match rate. Logged at Info level on each import run completion.
 - Commit message convention (Conventional Commits format) with type/scope rules, branch naming convention, and production readiness expectations in `CONTRIBUTING.md`.
 - Release gate checklist in `CONTRIBUTING.md` enforcing CI, CHANGELOG, artifact, and rollback verification before tagging releases.
