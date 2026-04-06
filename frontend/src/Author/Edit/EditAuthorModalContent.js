@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import AuthorMetadataProfilePopoverContent from 'AddAuthor/AuthorMetadataProfilePopoverContent';
 import AuthorMonitorNewItemsOptionsPopoverContent from 'AddAuthor/AuthorMonitorNewItemsOptionsPopoverContent';
+import AuthorFormatProfileEditor from 'Author/Edit/AuthorFormatProfileEditor';
 import MoveAuthorModal from 'Author/MoveAuthor/MoveAuthorModal';
 import Form from 'Components/Form/Form';
 import FormGroup from 'Components/Form/FormGroup';
@@ -66,6 +67,7 @@ class EditAuthorModalContent extends Component {
       isSaving,
       showMetadataProfile,
       originalPath,
+      formatProfiles,
       onInputChange,
       onModalClose,
       onDeleteAuthorPress,
@@ -140,6 +142,19 @@ class EditAuthorModalContent extends Component {
                 onChange={onInputChange}
               />
             </FormGroup>
+
+            {
+              formatProfiles && formatProfiles.length > 0 &&
+                <FormGroup>
+                  <FormLabel>
+                    Format Profiles
+                  </FormLabel>
+
+                  <AuthorFormatProfileEditor
+                    formatProfiles={formatProfiles}
+                  />
+                </FormGroup>
+            }
 
             {
               showMetadataProfile &&
@@ -243,6 +258,7 @@ EditAuthorModalContent.propTypes = {
   showMetadataProfile: PropTypes.bool.isRequired,
   isPathChanging: PropTypes.bool.isRequired,
   originalPath: PropTypes.string.isRequired,
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
   onInputChange: PropTypes.func.isRequired,
   onSavePress: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired,

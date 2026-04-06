@@ -73,6 +73,7 @@ class AuthorDetailsHeader extends Component {
       images,
       alternateTitles,
       tags,
+      formatProfiles,
       isSaving,
       isSmallScreen,
       onMonitorTogglePress
@@ -221,6 +222,27 @@ class AuthorDetailsHeader extends Component {
                 </span>
               </Label>
 
+              {
+                formatProfiles && formatProfiles.length > 0 &&
+                  formatProfiles.map((fp) => (
+                    <Label
+                      key={fp.id}
+                      className={styles.detailsLabel}
+                      title={`${fp.formatType === 0 ? 'Ebook' : 'Audiobook'} format profile`}
+                      size={sizes.LARGE}
+                    >
+                      <Icon
+                        name={fp.formatType === 0 ? icons.BOOK : icons.TRACK_FILE}
+                        size={17}
+                      />
+
+                      <span className={styles.qualityProfileName}>
+                        {fp.formatType === 0 ? 'Ebook' : 'Audiobook'}
+                      </span>
+                    </Label>
+                  ))
+              }
+
               <Label
                 className={styles.detailsLabel}
                 size={sizes.LARGE}
@@ -331,6 +353,7 @@ AuthorDetailsHeader.propTypes = {
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   alternateTitles: PropTypes.arrayOf(PropTypes.string).isRequired,
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
   isSaving: PropTypes.bool.isRequired,
   isSmallScreen: PropTypes.bool.isRequired,
   onMonitorTogglePress: PropTypes.func.isRequired

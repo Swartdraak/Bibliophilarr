@@ -56,6 +56,7 @@ function createMapStateToProps() {
         originalPath: author.path,
         item: settings.settings,
         showMetadataProfile: metadataProfiles.items.length > 1,
+        formatProfiles: author.formatProfiles || [],
         ...settings
       };
     }
