@@ -104,6 +104,7 @@ class QueueRow extends Component {
       timeleft,
       size,
       sizeleft,
+      formatType,
       showRelativeDates,
       shortDateFormat,
       timeFormat,
@@ -250,6 +251,14 @@ class QueueRow extends Component {
                   <ProtocolLabel
                     protocol={protocol}
                   />
+                </TableRowCell>
+              );
+            }
+
+            if (name === 'formatType') {
+              return (
+                <TableRowCell key={name}>
+                  {formatType === 0 ? 'Ebook' : formatType === 1 ? 'Audiobook' : '-'}
                 </TableRowCell>
               );
             }
@@ -428,6 +437,7 @@ QueueRow.propTypes = {
   timeleft: PropTypes.string,
   size: PropTypes.number,
   sizeleft: PropTypes.number,
+  formatType: PropTypes.number,
   showRelativeDates: PropTypes.bool.isRequired,
   shortDateFormat: PropTypes.string.isRequired,
   timeFormat: PropTypes.string.isRequired,

@@ -139,7 +139,7 @@ Planned entry conditions:
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | complete |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
-| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **implemented** — all 10 slices (DF-1 through DF-10) complete, feature-flagged via `EnableDualFormatTracking`. Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
+| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **implemented** — all 16 slices (DF-1 through DF-16) complete, feature-flagged via `EnableDualFormatTracking`. Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
 
 ## Dependency migration queue
 
@@ -331,7 +331,7 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 16. ~~Execute documentation normalization pass: fix MIGRATION_PLAN.md duplicate H2 headings, update stale references, archive dated operational docs, align wiki with ROADMAP phases. Remediation items RQ-007, RQ-048, RQ-044, RQ-047, RQ-079, RQ-080, RQ-121-RQ-125.~~ **COMPLETED** — all 11 RQ items fixed: H2 deduplication, wiki alignment, archive banners, stale references updated.
 17. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.
 18. Plan React 18 upgrade path: audit breaking changes, upgrade @testing-library, remove `react-addons-shallow-compare`, begin `connected-react-router` removal. Remediation items RQ-068, RQ-069, RQ-159.
-19. ~~Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.~~ **IMPLEMENTED** — all 10 slices (DF-1 through DF-10) complete. Feature-flagged via `EnableDualFormatTracking` (Settings > Media Management > Dual Format). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
+19. ~~Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.~~ **IMPLEMENTED** — all 16 slices (DF-1 through DF-16) complete. Feature-flagged via `EnableDualFormatTracking` (Settings > Media Management > Dual Format). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
 
 ## Requested implementation additions (March 2026)
 
@@ -426,6 +426,12 @@ Implementation slices (detailed design in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-
 8. ~~DF-8: API resources and controllers~~ **DONE** — CRUD controller, format status resources, crash fix
 9. ~~DF-9: Frontend format profile UI~~ **DONE** — author edit modal, detail header badges, Redux store
 10. ~~DF-10: Rollout controls and compatibility gates~~ **DONE** — config API, frontend toggle, feature flag wiring
+11. ~~DF-11: Format-aware download client categories~~ **DONE** — `IFormatCategorySettings` interface, per-format category fields on 6 download clients
+12. ~~DF-12: Format-aware remote path mappings~~ **DONE** — nullable `FormatType` column (migration 046), format-priority path resolution, frontend selector
+13. ~~DF-13: Queue format display~~ **DONE** — `FormatType` on `QueueResource`, queue table format column
+14. ~~DF-14: Wanted format filters~~ **DONE** — ebook/audiobook filters on Missing and Cutoff Unmet views
+15. ~~DF-15: Calendar format filter~~ **DONE** — ebook/audiobook filter on Calendar view
+16. ~~DF-16: Author index format column~~ **DONE** — format profiles column with monitored status indicators
 
 Measurement criteria:
 

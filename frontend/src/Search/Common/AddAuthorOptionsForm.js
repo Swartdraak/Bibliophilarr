@@ -26,6 +26,14 @@ class AddAuthorOptionsForm extends Component {
     this.props.onInputChange({ name: 'metadataProfileId', value: parseInt(value) });
   };
 
+  onEbookQualityProfileIdChange = ({ value }) => {
+    this.props.onInputChange({ name: 'ebookQualityProfileId', value: parseInt(value) });
+  };
+
+  onAudiobookQualityProfileIdChange = ({ value }) => {
+    this.props.onInputChange({ name: 'audiobookQualityProfileId', value: parseInt(value) });
+  };
+
   //
   // Render
 
@@ -39,6 +47,11 @@ class AddAuthorOptionsForm extends Component {
       includeNoneMetadataProfile,
       includeSpecificBookMonitor,
       showMetadataProfile,
+      enableDualFormatTracking,
+      ebookQualityProfileId,
+      audiobookQualityProfileId,
+      ebookRootFolderPath,
+      audiobookRootFolderPath,
       folder,
       tags,
       isWindows,
@@ -135,6 +148,90 @@ class AddAuthorOptionsForm extends Component {
           />
         </FormGroup>
 
+        {
+          enableDualFormatTracking &&
+            <FormGroup>
+              <FormLabel>
+                Ebook Quality Profile
+              </FormLabel>
+
+              <FormInputGroup
+                type={inputTypes.QUALITY_PROFILE_SELECT}
+                name="ebookQualityProfileId"
+                helpText="Quality profile for ebook downloads"
+                onChange={this.onEbookQualityProfileIdChange}
+                {...(ebookQualityProfileId || qualityProfileId)}
+              />
+            </FormGroup>
+        }
+
+        {
+          enableDualFormatTracking &&
+            <FormGroup>
+              <FormLabel>
+                Audiobook Quality Profile
+              </FormLabel>
+
+              <FormInputGroup
+                type={inputTypes.QUALITY_PROFILE_SELECT}
+                name="audiobookQualityProfileId"
+                helpText="Quality profile for audiobook downloads"
+                onChange={this.onAudiobookQualityProfileIdChange}
+                {...(audiobookQualityProfileId || qualityProfileId)}
+              />
+            </FormGroup>
+        }
+
+        {
+          enableDualFormatTracking &&
+            <FormGroup>
+              <FormLabel>
+                Ebook Root Folder
+              </FormLabel>
+
+              <FormInputGroup
+                type={inputTypes.ROOT_FOLDER_SELECT}
+                name="ebookRootFolderPath"
+                valueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                selectedValueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                helpText="Root folder for ebook files"
+                onChange={onInputChange}
+                {...(ebookRootFolderPath || rootFolderPath)}
+              />
+            </FormGroup>
+        }
+
+        {
+          enableDualFormatTracking &&
+            <FormGroup>
+              <FormLabel>
+                Audiobook Root Folder
+              </FormLabel>
+
+              <FormInputGroup
+                type={inputTypes.ROOT_FOLDER_SELECT}
+                name="audiobookRootFolderPath"
+                valueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                selectedValueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                helpText="Root folder for audiobook files"
+                onChange={onInputChange}
+                {...(audiobookRootFolderPath || rootFolderPath)}
+              />
+            </FormGroup>
+        }
+
         <FormGroup className={showMetadataProfile ? undefined : styles.hideMetadataProfile}>
           <FormLabel>
             {translate('MetadataProfile')}
@@ -188,6 +285,11 @@ AddAuthorOptionsForm.propTypes = {
   qualityProfileId: PropTypes.object,
   metadataProfileId: PropTypes.object,
   showMetadataProfile: PropTypes.bool.isRequired,
+  enableDualFormatTracking: PropTypes.bool,
+  ebookQualityProfileId: PropTypes.object,
+  audiobookQualityProfileId: PropTypes.object,
+  ebookRootFolderPath: PropTypes.object,
+  audiobookRootFolderPath: PropTypes.object,
   includeNoneMetadataProfile: PropTypes.bool.isRequired,
   includeSpecificBookMonitor: PropTypes.bool.isRequired,
   folder: PropTypes.string.isRequired,
@@ -197,7 +299,8 @@ AddAuthorOptionsForm.propTypes = {
 };
 
 AddAuthorOptionsForm.defaultProps = {
-  includeSpecificBookMonitor: false
+  includeSpecificBookMonitor: false,
+  enableDualFormatTracking: false
 };
 
 export default AddAuthorOptionsForm;

@@ -152,6 +152,7 @@ class EditAuthorModalContent extends Component {
 
                   <AuthorFormatProfileEditor
                     formatProfiles={formatProfiles}
+                    onFormatProfileChange={onFormatProfileChange}
                   />
                 </FormGroup>
             }
@@ -260,6 +261,7 @@ EditAuthorModalContent.propTypes = {
   originalPath: PropTypes.string.isRequired,
   formatProfiles: PropTypes.arrayOf(PropTypes.object),
   onInputChange: PropTypes.func.isRequired,
+  onFormatProfileChange: PropTypes.func.isRequired,
   onSavePress: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired,
   onDeleteAuthorPress: PropTypes.func.isRequired

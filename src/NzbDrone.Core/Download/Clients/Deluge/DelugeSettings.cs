@@ -17,7 +17,7 @@ namespace NzbDrone.Core.Download.Clients.Deluge
         }
     }
 
-    public class DelugeSettings : IProviderConfig
+    public class DelugeSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly DelugeSettingsValidator Validator = new DelugeSettingsValidator();
 
@@ -50,19 +50,25 @@ namespace NzbDrone.Core.Download.Clients.Deluge
         [FieldDefinition(6, Label = "Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category for Bibliophilarr to set after it has imported the download. Bibliophilarr will not remove torrents in that category even if seeding finished. Leave blank to keep same category.")]
         public string MusicImportedCategory { get; set; }
 
-        [FieldDefinition(7, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(DelugePriority), HelpText = "Priority to use when grabbing books that were released within the last 14 days")]
+        [FieldDefinition(7, Label = "Ebook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        public string EbookCategory { get; set; }
+
+        [FieldDefinition(8, Label = "Audiobook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        public string AudiobookCategory { get; set; }
+
+        [FieldDefinition(9, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(DelugePriority), HelpText = "Priority to use when grabbing books that were released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
-        [FieldDefinition(8, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(DelugePriority), HelpText = "Priority to use when grabbing books that were released over 14 days ago")]
+        [FieldDefinition(10, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(DelugePriority), HelpText = "Priority to use when grabbing books that were released over 14 days ago")]
         public int OlderTvPriority { get; set; }
 
-        [FieldDefinition(9, Label = "Add Paused", Type = FieldType.Checkbox)]
+        [FieldDefinition(11, Label = "Add Paused", Type = FieldType.Checkbox)]
         public bool AddPaused { get; set; }
 
-        [FieldDefinition(10, Label = "DownloadClientDelugeSettingsDirectory", Type = FieldType.Textbox, Advanced = true, HelpText = "DownloadClientDelugeSettingsDirectoryHelpText")]
+        [FieldDefinition(12, Label = "DownloadClientDelugeSettingsDirectory", Type = FieldType.Textbox, Advanced = true, HelpText = "DownloadClientDelugeSettingsDirectoryHelpText")]
         public string DownloadDirectory { get; set; }
 
-        [FieldDefinition(11, Label = "DownloadClientDelugeSettingsDirectoryCompleted", Type = FieldType.Textbox, Advanced = true, HelpText = "DownloadClientDelugeSettingsDirectoryCompletedHelpText")]
+        [FieldDefinition(13, Label = "DownloadClientDelugeSettingsDirectoryCompleted", Type = FieldType.Textbox, Advanced = true, HelpText = "DownloadClientDelugeSettingsDirectoryCompletedHelpText")]
         public string CompletedDirectory { get; set; }
 
         public NzbDroneValidationResult Validate()

@@ -12,9 +12,10 @@ function createMapStateToProps() {
   return createSelector(
     (state) => state.search,
     (state) => state.settings.metadataProfiles,
+    (state) => state.settings.mediaManagement.item,
     createDimensionsSelector(),
     createSystemStatusSelector(),
-    (searchState, metadataProfiles, dimensions, systemStatus) => {
+    (searchState, metadataProfiles, mediaManagement, dimensions, systemStatus) => {
       const {
         isAdding,
         addError,
@@ -30,7 +31,8 @@ function createMapStateToProps() {
       return {
         isAdding,
         addError,
-        showMetadataProfile: metadataProfiles.items.length > 2, // NONE (not allowed for authors) and one other
+        enableDualFormatTracking: mediaManagement.enableDualFormatTracking || false,
+        showMetadataProfile: metadataProfiles.items.length > 2,
         isSmallScreen: dimensions.isSmallScreen,
         validationErrors,
         validationWarnings,
@@ -63,10 +65,15 @@ class AddNewAuthorModalContentConnector extends Component {
       monitorNewItems,
       qualityProfileId,
       metadataProfileId,
-      tags
+      tags,
+      enableDualFormatTracking,
+      ebookQualityProfileId,
+      audiobookQualityProfileId,
+      ebookRootFolderPath,
+      audiobookRootFolderPath
     } = this.props;
 
-    this.props.addAuthor({
+    const payload = {
       foreignAuthorId,
       rootFolderPath: rootFolderPath.value,
       monitor: monitor.value,
@@ -75,7 +82,16 @@ class AddNewAuthorModalContentConnector extends Component {
       metadataProfileId: metadataProfileId.value,
       tags: tags.value,
       searchForMissingBooks
-    });
+    };
+
+    if (enableDualFormatTracking) {
+      payload.ebookQualityProfileId = ebookQualityProfileId?.value ?? qualityProfileId.value;
+      payload.audiobookQualityProfileId = audiobookQualityProfileId?.value ?? qualityProfileId.value;
+      payload.ebookRootFolderPath = ebookRootFolderPath?.value ?? rootFolderPath.value;
+      payload.audiobookRootFolderPath = audiobookRootFolderPath?.value ?? rootFolderPath.value;
+    }
+
+    this.props.addAuthor(payload);
   };
 
   //

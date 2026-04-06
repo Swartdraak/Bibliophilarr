@@ -21,7 +21,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
         }
     }
 
-    public class NzbgetSettings : IProviderConfig
+    public class NzbgetSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly NzbgetSettingsValidator Validator = new NzbgetSettingsValidator();
 
@@ -57,13 +57,19 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
         [FieldDefinition(6, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.")]
         public string MusicCategory { get; set; }
 
-        [FieldDefinition(7, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(NzbgetPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
+        [FieldDefinition(7, Label = "Ebook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        public string EbookCategory { get; set; }
+
+        [FieldDefinition(8, Label = "Audiobook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        public string AudiobookCategory { get; set; }
+
+        [FieldDefinition(9, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(NzbgetPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
-        [FieldDefinition(8, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(NzbgetPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
+        [FieldDefinition(10, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(NzbgetPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
         public int OlderTvPriority { get; set; }
 
-        [FieldDefinition(9, Label = "Add Paused", Type = FieldType.Checkbox, HelpText = "This option requires at least NzbGet version 16.0")]
+        [FieldDefinition(11, Label = "Add Paused", Type = FieldType.Checkbox, HelpText = "This option requires at least NzbGet version 16.0")]
         public bool AddPaused { get; set; }
 
         public NzbDroneValidationResult Validate()

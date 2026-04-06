@@ -24,7 +24,7 @@ namespace NzbDrone.Core.Download.Clients.Transmission
         }
     }
 
-    public class TransmissionSettings : IProviderConfig
+    public class TransmissionSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly TransmissionSettingsValidator Validator = new TransmissionSettingsValidator();
 
@@ -56,16 +56,22 @@ namespace NzbDrone.Core.Download.Clients.Transmission
         [FieldDefinition(6, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.. Creates a [category] subdirectory in the output directory.")]
         public string MusicCategory { get; set; }
 
-        [FieldDefinition(7, Label = "Directory", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional location to put downloads in, leave blank to use the default Transmission location")]
+        [FieldDefinition(7, Label = "Ebook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        public string EbookCategory { get; set; }
+
+        [FieldDefinition(8, Label = "Audiobook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        public string AudiobookCategory { get; set; }
+
+        [FieldDefinition(9, Label = "Directory", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional location to put downloads in, leave blank to use the default Transmission location")]
         public string TvDirectory { get; set; }
 
-        [FieldDefinition(8, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(TransmissionPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
+        [FieldDefinition(10, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(TransmissionPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
-        [FieldDefinition(9, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(TransmissionPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
+        [FieldDefinition(11, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(TransmissionPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
         public int OlderTvPriority { get; set; }
 
-        [FieldDefinition(10, Label = "Add Paused", Type = FieldType.Checkbox)]
+        [FieldDefinition(12, Label = "Add Paused", Type = FieldType.Checkbox)]
         public bool AddPaused { get; set; }
 
         public NzbDroneValidationResult Validate()

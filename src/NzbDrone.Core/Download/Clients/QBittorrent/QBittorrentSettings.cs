@@ -19,7 +19,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
         }
     }
 
-    public class QBittorrentSettings : IProviderConfig
+    public class QBittorrentSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly QBittorrentSettingsValidator Validator = new QBittorrentSettingsValidator();
 
@@ -54,22 +54,28 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
         [FieldDefinition(7, Label = "Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category for Bibliophilarr to set after it has imported the download. Bibliophilarr will not remove the torrent if seeding has finished. Leave blank to keep same category.")]
         public string MusicImportedCategory { get; set; }
 
-        [FieldDefinition(8, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(QBittorrentPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
+        [FieldDefinition(8, Label = "Ebook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        public string EbookCategory { get; set; }
+
+        [FieldDefinition(9, Label = "Audiobook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        public string AudiobookCategory { get; set; }
+
+        [FieldDefinition(10, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(QBittorrentPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
-        [FieldDefinition(9, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(QBittorrentPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
+        [FieldDefinition(11, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(QBittorrentPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
         public int OlderTvPriority { get; set; }
 
-        [FieldDefinition(10, Label = "Initial State", Type = FieldType.Select, SelectOptions = typeof(QBittorrentState), HelpText = "Initial state for torrents added to qBittorrent. Note that Forced Torrents do not abide by seed restrictions")]
+        [FieldDefinition(12, Label = "Initial State", Type = FieldType.Select, SelectOptions = typeof(QBittorrentState), HelpText = "Initial state for torrents added to qBittorrent. Note that Forced Torrents do not abide by seed restrictions")]
         public int InitialState { get; set; }
 
-        [FieldDefinition(11, Label = "Sequential Order", Type = FieldType.Checkbox, HelpText = "Download in sequential order (qBittorrent 4.1.0+)")]
+        [FieldDefinition(13, Label = "Sequential Order", Type = FieldType.Checkbox, HelpText = "Download in sequential order (qBittorrent 4.1.0+)")]
         public bool SequentialOrder { get; set; }
 
-        [FieldDefinition(12, Label = "First and Last First", Type = FieldType.Checkbox, HelpText = "Download first and last pieces first (qBittorrent 4.1.0+)")]
+        [FieldDefinition(14, Label = "First and Last First", Type = FieldType.Checkbox, HelpText = "Download first and last pieces first (qBittorrent 4.1.0+)")]
         public bool FirstAndLast { get; set; }
 
-        [FieldDefinition(13, Label = "DownloadClientQbittorrentSettingsContentLayout", Type = FieldType.Select, SelectOptions = typeof(QBittorrentContentLayout), HelpText = "DownloadClientQbittorrentSettingsContentLayoutHelpText")]
+        [FieldDefinition(15, Label = "DownloadClientQbittorrentSettingsContentLayout", Type = FieldType.Select, SelectOptions = typeof(QBittorrentContentLayout), HelpText = "DownloadClientQbittorrentSettingsContentLayoutHelpText")]
         public int ContentLayout { get; set; }
 
         public NzbDroneValidationResult Validate()

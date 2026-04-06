@@ -96,6 +96,7 @@ class AuthorIndexRow extends Component {
       path,
       tags,
       images,
+      formatProfiles,
       showBanners,
       showTitle,
       showSearchAction,
@@ -210,6 +211,23 @@ class AuthorIndexRow extends Component {
                   className={styles[name]}
                 >
                   {qualityProfile?.name ?? ''}
+                </VirtualTableRowCell>
+              );
+            }
+
+            if (name === 'formatProfiles') {
+              return (
+                <VirtualTableRowCell
+                  key={name}
+                  className={styles[name]}
+                >
+                  {
+                    formatProfiles && formatProfiles.length > 0
+                      ? formatProfiles.map((fp) =>
+                        `${fp.formatType === 0 ? 'E' : 'A'}${fp.monitored ? '' : '(off)'}`
+                      ).join(' / ')
+                      : '-'
+                  }
                 </VirtualTableRowCell>
               );
             }

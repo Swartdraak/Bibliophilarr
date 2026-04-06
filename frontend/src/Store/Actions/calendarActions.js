@@ -72,6 +72,28 @@ export const defaultState = {
           type: filterTypes.EQUAL
         }
       ]
+    },
+    {
+      key: 'ebook',
+      label: 'Ebook',
+      filters: [
+        {
+          key: 'formatType',
+          value: 0,
+          type: filterTypes.EQUAL
+        }
+      ]
+    },
+    {
+      key: 'audiobook',
+      label: 'Audiobook',
+      filters: [
+        {
+          key: 'formatType',
+          value: 1,
+          type: filterTypes.EQUAL
+        }
+      ]
     }
   ]
 };

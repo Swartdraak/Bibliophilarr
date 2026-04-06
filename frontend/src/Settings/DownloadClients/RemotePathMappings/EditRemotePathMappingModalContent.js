@@ -12,7 +12,7 @@ import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { inputTypes, kinds } from 'Helpers/Props';
-import { stringSettingShape } from 'Helpers/Props/Shapes/settingShape';
+import { numberSettingShape, stringSettingShape } from 'Helpers/Props/Shapes/settingShape';
 import translate from 'Utilities/String/translate';
 import styles from './EditRemotePathMappingModalContent.css';
 
@@ -35,7 +35,8 @@ function EditRemotePathMappingModalContent(props) {
   const {
     host,
     remotePath,
-    localPath
+    localPath,
+    formatType
   } = item;
 
   return (
@@ -102,6 +103,25 @@ function EditRemotePathMappingModalContent(props) {
                   onChange={onInputChange}
                 />
               </FormGroup>
+
+              <FormGroup>
+                <FormLabel>
+                  Format Type
+                </FormLabel>
+
+                <FormInputGroup
+                  type={inputTypes.SELECT}
+                  name="formatType"
+                  helpText="Optional: restrict this mapping to a specific format. Leave as 'All' to apply to both ebooks and audiobooks."
+                  {...formatType}
+                  values={[
+                    { key: '', value: 'All' },
+                    { key: 0, value: 'Ebook' },
+                    { key: 1, value: 'Audiobook' }
+                  ]}
+                  onChange={onInputChange}
+                />
+              </FormGroup>
             </Form>
         }
       </ModalBody>
@@ -139,7 +159,8 @@ function EditRemotePathMappingModalContent(props) {
 const remotePathMappingShape = {
   host: PropTypes.shape(stringSettingShape).isRequired,
   remotePath: PropTypes.shape(stringSettingShape).isRequired,
-  localPath: PropTypes.shape(stringSettingShape).isRequired
+  localPath: PropTypes.shape(stringSettingShape).isRequired,
+  formatType: PropTypes.shape(numberSettingShape)
 };
 
 EditRemotePathMappingModalContent.propTypes = {

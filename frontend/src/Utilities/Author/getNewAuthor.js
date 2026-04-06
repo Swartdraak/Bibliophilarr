@@ -7,13 +7,33 @@ function getNewAuthor(author, payload) {
     qualityProfileId,
     metadataProfileId,
     tags,
-    searchForMissingBooks = false
+    searchForMissingBooks = false,
+    ebookQualityProfileId,
+    audiobookQualityProfileId,
+    ebookRootFolderPath,
+    audiobookRootFolderPath
   } = payload;
 
   const addOptions = {
     monitor,
     searchForMissingBooks
   };
+
+  if (ebookQualityProfileId != null) {
+    addOptions.ebookQualityProfileId = ebookQualityProfileId;
+  }
+
+  if (audiobookQualityProfileId != null) {
+    addOptions.audiobookQualityProfileId = audiobookQualityProfileId;
+  }
+
+  if (ebookRootFolderPath != null) {
+    addOptions.ebookRootFolderPath = ebookRootFolderPath;
+  }
+
+  if (audiobookRootFolderPath != null) {
+    addOptions.audiobookRootFolderPath = audiobookRootFolderPath;
+  }
 
   author.addOptions = addOptions;
   author.monitored = true;

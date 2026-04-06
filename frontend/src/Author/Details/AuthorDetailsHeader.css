@@ -123,6 +123,16 @@
   font-size: 17px;
 }
 
+.formatSeparator {
+  margin: 0 4px;
+  opacity: 0.6;
+}
+
+.formatUnmonitored {
+  margin-left: 6px;
+  opacity: 0.7;
+}
+
 .overview {
   flex: 1 1 auto;
   margin-top: 8px;

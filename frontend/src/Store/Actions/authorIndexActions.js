@@ -89,6 +89,12 @@ export const defaultState = {
       isVisible: true
     },
     {
+      name: 'formatProfiles',
+      label: 'Format',
+      isSortable: false,
+      isVisible: false
+    },
+    {
       name: 'metadataProfileId',
       label: 'Metadata Profile',
       isSortable: true,

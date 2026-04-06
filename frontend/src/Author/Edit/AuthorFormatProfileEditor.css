@@ -1,23 +1,25 @@
 .formatProfiles {
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  
+  flex-direction: column;
+  gap: 15px;
   margin-top: 5px;
 }
 
-.profileLabel {
+.profileSection {
+  padding: 10px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+}
+
+.profileHeader {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-weight: bold;
+  font-size: 14px;
 }
 
-.profileText {
+.profileTitle {
   margin-left: 3px;
-}
-
-.qualityName {
-  margin-left: 3px;
-  font-size: 12px;
-  opacity: 0.8;
 }

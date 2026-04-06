@@ -9,6 +9,8 @@ interface CssExports {
   'backdropOverlay': string;
   'details': string;
   'detailsLabel': string;
+  'formatSeparator': string;
+  'formatUnmonitored': string;
   'header': string;
   'headerContent': string;
   'info': string;

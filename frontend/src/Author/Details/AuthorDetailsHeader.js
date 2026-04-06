@@ -224,23 +224,50 @@ class AuthorDetailsHeader extends Component {
 
               {
                 formatProfiles && formatProfiles.length > 0 &&
-                  formatProfiles.map((fp) => (
-                    <Label
-                      key={fp.id}
-                      className={styles.detailsLabel}
-                      title={`${fp.formatType === 0 ? 'Ebook' : 'Audiobook'} format profile`}
-                      size={sizes.LARGE}
-                    >
-                      <Icon
-                        name={fp.formatType === 0 ? icons.BOOK : icons.TRACK_FILE}
-                        size={17}
-                      />
+                  formatProfiles.map((fp) => {
+                    const formatLabel = fp.formatType === 0 ? 'Ebook' : 'Audiobook';
 
-                      <span className={styles.qualityProfileName}>
-                        {fp.formatType === 0 ? 'Ebook' : 'Audiobook'}
-                      </span>
-                    </Label>
-                  ))
+                    return (
+                      <Label
+                        key={fp.id}
+                        className={styles.detailsLabel}
+                        title={`${formatLabel}: ${fp.monitored ? 'Monitored' : 'Unmonitored'}`}
+                        kind={fp.monitored ? kinds.INFO : kinds.DEFAULT}
+                        size={sizes.LARGE}
+                      >
+                        <Icon
+                          name={fp.formatType === 0 ? icons.BOOK : icons.TRACK_FILE}
+                          size={17}
+                        />
+
+                        <span className={styles.qualityProfileName}>
+                          {formatLabel}
+                        </span>
+
+                        <Icon
+                          className={styles.formatSeparator}
+                          name={icons.ARROW_RIGHT}
+                          size={10}
+                        />
+
+                        <span className={styles.qualityProfileName}>
+                          <QualityProfileName
+                            qualityProfileId={fp.qualityProfileId}
+                          />
+                        </span>
+
+                        {
+                          !fp.monitored &&
+                            <Icon
+                              className={styles.formatUnmonitored}
+                              name={icons.UNMONITORED}
+                              size={12}
+                              title="Not monitored"
+                            />
+                        }
+                      </Label>
+                    );
+                  })
               }
 
               <Label

@@ -2,9 +2,9 @@
 // Please do not change this file!
 interface CssExports {
   'formatProfiles': string;
-  'profileLabel': string;
-  'profileText': string;
-  'qualityName': string;
+  'profileHeader': string;
+  'profileSection': string;
+  'profileTitle': string;
 }
 export const cssExports: CssExports;
 export default cssExports;

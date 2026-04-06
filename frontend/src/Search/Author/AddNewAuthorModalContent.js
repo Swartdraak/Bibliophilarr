@@ -26,6 +26,15 @@ class AddNewAuthorModalContent extends Component {
     };
   }
 
+  componentDidUpdate(prevProps) {
+    // Close modal after successful add — the foreignAuthorId may change
+    // between search result and saved author, preventing the
+    // isExistingAuthor selector from matching.
+    if (prevProps.isAdding && !this.props.isAdding && !this.props.addError) {
+      this.props.onModalClose();
+    }
+  }
+
   //
   // Listeners
 

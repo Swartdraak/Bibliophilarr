@@ -1,9 +1,10 @@
 import PropTypes from 'prop-types';
 import React from 'react';
+import FormGroup from 'Components/Form/FormGroup';
+import FormInputGroup from 'Components/Form/FormInputGroup';
+import FormLabel from 'Components/Form/FormLabel';
 import Icon from 'Components/Icon';
-import Label from 'Components/Label';
-import { icons, kinds, sizes } from 'Helpers/Props';
-import QualityProfileName from 'Settings/Profiles/Quality/QualityProfileName';
+import { icons, inputTypes } from 'Helpers/Props';
 import styles from './AuthorFormatProfileEditor.css';
 
 const FORMAT_LABELS = {
@@ -11,7 +12,7 @@ const FORMAT_LABELS = {
   audiobook: { label: 'Audiobook', icon: icons.TRACK_FILE }
 };
 
-function AuthorFormatProfileEditor({ formatProfiles }) {
+function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
   if (!formatProfiles || formatProfiles.length === 0) {
     return null;
   }
@@ -23,26 +24,41 @@ function AuthorFormatProfileEditor({ formatProfiles }) {
         const formatInfo = FORMAT_LABELS[formatKey];
 
         return (
-          <Label
-            key={profile.id}
-            className={styles.profileLabel}
-            kind={profile.monitored ? kinds.SUCCESS : kinds.DEFAULT}
-            size={sizes.MEDIUM}
-            title={`${formatInfo.label}: ${profile.monitored ? 'Monitored' : 'Unmonitored'}`}
-          >
-            <Icon
-              name={formatInfo.icon}
-              size={14}
-            />
-            <span className={styles.profileText}>
-              {formatInfo.label}
-            </span>
-            <span className={styles.qualityName}>
-              <QualityProfileName
-                qualityProfileId={profile.qualityProfileId}
+          <div key={profile.id} className={styles.profileSection}>
+            <div className={styles.profileHeader}>
+              <Icon
+                name={formatInfo.icon}
+                size={16}
               />
-            </span>
-          </Label>
+              <span className={styles.profileTitle}>
+                {formatInfo.label}
+              </span>
+            </div>
+
+            <FormGroup>
+              <FormLabel>
+                Monitored
+              </FormLabel>
+              <FormInputGroup
+                type={inputTypes.CHECK}
+                name={`formatProfile_${profile.id}_monitored`}
+                value={profile.monitored}
+                onChange={({ value }) => onFormatProfileChange(profile.id, 'monitored', value)}
+              />
+            </FormGroup>
+
+            <FormGroup>
+              <FormLabel>
+                Quality Profile
+              </FormLabel>
+              <FormInputGroup
+                type={inputTypes.QUALITY_PROFILE_SELECT}
+                name={`formatProfile_${profile.id}_qualityProfileId`}
+                value={profile.qualityProfileId}
+                onChange={({ value }) => onFormatProfileChange(profile.id, 'qualityProfileId', parseInt(value))}
+              />
+            </FormGroup>
+          </div>
         );
       })}
     </div>
@@ -50,7 +66,8 @@ function AuthorFormatProfileEditor({ formatProfiles }) {
 }
 
 AuthorFormatProfileEditor.propTypes = {
-  formatProfiles: PropTypes.arrayOf(PropTypes.object)
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
+  onFormatProfileChange: PropTypes.func.isRequired
 };
 
 export default AuthorFormatProfileEditor;

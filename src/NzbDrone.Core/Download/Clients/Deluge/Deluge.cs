@@ -65,7 +65,8 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
             {
-                _proxy.SetTorrentLabel(actualHash, Settings.MusicCategory, Settings);
+                var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
+                _proxy.SetTorrentLabel(actualHash, category, Settings);
             }
 
             var isRecentBook = remoteBook.IsRecentBook();
@@ -92,7 +93,8 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
             {
-                _proxy.SetTorrentLabel(actualHash, Settings.MusicCategory, Settings);
+                var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
+                _proxy.SetTorrentLabel(actualHash, category, Settings);
             }
 
             var isRecentBook = remoteBook.IsRecentBook();

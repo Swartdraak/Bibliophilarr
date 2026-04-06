@@ -5,6 +5,7 @@ import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import { saveAuthor, setAuthorValue } from 'Store/Actions/authorActions';
 import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
+import createAjaxRequest from 'Utilities/createAjaxRequest';
 import selectSettings from 'Store/Selectors/selectSettings';
 import EditAuthorModalContent from './EditAuthorModalContent';
 
@@ -70,6 +71,14 @@ const mapDispatchToProps = {
 
 class EditAuthorModalContentConnector extends Component {
 
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      formatProfileChanges: {}
+    };
+  }
+
   //
   // Lifecycle
 
@@ -86,7 +95,41 @@ class EditAuthorModalContentConnector extends Component {
     this.props.dispatchSetAuthorValue({ name, value });
   };
 
+  onFormatProfileChange = (profileId, field, value) => {
+    this.setState((prevState) => ({
+      formatProfileChanges: {
+        ...prevState.formatProfileChanges,
+        [profileId]: {
+          ...(prevState.formatProfileChanges[profileId] || {}),
+          [field]: value
+        }
+      }
+    }));
+  };
+
   onSavePress = (moveFiles) => {
+    // Save format profile changes via their own API
+    const { formatProfileChanges } = this.state;
+    const { formatProfiles } = this.props;
+
+    Object.keys(formatProfileChanges).forEach((profileIdStr) => {
+      const profileId = parseInt(profileIdStr);
+      const changes = formatProfileChanges[profileId];
+      const original = formatProfiles.find((p) => p.id === profileId);
+
+      if (original && Object.keys(changes).length > 0) {
+        const updated = { ...original, ...changes };
+
+        createAjaxRequest({
+          url: `/authorformatprofile/${profileId}`,
+          method: 'PUT',
+          data: JSON.stringify(updated),
+          dataType: 'json',
+          contentType: 'application/json'
+        });
+      }
+    });
+
     this.props.dispatchSaveAuthor({
       id: this.props.authorId,
       moveFiles
@@ -97,10 +140,21 @@ class EditAuthorModalContentConnector extends Component {
   // Render
 
   render() {
+    const { formatProfiles } = this.props;
+    const { formatProfileChanges } = this.state;
+
+    // Merge pending changes into format profiles for display
+    const mergedProfiles = formatProfiles.map((p) => ({
+      ...p,
+      ...(formatProfileChanges[p.id] || {})
+    }));
+
     return (
       <EditAuthorModalContent
         {...this.props}
+        formatProfiles={mergedProfiles}
         onInputChange={this.onInputChange}
+        onFormatProfileChange={this.onFormatProfileChange}
         onSavePress={this.onSavePress}
         onMoveAuthorPress={this.onMoveAuthorPress}
       />

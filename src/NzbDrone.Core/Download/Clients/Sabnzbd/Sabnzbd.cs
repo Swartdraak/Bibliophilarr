@@ -37,7 +37,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
 
         protected override string AddFromNzbFile(RemoteBook remoteBook, string filename, byte[] fileContent)
         {
-            var category = Settings.MusicCategory;
+            var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
             var priority = remoteBook.IsRecentBook() ? Settings.RecentTvPriority : Settings.OlderTvPriority;
 
             var response = _proxy.DownloadNzb(fileContent, filename, category, priority, Settings);

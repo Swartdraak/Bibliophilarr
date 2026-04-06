@@ -32,7 +32,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
         }
     }
 
-    public class SabnzbdSettings : IProviderConfig
+    public class SabnzbdSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly SabnzbdSettingsValidator Validator = new SabnzbdSettingsValidator();
 
@@ -69,10 +69,16 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
         [FieldDefinition(7, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.")]
         public string MusicCategory { get; set; }
 
-        [FieldDefinition(8, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(SabnzbdPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
+        [FieldDefinition(8, Label = "Ebook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        public string EbookCategory { get; set; }
+
+        [FieldDefinition(9, Label = "Audiobook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        public string AudiobookCategory { get; set; }
+
+        [FieldDefinition(10, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(SabnzbdPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
-        [FieldDefinition(9, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(SabnzbdPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
+        [FieldDefinition(11, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(SabnzbdPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
         public int OlderTvPriority { get; set; }
 
         public NzbDroneValidationResult Validate()

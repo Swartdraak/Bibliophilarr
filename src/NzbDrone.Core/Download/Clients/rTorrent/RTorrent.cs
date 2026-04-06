@@ -80,8 +80,9 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         protected override string AddFromMagnetLink(RemoteBook remoteBook, string hash, string magnetLink)
         {
             var priority = (RTorrentPriority)(remoteBook.IsRecentBook() ? Settings.RecentTvPriority : Settings.OlderTvPriority);
+            var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
 
-            _proxy.AddTorrentFromUrl(magnetLink, Settings.MusicCategory, priority, Settings.MusicDirectory, Settings);
+            _proxy.AddTorrentFromUrl(magnetLink, category, priority, Settings.MusicDirectory, Settings);
 
             var tries = 10;
             var retryDelay = 500;
@@ -100,8 +101,9 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         protected override string AddFromTorrentFile(RemoteBook remoteBook, string hash, string filename, byte[] fileContent)
         {
             var priority = (RTorrentPriority)(remoteBook.IsRecentBook() ? Settings.RecentTvPriority : Settings.OlderTvPriority);
+            var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
 
-            _proxy.AddTorrentFromFile(filename, fileContent, Settings.MusicCategory, priority, Settings.MusicDirectory, Settings);
+            _proxy.AddTorrentFromFile(filename, fileContent, category, priority, Settings.MusicDirectory, Settings);
 
             var tries = 10;
             var retryDelay = 500;

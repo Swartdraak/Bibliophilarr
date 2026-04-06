@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 6, 2026 (RQ burn-down: file-scoped namespaces, modal save states, keyboard nav, backfill pagination, filtered queries)
+**Last Updated**: April 6, 2026 (Dual-format UX completion: search fixes, add/edit author improvements, format-aware download categories, remote path mappings, queue/wanted/calendar format filtering, author index format column)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -43,8 +43,49 @@ The following items were added to canonical planning for immediate/future delive
 - **DF-9 complete**: frontend format profile UI — author edit modal, detail header badges, Redux store module.
 - **DF-10 complete**: rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle.
 - **All 10 slices complete.** Feature is opt-in via Settings > Media Management > Dual Format.
+- **DF-11 complete**: format-aware download client categories — `IFormatCategorySettings` interface, per-format category fields on 6 download clients, `GetCategoryForFormat()` extension.
+- **DF-12 complete**: format-aware remote path mappings — nullable `FormatType` on `RemotePathMappings` (migration 046), format-priority path resolution in `RemotePathMappingService`, frontend format selector.
+- **DF-13 complete**: queue format display — `FormatType` on `QueueResource`, format column in queue table UI.
+- **DF-14 complete**: wanted/missing and cutoff unmet format filters — ebook/audiobook filter options in both Wanted views.
+- **DF-15 complete**: calendar format filter — ebook/audiobook filter options in calendar view.
+- **DF-16 complete**: author index format column — format profiles column with monitored status indicators.
+- **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 6, 2026 — v1.1.0-dev.9 dual-format UX completion
+
+Completed dual-format UX integration across all major application surfaces:
+
+#### Bug fixes (Phase A)
+
+- Search results now display book cover images correctly (selected edition image override in `SearchController`).
+- Search results now display author images correctly (individual fallback queries in `HardcoverFallbackSearchProvider`).
+- Add Author modal now closes properly after successful addition (componentDidUpdate lifecycle fix).
+
+#### Add/edit author improvements (Phase B)
+
+- Auto-creation of Ebook and Audiobook format profiles on author add when dual-format enabled.
+- Per-format quality profile and root folder selection in Add Author modal.
+- Editable format profiles in author edit modal with monitored toggle and quality selector.
+- Enhanced format profile display in author details header with quality profile names and monitored indicators.
+
+#### Download client format awareness (Phase C)
+
+- Format-aware download categories: `IFormatCategorySettings` interface with `EbookCategory`/`AudiobookCategory` on 6 download clients (SABnzbd, NZBGet, qBittorrent, Deluge, Transmission, rTorrent).
+- Format-aware remote path mappings: nullable `FormatType` column (migration 046), format-priority path resolution with generic fallback, frontend format selector.
+- Queue format display: format column showing Ebook/Audiobook indicator for queued items.
+
+#### UI filtering and display (Phase D)
+
+- Wanted/Missing and Cutoff Unmet: ebook/audiobook format filter options.
+- Calendar: ebook/audiobook format filter.
+- Author index: format profiles column with ebook/audiobook monitored status.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix).
+- Frontend: webpack compiled successfully (38.8s).
 
 ### April 5, 2026 — v1.0.0 release published
 

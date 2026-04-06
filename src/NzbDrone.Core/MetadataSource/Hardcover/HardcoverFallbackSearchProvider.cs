@@ -498,8 +498,23 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
                 if (authorsArray == null || !authorsArray.Any())
                 {
-                    _logger.Debug("Hardcover author details fetch returned no results.");
-                    return new List<Author>();
+                    // Log diagnostic info to help debug empty responses
+                    var errors = response.Resource?.SelectToken("errors");
+                    if (errors != null)
+                    {
+                        _logger.Debug("Hardcover author details fetch returned GraphQL errors: {0}", errors.ToString(Newtonsoft.Json.Formatting.None));
+                    }
+                    else
+                    {
+                        var topKeys = response.Resource?.Properties().Select(p => p.Name) ?? Enumerable.Empty<string>();
+                        _logger.Debug("Hardcover author details fetch returned no authors for {0} ID(s) [{1}]. Response keys: [{2}]",
+                            authorIds.Count,
+                            string.Join(", ", authorIds),
+                            string.Join(", ", topKeys));
+                    }
+
+                    // Batch query failed — try individual author queries as fallback
+                    return FetchAuthorDetailsIndividual(authorIds.Take(5).ToList(), token, configuredTimeout, fallbackTimeout);
                 }
 
                 var authors = new List<Author>();
@@ -521,6 +536,67 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 _logger.Warn(ex, "Hardcover author details fetch failed.");
                 return new List<Author>();
             }
+        }
+
+        private List<Author> FetchAuthorDetailsIndividual(List<int> authorIds, string token, int configuredTimeout, int fallbackTimeout)
+        {
+            _logger.Debug("Falling back to individual author queries for {0} author(s).", authorIds.Count);
+
+            var authors = new List<Author>();
+
+            foreach (var authorId in authorIds)
+            {
+                try
+                {
+                    var request = new HttpRequest(Endpoint, HttpAccept.Json)
+                    {
+                        Method = HttpMethod.Post,
+                        RateLimit = TimeSpan.FromSeconds(1),
+                        RateLimitKey = ProviderName
+                    };
+
+                    request.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
+                    request.Headers.ContentType = "application/json; charset=utf-8";
+                    request.Headers["authorization"] = $"Bearer {token}";
+                    request.SetContent(new
+                    {
+                        query = @"query GetAuthor($id: Int!) {
+                            authors(where: {id: {_eq: $id}}) {
+                                id
+                                name
+                                slug
+                                bio
+                                image { url }
+                                books_count
+                                books(limit: 10, order_by: {ratings_count: desc_nulls_last}) {
+                                    rating
+                                    ratings_count
+                                }
+                            }
+                        }",
+                        variables = new { id = authorId }
+                    }.ToJson());
+
+                    var response = _httpClient.Post<JObject>(request);
+                    var authorsArray = response.Resource?.SelectToken("data.authors") as JArray;
+
+                    if (authorsArray?.Any() == true)
+                    {
+                        var author = MapAuthorSearchResult(authorsArray.First);
+                        if (author != null)
+                        {
+                            authors.Add(author);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug(ex, "Hardcover individual author fetch failed for ID {0}.", authorId);
+                }
+            }
+
+            _logger.Debug("Hardcover individual fallback returned {0} author(s).", authors.Count);
+            return authors;
         }
 
         private Author MapAuthorSearchResult(JToken authorData)

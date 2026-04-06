@@ -9,6 +9,26 @@ process.
 
 ### Added
 
+- **DF-11**: Format-aware download client categories — `IFormatCategorySettings` interface with `EbookCategory`/`AudiobookCategory` fields and `GetCategoryForFormat()` extension method. Implemented across 6 download client settings (SABnzbd, NZBGet, qBittorrent, Deluge, Transmission, rTorrent) and 4 client implementations.
+- **DF-12**: Format-aware remote path mappings — nullable `FormatType` column on `RemotePathMappings` table (migration 046), format-specific path resolution with generic fallback in `RemotePathMappingService`, frontend format selector in remote path mapping editor.
+- **DF-13**: Queue format display — `FormatType` field on `QueueResource`, format column in queue table (Ebook/Audiobook indicator).
+- **DF-14**: Wanted/missing and cutoff unmet format filters — ebook/audiobook filter options in both Wanted views.
+- **DF-15**: Calendar format filter — ebook/audiobook filter options in calendar view.
+- **DF-16**: Author index format column — format profiles column showing monitored ebook/audiobook status per author.
+
+### Fixed
+
+- Search results: book cover images now display correctly by overriding `resource.Book.Images` from the selected edition before URL conversion in `SearchController`.
+- Search results: author images now display correctly via individual author detail fallback queries when batch API returns empty results in `HardcoverFallbackSearchProvider`.
+- Add Author modal: modal now properly closes after successful author addition via `componentDidUpdate` lifecycle handler detecting `isAdding` state transition.
+- Author details header: format profile labels now show quality profile name with monitored/unmonitored indicator instead of plain text.
+
+### Changed
+
+- Add Author flow: auto-creates Ebook and Audiobook format profiles when `EnableDualFormatTracking` is enabled (`AddAuthorService.EnsureFormatProfiles`).
+- Add Author modal: per-format quality profile and root folder selection when dual-format tracking is enabled.
+- Author edit modal: format profiles are now editable with per-format monitored toggle and quality profile selector; changes saved via API alongside author updates.
+
 - **DF-1**: Domain model, schema, and feature flag for dual-format tracking — `FormatType` enum, `AuthorFormatProfile` entity, migration 045, `EnableDualFormatTracking` config flag, `Quality.GetFormatType()` helper. 10/10 tests pass.
 - **DF-2**: Edition monitoring per format type — format-aware housekeeping (`FixMultipleMonitoredEditions` groups by BookId+IsEbook when flag on), `BookEditionSelector.GetPreferredEdition(FormatType)` overloads, `EditionRepository.SetMonitoredByFormat()`. 17/17 tests pass.
 - **DF-3**: Decision engine format-aware quality evaluation — `QualityAllowedByProfileSpecification` resolves format-specific quality profile, `UpgradableSpecification.ResolveProfile(RemoteBook)` helper, `RemoteBook.ResolvedFormatType` and `ResolvedQualityProfile` properties. 9/9 tests pass.

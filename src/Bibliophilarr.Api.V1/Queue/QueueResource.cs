@@ -38,6 +38,7 @@ namespace Bibliophilarr.Api.V1.Queue
         public string Indexer { get; set; }
         public string OutputPath { get; set; }
         public bool DownloadForced { get; set; }
+        public int? FormatType { get; set; }
     }
 
     public static class QueueResourceMapper
@@ -78,7 +79,8 @@ namespace Bibliophilarr.Api.V1.Queue
                 DownloadClientHasPostImportCategory = model.DownloadClientHasPostImportCategory,
                 Indexer = model.Indexer,
                 OutputPath = model.OutputPath,
-                DownloadForced = model.DownloadForced
+                DownloadForced = model.DownloadForced,
+                FormatType = model.RemoteBook?.ResolvedFormatType.HasValue == true ? (int)model.RemoteBook.ResolvedFormatType.Value : null
             };
         }
 
