@@ -21,7 +21,9 @@ namespace NzbDrone.Core.Books
         Book FindById(string foreignBookId);
         Book FindBySlug(string titleSlug);
         PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec);
+        PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType);
         PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff);
+        PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType);
         List<Book> BooksBetweenDates(DateTime startDate, DateTime endDate, bool includeUnmonitored);
         List<Book> AuthorBooksBetweenDates(Author author, DateTime startDate, DateTime endDate, bool includeUnmonitored);
         void SetMonitoredFlat(Book book, bool monitored);
@@ -107,33 +109,60 @@ namespace NzbDrone.Core.Books
 
         //x.Id == null is converted to SQL, so warning incorrect
 #pragma warning disable CS0472
-        private SqlBuilder BooksWithoutFilesBuilder(DateTime currentTime) => Builder()
-            .Join<Book, Author>((l, r) => l.AuthorMetadataId == r.AuthorMetadataId)
-            .Join<Author, AuthorMetadata>((l, r) => l.AuthorMetadataId == r.Id)
-            .Join<Book, Edition>((b, e) => b.Id == e.BookId)
-            .LeftJoin<Edition, BookFile>((t, f) => t.Id == f.EditionId)
-            .Where<BookFile>(f => f.Id == null)
-            .Where<Edition>(e => e.Monitored == true)
-            .Where<Book>(a => a.ReleaseDate <= currentTime);
+        private SqlBuilder BooksWithoutFilesBuilder(DateTime currentTime, FormatType? formatType = null)
+        {
+            var builder = Builder()
+                .Join<Book, Author>((l, r) => l.AuthorMetadataId == r.AuthorMetadataId)
+                .Join<Author, AuthorMetadata>((l, r) => l.AuthorMetadataId == r.Id)
+                .Join<Book, Edition>((b, e) => b.Id == e.BookId)
+                .LeftJoin<Edition, BookFile>((t, f) => t.Id == f.EditionId)
+                .Where<BookFile>(f => f.Id == null)
+                .Where<Edition>(e => e.Monitored == true)
+                .Where<Book>(a => a.ReleaseDate <= currentTime);
+
+            if (formatType.HasValue)
+            {
+                var isEbook = formatType.Value == FormatType.Ebook;
+                builder = builder.Where<Edition>(e => e.IsEbook == isEbook);
+            }
+
+            return builder;
+        }
 #pragma warning restore CS0472
 
         public PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec)
         {
+            return BooksWithoutFiles(pagingSpec, null);
+        }
+
+        public PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType)
+        {
             var currentTime = DateTime.UtcNow;
 
-            pagingSpec.Records = GetPagedRecords(BooksWithoutFilesBuilder(currentTime), pagingSpec, PagedQuery);
-            pagingSpec.TotalRecords = GetPagedRecordCount(BooksWithoutFilesBuilder(currentTime).SelectCountDistinct<Book>(x => x.Id), pagingSpec);
+            pagingSpec.Records = GetPagedRecords(BooksWithoutFilesBuilder(currentTime, formatType), pagingSpec, PagedQuery);
+            pagingSpec.TotalRecords = GetPagedRecordCount(BooksWithoutFilesBuilder(currentTime, formatType).SelectCountDistinct<Book>(x => x.Id), pagingSpec);
 
             return pagingSpec;
         }
 
-        private SqlBuilder BooksWhereCutoffUnmetBuilder(List<QualitiesBelowCutoff> qualitiesBelowCutoff) => Builder()
-            .Join<Book, Author>((l, r) => l.AuthorMetadataId == r.AuthorMetadataId)
-            .Join<Author, AuthorMetadata>((l, r) => l.AuthorMetadataId == r.Id)
-            .Join<Book, Edition>((b, e) => b.Id == e.BookId)
-            .LeftJoin<Edition, BookFile>((t, f) => t.Id == f.EditionId)
-            .Where<Edition>(e => e.Monitored == true)
-            .Where(BuildQualityCutoffWhereClause(qualitiesBelowCutoff));
+        private SqlBuilder BooksWhereCutoffUnmetBuilder(List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType = null)
+        {
+            var builder = Builder()
+                .Join<Book, Author>((l, r) => l.AuthorMetadataId == r.AuthorMetadataId)
+                .Join<Author, AuthorMetadata>((l, r) => l.AuthorMetadataId == r.Id)
+                .Join<Book, Edition>((b, e) => b.Id == e.BookId)
+                .LeftJoin<Edition, BookFile>((t, f) => t.Id == f.EditionId)
+                .Where<Edition>(e => e.Monitored == true)
+                .Where(BuildQualityCutoffWhereClause(qualitiesBelowCutoff));
+
+            if (formatType.HasValue)
+            {
+                var isEbook = formatType.Value == FormatType.Ebook;
+                builder = builder.Where<Edition>(e => e.IsEbook == isEbook);
+            }
+
+            return builder;
+        }
 
         private string BuildQualityCutoffWhereClause(List<QualitiesBelowCutoff> qualitiesBelowCutoff)
         {
@@ -152,10 +181,15 @@ namespace NzbDrone.Core.Books
 
         public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff)
         {
-            pagingSpec.Records = GetPagedRecords(BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff), pagingSpec, PagedQuery);
+            return BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, null);
+        }
+
+        public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType)
+        {
+            pagingSpec.Records = GetPagedRecords(BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff, formatType), pagingSpec, PagedQuery);
 
             var countTemplate = $"SELECT COUNT(*) FROM (SELECT /**select**/ FROM \"{TableMapping.Mapper.TableNameMapping(typeof(Book))}\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/ /**groupby**/ /**having**/) AS \"Inner\"";
-            pagingSpec.TotalRecords = GetPagedRecordCount(BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff).Select(typeof(Book)), pagingSpec, countTemplate);
+            pagingSpec.TotalRecords = GetPagedRecordCount(BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff, formatType).Select(typeof(Book)), pagingSpec, countTemplate);
 
             return pagingSpec;
         }

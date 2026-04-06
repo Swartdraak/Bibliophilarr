@@ -29,7 +29,7 @@ namespace Bibliophilarr.Api.V1.Wanted
         }
 
         [HttpGet]
-        public PagingResource<BookResource> GetCutoffUnmetBooks([FromQuery] PagingRequestResource paging, bool includeAuthor = false, bool monitored = true)
+        public PagingResource<BookResource> GetCutoffUnmetBooks([FromQuery] PagingRequestResource paging, bool includeAuthor = false, bool monitored = true, FormatType? formatType = null)
         {
             var pagingResource = new PagingResource<BookResource>(paging);
             var pagingSpec = new PagingSpec<Book>
@@ -49,7 +49,7 @@ namespace Bibliophilarr.Api.V1.Wanted
                 pagingSpec.FilterExpressions.Add(v => v.Monitored == false || v.Author.Value.Monitored == false);
             }
 
-            return pagingSpec.ApplyToPage(_bookCutoffService.BooksWhereCutoffUnmet, v => MapToResource(v, includeAuthor));
+            return pagingSpec.ApplyToPage(spec => _bookCutoffService.BooksWhereCutoffUnmet(spec, formatType), v => MapToResource(v, includeAuthor));
         }
     }
 }
