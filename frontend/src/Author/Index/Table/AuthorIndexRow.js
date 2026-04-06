@@ -222,11 +222,11 @@ class AuthorIndexRow extends Component {
                   className={styles[name]}
                 >
                   {
-                    formatProfiles && formatProfiles.length > 0
-                      ? formatProfiles.map((fp) =>
+                    formatProfiles && formatProfiles.length > 0 ?
+                      formatProfiles.map((fp) =>
                         `${fp.formatType === 0 ? 'E' : 'A'}${fp.monitored ? '' : '(off)'}`
-                      ).join(' / ')
-                      : '-'
+                      ).join(' / ') :
+                      '-'
                   }
                 </VirtualTableRowCell>
               );
@@ -460,6 +460,7 @@ AuthorIndexRow.propTypes = {
   ratings: PropTypes.object.isRequired,
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
   showBanners: PropTypes.bool.isRequired,
   showTitle: PropTypes.string.isRequired,
   showSearchAction: PropTypes.bool.isRequired,

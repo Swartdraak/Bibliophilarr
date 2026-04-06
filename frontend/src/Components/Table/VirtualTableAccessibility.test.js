@@ -1,9 +1,9 @@
+import { render } from '@testing-library/react';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import VirtualTableHeader from './VirtualTableHeader';
-import VirtualTableRow from './VirtualTableRow';
 import VirtualTableRowCell from './Cells/VirtualTableRowCell';
+import VirtualTableHeader from './VirtualTableHeader';
 import VirtualTableHeaderCell from './VirtualTableHeaderCell';
+import VirtualTableRow from './VirtualTableRow';
 
 describe('VirtualTable accessibility', () => {
   it('VirtualTableHeader renders with role="row"', () => {
@@ -97,6 +97,7 @@ describe('VirtualTable accessibility', () => {
     // Verify that the Scroller receives tabIndex and aria-rowcount props
     // (Full VirtualTable requires WindowScroller/Grid which need a DOM scroller,
     //  so we test the props are passed through on the component API level)
+    // eslint-disable-next-line global-require
     const VirtualTable = require('./VirtualTable').default;
 
     expect(VirtualTable).toBeDefined();

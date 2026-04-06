@@ -5,8 +5,8 @@ import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import { saveAuthor, setAuthorValue } from 'Store/Actions/authorActions';
 import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
-import createAjaxRequest from 'Utilities/createAjaxRequest';
 import selectSettings from 'Store/Selectors/selectSettings';
+import createAjaxRequest from 'Utilities/createAjaxRequest';
 import EditAuthorModalContent from './EditAuthorModalContent';
 
 function createIsPathChangingSelector() {
@@ -166,6 +166,7 @@ EditAuthorModalContentConnector.propTypes = {
   authorId: PropTypes.number,
   isSaving: PropTypes.bool.isRequired,
   saveError: PropTypes.object,
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
   dispatchSetAuthorValue: PropTypes.func.isRequired,
   dispatchSaveAuthor: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired

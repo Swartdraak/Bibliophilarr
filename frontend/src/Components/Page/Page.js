@@ -7,8 +7,8 @@ import ErrorBoundary from 'Components/Error/ErrorBoundary';
 import SignalRConnector from 'Components/SignalRConnector';
 import AuthenticationRequiredModal from 'FirstRun/AuthenticationRequiredModal';
 import locationShape from 'Helpers/Props/Shapes/locationShape';
-import PageContentError from './PageContentError';
 import PageHeader from './Header/PageHeader';
+import PageContentError from './PageContentError';
 import PageSidebar from './Sidebar/PageSidebar';
 import styles from './Page.css';
 

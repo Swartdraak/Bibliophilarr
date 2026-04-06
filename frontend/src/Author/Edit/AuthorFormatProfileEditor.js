@@ -23,8 +23,10 @@ function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
         const formatKey = profile.formatType === 0 ? 'ebook' : 'audiobook';
         const formatInfo = FORMAT_LABELS[formatKey];
 
+        const monitoredStatus = profile.monitored ? 'Monitored' : 'Unmonitored';
+
         return (
-          <div key={profile.id} className={styles.profileSection}>
+          <div key={profile.id} className={styles.profileSection} title={`${formatInfo.label}: ${monitoredStatus}`}>
             <div className={styles.profileHeader}>
               <Icon
                 name={formatInfo.icon}

@@ -1,5 +1,5 @@
-import padNumber from 'Utilities/Number/padNumber';
 import parseTimeSpan from 'Utilities/Date/parseTimeSpan';
+import padNumber from 'Utilities/Number/padNumber';
 
 function formatTimeSpan(timeSpan) {
   if (!timeSpan) {

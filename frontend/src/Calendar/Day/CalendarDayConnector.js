@@ -1,5 +1,5 @@
-import _ from 'lodash';
 import { getUnixTime, isSameDay, parseISO } from 'date-fns';
+import _ from 'lodash';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';

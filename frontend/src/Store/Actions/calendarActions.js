@@ -1,5 +1,5 @@
-import _ from 'lodash';
 import { addDays, addMonths, addWeeks, differenceInDays, endOfDay, endOfISOWeek, endOfMonth, endOfWeek, isAfter, isBefore, parseISO, startOfDay, startOfISOWeek, startOfMonth, startOfWeek, subDays, subMonths, subWeeks } from 'date-fns';
+import _ from 'lodash';
 import { createAction } from 'redux-actions';
 import { batchActions } from 'redux-batched-actions';
 import * as calendarViews from 'Calendar/calendarViews';

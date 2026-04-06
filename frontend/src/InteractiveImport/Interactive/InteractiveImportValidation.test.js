@@ -15,22 +15,20 @@ describe('InteractiveImport validation rules', () => {
     }
 
     for (const item of items) {
-      if (selected.indexOf(item.id) === -1) {
-        continue;
-      }
+      if (selected.indexOf(item.id) >= 0) {
+        const { author, book, quality } = item;
 
-      const { author, book, quality } = item;
+        if (!author || !author.id) {
+          return 'Author must be chosen for each selected file. If the author is not in your library, add them first.';
+        }
 
-      if (!author || !author.id) {
-        return 'Author must be chosen for each selected file. If the author is not in your library, add them first.';
-      }
+        if (!book || !book.id) {
+          return 'Book must be chosen for each selected file. If the book is not in your library, add the author first.';
+        }
 
-      if (!book || !book.id) {
-        return 'Book must be chosen for each selected file. If the book is not in your library, add the author first.';
-      }
-
-      if (!quality) {
-        return 'Quality must be chosen for each selected file';
+        if (!quality) {
+          return 'Quality must be chosen for each selected file';
+        }
       }
     }
 

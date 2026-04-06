@@ -1,8 +1,8 @@
 import authorFormatProfileActions, {
-  section,
+  DELETE_AUTHOR_FORMAT_PROFILE,
   FETCH_AUTHOR_FORMAT_PROFILES,
   SAVE_AUTHOR_FORMAT_PROFILE,
-  DELETE_AUTHOR_FORMAT_PROFILE,
+  section,
   SET_AUTHOR_FORMAT_PROFILE_VALUE,
   setAuthorFormatProfileValue
 } from './authorFormatProfileActions';

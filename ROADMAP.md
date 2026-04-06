@@ -305,6 +305,7 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 - Don't consolidate CSS to utility-first (Tailwind) — CSS Modules work well with the current architecture.
 
 **User testing needed**: After items 1-3 are implemented, UI should be tested for:
+
 - Calendar view: date formatting (date-fns migration), week navigation, month transitions
 - Task scheduler: relative time display ("2 hours ago"), scheduled task intervals
 - Book search: year display in search results
@@ -397,12 +398,14 @@ Measurement criteria:
 **Design assessment** (completed April 2026):
 
 Current data model has partial infrastructure for dual-format:
+
 - `Edition.Format` (string) and `Edition.IsEbook` (bool) exist but are not used in search/import decision logic.
 - Quality system has separate ebook (PDF/MOBI/EPUB/AZW3) and audio (MP3/FLAC/M4B) quality definitions with two default profiles ("eBook" and "Spoken").
 - `Book.Monitored` + `Edition.Monitored` provide per-edition control.
 - Format preference is implicit via allowed qualities in author's single `QualityProfile`.
 
 **Architecture** (finalized April 2026):
+
 - Add `AuthorFormatProfile` entity (AuthorId, FormatType, QualityProfileId, RootFolderPath, Tags, Monitored, Path). One-to-many from Author.
 - Format profile lives at Author level — quality profile, root folder, tags, and download client routing apply uniformly across all books by that author.
 - Per-book format tracking via Edition monitoring: one monitored edition per format type per book.
@@ -410,6 +413,7 @@ Current data model has partial infrastructure for dual-format:
 - Feature-flagged via config: `EnableDualFormatTracking` (default: false). When off, legacy behavior is preserved exactly.
 
 **Migration strategy**:
+
 - Additive schema: `AuthorFormatProfiles` table with FK to `Authors` and `QualityProfiles`.
 - Auto-populate one format profile per existing author from current quality profile.
 - No destructive changes; rollback = drop table and disable feature flag.

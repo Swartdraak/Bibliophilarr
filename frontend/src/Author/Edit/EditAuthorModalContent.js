@@ -68,6 +68,7 @@ class EditAuthorModalContent extends Component {
       showMetadataProfile,
       originalPath,
       formatProfiles,
+      onFormatProfileChange,
       onInputChange,
       onModalClose,
       onDeleteAuthorPress,

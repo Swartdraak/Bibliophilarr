@@ -1,10 +1,10 @@
 import { format, parseISO } from 'date-fns';
 import translate from 'Utilities/String/translate';
-import momentFormatToDateFns from './momentFormatToDateFns';
 import formatTime from './formatTime';
 import isToday from './isToday';
 import isTomorrow from './isTomorrow';
 import isYesterday from './isYesterday';
+import momentFormatToDateFns from './momentFormatToDateFns';
 
 function getRelativeDay(date, includeRelativeDate) {
   if (!includeRelativeDate) {

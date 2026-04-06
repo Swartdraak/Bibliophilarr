@@ -2,17 +2,19 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import AuthorFormatProfileEditor from './AuthorFormatProfileEditor';
 
-// Mock QualityProfileName to avoid Redux store dependency
-jest.mock('Settings/Profiles/Quality/QualityProfileName', () => {
-  return function MockQualityProfileName({ qualityProfileId }) {
-    return <span data-testid={`quality-${qualityProfileId}`}>Profile {qualityProfileId}</span>;
+// Mock FormInputGroup to avoid Redux store dependency from QualityProfileSelectInput
+jest.mock('Components/Form/FormInputGroup', () => {
+  return function MockFormInputGroup({ name, value }) {
+    return <div data-testid={name} data-value={value} />;
   };
 });
 
 describe('AuthorFormatProfileEditor', () => {
+  const mockOnChange = jest.fn();
+
   test('returns null when formatProfiles is empty', () => {
     const { container } = render(
-      <AuthorFormatProfileEditor formatProfiles={[]} />
+      <AuthorFormatProfileEditor formatProfiles={[]} onFormatProfileChange={mockOnChange} />
     );
 
     expect(container.firstChild).toBeNull();
@@ -20,7 +22,7 @@ describe('AuthorFormatProfileEditor', () => {
 
   test('returns null when formatProfiles is undefined', () => {
     const { container } = render(
-      <AuthorFormatProfileEditor />
+      <AuthorFormatProfileEditor onFormatProfileChange={mockOnChange} />
     );
 
     expect(container.firstChild).toBeNull();
@@ -31,10 +33,9 @@ describe('AuthorFormatProfileEditor', () => {
       { id: 1, formatType: 0, qualityProfileId: 5, monitored: true }
     ];
 
-    render(<AuthorFormatProfileEditor formatProfiles={profiles} />);
+    render(<AuthorFormatProfileEditor formatProfiles={profiles} onFormatProfileChange={mockOnChange} />);
 
     expect(screen.getByText('Ebook')).toBeInTheDocument();
-    expect(screen.getByTestId('quality-5')).toBeInTheDocument();
   });
 
   test('renders audiobook format profile', () => {
@@ -42,10 +43,9 @@ describe('AuthorFormatProfileEditor', () => {
       { id: 2, formatType: 1, qualityProfileId: 7, monitored: false }
     ];
 
-    render(<AuthorFormatProfileEditor formatProfiles={profiles} />);
+    render(<AuthorFormatProfileEditor formatProfiles={profiles} onFormatProfileChange={mockOnChange} />);
 
     expect(screen.getByText('Audiobook')).toBeInTheDocument();
-    expect(screen.getByTestId('quality-7')).toBeInTheDocument();
   });
 
   test('renders both ebook and audiobook profiles', () => {
@@ -54,7 +54,7 @@ describe('AuthorFormatProfileEditor', () => {
       { id: 2, formatType: 1, qualityProfileId: 7, monitored: true }
     ];
 
-    render(<AuthorFormatProfileEditor formatProfiles={profiles} />);
+    render(<AuthorFormatProfileEditor formatProfiles={profiles} onFormatProfileChange={mockOnChange} />);
 
     expect(screen.getByText('Ebook')).toBeInTheDocument();
     expect(screen.getByText('Audiobook')).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe('AuthorFormatProfileEditor', () => {
       { id: 2, formatType: 1, qualityProfileId: 7, monitored: false }
     ];
 
-    render(<AuthorFormatProfileEditor formatProfiles={profiles} />);
+    render(<AuthorFormatProfileEditor formatProfiles={profiles} onFormatProfileChange={mockOnChange} />);
 
     expect(screen.getByTitle('Ebook: Monitored')).toBeInTheDocument();
     expect(screen.getByTitle('Audiobook: Unmonitored')).toBeInTheDocument();

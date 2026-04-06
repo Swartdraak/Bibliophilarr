@@ -256,9 +256,17 @@ class QueueRow extends Component {
             }
 
             if (name === 'formatType') {
+              let formatLabel = '-';
+
+              if (formatType === 0) {
+                formatLabel = 'Ebook';
+              } else if (formatType === 1) {
+                formatLabel = 'Audiobook';
+              }
+
               return (
                 <TableRowCell key={name}>
-                  {formatType === 0 ? 'Ebook' : formatType === 1 ? 'Audiobook' : '-'}
+                  {formatLabel}
                 </TableRowCell>
               );
             }

@@ -158,6 +158,33 @@ Minimum pre-commit checklist:
 - Docs and runbooks affected by the change are included.
 - `src/NuGet.config` still matches any Servarr-hosted package references added or updated in the slice.
 
+**Quick local CI gate** — run all checks that mirror the GitHub Actions pipeline:
+
+```bash
+bash scripts/pre-push-check.sh
+```
+
+Or run individual checks:
+
+```bash
+# Docs validation
+npx markdownlint-cli2 README.md QUICKSTART.md ROADMAP.md MIGRATION_PLAN.md \
+  PROJECT_STATUS.md CONTRIBUTING.md SECURITY.md CHANGELOG.md \
+  docs/operations/METADATA_MIGRATION_DRY_RUN.md \
+  docs/operations/METADATA_PROVIDER_RUNBOOK.md \
+  docs/operations/RELEASE_AUTOMATION.md
+
+# Frontend lint, test, build
+yarn lint
+yarn test:frontend
+yarn build
+
+# Backend build and metadata fixture tests
+cd src && dotnet build Bibliophilarr.sln -p:Configuration=Debug -p:Platform=Posix
+dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj \
+  --filter "FullyQualifiedName~MetadataSource" --no-build
+```
+
 Reference: [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md)
 
 ## Release versioning

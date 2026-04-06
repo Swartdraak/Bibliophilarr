@@ -694,6 +694,7 @@ Current: `AuthorPathBuilder.BuildPath` uses `author.RootFolderPath` to construct
 
 Target: Path building uses the format profile's `RootFolderPath` to construct
 format-specific paths:
+
 - Audiobook: `/media/audiobooks/Robert Blaise/1% Lifesteal/`
 - Ebook: `/media/ebooks/Robert Blaise/1% Lifesteal/`
 
@@ -1317,7 +1318,7 @@ Migration risk note:
 - [Testing Strategy](#testing-strategy)
 - [Migration Tools](#migration-tools)
 - [Risks and Mitigations](#risks-and-mitigations)
-- [Timeline and Milestones](#timeline-and-milestones)
+- [Historical milestones](#historical-milestones)
 
 ---
 

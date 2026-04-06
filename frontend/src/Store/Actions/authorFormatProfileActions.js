@@ -1,10 +1,10 @@
 import { createAction } from 'redux-actions';
+import { createThunk, handleThunks } from 'Store/thunks';
 import createFetchHandler from './Creators/createFetchHandler';
+import createHandleActions from './Creators/createHandleActions';
 import createRemoveItemHandler from './Creators/createRemoveItemHandler';
 import createSaveProviderHandler from './Creators/createSaveProviderHandler';
 import createSetSettingValueReducer from './Creators/Reducers/createSetSettingValueReducer';
-import createHandleActions from './Creators/createHandleActions';
-import { createThunk, handleThunks } from 'Store/thunks';
 
 //
 // Variables

@@ -191,7 +191,9 @@ function ManageDownloadClientsEditModalContent(
         <div>
           <Button onPress={onModalClose}>{translate('Cancel')}</Button>
 
-          <SpinnerButton isSpinning={isSaving} onPress={save}>{translate('ApplyChanges')}</SpinnerButton>
+          <SpinnerButton isSpinning={isSaving} onPress={save}>
+            {translate('ApplyChanges')}
+          </SpinnerButton>
         </div>
       </ModalFooter>
     </ModalContent>

@@ -68,8 +68,12 @@ function getFormattedDates(
   if (showRelativeDates) {
     return {
       queuedAt: formatDistanceToNow(parseISO(queued), { addSuffix: true }),
-      startedAt: started ? formatDistanceToNow(parseISO(started), { addSuffix: true }) : '-',
-      endedAt: ended ? formatDistanceToNow(parseISO(ended), { addSuffix: true }) : '-',
+      startedAt: started
+        ? formatDistanceToNow(parseISO(started), { addSuffix: true })
+        : '-',
+      endedAt: ended
+        ? formatDistanceToNow(parseISO(ended), { addSuffix: true })
+        : '-',
     };
   }
 
