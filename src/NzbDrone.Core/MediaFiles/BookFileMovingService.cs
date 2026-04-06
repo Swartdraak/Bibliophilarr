@@ -3,6 +3,7 @@ using System.IO;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnsureThat;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.BookImport;
@@ -10,6 +11,7 @@ using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.MediaFiles
 {
@@ -31,6 +33,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IMediaFileAttributeService _mediaFileAttributeService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IConfigService _configService;
+        private readonly IBuildAuthorPaths _authorPathBuilder;
         private readonly Logger _logger;
 
         public BookFileMovingService(IEditionService editionService,
@@ -42,6 +45,7 @@ namespace NzbDrone.Core.MediaFiles
                                       IMediaFileAttributeService mediaFileAttributeService,
                                       IEventAggregator eventAggregator,
                                       IConfigService configService,
+                                      IBuildAuthorPaths authorPathBuilder,
                                       Logger logger)
         {
             _editionService = editionService;
@@ -53,6 +57,7 @@ namespace NzbDrone.Core.MediaFiles
             _mediaFileAttributeService = mediaFileAttributeService;
             _eventAggregator = eventAggregator;
             _configService = configService;
+            _authorPathBuilder = authorPathBuilder;
             _logger = logger;
         }
 
@@ -60,7 +65,7 @@ namespace NzbDrone.Core.MediaFiles
         {
             var edition = _editionService.GetEdition(bookFile.EditionId);
             var newFileName = _buildFileNames.BuildBookFileName(author, edition, bookFile);
-            var filePath = _buildFileNames.BuildBookFilePath(author, edition, newFileName, Path.GetExtension(bookFile.Path));
+            var filePath = BuildDestinationFilePath(author, edition, newFileName, Path.GetExtension(bookFile.Path), bookFile.Quality);
 
             EnsureBookFolder(bookFile, author, edition.Book.Value, filePath);
 
@@ -72,7 +77,7 @@ namespace NzbDrone.Core.MediaFiles
         public BookFile MoveBookFile(BookFile bookFile, LocalBook localBook)
         {
             var newFileName = _buildFileNames.BuildBookFileName(localBook.Author, localBook.Edition, bookFile);
-            var filePath = _buildFileNames.BuildBookFilePath(localBook.Author, localBook.Edition, newFileName, Path.GetExtension(localBook.Path));
+            var filePath = BuildDestinationFilePath(localBook.Author, localBook.Edition, newFileName, Path.GetExtension(localBook.Path), bookFile.Quality);
 
             EnsureTrackFolder(bookFile, localBook, filePath);
 
@@ -84,7 +89,7 @@ namespace NzbDrone.Core.MediaFiles
         public BookFile CopyBookFile(BookFile bookFile, LocalBook localBook)
         {
             var newFileName = _buildFileNames.BuildBookFileName(localBook.Author, localBook.Edition, bookFile);
-            var filePath = _buildFileNames.BuildBookFilePath(localBook.Author, localBook.Edition, newFileName, Path.GetExtension(localBook.Path));
+            var filePath = BuildDestinationFilePath(localBook.Author, localBook.Edition, newFileName, Path.GetExtension(localBook.Path), bookFile.Quality);
 
             EnsureTrackFolder(bookFile, localBook, filePath);
 
@@ -96,6 +101,22 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug("Copying book file: {0} to {1}", bookFile.Path, filePath);
             return TransferFile(bookFile, localBook.Author, localBook.Book, filePath, TransferMode.Copy);
+        }
+
+        private string BuildDestinationFilePath(Author author, Edition edition, string fileName, string extension, QualityModel quality)
+        {
+            if (_configService.EnableDualFormatTracking && quality?.Quality != null)
+            {
+                var formatType = Quality.GetFormatType(quality.Quality);
+                var formatBasePath = _authorPathBuilder.BuildFormatPath(author, formatType);
+
+                if (formatBasePath.IsNotNullOrWhiteSpace() && formatBasePath != author.Path)
+                {
+                    return Path.Combine(formatBasePath, fileName + extension);
+                }
+            }
+
+            return _buildFileNames.BuildBookFilePath(author, edition, fileName, extension);
         }
 
         private BookFile TransferFile(BookFile bookFile, Author author, Book book, string destinationFilePath, TransferMode mode)
