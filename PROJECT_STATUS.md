@@ -29,10 +29,14 @@ The following items were added to canonical planning for immediate/future delive
 
 2. Single-instance ebook and audiobook variant management
 
-- **Design complete** (April 2026). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
+- **Implementation in progress** (April 2026). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
 - `AuthorFormatProfile` entity: per-author, per-format (ebook/audiobook) quality profile, root folder, tags, monitoring, and path.
 - 10 implementation slices defined (DF-1 through DF-10). Feature-flagged with `EnableDualFormatTracking`.
-- Next: begin DF-1 (domain model and schema migration).
+- **DF-1 complete**: domain model, schema migration 045, feature flag, `Quality.GetFormatType()` helper.
+- **DF-2 complete**: edition monitoring per format type — format-aware housekeeping, `BookEditionSelector` overloads, `SetMonitoredByFormat`.
+- **DF-3 complete**: decision engine format-aware quality evaluation — format-specific profile resolution in `QualityAllowedByProfileSpecification`, `UpgradableSpecification.ResolveProfile()`.
+- **DF-4 complete**: download client routing by format — tag resolution from format profiles in `DownloadService`.
+- Next: DF-5 (import pipeline format awareness).
 
 ## Latest Delivery Update
 

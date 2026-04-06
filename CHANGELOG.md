@@ -9,6 +9,10 @@ process.
 
 ### Added
 
+- **DF-1**: Domain model, schema, and feature flag for dual-format tracking — `FormatType` enum, `AuthorFormatProfile` entity, migration 045, `EnableDualFormatTracking` config flag, `Quality.GetFormatType()` helper. 10/10 tests pass.
+- **DF-2**: Edition monitoring per format type — format-aware housekeeping (`FixMultipleMonitoredEditions` groups by BookId+IsEbook when flag on), `BookEditionSelector.GetPreferredEdition(FormatType)` overloads, `EditionRepository.SetMonitoredByFormat()`. 17/17 tests pass.
+- **DF-3**: Decision engine format-aware quality evaluation — `QualityAllowedByProfileSpecification` resolves format-specific quality profile, `UpgradableSpecification.ResolveProfile(RemoteBook)` helper, `RemoteBook.ResolvedFormatType` and `ResolvedQualityProfile` properties. 9/9 tests pass.
+- **DF-4**: Download client routing by format — `DownloadService.DownloadReport` uses format profile tags when dual-format enabled, falls back to author tags. 4/4 tests pass.
 - Import run summary telemetry (Slice A1): structured per-run metrics for files scanned/filtered, match quality distribution, stage timing, throughput, and match rate. Logged at Info level on each import run completion.
 - Commit message convention (Conventional Commits format) with type/scope rules, branch naming convention, and production readiness expectations in `CONTRIBUTING.md`.
 - Release gate checklist in `CONTRIBUTING.md` enforcing CI, CHANGELOG, artifact, and rollback verification before tagging releases.
