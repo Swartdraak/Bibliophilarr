@@ -16,6 +16,7 @@ namespace NzbDrone.Core.Books
         Edition FindByTitle(int authorMetadataId, string title);
         List<Edition> GetEditionsForRefresh(int bookId, List<string> foreignEditionIds);
         List<Edition> SetMonitored(Edition edition);
+        List<Edition> SetMonitoredByFormat(Edition edition);
     }
 
     public class EditionRepository : BasicRepository<Edition>, IEditionRepository
@@ -99,6 +100,18 @@ namespace NzbDrone.Core.Books
             allEditions.ForEach(r => r.Monitored = r.Id == edition.Id);
             Ensure.That(allEditions.Count(x => x.Monitored) == 1).IsTrue();
             UpdateMany(allEditions);
+            return allEditions;
+        }
+
+        public List<Edition> SetMonitoredByFormat(Edition edition)
+        {
+            var allEditions = FindByBook(new[] { edition.BookId });
+            var sameFormat = allEditions.Where(e => e.IsEbook == edition.IsEbook).ToList();
+
+            sameFormat.ForEach(r => r.Monitored = r.Id == edition.Id);
+            Ensure.That(sameFormat.Count(x => x.Monitored) == 1).IsTrue();
+
+            UpdateMany(sameFormat);
             return allEditions;
         }
     }

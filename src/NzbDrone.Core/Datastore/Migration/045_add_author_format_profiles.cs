@@ -49,7 +49,7 @@ namespace NzbDrone.Core.Datastore.Migration
                         ELSE 0
                     END,
                     a.""QualityProfileId"",
-                    COALESCE(a.""RootFolderPath"", ''),
+                    '',
                     COALESCE(a.""Tags"", '[]'),
                     1,
                     COALESCE(a.""Path"", '')
