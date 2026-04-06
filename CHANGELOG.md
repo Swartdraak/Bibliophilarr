@@ -13,12 +13,21 @@ process.
 - Commit message convention (Conventional Commits format) with type/scope rules, branch naming convention, and production readiness expectations in `CONTRIBUTING.md`.
 - Release gate checklist in `CONTRIBUTING.md` enforcing CI, CHANGELOG, artifact, and rollback verification before tagging releases.
 - Enhanced PR template with type-of-change checkboxes, production safety checklist, and CHANGELOG update requirement.
+- Detailed dual-format architecture design (TD-DUAL-FORMAT-001) in `MIGRATION_PLAN.md`: `AuthorFormatProfile` entity, per-format quality profiles and root folders, 10 implementation slices (DF-1 through DF-10), feature flag `EnableDualFormatTracking`, migration 045 schema, acceptance criteria, and rollback strategy.
 
 ### Fixed
 
+- ManualImport: added `AuthorId > 0` and `BookId > 0` guard clauses in `ManualImportService` to reject incomplete import requests early instead of crashing downstream.
+- ManualImport frontend: added `author.id` and `book.id` validation in `InteractiveImportModalContentConnector` before dispatching import commands.
+- AudioTag: added NFS writeable pre-check and IOException retry with exponential backoff in `AudioTag.cs` and `AudioTagService.cs` to handle transient NFS mount failures.
+- Search: added minimum 3-character server-side guard in `SearchController` to prevent empty/short search queries from hitting indexers.
 - `test: fix 13 failing Core unit tests for updated metadata profiles and import behavior`
 
 ### Changed
+
+- Search: increased frontend search debounce from 300ms to 600ms and added minimum 3-character enforcement in `searchActions.js` to reduce unnecessary API calls.
+- ROADMAP.md Track B updated with finalized 10-slice dual-format architecture and milestone status changed from "assessed" to "designed".
+- PROJECT_STATUS.md dual-format section updated to "Design complete (April 2026)" with implementation slice count and next action.
 
 - `refactor(deps): replace moment.js with date-fns across all 34 frontend date utility, Calendar, Store, and System files` — moment.js (328KB) removed; tree-shakeable date-fns 4.1.0 imported. Format token converter preserves backend format compatibility.
 - `refactor: migrate test infrastructure from RestSharp to System.Net.Http.HttpClient`

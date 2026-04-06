@@ -457,78 +457,728 @@ Measurement plan:
 
 #### TD-DUAL-FORMAT-001: Single-instance ebook and audiobook variant management
 
-Objective:
+**Status**: Detailed design complete (April 2026). Implementation not yet started.
 
-- Manage ebook and audiobook variants for the same title in one instance without policy conflicts or tracking loss.
+##### Objective
 
-Primary touch points:
+Manage ebook and audiobook variants for the same title in one instance without
+policy conflicts, tracking loss, or requiring duplicate author entries. A single
+Author object tracks both formats independently at the per-book level, with each
+format owning its own quality profile, root folder, download client routing tags,
+monitored state, and file tracking.
 
-- `src/NzbDrone.Core/Books/Book.cs`
-- `src/NzbDrone.Core/MediaFiles/*`
-- `src/NzbDrone.Core/Profiles/*`
-- `src/Bibliophilarr.Api.V1/*`
-- `frontend/src/*`
+##### Design principles
 
-Proposed change shape:
+1. **One author, multiple formats** — metadata is shared (author, series, book,
+   cover, identifiers). Only the physical-format tracking (quality, files, paths)
+   diverges per format.
+2. **One metadata search** — a search for a book queries indexers once. The
+   returned releases are then matched to the appropriate format slot based on the
+   detected quality falling within a format's quality profile.
+3. **Format-scoped policy** — each format has its own quality profile, root
+   folder, tags, monitored state, and upgrade tracking. No cross-format
+   interference.
+4. **Additive schema** — new tables and columns only. No destructive changes to
+   existing tables. Feature-flagged with full rollback path.
 
-1. Add additive variant model for per-title format intent (`ebook`, `audiobook`).
-2. Add independent quality/format policy attachment per variant.
-3. Partition search/import/upgrade decisions by variant to prevent cross-over writes.
-4. Expose variant-level status and controls in API/UI.
+##### Current architecture (blockers)
 
-Acceptance criteria:
+The existing data model has three structural constraints that prevent dual-format
+tracking:
+
+| Constraint | Location | Impact |
+|---|---|---|
+| One `QualityProfileId` per Author | [Author.cs](src/NzbDrone.Core/Books/Model/Author.cs#L29) | Cannot express "Spoken for audiobooks AND eBook for ebooks" on the same author |
+| One `Path` / `RootFolderPath` per Author | [Author.cs](src/NzbDrone.Core/Books/Model/Author.cs#L26-L27) | Files for both formats would land under one directory tree |
+| One monitored Edition per Book | [FixMultipleMonitoredEditions.cs](src/NzbDrone.Core/Housekeeping/Housekeepers/FixMultipleMonitoredEditions.cs#L17), [BookEditionSelector.cs](src/NzbDrone.Core/Books/BookEditionSelector.cs#L21) | Even if both ebook and audiobook editions exist, housekeeping forcibly un-monitors all but one |
+
+Additional pipeline constraints:
+
+- `QualityAllowedByProfileSpecification` reads `subject.Author.QualityProfile.Value` — a single profile per author. ([QualityAllowedByProfileSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/QualityAllowedByProfileSpecification.cs#L22))
+- `DownloadService.DownloadReport` passes `remoteBook.Author.Tags` for download client routing — a single tag set per author. ([DownloadService.cs](src/NzbDrone.Core/Download/DownloadService.cs#L58))
+- `AuthorPathBuilder.BuildPath` uses `author.RootFolderPath` — a single root folder. ([AuthorPathBuilder.cs](src/NzbDrone.Core/Books/Utilities/AuthorPathBuilder.cs#L28))
+- `BookCutoffService.BooksWhereCutoffUnmet` evaluates against one quality profile. ([BookCutoffService.cs](src/NzbDrone.Core/Books/Services/BookCutoffService.cs))
+- `ReleaseSearchService.BookSearch` uses `book.Editions.Value.SingleOrDefault(x => x.Monitored).Title` — expects exactly one monitored edition. ([ReleaseSearchService.cs](src/NzbDrone.Core/IndexerSearch/ReleaseSearchService.cs#L84))
+
+##### Target data model
+
+New entity: **AuthorFormatProfile**
+
+```
+┌─────────────────────────────────────────────┐
+│ AuthorFormatProfiles (new table)            │
+├─────────────────────────────────────────────┤
+│ Id              INT PK AUTO                 │
+│ AuthorId        INT FK → Authors.Id         │
+│ FormatType      INT (enum: 0=Ebook,         │
+│                            1=Audiobook)     │
+│ QualityProfileId INT FK → QualityProfiles.Id│
+│ RootFolderPath  TEXT NOT NULL               │
+│ Tags            TEXT (JSON array of int)    │
+│ Monitored       BOOL DEFAULT true           │
+│ Path            TEXT (computed author path   │
+│                       under this root)      │
+├─────────────────────────────────────────────┤
+│ UNIQUE(AuthorId, FormatType)                │
+└─────────────────────────────────────────────┘
+```
+
+Modified entity: **Edition** monitoring
+
+```
+Current:  One Monitored=true edition per Book (enforced globally)
+Target:   One Monitored=true edition per Book PER FormatType
+          (i.e. one monitored ebook edition AND one monitored audiobook edition)
+```
+
+Relationship map:
+
+```
+Author (Robert Blaise)
+  ├─ AuthorFormatProfiles
+  │    ├─ { FormatType: Audiobook, QualityProfileId: 2 (Spoken),
+  │    │    RootFolderPath: /media/audiobooks/, Tags: [1],
+  │    │    Path: /media/audiobooks/Robert Blaise }
+  │    └─ { FormatType: Ebook, QualityProfileId: 1 (eBook),
+  │         RootFolderPath: /media/ebooks/, Tags: [2],
+  │         Path: /media/ebooks/Robert Blaise }
+  │
+  └─ Book (1% Lifesteal)
+       ├─ Edition (audiobook edition)
+       │    ├─ Format: "Audiobook"
+       │    ├─ Monitored: true  ← monitored for Audiobook format
+       │    └─ BookFiles: [Robert Blaise - 1% Lifesteal.m4b]
+       └─ Edition (ebook edition)
+            ├─ Format: "Ebook"
+            ├─ Monitored: true  ← monitored for Ebook format
+            └─ BookFiles: [Robert Blaise - 1% Lifesteal.epub]
+```
+
+**Design decision rationale: AuthorFormatProfile vs. BookVariant**
+
+The format profile lives at the Author level (not per-Book) because:
+
+- Quality profile, root folder, tags, and download client routing are
+  author-scoped concerns — they apply uniformly across all books by that author.
+- Per-book format configuration would create O(books x formats) configuration
+  overhead. Authors typically want "all audiobooks go here with this profile."
+- The per-book format tracking is handled by Edition monitoring: the Edition
+  already has `Format` and `IsEbook` fields, and the "one monitored edition per
+  format type" constraint provides per-book format-level control.
+- This mirrors how the current single-profile model works: QualityProfile is set
+  on Author and applies to all books.
+
+##### Data flow changes by pipeline stage
+
+**1. Author add flow**
+
+Current: User selects one root folder and one quality profile when adding an author.
+
+Target: User can configure one or more format profiles when adding an author.
+Each format profile specifies: format type, quality profile, root folder, and
+tags. At minimum one format profile is required (backward compatible with current
+single-profile behavior).
+
+Files affected:
+
+- [AddAuthorService.cs](src/NzbDrone.Core/Books/Services/AddAuthorService.cs) — `SetPropertiesAndValidate()` creates format profiles from add options
+- [AuthorController.cs](src/Bibliophilarr.Api.V1/Author/AuthorController.cs) — `AddAuthor()` accepts format profile array
+- [AuthorResource.cs](src/Bibliophilarr.Api.V1/Author/AuthorResource.cs) — new `FormatProfiles` property
+- Frontend `AddNewAuthorModal` — format profile configuration UI
+
+**2. Book monitoring**
+
+Current: `Book.Monitored` is a single boolean. `Edition.Monitored` allows one
+monitored edition per book. `FixMultipleMonitoredEditions` housekeeping enforces
+the single-monitored-edition constraint.
+
+Target: `Book.Monitored` remains a single boolean (does the user want this book
+at all?). Edition monitoring becomes per-format: one monitored edition per format
+type per book. The housekeeping task is updated to enforce "one monitored edition
+per format type" instead of "one monitored edition globally."
+
+Files affected:
+
+- [FixMultipleMonitoredEditions.cs](src/NzbDrone.Core/Housekeeping/Housekeepers/FixMultipleMonitoredEditions.cs) — scope constraint per format type
+- [BookEditionSelector.cs](src/NzbDrone.Core/Books/BookEditionSelector.cs) — `GetPreferredEdition(formatType)` overload
+- [EditionRepository.cs](src/NzbDrone.Core/Books/Repositories/EditionRepository.cs) — `SetMonitoredEdition` scoped by format
+- [BookMonitoredService.cs](src/NzbDrone.Core/Books/Services/BookMonitoredService.cs) — monitor/unmonitor per format
+
+**3. Search and indexer query**
+
+Current: `ReleaseSearchService.BookSearch()` builds search criteria from the
+single monitored edition's title and sends one query to indexers.
+
+Target: Search remains a single indexer query (metadata is shared across
+formats). The search criteria is built from the book's title. The change is
+downstream: returned releases are evaluated against each active format's quality
+profile separately during decision-making.
+
+Key insight: a search for "Robert Blaise 1% Lifesteal" returns BOTH m4b and epub
+releases. The decision engine sorts them into the correct format slot.
+
+Files affected:
+
+- [ReleaseSearchService.cs](src/NzbDrone.Core/IndexerSearch/ReleaseSearchService.cs) — use book title instead of monitored edition title; pass format context to decision maker
+- [BookSearchService.cs](src/NzbDrone.Core/IndexerSearch/BookSearchService.cs) — `MissingBookSearchCommand` checks missing status per format
+
+**4. Download decision engine**
+
+Current: `QualityAllowedByProfileSpecification` evaluates against
+`subject.Author.QualityProfile.Value` — one profile.
+
+Target: When the feature flag is active, the specification identifies which
+format the release belongs to (based on detected quality: audio qualities
+MP3/M4B/FLAC → Audiobook format; ebook qualities PDF/MOBI/EPUB/AZW3 → Ebook
+format). It then evaluates against the matching `AuthorFormatProfile`'s quality
+profile.
+
+Quality-to-format mapping (deterministic, based on existing quality weight
+ranges):
+
+| Quality | Weight | FormatType |
+|---|---|---|
+| PDF | 5 | Ebook |
+| MOBI | 10 | Ebook |
+| EPUB | 11 | Ebook |
+| AZW3 | 12 | Ebook |
+| MP3 | 100 | Audiobook |
+| M4B | 105 | Audiobook |
+| FLAC | 110 | Audiobook |
+| Unknown | 0 | Falls back to author's legacy profile |
+| UnknownAudio | 50 | Audiobook |
+
+Files affected:
+
+- [QualityAllowedByProfileSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/QualityAllowedByProfileSpecification.cs) — resolve format-specific profile
+- [Quality.cs](src/NzbDrone.Core/Qualities/Quality.cs) — add `FormatType` classification helper
+- [RemoteBook.cs](src/NzbDrone.Core/Parser/Model/RemoteBook.cs) — carry resolved format context
+- [UpgradableSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/UpgradableSpecification.cs) — compare against format-specific cutoff
+
+**5. Download client routing**
+
+Current: `DownloadService.DownloadReport` passes `remoteBook.Author.Tags` to
+`DownloadClientProvider.GetDownloadClient()`.
+
+Target: When format is resolved, use the format profile's tags instead of the
+author's tags. This routes audiobook grabs to qBittorrent-Audiobooks (via
+audiobook tag) and ebook grabs to qBittorrent-Ebooks (via ebook tag).
+
+Files affected:
+
+- [DownloadService.cs](src/NzbDrone.Core/Download/DownloadService.cs) — resolve tags from format profile
+
+**6. Import pipeline**
+
+Current: `ImportDecisionMaker` → `IdentificationService` matches files to an
+Edition by metadata/tags. `ImportApprovedBooks` writes `BookFile` with
+`EditionId`.
+
+Target: After identification matches a file to a Book, the import pipeline also
+resolves which format profile applies based on the file's detected quality. The
+file is assigned to the correct format-specific edition. Import rejection
+(`AuthorPathInRootFolderSpecification`) checks against the format-specific root
+folder path, not the author's single path.
+
+Files affected:
+
+- [ImportDecisionMaker.cs](src/NzbDrone.Core/MediaFiles/BookImport/ImportDecisionMaker.cs) — pass format context through import decisions
+- [IdentificationService.cs](src/NzbDrone.Core/MediaFiles/BookImport/Identification/IdentificationService.cs) — prefer edition matching format type
+- [ImportApprovedBooks.cs](src/NzbDrone.Core/MediaFiles/BookImport/ImportApprovedBooks.cs) — assign to format-specific edition
+- [AuthorPathInRootFolderSpecification.cs](src/NzbDrone.Core/MediaFiles/BookImport/Specifications/AuthorPathInRootFolderSpecification.cs) — check against format-specific root
+
+**7. File path building**
+
+Current: `AuthorPathBuilder.BuildPath` uses `author.RootFolderPath` to construct
+`/media/audiobooks/Robert Blaise/`.
+
+Target: Path building uses the format profile's `RootFolderPath` to construct
+format-specific paths:
+- Audiobook: `/media/audiobooks/Robert Blaise/1% Lifesteal/`
+- Ebook: `/media/ebooks/Robert Blaise/1% Lifesteal/`
+
+Files affected:
+
+- [AuthorPathBuilder.cs](src/NzbDrone.Core/Books/Utilities/AuthorPathBuilder.cs) — accept format context, use format profile root
+- [FileNameBuilder.cs](src/NzbDrone.Core/Organizer/FileNameBuilder.cs) — `BuildBookFilePath` uses format-aware author path
+- [BookFileMovingService.cs](src/NzbDrone.Core/MediaFiles/BookFileMovingService.cs) — pass format context to path builder
+
+**8. Missing and cutoff evaluation**
+
+Current: `BookCutoffService.BooksWhereCutoffUnmet` evaluates book files against
+the author's single quality profile cutoff.
+
+Target: Missing/cutoff evaluation is per-format. A book can be simultaneously
+"missing audiobook" and "has ebook at cutoff." The Wanted/Missing and
+Wanted/Cutoff Unmet pages show format-scoped results.
+
+Files affected:
+
+- [BookCutoffService.cs](src/NzbDrone.Core/Books/Services/BookCutoffService.cs) — evaluate per format profile
+- [BookService.cs](src/NzbDrone.Core/Books/Services/BookService.cs) — `BooksWithoutFiles` scoped by format
+- [WantedController / CutoffController](src/Bibliophilarr.Api.V1/Wanted/) — expose format filter
+- [BookSearchService.cs](src/NzbDrone.Core/IndexerSearch/BookSearchService.cs) — missing/cutoff commands specify format
+
+**9. API resources**
+
+New and modified API resources:
+
+```csharp
+// New resource
+public class AuthorFormatProfileResource
+{
+    public int Id { get; set; }
+    public int FormatType { get; set; }       // 0=Ebook, 1=Audiobook
+    public int QualityProfileId { get; set; }
+    public string RootFolderPath { get; set; }
+    public HashSet<int> Tags { get; set; }
+    public bool Monitored { get; set; }
+    public string Path { get; set; }          // computed
+}
+
+// Modified: AuthorResource
+public class AuthorResource
+{
+    // ... existing fields ...
+    public List<AuthorFormatProfileResource> FormatProfiles { get; set; }
+    // QualityProfileId, Path, RootFolderPath kept for backward compat
+    // (legacy clients read these; new clients use FormatProfiles)
+}
+
+// Modified: BookResource
+public class BookResource
+{
+    // ... existing fields ...
+    public List<BookFormatStatusResource> FormatStatuses { get; set; }
+    // Per-format: { formatType, monitored, hasFile, quality, editionId }
+}
+```
+
+Files affected:
+
+- [AuthorResource.cs](src/Bibliophilarr.Api.V1/Author/AuthorResource.cs) — add `FormatProfiles`
+- [BookResource.cs](src/Bibliophilarr.Api.V1/Books/BookResource.cs) — add `FormatStatuses`
+- [AuthorController.cs](src/Bibliophilarr.Api.V1/Author/AuthorController.cs) — CRUD for format profiles
+- New: `AuthorFormatProfileResource.cs`, `BookFormatStatusResource.cs`
+
+**10. Frontend changes**
+
+Author detail page:
+
+- Header shows format profile badges (e.g., "Audiobook: Spoken | Ebook: eBook")
+- Each format profile's root folder, quality profile, and tags are configurable
+  via the author edit modal
+- Add Author modal allows configuring format profiles (with sensible defaults
+  based on selected root folder)
+
+Book table:
+
+- Each book row shows per-format status columns (e.g., audiobook icon with
+  green/red, ebook icon with green/red)
+- Monitoring toggle can be per-format (click audiobook icon to toggle audiobook
+  monitoring for that book)
+
+Files affected:
+
+- [AuthorDetails.js](frontend/src/Author/Details/AuthorDetails.js) — format profile display
+- [AuthorDetailsHeader.js](frontend/src/Author/Details/AuthorDetailsHeader.js) — show format badges
+- [AuthorDetailsSeason.js](frontend/src/Author/Details/AuthorDetailsSeason.js) — per-format status columns
+- [EditAuthorModalContent.js](frontend/src/Author/Edit/EditAuthorModalContent.js) — format profile configuration
+- [AddNewAuthorModal*.js](frontend/src/AddNewItem/) — format profile setup
+- [bookActions.js](frontend/src/Store/Actions/bookActions.js) — per-format monitoring toggles
+- New: `AuthorFormatProfileEditor.js` component
+
+##### Feature flag and backward compatibility
+
+Configuration key: `EnableDualFormatTracking` (default: `false`)
+
+When **disabled** (legacy mode):
+
+- Author continues to use its single `QualityProfileId`, `Path`,
+  `RootFolderPath`, and `Tags` fields exactly as today.
+- `AuthorFormatProfiles` table exists but is not read.
+- `FixMultipleMonitoredEditions` enforces the current single-monitored-edition
+  constraint.
+- All API responses omit `FormatProfiles` and `FormatStatuses` (or return empty
+  arrays).
+- No behavioral change for existing users.
+
+When **enabled** (dual-format mode):
+
+- Author's legacy `QualityProfileId`, `Path`, `RootFolderPath`, `Tags` become
+  fallback defaults for new format profiles.
+- `AuthorFormatProfiles` table is authoritative for per-format routing.
+- `FixMultipleMonitoredEditions` enforces one monitored edition per format type
+  per book.
+- API responses include populated `FormatProfiles` and `FormatStatuses`.
+- All pipeline stages (search, decision, grab, import, path build, missing/cutoff)
+  operate in format-aware mode.
+
+##### Database migration
+
+Migration number: 045 (next sequential after 044_normalize_title_slugs)
+
+```sql
+-- Additive: new table
+CREATE TABLE "AuthorFormatProfiles" (
+    "Id"               INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "AuthorId"         INTEGER NOT NULL,
+    "FormatType"       INTEGER NOT NULL,   -- 0=Ebook, 1=Audiobook
+    "QualityProfileId" INTEGER NOT NULL,
+    "RootFolderPath"   TEXT NOT NULL,
+    "Tags"             TEXT NOT NULL DEFAULT '[]',
+    "Monitored"        BOOLEAN NOT NULL DEFAULT 1,
+    "Path"             TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY ("AuthorId") REFERENCES "Authors"("Id") ON DELETE CASCADE,
+    FOREIGN KEY ("QualityProfileId") REFERENCES "QualityProfiles"("Id")
+);
+
+CREATE UNIQUE INDEX "IX_AuthorFormatProfiles_AuthorId_FormatType"
+    ON "AuthorFormatProfiles" ("AuthorId", "FormatType");
+
+-- Auto-populate: one format profile per existing author from current config
+-- Detect format type from current quality profile's allowed qualities
+INSERT INTO "AuthorFormatProfiles"
+    ("AuthorId", "FormatType", "QualityProfileId", "RootFolderPath", "Tags",
+     "Monitored", "Path")
+SELECT
+    a."Id",
+    CASE
+        WHEN EXISTS (
+            SELECT 1 FROM json_each(qp."Items")
+            WHERE json_extract(value, '$.quality') IN (10, 11, 12, 13)
+              AND json_extract(value, '$.allowed') = 1
+        ) THEN 1  -- Audiobook
+        ELSE 0    -- Ebook
+    END,
+    a."QualityProfileId",
+    COALESCE(a."RootFolderPath",
+             substr(a."Path", 1, length(a."Path")
+                    - length(replace(a."Path",
+                                     rtrim(a."Path", replace(a."Path",'/','')),
+                                     '')))),
+    COALESCE(a."Tags", '[]'),
+    1,
+    a."Path"
+FROM "Authors" a
+JOIN "QualityProfiles" qp ON qp."Id" = a."QualityProfileId";
+```
+
+Rollback: `DROP TABLE "AuthorFormatProfiles"` and set feature flag to false. No
+existing tables are modified.
+
+##### Acceptance criteria
 
 - Ebook and audiobook variants can co-exist for the same title without conflict.
-- Variant-specific quality upgrades do not overwrite opposite-format tracking state.
-- Existing single-format libraries remain backward compatible without migration breakage.
+- Variant-specific quality upgrades do not alter opposite-format tracking state.
+- Existing single-format libraries remain functionally unchanged when flag is off.
+- Search produces one indexer query per book (not per format).
+- Releases are routed to the correct format slot based on detected quality.
+- Download client routing uses format-specific tags.
+- Imported files land in format-specific root folder paths.
+- Missing/cutoff evaluation reports per-format status.
+- API backward compatibility: legacy clients ignoring `FormatProfiles` continue
+  to work via the existing author-level `QualityProfileId`/`Path`/`Tags` fields.
 
-Rollback/mitigation:
+##### Rollback and mitigation
 
-- Feature-flag the variant model and preserve legacy single-track behavior as fallback until parity tests pass.
+- Feature flag `EnableDualFormatTracking=false` reverts to legacy behavior.
+- `AuthorFormatProfiles` table is additive — dropping it restores the original
+  schema with no data loss.
+- Auto-populated format profiles are derived from existing author config, so
+  enabling the flag does not require manual re-configuration.
+- If a format profile is deleted, the author falls back to its legacy fields.
 
-Implementation task outline:
+##### Measurement plan
 
-1. DF-1 Variant domain model
-     - Deliverables:
-         - Add per-title variant intent model (`ebook`, `audiobook`) with additive schema changes.
-         - Backward-compatible defaults for existing records.
-     - Validation:
-         - Migration test verifies old schema upgrade and downgrade safety.
-2. DF-2 Variant policy separation
-     - Deliverables:
-         - Independent quality/format profile linkage per variant.
-         - Explicit persistence boundaries for variant policy state.
-     - Validation:
-         - Unit tests confirm policy reads/writes are variant-scoped.
-3. DF-3 Variant pipeline isolation
-     - Deliverables:
-         - Search/import/upgrade paths keyed by variant context.
-         - Cross-variant overwrite prevention checks.
-     - Validation:
-         - Integration fixtures for same-title dual-variant scenarios.
-4. DF-4 API and UI surfaces
-     - Deliverables:
-         - API resources expose variant state and decisions.
-         - UI can set/inspect wanted status and quality by variant.
-     - Validation:
-         - API contract tests and frontend behavior tests for dual-variant flows.
-5. DF-5 Rollout and compatibility gates
-     - Deliverables:
-         - Feature flag, migration runbook, rollback path.
-         - Operator diagnostics for per-variant tracking health.
-     - Validation:
-         - Flag-off mode preserves legacy behavior.
-         - Flag-on mode passes dual-variant acceptance suite.
+Correctness KPIs:
 
-Measurement plan:
+- `variant_conflict_count` (target: 0) — books where format profiles disagree
+  on the same file.
+- `cross_variant_overwrite_count` (target: 0) — import events that overwrote a
+  file tracked by the opposite format.
 
-- Correctness KPIs:
-  - `variant_conflict_count` (target: 0)
-  - `cross_variant_overwrite_count` (target: 0)
-- Usability KPI:
-  - `variant_policy_apply_success_rate` (target: 100 percent in acceptance suite)
-- Compatibility KPI:
-  - `legacy_library_regression_failures` (target: 0)
+Usability KPIs:
+
+- `variant_policy_apply_success_rate` (target: 100 percent in acceptance suite)
+  — format profile correctly resolved for every grab/import decision.
+- `search_query_count_per_book` (target: 1) — confirm searches are not
+  multiplied per format.
+
+Compatibility KPIs:
+
+- `legacy_library_regression_failures` (target: 0) — existing test suite passes
+  with flag off and with flag on (single-profile author).
+
+##### Implementation slices
+
+**DF-1: Domain model and schema** (backend only, no behavioral change)
+
+Deliverables:
+
+- New `FormatType` enum (`Ebook = 0`, `Audiobook = 1`).
+- New `AuthorFormatProfile` entity class.
+- New `IAuthorFormatProfileRepository` and `IAuthorFormatProfileService`.
+- Migration 045: create `AuthorFormatProfiles` table with auto-population.
+- `Quality.cs`: add `GetFormatType(Quality quality)` static helper.
+- Feature flag `EnableDualFormatTracking` in `IConfigService`.
+- Unit tests for migration up/down, format type mapping, repository CRUD.
+
+Files to create:
+
+- `src/NzbDrone.Core/Books/Model/FormatType.cs`
+- `src/NzbDrone.Core/Books/Model/AuthorFormatProfile.cs`
+- `src/NzbDrone.Core/Books/Repositories/AuthorFormatProfileRepository.cs`
+- `src/NzbDrone.Core/Books/Services/AuthorFormatProfileService.cs`
+- `src/NzbDrone.Core/Datastore/Migration/045_add_author_format_profiles.cs`
+
+Files to modify:
+
+- [Quality.cs](src/NzbDrone.Core/Qualities/Quality.cs) — add `GetFormatType()` helper
+- [ConfigService.cs](src/NzbDrone.Core/Configuration/ConfigService.cs) — add `EnableDualFormatTracking` property
+- [IConfigService.cs](src/NzbDrone.Core/Configuration/IConfigService.cs) — add interface member
+- [TableMapping.cs](src/NzbDrone.Core/Datastore/TableMapping.cs) — register `AuthorFormatProfile` entity
+
+Validation:
+
+- Migration test verifies schema creation and auto-population.
+- Repository test confirms CRUD operations and unique constraint.
+- `Quality.GetFormatType()` test covers all quality values.
+- Build succeeds. Existing test suite passes unchanged.
+
+**DF-2: Edition monitoring per format type** (behavioral change when flag on)
+
+Deliverables:
+
+- Modify `FixMultipleMonitoredEditions.Clean()` to enforce one monitored edition
+  per format type per book (when flag enabled) instead of one globally.
+- Modify `BookEditionSelector.GetPreferredEdition()` to accept optional
+  `FormatType` parameter.
+- Modify `EditionRepository.SetMonitoredEdition()` to scope by format.
+- `BookMonitoredService` — apply monitoring changes per format when flag enabled.
+
+Files to modify:
+
+- [FixMultipleMonitoredEditions.cs](src/NzbDrone.Core/Housekeeping/Housekeepers/FixMultipleMonitoredEditions.cs)
+- [BookEditionSelector.cs](src/NzbDrone.Core/Books/BookEditionSelector.cs)
+- [EditionRepository.cs](src/NzbDrone.Core/Books/Repositories/EditionRepository.cs)
+- [BookMonitoredService.cs](src/NzbDrone.Core/Books/Services/BookMonitoredService.cs)
+
+Validation:
+
+- Test: book with ebook edition (monitored) + audiobook edition (monitored) —
+  housekeeping does NOT un-monitor either.
+- Test: book with two ebook editions (both monitored) — housekeeping un-monitors
+  one, keeps one.
+- Test: flag off — legacy single-monitored behavior preserved exactly.
+
+**DF-3: Decision engine format-aware quality evaluation** (behavioral change when flag on)
+
+Deliverables:
+
+- `QualityAllowedByProfileSpecification` resolves the format-specific quality
+  profile from `AuthorFormatProfileService` when flag enabled.
+- `UpgradableSpecification` evaluates cutoff against format-specific profile.
+- `RemoteBook` gains optional `ResolvedFormatType` property for downstream use.
+
+Files to modify:
+
+- [QualityAllowedByProfileSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/QualityAllowedByProfileSpecification.cs)
+- [UpgradableSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/UpgradableSpecification.cs)
+- [RemoteBook.cs](src/NzbDrone.Core/Parser/Model/RemoteBook.cs)
+
+Validation:
+
+- Test: EPUB release for author with both profiles → evaluated against eBook
+  profile, accepted.
+- Test: M4B release for same author → evaluated against Spoken profile, accepted.
+- Test: EPUB release but only audiobook profile configured → rejected (not in
+  profile).
+- Test: flag off → falls back to `Author.QualityProfile.Value` exactly as before.
+
+**DF-4: Download client routing by format** (behavioral change when flag on)
+
+Deliverables:
+
+- `DownloadService.DownloadReport` resolves tags from the format profile matching
+  the release's detected format type. Falls back to author tags if no format
+  profile match.
+
+Files to modify:
+
+- [DownloadService.cs](src/NzbDrone.Core/Download/DownloadService.cs)
+
+Validation:
+
+- Test: audiobook release → uses audiobook format profile tags → routes to
+  qBittorrent-Audiobooks.
+- Test: ebook release → uses ebook format profile tags → routes to
+  qBittorrent-Ebooks.
+- Test: no matching format profile → falls back to author tags.
+- Test: flag off → uses `Author.Tags` exactly as before.
+
+**DF-5: Import pipeline format awareness** (behavioral change when flag on)
+
+Deliverables:
+
+- `ImportDecisionMaker` carries format context through import decisions.
+- `IdentificationService` prefers edition with matching format type when multiple
+  editions exist for a book.
+- `ImportApprovedBooks` assigns files to format-specific editions.
+- `AuthorPathInRootFolderSpecification` checks the format-specific root folder
+  when resolving path validity.
+
+Files to modify:
+
+- [ImportDecisionMaker.cs](src/NzbDrone.Core/MediaFiles/BookImport/ImportDecisionMaker.cs)
+- [IdentificationService.cs](src/NzbDrone.Core/MediaFiles/BookImport/Identification/IdentificationService.cs)
+- [ImportApprovedBooks.cs](src/NzbDrone.Core/MediaFiles/BookImport/ImportApprovedBooks.cs)
+- [AuthorPathInRootFolderSpecification.cs](src/NzbDrone.Core/MediaFiles/BookImport/Specifications/AuthorPathInRootFolderSpecification.cs)
+
+Validation:
+
+- Test: import m4b file → assigned to audiobook edition, lands under audiobook
+  root folder.
+- Test: import epub file → assigned to ebook edition, lands under ebook root
+  folder.
+- Test: import m4b for book with no audiobook edition → creates/selects audiobook
+  edition.
+- Test: flag off → existing import behavior unchanged.
+
+**DF-6: File path building by format** (behavioral change when flag on)
+
+Deliverables:
+
+- `AuthorPathBuilder.BuildPath` accepts optional `FormatType` and uses matching
+  format profile's `RootFolderPath`.
+- `FileNameBuilder.BuildBookFilePath` passes format context to path builder.
+- `BookFileMovingService.MoveBookFile` resolves format from file quality.
+
+Files to modify:
+
+- [AuthorPathBuilder.cs](src/NzbDrone.Core/Books/Utilities/AuthorPathBuilder.cs)
+- [FileNameBuilder.cs](src/NzbDrone.Core/Organizer/FileNameBuilder.cs)
+- [BookFileMovingService.cs](src/NzbDrone.Core/MediaFiles/BookFileMovingService.cs)
+
+Validation:
+
+- Test: audiobook file → path under `/media/audiobooks/Author Name/Book Title/`.
+- Test: ebook file → path under `/media/ebooks/Author Name/Book Title/`.
+- Test: flag off → uses `Author.RootFolderPath` as before.
+
+**DF-7: Missing and cutoff evaluation by format** (behavioral change when flag on)
+
+Deliverables:
+
+- `BookCutoffService.BooksWhereCutoffUnmet` evaluates per format profile.
+- `BookService.BooksWithoutFiles` can filter by format type.
+- `MissingBookSearchCommand` and `CutoffUnmetBookSearchCommand` carry optional
+  format filter.
+- Wanted/Missing and Wanted/Cutoff Unmet API endpoints support format filter
+  query parameter.
+
+Files to modify:
+
+- [BookCutoffService.cs](src/NzbDrone.Core/Books/Services/BookCutoffService.cs)
+- [BookService.cs](src/NzbDrone.Core/Books/Services/BookService.cs)
+- [BookSearchService.cs](src/NzbDrone.Core/IndexerSearch/BookSearchService.cs)
+- [MissingController.cs](src/Bibliophilarr.Api.V1/Wanted/MissingController.cs)
+- [CutoffController.cs](src/Bibliophilarr.Api.V1/Wanted/CutoffController.cs)
+
+Validation:
+
+- Test: book has audiobook file but no ebook file → appears in missing (ebook)
+  but not missing (audiobook).
+- Test: book has low-quality audiobook → appears in cutoff (audiobook) but not if
+  ebook cutoff is met.
+- Test: flag off → existing missing/cutoff behavior unchanged.
+
+**DF-8: API resources and controllers** (API surface change)
+
+Deliverables:
+
+- New `AuthorFormatProfileResource` and `BookFormatStatusResource` classes.
+- `AuthorResource` mapper includes `FormatProfiles`.
+- `BookResource` mapper includes `FormatStatuses`.
+- `AuthorController` CRUD endpoints for format profiles.
+- New `AuthorFormatProfileController` for dedicated format profile management.
+
+Files to create:
+
+- `src/Bibliophilarr.Api.V1/Author/AuthorFormatProfileResource.cs`
+- `src/Bibliophilarr.Api.V1/Books/BookFormatStatusResource.cs`
+- `src/Bibliophilarr.Api.V1/Author/AuthorFormatProfileController.cs`
+
+Files to modify:
+
+- [AuthorResource.cs](src/Bibliophilarr.Api.V1/Author/AuthorResource.cs)
+- [BookResource.cs](src/Bibliophilarr.Api.V1/Books/BookResource.cs)
+- [AuthorController.cs](src/Bibliophilarr.Api.V1/Author/AuthorController.cs)
+
+Validation:
+
+- API contract tests for `GET /api/v1/author/{id}` returning `FormatProfiles`.
+- API contract tests for `GET /api/v1/book/{id}` returning `FormatStatuses`.
+- API contract tests for `POST/PUT/DELETE /api/v1/authorformatprofile`.
+- Backward compat: legacy clients ignoring new fields continue to work.
+
+**DF-9: Frontend format profile UI** (UI change)
+
+Deliverables:
+
+- Author edit modal: format profile editor (add/remove format, assign quality
+  profile, root folder, tags per format).
+- Add Author modal: format profile setup with defaults from selected root folder.
+- Author detail header: format profile badges showing active formats.
+- Book table: per-format status icons (audiobook/ebook with monitored/missing/
+  available indicators).
+- Per-format monitoring toggle on book rows.
+- Wanted/Missing and Wanted/Cutoff pages: format filter dropdown.
+- Redux store updates for format profile CRUD and per-format book status.
+
+Files to create:
+
+- `frontend/src/Author/Edit/AuthorFormatProfileEditor.js`
+- `frontend/src/Store/Actions/authorFormatProfileActions.js`
+
+Files to modify:
+
+- [AuthorDetails.js](frontend/src/Author/Details/AuthorDetails.js)
+- [AuthorDetailsHeader.js](frontend/src/Author/Details/AuthorDetailsHeader.js)
+- [AuthorDetailsSeason.js](frontend/src/Author/Details/AuthorDetailsSeason.js)
+- [EditAuthorModalContent.js](frontend/src/Author/Edit/EditAuthorModalContent.js)
+- [bookActions.js](frontend/src/Store/Actions/bookActions.js)
+- [authorActions.js](frontend/src/Store/Actions/authorActions.js)
+- Add Author modal components
+
+Validation:
+
+- Manual UI testing: add author with dual format, verify both format profiles
+  visible.
+- Manual UI testing: toggle audiobook monitoring independently of ebook.
+- Manual UI testing: Wanted pages filter by format.
+- Frontend build succeeds.
+
+**DF-10: Rollout controls and compatibility gates** (operational)
+
+Deliverables:
+
+- Feature flag wiring: config service, API exposure, frontend config consumer.
+- Migration runbook documenting enable/disable/rollback procedure.
+- Acceptance test suite covering all dual-variant scenarios.
+- Operator diagnostic endpoint for format profile health.
+
+Files to modify:
+
+- [ConfigService.cs](src/NzbDrone.Core/Configuration/ConfigService.cs)
+- [HostConfigResource.cs](src/Bibliophilarr.Api.V1/Config/HostConfigResource.cs) (or equivalent config resource)
+
+Validation:
+
+- Full test suite passes with flag off.
+- Full test suite passes with flag on (with dual-format test data).
+- Manual toggle test: enable flag mid-run, verify format profiles activate.
+- Manual toggle test: disable flag mid-run, verify legacy behavior restored.
 
 Primary touch points:
 

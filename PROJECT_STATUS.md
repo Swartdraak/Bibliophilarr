@@ -29,8 +29,10 @@ The following items were added to canonical planning for immediate/future delive
 
 2. Single-instance ebook and audiobook variant management
 
-- Add per-title variant intent (ebook/audiobook) with independent format/quality policy.
-- Ensure variant isolation across monitoring, search, import, and upgrade workflows.
+- **Design complete** (April 2026). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
+- `AuthorFormatProfile` entity: per-author, per-format (ebook/audiobook) quality profile, root folder, tags, monitoring, and path.
+- 10 implementation slices defined (DF-1 through DF-10). Feature-flagged with `EnableDualFormatTracking`.
+- Next: begin DF-1 (domain model and schema migration).
 
 ## Latest Delivery Update
 

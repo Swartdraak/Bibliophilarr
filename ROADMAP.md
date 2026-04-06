@@ -139,7 +139,7 @@ Planned entry conditions:
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | planned |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
-| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **assessed** — architecture design documented in Track B |
+| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **designed** — detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
 
 ## Dependency Migration Queue
 
@@ -331,7 +331,7 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 16. Execute documentation normalization pass: fix MIGRATION_PLAN.md duplicate H2 headings, update stale references, archive dated operational docs, align wiki with ROADMAP phases. Remediation items RQ-007, RQ-048, RQ-044, RQ-047, RQ-079, RQ-080, RQ-121-RQ-125.
 17. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.
 18. Plan React 18 upgrade path: audit breaking changes, upgrade @testing-library, remove `react-addons-shallow-compare`, begin `connected-react-router` removal. Remediation items RQ-068, RQ-069, RQ-159.
-19. Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.
+19. ~~Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.~~ **DESIGNED** — detailed architecture documented in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md). Implementation slices DF-1 through DF-10 defined. Next: begin DF-1 (domain model and schema).
 
 ## Requested implementation additions (March 2026)
 
@@ -348,11 +348,19 @@ Immediate track: import and identification throughput
 
 Future track: single-instance dual ebook/audiobook management
 
-- Introduce per-title format intent as separate managed variants (ebook, audiobook) under one logical title identity.
-- Add independent quality-profile/format-policy assignment per variant, including preferred and allowed format sets.
-- Ensure monitoring, search, import, and post-processing paths preserve variant isolation (no cross-variant overwrites or loss of tracking state).
-- Add UI/API surfaces for variant-level status, quality decisions, and missing/available state.
-- Deliver migration-safe rollout with additive schema changes, feature flags, and rollback-safe toggles.
+**Detailed design**: See [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md) for
+full architecture, data model, migration strategy, and per-slice implementation details.
+
+- Introduce `AuthorFormatProfile` entity: per-author, per-format (ebook/audiobook)
+  configuration owning quality profile, root folder, tags, monitored state, and path.
+- One metadata search per book — releases sorted into format slots by detected quality.
+- Independent quality-profile/format-policy assignment per format profile.
+- Ensure monitoring, search, import, and post-processing paths preserve format isolation
+  (no cross-format overwrites or loss of tracking state).
+- Add UI/API surfaces for format-level status, quality decisions, and missing/available
+  state.
+- Deliver migration-safe rollout with additive schema changes, feature flag
+  (`EnableDualFormatTracking`), and rollback-safe toggles.
 
 ## Implementation task outline (immediate and future)
 
@@ -389,46 +397,35 @@ Measurement criteria:
 **Design assessment** (completed April 2026):
 
 Current data model has partial infrastructure for dual-format:
-- `Edition.Format` (string: MOBI, EPUB, AZW3, MP3, M4B, FLAC, PDF) and `Edition.IsEbook` (bool) exist but are not used in search/import decision logic.
+- `Edition.Format` (string) and `Edition.IsEbook` (bool) exist but are not used in search/import decision logic.
 - Quality system has separate ebook (PDF/MOBI/EPUB/AZW3) and audio (MP3/FLAC/M4B) quality definitions with two default profiles ("eBook" and "Spoken").
 - `Book.Monitored` + `Edition.Monitored` provide per-edition control.
 - Format preference is implicit via allowed qualities in author's single `QualityProfile`.
 
-**Gap analysis**:
-- Single `QualityProfile` per author cannot express "want both ebook and audiobook with different cutoffs."
-- `BookEditionSelector.GetPreferredEdition()` returns one monitored edition — no multi-format variant selection.
-- Import identification doesn't filter candidates by target format.
-- Search doesn't distinguish "missing ebook" from "missing audiobook" for the same book.
-- No API/UI surface exposes per-format wanted/available state.
-
-**Recommended architecture** (Slice B1):
-- Add `BookVariant` entity (BookId, FormatType enum [Ebook, Audiobook], Monitored, QualityProfileId). One-to-many from Book.
-- Each variant owns its own monitoring, quality profile, and file tracking.
-- `BookEditionSelector` returns preferred edition per variant format type.
-- Feature-flagged via config: `EnableDualFormatTracking` (default: false). When off, single-variant behavior is preserved exactly.
+**Architecture** (finalized April 2026):
+- Add `AuthorFormatProfile` entity (AuthorId, FormatType, QualityProfileId, RootFolderPath, Tags, Monitored, Path). One-to-many from Author.
+- Format profile lives at Author level — quality profile, root folder, tags, and download client routing apply uniformly across all books by that author.
+- Per-book format tracking via Edition monitoring: one monitored edition per format type per book.
+- One metadata search per book — releases sorted into format slots by detected quality.
+- Feature-flagged via config: `EnableDualFormatTracking` (default: false). When off, legacy behavior is preserved exactly.
 
 **Migration strategy**:
-- Additive schema migration: `BookVariant` table, FK to `Books` and `QualityProfiles`.
-- Auto-populate one variant per existing book based on current quality profile format type.
-- No destructive changes; rollback = drop `BookVariant` table and ignore feature flag.
+- Additive schema: `AuthorFormatProfiles` table with FK to `Authors` and `QualityProfiles`.
+- Auto-populate one format profile per existing author from current quality profile.
+- No destructive changes; rollback = drop table and disable feature flag.
 
-Future implementation slices:
+Implementation slices (detailed design in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md)):
 
-1. Slice B1: Variant model and persistence
-   - Add additive per-title variant intent model (`ebook`, `audiobook`).
-   - Add migration-safe schema updates and compatibility defaults.
-2. Slice B2: Policy separation
-   - Support independent quality/format profiles per variant.
-   - Keep variant policy state isolated and explicit.
-3. Slice B3: Pipeline isolation
-   - Partition search/import/upgrade decisions by variant.
-   - Prevent cross-variant replacement or state overwrite.
-4. Slice B4: API/UI surfaces
-   - Add variant-level state in API resources.
-   - Add UI controls for per-variant wanted status, quality decisions, and missing state.
-5. Slice B5: Migration and rollout controls
-   - Feature-flag rollout with reversible toggles.
-   - Add data migration validation and rollback rehearsal.
+1. DF-1: Domain model and schema — `AuthorFormatProfile` entity, migration 045, `FormatType` enum, feature flag
+2. DF-2: Edition monitoring per format type — lift single-monitored-edition constraint to per-format
+3. DF-3: Decision engine format-aware quality evaluation — resolve quality profile from format profile
+4. DF-4: Download client routing by format — use format profile tags for download client selection
+5. DF-5: Import pipeline format awareness — assign files to format-specific editions and root folders
+6. DF-6: File path building by format — use format profile root folder for path construction
+7. DF-7: Missing and cutoff evaluation by format — per-format wanted/cutoff status
+8. DF-8: API resources and controllers — expose format profiles and per-format book status
+9. DF-9: Frontend format profile UI — author edit, book table, wanted pages with format controls
+10. DF-10: Rollout controls and compatibility gates — feature flag wiring, acceptance suite, runbook
 
 Measurement criteria:
 
