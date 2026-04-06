@@ -466,6 +466,13 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("CleanupMetadataImages", value); }
         }
 
+        public bool EnableDualFormatTracking
+        {
+            get { return GetValueBoolean("EnableDualFormatTracking", false); }
+
+            set { SetValue("EnableDualFormatTracking", value); }
+        }
+
         public string PlexClientIdentifier => GetValue("PlexClientIdentifier", Guid.NewGuid().ToString(), true);
 
         public string RijndaelPassphrase => GetValue("RijndaelPassphrase", Guid.NewGuid().ToString(), true);

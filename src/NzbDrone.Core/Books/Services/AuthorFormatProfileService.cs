@@ -1,0 +1,59 @@
+using System.Collections.Generic;
+using NLog;
+
+namespace NzbDrone.Core.Books
+{
+    public interface IAuthorFormatProfileService
+    {
+        List<AuthorFormatProfile> GetByAuthorId(int authorId);
+        AuthorFormatProfile GetByAuthorIdAndFormat(int authorId, FormatType formatType);
+        AuthorFormatProfile Add(AuthorFormatProfile profile);
+        AuthorFormatProfile Update(AuthorFormatProfile profile);
+        void Delete(int id);
+        void DeleteByAuthorId(int authorId);
+    }
+
+    public class AuthorFormatProfileService : IAuthorFormatProfileService
+    {
+        private readonly IAuthorFormatProfileRepository _repository;
+        private readonly Logger _logger;
+
+        public AuthorFormatProfileService(IAuthorFormatProfileRepository repository, Logger logger)
+        {
+            _repository = repository;
+            _logger = logger;
+        }
+
+        public List<AuthorFormatProfile> GetByAuthorId(int authorId)
+        {
+            return _repository.GetByAuthorId(authorId);
+        }
+
+        public AuthorFormatProfile GetByAuthorIdAndFormat(int authorId, FormatType formatType)
+        {
+            return _repository.GetByAuthorIdAndFormat(authorId, formatType);
+        }
+
+        public AuthorFormatProfile Add(AuthorFormatProfile profile)
+        {
+            _logger.Info("Adding {0} format profile for author {1}", profile.FormatType, profile.AuthorId);
+            return _repository.Insert(profile);
+        }
+
+        public AuthorFormatProfile Update(AuthorFormatProfile profile)
+        {
+            _logger.Info("Updating {0} format profile for author {1}", profile.FormatType, profile.AuthorId);
+            return _repository.Update(profile);
+        }
+
+        public void Delete(int id)
+        {
+            _repository.Delete(id);
+        }
+
+        public void DeleteByAuthorId(int authorId)
+        {
+            _repository.DeleteByAuthorId(authorId);
+        }
+    }
+}

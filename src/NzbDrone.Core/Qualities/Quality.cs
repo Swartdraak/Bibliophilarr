@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
 
 namespace NzbDrone.Core.Qualities
@@ -140,6 +141,23 @@ namespace NzbDrone.Core.Qualities
             }
 
             return quality;
+        }
+
+        public static FormatType GetFormatType(Quality quality)
+        {
+            if (quality == null)
+            {
+                return FormatType.Ebook;
+            }
+
+            // Audio qualities: MP3 (10), FLAC (11), M4B (12), UnknownAudio (13)
+            if (quality.Id >= 10 && quality.Id <= 13)
+            {
+                return FormatType.Audiobook;
+            }
+
+            // Ebook qualities: Unknown (0), PDF (1), MOBI (2), EPUB (3), AZW3 (4)
+            return FormatType.Ebook;
         }
 
         public static explicit operator Quality(int id)
