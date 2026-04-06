@@ -12,6 +12,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 {
@@ -187,6 +188,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             _logger.Debug($"Retrieved {allLocalTracks.Count} possible tracks in {watch.ElapsedMilliseconds}ms");
 
+            var preferredFormat = _configService.EnableDualFormatTracking
+                ? GetDominantFormatType(localBookRelease.LocalBooks)
+                : (FormatType?)null;
+
             if (!candidateReleases.Any())
             {
                 _logger.Debug("No local candidates found, trying remote");
@@ -200,7 +205,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 _importRunTracker.IncrementRemoteSearches(runSummary);
             }
 
-            GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out var seenCandidate);
+            GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out var seenCandidate, preferredFormat);
 
             if (!seenCandidate)
             {
@@ -229,7 +234,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
 
                 _importRunTracker.IncrementRemoteSearches(runSummary);
-                GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out _);
+                GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out _, preferredFormat);
             }
 
             _logger.Debug($"Best release found in {watch.ElapsedMilliseconds}ms");
@@ -265,14 +270,25 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _logger.Debug($"IdentifyRelease done in {watch.ElapsedMilliseconds}ms");
         }
 
-        private void GetBestRelease(LocalEdition localBookRelease, IEnumerable<CandidateEdition> candidateReleases, List<LocalBook> extraTracksOnDisk, out bool seenCandidate)
+        private void GetBestRelease(LocalEdition localBookRelease, IEnumerable<CandidateEdition> candidateReleases, List<LocalBook> extraTracksOnDisk, out bool seenCandidate, FormatType? preferredFormat = null)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
             _logger.Debug("Matching {0} track files against candidates", localBookRelease.TrackCount);
             _logger.Trace("Processing files:\n{0}", string.Join("\n", localBookRelease.LocalBooks.Select(x => x.Path)));
 
-            var bestDistance = localBookRelease.Edition != null ? localBookRelease.Distance.NormalizedDistance() : 1.0;
+            var bestEffectiveDistance = localBookRelease.Edition != null ? localBookRelease.Distance.NormalizedDistance() : 1.0;
+
+            // Apply initial format bias to existing best distance if applicable
+            if (preferredFormat.HasValue && localBookRelease.Edition != null)
+            {
+                var existingFormat = localBookRelease.Edition.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
+                if (existingFormat == preferredFormat.Value)
+                {
+                    bestEffectiveDistance -= 0.02;
+                }
+            }
+
             seenCandidate = false;
 
             foreach (var candidateRelease in candidateReleases)
@@ -294,11 +310,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 _logger.Debug("Release {0} has distance {1} vs best distance {2} [{3}ms]",
                               release,
                               currDistance,
-                              bestDistance,
+                              bestEffectiveDistance,
                               rwatch.ElapsedMilliseconds);
-                if (currDistance < bestDistance)
+
+                // Format preference: small bonus (0.02) for editions matching the
+                // file's format type, acting as a tie-breaker when distances are close.
+                var effectiveDistance = currDistance;
+                if (preferredFormat.HasValue)
                 {
-                    bestDistance = currDistance;
+                    var editionFormat = release.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
+                    if (editionFormat == preferredFormat.Value)
+                    {
+                        effectiveDistance -= 0.02;
+                    }
+                }
+
+                if (effectiveDistance < bestEffectiveDistance)
+                {
+                    bestEffectiveDistance = effectiveDistance;
                     localBookRelease.Distance = distance;
                     localBookRelease.Edition = release;
                     localBookRelease.ExistingTracks = extraTracks;
@@ -345,6 +374,33 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return false;
+        }
+
+        private static FormatType? GetDominantFormatType(List<LocalBook> localBooks)
+        {
+            if (localBooks == null || !localBooks.Any())
+            {
+                return null;
+            }
+
+            var formatTypes = localBooks
+                .Where(b => b.Quality?.Quality != null)
+                .Select(b => Quality.GetFormatType(b.Quality.Quality))
+                .ToList();
+
+            if (!formatTypes.Any())
+            {
+                return null;
+            }
+
+            // If all files share the same format, return that format
+            if (formatTypes.All(f => f == formatTypes[0]))
+            {
+                return formatTypes[0];
+            }
+
+            // Mixed format files — no preference
+            return null;
         }
     }
 }
