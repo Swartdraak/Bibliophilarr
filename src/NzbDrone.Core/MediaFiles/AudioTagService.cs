@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
@@ -184,28 +185,50 @@ namespace NzbDrone.Core.MediaFiles
 
         public void RemoveAllTags(string path)
         {
-            TagLib.File file = null;
-            try
+            const int maxRetries = 3;
+
+            for (var attempt = 0; attempt <= maxRetries; attempt++)
             {
-                file = TagLib.File.Create(path);
-                file.RemoveTags(TagLib.TagTypes.AllTags);
-                file.Save();
-            }
-            catch (CorruptFileException ex)
-            {
-                _logger.Warn(ex, $"Tag removal failed for {path}.  File is corrupt");
-            }
-            catch (Exception ex)
-            {
-                _logger.ForWarnEvent()
-                    .Exception(ex)
-                    .Message($"Tag removal failed for {path}")
-                    .WriteSentryWarn("Tag removal failed")
-                    .Log();
-            }
-            finally
-            {
-                file?.Dispose();
+                TagLib.File file = null;
+                try
+                {
+                    file = TagLib.File.Create(path);
+
+                    if (!file.Writeable)
+                    {
+                        _logger.Warn("Cannot remove tags from {0}: file is not writable. If this is an NFS mount, ensure the process user has write access (check uid/gid mapping in NAS export settings).", path);
+                        return;
+                    }
+
+                    file.RemoveTags(TagLib.TagTypes.AllTags);
+                    file.Save();
+                    return;
+                }
+                catch (IOException ex) when (attempt < maxRetries)
+                {
+                    _logger.Debug(ex, "Tag removal attempt {0} failed for {1} due to file access conflict, retrying", attempt + 1, path);
+                    file?.Dispose();
+                    file = null;
+                    Thread.Sleep(500 * (attempt + 1));
+                }
+                catch (CorruptFileException ex)
+                {
+                    _logger.Warn(ex, $"Tag removal failed for {path}.  File is corrupt");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.ForWarnEvent()
+                        .Exception(ex)
+                        .Message($"Tag removal failed for {path}")
+                        .WriteSentryWarn("Tag removal failed")
+                        .Log();
+                    return;
+                }
+                finally
+                {
+                    file?.Dispose();
+                }
             }
         }
 

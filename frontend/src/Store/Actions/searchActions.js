@@ -80,6 +80,18 @@ export const setBookAddDefault = createAction(SET_BOOK_ADD_DEFAULT);
 export const actionHandlers = handleThunks({
 
   [GET_SEARCH_RESULTS]: function(getState, payload, dispatch) {
+    const term = payload.term ? payload.term.trim() : '';
+
+    if (term.length < 3) {
+      dispatch(set({
+        section,
+        isFetching: false,
+        isPopulated: false,
+        error: null
+      }));
+      return;
+    }
+
     dispatch(set({ section, isFetching: true }));
 
     if (abortCurrentRequest) {

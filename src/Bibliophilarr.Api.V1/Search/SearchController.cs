@@ -33,7 +33,7 @@ namespace Bibliophilarr.Api.V1.Search
         [HttpGet]
         public object Search([FromQuery] string term)
         {
-            if (string.IsNullOrWhiteSpace(term))
+            if (string.IsNullOrWhiteSpace(term) || term.Trim().Length < 3)
             {
                 return new List<SearchResource>();
             }

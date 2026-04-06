@@ -138,13 +138,13 @@ class InteractiveImportModalContentConnector extends Component {
           disableReleaseSwitching
         } = item;
 
-        if (!author) {
-          this.setState({ interactiveImportErrorMessage: 'Author must be chosen for each selected file' });
+        if (!author || !author.id) {
+          this.setState({ interactiveImportErrorMessage: 'Author must be chosen for each selected file. If the author is not in your library, add them first.' });
           return false;
         }
 
-        if (!book) {
-          this.setState({ interactiveImportErrorMessage: 'Book must be chosen for each selected file' });
+        if (!book || !book.id) {
+          this.setState({ interactiveImportErrorMessage: 'Book must be chosen for each selected file. If the book is not in your library, add the author first.' });
           return false;
         }
 

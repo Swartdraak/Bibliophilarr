@@ -322,6 +322,20 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                 {
                     _logger.ProgressTrace("Processing file {0} of {1}", fileCount + 1, message.Files.Count);
 
+                    if (file.AuthorId <= 0)
+                    {
+                        _logger.Warn("Skipping import of {0}: AuthorId is not set. The author may not be in your library yet — add the author first, then retry the import.", file.Path);
+                        fileCount += 1;
+                        continue;
+                    }
+
+                    if (file.BookId <= 0)
+                    {
+                        _logger.Warn("Skipping import of {0}: BookId is not set. The book may not be in your library yet.", file.Path);
+                        fileCount += 1;
+                        continue;
+                    }
+
                     var author = _authorService.GetAuthor(file.AuthorId);
                     var book = _bookService.GetBook(file.BookId);
 
