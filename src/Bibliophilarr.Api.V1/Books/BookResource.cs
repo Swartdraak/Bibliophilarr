@@ -37,6 +37,7 @@ namespace Bibliophilarr.Api.V1.Books
         public string RemoteCover { get; set; }
         public DateTime? LastSearchTime { get; set; }
         public List<EditionResource> Editions { get; set; }
+        public List<BookFormatStatusResource> FormatStatuses { get; set; }
 
         //Hiding this so people don't think its usable (only used to set the initial state)
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -53,7 +54,7 @@ namespace Bibliophilarr.Api.V1.Books
                 return null;
             }
 
-            var selectedEdition = model.Editions?.Value.Where(x => x.Monitored).SingleOrDefault();
+            var selectedEdition = model.Editions?.Value.Where(x => x.Monitored).FirstOrDefault();
 
             var title = selectedEdition?.Title ?? model.Title;
             var authorTitle = $"{model.Author?.Value?.Metadata?.Value?.SortNameLastFirst} {title}";
@@ -61,12 +62,42 @@ namespace Bibliophilarr.Api.V1.Books
             var seriesLinks = model.SeriesLinks?.Value?.OrderBy(x => x.SeriesPosition);
             var seriesTitle = seriesLinks?.Select(x => x?.Series?.Value?.Title + (x?.Position.IsNotNullOrWhiteSpace() ?? false ? $" #{x.Position}" : string.Empty)).ConcatToString("; ");
 
+            var formatStatuses = new List<BookFormatStatusResource>();
+            var editions = model.Editions?.Value;
+            if (editions != null)
+            {
+                var ebookEditions = editions.Where(e => e.IsEbook);
+                var audiobookEditions = editions.Where(e => !e.IsEbook);
+
+                if (ebookEditions.Any())
+                {
+                    var monitoredEbook = ebookEditions.FirstOrDefault(e => e.Monitored);
+                    formatStatuses.Add(new BookFormatStatusResource
+                    {
+                        FormatType = FormatType.Ebook,
+                        Monitored = monitoredEbook != null,
+                        HasFile = monitoredEbook?.BookFiles?.Value?.Any() ?? false
+                    });
+                }
+
+                if (audiobookEditions.Any())
+                {
+                    var monitoredAudiobook = audiobookEditions.FirstOrDefault(e => e.Monitored);
+                    formatStatuses.Add(new BookFormatStatusResource
+                    {
+                        FormatType = FormatType.Audiobook,
+                        Monitored = monitoredAudiobook != null,
+                        HasFile = monitoredAudiobook?.BookFiles?.Value?.Any() ?? false
+                    });
+                }
+            }
+
             return new BookResource
             {
                 Id = model.Id,
                 AuthorId = model.AuthorId,
                 ForeignBookId = model.ForeignBookId,
-                ForeignEditionId = model.Editions?.Value?.SingleOrDefault(x => x.Monitored)?.ForeignEditionId,
+                ForeignEditionId = selectedEdition?.ForeignEditionId,
                 TitleSlug = model.TitleSlug,
                 Monitored = model.Monitored,
                 AnyEditionOk = model.AnyEditionOk,
@@ -81,7 +112,8 @@ namespace Bibliophilarr.Api.V1.Books
                 Links = model.Links.Concat(selectedEdition?.Links ?? new List<Links>()).GroupBy(l => l.Url).Select(g => g.First()).ToList(),
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,
-                LastSearchTime = model.LastSearchTime
+                LastSearchTime = model.LastSearchTime,
+                FormatStatuses = formatStatuses
             };
         }
 

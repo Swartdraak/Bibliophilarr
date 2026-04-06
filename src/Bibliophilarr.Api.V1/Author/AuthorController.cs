@@ -44,6 +44,7 @@ namespace Bibliophilarr.Api.V1.Author
         private readonly IBookService _bookService;
         private readonly IAddAuthorService _addAuthorService;
         private readonly IAuthorStatisticsService _authorStatisticsService;
+        private readonly IAuthorFormatProfileService _formatProfileService;
         private readonly IMapCoversToLocal _coverMapper;
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly IRootFolderService _rootFolderService;
@@ -53,6 +54,7 @@ namespace Bibliophilarr.Api.V1.Author
                             IBookService bookService,
                             IAddAuthorService addAuthorService,
                             IAuthorStatisticsService authorStatisticsService,
+                            IAuthorFormatProfileService formatProfileService,
                             IMapCoversToLocal coverMapper,
                             IManageCommandQueue commandQueueManager,
                             IRootFolderService rootFolderService,
@@ -72,6 +74,7 @@ namespace Bibliophilarr.Api.V1.Author
             _bookService = bookService;
             _addAuthorService = addAuthorService;
             _authorStatisticsService = authorStatisticsService;
+            _formatProfileService = formatProfileService;
 
             _coverMapper = coverMapper;
             _commandQueueManager = commandQueueManager;
@@ -122,8 +125,8 @@ namespace Bibliophilarr.Api.V1.Author
             MapCoversToLocal(resource);
             FetchAndLinkAuthorStatistics(resource);
             LinkNextPreviousBooks(resource);
-
             LinkRootFolderPath(resource);
+            LinkFormatProfiles(resource);
 
             return resource;
         }
@@ -138,6 +141,7 @@ namespace Bibliophilarr.Api.V1.Author
             LinkNextPreviousBooks(authorResources.ToArray());
             LinkAuthorStatistics(authorResources, authorStats.ToDictionary(x => x.AuthorId));
             LinkRootFolderPath(authorResources.ToArray());
+            LinkFormatProfiles(authorResources.ToArray());
 
             return authorResources;
         }
@@ -232,6 +236,17 @@ namespace Bibliophilarr.Api.V1.Author
             foreach (var author in authors)
             {
                 author.RootFolderPath = _rootFolderService.GetBestRootFolderPath(author.Path, rootFolders);
+            }
+        }
+
+        private void LinkFormatProfiles(params AuthorResource[] authors)
+        {
+            foreach (var author in authors)
+            {
+                if (author.Id > 0)
+                {
+                    author.FormatProfiles = _formatProfileService.GetByAuthorId(author.Id).ToResource();
+                }
             }
         }
 

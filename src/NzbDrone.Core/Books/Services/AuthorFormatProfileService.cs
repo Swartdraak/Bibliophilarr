@@ -5,6 +5,7 @@ namespace NzbDrone.Core.Books
 {
     public interface IAuthorFormatProfileService
     {
+        AuthorFormatProfile Get(int id);
         List<AuthorFormatProfile> GetByAuthorId(int authorId);
         AuthorFormatProfile GetByAuthorIdAndFormat(int authorId, FormatType formatType);
         AuthorFormatProfile Add(AuthorFormatProfile profile);
@@ -22,6 +23,11 @@ namespace NzbDrone.Core.Books
         {
             _repository = repository;
             _logger = logger;
+        }
+
+        public AuthorFormatProfile Get(int id)
+        {
+            return _repository.Get(id);
         }
 
         public List<AuthorFormatProfile> GetByAuthorId(int authorId)
