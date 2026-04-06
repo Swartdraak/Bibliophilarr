@@ -109,6 +109,55 @@ class VirtualTable extends Component {
     });
   };
 
+  onKeyDown = (event) => {
+    const {
+      items,
+      rowHeight,
+      headerHeight,
+      isSmallScreen,
+      scroller
+    } = this.props;
+
+    const scrollContainer = isSmallScreen ? document.documentElement : scroller;
+    if (!scrollContainer || !items.length) {
+      return;
+    }
+
+    const rowHeightValue = typeof rowHeight === 'function' ? rowHeight({ index: 0 }) : rowHeight;
+    const viewportHeight = scrollContainer.clientHeight || window.innerHeight;
+    const maxScrollTop = (items.length * rowHeightValue) + headerHeight;
+
+    let handled = true;
+
+    switch (event.key) {
+      case 'ArrowDown':
+        scrollContainer.scrollTop = Math.min(scrollContainer.scrollTop + rowHeightValue, maxScrollTop);
+        break;
+      case 'ArrowUp':
+        scrollContainer.scrollTop = Math.max(scrollContainer.scrollTop - rowHeightValue, 0);
+        break;
+      case 'PageDown':
+        scrollContainer.scrollTop = Math.min(scrollContainer.scrollTop + viewportHeight, maxScrollTop);
+        break;
+      case 'PageUp':
+        scrollContainer.scrollTop = Math.max(scrollContainer.scrollTop - viewportHeight, 0);
+        break;
+      case 'Home':
+        scrollContainer.scrollTop = 0;
+        break;
+      case 'End':
+        scrollContainer.scrollTop = maxScrollTop;
+        break;
+      default:
+        handled = false;
+        break;
+    }
+
+    if (handled) {
+      event.preventDefault();
+    }
+  };
+
   //
   // Render
 
@@ -161,6 +210,9 @@ class VirtualTable extends Component {
                 className={className}
                 scrollDirection={scrollDirections.HORIZONTAL}
                 role="grid"
+                tabIndex={0}
+                aria-rowcount={items.length}
+                onKeyDown={this.onKeyDown}
               >
                 {header}
                 <div ref={registerChild}>

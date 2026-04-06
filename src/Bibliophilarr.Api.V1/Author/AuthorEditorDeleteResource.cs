@@ -1,10 +1,9 @@
 using System.Collections.Generic;
 
-namespace Bibliophilarr.Api.V1.Author
+namespace Bibliophilarr.Api.V1.Author;
+
+public class AuthorEditorDeleteResource
 {
-    public class AuthorEditorDeleteResource
-    {
-        public List<int> AuthorIds { get; set; }
-        public bool DeleteFiles { get; set; }
-    }
+    public List<int> AuthorIds { get; set; }
+    public bool DeleteFiles { get; set; }
 }

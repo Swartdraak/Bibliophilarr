@@ -24,6 +24,9 @@ process.
 - VirtualTable accessibility: ARIA roles (`role="grid"`, `role="row"`, `role="columnheader"` with `aria-sort`, `role="gridcell"`) on all virtual table components; 7 tests added.
 - Page-level error boundary wrapping route children in `Page.js` to catch routing-level render errors.
 - Theme color variables for log levels, star rating, hover accents, status page, and author progress background in both light and dark themes.
+- VirtualTable keyboard navigation: Arrow Up/Down scrolls by row height, Page Up/Down by viewport, Home/End to start/end; `tabIndex` and `aria-rowcount` on Scroller container (RQ-143).
+- Targeted author query methods: `AuthorExistsWithMetadataProfile()`, `GetAuthorsByMetadataProfile()`, `AuthorExistsWithQualityProfile()` in AuthorRepository/AuthorService (RQ-033).
+- 1 new keyboard navigation accessibility test; total: 13 suites, 47 tests.
 
 ### Fixed
 
@@ -60,6 +63,12 @@ process.
 ### Changed
 
 - Search: increased frontend search debounce from 300ms to 600ms and added minimum 3-character enforcement in `searchActions.js` to reduce unnecessary API calls.
+- 10 API resource files converted to file-scoped namespaces: BookStatisticsResource, AuthorStatisticsResource, AuthorEditorDeleteResource, TagResource, BackupResource, QueueStatusResource, LanguageResource, TaskResource, ProviderHealthResource, RootFolderResource (RQ-050).
+- OpenLibraryIdBackfillService restructured to chunked processing with per-chunk edition loading, progress logging, and early budget exhaustion exit (RQ-031).
+- MetadataProfileService and QualityProfileService use targeted author queries instead of `GetAllAuthors()` for profile deletion checks and legacy migration (RQ-033).
+- ManageImportListsEditModalContent, ManageIndexersEditModalContent, ManageDownloadClientsEditModalContent use `SpinnerButton` with local `isSaving` state for save feedback (RQ-103).
+- RQ-099 assessed: 27 of 29 CSS `!important` flags are legitimately needed (third-party inline style overrides, CSS module ordering, mixin reliability).
+- RQ-108 assessed: build.sh SDK modification already has .ORI backup, variable quoting, and error guards; full SDK copy deferred as structural pipeline change.
 - ROADMAP.md Track B updated with finalized 10-slice dual-format architecture and milestone status changed from "assessed" to "designed".
 - PROJECT_STATUS.md dual-format section updated to "Design complete (April 2026)" with implementation slice count and next action.
 

@@ -86,7 +86,7 @@ namespace NzbDrone.Core.Profiles.Metadata
             var profile = _profileRepository.Get(id);
 
             if (profile.Name == NONE_PROFILE_NAME ||
-                _authorService.GetAllAuthors().Any(c => c.MetadataProfileId == id) ||
+                _authorService.AuthorExistsWithMetadataProfile(id) ||
                 _importListFactory.All().Any(c => c.MetadataProfileId == id) ||
                 _rootFolderService.All().Any(c => c.DefaultMetadataProfileId == id))
             {
@@ -277,7 +277,7 @@ namespace NzbDrone.Core.Profiles.Metadata
                 _logger.Info("Removing legacy OpenLibrary metadata profile");
 
                 // Check if any authors/root folders use it and migrate them to Standard
-                var authorsUsingProfile = _authorService.GetAllAuthors().Where(a => a.MetadataProfileId == openLibraryProfile.Id).ToList();
+                var authorsUsingProfile = _authorService.GetAuthorsByMetadataProfile(openLibraryProfile.Id);
                 var rootFoldersUsingProfile = _rootFolderService.All().Where(r => r.DefaultMetadataProfileId == openLibraryProfile.Id).ToList();
 
                 if (standardProfile != null && (authorsUsingProfile.Any() || rootFoldersUsingProfile.Any()))

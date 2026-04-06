@@ -276,7 +276,7 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 | Component patterns | ~65% class, ~35% functional | ~5% TypeScript (.tsx) |
 | Styling | CSS Modules + JS theme variables | Light/dark themes, 5 breakpoints, color-impaired mode |
 | Component library | Custom (40+ components) | No external library (MUI, etc.) |
-| Accessibility | Minimal | FocusLock in modals, some aria-label; no ARIA roles on tables/live regions |
+| Accessibility | Improved | FocusLock in modals, ARIA roles on VirtualTable, keyboard navigation (Arrow/Page/Home/End), aria-sort on sortable headers |
 | Loading UX | Spinners only | No skeleton screens or content placeholders |
 | Error handling | ErrorBoundary in modals + page layout | Page-level boundary added; no toast notifications yet |
 | Animation | CSS-only | No animation library; transitions work but limited |
@@ -285,7 +285,7 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 
 **Recommended modernization priorities** (sequenced for incremental delivery):
 
-1. **Accessibility hardening** (Low effort, high impact) — ~~Add ARIA roles to tables (`role="grid"`)~~, live regions for dynamic updates, `aria-describedby` for form errors. Can be done incrementally without React 18. **PARTIAL** — VirtualTable grid/row/cell/columnheader roles added with `aria-sort` on sortable headers; 7 ARIA tests added.
+1. **Accessibility hardening** (Low effort, high impact) — ~~Add ARIA roles to tables (`role="grid"`)~~, live regions for dynamic updates, `aria-describedby` for form errors. Can be done incrementally without React 18. **PARTIAL** — VirtualTable grid/row/cell/columnheader roles added with `aria-sort` on sortable headers; keyboard navigation (Arrow Up/Down, Page Up/Down, Home/End) added; 8 ARIA/accessibility tests.
 
 2. **Skeleton screens for loading states** (Medium effort) — Replace spinner-only loading with content placeholders for author index, book details, calendar. Improves perceived performance.
 

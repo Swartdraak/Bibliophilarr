@@ -3,6 +3,7 @@ import FormGroup from 'Components/Form/FormGroup';
 import FormInputGroup from 'Components/Form/FormInputGroup';
 import FormLabel from 'Components/Form/FormLabel';
 import Button from 'Components/Link/Button';
+import SpinnerButton from 'Components/Link/SpinnerButton';
 import ModalBody from 'Components/Modal/ModalBody';
 import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
@@ -58,6 +59,7 @@ function ManageIndexersEditModalContent(
   const [enableInteractiveSearch, setEnableInteractiveSearch] =
     useState(NO_CHANGE);
   const [priority, setPriority] = useState<null | string | number>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const save = useCallback(() => {
     let hasChanges = false;
@@ -84,6 +86,7 @@ function ManageIndexersEditModalContent(
     }
 
     if (hasChanges) {
+      setIsSaving(true);
       onSavePress(payload);
     }
 
@@ -186,7 +189,7 @@ function ManageIndexersEditModalContent(
         <div>
           <Button onPress={onModalClose}>{translate('Cancel')}</Button>
 
-          <Button onPress={save}>{translate('ApplyChanges')}</Button>
+          <SpinnerButton isSpinning={isSaving} onPress={save}>{translate('ApplyChanges')}</SpinnerButton>
         </div>
       </ModalFooter>
     </ModalContent>
