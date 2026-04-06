@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: April 5, 2026 (Node 22 migration, change management codification, Docker/CI/branding milestones completed)
+**Last Updated**: April 6, 2026 (Node 22 migration, change management codification, Docker/CI/branding milestones completed)
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -150,7 +150,7 @@ according to EOL urgency, coupling risk, and prerequisite dependencies.
 | ID | Component | Current → Target | Dependabot PR | Category | Effort | Prerequisites | Target phase | Status |
 |---|---|---|---|---|---|---|---|---|
 | DMQ-001 | `dotnet/sdk` Docker image | 8.0 → 10.0 | [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) | Backend / Docker | High | DMQ-002, net8.0→net10.0 TFM migration across 24 projects | Phase 7 | planned |
-| DMQ-002 | `dotnet/aspnet` Docker image | 8.0 → 10.0 | [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) | Backend / Docker | High | .NET 10 GA release (Nov 2025 — now available), TFM migration, runtime compatibility validation | Phase 7 | planned |
+| DMQ-002 | `dotnet/aspnet` Docker image | 8.0 → 10.0 | [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) | Backend / Docker | High | .NET 10 GA release, TFM migration, runtime compatibility validation | Phase 7 | planned |
 | DMQ-003 | `react-router-dom` | 5.3.4 → 6.x | [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) | Frontend | High | React 18 upgrade (DMQ-007 / RQ-159), remove `connected-react-router`, migrate Switch→Routes, class→hooks | Phase 7 | planned |
 | DMQ-004 | `react-google-recaptcha` | 2.1.0 → 3.x | [#36](https://github.com/Swartdraak/Bibliophilarr/pull/36) | Frontend | Medium | React 18 upgrade, reCAPTCHA v3 API integration | Phase 7 | planned |
 | DMQ-005 | `stylelint` | 15.11.0 → 16.x | [#39](https://github.com/Swartdraak/Bibliophilarr/pull/39) | Frontend / CI | Medium | Migrate config format, update plugin compatibility, validate all CSS rules | Phase 6-7 | **complete** |
@@ -180,7 +180,7 @@ Phase 7 (requires React 18 first):
 
 - Each migration gets a dedicated feature branch with its own PR.
 - Migrations with test-only impact (DMQ-005, DMQ-006) can proceed independently.
-- .NET 10 migrations (DMQ-001, DMQ-002) are blocked until .NET 10 LTS reaches GA.
+- .NET 10 migrations (DMQ-001, DMQ-002) are available for scheduling now that .NET 10 LTS has reached GA; blocked by TFM migration scope.
 - Frontend migrations (DMQ-003, DMQ-004) are sequenced after React 18 upgrade (RQ-159).
 - FluentMigrator pair (DMQ-007, DMQ-008) must ship as a single coordinated change.
 - Re-open Dependabot PRs or create fresh PRs against the target version available at migration time.
@@ -321,14 +321,14 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 6. Reassess whether packaging validation can safely move onto `main` after installation paths are fully validated.
 7. Promote TD-META-001..005 behaviors into release-entry evidence capture, including provider telemetry and conflict-score snapshots.
 8. Add end-to-end metadata parity rehearsal on production-shaped datasets with explicit pass/fail thresholds for catalog retention and match-rate drift.
-9. Close remaining high-priority failing Core baseline tests that impact metadata import quality signals.
+9. ~~Close remaining high-priority failing Core baseline tests that impact metadata import quality signals.~~ **COMPLETED** — Core test suite passes 2703/2703 with 0 failures.
 10. ~~Execute Docker hardening slice: pin base images to digests, add Node checksum verification, non-root runtime user, HEALTHCHECK, OCI labels, image scanning, SBOM. Remediation items RQ-004, RQ-005, RQ-023, RQ-024, RQ-059, RQ-111, RQ-112 from PROJECT_STATUS.md audit queue.~~ **COMPLETED**
 11. ~~Pin third-party GitHub Actions to exact versions or commit SHAs; standardize workflow permissions to job-level; centralize version pins across global.json, Dockerfile, and workflows. Remediation items RQ-015, RQ-016, RQ-036, RQ-037, RQ-039, RQ-109, RQ-110, RQ-114 from audit queue.~~ **COMPLETED**
 12. Begin async migration: convert highest-risk sync-over-async sites (HttpClient, BookSearchService, EpubReader) to true async/await; propagate CancellationToken to middleware and core services. Remediation items RQ-003, RQ-018, RQ-020, RQ-021.
-13. Install frontend test infrastructure (jest, @testing-library/react); write initial test suite covering search, import modal, and metadata mapping flows; add CI enforcement step. Remediation items RQ-066, RQ-042, RQ-043, RQ-106.
+13. ~~Install frontend test infrastructure (jest, @testing-library/react); write initial test suite covering search, import modal, and metadata mapping flows; add CI enforcement step. Remediation items RQ-066, RQ-042, RQ-043, RQ-106.~~ **COMPLETED** — Jest 30.3.0 + @testing-library/react 12.1.5 installed; 9 test suites (19 tests) covering search, metadata providers, utilities, components; CI enforcement in `ci-frontend.yml`.
 14. ~~Plan and execute RestSharp 106 → HttpClient migration behind interface wrapper; update provider clients. Remediation items RQ-064, RQ-157.~~ **COMPLETED** — RestSharp fully removed, replaced by `System.Net.Http.HttpClient`.
-15. Add security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); validate API inputs at controller boundary. Remediation items RQ-086, RQ-087, RQ-175.
-16. Execute documentation normalization pass: fix MIGRATION_PLAN.md duplicate H2 headings, update stale references, archive dated operational docs, align wiki with ROADMAP phases. Remediation items RQ-007, RQ-048, RQ-044, RQ-047, RQ-079, RQ-080, RQ-121-RQ-125.
+15. ~~Add security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); validate API inputs at controller boundary. Remediation items RQ-086, RQ-087, RQ-175.~~ **COMPLETED** — `SecurityHeadersMiddleware` added with CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy; search/parse input validation guards added.
+16. ~~Execute documentation normalization pass: fix MIGRATION_PLAN.md duplicate H2 headings, update stale references, archive dated operational docs, align wiki with ROADMAP phases. Remediation items RQ-007, RQ-048, RQ-044, RQ-047, RQ-079, RQ-080, RQ-121-RQ-125.~~ **COMPLETED** — all 11 RQ items fixed: H2 deduplication, wiki alignment, archive banners, stale references updated.
 17. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.
 18. Plan React 18 upgrade path: audit breaking changes, upgrade @testing-library, remove `react-addons-shallow-compare`, begin `connected-react-router` removal. Remediation items RQ-068, RQ-069, RQ-159.
 19. ~~Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.~~ **IMPLEMENTED** — all 10 slices (DF-1 through DF-10) complete. Feature-flagged via `EnableDualFormatTracking` (Settings > Media Management > Dual Format). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).

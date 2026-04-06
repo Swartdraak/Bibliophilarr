@@ -15,9 +15,10 @@ while preserving reliable ebook and audiobook library automation.
 ## Current status
 
 The repository is operating in Phase 5 consolidation with Phase 6 hardening
-active. Metadata delivery uses Hardcover as the primary provider, Open Library
-as secondary coverage, and config-driven fallback, telemetry, diagnostics, and
-rollout controls.
+active. The v1.0.0 release is published and available via GitHub Releases,
+Docker (GHCR), and npm. Metadata delivery uses Hardcover as the primary
+provider, Open Library as secondary coverage, and config-driven fallback,
+telemetry, diagnostics, and rollout controls.
 
 Use the core docs as the authoritative set:
 
@@ -44,8 +45,9 @@ maintained here include:
 - Calibre integration for library and conversion workflows
 - metadata search and refresh across supported providers
 
-Only one edition type is supported per instance. Run separate instances if you
-need both ebook and audiobook management for the same title.
+Dual-format tracking (ebook + audiobook under one author/instance) is available
+as an opt-in feature via Settings > Media Management > Dual Format. See
+[MIGRATION_PLAN.md](MIGRATION_PLAN.md) for architecture details.
 
 ## Installation
 

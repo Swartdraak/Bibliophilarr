@@ -321,7 +321,7 @@ Next migration slices (priority order):
 4. Identification fallback quality expansion with richer candidate-rejection telemetry.
 5. Frontend interaction audit for author index jump-bar and related click handlers.
 6. Import throughput optimization for production-shaped libraries (instrumentation + phased execution + bounded concurrency).
-7. Single-instance dual-format management for ebook/audiobook variants per title.
+7. ~~Single-instance dual-format management for ebook/audiobook variants per title.~~ **DONE** — all 10 slices (DF-1 through DF-10) implemented.
 
 Additional migration progress (March 18, 2026):
 
@@ -457,7 +457,7 @@ Measurement plan:
 
 #### TD-DUAL-FORMAT-001: Single-instance ebook and audiobook variant management
 
-**Status**: Detailed design complete (April 2026). Implementation not yet started.
+**Status**: Implementation complete (April 2026). All 10 slices (DF-1 through DF-10) delivered and feature-flagged via `EnableDualFormatTracking`.
 
 ##### Objective
 

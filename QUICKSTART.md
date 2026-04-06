@@ -290,6 +290,22 @@ Restore uses the committed [src/NuGet.config](src/NuGet.config), which includes
 the Servarr package feeds required for FluentMigrator, SQLite, Mono.Posix, and
 other fork-specific dependencies.
 
+## Dual-format tracking
+
+Bibliophilarr supports tracking both ebook and audiobook editions for the same
+author/title in a single instance. The feature is opt-in:
+
+1. Navigate to Settings > Media Management > Dual Format (advanced settings).
+2. Enable the "Enable Dual Format Tracking" toggle.
+3. Configure per-author format profiles via the author edit modal.
+
+When enabled, each author can have separate quality profiles, root folders,
+tags, and monitoring state for ebook and audiobook formats. When disabled,
+legacy single-format behavior is preserved exactly.
+
+See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) (TD-DUAL-FORMAT-001) for full
+architecture details.
+
 ## References
 
 1. [package.json](package.json) — root frontend commands and toolchain versions.

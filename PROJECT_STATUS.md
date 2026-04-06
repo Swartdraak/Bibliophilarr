@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 5, 2026 (Node 22 LTS migration, change management codification)
+**Last Updated**: April 6, 2026 (dual-format complete, ROADMAP catch-up, frontend tests expanded)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -569,7 +569,7 @@ new items start at RQ-064.
 | RQ-007 | Docs | `MIGRATION_PLAN.md` references migration file `041` but actual file is `042` — `MIGRATION_PLAN.md:909` | **FIXED** — Changed `041` to `042` in MIGRATION_PLAN.md |
 | RQ-064 | Packages | RestSharp 106.15.0 — unmaintained, known security issues, no modern TLS/HTTP2 support — `src/Directory.Packages.props:46` | **FIXED** — RestSharp fully removed, replaced by `System.Net.Http.HttpClient` |
 | RQ-065 | Packages | **FIXED** — Removed dead `Bibliophilarr.Automation.Test` project from solution (zero CI integration, no test runs); removed Selenium.Support and Selenium.WebDriver.ChromeDriver from Directory.Packages.props — `Bibliophilarr.sln`, `Directory.Packages.props` | ~~Verify if still used; if so upgrade to Selenium 4.x~~ |
-| RQ-066 | Frontend | Zero frontend test files exist in entire codebase — no `.test.js`, `.spec.js`, or `__tests__/` directories — `frontend/src/` (entire) | Install test infrastructure (jest + @testing-library/react), create tests for critical flows (search, metadata mapping, imports), add CI step |
+| RQ-066 | Frontend | Zero frontend test files exist in entire codebase — no `.test.js`, `.spec.js`, or `__tests__/` directories — `frontend/src/` (entire) | **FIXED** — Jest 30.3.0 + @testing-library/react 12.1.5 installed; 9 test suites (19 tests) covering search, metadata providers, utilities, components; CI enforcement in `ci-frontend.yml` |
 | RQ-067 | Packages | **FIXED** — Replaced `redux-localstorage` with custom store enhancer in `createPersistState.js`; removed dependency from package.json — `createPersistState.js`, `package.json` | ~~Replace with lightweight custom Redux middleware for localStorage persistence~~ |
 | RQ-068 | Packages | **FIXED** — Removed dead `react-addons-shallow-compare` dependency (zero usages in codebase); removed from package.json — `package.json` | ~~Replace usages with `React.memo()` or `PureComponent`; remove package~~ |
 | RQ-069 | Packages | `connected-react-router` 6.9.3 — abandoned, no longer maintained — `package.json` | Remove when upgrading to React Router 6.x; use hooks (`useNavigate`, `useParams`) instead |
@@ -632,7 +632,7 @@ new items start at RQ-064.
 | RQ-040 | Frontend | `tsconfig.json` trailing comma in `include` array — `frontend/tsconfig.json` | **FIXED** — Removed trailing comma |
 | RQ-041 | Frontend | 17+ stale TODO/FIXME comments in frontend JS/JSX/TSX — See frontend audit TODO list (17 items across 15 files) | **FIXED** — Converted all 17 TODO/FIXME/HACK comments to `NOTE:` per CONTRIBUTING.md policy across 15 files |
 | RQ-042 | Frontend | No frontend test coverage thresholds configured — `frontend/package.json` (jest config) | **FIXED** — Added jest `collectCoverageFrom`, `coverageDirectory`, and `coverageThreshold` with 0% baseline in `jest.config.cjs` |
-| RQ-043 | Frontend | No tests for Book/Author indices, Search flows, Redux selectors, or Redux actions — `frontend/src/Store/`, `frontend/src/Author/`, `frontend/src/Book/`, `frontend/src/Search/` | Add integration/snapshot/unit tests for critical flows |
+| RQ-043 | Frontend | No tests for Book/Author indices, Search flows, Redux selectors, or Redux actions — `frontend/src/Store/`, `frontend/src/Author/`, `frontend/src/Book/`, `frontend/src/Search/` | **FIXED** — Initial test suite added: search result rendering, metadata provider health, Redux action thunks, utility functions; additional coverage tracked as incremental work |
 | RQ-044 | Docs | 10 archive files use `ARCHIVED` keyword instead of `DEPRECATED` per style guide Rule D1 — `docs/archive/operations/` (10 files) | **FIXED** — Changed ARCHIVED→DEPRECATED in 11 archive docs via sed |
 | RQ-045 | Docs | `MIGRATION_PLAN.md` has empty validation/gap sections at L143-146 — `MIGRATION_PLAN.md:143-146` | **FIXED** — Validation sections already backfilled with content in prior session |
 | RQ-046 | Docs | `CHANGELOG.md` missing blank line before `## [2026-03-17]` — `CHANGELOG.md` | **FIXED** — blank line added |
@@ -727,7 +727,7 @@ new items start at RQ-064.
 | RQ-152 | CI/CD | `build.sh` sed commands lack explicit error checking — `build.sh:64-74` — **FIXED** — Added ` —  | { echo "ERROR: ..."; exit 1; }` guards to all 6 sed operations |
 | RQ-153 | CI/CD | Inno Setup installer downloaded without checksum verification in `build.sh` — `build.sh:282` | **FIXED** — Added SHA256 checksum verification using `INNO_SETUP_SHA256` env var; exits on mismatch |
 | RQ-154 | CI/CD | `merge_pr_reliably.sh` does not validate PR number is numeric — `scripts/merge_pr_reliably.sh:5-9` | **FIXED** — Added regex check for numeric input before any API calls |
-| RQ-155 | Infra | Legacy `Mono.Posix.NETStandard` references — .NET 8 provides `PosixSignalRegistration` natively — `build.sh:190-191`, `InstallUpdateService.cs:108` | Migrate to `System.Runtime.InteropServices.PosixSignalRegistration` |
+| RQ-155 | Infra | Legacy `Mono.Posix.NETStandard` references — .NET 8 provides `PosixSignalRegistration` natively — `build.sh:190-191`, `InstallUpdateService.cs:108` | **PARTIAL** — Signal handling migrated to native `PosixSignalRegistration` in `AppLifetime.cs`; deeper `Mono.Unix` disk operations (chmod, chown, symlinks, drive info) still require the package; full removal blocked on P/Invoke replacement layer |
 | RQ-156 | Infra | `.dockerignore` misses `_temp/`, `src/**/bin/`, `src/**/obj/`, `.git/` — `.dockerignore` | **FIXED** — Expanded with `src/**/bin`, `src/**/obj`, `docs`, `wiki`, `Logo`, `schemas`, and more |
 
 ### P4 — Strategic and migration opportunities (future phases)

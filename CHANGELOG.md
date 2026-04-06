@@ -283,7 +283,7 @@ process.
 - Removed `frontend/src/Shared/piwikCheck.js`: legacy Sonarr Piwik analytics script that loaded a tracking beacon from `piwik.sonarr.tv`. No Bibliophilarr analytics replacement needed; the backend `IAnalyticsService` (install-activity telemetry for update checks) is unaffected.
 - Removed `azure-pipelines.yml` (1,251 lines): legacy Readarr Azure DevOps pipeline. GitHub Actions is the sole authoritative CI system; the Azure config was never adapted for Bibliophilarr and caused dual-CI confusion.
 
-## [2026-03-17]
+## [0.9.0] - 2026-03-17
 
 - Fixed ConfigService property setters: removed clamping logic from `IsbnContextFallbackLimit` and `BookImportMatchThresholdPercent` to preserve exact config values (validation moved to API controller layer).
 - Fixed 16 test fixture failures across 6 core test suites:
