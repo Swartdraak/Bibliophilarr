@@ -21,6 +21,9 @@ process.
 - **DF-10**: Rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle (Settings > Media Management > Dual Format, advanced settings).
 - Frontend test suite expanded: 3 new test suites (AuthorFormatProfileEditor, InteractiveImport validation, authorFormatProfileActions) with 20 new tests. Total: 12 suites, 39 tests.
 - Container resource limits documentation: sizing table in QUICKSTART.md and `deploy.resources` block in docker-compose.local.yml (RQ-169).
+- VirtualTable accessibility: ARIA roles (`role="grid"`, `role="row"`, `role="columnheader"` with `aria-sort`, `role="gridcell"`) on all virtual table components; 7 tests added.
+- Page-level error boundary wrapping route children in `Page.js` to catch routing-level render errors.
+- Theme color variables for log levels, star rating, hover accents, status page, and author progress background in both light and dark themes.
 
 ### Fixed
 
@@ -28,6 +31,15 @@ process.
 - ROADMAP milestone table: Frontend test infrastructure and Documentation normalization now marked complete (was still showing "planned").
 - Documentation drift: MIGRATION_PLAN.md status updated from "not yet started" to "implementation complete" for TD-DUAL-FORMAT-001.
 - README.md updated to mention dual-format tracking and v1.0.0 release; removed stale "run separate instances" advice.
+
+### Removed
+
+- Unused `react-async-script` dependency (RQ-137).
+
+### Changed
+
+- Hardcoded CSS hex colors replaced with theme variables across 8 files: LogsTableRow, StarRating, FormInputHelpText, AuthorDetails, AuthorDetailsHeader, Status, AuthorIndexProgressBar, AuthorIndexPoster (RQ-100).
+- Z-index `9999` in DragPreviewLayer.css replaced with `$dragLayerZIndex` PostCSS variable (RQ-101).
 - QUICKSTART.md now includes dual-format tracking enablement guide.
 - CHANGELOG.md entry `[2026-03-17]` assigned version `[0.9.0]` per Keep a Changelog format.
 - ROADMAP.md: DMQ-002 sequencing language corrected (.NET 10 GA available, no longer "blocked"); items #9, #13, #15, #16 marked COMPLETED.

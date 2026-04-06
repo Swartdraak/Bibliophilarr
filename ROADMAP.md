@@ -278,18 +278,18 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 | Component library | Custom (40+ components) | No external library (MUI, etc.) |
 | Accessibility | Minimal | FocusLock in modals, some aria-label; no ARIA roles on tables/live regions |
 | Loading UX | Spinners only | No skeleton screens or content placeholders |
-| Error handling | ErrorBoundary in modals | No page-level boundaries, no toast notifications |
+| Error handling | ErrorBoundary in modals + page layout | Page-level boundary added; no toast notifications yet |
 | Animation | CSS-only | No animation library; transitions work but limited |
 | State management | Redux 4 + connect() HOC | 224 connectors, reselect for memoization, no Context API |
 | Icons | FontAwesome 6.7.2 | 100+ named exports, tree-shaken |
 
 **Recommended modernization priorities** (sequenced for incremental delivery):
 
-1. **Accessibility hardening** (Low effort, high impact) — Add ARIA roles to tables (`role="grid"`), live regions for dynamic updates, `aria-describedby` for form errors. Can be done incrementally without React 18.
+1. **Accessibility hardening** (Low effort, high impact) — ~~Add ARIA roles to tables (`role="grid"`)~~, live regions for dynamic updates, `aria-describedby` for form errors. Can be done incrementally without React 18. **PARTIAL** — VirtualTable grid/row/cell/columnheader roles added with `aria-sort` on sortable headers; 7 ARIA tests added.
 
 2. **Skeleton screens for loading states** (Medium effort) — Replace spinner-only loading with content placeholders for author index, book details, calendar. Improves perceived performance.
 
-3. **Error boundary expansion** (Low effort) — Add page-level error boundaries beyond current modal-only coverage. Add toast notification system for non-blocking errors.
+3. **Error boundary expansion** (Low effort) — ~~Add page-level error boundaries beyond current modal-only coverage.~~ Add toast notification system for non-blocking errors. **PARTIAL** — Page-level `ErrorBoundary` wrapping route children in `Page.js`; toast system still pending.
 
 4. **TypeScript expansion** (Ongoing, medium effort) — Convert new/touched components to .tsx. Focus on Store/Actions (type-safe reducers), Utilities, and high-reuse Components first. Currently ~5%.
 

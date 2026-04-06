@@ -160,6 +160,7 @@ class VirtualTable extends Component {
               <Scroller
                 className={className}
                 scrollDirection={scrollDirections.HORIZONTAL}
+                role="grid"
               >
                 {header}
                 <div ref={registerChild}>

@@ -7,7 +7,7 @@
 .backStar {
   position: relative;
   display: flex;
-  color: #515253;
+  color: var(--starBackColor);
 }
 
 .frontStar {
@@ -15,5 +15,5 @@
   top: 0;
   display: flex;
   overflow: hidden;
-  color: #ffbc0b;
+  color: var(--starFrontColor);
 }
