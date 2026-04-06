@@ -19,6 +19,15 @@ process.
 - **DF-8**: API resources and controllers — `AuthorFormatProfileResource` with CRUD controller, `BookFormatStatusResource` for per-format book status, format profiles linked in `AuthorResource` and `BookResource`. Fixed `SingleOrDefault` crash in `BookResource` mapper for dual-format editions. 9/9 tests pass.
 - **DF-9**: Frontend format profile UI — author edit modal format profile display, detail header format badges with book/audiobook icons, `authorFormatProfileActions` Redux store module.
 - **DF-10**: Rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle (Settings > Media Management > Dual Format, advanced settings).
+- Frontend test suite expanded: 3 new test suites (AuthorFormatProfileEditor, InteractiveImport validation, authorFormatProfileActions) with 20 new tests. Total: 12 suites, 39 tests.
+
+### Fixed
+
+- Documentation drift: MIGRATION_PLAN.md status updated from "not yet started" to "implementation complete" for TD-DUAL-FORMAT-001.
+- README.md updated to mention dual-format tracking and v1.0.0 release; removed stale "run separate instances" advice.
+- QUICKSTART.md now includes dual-format tracking enablement guide.
+- CHANGELOG.md entry `[2026-03-17]` assigned version `[0.9.0]` per Keep a Changelog format.
+- ROADMAP.md: DMQ-002 sequencing language corrected (.NET 10 GA available, no longer "blocked"); items #9, #13, #15, #16 marked COMPLETED.
 - Import run summary telemetry (Slice A1): structured per-run metrics for files scanned/filtered, match quality distribution, stage timing, throughput, and match rate. Logged at Info level on each import run completion.
 - Commit message convention (Conventional Commits format) with type/scope rules, branch naming convention, and production readiness expectations in `CONTRIBUTING.md`.
 - Release gate checklist in `CONTRIBUTING.md` enforcing CI, CHANGELOG, artifact, and rollback verification before tagging releases.
