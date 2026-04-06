@@ -20,9 +20,12 @@ process.
 - **DF-9**: Frontend format profile UI — author edit modal format profile display, detail header format badges with book/audiobook icons, `authorFormatProfileActions` Redux store module.
 - **DF-10**: Rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle (Settings > Media Management > Dual Format, advanced settings).
 - Frontend test suite expanded: 3 new test suites (AuthorFormatProfileEditor, InteractiveImport validation, authorFormatProfileActions) with 20 new tests. Total: 12 suites, 39 tests.
+- Container resource limits documentation: sizing table in QUICKSTART.md and `deploy.resources` block in docker-compose.local.yml (RQ-169).
 
 ### Fixed
 
+- Heading case normalized to sentence case across ROADMAP.md, PROJECT_STATUS.md, MIGRATION_PLAN.md, QUICKSTART.md, README.md, and 3 wiki files per docs-style rule (RQ-147).
+- ROADMAP milestone table: Frontend test infrastructure and Documentation normalization now marked complete (was still showing "planned").
 - Documentation drift: MIGRATION_PLAN.md status updated from "not yet started" to "implementation complete" for TD-DUAL-FORMAT-001.
 - README.md updated to mention dual-format tracking and v1.0.0 release; removed stale "run separate instances" advice.
 - QUICKSTART.md now includes dual-format tracking enablement guide.

@@ -62,7 +62,7 @@ docker run -d \
   ghcr.io/swartdraak/bibliophilarr:latest
 ```
 
-### GitHub Releases
+### GitHub releases
 
 Download pre-built binaries for Linux (x64), macOS (ARM64), or Windows (x64)
 from the [Releases](https://github.com/Swartdraak/Bibliophilarr/releases/latest)

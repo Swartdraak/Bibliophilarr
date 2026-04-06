@@ -1,12 +1,12 @@
 # Bibliophilarr Metadata Migration Plan
 
-## Executive Summary
+## Executive summary
 
 This document outlines the comprehensive technical plan for migrating Bibliophilarr from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
-## Implementation Progress Snapshots
+## Implementation progress snapshots
 
-### March 26, 2026 — Hardcover Metadata Expansion and Series Persistence Progress
+### March 26, 2026 — Hardcover metadata expansion and series persistence progress
 
 Hardcover metadata provider fixes deployed and RefreshAuthor triggered for all 430 library
 authors. Key improvements:
@@ -29,7 +29,7 @@ Migration risk posture update:
 - Hardcover API intermittently rate-limits under batch load (408/500 errors); handled
   gracefully but some authors require re-refresh.
 
-### March 24, 2026 — Comprehensive Deep Audit v2
+### March 24, 2026 — Comprehensive deep audit v2
 
 Comprehensive audit v2 across six parallel audits (backend C#, frontend, CI/CD and build,
 documentation, Docker and infrastructure, packages and dependencies) identified **287 distinct
@@ -91,7 +91,7 @@ in `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 
 Full prioritized remediation queue: see `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 
-### March 24, 2026 — Book Import Identification Quality Fixes
+### March 24, 2026 — Book import identification quality fixes
 
 Three compounding bugs in the import identification pipeline were identified during production library analysis (81% unlinked files) and fixed:
 
@@ -109,7 +109,7 @@ Impact on metadata migration posture:
 
 Validation: 40/40 targeted tests passed; 158/159 broader import tests passed (1 pre-existing flaky test confirmed unrelated).
 
-### March 22, 2026 — Hardcover/Runtime Logging Hardening
+### March 22, 2026 — Hardcover/runtime logging hardening
 
 Completed in this migration-hardening slice:
 
@@ -122,7 +122,7 @@ Validation status for this slice:
 - Targeted Hardcover provider fixture coverage updated for environment-token routing.
 - Script syntax and solution build validation executed after the logging changes.
 
-### March 22, 2026 — Release-Evidence/Test-Runner Completion
+### March 22, 2026 — Release-evidence/test-runner completion
 
 Additional verification update (March 22, 2026):
 
@@ -168,7 +168,7 @@ Migration risk posture update:
   progress via Hardcover provider.
 - Duplicate author convergence in staging DB state remains a secondary concern.
 
-### March 18, 2026 — Provider Orchestration Integration
+### March 18, 2026 — Provider orchestration integration
 
 Completed in the current migration slice:
 
@@ -189,7 +189,7 @@ Validation status for this slice:
 - Core targeted tests: pass for `MetadataProviderOrchestratorFixture` and `ImportListSyncServiceFixture`
 - Import-list edge-case handling updated to avoid adding unresolved external-ID books
 
-### March 17, 2026 — Open Library Provider Implementation
+### March 17, 2026 — Open Library provider implementation
 
 Completed in code on branch `feature/open-library-provider-2026-03-17`:
 
@@ -201,7 +201,7 @@ Completed in code on branch `feature/open-library-provider-2026-03-17`:
 
 Validation status: Core and test projects build cleanly. Open Library mapper and model equality tests pass. Provider fixture tests blocked by pre-existing test harness platform assembly naming mismatch (not caused by Open Library implementation).
 
-### March 21, 2026 — TD-META Completion
+### March 21, 2026 — TD-META completion
 
 Completed in this migration-hardening slice:
 
@@ -223,7 +223,7 @@ Migration safety posture:
 - No destructive schema changes were introduced in this slice.
 - Existing fallback behavior is preserved while routing now uses health-aware ordering.
 
-### March 21, 2026 — Routing/Dedupe/Import Hardening Continuation
+### March 21, 2026 — Routing/dedupe/import hardening continuation
 
 Completed in this continuation slice:
 
@@ -246,7 +246,7 @@ Validation status: Deferred — covered by subsequent hardening passes (March 22
 
 Known gap: Series persistence completeness under concurrent author-refresh scenarios not yet validated end-to-end.
 
-### March 22, 2026 — Hardening Pass
+### March 22, 2026 — Hardening pass
 
 Completed in this hardening and validation slice:
 
@@ -270,7 +270,7 @@ Migration safety posture:
 - All changes backward-compatible and non-breaking.
 - No temporary files or test artifacts remain in working tree.
 
-### March 21, 2026 — Hardening Follow-up
+### March 21, 2026 — Hardening follow-up
 
 Completed in this hardening slice:
 
@@ -292,7 +292,7 @@ Validation status for this slice:
 - API targeted fixtures: pass (2/2).
 - Full solution build: pass.
 
-### March 21, 2026 — Full-Library QA Triage
+### March 21, 2026 — Full-library QA triage
 
 A full-library validation run identified additional migration-critical gaps and one
 newly confirmed provider mapping fault.
@@ -1321,9 +1321,9 @@ Migration risk note:
 
 ---
 
-## Current State
+## Current state
 
-### Existing Architecture
+### Existing architecture
 
 Bibliophilarr currently uses a two-tier metadata system:
 
@@ -1339,7 +1339,7 @@ Bibliophilarr currently uses a two-tier metadata system:
     - Handles title/author query search and ISBN/ASIN lookup fallback behavior
     - Active and in use
 
-### Problems with Current System
+### Problems with current system
 
 - **Legacy Goodreads API paths**: Removed from active runtime provider implementations
 - **Proprietary Dependency**: Not community maintainable
@@ -1348,7 +1348,7 @@ Bibliophilarr currently uses a two-tier metadata system:
 - **Data Quality**: Inconsistent metadata, missing books
 - **Rate Limiting**: Restrictive API quotas
 
-### Foreign ID System
+### Foreign ID system
 
 Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign IDs as the active identity path:
 
@@ -1360,7 +1360,7 @@ Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign 
 
 ## Goals
 
-### Primary Goals
+### Primary goals
 
 1. **Complete FOSS Migration**: Replace all Goodreads dependencies with FOSS providers
 2. **Multi-Provider Support**: Implement fallback and aggregation strategies
@@ -1368,7 +1368,7 @@ Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign 
 4. **Backward Compatibility**: Support legacy Goodreads IDs during transition
 5. **Improved Reliability**: Multiple sources prevent single point of failure
 
-### Secondary Goals
+### Secondary goals
 
 1. **Better Metadata Quality**: Aggregate data from multiple sources
 2. **Community Contribution**: Enable users to improve metadata
@@ -1378,7 +1378,7 @@ Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign 
 
 ---
 
-## FOSS Metadata Provider Options
+## FOSS metadata provider options
 
 > **Note:** This section was originally written before Hardcover was integrated as the
 > primary provider. The hierarchy below reflects the current operational state.
@@ -1477,15 +1477,15 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
 
 **Usage**: Fallback only for critical missing data
 
-### Additional Data Sources
+### Additional data sources
 
-#### MusicBrainz BookBrainz (Future Consideration)
+#### MusicBrainz BookBrainz (future consideration)
 
 - Still in development
 - Community-driven book database
 - Would be ideal when mature
 
-#### ISBN Database Services
+#### ISBN database services
 
 - ISBN.org (official ISBN registry)
 - ISBNdb.com (freemium, requires key)
@@ -1493,9 +1493,9 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
 
 ---
 
-## Architecture Design
+## Architecture design
 
-### Multi-Provider Architecture
+### Multi-provider architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1520,7 +1520,7 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
 └────────────────┘  └─────────────┘  └──────────────────┘
 ```
 
-### Provider Interface Design
+### Provider interface design
 
 ```csharp
 // Core Provider Interface
@@ -1571,7 +1571,7 @@ public interface IMetadataAggregator
 }
 ```
 
-### ID Mapping Strategy
+### ID mapping strategy
 
 To handle the transition from Goodreads IDs to multiple provider IDs:
 
@@ -1610,7 +1610,7 @@ public class AuthorIdentifiers
 }
 ```
 
-### Caching Strategy
+### Caching strategy
 
 ```csharp
 public class MetadataCacheManager
@@ -1632,12 +1632,12 @@ public class MetadataCacheManager
 
 ---
 
-## Implementation Phases
+## Implementation phases
 
 > **Note:** Phase headings below reflect the original 2024 plan structure.
 > Current delivery is tracked via [ROADMAP.md](ROADMAP.md) phase model.
 
-### Phase 1: Foundation & Documentation ✓
+### Phase 1: Foundation & documentation ✓
 
 **Status**: Completed foundational phase (historical)
 
@@ -1655,7 +1655,7 @@ public class MetadataCacheManager
 - Updated README.md
 - Contributor guidelines for metadata work
 
-### Phase 2: Infrastructure Setup ✓
+### Phase 2: Infrastructure setup ✓
 
 **Status**: Completed (core slice)
 
@@ -1685,7 +1685,7 @@ public class MetadataCacheManager
 - Metadata quality scorer
 - Expanded provider health/telemetry and scoring instrumentation
 
-### Phase 3: Open Library Provider Implementation ✓
+### Phase 3: Open Library provider implementation ✓
 
 **Status**: Implemented and partially validated
 
@@ -1735,7 +1735,7 @@ src/NzbDrone.Core/MetadataSource/OpenLibrary/
 
 - Provider fixture execution is blocked by existing test harness assembly load mismatch and needs a dedicated infrastructure fix before full provider fixture green status can be asserted.
 
-### Phase 4: Inventaire Provider Implementation
+### Phase 4: Inventaire provider implementation
 
 **Tasks:**
 
@@ -1755,7 +1755,7 @@ src/NzbDrone.Core/MetadataSource/Inventaire/
   └── Resources/
 ```
 
-### Phase 5: Provider Aggregation Layer
+### Phase 5: Provider aggregation layer
 
 **Tasks:**
 
@@ -1802,7 +1802,7 @@ public class MetadataAggregator
 }
 ```
 
-### Phase 6: Database Migration
+### Phase 6: Database migration
 
 **Tasks:**
 
@@ -1843,7 +1843,7 @@ CREATE INDEX IX_Books_OpenLibraryWorkId ON Books(OpenLibraryWorkId);
 CREATE INDEX IX_Authors_OpenLibraryAuthorId ON Authors(OpenLibraryAuthorId);
 ```
 
-### Phase 7: Migration Tools
+### Phase 7: Migration tools
 
 **Tasks:**
 
@@ -1896,7 +1896,7 @@ public class LibraryMigrationService
 }
 ```
 
-### Phase 8: UI/UX Updates
+### Phase 8: UI/UX updates
 
 **Tasks:**
 
@@ -1922,7 +1922,7 @@ Settings → Metadata
       └── Google Books: ● Healthy (Response: 180ms)
 ```
 
-### Phase 9: Testing & Quality Assurance
+### Phase 9: Testing & quality assurance
 
 **Tasks:**
 
@@ -1940,7 +1940,7 @@ Settings → Metadata
 - Migration tools: >85%
 - UI components: >80%
 
-### Phase 10: Documentation & Release
+### Phase 10: Documentation & release
 
 **Tasks:**
 
@@ -1954,11 +1954,11 @@ Settings → Metadata
 
 ---
 
-## Technical Specifications
+## Technical specifications
 
-### Open Library Implementation Details
+### Open Library implementation details
 
-#### Search Endpoint
+#### Search endpoint
 
 ```
 GET /search.json?q={query}&author={author}&title={title}
@@ -1980,7 +1980,7 @@ Response:
 }
 ```
 
-#### Work Endpoint
+#### Work endpoint
 
 ```
 GET /works/{OLID}.json
@@ -2013,7 +2013,7 @@ Response:
 }
 ```
 
-### Rate Limiting Implementation
+### Rate limiting implementation
 
 ```csharp
 public class RateLimitedHttpClient
@@ -2064,7 +2064,7 @@ public class RateLimitedHttpClient
 }
 ```
 
-### Metadata Quality Scoring
+### Metadata quality scoring
 
 ```csharp
 public class MetadataQualityScorer
@@ -2096,30 +2096,30 @@ public class MetadataQualityScorer
 
 ---
 
-## Testing Strategy
+## Testing strategy
 
-### Unit Testing
+### Unit testing
 
 - Test each provider independently with mocked HTTP responses
 - Test data mapping/transformation logic
 - Test rate limiting logic
 - Test error handling
 
-### Integration Testing
+### Integration testing
 
 - Test against real provider APIs (with caching to avoid rate limits)
 - Test provider fallback scenarios
 - Test metadata aggregation
 - Test database migrations
 
-### Performance Testing
+### Performance testing
 
 - Benchmark search performance
 - Test with libraries of varying sizes (100, 1000, 10000+ books)
 - Measure cache effectiveness
 - Test concurrent request handling
 
-### User Acceptance Testing
+### User acceptance testing
 
 - Beta release to community
 - Migration of real user libraries
@@ -2128,9 +2128,9 @@ public class MetadataQualityScorer
 
 ---
 
-## Migration Tools
+## Migration tools
 
-### Goodreads ID Mapper
+### Goodreads ID mapper
 
 For existing libraries with Goodreads IDs, we need to map them to ISBNs and new provider IDs:
 
@@ -2161,7 +2161,7 @@ public class GoodreadsIdMapper
 }
 ```
 
-### Migration Report
+### Migration report
 
 ```csharp
 public class MigrationReport
@@ -2185,7 +2185,7 @@ public class MigrationReport
 
 ## Risks and Mitigations
 
-### Risk 1: Open Library Rate Limiting
+### Risk 1: Open Library rate limiting
 
 **Impact**: High  
 **Probability**: Medium
@@ -2198,7 +2198,7 @@ public class MigrationReport
 - Register for API key (5x higher limits)
 - Consider hosting a local Open Library mirror for large instances
 
-### Risk 2: Incomplete Metadata Coverage
+### Risk 2: Incomplete metadata coverage
 
 **Impact**: Medium  
 **Probability**: Medium
@@ -2211,7 +2211,7 @@ public class MigrationReport
 - Community contribution tools
 - Gradual migration with user validation
 
-### Risk 3: ISBN Mapping Failures
+### Risk 3: ISBN mapping failures
 
 **Impact**: High  
 **Probability**: Medium
@@ -2224,7 +2224,7 @@ public class MigrationReport
 - Community-contributed mapping database
 - Keep Goodreads IDs as legacy reference
 
-### Risk 4: Performance Degradation
+### Risk 4: Performance degradation
 
 **Impact**: Medium  
 **Probability**: Low
@@ -2237,7 +2237,7 @@ public class MigrationReport
 - Async/await throughout
 - Connection pooling and keep-alive
 
-### Risk 5: Provider API Changes
+### Risk 5: Provider API changes
 
 **Impact**: Medium  
 **Probability**: Low
@@ -2250,7 +2250,7 @@ public class MigrationReport
 - Quick rollback capability
 - Multiple provider redundancy
 
-### Risk 6: Data Quality Issues
+### Risk 6: Data quality issues
 
 **Impact**: Medium  
 **Probability**: High
@@ -2265,7 +2265,7 @@ public class MigrationReport
 
 ---
 
-## Historical Milestones
+## Historical milestones
 
 > **Note:** This section reflects the original 2024 migration proposal timeline.
 > The project now follows the phase-based delivery model documented in [ROADMAP.md](ROADMAP.md).
@@ -2325,7 +2325,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and priority 
 
 ---
 
-## Document Version History
+## Document version history
 
 Major revisions are tracked via git history. Key milestones:
 

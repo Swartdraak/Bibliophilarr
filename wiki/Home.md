@@ -2,13 +2,13 @@
 
 Welcome to the Bibliophilarr wiki.
 
-## Start Here
+## Start here
 
 - [Architecture Overview](Architecture.md)
 - [Metadata Migration Program](Metadata-Migration-Program.md)
 - [Contributor Onboarding](Contributor-Onboarding.md)
 
-## Current Priorities
+## Current priorities
 
 1. Execute remediation queue (176 items tracked in `PROJECT_STATUS.md`).
 2. Consolidate multi-provider metadata pipeline (Hardcover → OpenLibrary → Inventaire → Google Books).
@@ -17,7 +17,7 @@ Welcome to the Bibliophilarr wiki.
 5. Strengthen CI/CD quality gates and release evidence automation.
 6. Advance frontend modernization and test infrastructure.
 
-## Repository Documentation
+## Repository documentation
 
 | Document | Purpose |
 |---|---|
@@ -30,7 +30,7 @@ Welcome to the Bibliophilarr wiki.
 | [CHANGELOG.md](../CHANGELOG.md) | Change history |
 | [SECURITY.md](../SECURITY.md) | Vulnerability reporting |
 
-## Operations Docs
+## Operations docs
 
 - [Release Automation](../docs/operations/RELEASE_AUTOMATION.md)
 - [Branch Strategy](../docs/operations/BRANCH_STRATEGY.md)

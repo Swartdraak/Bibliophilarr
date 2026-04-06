@@ -4,7 +4,7 @@
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
-## Current Delivery Posture
+## Current delivery posture
 
 - Current phase: Phase 5 consolidation with Phase 6 hardening active.
 - Active delivery lanes: `develop` and `staging`.
@@ -12,7 +12,7 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 - Packaging scope: v1.0.0 released with binary builds (Linux x64, macOS ARM64, Windows x64), Docker image on GHCR, and npm launcher on npmjs.org.
 - Actions token posture: branch-policy and readiness workflows remain report-only when GitHub Actions integration tokens cannot read admin or Dependabot APIs.
 
-## Delivery Lanes
+## Delivery lanes
 
 | Branch | Purpose | Required outcomes |
 |---|---|---|
@@ -20,7 +20,7 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 | `staging` | Pre-release validation lane mirroring `develop` with tighter release-readiness scrutiny | same required contexts as `develop`, plus current readiness/drift report evidence |
 | `main` | Default branch for releases, operator runbooks, readiness reporting, and branch-policy auditing | `build-test`, `Markdown lint`, `triage`, smoke telemetry, successful readiness and branch-policy report runs |
 
-## Phase Summary
+## Phase summary
 
 ### Phase 1 to Phase 4 foundation
 
@@ -112,7 +112,7 @@ Planned entry conditions:
 - remaining open dependency alerts either remediated or explicitly accepted with documented rationale;
 - release workflows, runbooks, and rollback steps verified against current repository reality.
 
-## Current Milestones
+## Current milestones
 
 | Milestone | Target state | Current status |
 |---|---|---|
@@ -130,18 +130,18 @@ Planned entry conditions:
 | Docker hardening | base image pinning, non-root runtime, health check, Node integrity verification, OCI labels, vendor label | complete |
 | CI/CD supply-chain hardening | third-party actions pinned to SHA, workflow permissions scoped to job-level, version pins centralized | complete |
 | Legacy branding cleanup | remove remaining Sonarr/Readarr/Radarr/Lidarr/Prowlarr branding from frontend UI, donations, logos, and icon assets | complete |
-| Frontend test infrastructure | install jest + @testing-library/react; add initial test suite for critical flows; add CI step and coverage thresholds | planned |
+| Frontend test infrastructure | install jest + @testing-library/react; add initial test suite for critical flows; add CI step and coverage thresholds | complete |
 | Async migration (sync-over-async) | convert 10+ `.GetAwaiter().GetResult()` sites to true async/await and propagate CancellationToken | assessed — no action required (all patterns acceptable) |
 | RestSharp → HttpClient migration | replace unmaintained RestSharp 106.15 with System.Net.Http.HttpClient via interface wrapper | complete |
 | Security headers and input validation | add CSP/HSTS/X-Frame-Options middleware; validate API search/parse inputs at controller boundary | complete |
 | React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | **assessed** — migration plan documented below |
 | Node 22 LTS migration | upgrade from Node 20 (EOL April 2026) to Node 22 LTS | complete |
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
-| Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | planned |
+| Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | complete |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
 | Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **implemented** — all 10 slices (DF-1 through DF-10) complete, feature-flagged via `EnableDualFormatTracking`. Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
 
-## Dependency Migration Queue
+## Dependency migration queue
 
 Structured tracking for breaking-change dependency upgrades deferred from Dependabot PRs
 (April 2026 triage). Each entry requires dedicated migration effort and is sequenced
@@ -196,7 +196,7 @@ Phase 7 (requires React 18 first):
 - RQ-180: FluentMigrator.Runner 3→8 migration (new)
 - RQ-181: FluentMigrator.Runner.Postgres 3→8 migration (new)
 
-### React 18 Upgrade Path Assessment (completed April 2026)
+### React 18 upgrade path assessment (completed April 2026)
 
 Readiness assessment completed against the current frontend codebase (React 17.0.2, React Router 5.3.4).
 
@@ -230,7 +230,7 @@ Readiness assessment completed against the current frontend codebase (React 17.0
 
 **Effort estimate**: High — the `connected-react-router` removal and React Router 5→6 migration are extensive refactors touching routing, Redux middleware, and page navigation patterns across the entire frontend.
 
-### Redux Modernization Assessment (completed April 2026)
+### Redux modernization assessment (completed April 2026)
 
 Current state: Redux 4.2.1, react-redux 7.2.9, redux-thunk 2.4.2, redux-actions 2.6.5. Redux Toolkit is **not installed**.
 
@@ -252,7 +252,7 @@ Current state: Redux 4.2.1, react-redux 7.2.9, redux-thunk 2.4.2, redux-actions 
 
 **Effort estimate**: Very High (~15-20 KLOC refactor). Should be done incrementally per-module after React 18 + Router 6 are complete. Both legacy and modern patterns can coexist during migration.
 
-### moment.js → date-fns Migration (completed April 2026)
+### moment.js → date-fns migration (completed April 2026)
 
 Replaced moment.js 2.30.1 (328KB) with date-fns 4.1.0 (tree-shakeable, ~7KB used) across all 34 frontend source files. moment.js removed from dependencies.
 
@@ -265,7 +265,7 @@ Replaced moment.js 2.30.1 (328KB) with date-fns 4.1.0 (tree-shakeable, ~7KB used
 
 **Effort**: Medium (34 files, completed in single commit).
 
-### UI Modernization Assessment (completed April 2026)
+### UI modernization assessment (completed April 2026)
 
 Current frontend audit reveals a mature but aging UI architecture with clear modernization opportunities. The component library is entirely custom-built (40+ components), well-structured with CSS Modules and FontAwesome 6.7.2, and includes dark mode, responsive breakpoints, and basic accessibility.
 
@@ -311,7 +311,7 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 - Book details: release date formatting
 - Queue: estimated completion time display
 
-## Near-Term Delivery Sequence
+## Near-term delivery sequence
 
 1. Keep `develop` and `staging` green for backend, docs, smoke, and packaging validation.
 2. Keep `main` green for readiness reporting and branch-policy audit dispatch.
@@ -434,7 +434,7 @@ Measurement criteria:
 - Compatibility: legacy single-format libraries remain functionally unchanged when flag is off.
 - Operability: variant-level telemetry and diagnostics are queryable by operators.
 
-## Local Install Testing Enablement (Develop Branch)
+## Local install testing enablement (develop branch)
 
 Purpose:
 
@@ -471,13 +471,13 @@ Suggested acceptance criteria for local install readiness:
 - Fallback to prior release is documented and verified for the same environment.
 - Any known installer/runtime caveats are captured in QUICKSTART and runbooks.
 
-## Operational Notes
+## Operational notes
 
 - Do not treat `main` packaging absence as a regression. It is an intentional scope boundary until release installation paths are fully validated.
 - Do not treat Actions integration-token `403` responses as release blockers when the report artifacts explicitly mark the run as permission-limited and all available checks still succeed.
 - Prefer incremental migration slices with rollback clarity over broad architectural rewrites.
 
-## Related Documents
+## Related documents
 
 - [MIGRATION_PLAN.md](MIGRATION_PLAN.md)
 - [PROJECT_STATUS.md](PROJECT_STATUS.md)

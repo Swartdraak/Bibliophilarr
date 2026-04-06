@@ -8,7 +8,7 @@
 
 Bibliophilarr is a community-driven continuation focused on replacing fragile or proprietary metadata dependencies with sustainable FOSS providers while keeping library automation reliable and observable.
 
-## Current Operational State
+## Current operational state
 
 - Protected branches `develop`, `staging`, and `main` now use the same required contexts:
   - `build-test`
@@ -44,7 +44,7 @@ The following items were added to canonical planning for immediate/future delive
 - **DF-10 complete**: rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle.
 - **All 10 slices complete.** Feature is opt-in via Settings > Media Management > Dual Format.
 
-## Latest Delivery Update
+## Latest delivery update
 
 ### April 5, 2026 — v1.0.0 release published
 
@@ -548,7 +548,7 @@ Immediate fixes applied:
 - 1,251-line legacy Readarr Azure DevOps pipeline never adapted for Bibliophilarr.
 - GitHub Actions is the sole authoritative CI system.
 
-## Prioritized Remediation Queue (March 24, 2026 comprehensive audit v2)
+## Prioritized remediation queue (March 24, 2026 comprehensive audit v2)
 
 Six parallel audits (backend C#, frontend, CI/CD, documentation, Docker/infrastructure,
 packages/dependencies) produced 287 distinct findings. These are consolidated below into
@@ -719,7 +719,7 @@ new items start at RQ-064.
 | RQ-144 | Frontend | Derived state stored instead of computed via selectors — `Store/Selectors/selectSettings.js`, various connectors | Enforce reselect memoization for all derived state |
 | RQ-145 | Frontend | `Object.assign({}, ...)` used instead of spread operator — `Store/Selectors/selectSettings.js:25,61` | **FIXED** — Converted all 38 `Object.assign` calls to spread operator across 28 frontend files |
 | RQ-146 | Docs | `CLA.md` uses trailing `##` ATX heading markers inconsistent with other docs — `CLA.md` | **FIXED** — Removed trailing `##` from all 7 headings |
-| RQ-147 | Docs | Heading case inconsistencies (Title Case vs sentence case) across docs — Various | Adopt sentence case for new headings; batch-normalize existing |
+| RQ-147 | Docs | Heading case inconsistencies (Title Case vs sentence case) across docs — Various | **FIXED** — Batch-normalized headings to sentence case across ROADMAP.md, PROJECT_STATUS.md, MIGRATION_PLAN.md, QUICKSTART.md, README.md, and 3 wiki files per docs-style rule; remaining operations docs tracked as incremental |
 | RQ-148 | Docs | Several operational docs lack `## References` section per style guide Rule R1 — `DOTNET_MODERNIZATION.md`, `ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md`, `GITHUB_PROJECTS_BLUEPRINT.md`, `REPOSITORY_TAGS.md`, `MCP_SERVER_RECOMMENDATIONS.md` | **FIXED** — Added `## References` sections to BRANCH_STRATEGY.md, GITHUB_PROJECTS_BLUEPRINT.md, PROVIDER_IMPLEMENTATION_GUIDE.md |
 | RQ-149 | Docs | `ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md` Phase 2 status shows identical source/dest — `docs/operations/ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md:77-82` | **FIXED** — Fixed self-referencing renames; updated audit baseline to 42 content / 8 path matches |
 | RQ-150 | Docs | `BRANCH_STRATEGY.md` lists `release` and `hotfix` branches not in managed protection set — `docs/operations/BRANCH_STRATEGY.md:10` | **FIXED** — Replaced bullet list with table showing Active/On-demand status and protection state |
@@ -746,7 +746,7 @@ new items start at RQ-064.
 | RQ-166 | Infra | Kubernetes manifests and Helm chart creation — Phase 7+ | Deployment, ConfigMap, Service, PVC, NetworkPolicy for K8s users |
 | RQ-167 | Infra | Prometheus metrics endpoint (`/metrics`) for monitoring — Phase 7+ | Observability for uptime, DB health, job queue, provider health |
 | RQ-168 | Infra | Structured JSON logging to stdout/stderr for container aggregation — Phase 7+ | Enable ELK/Splunk/cloud log aggregation; add NLog JSON layout target |
-| RQ-169 | Infra | Resource limits documentation for Docker/K8s deployments — Phase 6-7 | Document CPU/memory requests/limits in QUICKSTART.md and docker-compose |
+| RQ-169 | Infra | Resource limits documentation for Docker/K8s deployments — Phase 6-7 | **FIXED** — Added resource limits table to QUICKSTART.md and `deploy.resources` block to docker-compose.local.yml with size-tiered CPU/memory recommendations |
 | RQ-170 | Infra | Windows installer code signing — Phase 7 | Prevent AV false positives and Windows security warnings |
 | RQ-171 | Infra | macOS app bundle code signing and Apple notarization — Phase 7 | Required for Catalina+ to run without quarantine |
 | RQ-172 | Infra | SLSA provenance attestation for release artifacts — Phase 7 | Supply-chain transparency and compliance |
@@ -780,7 +780,7 @@ Remediation queue summary: 179 items (RQ-001 through RQ-181, RQ-008 and RQ-009 u
 - P3 Low: 40 items
 - P4 Strategic/Migration: 25 items
 
-## Docker and Infrastructure Hardening Plan
+## Docker and infrastructure hardening plan
 
 The current Dockerfile and infrastructure have the following security and reliability gaps.
 These will be addressed in dedicated hardening slices aligned with Phase 6 release-readiness
@@ -1869,7 +1869,7 @@ Validation completed with exact command evidence and outcomes:
     - `/ping` returned `200`
     - `/api/v1/system/status` returned `401` (expected without API key)
 
-## What Is Complete
+## What is complete
 
 ### Metadata migration foundation
 
@@ -1889,7 +1889,7 @@ Validation completed with exact command evidence and outcomes:
 - Packaging validation runs via `release.yml`, `docker-image.yml`, and `npm-publish.yml` workflows.
 - The latest validated matrix state is green for binary, Docker, and npm installation paths.
 
-## Current Risks And Follow-Up Areas
+## Current risks and follow-up areas
 
 - GitHub-backed readiness reporting and Dependabot triage cannot currently be revalidated from this environment because `gh` is installed but not authenticated; workflow/branch-protection/Dependabot API state is therefore unverified in this execution pass.
 - Open dependency security remediation remains active work, but exact current alert counts could not be refreshed locally until `gh auth login` or `GH_TOKEN` is supplied.
@@ -2056,7 +2056,7 @@ For each debt item closure:
 3. Record rollback notes for any change touching auth, search, or import paths.
 4. Update this table status and acceptance evidence in the same change set.
 
-## Local Install Testing Program Recommendations
+## Local install testing program recommendations
 
 To keep the project moving toward practical release confidence, the `develop` branch should treat local install testing as a primary delivery outcome.
 
@@ -2078,7 +2078,7 @@ Immediate next actions:
 2. Add an install-evidence section to weekly/project status updates.
 3. Use `develop` as the proving lane and promote only install-verified slices to `staging`.
 
-## Metadata Readiness Release Criteria
+## Metadata readiness release criteria
 
 Metadata migration readiness is now a release-entry gate, not an advisory check.
 
@@ -2089,12 +2089,12 @@ Required to proceed with release tagging:
 3. Provider telemetry remains inside warning SLO thresholds in `docs/operations/METADATA_PROVIDER_RUNBOOK.md`.
 4. Any temporary Inventaire kill-switch activation is rolled back and documented.
 
-## Delivery Process Guardrail
+## Delivery process guardrail
 
 - Scoped commit iteration process is required for migration and hardening slices.
 - Reference: [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Recommended Operator Checks
+## Recommended operator checks
 
 Run these after significant branch-policy or release-readiness changes:
 
@@ -2109,7 +2109,7 @@ python3 scripts/release_readiness_report.py \
   --json-out _artifacts/release-readiness/release-readiness.json
 ```
 
-## Related Documents
+## Related documents
 
 - [QUICKSTART.md](QUICKSTART.md)
 - [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md)

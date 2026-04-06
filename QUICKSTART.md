@@ -118,7 +118,7 @@ Hardcover token startup override:
 - This value now participates in Hardcover provider enablement as well as request authentication, so a pre-start environment token is sufficient even when the persisted `HardcoverApiToken` config value is empty.
 - Both plain tokens and `Bearer ...` values are accepted.
 
-### Logging and Diagnostics
+### Logging and diagnostics
 
 To enable trace-level logs for debugging:
 
@@ -305,6 +305,26 @@ legacy single-format behavior is preserved exactly.
 
 See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) (TD-DUAL-FORMAT-001) for full
 architecture details.
+
+## Container resource limits
+
+Recommended resource allocations for Docker and Kubernetes deployments:
+
+| Library size | CPU limit | Memory limit | Memory reservation |
+|---|---|---|---|
+| Small (< 200 authors) | 1.0 | 512 MB | 128 MB |
+| Medium (200–1000 authors) | 2.0 | 1024 MB | 256 MB |
+| Large (> 1000 authors) | 4.0 | 2048 MB | 512 MB |
+
+The `docker-compose.local.yml` includes `deploy.resources` with medium-library defaults.
+For standalone `docker run`, use:
+
+```bash
+docker run --cpus=2.0 --memory=1024m -p 8787:8787 bibliophilarr:local
+```
+
+Peak memory occurs during bulk library imports and metadata refreshes. Monitor
+`/api/v1/system/status` for runtime resource usage.
 
 ## References
 

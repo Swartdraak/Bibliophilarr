@@ -7,7 +7,7 @@
 - **Database:** SQLite (default) or PostgreSQL — EF-style migrations via FluentMigrator.
 - **Domain focus:** Book/audiobook metadata ingestion, search, library management, and download automation.
 
-## Solution Structure
+## Solution structure
 
 > **Note:** The `NzbDrone.*` project naming is a historical artifact from the
 > Sonarr/Radarr/Readarr codebase lineage and does not reflect current product
@@ -25,7 +25,7 @@
 | `NzbDrone.Update` | Self-update mechanism |
 | `NzbDrone.Mono` / `NzbDrone.Windows` | Platform-specific implementations |
 
-## Metadata Architecture (Current State)
+## Metadata architecture (current state)
 
 - **Provider abstraction layer** — `IMetadataProvider` interface with multiple implementations.
 - **Fallback chain:** Hardcover (primary) → OpenLibrary → Inventaire → Google Books.
@@ -33,7 +33,7 @@
 - **`MetadataAggregator`** — merges results across providers with quality scoring.
 - **Identifier mapping** — ISBN, OLID, Hardcover ID, ASIN normalized through `IdentifierService`.
 
-## Key Technical Concerns
+## Key technical concerns
 
 - External API rate limits and transient failures — handled via provider-level timeouts and retry.
 - Variable metadata quality — quality scoring ranks provider results.
