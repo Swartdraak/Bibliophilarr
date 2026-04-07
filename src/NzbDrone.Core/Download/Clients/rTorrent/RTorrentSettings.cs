@@ -55,10 +55,10 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         [FieldDefinition(7, Label = "Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category for Bibliophilarr to set after it has imported the download. Bibliophilarr will not remove torrents in that category even if seeding finished. Leave blank to keep same category.")]
         public string MusicImportedCategory { get; set; }
 
-        [FieldDefinition(8, Label = "Ebook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        [FieldDefinition(8, Label = "Ebook Category", Type = FieldType.Textbox, Section = "formatCategories", Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
         public string EbookCategory { get; set; }
 
-        [FieldDefinition(9, Label = "Audiobook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        [FieldDefinition(9, Label = "Audiobook Category", Type = FieldType.Textbox, Section = "formatCategories", Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
         public string AudiobookCategory { get; set; }
 
         [FieldDefinition(10, Label = "Directory", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional location to put downloads in, leave blank to use the default rTorrent location")]

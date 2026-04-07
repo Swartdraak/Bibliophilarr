@@ -224,7 +224,10 @@ class AuthorDetailsHeader extends Component {
 
               {
                 formatProfiles && formatProfiles.length > 0 &&
-                  formatProfiles.map((fp) => {
+                  // Deduplicate by formatType (keep first occurrence)
+                  formatProfiles.filter((fp, index, self) =>
+                    self.findIndex((f) => f.formatType === fp.formatType) === index
+                  ).map((fp) => {
                     const formatLabel = fp.formatType === 0 ? 'Ebook' : 'Audiobook';
 
                     return (

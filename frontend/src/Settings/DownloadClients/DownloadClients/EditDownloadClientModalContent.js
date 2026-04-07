@@ -116,18 +116,42 @@ class EditDownloadClientModalContent extends Component {
                 </FormGroup>
 
                 {
-                  fields.map((field) => {
-                    return (
-                      <ProviderFieldFormGroup
-                        key={field.name}
-                        advancedSettings={advancedSettings}
-                        provider="downloadClient"
-                        providerData={item}
-                        {...field}
-                        onChange={onFieldChange}
-                      />
-                    );
-                  })
+                  (() => {
+                    const sectionLabels = {
+                      formatCategories: 'Format-Specific Categories'
+                    };
+
+                    let lastSection = null;
+
+                    return fields.map((field) => {
+                      const elements = [];
+                      const fieldSection = field.section || null;
+
+                      if (fieldSection && fieldSection !== lastSection && sectionLabels[fieldSection]) {
+                        elements.push(
+                          <FieldSet
+                            key={`section-${fieldSection}`}
+                            legend={sectionLabels[fieldSection]}
+                          />
+                        );
+                      }
+
+                      lastSection = fieldSection;
+
+                      elements.push(
+                        <ProviderFieldFormGroup
+                          key={field.name}
+                          advancedSettings={advancedSettings}
+                          provider="downloadClient"
+                          providerData={item}
+                          {...field}
+                          onChange={onFieldChange}
+                        />
+                      );
+
+                      return elements;
+                    });
+                  })()
                 }
 
                 <FormGroup

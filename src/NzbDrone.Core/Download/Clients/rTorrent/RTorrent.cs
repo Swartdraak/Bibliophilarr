@@ -131,7 +131,8 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             foreach (var torrent in torrents)
             {
                 // Don't concern ourselves with categories other than specified
-                if (Settings.MusicCategory.IsNotNullOrWhiteSpace() && torrent.Category != Settings.MusicCategory)
+                if (Settings.MusicCategory.IsNotNullOrWhiteSpace() &&
+                    !Settings.MatchesAnyCategory(Settings.MusicCategory, torrent.Category))
                 {
                     continue;
                 }

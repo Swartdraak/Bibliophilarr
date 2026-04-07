@@ -116,7 +116,21 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
             {
-                torrents = _proxy.GetTorrentsByLabel(Settings.MusicCategory, Settings);
+                // Fetch torrents for default category
+                var allTorrents = _proxy.GetTorrentsByLabel(Settings.MusicCategory, Settings).ToList();
+
+                // Also fetch torrents for format-specific categories
+                if (Settings.EbookCategory.IsNotNullOrWhiteSpace() && Settings.EbookCategory != Settings.MusicCategory)
+                {
+                    allTorrents.AddRange(_proxy.GetTorrentsByLabel(Settings.EbookCategory, Settings));
+                }
+
+                if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.MusicCategory)
+                {
+                    allTorrents.AddRange(_proxy.GetTorrentsByLabel(Settings.AudiobookCategory, Settings));
+                }
+
+                torrents = allTorrents;
             }
             else
             {
@@ -324,7 +338,7 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             if (!enabledPlugins.Contains("Label"))
             {
-                return new NzbDroneValidationFailure("MusicCategory", "Label plugin not activated")
+                return new NzbDroneValidationFailure("Category", "Label plugin not activated")
                 {
                     DetailedDescription = "You must have the Label plugin enabled in Deluge to use categories."
                 };
@@ -339,7 +353,7 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
                 if (!labels.Contains(Settings.MusicCategory))
                 {
-                    return new NzbDroneValidationFailure("MusicCategory", "Configuration of label failed")
+                    return new NzbDroneValidationFailure("Category", "Configuration of label failed")
                     {
                         DetailedDescription = "Bibliophilarr was unable to add the label to Deluge."
                     };
@@ -353,7 +367,7 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
                 if (!labels.Contains(Settings.MusicImportedCategory))
                 {
-                    return new NzbDroneValidationFailure("MusicImportedCategory", "Configuration of label failed")
+                    return new NzbDroneValidationFailure("PostImportCategory", "Configuration of label failed")
                     {
                         DetailedDescription = "Bibliophilarr was unable to add the label to Deluge."
                     };

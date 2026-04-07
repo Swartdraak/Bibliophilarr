@@ -185,7 +185,8 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
         {
             foreach (var downloadClientItem in GetQueue().Concat(GetHistory()))
             {
-                if (downloadClientItem.Category == Settings.MusicCategory || (downloadClientItem.Category == "*" && Settings.MusicCategory.IsNullOrWhiteSpace()))
+                if (Settings.MatchesAnyCategory(Settings.MusicCategory, downloadClientItem.Category) ||
+                    (downloadClientItem.Category == "*" && Settings.MusicCategory.IsNullOrWhiteSpace()))
                 {
                     yield return downloadClientItem;
                 }
@@ -246,21 +247,44 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
             var config = _proxy.GetConfig(Settings);
             var categories = GetCategories(config).ToArray();
 
-            var category = categories.FirstOrDefault(v => v.Name == Settings.MusicCategory);
-
-            if (category == null)
-            {
-                category = categories.FirstOrDefault(v => v.Name == "*");
-            }
-
             var status = new DownloadClientInfo
             {
                 IsLocalhost = Settings.Host == "127.0.0.1" || Settings.Host == "localhost"
             };
 
-            if (category != null)
+            var outputFolders = new List<OsPath>();
+
+            // Add default category folder
+            var defaultCategory = categories.FirstOrDefault(v => v.Name == Settings.MusicCategory)
+                                  ?? categories.FirstOrDefault(v => v.Name == "*");
+            if (defaultCategory != null)
             {
-                status.OutputRootFolders = new List<OsPath> { _remotePathMappingService.RemapRemoteToLocal(Settings.Host, category.FullPath) };
+                outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, defaultCategory.FullPath));
+            }
+
+            // Add ebook category folder if configured and different
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace() && Settings.EbookCategory != Settings.MusicCategory)
+            {
+                var ebookCategory = categories.FirstOrDefault(v => v.Name == Settings.EbookCategory);
+                if (ebookCategory != null)
+                {
+                    outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, ebookCategory.FullPath));
+                }
+            }
+
+            // Add audiobook category folder if configured and different
+            if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.MusicCategory)
+            {
+                var audiobookCategory = categories.FirstOrDefault(v => v.Name == Settings.AudiobookCategory);
+                if (audiobookCategory != null)
+                {
+                    outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, audiobookCategory.FullPath));
+                }
+            }
+
+            if (outputFolders.Any())
+            {
+                status.OutputRootFolders = outputFolders;
             }
 
             status.RemovesCompletedDownloads = RemovesCompletedDownloads(config);
@@ -441,7 +465,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
             {
                 if (category.Dir.EndsWith("*"))
                 {
-                    return new NzbDroneValidationFailure("MusicCategory", "Enable Job folders")
+                    return new NzbDroneValidationFailure("Category", "Enable Job folders")
                     {
                         InfoLink = _proxy.GetBaseUrl(Settings, "config/categories/"),
                         DetailedDescription = "Bibliophilarr prefers each download to have a separate folder. With * appended to the Folder/Path Sabnzbd will not create these job folders. Go to Sabnzbd to fix it."
@@ -452,7 +476,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
             {
                 if (!Settings.MusicCategory.IsNullOrWhiteSpace())
                 {
-                    return new NzbDroneValidationFailure("MusicCategory", "Category does not exist")
+                    return new NzbDroneValidationFailure("Category", "Category does not exist")
                     {
                         InfoLink = _proxy.GetBaseUrl(Settings, "config/categories/"),
                         DetailedDescription = "The Category your entered doesn't exist in Sabnzbd. Go to Sabnzbd to create it."
@@ -462,7 +486,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
 
             if (config.Misc.enable_tv_sorting && ContainsCategory(config.Misc.tv_categories, Settings.MusicCategory))
             {
-                return new NzbDroneValidationFailure("MusicCategory", "Disable TV Sorting")
+                return new NzbDroneValidationFailure("Category", "Disable TV Sorting")
                 {
                     InfoLink = _proxy.GetBaseUrl(Settings, "config/sorting/"),
                     DetailedDescription = "You must disable Sabnzbd TV Sorting for the category Bibliophilarr uses to prevent import issues. Go to Sabnzbd to fix it."
@@ -471,7 +495,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
 
             if (config.Misc.enable_movie_sorting && ContainsCategory(config.Misc.movie_categories, Settings.MusicCategory))
             {
-                return new NzbDroneValidationFailure("MusicCategory", "Disable Movie Sorting")
+                return new NzbDroneValidationFailure("Category", "Disable Movie Sorting")
                 {
                     InfoLink = _proxy.GetBaseUrl(Settings, "config/sorting/"),
                     DetailedDescription = "You must disable Sabnzbd Movie Sorting for the category Bibliophilarr uses to prevent import issues. Go to Sabnzbd to fix it."
@@ -480,7 +504,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
 
             if (config.Misc.enable_date_sorting && ContainsCategory(config.Misc.date_categories, Settings.MusicCategory))
             {
-                return new NzbDroneValidationFailure("MusicCategory", "Disable Date Sorting")
+                return new NzbDroneValidationFailure("Category", "Disable Date Sorting")
                 {
                     InfoLink = _proxy.GetBaseUrl(Settings, "config/sorting/"),
                     DetailedDescription = "You must disable Sabnzbd Date Sorting for the category Bibliophilarr uses to prevent import issues. Go to Sabnzbd to fix it."

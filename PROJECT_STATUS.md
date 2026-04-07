@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 6, 2026 (Dual-format UX completion: search fixes, add/edit author improvements, format-aware download categories, remote path mappings, queue/wanted/calendar format filtering, author index format column)
+**Last Updated**: April 16, 2026 (QA audit Phase 1-3: critical download client category fix, logging/data integrity, UI improvements)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -43,7 +43,7 @@ The following items were added to canonical planning for immediate/future delive
 - **DF-9 complete**: frontend format profile UI — author edit modal, detail header badges, Redux store module.
 - **DF-10 complete**: rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle.
 - **All 10 slices complete.** Feature is opt-in via Settings > Media Management > Dual Format.
-- **DF-11 complete**: format-aware download client categories — `IFormatCategorySettings` interface, per-format category fields on 6 download clients, `GetCategoryForFormat()` extension.
+- **DF-11 complete** (hardened April 2026): format-aware download client categories — `IFormatCategorySettings` interface, per-format category fields on 6 download clients, `GetCategoryForFormat()` extension, `MatchesAnyCategory()` multi-category monitoring. GetItems() and GetStatus() now cover all configured categories.
 - **DF-12 complete**: format-aware remote path mappings — nullable `FormatType` on `RemotePathMappings` (migration 046), format-priority path resolution in `RemotePathMappingService`, frontend format selector.
 - **DF-13 complete**: queue format display — `FormatType` on `QueueResource`, format column in queue table UI.
 - **DF-14 complete**: wanted/missing and cutoff unmet format filters — ebook/audiobook filter options in both Wanted views.
@@ -52,6 +52,41 @@ The following items were added to canonical planning for immediate/future delive
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 16, 2026 — v1.1.0-dev.12 QA audit phases 1-3
+
+Comprehensive QA audit identified critical download monitoring gaps, data integrity risks, and UI polish issues. All three phases implemented and verified.
+
+#### Phase 1 — Critical: download client category fix
+
+- **GetItems() multi-category monitoring** (5 clients): SABnzbd, NZBGet, Deluge, rTorrent, and Transmission now monitor all configured format categories (default, ebook, audiobook) via `MatchesAnyCategory()` extension on `IFormatCategorySettings`. Previously, items sent to format-specific categories were invisible to download monitoring.
+- **GetStatus() multi-folder reporting** (3 clients): SABnzbd, NZBGet, and Transmission now report output folders for all category types, preventing false-positive health check warnings.
+- **Validation key cleanup** (11 instances): replaced internal property names (`MusicCategory` → `Category`, `MusicImportedCategory` → `PostImportCategory`) in validation failure messages across 5 client files.
+
+#### Phase 2 — Logging and data integrity
+
+- **MetadataService logging**: "Author folder does not exist" message now includes author name and path for operator troubleshooting.
+- **FormatProfile duplicate guard**: `AuthorFormatProfileService.Add()` now checks for existing profile before insert, preventing duplicate records.
+
+#### Phase 3 — UI improvements
+
+- **Author detail label dedup**: format profile badges deduplicated by `formatType` before rendering.
+- **Search result sorting**: client-side relevance sort (exact match → starts with → contains).
+- **Download client form sections**: `EbookCategory` and `AudiobookCategory` fields grouped under "Format-Specific Categories" section header via `Section` annotation and `FieldSet` rendering.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix).
+- Frontend: webpack compiled successfully (67s), ESLint clean on all modified files.
+
+#### Files changed
+
+| Area | Files |
+|---|---|
+| Backend core | `IFormatCategorySettings.cs`, `AuthorFormatProfileService.cs`, `MetadataService.cs` |
+| Download clients | `Sabnzbd.cs`, `Nzbget.cs`, `Deluge.cs`, `RTorrent.cs`, `TransmissionBase.cs` |
+| Client settings | `SabnzbdSettings.cs`, `NzbgetSettings.cs`, `QBittorrentSettings.cs`, `DelugeSettings.cs`, `RTorrentSettings.cs`, `TransmissionSettings.cs` |
+| Frontend | `AuthorDetailsHeader.js`, `AddNewItem.js`, `EditDownloadClientModalContent.js` |
 
 ### April 6, 2026 — v1.1.0-dev.9 dual-format UX completion
 

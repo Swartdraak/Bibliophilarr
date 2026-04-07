@@ -53,7 +53,9 @@ namespace NzbDrone.Core.Download.Clients.Transmission
                 else if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
                 {
                     var directories = outputPath.FullPath.Split('\\', '/');
-                    if (!directories.Contains(Settings.MusicCategory))
+                    if (!directories.Contains(Settings.MusicCategory) &&
+                        !(Settings.EbookCategory.IsNotNullOrWhiteSpace() && directories.Contains(Settings.EbookCategory)) &&
+                        !(Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && directories.Contains(Settings.AudiobookCategory)))
                     {
                         continue;
                     }
@@ -174,15 +176,30 @@ namespace NzbDrone.Core.Download.Clients.Transmission
             var config = _proxy.GetConfig(Settings);
             var destDir = config.DownloadDir;
 
-            if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
+            var outputFolders = new List<OsPath>();
+
+            // Default category folder
+            var defaultDir = Settings.MusicCategory.IsNotNullOrWhiteSpace()
+                ? string.Format("{0}/{1}", destDir, Settings.MusicCategory)
+                : destDir;
+            outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(defaultDir)));
+
+            // Ebook category folder if configured and different
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace() && Settings.EbookCategory != Settings.MusicCategory)
             {
-                destDir = string.Format("{0}/{1}", destDir, Settings.MusicCategory);
+                outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(string.Format("{0}/{1}", destDir, Settings.EbookCategory))));
+            }
+
+            // Audiobook category folder if configured and different
+            if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.MusicCategory)
+            {
+                outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(string.Format("{0}/{1}", destDir, Settings.AudiobookCategory))));
             }
 
             return new DownloadClientInfo
             {
                 IsLocalhost = Settings.Host == "127.0.0.1" || Settings.Host == "localhost",
-                OutputRootFolders = new List<OsPath> { _remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(destDir)) }
+                OutputRootFolders = outputFolders
             };
         }
 

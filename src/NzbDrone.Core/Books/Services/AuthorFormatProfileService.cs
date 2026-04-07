@@ -42,6 +42,13 @@ namespace NzbDrone.Core.Books
 
         public AuthorFormatProfile Add(AuthorFormatProfile profile)
         {
+            var existing = _repository.GetByAuthorIdAndFormat(profile.AuthorId, profile.FormatType);
+            if (existing != null)
+            {
+                _logger.Debug("Format profile {0} already exists for author {1}, returning existing", profile.FormatType, profile.AuthorId);
+                return existing;
+            }
+
             _logger.Info("Adding {0} format profile for author {1}", profile.FormatType, profile.AuthorId);
             return _repository.Insert(profile);
         }

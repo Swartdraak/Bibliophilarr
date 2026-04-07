@@ -7,6 +7,21 @@ process.
 
 ## [Unreleased]
 
+### Fixed
+
+- **CRITICAL**: Download client `GetItems()` now monitors all configured format categories (default, ebook, audiobook) instead of only the default `MusicCategory`. Affects SABnzbd, NZBGet, Deluge, rTorrent, and Transmission. Items sent to format-specific categories were previously invisible to download monitoring.
+- **HIGH**: Download client `GetStatus()` now reports output folders for all configured categories (default, ebook, audiobook) instead of only the default category. Affects SABnzbd, NZBGet, and Transmission. Prevents false-positive health check warnings for format-specific download paths.
+- Download client validation failures now use user-friendly field names (`Category`, `PostImportCategory`) instead of leaking internal property names (`MusicCategory`, `MusicImportedCategory`).
+- `MetadataService` log message now includes author name and path context when skipping metadata creation for missing author folders.
+- `AuthorFormatProfileService.Add()` now checks for existing profile before insert, preventing duplicate format profile records in the database.
+- Author details header: format profile labels are deduplicated by format type, preventing duplicate "Ebook" or "Audiobook" badges.
+- Search results: items are now sorted by relevance (exact match, starts with, contains) for more intuitive result ordering.
+
+### Changed
+
+- Added `MatchesAnyCategory()` extension method to `IFormatCategorySettings` for centralized multi-category matching across all download clients.
+- Download client settings: `EbookCategory` and `AudiobookCategory` fields are now visually grouped under a "Format-Specific Categories" section header in the edit form.
+
 ### Added
 
 - **DF-11**: Format-aware download client categories — `IFormatCategorySettings` interface with `EbookCategory`/`AudiobookCategory` fields and `GetCategoryForFormat()` extension method. Implemented across 6 download client settings (SABnzbd, NZBGet, qBittorrent, Deluge, Transmission, rTorrent) and 4 client implementations.

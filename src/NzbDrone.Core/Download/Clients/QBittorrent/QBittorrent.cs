@@ -452,7 +452,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                 else if (Settings.MusicCategory.IsNullOrWhiteSpace())
                 {
                     // warn if labels are supported, but category is not provided
-                    return new NzbDroneValidationFailure("MusicCategory", "Category is recommended")
+                    return new NzbDroneValidationFailure("Category", "Category is recommended")
                     {
                         IsWarning = true,
                         DetailedDescription = "Bibliophilarr will not attempt to import completed downloads without a category."
@@ -526,7 +526,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
                 if (!labels.ContainsKey(Settings.MusicCategory))
                 {
-                    return new NzbDroneValidationFailure("MusicCategory", "Configuration of label failed")
+                    return new NzbDroneValidationFailure("Category", "Configuration of label failed")
                     {
                         DetailedDescription = "Bibliophilarr was unable to add the label to qBittorrent."
                     };
@@ -540,7 +540,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
                 if (!labels.ContainsKey(Settings.MusicImportedCategory))
                 {
-                    return new NzbDroneValidationFailure("MusicImportedCategory", "Configuration of label failed")
+                    return new NzbDroneValidationFailure("PostImportCategory", "Configuration of label failed")
                     {
                         DetailedDescription = "Bibliophilarr was unable to add the label to qBittorrent."
                     };

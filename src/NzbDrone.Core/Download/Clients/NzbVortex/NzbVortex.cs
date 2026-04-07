@@ -214,7 +214,7 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
             {
                 if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
                 {
-                    return new NzbDroneValidationFailure("MusicCategory", "Group does not exist")
+                    return new NzbDroneValidationFailure("Category", "Group does not exist")
                     {
                         DetailedDescription = "The Group you entered doesn't exist in NzbVortex. Go to NzbVortex to create it."
                     };

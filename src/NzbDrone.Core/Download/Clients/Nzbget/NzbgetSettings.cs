@@ -57,10 +57,10 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
         [FieldDefinition(6, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.")]
         public string MusicCategory { get; set; }
 
-        [FieldDefinition(7, Label = "Ebook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        [FieldDefinition(7, Label = "Ebook Category", Type = FieldType.Textbox, Section = "formatCategories", Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
         public string EbookCategory { get; set; }
 
-        [FieldDefinition(8, Label = "Audiobook Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        [FieldDefinition(8, Label = "Audiobook Category", Type = FieldType.Textbox, Section = "formatCategories", Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
         public string AudiobookCategory { get; set; }
 
         [FieldDefinition(9, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(NzbgetPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
