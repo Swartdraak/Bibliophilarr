@@ -74,7 +74,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             foreach (var group in unprocessed2.GroupBy(x => new { x.FileTrackInfo.AuthorTitle, x.FileTrackInfo.BookTitle }))
             {
                 _logger.Debug("Falling back to grouping by book+author tag");
-                releases.Add(new LocalEdition(group.ToList()));
+                var tracks = group.ToList();
+
+                // When book tag is empty, each file likely represents a different book
+                // so create individual releases instead of grouping them
+                if (group.Key.BookTitle.IsNullOrWhiteSpace() && tracks.Count > 1)
+                {
+                    _logger.Debug("Book tag empty, creating individual releases for {0} tracks", tracks.Count);
+                    foreach (var track in tracks)
+                    {
+                        releases.Add(new LocalEdition(new List<LocalBook> { track }));
+                    }
+                }
+                else
+                {
+                    releases.Add(new LocalEdition(tracks));
+                }
             }
 
             return releases;
@@ -130,8 +145,47 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 return false;
             }
 
+            var bookTags = tracks.Select(x => x.FileTrackInfo.BookTitle).ToList();
+            var nonEmptyBookTags = bookTags.Where(x => x.IsNotNullOrWhiteSpace()).ToList();
+
+            // If no tracks have book title metadata, don't auto-group multiple files
+            // as a single release — each file likely represents a different book
+            if (nonEmptyBookTags.Count == 0 && tracks.Count > 1)
+            {
+                _logger.Trace("LooksLikeSingleRelease: All book tags empty with multiple tracks");
+                return false;
+            }
+
+            // Check for series volumes: if distinct book titles differ only by
+            // volume/part/book numbers, they are different books, not a single release
+            if (nonEmptyBookTags.Count > 1)
+            {
+                var distinctBookTitles = nonEmptyBookTags
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (distinctBookTitles.Count > 1)
+                {
+                    var volumePattern = @"[\s,_.-]*(vol(ume)?|book|part|b|v|#)[\s._-]*\d+.*$";
+                    var trailingNumberPattern = @"[\s._-]+\d+\s*$";
+                    var normalized = distinctBookTitles
+                        .Select(t =>
+                        {
+                            var stripped = Regex.Replace(t, volumePattern, "", RegexOptions.IgnoreCase);
+                            return Regex.Replace(stripped, trailingNumberPattern, "").Trim();
+                        })
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (normalized.Count <= 1)
+                    {
+                        _logger.Trace("LooksLikeSingleRelease: Book tags differ only by volume/series number");
+                        return false;
+                    }
+                }
+            }
+
             // check that there's a common book tag.
-            var bookTags = tracks.Select(x => x.FileTrackInfo.BookTitle);
             if (!HasCommonEntry(bookTags, bookTagThreshold, tagFuzz))
             {
                 _logger.Trace("LooksLikeSingleRelease: No common book tag");

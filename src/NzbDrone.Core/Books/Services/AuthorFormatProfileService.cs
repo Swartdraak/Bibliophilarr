@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using NLog;
 
@@ -17,12 +18,26 @@ namespace NzbDrone.Core.Books
     public class AuthorFormatProfileService : IAuthorFormatProfileService
     {
         private readonly IAuthorFormatProfileRepository _repository;
+        private readonly Lazy<IAuthorService> _authorService;
         private readonly Logger _logger;
 
-        public AuthorFormatProfileService(IAuthorFormatProfileRepository repository, Logger logger)
+        public AuthorFormatProfileService(IAuthorFormatProfileRepository repository, Lazy<IAuthorService> authorService, Logger logger)
         {
             _repository = repository;
+            _authorService = authorService;
             _logger = logger;
+        }
+
+        private string ResolveAuthorName(int authorId)
+        {
+            try
+            {
+                return _authorService.Value.GetAuthor(authorId)?.Name ?? authorId.ToString();
+            }
+            catch
+            {
+                return authorId.ToString();
+            }
         }
 
         public AuthorFormatProfile Get(int id)
@@ -45,17 +60,17 @@ namespace NzbDrone.Core.Books
             var existing = _repository.GetByAuthorIdAndFormat(profile.AuthorId, profile.FormatType);
             if (existing != null)
             {
-                _logger.Debug("Format profile {0} already exists for author {1}, returning existing", profile.FormatType, profile.AuthorId);
+                _logger.Debug("Format profile {0} already exists for author '{1}' (id: {2}), returning existing", profile.FormatType, ResolveAuthorName(profile.AuthorId), profile.AuthorId);
                 return existing;
             }
 
-            _logger.Info("Adding {0} format profile for author {1}", profile.FormatType, profile.AuthorId);
+            _logger.Info("Adding {0} format profile for author '{1}' (id: {2})", profile.FormatType, ResolveAuthorName(profile.AuthorId), profile.AuthorId);
             return _repository.Insert(profile);
         }
 
         public AuthorFormatProfile Update(AuthorFormatProfile profile)
         {
-            _logger.Info("Updating {0} format profile for author {1}", profile.FormatType, profile.AuthorId);
+            _logger.Info("Updating {0} format profile for author '{1}' (id: {2})", profile.FormatType, ResolveAuthorName(profile.AuthorId), profile.AuthorId);
             return _repository.Update(profile);
         }
 

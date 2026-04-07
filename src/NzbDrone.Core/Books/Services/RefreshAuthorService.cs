@@ -92,7 +92,10 @@ namespace NzbDrone.Core.Books
             }
             catch (AuthorNotFoundException)
             {
-                _logger.Error($"Could not find author with id {foreignId}");
+                _logger.Warn("Metadata provider could not find author with id '{0}'. " +
+                             "The author will be kept with existing metadata. " +
+                             "This may occur when a provider removes an author entry.",
+                             foreignId);
             }
 
             return null;

@@ -96,7 +96,12 @@ namespace NzbDrone.Core.Books
             }
             catch (BookNotFoundException)
             {
-                _logger.Error($"Could not find book with id {book.ForeignBookId}");
+                _logger.Warn("Metadata provider could not find book '{0}' (id: {1}). " +
+                             "The book will be kept with existing metadata. " +
+                             "This may occur when a provider removes a work entry. " +
+                             "Consider manually updating the book's metadata or re-identifying the file.",
+                             book.Title,
+                             book.ForeignBookId);
             }
 
             return null;

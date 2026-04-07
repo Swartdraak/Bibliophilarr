@@ -264,11 +264,30 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug($"Writing tags for {trackfile}");
 
-            newTags.Write(path);
+            WriteTagsWithRetry(newTags, path);
 
             UpdateTrackfileSizeAndModified(trackfile, path);
 
             _eventAggregator.PublishEvent(new BookFileRetaggedEvent(trackfile.Author.Value, trackfile, diff, _configService.ScrubAudioTags));
+        }
+
+        private void WriteTagsWithRetry(AudioTag tags, string path)
+        {
+            const int maxRetries = 3;
+
+            for (var attempt = 0; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    tags.Write(path);
+                    return;
+                }
+                catch (IOException ex) when (attempt < maxRetries)
+                {
+                    _logger.Debug(ex, "Tag write attempt {0} failed for {1} due to file access conflict, retrying", attempt + 1, path);
+                    Thread.Sleep(500 * (attempt + 1));
+                }
+            }
         }
 
         public void SyncTags(List<Edition> editions)
