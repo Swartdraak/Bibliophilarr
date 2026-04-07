@@ -54,7 +54,8 @@ namespace Bibliophilarr.Api.V1.Books
                 return null;
             }
 
-            var selectedEdition = model.Editions?.Value.Where(x => x.Monitored).FirstOrDefault();
+            var selectedEdition = model.Editions?.Value.Where(x => x.Monitored).FirstOrDefault()
+                                  ?? model.Editions?.Value.FirstOrDefault();
 
             var title = selectedEdition?.Title ?? model.Title;
             var authorTitle = $"{model.Author?.Value?.Metadata?.Value?.SortNameLastFirst} {title}";
@@ -113,6 +114,7 @@ namespace Bibliophilarr.Api.V1.Books
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,
                 LastSearchTime = model.LastSearchTime,
+                Editions = editions?.Select(e => e.ToResource()).ToList() ?? new List<EditionResource>(),
                 FormatStatuses = formatStatuses
             };
         }

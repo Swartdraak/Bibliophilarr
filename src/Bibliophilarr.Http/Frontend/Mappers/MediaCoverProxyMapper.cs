@@ -9,7 +9,7 @@ namespace Bibliophilarr.Http.Frontend.Mappers
 {
     public class MediaCoverProxyMapper : IMapHttpRequestsToDisk
     {
-        private readonly Regex _regex = new Regex(@"/MediaCoverProxy/(?<hash>\w+)/(?<filename>(.+)\.(jpg|png|gif))");
+        private readonly Regex _regex = new Regex(@"/MediaCoverProxy/(?<hash>\w+)/(?<filename>(.+)\.(jpe?g|png|gif|webp))");
 
         private readonly IMediaCoverProxy _mediaCoverProxy;
         private readonly IContentTypeProvider _mimeTypeProvider;
