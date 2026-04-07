@@ -31,7 +31,7 @@ The following items were added to canonical planning for immediate/future delive
 
 - **Implementation complete** (April 2026). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
 - `AuthorFormatProfile` entity: per-author, per-format (ebook/audiobook) quality profile, root folder, tags, monitoring, and path.
-- 10 implementation slices defined (DF-1 through DF-10). Feature-flagged with `EnableDualFormatTracking`.
+- 16 implementation slices defined (DF-1 through DF-16). Feature-flagged with `EnableDualFormatTracking`.
 - **DF-1 complete**: domain model, schema migration 045, feature flag, `Quality.GetFormatType()` helper.
 - **DF-2 complete**: edition monitoring per format type — format-aware housekeeping, `BookEditionSelector` overloads, `SetMonitoredByFormat`.
 - **DF-3 complete**: decision engine format-aware quality evaluation — format-specific profile resolution in `QualityAllowedByProfileSpecification`, `UpgradableSpecification.ResolveProfile()`.
@@ -42,7 +42,7 @@ The following items were added to canonical planning for immediate/future delive
 - **DF-8 complete**: API resources and controllers — `AuthorFormatProfileResource`, `BookFormatStatusResource`, CRUD controller, `BookResource.SingleOrDefault` crash fix.
 - **DF-9 complete**: frontend format profile UI — author edit modal, detail header badges, Redux store module.
 - **DF-10 complete**: rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle.
-- **All 10 slices complete.** Feature is opt-in via Settings > Media Management > Dual Format.
+- **All 16 slices complete.** Feature is opt-in via Settings > Media Management > Dual Format.
 - **DF-11 complete** (hardened April 2026): format-aware download client categories — `IFormatCategorySettings` interface, per-format category fields on 6 download clients, `GetCategoryForFormat()` extension, `MatchesAnyCategory()` multi-category monitoring. GetItems() and GetStatus() now cover all configured categories.
 - **DF-12 complete**: format-aware remote path mappings — nullable `FormatType` on `RemotePathMappings` (migration 046), format-priority path resolution in `RemotePathMappingService`, frontend format selector.
 - **DF-13 complete**: queue format display — `FormatType` on `QueueResource`, format column in queue table UI.
@@ -52,6 +52,58 @@ The following items were added to canonical planning for immediate/future delive
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 17, 2026 — v1.1.0-dev.13 deep analysis remediation
+
+Deep project analysis identified 4 code defects, 5 documentation drift items, and
+3 integration observations. All findings addressed in this delivery.
+
+#### Code defect fixes
+
+- **F-1**: `MediaCoverMapper.cs` regex pattern updated from `(jpg|png|gif)` to
+  `(jpe?g|png|gif|webp)` to match `MediaCoverProxyMapper.cs` — fixes resized
+  image fallback for JPEG/WebP cover images.
+- **F-2**: Removed dead `GetImportedCategoryForFormat()` extension method from
+  `IFormatCategorySettings`. Investigation confirmed it was designed but never
+  adopted — clients infer format from current category string instead.
+- **F-3**: rTorrent `GetStatus()` now reports `MusicDirectory` as
+  `OutputRootFolders` when configured, fixing health check blind spots.
+- **F-4**: NzbVortex `GetStatus()` documented API limitation (no config endpoint
+  for default download directory).
+
+#### Download client dual-format expansion (DF-11 addendum)
+
+- **Hadouken**: full dual-format upgrade — `IFormatCategorySettings` on settings,
+  proxy accepts category parameter, `GetItems()` uses `MatchesAnyCategory()`,
+  `AddFrom*` uses `GetCategoryForFormat()`. Test fixture updated.
+- **Aria2, Flood, Pneumatic, Blackhole (usenet + torrent)**: documented
+  dual-format limitations with XML doc comments explaining why
+  `IFormatCategorySettings` is not applicable (no category concept, tag-based,
+  or file-based dropper).
+- Total download clients with `IFormatCategorySettings`: **10** of 14.
+
+#### TASK-15 investigation: Hardcover 429 rate limit handling
+
+Thorough investigation confirmed implementation is production-ready:
+
+- 3-layer defense: HTTP 429 detection → typed exception → execution service catch.
+- Polly circuit breaker: 3 consecutive failures → 2-minute break.
+- `Retry-After` parsing: both relative seconds and absolute HTTP-date formats.
+- Cooldown clamped to [30 s, 15 min] preventing tight retry loops.
+- Degraded health tracking: 85% quota threshold → 15 s request spacing.
+- 6+ dedicated tests in `BookSearchFallbackExecutionServiceFixture`.
+- No critical gaps found.
+
+#### Documentation drift fixes
+
+- `MIGRATION_PLAN.md`: updated "10 slices" → "16 slices" in two locations
+  (lines 324, 460).
+- `PROJECT_STATUS.md`: updated slice count and definition to 16.
+- `CHANGELOG.md`: added entries for all remediation changes.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (`Bibliophilarr.sln` Debug).
 
 ### April 16, 2026 — v1.1.0-dev.12 QA audit phases 1-3
 

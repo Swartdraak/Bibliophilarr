@@ -9,6 +9,20 @@ process.
 
 ### Fixed
 
+- `MediaCoverMapper.cs` resized image fallback regex updated from `(jpg|png|gif)` to `(jpe?g|png|gif|webp)`, matching `MediaCoverProxyMapper.cs`. Fixes JPEG and WebP cover image fallback paths.
+- rTorrent `GetStatus()` now reports `MusicDirectory` as `OutputRootFolders` when configured, preventing health check blind spots for custom download directories.
+
+### Changed
+
+- Hadouken download client upgraded to dual-format: `IFormatCategorySettings` on settings, proxy passes category to `webui.addTorrent`, `GetItems()` uses `MatchesAnyCategory()`, `AddFrom*` uses `GetCategoryForFormat()`. Total `IFormatCategorySettings` clients: 10 of 14.
+- Documentation drift fixed: `MIGRATION_PLAN.md` and `PROJECT_STATUS.md` updated from "10 slices" to "16 slices" for TD-DUAL-FORMAT-001.
+
+### Removed
+
+- Dead `GetImportedCategoryForFormat()` extension method from `IFormatCategorySettings`. Was designed but never adopted; clients infer format from current category string.
+
+### Fixed
+
 - **CRITICAL**: Download client `GetItems()` now monitors all configured format categories (default, ebook, audiobook) instead of only the default `MusicCategory`. Affects SABnzbd, NZBGet, Deluge, rTorrent, and Transmission. Items sent to format-specific categories were previously invisible to download monitoring.
 - **HIGH**: Download client `GetStatus()` now reports output folders for all configured categories (default, ebook, audiobook) instead of only the default category. Affects SABnzbd, NZBGet, and Transmission. Prevents false-positive health check warnings for format-specific download paths.
 - Download client validation failures now use user-friendly field names (`Category`, `PostImportCategory`) instead of leaking internal property names (`MusicCategory`, `MusicImportedCategory`).

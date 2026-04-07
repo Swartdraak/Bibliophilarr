@@ -24,16 +24,6 @@ namespace NzbDrone.Core.Download
             return settings.EbookCategory;
         }
 
-        public static string GetImportedCategoryForFormat(this IFormatCategorySettings settings, FormatType? formatType)
-        {
-            if (formatType == FormatType.Audiobook)
-            {
-                return settings.AudiobookImportedCategory;
-            }
-
-            return settings.EbookImportedCategory;
-        }
-
         /// <summary>
         /// Returns all non-empty configured categories (ebook, audiobook, and their imported variants).
         /// </summary>

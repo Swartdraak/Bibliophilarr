@@ -16,6 +16,14 @@ using NzbDrone.Core.ThingiProvider;
 
 namespace NzbDrone.Core.Download.Clients.Flood
 {
+    /// <summary>
+    /// Flood download client. Uses a tag-based system instead of categories.
+    /// Dual-format awareness is provided via AdditionalTags.Format, which adds a
+    /// tag derived from the quality name (e.g. "EPUB", "MP3-320"). This does not
+    /// implement IFormatCategorySettings because Flood's tag model is structurally
+    /// different from category-based clients. Items are filtered by Settings.Tags
+    /// membership rather than category matching.
+    /// </summary>
     public class Flood : TorrentClientBase<FloodSettings>
     {
         private readonly IFloodProxy _proxy;

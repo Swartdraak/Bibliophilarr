@@ -140,6 +140,8 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
 
         public override DownloadClientInfo GetStatus()
         {
+            // NzbVortex API does not expose a config endpoint for default download directory.
+            // Output paths are only available per-item (DestinationPath on queue items).
             var status = new DownloadClientInfo
             {
                 IsLocalhost = Settings.Host == "127.0.0.1" || Settings.Host == "localhost"

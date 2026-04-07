@@ -61,6 +61,9 @@ namespace NzbDrone.Core.Download.Clients.Blackhole
                 {
                     DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this, false),
                     DownloadId = Definition.Name + "_" + item.DownloadId,
+
+                    // Blackhole items come from a watch folder scan — no format metadata is available
+                    // to distinguish ebook vs audiobook. Category is a static label for identification.
                     Category = "Bibliophilarr",
                     Title = item.Title,
 

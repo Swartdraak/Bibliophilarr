@@ -15,6 +15,12 @@ using NzbDrone.Core.RemotePathMappings;
 
 namespace NzbDrone.Core.Download.Clients.Pneumatic
 {
+    /// <summary>
+    /// Pneumatic (XBMC NZB player) download client. File-based dropper that writes
+    /// .strm files to a watch folder — has no category or label concept. Does not
+    /// implement IFormatCategorySettings. Dual-format separation is not applicable;
+    /// all items are identified by .strm file presence only.
+    /// </summary>
     public class Pneumatic : DownloadClientBase<PneumaticSettings>
     {
         private readonly IHttpClient _httpClient;

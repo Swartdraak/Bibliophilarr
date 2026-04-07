@@ -230,11 +230,18 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
 
         public override DownloadClientInfo GetStatus()
         {
-            // NOTE: This function's correctness has not been considered
             var status = new DownloadClientInfo
             {
                 IsLocalhost = Settings.Host == "127.0.0.1" || Settings.Host == "localhost"
             };
+
+            if (Settings.MusicDirectory.IsNotNullOrWhiteSpace())
+            {
+                status.OutputRootFolders = new List<OsPath>
+                {
+                    _remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(Settings.MusicDirectory))
+                };
+            }
 
             return status;
         }
