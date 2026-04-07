@@ -50,6 +50,11 @@ const COLUMNS = [
     isVisible: true
   },
   {
+    name: 'format',
+    label: 'Format',
+    isVisible: true
+  },
+  {
     name: 'releaseGroup',
     label: 'Release Group',
     isVisible: true

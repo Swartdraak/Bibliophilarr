@@ -177,6 +177,7 @@ class InteractiveImportRow extends Component {
       path,
       author,
       book,
+      formatType,
       quality,
       releaseGroup,
       size,
@@ -271,6 +272,10 @@ class InteractiveImportRow extends Component {
             showBookNumberPlaceholder ? <InteractiveImportRowCellPlaceholder /> : bookTitle
           }
         </TableRowCellButton>
+
+        <TableRowCell>
+          {formatType === 0 ? 'Ebook' : formatType === 1 ? 'Audiobook' : ''}
+        </TableRowCell>
 
         <TableRowCellButton
           title={translate('ClickToChangeReleaseGroup')}
@@ -439,6 +444,7 @@ InteractiveImportRow.propTypes = {
   path: PropTypes.string.isRequired,
   author: PropTypes.object,
   book: PropTypes.object,
+  formatType: PropTypes.number,
   foreignEditionId: PropTypes.string,
   releaseGroup: PropTypes.string,
   quality: PropTypes.object,

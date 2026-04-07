@@ -38,6 +38,7 @@ class SelectBookRow extends Component {
       releaseDate,
       statistics,
       monitored,
+      editions,
       columns
     } = this.props;
 
@@ -67,6 +68,20 @@ class SelectBookRow extends Component {
               return (
                 <TableRowCell key={name}>
                   {title}
+                </TableRowCell>
+              );
+            }
+
+            if (name === 'format') {
+              const hasEbook = editions && editions.some((e) => e.isEbook);
+              const hasAudio = editions && editions.some((e) => !e.isEbook);
+              const formatLabel = hasEbook && hasAudio ? 'Ebook / Audiobook' :
+                hasEbook ? 'Ebook' :
+                  hasAudio ? 'Audiobook' : '';
+
+              return (
+                <TableRowCell key={name}>
+                  {formatLabel}
                 </TableRowCell>
               );
             }
@@ -114,6 +129,7 @@ SelectBookRow.propTypes = {
   onBookSelect: PropTypes.func.isRequired,
   statistics: PropTypes.object.isRequired,
   monitored: PropTypes.bool.isRequired,
+  editions: PropTypes.arrayOf(PropTypes.object),
   columns: PropTypes.arrayOf(PropTypes.object).isRequired
 };
 
@@ -121,7 +137,8 @@ SelectBookRow.defaultProps = {
   statistics: {
     bookCount: 0,
     bookFileCount: 0
-  }
+  },
+  editions: []
 };
 
 export default SelectBookRow;
