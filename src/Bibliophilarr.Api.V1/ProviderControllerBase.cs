@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Http.REST;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Mvc;
+using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.ThingiProvider;
@@ -21,6 +23,7 @@ namespace Bibliophilarr.Api.V1
         private readonly IProviderFactory<TProvider, TProviderDefinition> _providerFactory;
         private readonly ProviderResourceMapper<TProviderResource, TProviderDefinition> _resourceMapper;
         private readonly ProviderBulkResourceMapper<TBulkProviderResource, TProviderDefinition> _bulkResourceMapper;
+        private readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
         protected ProviderControllerBase(IProviderFactory<TProvider,
             TProviderDefinition> providerFactory,
@@ -73,12 +76,35 @@ namespace Bibliophilarr.Api.V1
         {
             var providerDefinition = GetDefinition(providerResource, true, !forceSave, false);
 
-            if (providerDefinition.Enable)
+            if (providerDefinition.Enable && !forceSave)
             {
                 Test(providerDefinition, !forceSave);
             }
 
-            providerDefinition = _providerFactory.Create(providerDefinition);
+            try
+            {
+                providerDefinition = _providerFactory.Create(providerDefinition);
+            }
+            catch (Exception ex) when (ex.InnerException?.Message?.Contains("UNIQUE constraint failed") == true ||
+                                       ex.Message?.Contains("UNIQUE constraint failed") == true)
+            {
+                // Upsert: a provider with the same name already exists (e.g. Prowlarr re-sync).
+                // Find the existing provider and update it instead of failing.
+                var existing = _providerFactory.All()
+                    .FirstOrDefault(p => p.Name.EqualsIgnoreCase(providerDefinition.Name));
+
+                if (existing == null)
+                {
+                    throw;
+                }
+
+                _logger.Info("Provider '{0}' already exists (id={1}), updating instead of creating", existing.Name, existing.Id);
+
+                providerDefinition.Id = existing.Id;
+                _providerFactory.Update(providerDefinition);
+
+                return Accepted(providerDefinition.Id);
+            }
 
             return Created(providerDefinition.Id);
         }
