@@ -3,6 +3,7 @@ import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import { addAuthor, setAuthorAddDefault } from 'Store/Actions/searchActions';
+import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
 import createSystemStatusSelector from 'Store/Selectors/createSystemStatusSelector';
 import selectSettings from 'Store/Selectors/selectSettings';
@@ -45,10 +46,18 @@ function createMapStateToProps() {
 
 const mapDispatchToProps = {
   setAuthorAddDefault,
-  addAuthor
+  addAuthor,
+  fetchMediaManagementSettings
 };
 
 class AddNewAuthorModalContentConnector extends Component {
+
+  //
+  // Lifecycle
+
+  componentDidMount() {
+    this.props.fetchMediaManagementSettings();
+  }
 
   //
   // Listeners
@@ -81,12 +90,12 @@ class AddNewAuthorModalContentConnector extends Component {
       qualityProfileId: qualityProfileId.value,
       metadataProfileId: metadataProfileId.value,
       tags: tags.value,
-      searchForMissingBooks
+      searchForMissingBooks,
+      ebookQualityProfileId: ebookQualityProfileId?.value ?? qualityProfileId.value,
+      audiobookQualityProfileId: audiobookQualityProfileId?.value ?? qualityProfileId.value
     };
 
     if (enableDualFormatTracking) {
-      payload.ebookQualityProfileId = ebookQualityProfileId?.value ?? qualityProfileId.value;
-      payload.audiobookQualityProfileId = audiobookQualityProfileId?.value ?? qualityProfileId.value;
       payload.ebookRootFolderPath = ebookRootFolderPath?.value ?? rootFolderPath.value;
       payload.audiobookRootFolderPath = audiobookRootFolderPath?.value ?? rootFolderPath.value;
     }
@@ -123,7 +132,8 @@ AddNewAuthorModalContentConnector.propTypes = {
   tags: PropTypes.object.isRequired,
   onModalClose: PropTypes.func.isRequired,
   setAuthorAddDefault: PropTypes.func.isRequired,
-  addAuthor: PropTypes.func.isRequired
+  addAuthor: PropTypes.func.isRequired,
+  fetchMediaManagementSettings: PropTypes.func.isRequired
 };
 
 export default connect(createMapStateToProps, mapDispatchToProps)(AddNewAuthorModalContentConnector);

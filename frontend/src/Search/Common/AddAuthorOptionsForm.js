@@ -143,44 +143,39 @@ class AddAuthorOptionsForm extends Component {
           <FormInputGroup
             type={inputTypes.QUALITY_PROFILE_SELECT}
             name="qualityProfileId"
+            helpText="Default quality profile (used when format-specific profiles are not set)"
             onChange={this.onQualityProfileIdChange}
             {...qualityProfileId}
           />
         </FormGroup>
 
-        {
-          enableDualFormatTracking &&
-            <FormGroup>
-              <FormLabel>
-                Ebook Quality Profile
-              </FormLabel>
+        <FormGroup>
+          <FormLabel>
+            Ebook Quality Profile
+          </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.QUALITY_PROFILE_SELECT}
-                name="ebookQualityProfileId"
-                helpText="Quality profile for ebook downloads"
-                onChange={this.onEbookQualityProfileIdChange}
-                {...(ebookQualityProfileId || qualityProfileId)}
-              />
-            </FormGroup>
-        }
+          <FormInputGroup
+            type={inputTypes.QUALITY_PROFILE_SELECT}
+            name="ebookQualityProfileId"
+            helpText="Quality profile for ebook downloads (optional if audiobook profile is set)"
+            onChange={this.onEbookQualityProfileIdChange}
+            {...(ebookQualityProfileId || qualityProfileId)}
+          />
+        </FormGroup>
 
-        {
-          enableDualFormatTracking &&
-            <FormGroup>
-              <FormLabel>
-                Audiobook Quality Profile
-              </FormLabel>
+        <FormGroup>
+          <FormLabel>
+            Audiobook Quality Profile
+          </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.QUALITY_PROFILE_SELECT}
-                name="audiobookQualityProfileId"
-                helpText="Quality profile for audiobook downloads"
-                onChange={this.onAudiobookQualityProfileIdChange}
-                {...(audiobookQualityProfileId || qualityProfileId)}
-              />
-            </FormGroup>
-        }
+          <FormInputGroup
+            type={inputTypes.QUALITY_PROFILE_SELECT}
+            name="audiobookQualityProfileId"
+            helpText="Quality profile for audiobook downloads (optional if ebook profile is set)"
+            onChange={this.onAudiobookQualityProfileIdChange}
+            {...(audiobookQualityProfileId || qualityProfileId)}
+          />
+        </FormGroup>
 
         {
           enableDualFormatTracking &&

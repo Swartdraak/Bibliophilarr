@@ -64,6 +64,8 @@ class AddNewBookModalContentConnector extends Component {
       monitorNewItems,
       qualityProfileId,
       metadataProfileId,
+      ebookQualityProfileId,
+      audiobookQualityProfileId,
       tags
     } = this.props;
 
@@ -74,6 +76,8 @@ class AddNewBookModalContentConnector extends Component {
       monitorNewItems: monitorNewItems.value,
       qualityProfileId: qualityProfileId.value,
       metadataProfileId: metadataProfileId.value,
+      ebookQualityProfileId: ebookQualityProfileId?.value ?? qualityProfileId.value,
+      audiobookQualityProfileId: audiobookQualityProfileId?.value ?? qualityProfileId.value,
       tags: tags.value,
       searchForNewBook
     });
@@ -100,6 +104,8 @@ AddNewBookModalContentConnector.propTypes = {
   monitor: PropTypes.object.isRequired,
   monitorNewItems: PropTypes.object.isRequired,
   qualityProfileId: PropTypes.object,
+  ebookQualityProfileId: PropTypes.object,
+  audiobookQualityProfileId: PropTypes.object,
   metadataProfileId: PropTypes.object,
   tags: PropTypes.object.isRequired,
   onModalClose: PropTypes.func.isRequired,
