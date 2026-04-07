@@ -16,9 +16,13 @@ namespace NzbDrone.Core.Download.Clients.Transmission
 
             RuleFor(c => c.UrlBase).ValidUrlBase();
 
-            RuleFor(c => c.MusicCategory).Matches(@"^\.?[-a-z]*$", RegexOptions.IgnoreCase).WithMessage("Allowed characters a-z and -");
+            RuleFor(c => c.EbookCategory).Matches(@"^\.?[-a-z]*$", RegexOptions.IgnoreCase).WithMessage("Allowed characters a-z and -");
+            RuleFor(c => c.AudiobookCategory).Matches(@"^\.?[-a-z]*$", RegexOptions.IgnoreCase).WithMessage("Allowed characters a-z and -");
 
-            RuleFor(c => c.MusicCategory).Empty()
+            RuleFor(c => c.EbookCategory).Empty()
+                .When(c => c.TvDirectory.IsNotNullOrWhiteSpace())
+                .WithMessage("Cannot use Category and Directory");
+            RuleFor(c => c.AudiobookCategory).Empty()
                 .When(c => c.TvDirectory.IsNotNullOrWhiteSpace())
                 .WithMessage("Cannot use Category and Directory");
         }
@@ -53,14 +57,15 @@ namespace NzbDrone.Core.Download.Clients.Transmission
         [FieldDefinition(5, Label = "Password", Type = FieldType.Password, Privacy = PrivacyLevel.Password)]
         public string Password { get; set; }
 
-        [FieldDefinition(6, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.. Creates a [category] subdirectory in the output directory.")]
-        public string MusicCategory { get; set; }
-
-        [FieldDefinition(7, Label = "Ebook Category", Type = FieldType.Textbox, Section = "formatCategories", Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        [FieldDefinition(6, Label = "Ebook Category", Type = FieldType.Textbox, HelpText = "Category for ebook downloads. Creates a [category] subdirectory in the output directory. Avoids conflicts with unrelated downloads.")]
         public string EbookCategory { get; set; }
 
-        [FieldDefinition(8, Label = "Audiobook Category", Type = FieldType.Textbox, Section = "formatCategories", Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        [FieldDefinition(7, Label = "Audiobook Category", Type = FieldType.Textbox, HelpText = "Category for audiobook downloads. Creates a [category] subdirectory in the output directory. Avoids conflicts with unrelated downloads.")]
         public string AudiobookCategory { get; set; }
+
+        // Transmission doesn't support post-import categories
+        public string EbookImportedCategory { get; set; }
+        public string AudiobookImportedCategory { get; set; }
 
         [FieldDefinition(9, Label = "Directory", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional location to put downloads in, leave blank to use the default Transmission location")]
         public string TvDirectory { get; set; }

@@ -24,7 +24,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.RTorrentTests
             Subject.Definition = new DownloadClientDefinition();
             Subject.Definition.Settings = new RTorrentSettings()
             {
-                MusicCategory = null
+                EbookCategory = null,
+                AudiobookCategory = null
             };
 
             _downloading = new RTorrentTorrent

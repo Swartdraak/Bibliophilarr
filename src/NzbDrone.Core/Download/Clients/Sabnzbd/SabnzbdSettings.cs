@@ -26,9 +26,16 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
                                     .WithMessage("Password is required when API key is not configured")
                                     .When(c => string.IsNullOrWhiteSpace(c.ApiKey));
 
-            RuleFor(c => c.MusicCategory).NotEmpty()
+            RuleFor(c => c.EbookCategory).NotEmpty()
                                       .WithMessage("A category is recommended")
                                       .AsWarning();
+
+            RuleFor(c => c.EbookCategory).Must(cat => !cat.Contains('\\') && !cat.Contains("//"))
+                                      .WithMessage(@"Can not contain '\' or '//'")
+                                      .When(c => c.EbookCategory.IsNotNullOrWhiteSpace());
+            RuleFor(c => c.AudiobookCategory).Must(cat => !cat.Contains('\\') && !cat.Contains("//"))
+                                      .WithMessage(@"Can not contain '\' or '//'")
+                                      .When(c => c.AudiobookCategory.IsNotNullOrWhiteSpace());
         }
     }
 
@@ -40,7 +47,8 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
         {
             Host = "localhost";
             Port = 8080;
-            MusicCategory = "Bibliophilarr";
+            EbookCategory = "bibliophilarr-ebooks";
+            AudiobookCategory = "bibliophilarr-audiobooks";
             RecentTvPriority = (int)SabnzbdPriority.Default;
             OlderTvPriority = (int)SabnzbdPriority.Default;
         }
@@ -66,14 +74,15 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
         [FieldDefinition(6, Label = "Password", Type = FieldType.Password, Privacy = PrivacyLevel.Password)]
         public string Password { get; set; }
 
-        [FieldDefinition(7, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.")]
-        public string MusicCategory { get; set; }
-
-        [FieldDefinition(8, Label = "Ebook Category", Type = FieldType.Textbox, Section = "formatCategories", Advanced = true, HelpText = "Optional category override for ebook downloads. Leave blank to use the default category.")]
+        [FieldDefinition(7, Label = "Ebook Category", Type = FieldType.Textbox, HelpText = "Category for ebook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
         public string EbookCategory { get; set; }
 
-        [FieldDefinition(9, Label = "Audiobook Category", Type = FieldType.Textbox, Section = "formatCategories", Advanced = true, HelpText = "Optional category override for audiobook downloads. Leave blank to use the default category.")]
+        [FieldDefinition(8, Label = "Audiobook Category", Type = FieldType.Textbox, HelpText = "Category for audiobook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
         public string AudiobookCategory { get; set; }
+
+        // Usenet clients don't use post-import categories (not applicable)
+        public string EbookImportedCategory { get; set; }
+        public string AudiobookImportedCategory { get; set; }
 
         [FieldDefinition(10, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(SabnzbdPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
         public int RecentTvPriority { get; set; }

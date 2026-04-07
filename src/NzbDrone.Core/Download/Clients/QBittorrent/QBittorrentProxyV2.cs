@@ -93,12 +93,12 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             return response;
         }
 
-        public List<QBittorrentTorrent> GetTorrents(QBittorrentSettings settings)
+        public List<QBittorrentTorrent> GetTorrents(string category, QBittorrentSettings settings)
         {
             var request = BuildRequest(settings).Resource("/api/v2/torrents/info");
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (category.IsNotNullOrWhiteSpace())
             {
-                request.AddQueryParam("category", settings.MusicCategory);
+                request.AddQueryParam("category", category);
             }
 
             var response = ProcessRequest<List<QBittorrentTorrent>>(request, settings);
@@ -142,13 +142,13 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             return response;
         }
 
-        public void AddTorrentFromUrl(string torrentUrl, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings)
+        public void AddTorrentFromUrl(string torrentUrl, string category, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings)
         {
             var request = BuildRequest(settings).Resource("/api/v2/torrents/add")
                                                 .Post()
                                                 .AddFormParameter("urls", torrentUrl);
 
-            AddTorrentDownloadFormParameters(request, settings);
+            AddTorrentDownloadFormParameters(request, category, settings);
 
             if (seedConfiguration != null)
             {
@@ -164,13 +164,13 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             }
         }
 
-        public void AddTorrentFromFile(string fileName, byte[] fileContent, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings)
+        public void AddTorrentFromFile(string fileName, byte[] fileContent, string category, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings)
         {
             var request = BuildRequest(settings).Resource("/api/v2/torrents/add")
                                                 .Post()
                                                 .AddFormUpload("torrents", fileName, fileContent);
 
-            AddTorrentDownloadFormParameters(request, settings);
+            AddTorrentDownloadFormParameters(request, category, settings);
 
             if (seedConfiguration != null)
             {
@@ -239,11 +239,11 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             }
         }
 
-        private void AddTorrentDownloadFormParameters(HttpRequestBuilder request, QBittorrentSettings settings)
+        private void AddTorrentDownloadFormParameters(HttpRequestBuilder request, string category, QBittorrentSettings settings)
         {
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (category.IsNotNullOrWhiteSpace())
             {
-                request.AddFormParameter("category", settings.MusicCategory);
+                request.AddFormParameter("category", category);
             }
 
             // Avoid extraneous API version check if initial state is ForceStart

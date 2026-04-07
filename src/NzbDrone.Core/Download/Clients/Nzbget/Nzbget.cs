@@ -36,7 +36,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
 
         protected override string AddFromNzbFile(RemoteBook remoteBook, string filename, byte[] fileContent)
         {
-            var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
+            var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
             var priority = remoteBook.IsRecentBook() ? Settings.RecentTvPriority : Settings.OlderTvPriority;
 
             var addpaused = Settings.AddPaused;
@@ -189,7 +189,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
 
         public override IEnumerable<DownloadClientItem> GetItems()
         {
-            return GetQueue().Concat(GetHistory()).Where(downloadClientItem => Settings.MatchesAnyCategory(Settings.MusicCategory, downloadClientItem.Category));
+            return GetQueue().Concat(GetHistory()).Where(downloadClientItem => Settings.MatchesAnyCategory(downloadClientItem.Category));
         }
 
         public override void RemoveItem(DownloadClientItem item, bool deleteData)
@@ -214,15 +214,8 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
 
             var outputFolders = new List<OsPath>();
 
-            // Add default category folder
-            var defaultCategory = categories.FirstOrDefault(v => v.Name == Settings.MusicCategory);
-            if (defaultCategory != null)
-            {
-                outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(defaultCategory.DestDir)));
-            }
-
-            // Add ebook category folder if configured and different
-            if (Settings.EbookCategory.IsNotNullOrWhiteSpace() && Settings.EbookCategory != Settings.MusicCategory)
+            // Add ebook category folder
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace())
             {
                 var ebookCategory = categories.FirstOrDefault(v => v.Name == Settings.EbookCategory);
                 if (ebookCategory != null)
@@ -232,7 +225,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
             }
 
             // Add audiobook category folder if configured and different
-            if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.MusicCategory)
+            if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.EbookCategory)
             {
                 var audiobookCategory = categories.FirstOrDefault(v => v.Name == Settings.AudiobookCategory);
                 if (audiobookCategory != null)
@@ -321,13 +314,16 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
             var config = _proxy.GetConfig(Settings);
             var categories = GetCategories(config);
 
-            if (!Settings.MusicCategory.IsNullOrWhiteSpace() && !categories.Any(v => v.Name == Settings.MusicCategory))
+            foreach (var categoryName in Settings.GetAllCategories())
             {
-                return new NzbDroneValidationFailure("Category", "Category does not exist")
+                if (!categoryName.IsNullOrWhiteSpace() && !categories.Any(v => v.Name == categoryName))
                 {
-                    InfoLink = _proxy.GetBaseUrl(Settings),
-                    DetailedDescription = "The Category your entered doesn't exist in NzbGet. Go to NzbGet to create it."
-                };
+                    return new NzbDroneValidationFailure("Category", $"Category '{categoryName}' does not exist")
+                    {
+                        InfoLink = _proxy.GetBaseUrl(Settings),
+                        DetailedDescription = "The Category your entered doesn't exist in NzbGet. Go to NzbGet to create it."
+                    };
+                }
             }
 
             return null;

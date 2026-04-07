@@ -18,15 +18,15 @@ namespace NzbDrone.Core.Download.Clients.DownloadStation
                                        .When(c => c.TvDirectory.IsNotNullOrWhiteSpace())
                                        .WithMessage("Cannot start with /");
 
-            RuleFor(c => c.MusicCategory).Matches(@"^\.?[-a-z]*$", RegexOptions.IgnoreCase).WithMessage("Allowed characters a-z and -");
+            RuleFor(c => c.EbookCategory).Matches(@"^\.?[-a-z]*$", RegexOptions.IgnoreCase).WithMessage("Allowed characters a-z and -");
 
-            RuleFor(c => c.MusicCategory).Empty()
+            RuleFor(c => c.EbookCategory).Empty()
                                       .When(c => c.TvDirectory.IsNotNullOrWhiteSpace())
                                       .WithMessage("Cannot use Category and Directory");
         }
     }
 
-    public class DownloadStationSettings : IProviderConfig
+    public class DownloadStationSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly DownloadStationSettingsValidator Validator = new DownloadStationSettingsValidator();
 
@@ -45,10 +45,17 @@ namespace NzbDrone.Core.Download.Clients.DownloadStation
         [FieldDefinition(4, Label = "Password", Type = FieldType.Password, Privacy = PrivacyLevel.Password)]
         public string Password { get; set; }
 
-        [FieldDefinition(5, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended. Creates a [category] subdirectory in the output directory.")]
-        public string MusicCategory { get; set; }
+        [FieldDefinition(5, Label = "Ebook Category", Type = FieldType.Textbox, HelpText = "Category for ebook downloads. Creates a [category] subdirectory in the output directory. Avoids conflicts with unrelated downloads.")]
+        public string EbookCategory { get; set; }
 
-        [FieldDefinition(6, Label = "Directory", Type = FieldType.Textbox, HelpText = "Optional shared folder to put downloads into, leave blank to use the default Download Station location")]
+        [FieldDefinition(6, Label = "Audiobook Category", Type = FieldType.Textbox, HelpText = "Category for audiobook downloads. Creates a [category] subdirectory in the output directory. Avoids conflicts with unrelated downloads.")]
+        public string AudiobookCategory { get; set; }
+
+        // Download Station doesn't support post-import categories
+        public string EbookImportedCategory { get; set; }
+        public string AudiobookImportedCategory { get; set; }
+
+        [FieldDefinition(7, Label = "Directory", Type = FieldType.Textbox, HelpText = "Optional shared folder to put downloads into, leave blank to use the default Download Station location")]
         public string TvDirectory { get; set; }
 
         public DownloadStationSettings()

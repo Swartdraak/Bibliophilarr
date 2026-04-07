@@ -92,6 +92,8 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             {
                 downloadClientItems = downloadClient.GetItems().ToList();
 
+                _logger.Info("Download client '{0}' returned {1} items", downloadClient.Definition.Name, downloadClientItems.Count);
+
                 _downloadClientStatusService.RecordSuccess(downloadClient.Definition.Id);
             }
             catch (Exception ex)

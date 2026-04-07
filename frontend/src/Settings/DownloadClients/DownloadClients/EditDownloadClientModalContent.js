@@ -138,6 +138,10 @@ class EditDownloadClientModalContent extends Component {
 
                       lastSection = fieldSection;
 
+                      // The default ebook/audiobook category fields are the
+                      // primary category controls — no hiding needed
+                      const fieldAdvanced = field.advanced;
+
                       elements.push(
                         <ProviderFieldFormGroup
                           key={field.name}
@@ -145,6 +149,7 @@ class EditDownloadClientModalContent extends Component {
                           provider="downloadClient"
                           providerData={item}
                           {...field}
+                          advanced={fieldAdvanced}
                           onChange={onFieldChange}
                         />
                       );

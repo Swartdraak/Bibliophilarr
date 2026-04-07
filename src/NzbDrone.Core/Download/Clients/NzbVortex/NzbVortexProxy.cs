@@ -13,12 +13,12 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
 {
     public interface INzbVortexProxy
     {
-        string DownloadNzb(byte[] nzbData, string filename, int priority, NzbVortexSettings settings);
+        string DownloadNzb(byte[] nzbData, string filename, string category, int priority, NzbVortexSettings settings);
         void Remove(int id, bool deleteData, NzbVortexSettings settings);
         NzbVortexVersionResponse GetVersion(NzbVortexSettings settings);
         NzbVortexApiVersionResponse GetApiVersion(NzbVortexSettings settings);
         List<NzbVortexGroup> GetGroups(NzbVortexSettings settings);
-        List<NzbVortexQueueItem> GetQueue(int doneLimit, NzbVortexSettings settings);
+        List<NzbVortexQueueItem> GetQueue(int doneLimit, string category, NzbVortexSettings settings);
         List<NzbVortexFile> GetFiles(int id, NzbVortexSettings settings);
     }
 
@@ -37,15 +37,15 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
             _authSessionIdCache = cacheManager.GetCache<string>(GetType(), "authCache");
         }
 
-        public string DownloadNzb(byte[] nzbData, string filename, int priority, NzbVortexSettings settings)
+        public string DownloadNzb(byte[] nzbData, string filename, string category, int priority, NzbVortexSettings settings)
         {
             var requestBuilder = BuildRequest(settings).Resource("nzb/add")
                                                        .Post()
                                                        .AddQueryParam("priority", priority.ToString());
 
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (category.IsNotNullOrWhiteSpace())
             {
-                requestBuilder.AddQueryParam("groupname", settings.MusicCategory);
+                requestBuilder.AddQueryParam("groupname", category);
             }
 
             requestBuilder.AddFormUpload("name", filename, nzbData, "application/x-nzb");
@@ -88,13 +88,13 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
             return response.Groups;
         }
 
-        public List<NzbVortexQueueItem> GetQueue(int doneLimit, NzbVortexSettings settings)
+        public List<NzbVortexQueueItem> GetQueue(int doneLimit, string category, NzbVortexSettings settings)
         {
             var requestBuilder = BuildRequest(settings).Resource("nzb");
 
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (category.IsNotNullOrWhiteSpace())
             {
-                requestBuilder.AddQueryParam("groupName", settings.MusicCategory);
+                requestBuilder.AddQueryParam("groupName", category);
             }
 
             requestBuilder.AddQueryParam("limitDone", doneLimit.ToString());

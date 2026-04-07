@@ -46,19 +46,23 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
 
         public override void MarkItemAsImported(DownloadClientItem downloadClientItem)
         {
-            // Set post-import label
-            if (Settings.MusicImportedCategory.IsNotNullOrWhiteSpace() &&
-                Settings.MusicImportedCategory != Settings.MusicCategory)
+            // Determine format from item category to select the correct imported category
+            var importedCategory = downloadClientItem.Category == Settings.AudiobookCategory
+                ? Settings.AudiobookImportedCategory
+                : Settings.EbookImportedCategory;
+
+            if (importedCategory.IsNotNullOrWhiteSpace() &&
+                importedCategory != downloadClientItem.Category)
             {
                 try
                 {
-                    _proxy.SetTorrentLabel(downloadClientItem.DownloadId.ToLower(), Settings.MusicImportedCategory, Settings);
+                    _proxy.SetTorrentLabel(downloadClientItem.DownloadId.ToLower(), importedCategory, Settings);
                 }
                 catch (Exception ex)
                 {
                     _logger.Warn(ex,
                         "Failed to set torrent post-import label \"{0}\" for {1} in rTorrent. Does the label exist?",
-                        Settings.MusicImportedCategory,
+                        importedCategory,
                         downloadClientItem.Title);
                 }
             }
@@ -80,7 +84,7 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         protected override string AddFromMagnetLink(RemoteBook remoteBook, string hash, string magnetLink)
         {
             var priority = (RTorrentPriority)(remoteBook.IsRecentBook() ? Settings.RecentTvPriority : Settings.OlderTvPriority);
-            var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
+            var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
 
             _proxy.AddTorrentFromUrl(magnetLink, category, priority, Settings.MusicDirectory, Settings);
 
@@ -101,7 +105,7 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         protected override string AddFromTorrentFile(RemoteBook remoteBook, string hash, string filename, byte[] fileContent)
         {
             var priority = (RTorrentPriority)(remoteBook.IsRecentBook() ? Settings.RecentTvPriority : Settings.OlderTvPriority);
-            var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
+            var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
 
             _proxy.AddTorrentFromFile(filename, fileContent, category, priority, Settings.MusicDirectory, Settings);
 
@@ -131,8 +135,7 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             foreach (var torrent in torrents)
             {
                 // Don't concern ourselves with categories other than specified
-                if (Settings.MusicCategory.IsNotNullOrWhiteSpace() &&
-                    !Settings.MatchesAnyCategory(Settings.MusicCategory, torrent.Category))
+                if (!Settings.MatchesAnyCategory(torrent.Category))
                 {
                     continue;
                 }
@@ -151,7 +154,7 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
                 }
 
                 var item = new DownloadClientItem();
-                item.DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this, Settings.MusicImportedCategory.IsNotNullOrWhiteSpace());
+                item.DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this, Settings.HasImportedCategory());
                 item.Title = torrent.Name;
                 item.DownloadId = torrent.Hash;
                 item.OutputPath = _remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(torrent.Path));

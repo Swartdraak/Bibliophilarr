@@ -38,7 +38,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SabnzbdTests
                 ApiKey = "5c770e3197e4fe763423ee7c392c25d1",
                 Username = "admin",
                 Password = "pass",
-                MusicCategory = "tv",
+                EbookCategory = "tv",
+                AudiobookCategory = "audiobooks",
                 RecentTvPriority = (int)SabnzbdPriority.High
             };
             _queued = new SabnzbdQueue
@@ -634,7 +635,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SabnzbdTests
         [Test]
         public void should_test_failed_if_tv_sorting_default_category()
         {
-            Subject.Definition.Settings.As<SabnzbdSettings>().MusicCategory = null;
+            Subject.Definition.Settings.As<SabnzbdSettings>().EbookCategory = null;
 
             _config.Misc.enable_tv_sorting = true;
             _config.Misc.tv_categories = new[] { "Default" };

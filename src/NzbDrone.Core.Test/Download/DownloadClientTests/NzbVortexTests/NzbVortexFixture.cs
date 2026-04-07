@@ -33,7 +33,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
                 Host = "127.0.0.1",
                 Port = 2222,
                 ApiKey = "1234-ABCD",
-                MusicCategory = "Music",
+                EbookCategory = "Music",
+                AudiobookCategory = "Audiobooks",
                 RecentTvPriority = (int)NzbgetPriority.High
             };
 
@@ -70,14 +71,14 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
         protected void GivenFailedDownload()
         {
             Mocker.GetMock<INzbVortexProxy>()
-                .Setup(s => s.DownloadNzb(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<NzbVortexSettings>()))
+                .Setup(s => s.DownloadNzb(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<NzbVortexSettings>()))
                 .Returns((string)null);
         }
 
         protected void GivenSuccessfulDownload()
         {
             Mocker.GetMock<INzbVortexProxy>()
-                .Setup(s => s.DownloadNzb(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<NzbVortexSettings>()))
+                .Setup(s => s.DownloadNzb(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<NzbVortexSettings>()))
                 .Returns(Guid.NewGuid().ToString().Replace("-", ""));
         }
 
@@ -88,7 +89,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
             list.AddIfNotNull(queue);
 
             Mocker.GetMock<INzbVortexProxy>()
-                .Setup(s => s.GetQueue(It.IsAny<int>(), It.IsAny<NzbVortexSettings>()))
+                .Setup(s => s.GetQueue(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<NzbVortexSettings>()))
                 .Returns(list);
         }
 
@@ -299,7 +300,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
         {
             Mocker.GetMock<INzbVortexProxy>()
                 .Setup(v => v.GetGroups(It.IsAny<NzbVortexSettings>()))
-                .Returns(new List<NzbVortexGroup> { new NzbVortexGroup { GroupName = ((NzbVortexSettings)Subject.Definition.Settings).MusicCategory } });
+                .Returns(new List<NzbVortexGroup> { new NzbVortexGroup { GroupName = ((NzbVortexSettings)Subject.Definition.Settings).EbookCategory } });
 
             Mocker.GetMock<INzbVortexProxy>()
                 .Setup(v => v.GetApiVersion(It.IsAny<NzbVortexSettings>()))

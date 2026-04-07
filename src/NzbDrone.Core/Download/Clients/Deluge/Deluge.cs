@@ -35,18 +35,22 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
         public override void MarkItemAsImported(DownloadClientItem downloadClientItem)
         {
-            // set post-import category
-            if (Settings.MusicImportedCategory.IsNotNullOrWhiteSpace() &&
-                Settings.MusicImportedCategory != Settings.MusicCategory)
+            // Determine format from item category to select the correct imported category
+            var importedCategory = downloadClientItem.Category == Settings.AudiobookCategory
+                ? Settings.AudiobookImportedCategory
+                : Settings.EbookImportedCategory;
+
+            if (importedCategory.IsNotNullOrWhiteSpace() &&
+                importedCategory != downloadClientItem.Category)
             {
                 try
                 {
-                    _proxy.SetTorrentLabel(downloadClientItem.DownloadId.ToLower(), Settings.MusicImportedCategory, Settings);
+                    _proxy.SetTorrentLabel(downloadClientItem.DownloadId.ToLower(), importedCategory, Settings);
                 }
                 catch (DownloadClientUnavailableException)
                 {
                     _logger.Warn("Failed to set torrent post-import label \"{0}\" for {1} in Deluge. Does the label exist?",
-                        Settings.MusicImportedCategory,
+                        importedCategory,
                         downloadClientItem.Title);
                 }
             }
@@ -63,9 +67,9 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             _proxy.SetTorrentSeedingConfiguration(actualHash, remoteBook.SeedConfiguration, Settings);
 
-            if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace() || Settings.AudiobookCategory.IsNotNullOrWhiteSpace())
             {
-                var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
+                var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
                 _proxy.SetTorrentLabel(actualHash, category, Settings);
             }
 
@@ -91,9 +95,9 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             _proxy.SetTorrentSeedingConfiguration(actualHash, remoteBook.SeedConfiguration, Settings);
 
-            if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace() || Settings.AudiobookCategory.IsNotNullOrWhiteSpace())
             {
-                var category = Settings.GetCategoryForFormat(Settings.MusicCategory, remoteBook.ResolvedFormatType);
+                var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
                 _proxy.SetTorrentLabel(actualHash, category, Settings);
             }
 
@@ -112,35 +116,37 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
         public override IEnumerable<DownloadClientItem> GetItems()
         {
-            IEnumerable<DelugeTorrent> torrents;
+            // Fetch torrents for both ebook and audiobook categories, tracking category
+            var torrentsByCategory = new List<(DelugeTorrent Torrent, string Category)>();
 
-            if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace())
             {
-                // Fetch torrents for default category
-                var allTorrents = _proxy.GetTorrentsByLabel(Settings.MusicCategory, Settings).ToList();
-
-                // Also fetch torrents for format-specific categories
-                if (Settings.EbookCategory.IsNotNullOrWhiteSpace() && Settings.EbookCategory != Settings.MusicCategory)
+                foreach (var t in _proxy.GetTorrentsByLabel(Settings.EbookCategory, Settings))
                 {
-                    allTorrents.AddRange(_proxy.GetTorrentsByLabel(Settings.EbookCategory, Settings));
+                    torrentsByCategory.Add((t, Settings.EbookCategory));
                 }
-
-                if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.MusicCategory)
-                {
-                    allTorrents.AddRange(_proxy.GetTorrentsByLabel(Settings.AudiobookCategory, Settings));
-                }
-
-                torrents = allTorrents;
             }
-            else
+
+            if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.EbookCategory)
             {
-                torrents = _proxy.GetTorrents(Settings);
+                foreach (var t in _proxy.GetTorrentsByLabel(Settings.AudiobookCategory, Settings))
+                {
+                    torrentsByCategory.Add((t, Settings.AudiobookCategory));
+                }
+            }
+
+            if (torrentsByCategory.Count == 0 && Settings.EbookCategory.IsNullOrWhiteSpace() && Settings.AudiobookCategory.IsNullOrWhiteSpace())
+            {
+                foreach (var t in _proxy.GetTorrents(Settings))
+                {
+                    torrentsByCategory.Add((t, Settings.EbookCategory));
+                }
             }
 
             var items = new List<DownloadClientItem>();
             var ignoredCount = 0;
 
-            foreach (var torrent in torrents)
+            foreach (var (torrent, category) in torrentsByCategory)
             {
                 // Silently ignore torrents with no hash
                 if (torrent.Hash.IsNullOrWhiteSpace())
@@ -158,9 +164,9 @@ namespace NzbDrone.Core.Download.Clients.Deluge
                 var item = new DownloadClientItem();
                 item.DownloadId = torrent.Hash.ToUpper();
                 item.Title = torrent.Name;
-                item.Category = Settings.MusicCategory;
+                item.Category = category;
 
-                item.DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this, Settings.MusicImportedCategory.IsNotNullOrWhiteSpace());
+                item.DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this, Settings.HasImportedCategory());
 
                 var outputPath = _remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(torrent.DownloadPath));
                 item.OutputPath = outputPath + torrent.Name;
@@ -228,43 +234,83 @@ namespace NzbDrone.Core.Download.Clients.Deluge
         public override DownloadClientInfo GetStatus()
         {
             var config = _proxy.GetConfig(Settings);
-            var label = _proxy.GetLabelOptions(Settings);
+            var outputFolders = new List<OsPath>();
 
-            OsPath destDir;
+            foreach (var category in new[] { Settings.EbookCategory, Settings.AudiobookCategory })
+            {
+                if (category.IsNullOrWhiteSpace())
+                {
+                    continue;
+                }
 
-            if (Settings.CompletedDirectory.IsNotNullOrWhiteSpace())
-            {
-                destDir = new OsPath(Settings.CompletedDirectory);
-            }
-            else if (Settings.DownloadDirectory.IsNotNullOrWhiteSpace())
-            {
-                destDir = new OsPath(Settings.DownloadDirectory);
-            }
-            else if (label is { ApplyMoveCompleted: true, MoveCompleted: true })
-            {
-                // if label exists and a label completed path exists and is enabled use it instead of global
-                destDir = new OsPath(label.MoveCompletedPath);
-            }
-            else if (config.GetValueOrDefault("move_completed", false).ToString() == "True")
-            {
-                destDir = new OsPath(config.GetValueOrDefault("move_completed_path") as string);
-            }
-            else
-            {
-                destDir = new OsPath(config.GetValueOrDefault("download_location") as string);
+                var label = _proxy.GetLabelOptions(category, Settings);
+
+                OsPath destDir;
+
+                if (Settings.CompletedDirectory.IsNotNullOrWhiteSpace())
+                {
+                    destDir = new OsPath(Settings.CompletedDirectory);
+                }
+                else if (Settings.DownloadDirectory.IsNotNullOrWhiteSpace())
+                {
+                    destDir = new OsPath(Settings.DownloadDirectory);
+                }
+                else if (label is { ApplyMoveCompleted: true, MoveCompleted: true })
+                {
+                    destDir = new OsPath(label.MoveCompletedPath);
+                }
+                else if (config.GetValueOrDefault("move_completed", false).ToString() == "True")
+                {
+                    destDir = new OsPath(config.GetValueOrDefault("move_completed_path") as string);
+                }
+                else
+                {
+                    destDir = new OsPath(config.GetValueOrDefault("download_location") as string);
+                }
+
+                if (!destDir.IsEmpty)
+                {
+                    var mapped = _remotePathMappingService.RemapRemoteToLocal(Settings.Host, destDir);
+                    if (!outputFolders.Contains(mapped))
+                    {
+                        outputFolders.Add(mapped);
+                    }
+                }
             }
 
-            var status = new DownloadClientInfo
+            // Fallback when no categories configured
+            if (outputFolders.Count == 0)
             {
-                IsLocalhost = Settings.Host is "127.0.0.1" or "localhost"
+                OsPath destDir;
+
+                if (Settings.CompletedDirectory.IsNotNullOrWhiteSpace())
+                {
+                    destDir = new OsPath(Settings.CompletedDirectory);
+                }
+                else if (Settings.DownloadDirectory.IsNotNullOrWhiteSpace())
+                {
+                    destDir = new OsPath(Settings.DownloadDirectory);
+                }
+                else if (config.GetValueOrDefault("move_completed", false).ToString() == "True")
+                {
+                    destDir = new OsPath(config.GetValueOrDefault("move_completed_path") as string);
+                }
+                else
+                {
+                    destDir = new OsPath(config.GetValueOrDefault("download_location") as string);
+                }
+
+                if (!destDir.IsEmpty)
+                {
+                    outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, destDir));
+                }
+            }
+
+            return new DownloadClientInfo
+            {
+                IsLocalhost = Settings.Host is "127.0.0.1" or "localhost",
+                OutputRootFolders = outputFolders
             };
-
-            if (!destDir.IsEmpty)
-            {
-                status.OutputRootFolders = new List<OsPath> { _remotePathMappingService.RemapRemoteToLocal(Settings.Host, destDir) };
-            }
-
-            return status;
         }
 
         protected override void Test(List<ValidationFailure> failures)
@@ -329,7 +375,8 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
         private ValidationFailure TestCategory()
         {
-            if (Settings.MusicCategory.IsNullOrWhiteSpace() && Settings.MusicImportedCategory.IsNullOrWhiteSpace())
+            if (Settings.EbookCategory.IsNullOrWhiteSpace() && Settings.AudiobookCategory.IsNullOrWhiteSpace() &&
+                Settings.EbookImportedCategory.IsNullOrWhiteSpace() && Settings.AudiobookImportedCategory.IsNullOrWhiteSpace())
             {
                 return null;
             }
@@ -338,7 +385,7 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             if (!enabledPlugins.Contains("Label"))
             {
-                return new NzbDroneValidationFailure("Category", "Label plugin not activated")
+                return new NzbDroneValidationFailure("EbookCategory", "Label plugin not activated")
                 {
                     DetailedDescription = "You must have the Label plugin enabled in Deluge to use categories."
                 };
@@ -346,31 +393,20 @@ namespace NzbDrone.Core.Download.Clients.Deluge
 
             var labels = _proxy.GetAvailableLabels(Settings);
 
-            if (Settings.MusicCategory.IsNotNullOrWhiteSpace() && !labels.Contains(Settings.MusicCategory))
+            foreach (var category in new[] { Settings.EbookCategory, Settings.AudiobookCategory, Settings.EbookImportedCategory, Settings.AudiobookImportedCategory })
             {
-                _proxy.AddLabel(Settings.MusicCategory, Settings);
-                labels = _proxy.GetAvailableLabels(Settings);
-
-                if (!labels.Contains(Settings.MusicCategory))
+                if (category.IsNotNullOrWhiteSpace() && !labels.Contains(category))
                 {
-                    return new NzbDroneValidationFailure("Category", "Configuration of label failed")
-                    {
-                        DetailedDescription = "Bibliophilarr was unable to add the label to Deluge."
-                    };
-                }
-            }
+                    _proxy.AddLabel(category, Settings);
+                    labels = _proxy.GetAvailableLabels(Settings);
 
-            if (Settings.MusicImportedCategory.IsNotNullOrWhiteSpace() && !labels.Contains(Settings.MusicImportedCategory))
-            {
-                _proxy.AddLabel(Settings.MusicImportedCategory, Settings);
-                labels = _proxy.GetAvailableLabels(Settings);
-
-                if (!labels.Contains(Settings.MusicImportedCategory))
-                {
-                    return new NzbDroneValidationFailure("PostImportCategory", "Configuration of label failed")
+                    if (!labels.Contains(category))
                     {
-                        DetailedDescription = "Bibliophilarr was unable to add the label to Deluge."
-                    };
+                        return new NzbDroneValidationFailure("EbookCategory", "Configuration of label failed")
+                        {
+                            DetailedDescription = $"Bibliophilarr was unable to add the label '{category}' to Deluge."
+                        };
+                    }
                 }
             }
 

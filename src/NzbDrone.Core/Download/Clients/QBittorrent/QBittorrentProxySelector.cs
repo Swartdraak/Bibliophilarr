@@ -12,13 +12,13 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
         Version GetApiVersion(QBittorrentSettings settings);
         string GetVersion(QBittorrentSettings settings);
         QBittorrentPreferences GetConfig(QBittorrentSettings settings);
-        List<QBittorrentTorrent> GetTorrents(QBittorrentSettings settings);
+        List<QBittorrentTorrent> GetTorrents(string category, QBittorrentSettings settings);
         bool IsTorrentLoaded(string hash, QBittorrentSettings settings);
         QBittorrentTorrentProperties GetTorrentProperties(string hash, QBittorrentSettings settings);
         List<QBittorrentTorrentFile> GetTorrentFiles(string hash, QBittorrentSettings settings);
 
-        void AddTorrentFromUrl(string torrentUrl, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings);
-        void AddTorrentFromFile(string fileName, byte[] fileContent, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings);
+        void AddTorrentFromUrl(string torrentUrl, string category, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings);
+        void AddTorrentFromFile(string fileName, byte[] fileContent, string category, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings);
 
         void RemoveTorrent(string hash, bool removeData, QBittorrentSettings settings);
         void SetTorrentLabel(string hash, string label, QBittorrentSettings settings);

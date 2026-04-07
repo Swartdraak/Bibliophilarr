@@ -49,18 +49,22 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
         public override void MarkItemAsImported(DownloadClientItem downloadClientItem)
         {
-            // set post-import category
-            if (Settings.MusicImportedCategory.IsNotNullOrWhiteSpace() &&
-                Settings.MusicImportedCategory != Settings.MusicCategory)
+            // Determine format from item category to select the correct imported category
+            var importedCategory = downloadClientItem.Category == Settings.AudiobookCategory
+                ? Settings.AudiobookImportedCategory
+                : Settings.EbookImportedCategory;
+
+            if (importedCategory.IsNotNullOrWhiteSpace() &&
+                importedCategory != downloadClientItem.Category)
             {
                 try
                 {
-                    Proxy.SetTorrentLabel(downloadClientItem.DownloadId.ToLower(), Settings.MusicImportedCategory, Settings);
+                    Proxy.SetTorrentLabel(downloadClientItem.DownloadId.ToLower(), importedCategory, Settings);
                 }
                 catch (DownloadClientException)
                 {
                     _logger.Warn("Failed to set post-import torrent label \"{0}\" for {1} in qBittorrent. Does the label exist?",
-                        Settings.MusicImportedCategory,
+                        importedCategory,
                         downloadClientItem.Title);
                 }
             }
@@ -79,7 +83,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             var moveToTop = (isRecentBook && Settings.RecentTvPriority == (int)QBittorrentPriority.First) || (!isRecentBook && Settings.OlderTvPriority == (int)QBittorrentPriority.First);
             var forceStart = (QBittorrentState)Settings.InitialState == QBittorrentState.ForceStart;
 
-            Proxy.AddTorrentFromUrl(magnetLink, addHasSetShareLimits && setShareLimits ? remoteBook.SeedConfiguration : null, Settings);
+            Proxy.AddTorrentFromUrl(magnetLink, Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType), addHasSetShareLimits && setShareLimits ? remoteBook.SeedConfiguration : null, Settings);
 
             if ((!addHasSetShareLimits && setShareLimits) || moveToTop || forceStart)
             {
@@ -138,7 +142,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             var moveToTop = (isRecentBook && Settings.RecentTvPriority == (int)QBittorrentPriority.First) || (!isRecentBook && Settings.OlderTvPriority == (int)QBittorrentPriority.First);
             var forceStart = (QBittorrentState)Settings.InitialState == QBittorrentState.ForceStart;
 
-            Proxy.AddTorrentFromFile(filename, fileContent, addHasSetShareLimits ? remoteBook.SeedConfiguration : null, Settings);
+            Proxy.AddTorrentFromFile(filename, fileContent, Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType), addHasSetShareLimits ? remoteBook.SeedConfiguration : null, Settings);
 
             if ((!addHasSetShareLimits && setShareLimits) || moveToTop || forceStart)
             {
@@ -219,11 +223,22 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
         {
             var version = Proxy.GetApiVersion(Settings);
             var config = Proxy.GetConfig(Settings);
-            var torrents = Proxy.GetTorrents(Settings);
+
+            // Fetch torrents from both ebook and audiobook categories
+            var allTorrents = new List<QBittorrentTorrent>();
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace())
+            {
+                allTorrents.AddRange(Proxy.GetTorrents(Settings.EbookCategory, Settings));
+            }
+
+            if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.EbookCategory)
+            {
+                allTorrents.AddRange(Proxy.GetTorrents(Settings.AudiobookCategory, Settings));
+            }
 
             var queueItems = new List<DownloadClientItem>();
 
-            foreach (var torrent in torrents)
+            foreach (var torrent in allTorrents)
             {
                 var item = new DownloadClientItem
                 {
@@ -231,7 +246,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                     Category = torrent.Category.IsNotNullOrWhiteSpace() ? torrent.Category : torrent.Label,
                     Title = torrent.Name,
                     TotalSize = torrent.Size,
-                    DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this, Settings.MusicImportedCategory.IsNotNullOrWhiteSpace()),
+                    DownloadClientInfo = DownloadClientItemClientInfo.FromDownloadClient(this, Settings.HasImportedCategory()),
                     RemainingSize = (long)(torrent.Size * (1.0 - torrent.Progress)),
                     RemainingTime = GetRemainingTime(torrent),
                     SeedRatio = torrent.Ratio
@@ -372,36 +387,54 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             var config = Proxy.GetConfig(Settings);
 
             var destDir = new OsPath(config.SavePath);
+            var outputFolders = new List<OsPath>();
+            var labels = version >= Version.Parse("2.0") ? Proxy.GetLabels(Settings) : null;
 
-            if (Settings.MusicCategory.IsNotNullOrWhiteSpace() && version >= Version.Parse("2.0"))
+            // Resolve save path for a given category label
+            OsPath ResolveCategoryPath(string category)
             {
-                if (Proxy.GetLabels(Settings).TryGetValue(Settings.MusicCategory, out var label) && label.SavePath.IsNotNullOrWhiteSpace())
+                if (category.IsNullOrWhiteSpace() || labels == null)
+                {
+                    return destDir;
+                }
+
+                if (labels.TryGetValue(category, out var label) && label.SavePath.IsNotNullOrWhiteSpace())
                 {
                     var savePath = label.SavePath;
 
                     if (savePath.StartsWith("//"))
                     {
-                        _logger.Trace("Replacing double forward slashes in path '{0}'. If this is not meant to be a Windows UNC path fix the 'Save Path' in qBittorrent's {1} category", savePath, Settings.MusicCategory);
+                        _logger.Trace("Replacing double forward slashes in path '{0}'. If this is not meant to be a Windows UNC path fix the 'Save Path' in qBittorrent's {1} category", savePath, category);
                         savePath = savePath.Replace('/', '\\');
                     }
 
                     var labelDir = new OsPath(savePath);
-
-                    if (labelDir.IsRooted)
-                    {
-                        destDir = labelDir;
-                    }
-                    else
-                    {
-                        destDir = destDir + labelDir;
-                    }
+                    return labelDir.IsRooted ? labelDir : destDir + labelDir;
                 }
+
+                return destDir;
+            }
+
+            // Add ebook category folder
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace())
+            {
+                outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, ResolveCategoryPath(Settings.EbookCategory)));
+            }
+            else
+            {
+                outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, destDir));
+            }
+
+            // Add audiobook category folder if configured and different
+            if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.EbookCategory)
+            {
+                outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, ResolveCategoryPath(Settings.AudiobookCategory)));
             }
 
             return new DownloadClientInfo
             {
                 IsLocalhost = Settings.Host == "127.0.0.1" || Settings.Host == "localhost",
-                OutputRootFolders = new List<OsPath> { _remotePathMappingService.RemapRemoteToLocal(Settings.Host, destDir) },
+                OutputRootFolders = outputFolders,
                 RemovesCompletedDownloads = RemovesCompletedDownloads(config)
             };
         }
@@ -441,18 +474,18 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                 else if (version < Version.Parse("1.6"))
                 {
                     // API version 6 introduced support for labels
-                    if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
+                    if (Settings.EbookCategory.IsNotNullOrWhiteSpace() || Settings.AudiobookCategory.IsNotNullOrWhiteSpace())
                     {
-                        return new NzbDroneValidationFailure("Category", "Category is not supported")
+                        return new NzbDroneValidationFailure("EbookCategory", "Category is not supported")
                         {
-                            DetailedDescription = "Labels are not supported until qBittorrent version 3.3.0. Please upgrade or try again with an empty Category."
+                            DetailedDescription = "Labels are not supported until qBittorrent version 3.3.0. Please upgrade or try again with empty categories."
                         };
                     }
                 }
-                else if (Settings.MusicCategory.IsNullOrWhiteSpace())
+                else if (Settings.EbookCategory.IsNullOrWhiteSpace() && Settings.AudiobookCategory.IsNullOrWhiteSpace())
                 {
-                    // warn if labels are supported, but category is not provided
-                    return new NzbDroneValidationFailure("Category", "Category is recommended")
+                    // warn if labels are supported, but no category is provided
+                    return new NzbDroneValidationFailure("EbookCategory", "Category is recommended")
                     {
                         IsWarning = true,
                         DetailedDescription = "Bibliophilarr will not attempt to import completed downloads without a category."
@@ -505,7 +538,8 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
         private ValidationFailure TestCategory()
         {
-            if (Settings.MusicCategory.IsNullOrWhiteSpace() && Settings.MusicImportedCategory.IsNullOrWhiteSpace())
+            if (Settings.EbookCategory.IsNullOrWhiteSpace() && Settings.AudiobookCategory.IsNullOrWhiteSpace() &&
+                Settings.EbookImportedCategory.IsNullOrWhiteSpace() && Settings.AudiobookImportedCategory.IsNullOrWhiteSpace())
             {
                 return null;
             }
@@ -519,31 +553,20 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
             var labels = Proxy.GetLabels(Settings);
 
-            if (Settings.MusicCategory.IsNotNullOrWhiteSpace() && !labels.ContainsKey(Settings.MusicCategory))
+            foreach (var category in new[] { Settings.EbookCategory, Settings.AudiobookCategory, Settings.EbookImportedCategory, Settings.AudiobookImportedCategory })
             {
-                Proxy.AddLabel(Settings.MusicCategory, Settings);
-                labels = Proxy.GetLabels(Settings);
-
-                if (!labels.ContainsKey(Settings.MusicCategory))
+                if (category.IsNotNullOrWhiteSpace() && !labels.ContainsKey(category))
                 {
-                    return new NzbDroneValidationFailure("Category", "Configuration of label failed")
-                    {
-                        DetailedDescription = "Bibliophilarr was unable to add the label to qBittorrent."
-                    };
-                }
-            }
+                    Proxy.AddLabel(category, Settings);
+                    labels = Proxy.GetLabels(Settings);
 
-            if (Settings.MusicImportedCategory.IsNotNullOrWhiteSpace() && !labels.ContainsKey(Settings.MusicImportedCategory))
-            {
-                Proxy.AddLabel(Settings.MusicImportedCategory, Settings);
-                labels = Proxy.GetLabels(Settings);
-
-                if (!labels.ContainsKey(Settings.MusicImportedCategory))
-                {
-                    return new NzbDroneValidationFailure("PostImportCategory", "Configuration of label failed")
+                    if (!labels.ContainsKey(category))
                     {
-                        DetailedDescription = "Bibliophilarr was unable to add the label to qBittorrent."
-                    };
+                        return new NzbDroneValidationFailure("EbookCategory", "Configuration of label failed")
+                        {
+                            DetailedDescription = $"Bibliophilarr was unable to add the label '{category}' to qBittorrent."
+                        };
+                    }
                 }
             }
 
@@ -589,7 +612,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
         {
             try
             {
-                Proxy.GetTorrents(Settings);
+                Proxy.GetTorrents(Settings.EbookCategory, Settings);
             }
             catch (Exception ex)
             {
