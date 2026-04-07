@@ -97,6 +97,7 @@ class AuthorIndexRow extends Component {
       tags,
       images,
       formatProfiles,
+      resolvedFormatProfiles,
       showBanners,
       showTitle,
       showSearchAction,
@@ -205,12 +206,19 @@ class AuthorIndexRow extends Component {
             }
 
             if (name === 'qualityProfileId') {
+              const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0
+                ? resolvedFormatProfiles.map((fp) => {
+                  const prefix = fp.formatType === 0 ? 'E' : 'A';
+                  return `${prefix}: ${fp.qualityProfileName}`;
+                }).join(' / ')
+                : qualityProfile?.name ?? '';
+
               return (
                 <VirtualTableRowCell
                   key={name}
                   className={styles[name]}
                 >
-                  {qualityProfile?.name ?? ''}
+                  {profileDisplay}
                 </VirtualTableRowCell>
               );
             }
@@ -461,6 +469,7 @@ AuthorIndexRow.propTypes = {
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   formatProfiles: PropTypes.arrayOf(PropTypes.object),
+  resolvedFormatProfiles: PropTypes.arrayOf(PropTypes.object),
   showBanners: PropTypes.bool.isRequired,
   showTitle: PropTypes.string.isRequired,
   showSearchAction: PropTypes.bool.isRequired,

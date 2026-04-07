@@ -8,6 +8,7 @@ function AuthorIndexPosterInfo(props) {
   const {
     qualityProfile,
     showQualityProfile,
+    resolvedFormatProfiles,
     metadataProfile,
     added,
     nextBook,
@@ -22,9 +23,16 @@ function AuthorIndexPosterInfo(props) {
   } = props;
 
   if (sortKey === 'qualityProfileId' && !showQualityProfile) {
+    const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0
+      ? resolvedFormatProfiles.map((fp) => {
+        const prefix = fp.formatType === 0 ? 'E' : 'A';
+        return `${prefix}: ${fp.qualityProfileName}`;
+      }).join(' / ')
+      : qualityProfile.name;
+
     return (
       <div className={styles.info}>
-        {qualityProfile.name}
+        {profileDisplay}
       </div>
     );
   }
@@ -129,6 +137,7 @@ function AuthorIndexPosterInfo(props) {
 AuthorIndexPosterInfo.propTypes = {
   qualityProfile: PropTypes.object.isRequired,
   showQualityProfile: PropTypes.bool.isRequired,
+  resolvedFormatProfiles: PropTypes.arrayOf(PropTypes.object),
   metadataProfile: PropTypes.object.isRequired,
   added: PropTypes.string,
   nextBook: PropTypes.object,
