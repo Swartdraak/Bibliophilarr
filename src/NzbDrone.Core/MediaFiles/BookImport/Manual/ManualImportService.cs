@@ -173,15 +173,26 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
 
             var decisions = _importDecisionMaker.GetImportDecisions(authorFiles, idOverrides, itemInfo, config);
 
+            // Deduplicate decisions by path. PopulateMatch adds existing BookFiles
+            // from a matched edition to each release, which can cause the same file
+            // to appear in multiple decisions with different book assignments.
+            // Prefer "native" decisions (AdditionalFile=false) over those added by
+            // PopulateMatch (AdditionalFile=true), since the native release's
+            // identification is specific to that file.
+            var uniqueDecisions = decisions
+                .GroupBy(d => d.Item.Path, PathEqualityComparer.Instance)
+                .Select(g => g.OrderBy(d => d.Item.AdditionalFile ? 1 : 0).First())
+                .ToList();
+
             // paths will be different for new and old files which is why we need to map separately
-            var newFiles = authorFiles.Join(decisions,
+            var newFiles = authorFiles.Join(uniqueDecisions,
                                             f => f.FullName,
                                             d => d.Item.Path,
                                             (f, d) => new { File = f, Decision = d },
                                             PathEqualityComparer.Instance);
 
             var newItems = newFiles.Select(x => MapItem(x.Decision, downloadId, replaceExistingFiles, false));
-            var existingDecisions = decisions.Except(newFiles.Select(x => x.Decision));
+            var existingDecisions = uniqueDecisions.Except(newFiles.Select(x => x.Decision));
             var existingItems = existingDecisions.Select(x => MapItem(x, null, replaceExistingFiles, false));
 
             return newItems.Concat(existingItems).ToList();

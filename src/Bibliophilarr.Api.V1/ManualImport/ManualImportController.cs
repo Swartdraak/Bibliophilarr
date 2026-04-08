@@ -46,6 +46,11 @@ namespace Bibliophilarr.Api.V1.ManualImport
             if (authorId > 0)
             {
                 author = _authorService.GetAuthor(authorId.Value);
+
+                if (string.IsNullOrWhiteSpace(folder) && string.IsNullOrWhiteSpace(downloadId) && author?.Path != null)
+                {
+                    folder = author.Path;
+                }
             }
 
             var filter = filterExistingFiles ? FilterFilesType.Matched : FilterFilesType.None;
