@@ -81,7 +81,7 @@ function getInfoRowProps(row, props) {
     const resolvedFormatProfiles = props.resolvedFormatProfiles;
     const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0
       ? resolvedFormatProfiles.map((fp) => {
-        const prefix = fp.formatType === 0 ? 'E' : 'A';
+        const prefix = fp.formatType === 'ebook' ? 'E' : 'A';
         return `${prefix}: ${fp.qualityProfileName}`;
       }).join(' / ')
       : props.qualityProfile.name;

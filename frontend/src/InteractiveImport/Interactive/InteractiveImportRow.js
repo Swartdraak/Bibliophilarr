@@ -274,7 +274,7 @@ class InteractiveImportRow extends Component {
         </TableRowCellButton>
 
         <TableRowCell>
-          {formatType === 0 ? 'Ebook' : formatType === 1 ? 'Audiobook' : ''}
+          {formatType === 'ebook' ? 'Ebook' : formatType === 'audiobook' ? 'Audiobook' : ''}
         </TableRowCell>
 
         <TableRowCellButton

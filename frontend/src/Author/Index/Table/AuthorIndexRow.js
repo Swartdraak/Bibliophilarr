@@ -208,7 +208,7 @@ class AuthorIndexRow extends Component {
             if (name === 'qualityProfileId') {
               const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0
                 ? resolvedFormatProfiles.map((fp) => {
-                  const prefix = fp.formatType === 0 ? 'E' : 'A';
+                  const prefix = fp.formatType === 'ebook' ? 'E' : 'A';
                   return `${prefix}: ${fp.qualityProfileName}`;
                 }).join(' / ')
                 : qualityProfile?.name ?? '';
@@ -232,7 +232,7 @@ class AuthorIndexRow extends Component {
                   {
                     formatProfiles && formatProfiles.length > 0 ?
                       formatProfiles.map((fp) =>
-                        `${fp.formatType === 0 ? 'E' : 'A'}${fp.monitored ? '' : '(off)'}`
+                        `${fp.formatType === 'ebook' ? 'E' : 'A'}${fp.monitored ? '' : '(off)'}`
                       ).join(' / ') :
                       '-'
                   }

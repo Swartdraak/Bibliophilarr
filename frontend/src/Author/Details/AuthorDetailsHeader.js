@@ -203,24 +203,27 @@ class AuthorDetailsHeader extends Component {
                 </span>
               </Label>
 
-              <Label
-                className={styles.detailsLabel}
-                title={translate('QualityProfile')}
-                size={sizes.LARGE}
-              >
-                <Icon
-                  name={icons.PROFILE}
-                  size={17}
-                />
-
-                <span className={styles.qualityProfileName}>
-                  {
-                    <QualityProfileName
-                      qualityProfileId={qualityProfileId}
+              {
+                (!formatProfiles || formatProfiles.length === 0) &&
+                  <Label
+                    className={styles.detailsLabel}
+                    title={translate('QualityProfile')}
+                    size={sizes.LARGE}
+                  >
+                    <Icon
+                      name={icons.PROFILE}
+                      size={17}
                     />
-                  }
-                </span>
-              </Label>
+
+                    <span className={styles.qualityProfileName}>
+                      {
+                        <QualityProfileName
+                          qualityProfileId={qualityProfileId}
+                        />
+                      }
+                    </span>
+                  </Label>
+              }
 
               {
                 formatProfiles && formatProfiles.length > 0 &&
@@ -228,7 +231,7 @@ class AuthorDetailsHeader extends Component {
                   formatProfiles.filter((fp, index, self) =>
                     self.findIndex((f) => f.formatType === fp.formatType) === index
                   ).map((fp) => {
-                    const formatLabel = fp.formatType === 0 ? 'Ebook' : 'Audiobook';
+                    const formatLabel = fp.formatType === 'ebook' ? 'Ebook' : 'Audiobook';
 
                     return (
                       <Label
@@ -239,7 +242,7 @@ class AuthorDetailsHeader extends Component {
                         size={sizes.LARGE}
                       >
                         <Icon
-                          name={fp.formatType === 0 ? icons.BOOK : icons.TRACK_FILE}
+                          name={fp.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
                           size={17}
                         />
 

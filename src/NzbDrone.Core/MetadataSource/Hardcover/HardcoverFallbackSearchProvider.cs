@@ -482,9 +482,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         bio
                         image { url }
                         books_count
-                        books(limit: 10, order_by: {ratings_count: desc_nulls_last}) {
-                            rating
-                            ratings_count
+                        users_count
+                        contributions(limit: 10, order_by: {book: {ratings_count: desc_nulls_last}}) {
+                            book { rating ratings_count }
                         }
                     }
                 }",
@@ -568,9 +568,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                 bio
                                 image { url }
                                 books_count
-                                books(limit: 10, order_by: {ratings_count: desc_nulls_last}) {
-                                    rating
-                                    ratings_count
+                                users_count
+                                contributions(limit: 10, order_by: {book: {ratings_count: desc_nulls_last}}) {
+                                    book { rating ratings_count }
                                 }
                             }
                         }",
@@ -613,15 +613,17 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var imageUrl = authorData.SelectToken("image.url")?.Value<string>();
             var booksCount = authorData.Value<int?>("books_count") ?? 0;
 
-            // Calculate average rating from author's books
-            var booksArray = authorData.SelectToken("books") as JArray;
+            // Calculate average rating from author's top books (via contributions)
+            var contributionsArray = authorData.SelectToken("contributions") as JArray;
+            var usersCount = authorData.Value<int?>("users_count") ?? 0;
             var avgRating = 0m;
             var totalVotes = 0;
 
-            if (booksArray != null && booksArray.Any())
+            if (contributionsArray != null && contributionsArray.Any())
             {
-                var validBooks = booksArray
-                    .Where(b => b.Value<double?>("rating") > 0 && b.Value<int?>("ratings_count") > 0)
+                var validBooks = contributionsArray
+                    .Select(c => c.SelectToken("book"))
+                    .Where(b => b != null && b.Value<double?>("rating") > 0 && b.Value<int?>("ratings_count") > 0)
                     .ToList();
 
                 if (validBooks.Any())
@@ -677,7 +679,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Overview = bio,
                 Links = links,
                 Images = images,
-                Ratings = new Ratings { Votes = totalVotes > 0 ? totalVotes : booksCount, Value = avgRating }
+                Ratings = new Ratings { Votes = totalVotes > 0 ? totalVotes : (usersCount > 0 ? usersCount : booksCount), Value = avgRating }
             };
 
             return new Author

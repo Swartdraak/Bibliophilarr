@@ -61,27 +61,80 @@ class AddAuthorOptionsForm extends Component {
 
     return (
       <Form {...otherProps}>
-        <FormGroup>
-          <FormLabel>
-            {translate('RootFolder')}
-          </FormLabel>
+        {
+          !enableDualFormatTracking &&
+            <FormGroup>
+              <FormLabel>
+                {translate('RootFolder')}
+              </FormLabel>
 
-          <FormInputGroup
-            type={inputTypes.ROOT_FOLDER_SELECT}
-            name="rootFolderPath"
-            valueOptions={{
-              authorFolder: folder,
-              isWindows
-            }}
-            selectedValueOptions={{
-              authorFolder: folder,
-              isWindows
-            }}
-            helpText={translate('AddNewAuthorRootFolderHelpText', { folder })}
-            onChange={onInputChange}
-            {...rootFolderPath}
-          />
-        </FormGroup>
+              <FormInputGroup
+                type={inputTypes.ROOT_FOLDER_SELECT}
+                name="rootFolderPath"
+                valueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                selectedValueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                helpText={translate('AddNewAuthorRootFolderHelpText', { folder })}
+                onChange={onInputChange}
+                {...rootFolderPath}
+              />
+            </FormGroup>
+        }
+
+        {
+          enableDualFormatTracking &&
+            <FormGroup>
+              <FormLabel>
+                Ebook Root Folder
+              </FormLabel>
+
+              <FormInputGroup
+                type={inputTypes.ROOT_FOLDER_SELECT}
+                name="ebookRootFolderPath"
+                valueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                selectedValueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                helpText="Root folder for ebook files"
+                onChange={onInputChange}
+                {...(ebookRootFolderPath || rootFolderPath)}
+              />
+            </FormGroup>
+        }
+
+        {
+          enableDualFormatTracking &&
+            <FormGroup>
+              <FormLabel>
+                Audiobook Root Folder
+              </FormLabel>
+
+              <FormInputGroup
+                type={inputTypes.ROOT_FOLDER_SELECT}
+                name="audiobookRootFolderPath"
+                valueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                selectedValueOptions={{
+                  authorFolder: folder,
+                  isWindows
+                }}
+                helpText="Root folder for audiobook files"
+                onChange={onInputChange}
+                {...(audiobookRootFolderPath || rootFolderPath)}
+              />
+            </FormGroup>
+        }
 
         <FormGroup>
           <FormLabel>
@@ -135,69 +188,18 @@ class AddAuthorOptionsForm extends Component {
           />
         </FormGroup>
 
-        <FormGroup>
-          <FormLabel>
-            {translate('QualityProfile')}
-          </FormLabel>
-
-          <FormInputGroup
-            type={inputTypes.QUALITY_PROFILE_SELECT}
-            name="qualityProfileId"
-            helpText="Default quality profile (used when format-specific profiles are not set)"
-            onChange={this.onQualityProfileIdChange}
-            {...qualityProfileId}
-          />
-        </FormGroup>
-
-        <FormGroup>
-          <FormLabel>
-            Ebook Quality Profile
-          </FormLabel>
-
-          <FormInputGroup
-            type={inputTypes.QUALITY_PROFILE_SELECT}
-            name="ebookQualityProfileId"
-            helpText="Quality profile for ebook downloads (optional if audiobook profile is set)"
-            onChange={this.onEbookQualityProfileIdChange}
-            {...(ebookQualityProfileId || qualityProfileId)}
-          />
-        </FormGroup>
-
-        <FormGroup>
-          <FormLabel>
-            Audiobook Quality Profile
-          </FormLabel>
-
-          <FormInputGroup
-            type={inputTypes.QUALITY_PROFILE_SELECT}
-            name="audiobookQualityProfileId"
-            helpText="Quality profile for audiobook downloads (optional if ebook profile is set)"
-            onChange={this.onAudiobookQualityProfileIdChange}
-            {...(audiobookQualityProfileId || qualityProfileId)}
-          />
-        </FormGroup>
-
         {
-          enableDualFormatTracking &&
+          !enableDualFormatTracking &&
             <FormGroup>
               <FormLabel>
-                Ebook Root Folder
+                {translate('QualityProfile')}
               </FormLabel>
 
               <FormInputGroup
-                type={inputTypes.ROOT_FOLDER_SELECT}
-                name="ebookRootFolderPath"
-                valueOptions={{
-                  authorFolder: folder,
-                  isWindows
-                }}
-                selectedValueOptions={{
-                  authorFolder: folder,
-                  isWindows
-                }}
-                helpText="Root folder for ebook files"
-                onChange={onInputChange}
-                {...(ebookRootFolderPath || rootFolderPath)}
+                type={inputTypes.QUALITY_PROFILE_SELECT}
+                name="qualityProfileId"
+                onChange={this.onQualityProfileIdChange}
+                {...qualityProfileId}
               />
             </FormGroup>
         }
@@ -206,23 +208,32 @@ class AddAuthorOptionsForm extends Component {
           enableDualFormatTracking &&
             <FormGroup>
               <FormLabel>
-                Audiobook Root Folder
+                Ebook Quality Profile
               </FormLabel>
 
               <FormInputGroup
-                type={inputTypes.ROOT_FOLDER_SELECT}
-                name="audiobookRootFolderPath"
-                valueOptions={{
-                  authorFolder: folder,
-                  isWindows
-                }}
-                selectedValueOptions={{
-                  authorFolder: folder,
-                  isWindows
-                }}
-                helpText="Root folder for audiobook files"
-                onChange={onInputChange}
-                {...(audiobookRootFolderPath || rootFolderPath)}
+                type={inputTypes.QUALITY_PROFILE_SELECT}
+                name="ebookQualityProfileId"
+                helpText="Quality profile for ebook format downloads"
+                onChange={this.onEbookQualityProfileIdChange}
+                {...(ebookQualityProfileId || qualityProfileId)}
+              />
+            </FormGroup>
+        }
+
+        {
+          enableDualFormatTracking &&
+            <FormGroup>
+              <FormLabel>
+                Audiobook Quality Profile
+              </FormLabel>
+
+              <FormInputGroup
+                type={inputTypes.QUALITY_PROFILE_SELECT}
+                name="audiobookQualityProfileId"
+                helpText="Quality profile for audiobook format downloads"
+                onChange={this.onAudiobookQualityProfileIdChange}
+                {...(audiobookQualityProfileId || qualityProfileId)}
               />
             </FormGroup>
         }

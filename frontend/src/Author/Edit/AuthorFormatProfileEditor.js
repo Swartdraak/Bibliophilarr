@@ -20,7 +20,7 @@ function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
   return (
     <div className={styles.formatProfiles}>
       {formatProfiles.map((profile) => {
-        const formatKey = profile.formatType === 0 ? 'ebook' : 'audiobook';
+        const formatKey = profile.formatType === 'ebook' ? 'ebook' : 'audiobook';
         const formatInfo = FORMAT_LABELS[formatKey];
 
         const monitoredStatus = profile.monitored ? 'Monitored' : 'Unmonitored';
