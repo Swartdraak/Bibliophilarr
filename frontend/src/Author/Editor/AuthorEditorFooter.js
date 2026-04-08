@@ -45,6 +45,10 @@ class AuthorEditorFooter extends Component {
       qualityProfileId: NO_CHANGE,
       metadataProfileId: NO_CHANGE,
       rootFolderPath: NO_CHANGE,
+      ebookQualityProfileId: NO_CHANGE,
+      audiobookQualityProfileId: NO_CHANGE,
+      ebookRootFolderPath: NO_CHANGE,
+      audiobookRootFolderPath: NO_CHANGE,
       savingTags: false,
       isDeleteAuthorModalOpen: false,
       isTagsModalOpen: false,
@@ -74,6 +78,10 @@ class AuthorEditorFooter extends Component {
         qualityProfileId: NO_CHANGE,
         metadataProfileId: NO_CHANGE,
         rootFolderPath: NO_CHANGE,
+        ebookQualityProfileId: NO_CHANGE,
+        audiobookQualityProfileId: NO_CHANGE,
+        ebookRootFolderPath: NO_CHANGE,
+        audiobookRootFolderPath: NO_CHANGE,
         savingTags: false
       });
     }
@@ -91,9 +99,12 @@ class AuthorEditorFooter extends Component {
 
     switch (name) {
       case 'rootFolderPath':
+      case 'ebookRootFolderPath':
+      case 'audiobookRootFolderPath':
         this.setState({
           isConfirmMoveModalOpen: true,
-          destinationRootFolder: value
+          destinationRootFolder: value,
+          destinationRootFolderField: name
         });
         break;
       case 'monitored':
@@ -133,22 +144,30 @@ class AuthorEditorFooter extends Component {
   };
 
   onSaveRootFolderPress = () => {
+    const { destinationRootFolder, destinationRootFolderField } = this.state;
+    const fieldName = destinationRootFolderField || 'rootFolderPath';
+
     this.setState({
       isConfirmMoveModalOpen: false,
-      destinationRootFolder: null
+      destinationRootFolder: null,
+      destinationRootFolderField: null
     });
 
-    this.props.onSaveSelected({ rootFolderPath: this.state.destinationRootFolder });
+    this.props.onSaveSelected({ [fieldName]: destinationRootFolder });
   };
 
   onMoveAuthorPress = () => {
+    const { destinationRootFolder, destinationRootFolderField } = this.state;
+    const fieldName = destinationRootFolderField || 'rootFolderPath';
+
     this.setState({
       isConfirmMoveModalOpen: false,
-      destinationRootFolder: null
+      destinationRootFolder: null,
+      destinationRootFolderField: null
     });
 
     this.props.onSaveSelected({
-      rootFolderPath: this.state.destinationRootFolder,
+      [fieldName]: destinationRootFolder,
       moveFiles: true
     });
   };
@@ -175,6 +194,10 @@ class AuthorEditorFooter extends Component {
       qualityProfileId,
       metadataProfileId,
       rootFolderPath,
+      ebookQualityProfileId,
+      audiobookQualityProfileId,
+      ebookRootFolderPath,
+      audiobookRootFolderPath,
       savingTags,
       isTagsModalOpen,
       isDeleteAuthorModalOpen,
@@ -272,6 +295,80 @@ class AuthorEditorFooter extends Component {
                 onChange={this.onInputChange}
               />
             </div>
+
+            {
+              enableDualFormatTracking &&
+                <div className={styles.inputContainer}>
+                  <AuthorEditorFooterLabel
+                    label={translate('QualityProfileEbook')}
+                    isSaving={isSaving && ebookQualityProfileId !== NO_CHANGE}
+                  />
+
+                  <QualityProfileSelectInputConnector
+                    name="ebookQualityProfileId"
+                    value={ebookQualityProfileId}
+                    includeNoChange={true}
+                    isDisabled={!selectedCount}
+                    onChange={this.onInputChange}
+                  />
+                </div>
+            }
+
+            {
+              enableDualFormatTracking &&
+                <div className={styles.inputContainer}>
+                  <AuthorEditorFooterLabel
+                    label={translate('QualityProfileAudiobook')}
+                    isSaving={isSaving && audiobookQualityProfileId !== NO_CHANGE}
+                  />
+
+                  <QualityProfileSelectInputConnector
+                    name="audiobookQualityProfileId"
+                    value={audiobookQualityProfileId}
+                    includeNoChange={true}
+                    isDisabled={!selectedCount}
+                    onChange={this.onInputChange}
+                  />
+                </div>
+            }
+
+            {
+              enableDualFormatTracking &&
+                <div className={styles.inputContainer}>
+                  <AuthorEditorFooterLabel
+                    label={translate('RootFolderEbook')}
+                    isSaving={isSaving && ebookRootFolderPath !== NO_CHANGE}
+                  />
+
+                  <RootFolderSelectInputConnector
+                    name="ebookRootFolderPath"
+                    value={ebookRootFolderPath}
+                    includeNoChange={true}
+                    isDisabled={!selectedCount}
+                    selectedValueOptions={{ includeFreeSpace: false }}
+                    onChange={this.onInputChange}
+                  />
+                </div>
+            }
+
+            {
+              enableDualFormatTracking &&
+                <div className={styles.inputContainer}>
+                  <AuthorEditorFooterLabel
+                    label={translate('RootFolderAudiobook')}
+                    isSaving={isSaving && audiobookRootFolderPath !== NO_CHANGE}
+                  />
+
+                  <RootFolderSelectInputConnector
+                    name="audiobookRootFolderPath"
+                    value={audiobookRootFolderPath}
+                    includeNoChange={true}
+                    isDisabled={!selectedCount}
+                    selectedValueOptions={{ includeFreeSpace: false }}
+                    onChange={this.onInputChange}
+                  />
+                </div>
+            }
           </div>
 
           <div className={styles.buttonContainer}>

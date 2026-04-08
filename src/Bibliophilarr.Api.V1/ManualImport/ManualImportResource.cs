@@ -26,7 +26,7 @@ namespace Bibliophilarr.Api.V1.ManualImport
         public int IndexerFlags { get; set; }
         public IEnumerable<Rejection> Rejections { get; set; }
         public ParsedTrackInfo AudioTags { get; set; }
-        public int FormatType { get; set; }
+        public FormatType FormatType { get; set; }
         public bool AdditionalFile { get; set; }
         public bool ReplaceExistingFiles { get; set; }
         public bool DisableReleaseSwitching { get; set; }
@@ -59,7 +59,7 @@ namespace Bibliophilarr.Api.V1.ManualImport
                 Rejections = model.Rejections,
 
                 AudioTags = model.Tags,
-                FormatType = (int)Quality.GetFormatType(model.Quality?.Quality),
+                FormatType = Quality.GetFormatType(model.Quality?.Quality),
                 AdditionalFile = model.AdditionalFile,
                 ReplaceExistingFiles = model.ReplaceExistingFiles,
                 DisableReleaseSwitching = model.DisableReleaseSwitching

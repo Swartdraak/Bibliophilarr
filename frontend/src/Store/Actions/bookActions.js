@@ -245,6 +245,11 @@ export const defaultState = {
       isVisible: true
     },
     {
+      name: 'format',
+      label: 'Format',
+      isVisible: true
+    },
+    {
       name: 'indexerFlags',
       columnLabel: () => translate('IndexerFlags'),
       label: React.createElement(Icon, {

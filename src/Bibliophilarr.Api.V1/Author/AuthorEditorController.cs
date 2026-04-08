@@ -13,11 +13,13 @@ namespace Bibliophilarr.Api.V1.Author
     public class AuthorEditorController : Controller
     {
         private readonly IAuthorService _authorService;
+        private readonly IAuthorFormatProfileService _formatProfileService;
         private readonly IManageCommandQueue _commandQueueManager;
 
-        public AuthorEditorController(IAuthorService authorService, IManageCommandQueue commandQueueManager)
+        public AuthorEditorController(IAuthorService authorService, IAuthorFormatProfileService formatProfileService, IManageCommandQueue commandQueueManager)
         {
             _authorService = authorService;
+            _formatProfileService = formatProfileService;
             _commandQueueManager = commandQueueManager;
         }
 
@@ -86,6 +88,56 @@ namespace Bibliophilarr.Api.V1.Author
                     DestinationRootFolder = resource.RootFolderPath,
                     Author = authorsToMove
                 });
+            }
+
+            // Update per-format profiles (ebook/audiobook QP and root folders)
+            var hasFormatChanges = resource.EbookQualityProfileId.HasValue ||
+                                   resource.AudiobookQualityProfileId.HasValue ||
+                                   resource.EbookRootFolderPath.IsNotNullOrWhiteSpace() ||
+                                   resource.AudiobookRootFolderPath.IsNotNullOrWhiteSpace();
+
+            if (hasFormatChanges)
+            {
+                foreach (var author in authorsToUpdate)
+                {
+                    if (resource.EbookQualityProfileId.HasValue || resource.EbookRootFolderPath.IsNotNullOrWhiteSpace())
+                    {
+                        var ebookProfile = _formatProfileService.GetByAuthorIdAndFormat(author.Id, FormatType.Ebook);
+                        if (ebookProfile != null)
+                        {
+                            if (resource.EbookQualityProfileId.HasValue)
+                            {
+                                ebookProfile.QualityProfileId = resource.EbookQualityProfileId.Value;
+                            }
+
+                            if (resource.EbookRootFolderPath.IsNotNullOrWhiteSpace())
+                            {
+                                ebookProfile.RootFolderPath = resource.EbookRootFolderPath;
+                            }
+
+                            _formatProfileService.Update(ebookProfile);
+                        }
+                    }
+
+                    if (resource.AudiobookQualityProfileId.HasValue || resource.AudiobookRootFolderPath.IsNotNullOrWhiteSpace())
+                    {
+                        var audiobookProfile = _formatProfileService.GetByAuthorIdAndFormat(author.Id, FormatType.Audiobook);
+                        if (audiobookProfile != null)
+                        {
+                            if (resource.AudiobookQualityProfileId.HasValue)
+                            {
+                                audiobookProfile.QualityProfileId = resource.AudiobookQualityProfileId.Value;
+                            }
+
+                            if (resource.AudiobookRootFolderPath.IsNotNullOrWhiteSpace())
+                            {
+                                audiobookProfile.RootFolderPath = resource.AudiobookRootFolderPath;
+                            }
+
+                            _formatProfileService.Update(audiobookProfile);
+                        }
+                    }
+                }
             }
 
             return Accepted(_authorService.UpdateAuthors(authorsToUpdate, !resource.MoveFiles).ToResource());

@@ -4,6 +4,7 @@ import BookSearchCellConnector from 'Book/BookSearchCellConnector';
 import BookTitleLink from 'Book/BookTitleLink';
 import IndexerFlags from 'Book/IndexerFlags';
 import Icon from 'Components/Icon';
+import Label from 'Components/Label';
 import MonitorToggleButton from 'Components/MonitorToggleButton';
 import StarRating from 'Components/StarRating';
 import RelativeDateCellConnector from 'Components/Table/Cells/RelativeDateCellConnector';
@@ -11,7 +12,7 @@ import TableRowCell from 'Components/Table/Cells/TableRowCell';
 import TableSelectCell from 'Components/Table/Cells/TableSelectCell';
 import TableRow from 'Components/Table/TableRow';
 import Popover from 'Components/Tooltip/Popover';
-import { icons, kinds, tooltipPositions } from 'Helpers/Props';
+import { icons, kinds, sizes, tooltipPositions } from 'Helpers/Props';
 import translate from 'Utilities/String/translate';
 import BookStatus from './BookStatus';
 import styles from './BookRow.css';
@@ -68,6 +69,7 @@ class BookRow extends Component {
       position,
       pageCount,
       ratings,
+      formatStatuses,
       isSaving,
       authorMonitored,
       titleSlug,
@@ -214,6 +216,36 @@ class BookRow extends Component {
               );
             }
 
+            if (name === 'format') {
+              return (
+                <TableRowCell
+                  key={name}
+                  className={styles.format}
+                >
+                  {
+                    (formatStatuses || []).map((fs) => {
+                      const label = fs.formatType === 'ebook' ? 'Ebook' : fs.formatType === 'audiobook' ? 'Audiobook' : '';
+                      const kind = fs.hasFile ? kinds.SUCCESS : fs.monitored ? kinds.INFO : kinds.DEFAULT;
+
+                      return (
+                        <Label
+                          key={fs.formatType}
+                          kind={kind}
+                          size={sizes.SMALL}
+                          title={`${label}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${fs.hasFile ? ' (has file)' : ''}`}
+                        >
+                          <Icon
+                            name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
+                            size={12}
+                          />
+                        </Label>
+                      );
+                    })
+                  }
+                </TableRowCell>
+              );
+            }
+
             if (name === 'status') {
               return (
                 <TableRowCell
@@ -259,6 +291,7 @@ BookRow.propTypes = {
   position: PropTypes.string,
   pageCount: PropTypes.number,
   ratings: PropTypes.object.isRequired,
+  formatStatuses: PropTypes.arrayOf(PropTypes.object),
   indexerFlags: PropTypes.number.isRequired,
   titleSlug: PropTypes.string.isRequired,
   isSaving: PropTypes.bool,

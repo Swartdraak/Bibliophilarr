@@ -66,6 +66,7 @@ class BookDetailsHeader extends Component {
       monitored,
       releaseDate,
       ratings,
+      formatStatuses,
       images,
       links,
       isSaving,
@@ -189,6 +190,39 @@ class BookDetailsHeader extends Component {
                 </span>
               </Label>
 
+              {
+                (formatStatuses || []).map((fs) => {
+                  const formatLabel = fs.formatType === 'ebook' ? 'Ebook' : 'Audiobook';
+
+                  return (
+                    <Label
+                      key={fs.formatType}
+                      className={styles.detailsLabel}
+                      kind={fs.hasFile ? kinds.SUCCESS : fs.monitored ? kinds.INFO : kinds.DEFAULT}
+                      size={sizes.LARGE}
+                    >
+                      <Icon
+                        name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
+                        size={17}
+                      />
+
+                      <span className={styles.qualityProfileName}>
+                        {`${formatLabel}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}`}
+                      </span>
+
+                      {
+                        fs.hasFile &&
+                          <Icon
+                            name={icons.CHECK}
+                            size={12}
+                            title="Has file"
+                          />
+                      }
+                    </Label>
+                  );
+                })
+              }
+
               <Label
                 className={styles.detailsLabel}
                 size={sizes.LARGE}
@@ -257,6 +291,7 @@ BookDetailsHeader.propTypes = {
   statistics: PropTypes.object.isRequired,
   releaseDate: PropTypes.string.isRequired,
   ratings: PropTypes.object.isRequired,
+  formatStatuses: PropTypes.arrayOf(PropTypes.object),
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   links: PropTypes.arrayOf(PropTypes.object).isRequired,
   monitored: PropTypes.bool.isRequired,
