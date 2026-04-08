@@ -75,7 +75,9 @@ class EditAuthorModalContentConnector extends Component {
     super(props);
 
     this.state = {
-      formatProfileChanges: {}
+      formatProfileChanges: {},
+      formatProfilesSaving: false,
+      formatProfileSaveError: null
     };
   }
 
@@ -83,7 +85,19 @@ class EditAuthorModalContentConnector extends Component {
   // Lifecycle
 
   componentDidUpdate(prevProps, prevState) {
-    if (prevProps.isSaving && !this.props.isSaving && !this.props.saveError) {
+    const {
+      isSaving,
+      saveError
+    } = this.props;
+
+    const { formatProfilesSaving, formatProfileSaveError } = this.state;
+
+    // Close modal only when both author save and format profile saves are complete and successful
+    if (
+      !isSaving && !saveError &&
+      !formatProfilesSaving && !formatProfileSaveError &&
+      (prevProps.isSaving || prevState.formatProfilesSaving)
+    ) {
       this.props.onModalClose();
     }
   }
@@ -108,9 +122,11 @@ class EditAuthorModalContentConnector extends Component {
   };
 
   onSavePress = (moveFiles) => {
-    // Save format profile changes via their own API
     const { formatProfileChanges } = this.state;
     const { formatProfiles } = this.props;
+
+    // Collect format profile save promises
+    const savePromises = [];
 
     Object.keys(formatProfileChanges).forEach((profileIdStr) => {
       const profileId = parseInt(profileIdStr);
@@ -120,16 +136,42 @@ class EditAuthorModalContentConnector extends Component {
       if (original && Object.keys(changes).length > 0) {
         const updated = { ...original, ...changes };
 
-        createAjaxRequest({
+        const { request } = createAjaxRequest({
           url: `/authorformatprofile/${profileId}`,
           method: 'PUT',
           data: JSON.stringify(updated),
           dataType: 'json',
           contentType: 'application/json'
         });
+
+        savePromises.push(request);
       }
     });
 
+    if (savePromises.length > 0) {
+      this.setState({
+        formatProfilesSaving: true,
+        formatProfileSaveError: null
+      });
+
+      Promise.all(savePromises).then(
+        () => {
+          this.setState({
+            formatProfilesSaving: false,
+            formatProfileSaveError: null,
+            formatProfileChanges: {}
+          });
+        },
+        (xhr) => {
+          this.setState({
+            formatProfilesSaving: false,
+            formatProfileSaveError: xhr
+          });
+        }
+      );
+    }
+
+    // Save author (runs in parallel with format profile saves)
     this.props.dispatchSaveAuthor({
       id: this.props.authorId,
       moveFiles
@@ -140,8 +182,8 @@ class EditAuthorModalContentConnector extends Component {
   // Render
 
   render() {
-    const { formatProfiles } = this.props;
-    const { formatProfileChanges } = this.state;
+    const { formatProfiles, isSaving: authorSaving } = this.props;
+    const { formatProfileChanges, formatProfilesSaving, formatProfileSaveError } = this.state;
 
     // Merge pending changes into format profiles for display
     const mergedProfiles = formatProfiles.map((p) => ({
@@ -152,7 +194,9 @@ class EditAuthorModalContentConnector extends Component {
     return (
       <EditAuthorModalContent
         {...this.props}
+        isSaving={authorSaving || formatProfilesSaving}
         formatProfiles={mergedProfiles}
+        formatProfileSaveError={formatProfileSaveError}
         onInputChange={this.onInputChange}
         onFormatProfileChange={this.onFormatProfileChange}
         onSavePress={this.onSavePress}

@@ -224,7 +224,7 @@ class AuthorEditorFooter extends Component {
 
             <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
-                label={enableDualFormatTracking ? `${translate('QualityProfile')} (Base)` : translate('QualityProfile')}
+                label={enableDualFormatTracking ? translate('QualityProfileBase') : translate('QualityProfile')}
                 isSaving={isSaving && qualityProfileId !== NO_CHANGE}
               />
 

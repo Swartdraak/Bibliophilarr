@@ -68,6 +68,7 @@ class EditAuthorModalContent extends Component {
       showMetadataProfile,
       originalPath,
       formatProfiles,
+      formatProfileSaveError,
       onFormatProfileChange,
       onInputChange,
       onModalClose,
@@ -151,12 +152,13 @@ class EditAuthorModalContent extends Component {
               formatProfiles && formatProfiles.length > 0 &&
                 <FormGroup>
                   <FormLabel>
-                    Format Profiles
+                    {translate('FormatProfiles')}
                   </FormLabel>
 
                   <AuthorFormatProfileEditor
                     formatProfiles={formatProfiles}
                     onFormatProfileChange={onFormatProfileChange}
+                    saveError={formatProfileSaveError}
                   />
                 </FormGroup>
             }
@@ -165,7 +167,7 @@ class EditAuthorModalContent extends Component {
               showMetadataProfile &&
                 <FormGroup>
                   <FormLabel>
-                    Metadata Profile
+                    {translate('MetadataProfile')}
 
                     <Popover
                       anchor={
@@ -225,20 +227,20 @@ class EditAuthorModalContent extends Component {
             kind={kinds.DANGER}
             onPress={onDeleteAuthorPress}
           >
-            Delete
+            {translate('Delete')}
           </Button>
 
           <Button
             onPress={onModalClose}
           >
-            Cancel
+            {translate('Cancel')}
           </Button>
 
           <SpinnerButton
             isSpinning={isSaving}
             onPress={this.onSavePress}
           >
-            Save
+            {translate('Save')}
           </SpinnerButton>
         </ModalFooter>
 
@@ -264,6 +266,7 @@ EditAuthorModalContent.propTypes = {
   isPathChanging: PropTypes.bool.isRequired,
   originalPath: PropTypes.string.isRequired,
   formatProfiles: PropTypes.arrayOf(PropTypes.object),
+  formatProfileSaveError: PropTypes.object,
   onInputChange: PropTypes.func.isRequired,
   onFormatProfileChange: PropTypes.func.isRequired,
   onSavePress: PropTypes.func.isRequired,

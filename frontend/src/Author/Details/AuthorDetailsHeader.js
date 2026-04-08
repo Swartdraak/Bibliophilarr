@@ -231,13 +231,13 @@ class AuthorDetailsHeader extends Component {
                   formatProfiles.filter((fp, index, self) =>
                     self.findIndex((f) => f.formatType === fp.formatType) === index
                   ).map((fp) => {
-                    const formatLabel = fp.formatType === 'ebook' ? 'Ebook' : 'Audiobook';
+                    const formatLabel = fp.formatType === 'ebook' ? translate('Ebook') : translate('Audiobook');
 
                     return (
                       <Label
                         key={fp.id}
                         className={styles.detailsLabel}
-                        title={`${formatLabel}: ${fp.monitored ? 'Monitored' : 'Unmonitored'}`}
+                        title={`${formatLabel}: ${fp.monitored ? translate('Monitored') : translate('Unmonitored')}`}
                         kind={fp.monitored ? kinds.INFO : kinds.DEFAULT}
                         size={sizes.LARGE}
                       >

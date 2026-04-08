@@ -5,12 +5,16 @@ import FormInputGroup from 'Components/Form/FormInputGroup';
 import FormLabel from 'Components/Form/FormLabel';
 import Icon from 'Components/Icon';
 import { icons, inputTypes } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import styles from './AuthorFormatProfileEditor.css';
 
-const FORMAT_LABELS = {
-  ebook: { label: 'Ebook', icon: icons.BOOK },
-  audiobook: { label: 'Audiobook', icon: icons.TRACK_FILE }
-};
+function getFormatInfo(formatType) {
+  if (formatType === 'ebook') {
+    return { label: translate('Ebook'), icon: icons.BOOK };
+  }
+
+  return { label: translate('Audiobook'), icon: icons.TRACK_FILE };
+}
 
 function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
   if (!formatProfiles || formatProfiles.length === 0) {
@@ -20,10 +24,9 @@ function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
   return (
     <div className={styles.formatProfiles}>
       {formatProfiles.map((profile) => {
-        const formatKey = profile.formatType === 'ebook' ? 'ebook' : 'audiobook';
-        const formatInfo = FORMAT_LABELS[formatKey];
+        const formatInfo = getFormatInfo(profile.formatType);
 
-        const monitoredStatus = profile.monitored ? 'Monitored' : 'Unmonitored';
+        const monitoredStatus = profile.monitored ? translate('Monitored') : translate('Unmonitored');
 
         return (
           <div key={profile.id} className={styles.profileSection} title={`${formatInfo.label}: ${monitoredStatus}`}>
@@ -39,7 +42,7 @@ function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
 
             <FormGroup>
               <FormLabel>
-                Monitored
+                {translate('Monitored')}
               </FormLabel>
               <FormInputGroup
                 type={inputTypes.CHECK}
@@ -51,7 +54,7 @@ function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
 
             <FormGroup>
               <FormLabel>
-                Quality Profile
+                {translate('QualityProfile')}
               </FormLabel>
               <FormInputGroup
                 type={inputTypes.QUALITY_PROFILE_SELECT}
