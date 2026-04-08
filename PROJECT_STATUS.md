@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 16, 2026 (QA audit Phase 1-3: critical download client category fix, logging/data integrity, UI improvements)
+**Last Updated**: April 17, 2026 (UI format fixes, search enrichment, ManualImport crash fix)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -52,6 +52,66 @@ The following items were added to canonical planning for immediate/future delive
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 17, 2026 — v1.1.0-dev.14 UI format fixes, search enrichment, ManualImport crash fix
+
+User-reported bugs from live testing addressed across frontend and backend.
+
+#### Frontend: formatType enum serialization fix (7 files, 9 locations)
+
+Root cause: C# `FormatType` enum serializes as lowercase strings (`"ebook"`,
+`"audiobook"`) in JSON API responses, but all frontend code compared against
+integers (`=== 0`, `=== 1`). This caused both format badges to display
+"Audiobook" and format-conditional logic to fail silently.
+
+- **QueueRow.js**: `formatType === 0` → `=== 'ebook'`, `=== 1` → `=== 'audiobook'`
+- **InteractiveImportRow.js**: same fix
+- **AuthorFormatProfileEditor.js**: same fix
+- **AuthorDetailsHeader.js**: same fix (2 locations) + legacy Quality Profile
+  label now hidden when format profiles exist
+- **AuthorIndexOverviewInfo.js**: same fix
+- **AuthorIndexPosterInfo.js**: same fix
+- **AuthorIndexRow.js**: same fix (2 locations)
+
+#### Frontend: dual-format conditional display (3 files)
+
+- **AuthorIndexPoster.js**: added `resolvedFormatProfiles` prop support; quality
+  profile title now shows `E: ProfileName / A: ProfileName` when format profiles
+  are available
+- **AddAuthorOptionsForm.js**: restructured to show single Root Folder / Quality
+  Profile when `enableDualFormatTracking` is off, and per-format selectors when on
+
+#### Backend: GoogleBooks crash for non-Google IDs
+
+- **GoogleBooksFallbackSearchProvider.cs**: `GetBookInfo()` now detects
+  `hardcover:`, `openlibrary:`, `ol:`, `inventaire:` prefixed IDs and throws
+  `BookNotFoundException` immediately instead of attempting Google API lookup.
+  Fixes ManualImport crash for Hardcover-sourced books.
+
+#### Backend: Hardcover author search enrichment
+
+- **HardcoverFallbackSearchProvider.cs**: GraphQL queries in
+  `FetchAuthorDetailsBatch` and `FetchAuthorDetailsIndividual` used a `books`
+  field that does not exist on Hardcover's `authors` type, causing silent
+  validation failures. Replaced with `contributions(limit: 10, order_by:
+  {book: {ratings_count: desc_nulls_last}}) { book { rating ratings_count } }`
+  and added `users_count` field. This was the root cause of author search
+  returning no bio/image/ratings (e.g., searching "Anne Rice" returned empty
+  data despite Hardcover having full author profiles with 111 books).
+
+#### Investigation notes
+
+- **Download client category validation (#1)**: Already implemented for 5 major
+  clients (QBittorrent, Nzbget, SABnzbd, NzbVortex, Deluge). Remaining clients
+  either auto-create categories or lack verification APIs.
+- **MyAnonamouse indexer categories (#3)**: Log message "no results in configured
+  categories" is a standard indexer test validation. Requires Prowlarr category
+  mapping configuration, not a code fix.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix).
+- Frontend: webpack compiled successfully.
 
 ### April 17, 2026 — v1.1.0-dev.13 deep analysis remediation
 
