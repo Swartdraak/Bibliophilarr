@@ -11,6 +11,7 @@ import SpinnerButton from 'Components/Link/SpinnerButton';
 import PageContentFooter from 'Components/Page/PageContentFooter';
 import { kinds } from 'Helpers/Props';
 import { fetchRootFolders } from 'Store/Actions/Settings/rootFolders';
+import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import translate from 'Utilities/String/translate';
 import AuthorEditorFooterLabel from './AuthorEditorFooterLabel';
 import DeleteAuthorModal from './Delete/DeleteAuthorModal';
@@ -19,8 +20,15 @@ import styles from './AuthorEditorFooter.css';
 
 const NO_CHANGE = 'noChange';
 
+function mapStateToProps(state) {
+  return {
+    enableDualFormatTracking: state.settings.mediaManagement.item.enableDualFormatTracking || false
+  };
+}
+
 const mapDispatchToProps = {
-  dispatchFetchRootFolders: fetchRootFolders
+  dispatchFetchRootFolders: fetchRootFolders,
+  dispatchFetchMediaManagementSettings: fetchMediaManagementSettings
 };
 
 class AuthorEditorFooter extends Component {
@@ -50,6 +58,7 @@ class AuthorEditorFooter extends Component {
 
   componentDidMount() {
     this.props.dispatchFetchRootFolders();
+    this.props.dispatchFetchMediaManagementSettings();
   }
 
   componentDidUpdate(prevProps) {
@@ -155,6 +164,7 @@ class AuthorEditorFooter extends Component {
       isDeleting,
       isOrganizingAuthor,
       isRetaggingAuthor,
+      enableDualFormatTracking,
       onOrganizeAuthorPress,
       onRetagAuthorPress
     } = this.props;
@@ -214,7 +224,7 @@ class AuthorEditorFooter extends Component {
 
             <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
-                label={translate('QualityProfile')}
+                label={enableDualFormatTracking ? `${translate('QualityProfile')} (Base)` : translate('QualityProfile')}
                 isSaving={isSaving && qualityProfileId !== NO_CHANGE}
               />
 
@@ -351,11 +361,13 @@ AuthorEditorFooter.propTypes = {
   deleteError: PropTypes.object,
   isOrganizingAuthor: PropTypes.bool.isRequired,
   isRetaggingAuthor: PropTypes.bool.isRequired,
+  enableDualFormatTracking: PropTypes.bool.isRequired,
   showMetadataProfile: PropTypes.bool.isRequired,
   onSaveSelected: PropTypes.func.isRequired,
   onOrganizeAuthorPress: PropTypes.func.isRequired,
   onRetagAuthorPress: PropTypes.func.isRequired,
-  dispatchFetchRootFolders: PropTypes.func.isRequired
+  dispatchFetchRootFolders: PropTypes.func.isRequired,
+  dispatchFetchMediaManagementSettings: PropTypes.func.isRequired
 };
 
-export default connect(undefined, mapDispatchToProps)(AuthorEditorFooter);
+export default connect(mapStateToProps, mapDispatchToProps)(AuthorEditorFooter);

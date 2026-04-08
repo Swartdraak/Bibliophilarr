@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 17, 2026 (comprehensive audit — all remaining formatType, DI, and UI issues)
+**Last Updated**: April 8, 2026 (mass editor format-profile awareness + dead code cleanup)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -113,11 +113,16 @@ non-functional.
 - Frontend tests: 6/6 passing (AuthorFormatProfileEditor.test.js)
 - Frontend webpack: 0 JS errors (690 pre-existing CSS module typing warnings)
 
-#### Identified but deferred (lower priority)
+#### Identified but deferred (lower priority) — RESOLVED in v1.1.0-dev.16
 
-- **AuthorEditorRow.js** / **AuthorEditorFooter.js**: mass/bulk editor shows
-  single Quality Profile column — not format-profile-aware. Functional but
-  limited for dual-format users.
+- **AuthorEditorRow.js** / **AuthorEditorRowConnector.js**: discovered to be dead
+  code — never imported. The mass editor table uses `AuthorIndexRow` via
+  `AuthorIndexItemConnector`, which already has full format profile support.
+  Both files removed.
+- **AuthorEditorFooter.js**: bulk QP selector now reads `enableDualFormatTracking`
+  from media management settings. When enabled, labels the selector
+  "Quality Profile (Base)" to clarify it sets the fallback QP, not per-format QPs.
+  Fetches settings on mount to ensure the flag is available.
 
 ### April 17, 2026 — v1.1.0-dev.14 UI format fixes, search enrichment, ManualImport crash fix
 
