@@ -521,10 +521,18 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
                 foreach (var authorData in authorsArray)
                 {
-                    var author = MapAuthorSearchResult(authorData);
-                    if (author != null)
+                    try
                     {
-                        authors.Add(author);
+                        var author = MapAuthorSearchResult(authorData);
+                        if (author != null)
+                        {
+                            authors.Add(author);
+                        }
+                    }
+                    catch (Exception mapEx)
+                    {
+                        var authorId = authorData?.Value<int?>("id");
+                        _logger.Debug(mapEx, "Hardcover: Failed to map author ID {0}, skipping.", authorId);
                     }
                 }
 
@@ -623,7 +631,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             {
                 var validBooks = contributionsArray
                     .Select(c => c.SelectToken("book"))
-                    .Where(b => b != null && b.Value<double?>("rating") > 0 && b.Value<int?>("ratings_count") > 0)
+                    .Where(b => b != null && b.Type == JTokenType.Object)
+                    .Where(b => b.Value<double?>("rating") > 0 && b.Value<int?>("ratings_count") > 0)
                     .ToList();
 
                 if (validBooks.Any())
