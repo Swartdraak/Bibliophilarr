@@ -6,6 +6,7 @@ using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.SignalR;
 
 namespace Bibliophilarr.Api.V1.Books
@@ -17,13 +18,17 @@ namespace Bibliophilarr.Api.V1.Books
         protected readonly IAuthorStatisticsService _authorStatisticsService;
         protected readonly IUpgradableSpecification _qualityUpgradableSpecification;
         protected readonly IMapCoversToLocal _coverMapper;
+        protected readonly IAuthorFormatProfileService _formatProfileService;
+        protected readonly IQualityProfileService _qualityProfileService;
 
         protected BookControllerWithSignalR(IBookService bookService,
                                         ISeriesBookLinkService seriesBookLinkService,
                                         IAuthorStatisticsService authorStatisticsService,
                                         IMapCoversToLocal coverMapper,
                                         IUpgradableSpecification qualityUpgradableSpecification,
-                                        IBroadcastSignalRMessage signalRBroadcaster)
+                                        IBroadcastSignalRMessage signalRBroadcaster,
+                                        IAuthorFormatProfileService formatProfileService,
+                                        IQualityProfileService qualityProfileService)
             : base(signalRBroadcaster)
         {
             _bookService = bookService;
@@ -31,6 +36,8 @@ namespace Bibliophilarr.Api.V1.Books
             _authorStatisticsService = authorStatisticsService;
             _coverMapper = coverMapper;
             _qualityUpgradableSpecification = qualityUpgradableSpecification;
+            _formatProfileService = formatProfileService;
+            _qualityProfileService = qualityProfileService;
         }
 
         protected override BookResource GetResourceById(int id)
@@ -58,6 +65,7 @@ namespace Bibliophilarr.Api.V1.Books
                 resource.Author = author.ToResource();
             }
 
+            EnrichFormatStatuses(resource);
             FetchAndLinkBookStatistics(resource);
             MapCoversToLocal(resource);
 
@@ -98,11 +106,82 @@ namespace Bibliophilarr.Api.V1.Books
                 }
             }
 
+            EnrichFormatStatuses(result);
+
             var authorStats = _authorStatisticsService.AuthorStatistics();
             LinkAuthorStatistics(result, authorStats);
             MapCoversToLocal(result.ToArray());
 
             return result;
+        }
+
+        private void EnrichFormatStatuses(BookResource resource)
+        {
+            if (resource?.FormatStatuses == null || !resource.FormatStatuses.Any())
+            {
+                return;
+            }
+
+            var formatProfiles = _formatProfileService.GetByAuthorId(resource.AuthorId);
+            var profileCache = new Dictionary<int, string>();
+
+            foreach (var fs in resource.FormatStatuses)
+            {
+                var fp = formatProfiles?.FirstOrDefault(p => p.FormatType == fs.FormatType);
+                if (fp != null)
+                {
+                    fs.QualityProfileId = fp.QualityProfileId;
+                    if (!profileCache.TryGetValue(fp.QualityProfileId, out var name))
+                    {
+                        name = _qualityProfileService.Get(fp.QualityProfileId)?.Name;
+                        profileCache[fp.QualityProfileId] = name;
+                    }
+
+                    fs.QualityProfileName = name;
+                }
+            }
+        }
+
+        private void EnrichFormatStatuses(List<BookResource> resources)
+        {
+            if (resources == null || !resources.Any())
+            {
+                return;
+            }
+
+            var authorIds = resources.Select(r => r.AuthorId).Distinct().ToList();
+            var allProfiles = authorIds.SelectMany(id => _formatProfileService.GetByAuthorId(id)).ToList();
+            var profilesByAuthor = allProfiles.GroupBy(p => p.AuthorId).ToDictionary(g => g.Key, g => g.ToList());
+            var qpCache = new Dictionary<int, string>();
+
+            foreach (var resource in resources)
+            {
+                if (resource.FormatStatuses == null || !resource.FormatStatuses.Any())
+                {
+                    continue;
+                }
+
+                if (!profilesByAuthor.TryGetValue(resource.AuthorId, out var formatProfiles))
+                {
+                    continue;
+                }
+
+                foreach (var fs in resource.FormatStatuses)
+                {
+                    var fp = formatProfiles.FirstOrDefault(p => p.FormatType == fs.FormatType);
+                    if (fp != null)
+                    {
+                        fs.QualityProfileId = fp.QualityProfileId;
+                        if (!qpCache.TryGetValue(fp.QualityProfileId, out var name))
+                        {
+                            name = _qualityProfileService.Get(fp.QualityProfileId)?.Name;
+                            qpCache[fp.QualityProfileId] = name;
+                        }
+
+                        fs.QualityProfileName = name;
+                    }
+                }
+            }
         }
 
         private void FetchAndLinkBookStatistics(BookResource resource)

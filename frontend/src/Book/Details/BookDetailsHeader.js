@@ -73,7 +73,8 @@ class BookDetailsHeader extends Component {
       shortDateFormat,
       author,
       isSmallScreen,
-      onMonitorTogglePress
+      onMonitorTogglePress,
+      onFormatMonitorTogglePress
     } = this.props;
 
     const {
@@ -193,6 +194,7 @@ class BookDetailsHeader extends Component {
               {
                 (formatStatuses || []).map((fs) => {
                   const formatLabel = fs.formatType === 'ebook' ? 'Ebook' : 'Audiobook';
+                  const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
 
                   return (
                     <Label
@@ -200,6 +202,8 @@ class BookDetailsHeader extends Component {
                       className={styles.detailsLabel}
                       kind={fs.hasFile ? kinds.SUCCESS : fs.monitored ? kinds.INFO : kinds.DEFAULT}
                       size={sizes.LARGE}
+                      title={`Click to ${fs.monitored ? 'unmonitor' : 'monitor'} ${formatLabel}`}
+                      onClick={() => onFormatMonitorTogglePress && onFormatMonitorTogglePress(fs.formatType, !fs.monitored)}
                     >
                       <Icon
                         name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
@@ -207,7 +211,7 @@ class BookDetailsHeader extends Component {
                       />
 
                       <span className={styles.qualityProfileName}>
-                        {`${formatLabel}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}`}
+                        {`${formatLabel}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${qpLabel}`}
                       </span>
 
                       {
@@ -299,7 +303,8 @@ BookDetailsHeader.propTypes = {
   isSaving: PropTypes.bool.isRequired,
   author: PropTypes.object,
   isSmallScreen: PropTypes.bool.isRequired,
-  onMonitorTogglePress: PropTypes.func.isRequired
+  onMonitorTogglePress: PropTypes.func.isRequired,
+  onFormatMonitorTogglePress: PropTypes.func
 };
 
 BookDetailsHeader.defaultProps = {

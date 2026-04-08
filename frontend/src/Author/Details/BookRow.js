@@ -226,13 +226,14 @@ class BookRow extends Component {
                     (formatStatuses || []).map((fs) => {
                       const label = fs.formatType === 'ebook' ? 'Ebook' : fs.formatType === 'audiobook' ? 'Audiobook' : '';
                       const kind = fs.hasFile ? kinds.SUCCESS : fs.monitored ? kinds.INFO : kinds.DEFAULT;
+                      const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
 
                       return (
                         <Label
                           key={fs.formatType}
                           kind={kind}
                           size={sizes.SMALL}
-                          title={`${label}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${fs.hasFile ? ' (has file)' : ''}`}
+                          title={`${label}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${qpLabel}${fs.hasFile ? ' (has file)' : ''}`}
                         >
                           <Icon
                             name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}

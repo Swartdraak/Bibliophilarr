@@ -19,8 +19,10 @@ namespace Bibliophilarr.Api.V1.Wanted
                              IAuthorStatisticsService authorStatisticsService,
                              IMapCoversToLocal coverMapper,
                              IUpgradableSpecification upgradableSpecification,
-                             IBroadcastSignalRMessage signalRBroadcaster)
-        : base(bookService, seriesBookLinkService, authorStatisticsService, coverMapper, upgradableSpecification, signalRBroadcaster)
+                             IBroadcastSignalRMessage signalRBroadcaster,
+                             IAuthorFormatProfileService formatProfileService,
+                             NzbDrone.Core.Profiles.Qualities.IQualityProfileService qualityProfileService)
+        : base(bookService, seriesBookLinkService, authorStatisticsService, coverMapper, upgradableSpecification, signalRBroadcaster, formatProfileService, qualityProfileService)
         {
         }
 

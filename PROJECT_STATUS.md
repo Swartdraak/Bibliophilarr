@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 8, 2026 (mass editor format-profile awareness + dead code cleanup)
+**Last Updated**: April 18, 2026 (book QP display, per-format monitoring, rename preview fix)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -52,6 +52,84 @@ The following items were added to canonical planning for immediate/future delive
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 18, 2026 — v1.1.0-dev.22: Book-level QP display, per-format monitoring, rename preview fix
+
+Four deferred items from the v1.1.0-dev.21 audit addressed in this delivery.
+
+#### Fix #12: Book quality profile display (backend + frontend)
+
+- **BookFormatStatusResource.cs**: added `QualityProfileId` (int?) and
+  `QualityProfileName` (string) fields to the per-format status DTO.
+- **BookControllerWithSignalR.cs**: added `EnrichFormatStatuses()` methods
+  (single + batch) that resolve author format profiles and populate QP names
+  on format status resources. Batch variant groups lookups by authorId with
+  QP name caching to avoid N+1.
+- **BookController, MissingController, CutoffController, CalendarController**:
+  updated constructors to pass `IAuthorFormatProfileService` and
+  `IQualityProfileService` to base class.
+- **BookDetailsHeader.js**: format badges now show QP name — e.g.
+  `"Ebook: Monitored [eBook]"`.
+- **BookRow.js**: format badge tooltip includes QP name.
+
+#### Fix #7: Per-format monitoring toggle (backend + frontend)
+
+- **BooksMonitoredResource.cs**: added `FormatType?` property.
+- **BookController.SetBooksMonitored()**: when `FormatType` is specified,
+  toggles `edition.Monitored` only for editions matching the requested format
+  instead of toggling book-level monitoring.
+- **bookActions.js**: added `TOGGLE_BOOK_FORMAT_MONITORED` constant, thunk
+  creator, and handler calling `PUT /book/monitor` with `formatType`.
+- **BookDetailsHeaderConnector.js**: dispatches `toggleBookFormatMonitored`.
+- **BookDetailsHeader.js**: format badges are now clickable to toggle
+  per-format monitoring.
+
+#### Fix #11: Rename preview format-aware paths
+
+- **RenameBookFileService.cs**: injected `IBuildAuthorPaths` and
+  `IConfigService`. `GetPreviews()` and `RenameFiles()` collision detection
+  now use `AuthorPathBuilder.BuildFormatPath()` when `EnableDualFormatTracking`
+  is true, so preview paths match actual execution paths for format-specific
+  root folders.
+
+#### Fix #9: Import quality profile per format — verified already working
+
+- `QualityAllowedByProfileSpecification.IsSatisfiedBy()` resolves per-format
+  QP via `_formatProfileService.GetByAuthorIdAndFormat()`.
+- `UpgradableSpecification.ResolveProfile()` uses the resolved format QP.
+- `AddAuthorService.EnsureFormatProfiles()` creates format profiles for new
+  authors. No code changes needed.
+
+#### Metadata refresh
+
+- Triggered `RefreshAuthor` for all 79 authors to re-fetch ratings, bios, and
+  images from Hardcover (26 authors had zero ratings, 36 had empty bios).
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix)
+- Frontend webpack: compiled successfully
+- API verified: `formatStatuses` include `qualityProfileId` and
+  `qualityProfileName`; per-format monitoring toggle confirmed via API
+
+### April 17–18, 2026 — v1.1.0-dev.16 through v1.1.0-dev.21 (consolidated)
+
+- **v1.1.0-dev.16**: mass editor format-profile awareness — bulk QP selector
+  labeled "Quality Profile (Base)" when dual format enabled; removed dead
+  `AuthorEditorRow.js` / `AuthorEditorRowConnector.js`.
+- **v1.1.0-dev.17**: format profile save race condition fixed — modal save now
+  uses `Promise.all` for author + format profile saves; i18n localization for
+  format profile strings.
+- **v1.1.0-dev.18**: resolved 690 webpack CSS errors from doubled `frontend/`
+  paths; all CSS/PostCSS paths switched to absolute `__dirname`-based.
+- **v1.1.0-dev.19**: author search crash fix — null book tokens in Hardcover
+  contributions caused `InvalidOperationException`; added `JTokenType.Object`
+  guard and per-author `try-catch` in `FetchAuthorDetailsBatch`.
+- **v1.1.0-dev.20**: manual import fixes — volume-number-aware distance penalty,
+  path-based deduplication, `authorId`-only crash resolution.
+- **v1.1.0-dev.21**: format tracking UI — manual import string enum fix, Format
+  column in book table, per-format QP/RootFolder controls in mass editor footer,
+  indexer category warning instead of validation error.
 
 ### April 17, 2026 — v1.1.0-dev.15 comprehensive audit: all remaining formatType, DI routing, and UI issues
 
