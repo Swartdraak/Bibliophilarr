@@ -131,18 +131,21 @@ class EditAuthorModalContent extends Component {
               />
             </FormGroup>
 
-            <FormGroup>
-              <FormLabel>
-                {translate('QualityProfile')}
-              </FormLabel>
+            {
+              (!formatProfiles || formatProfiles.length === 0) &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('QualityProfile')}
+                  </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.QUALITY_PROFILE_SELECT}
-                name="qualityProfileId"
-                {...qualityProfileId}
-                onChange={onInputChange}
-              />
-            </FormGroup>
+                  <FormInputGroup
+                    type={inputTypes.QUALITY_PROFILE_SELECT}
+                    name="qualityProfileId"
+                    {...qualityProfileId}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+            }
 
             {
               formatProfiles && formatProfiles.length > 0 &&

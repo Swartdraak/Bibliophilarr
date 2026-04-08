@@ -1734,22 +1734,25 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
 
             var title = result.Title.IsNotNullOrWhiteSpace() ? result.Title.Trim() : result.Id;
-            var authorName = result.Contributions?
-                                 .Select(x => x?.Author?.Name)
-                                 .FirstOrDefault(x => x.IsNotNullOrWhiteSpace())?.Trim()
+            var contributor = result.Contributions?.FirstOrDefault(x => x?.Author?.Name.IsNotNullOrWhiteSpace() == true);
+            var authorName = contributor?.Author?.Name?.Trim()
                              ?? result.AuthorNames?.FirstOrDefault(x => x.IsNotNullOrWhiteSpace())?.Trim()
                              ?? "Unknown Author";
+            var authorId = contributor?.Author?.Id;
 
             var publishedDate = ParseDate(result.ReleaseDate, result.ReleaseYear);
             var isbn13 = result.Isbns?.FirstOrDefault(x => IsIsbn13(x));
             var coverUrl = result.Image?.Url;
 
-            // Don't assign book rating to author - author rating should be fetched separately
-            // during author refresh/add via GetAuthorInfo
+            // Prefer numeric author ID if available, fall back to name-based ID
+            var foreignAuthorId = authorId.HasValue && authorId.Value > 0
+                ? BuildHardcoverAuthorId(authorId.Value)
+                : BuildHardcoverAuthorId(authorName);
+
             var authorMetadata = new AuthorMetadata
             {
-                ForeignAuthorId = BuildHardcoverAuthorId(authorName),
-                TitleSlug = BuildHardcoverAuthorId(authorName).ToUrlSlug(),
+                ForeignAuthorId = foreignAuthorId,
+                TitleSlug = foreignAuthorId.ToUrlSlug(),
                 Name = authorName,
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
@@ -2196,6 +2199,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
     public class HardcoverAuthorResult
     {
+        [JsonProperty("id")]
+        public int? Id { get; set; }
+
         [JsonProperty("name")]
         public string Name { get; set; }
     }

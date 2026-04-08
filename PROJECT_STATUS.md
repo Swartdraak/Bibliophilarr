@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 17, 2026 (UI format fixes, search enrichment, ManualImport crash fix)
+**Last Updated**: April 17, 2026 (comprehensive audit — all remaining formatType, DI, and UI issues)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -52,6 +52,72 @@ The following items were added to canonical planning for immediate/future delive
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 17, 2026 — v1.1.0-dev.15 comprehensive audit: all remaining formatType, DI routing, and UI issues
+
+Full codebase sweep for patterns partially addressed in v1.1.0-dev.14. The initial
+round fixed 7 display files + 2 backend files, but a systematic audit found 8
+additional locations with identical or related issues.
+
+#### Frontend: formatType store/action filters (2 files, 4 filter definitions)
+
+The `filterTypePredicates.js` predicate uses strict `===` equality, so integer
+filter values (`0`, `1`) could never match string API values (`'ebook'`,
+`'audiobook'`). All format filters in Calendar and Wanted views were completely
+non-functional.
+
+- **calendarActions.js**: ebook filter `value: 0` → `'ebook'`, audiobook `value: 1` → `'audiobook'`
+- **wantedActions.js**: same fix in both `missing` and `cutoffUnmet` filter sections (4 filters total)
+
+#### Frontend: PropTypes corrections (2 files)
+
+- **QueueRow.js**: `formatType: PropTypes.number` → `PropTypes.string`
+- **InteractiveImportRow.js**: `formatType: PropTypes.number` → `PropTypes.string`
+
+#### Frontend: test fixture alignment (1 file)
+
+- **AuthorFormatProfileEditor.test.js**: all 4 test fixtures updated from
+  `formatType: 0`/`1` to `formatType: 'ebook'`/`'audiobook'` — tests now match
+  actual API data shape
+
+#### Frontend: EditAuthor modal QP conditional (1 file)
+
+- **EditAuthorModalContent.js**: legacy single "Quality Profile" dropdown now
+  hidden when format profiles exist (each format profile row already includes its
+  own QP selector via `AuthorFormatProfileEditor`). Mirrors the conditional
+  pattern applied to `AuthorDetailsHeader` in v1.1.0-dev.14.
+
+#### Backend: ManualImport DI architecture fix (1 file)
+
+- **ManualImportService.cs**: replaced `IProvideBookInfo` field/constructor
+  injection with `IMetadataProviderOrchestrator`. The bare `IProvideBookInfo`
+  injection let DryIoC resolve an arbitrary provider implementation, bypassing
+  the orchestrator's `IsProviderCompatibleWithIdScope()` routing that correctly
+  sends `hardcover:` IDs to Hardcover and `googlebooks:` IDs to GoogleBooks.
+  This was the architectural root cause of ManualImport crashes for
+  Hardcover-sourced books.
+
+#### Backend: Hardcover author ID enrichment in book search (1 file)
+
+- **HardcoverFallbackSearchProvider.cs**: added `Id` property to
+  `HardcoverAuthorResult` model (Typesense results already include `author.id`).
+  `MapBook()` now prefers numeric `author_id` from contributors over name-based
+  `hardcover:author:Anne%20Rice` format, matching the existing pattern already
+  used in `FetchBookByWorkId` and `GetAuthorInfo`. This enables proper
+  deduplication when book-search-derived authors are later matched against
+  enriched author search results.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix)
+- Frontend tests: 6/6 passing (AuthorFormatProfileEditor.test.js)
+- Frontend webpack: 0 JS errors (690 pre-existing CSS module typing warnings)
+
+#### Identified but deferred (lower priority)
+
+- **AuthorEditorRow.js** / **AuthorEditorFooter.js**: mass/bulk editor shows
+  single Quality Profile column — not format-profile-aware. Functional but
+  limited for dual-format users.
 
 ### April 17, 2026 — v1.1.0-dev.14 UI format fixes, search enrichment, ManualImport crash fix
 

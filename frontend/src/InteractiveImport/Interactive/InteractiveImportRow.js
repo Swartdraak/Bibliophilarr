@@ -444,7 +444,7 @@ InteractiveImportRow.propTypes = {
   path: PropTypes.string.isRequired,
   author: PropTypes.object,
   book: PropTypes.object,
-  formatType: PropTypes.number,
+  formatType: PropTypes.string,
   foreignEditionId: PropTypes.string,
   releaseGroup: PropTypes.string,
   quality: PropTypes.object,

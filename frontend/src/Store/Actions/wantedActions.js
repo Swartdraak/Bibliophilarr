@@ -90,7 +90,7 @@ export const defaultState = {
         filters: [
           {
             key: 'formatType',
-            value: 0,
+            value: 'ebook',
             type: filterTypes.EQUAL
           }
         ]
@@ -101,7 +101,7 @@ export const defaultState = {
         filters: [
           {
             key: 'formatType',
-            value: 1,
+            value: 'audiobook',
             type: filterTypes.EQUAL
           }
         ]
@@ -181,7 +181,7 @@ export const defaultState = {
         filters: [
           {
             key: 'formatType',
-            value: 0,
+            value: 'ebook',
             type: filterTypes.EQUAL
           }
         ]
@@ -192,7 +192,7 @@ export const defaultState = {
         filters: [
           {
             key: 'formatType',
-            value: 1,
+            value: 'audiobook',
             type: filterTypes.EQUAL
           }
         ]

@@ -40,7 +40,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IEditionService _editionService;
-        private readonly IProvideBookInfo _bookInfo;
+        private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
         private readonly IMetadataTagService _metadataTagService;
         private readonly IImportApprovedBooks _importApprovedBooks;
         private readonly ICustomFormatCalculationService _formatCalculator;
@@ -58,7 +58,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                                    IAuthorService authorService,
                                    IBookService bookService,
                                    IEditionService editionService,
-                                   IProvideBookInfo bookInfo,
+                                   IMetadataProviderOrchestrator metadataOrchestrator,
                                    IMetadataTagService metadataTagService,
                                    IImportApprovedBooks importApprovedBooks,
                                    ICustomFormatCalculationService formatCalculator,
@@ -76,7 +76,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             _authorService = authorService;
             _bookService = bookService;
             _editionService = editionService;
-            _bookInfo = bookInfo;
+            _metadataOrchestrator = metadataOrchestrator;
             _metadataTagService = metadataTagService;
             _importApprovedBooks = importApprovedBooks;
             _formatCalculator = formatCalculator;
@@ -342,7 +342,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     var edition = _editionService.GetEditionByForeignEditionId(file.ForeignEditionId);
                     if (edition == null)
                     {
-                        var tuple = _bookInfo.GetBookInfo(book.ForeignBookId);
+                        var tuple = _metadataOrchestrator.GetBookInfo(book.ForeignBookId);
                         edition = tuple.Item2.Editions.Value.SingleOrDefault(x => x.ForeignEditionId == file.ForeignEditionId);
                     }
 

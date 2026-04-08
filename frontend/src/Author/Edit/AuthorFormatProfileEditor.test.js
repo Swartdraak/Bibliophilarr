@@ -30,7 +30,7 @@ describe('AuthorFormatProfileEditor', () => {
 
   test('renders ebook format profile', () => {
     const profiles = [
-      { id: 1, formatType: 0, qualityProfileId: 5, monitored: true }
+      { id: 1, formatType: 'ebook', qualityProfileId: 5, monitored: true }
     ];
 
     render(<AuthorFormatProfileEditor formatProfiles={profiles} onFormatProfileChange={mockOnChange} />);
@@ -40,7 +40,7 @@ describe('AuthorFormatProfileEditor', () => {
 
   test('renders audiobook format profile', () => {
     const profiles = [
-      { id: 2, formatType: 1, qualityProfileId: 7, monitored: false }
+      { id: 2, formatType: 'audiobook', qualityProfileId: 7, monitored: false }
     ];
 
     render(<AuthorFormatProfileEditor formatProfiles={profiles} onFormatProfileChange={mockOnChange} />);
@@ -50,8 +50,8 @@ describe('AuthorFormatProfileEditor', () => {
 
   test('renders both ebook and audiobook profiles', () => {
     const profiles = [
-      { id: 1, formatType: 0, qualityProfileId: 5, monitored: true },
-      { id: 2, formatType: 1, qualityProfileId: 7, monitored: true }
+      { id: 1, formatType: 'ebook', qualityProfileId: 5, monitored: true },
+      { id: 2, formatType: 'audiobook', qualityProfileId: 7, monitored: true }
     ];
 
     render(<AuthorFormatProfileEditor formatProfiles={profiles} onFormatProfileChange={mockOnChange} />);
@@ -62,8 +62,8 @@ describe('AuthorFormatProfileEditor', () => {
 
   test('shows monitored status in title attribute', () => {
     const profiles = [
-      { id: 1, formatType: 0, qualityProfileId: 5, monitored: true },
-      { id: 2, formatType: 1, qualityProfileId: 7, monitored: false }
+      { id: 1, formatType: 'ebook', qualityProfileId: 5, monitored: true },
+      { id: 2, formatType: 'audiobook', qualityProfileId: 7, monitored: false }
     ];
 
     render(<AuthorFormatProfileEditor formatProfiles={profiles} onFormatProfileChange={mockOnChange} />);

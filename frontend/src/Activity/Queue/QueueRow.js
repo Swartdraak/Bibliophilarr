@@ -445,7 +445,7 @@ QueueRow.propTypes = {
   timeleft: PropTypes.string,
   size: PropTypes.number,
   sizeleft: PropTypes.number,
-  formatType: PropTypes.number,
+  formatType: PropTypes.string,
   showRelativeDates: PropTypes.bool.isRequired,
   shortDateFormat: PropTypes.string.isRequired,
   timeFormat: PropTypes.string.isRequired,
