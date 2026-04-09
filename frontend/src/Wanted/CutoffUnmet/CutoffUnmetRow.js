@@ -4,10 +4,13 @@ import AuthorNameLink from 'Author/AuthorNameLink';
 import bookEntities from 'Book/bookEntities';
 import BookSearchCellConnector from 'Book/BookSearchCellConnector';
 import BookTitleLink from 'Book/BookTitleLink';
+import Icon from 'Components/Icon';
+import Label from 'Components/Label';
 import RelativeDateCellConnector from 'Components/Table/Cells/RelativeDateCellConnector';
 import TableRowCell from 'Components/Table/Cells/TableRowCell';
 import TableSelectCell from 'Components/Table/Cells/TableSelectCell';
 import TableRow from 'Components/Table/TableRow';
+import { icons, kinds, sizes } from 'Helpers/Props';
 
 function CutoffUnmetRow(props) {
   const {
@@ -18,6 +21,7 @@ function CutoffUnmetRow(props) {
     title,
     lastSearchTime,
     disambiguation,
+    formatType,
     isSelected,
     columns,
     onSelectedChange
@@ -65,6 +69,29 @@ function CutoffUnmetRow(props) {
                   title={title}
                   disambiguation={disambiguation}
                 />
+              </TableRowCell>
+            );
+          }
+
+          if (name === 'formatType') {
+            const label = formatType === 'ebook' ? 'Ebook' : formatType === 'audiobook' ? 'Audiobook' : '';
+            const icon = formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE;
+
+            return (
+              <TableRowCell key={name}>
+                {formatType ? (
+                  <Label
+                    kind={kinds.DEFAULT}
+                    size={sizes.SMALL}
+                    title={label}
+                  >
+                    <Icon
+                      name={icon}
+                      size={11}
+                    />
+                    {' '}{label}
+                  </Label>
+                ) : null}
               </TableRowCell>
             );
           }
@@ -117,6 +144,7 @@ CutoffUnmetRow.propTypes = {
   title: PropTypes.string.isRequired,
   lastSearchTime: PropTypes.string,
   disambiguation: PropTypes.string,
+  formatType: PropTypes.string,
   isSelected: PropTypes.bool,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   onSelectedChange: PropTypes.func.isRequired

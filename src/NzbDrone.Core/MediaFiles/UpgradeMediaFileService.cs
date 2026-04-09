@@ -92,7 +92,15 @@ namespace NzbDrone.Core.MediaFiles
             foreach (var file in existingFiles)
             {
                 var bookFilePath = file.Path;
-                var subfolder = rootFolderPath.GetRelativePath(_diskProvider.GetParentFolder(bookFilePath));
+
+                // The existing file may live under a different root folder than the
+                // author (e.g. ebooks root vs audiobooks root). Compute the recycle
+                // subfolder relative to the root that actually contains the file to
+                // avoid NotParentException.
+                var fileParent = _diskProvider.GetParentFolder(bookFilePath);
+                var fileRoot = _rootFolderService.GetBestRootFolder(fileParent);
+                var effectiveRootPath = fileRoot?.Path ?? rootFolderPath;
+                var subfolder = effectiveRootPath.GetRelativePath(fileParent);
 
                 bookFile.CalibreId = file.CalibreId;
 

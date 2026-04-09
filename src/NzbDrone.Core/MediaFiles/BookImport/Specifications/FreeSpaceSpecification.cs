@@ -38,6 +38,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                     return Decision.Accept();
                 }
 
+                if (string.IsNullOrEmpty(item.Author?.Path))
+                {
+                    _logger.Debug("Author path is not set, skipping free space check");
+                    return Decision.Accept();
+                }
+
                 var path = Directory.GetParent(item.Author.Path);
                 var freeSpace = _diskProvider.GetAvailableSpace(path.FullName);
 

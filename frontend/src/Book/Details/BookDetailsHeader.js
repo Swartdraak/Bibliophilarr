@@ -195,6 +195,7 @@ class BookDetailsHeader extends Component {
                 (formatStatuses || []).map((fs) => {
                   const formatLabel = fs.formatType === 'ebook' ? 'Ebook' : 'Audiobook';
                   const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
+                  const fileCountLabel = fs.fileCount > 0 ? ` — ${fs.fileCount} file${fs.fileCount !== 1 ? 's' : ''}` : '';
 
                   return (
                     <Label
@@ -211,7 +212,7 @@ class BookDetailsHeader extends Component {
                       />
 
                       <span className={styles.qualityProfileName}>
-                        {`${formatLabel}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${qpLabel}`}
+                        {`${formatLabel}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${qpLabel}${fileCountLabel}`}
                       </span>
 
                       {

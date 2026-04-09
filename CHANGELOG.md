@@ -9,6 +9,19 @@ process.
 
 ### Fixed
 
+- **formatStatuses file-based format derivation**: `BookResource.ToResource()` now derives format type from actual book file qualities via `Quality.GetFormatType()` instead of relying on `Edition.IsEbook` (which was never set for Hardcover direct results). Per-format file counts exposed via new `FileCount` property on `BookFormatStatusResource`. Books with ebook files now correctly report ebook format status.
+- **Hardcover IsEbook never set**: `HardcoverFallbackSearchProvider.MapDirectBookResult()` now reads `reading_format_id` from GraphQL edition data and sets `IsEbook = true` for ebook editions (format ID 2). Added `reading_format_id` to all three GraphQL edition queries (`FetchBookByWorkId`, `FetchAuthorBooks`, `FetchAuthorBooksById`). Future metadata refreshes will populate `IsEbook` correctly.
+- **Author Editor path recomputation**: `AuthorEditorController.SaveAll()` now recomputes `AuthorFormatProfile.Path` when a per-format root folder path changes, using `global::System.IO.Path.Combine(rootFolderPath, author.CleanName)`.
+- **Author Editor logging**: `AuthorEditorController` now logs format profile update operations (Info for batch summary, Debug per author per format) via NLog for operational observability.
+
+### Added
+
+- **Book Index format column**: Format column in Book Index table showing per-format badges with file counts, icons (book/audiotrack), and quality profile tooltips.
+- **Wanted pages format column**: Format Type column added to Missing and Cutoff Unmet tables showing ebook/audiobook indicator badges.
+- **Book detail format file counts**: BookRow and BookDetailsHeader format badges now display per-format file counts (e.g. "1 file", "3 files").
+
+### Fixed
+
 - **Decision engine format isolation**: Five decision engine specifications (CutoffSpec, UpgradeDiskSpec, UpgradeAllowedSpec, QueueSpec, HistorySpec) now use `UpgradableSpecification.ResolveProfile()` for format-resolved quality profiles instead of the base author QP. Three disk-comparison specs also filter existing files by format type, preventing cross-format comparisons (e.g. EPUB evaluated against M4B files).
 - **Import upgrade format isolation**: Import `UpgradeSpecification` rewritten with per-format QP resolution and file filtering. EPUB imports are no longer rejected as "not an upgrade" when only audiobook files exist on disk.
 - **Import QP defaults**: `EnsureFormatProfiles()` now scans root folders and their default quality profiles to infer the correct QP per format type, instead of defaulting both ebook and audiobook profiles to the base author QP.

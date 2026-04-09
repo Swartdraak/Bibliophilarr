@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 9, 2026 (format-aware decision engine, queue display, import, mass editor)
+**Last Updated**: April 10, 2026 (formatStatuses data model fix, Hardcover IsEbook, frontend format columns, Author Editor UX)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -52,6 +52,36 @@ The following items were added to canonical planning for immediate/future delive
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 10, 2026 — v1.1.0-dev.24: formatStatuses data model fix, Hardcover IsEbook, frontend format columns, Author Editor UX
+
+Root cause investigation and four-phase fix for broken dual-format tracking. All 794 editions had `IsEbook = 0` because the Hardcover direct result mapper never set it, causing formatStatuses to report only audiobook format for all books.
+
+#### Phase 1: formatStatuses file-based format derivation
+
+- **BookFormatStatusResource.cs**: Added `FileCount` (int) property to the per-format status DTO.
+- **BookResource.cs**: Rewrote `formatStatuses` construction in `ToResource()`. Instead of relying on `Edition.IsEbook`, now collects all book files across editions, groups by `Quality.GetFormatType()` on each file's quality, and generates format status entries per format. Books with 17 ebook files now correctly report ebook format status.
+
+#### Phase 2: Hardcover MapDirectBookResult IsEbook fix
+
+- **HardcoverFallbackSearchProvider.cs**: Added `reading_format_id` to GraphQL editions subquery in `FetchBookByWorkId`, `FetchAuthorBooks`, and `FetchAuthorBooksById`. `MapDirectBookResult()` now reads `reading_format_id` from edition data and sets `IsEbook = true` for format ID 2 (ebook). Future metadata refreshes will populate `IsEbook` correctly in the database.
+
+#### Phase 3: Frontend format-aware pages
+
+- **BookIndexRow.js / BookIndexRow.css / bookIndexActions.js**: Added Format column to Book Index table. Per-format badges show icon (Book/AudioTrack), file count, and quality profile tooltip.
+- **MissingRow.js / CutoffUnmetRow.js / wantedActions.js**: Added Format Type column to Missing and Cutoff Unmet tables with ebook/audiobook indicator badges.
+- **BookRow.js**: Updated format badge tooltip to show per-format file count.
+- **BookDetailsHeader.js**: Updated format badge text to include per-format file count.
+
+#### Phase 4: Author Editor UX fixes
+
+- **AuthorEditorController.cs**: Added NLog Logger injection. Logs format profile update operations at Info (batch summary) and Debug (per author per format) levels. Recomputes `AuthorFormatProfile.Path` when root folder changes via `global::System.IO.Path.Combine()`. Added warning log when file move requested for format-specific root folder changes.
+
+#### Build and test verification
+
+- .NET backend: 0 errors (Bibliophilarr.sln Debug/Posix)
+- Frontend webpack: compiled successfully
+- API verified: 17 books with ebook files now show correct ebook format status, 3 books correctly report both ebook and audiobook formats, `fileCount` populated across all format entries
 
 ### April 9, 2026 — v1.1.0-dev.23: Format-aware decision engine, queue display, import, and mass editor
 

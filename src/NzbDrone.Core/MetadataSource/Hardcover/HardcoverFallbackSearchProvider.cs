@@ -919,6 +919,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         }
                         editions(limit: 1) {
                             isbn_13
+                            reading_format_id
                         }
                     }
                 }",
@@ -1054,6 +1055,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                     }
                                     editions(limit: 1) {
                                         isbn_13
+                                        reading_format_id
                                     }
                                 }
                             }
@@ -1186,6 +1188,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                 }
                                 editions(limit: 1) {
                                     isbn_13
+                                    reading_format_id
                                 }
                             }
                         }
@@ -1414,6 +1417,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var authorSlug = bookData.SelectToken("cached_contributors[0].author.slug")?.Value<string>();
             var isbn13 = bookData.SelectToken("editions[0].isbn_13")?.Value<string>();
 
+            // Hardcover reading_format_id: 1=Physical, 2=Ebook, 3=Audiobook, 4=Audio CD
+            // Null when the field is not present in the schema or not populated.
+            var readingFormatId = bookData.SelectToken("editions[0].reading_format_id")?.Value<int?>();
+            var isEbook = readingFormatId == 2;
+
             var publishedDate = ParseDate(releaseDate, releaseYear);
 
             // Prefer numeric author ID if available, fall back to name-based ID
@@ -1500,6 +1508,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 ReleaseDate = publishedDate,
                 Language = null,
                 Isbn13 = isbn13,
+                IsEbook = isEbook,
                 Book = book,
                 PageCount = pages ?? 0,
                 Overview = description,

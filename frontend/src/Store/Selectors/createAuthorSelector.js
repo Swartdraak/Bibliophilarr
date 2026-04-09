@@ -6,6 +6,10 @@ function createAuthorSelector() {
     (state) => state.authors.itemMap,
     (state) => state.authors.items,
     (authorId, itemMap, allAuthors) => {
+      if (!itemMap) {
+        return undefined;
+      }
+
       return allAuthors[itemMap[authorId]];
     }
   );

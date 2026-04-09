@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
+using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Commands;
@@ -15,12 +16,14 @@ namespace Bibliophilarr.Api.V1.Author
         private readonly IAuthorService _authorService;
         private readonly IAuthorFormatProfileService _formatProfileService;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly Logger _logger;
 
-        public AuthorEditorController(IAuthorService authorService, IAuthorFormatProfileService formatProfileService, IManageCommandQueue commandQueueManager)
+        public AuthorEditorController(IAuthorService authorService, IAuthorFormatProfileService formatProfileService, IManageCommandQueue commandQueueManager, Logger logger)
         {
             _authorService = authorService;
             _formatProfileService = formatProfileService;
             _commandQueueManager = commandQueueManager;
+            _logger = logger;
         }
 
         [HttpPut]
@@ -96,8 +99,20 @@ namespace Bibliophilarr.Api.V1.Author
                                    resource.EbookRootFolderPath.IsNotNullOrWhiteSpace() ||
                                    resource.AudiobookRootFolderPath.IsNotNullOrWhiteSpace();
 
+            if (resource.MoveFiles && !authorsToMove.Any() && hasFormatChanges)
+            {
+                _logger.Warn("Move files requested for format-specific root folder change but file moves are not yet supported for per-format paths. Files will be relocated during next import or manual rename.");
+            }
+
             if (hasFormatChanges)
             {
+                _logger.Info("Applying format profile changes to {0} author(s): EbookQP={1}, AudiobookQP={2}, EbookRF={3}, AudiobookRF={4}",
+                    authorsToUpdate.Count,
+                    resource.EbookQualityProfileId,
+                    resource.AudiobookQualityProfileId,
+                    resource.EbookRootFolderPath,
+                    resource.AudiobookRootFolderPath);
+
                 foreach (var author in authorsToUpdate)
                 {
                     if (resource.EbookQualityProfileId.HasValue || resource.EbookRootFolderPath.IsNotNullOrWhiteSpace())
@@ -113,9 +128,17 @@ namespace Bibliophilarr.Api.V1.Author
                             if (resource.EbookRootFolderPath.IsNotNullOrWhiteSpace())
                             {
                                 ebookProfile.RootFolderPath = resource.EbookRootFolderPath;
+                                ebookProfile.Path = global::System.IO.Path.Combine(resource.EbookRootFolderPath, author.CleanName ?? author.Name);
                             }
 
                             _formatProfileService.Update(ebookProfile);
+                            _logger.Debug(
+                                "Updated ebook format profile for author '{0}' (id: {1}): QP={2}, RootFolder={3}, Path={4}",
+                                author.Name,
+                                author.Id,
+                                ebookProfile.QualityProfileId,
+                                ebookProfile.RootFolderPath,
+                                ebookProfile.Path);
                         }
                     }
 
@@ -132,9 +155,17 @@ namespace Bibliophilarr.Api.V1.Author
                             if (resource.AudiobookRootFolderPath.IsNotNullOrWhiteSpace())
                             {
                                 audiobookProfile.RootFolderPath = resource.AudiobookRootFolderPath;
+                                audiobookProfile.Path = global::System.IO.Path.Combine(resource.AudiobookRootFolderPath, author.CleanName ?? author.Name);
                             }
 
                             _formatProfileService.Update(audiobookProfile);
+                            _logger.Debug(
+                                "Updated audiobook format profile for author '{0}' (id: {1}): QP={2}, RootFolder={3}, Path={4}",
+                                author.Name,
+                                author.Id,
+                                audiobookProfile.QualityProfileId,
+                                audiobookProfile.RootFolderPath,
+                                audiobookProfile.Path);
                         }
                     }
                 }

@@ -304,6 +304,19 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             {
                 item.Author = decision.Item.Author;
 
+                // If the identified author lacks a database ID but has a foreign ID,
+                // attempt to resolve it to the library author so the frontend can
+                // submit the import without requiring the user to re-select.
+                if (item.Author.Id == 0 && item.Author.ForeignAuthorId.IsNotNullOrWhiteSpace())
+                {
+                    var libraryAuthor = _authorService.FindById(item.Author.ForeignAuthorId);
+                    if (libraryAuthor != null)
+                    {
+                        item.Author = libraryAuthor;
+                        decision.Item.Author = libraryAuthor;
+                    }
+                }
+
                 item.CustomFormats = _formatCalculator.ParseCustomFormat(decision.Item);
             }
 
@@ -311,6 +324,28 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             {
                 item.Book = decision.Item.Book;
                 item.Edition = decision.Item.Edition;
+
+                // Similarly, resolve the identified book to the library record.
+                if (item.Book.Id == 0 && item.Book.ForeignBookId.IsNotNullOrWhiteSpace())
+                {
+                    var libraryBook = _bookService.FindById(item.Book.ForeignBookId);
+                    if (libraryBook != null)
+                    {
+                        item.Book = libraryBook;
+                        decision.Item.Book = libraryBook;
+
+                        // Also resolve the edition if possible.
+                        if (decision.Item.Edition?.ForeignEditionId != null)
+                        {
+                            var libraryEdition = _editionService.GetEditionByForeignEditionId(decision.Item.Edition.ForeignEditionId);
+                            if (libraryEdition != null)
+                            {
+                                item.Edition = libraryEdition;
+                                decision.Item.Edition = libraryEdition;
+                            }
+                        }
+                    }
+                }
             }
 
             item.Quality = decision.Item.Quality;

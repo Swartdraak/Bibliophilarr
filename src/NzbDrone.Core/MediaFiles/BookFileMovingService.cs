@@ -31,6 +31,8 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IDiskProvider _diskProvider;
         private readonly IRootFolderWatchingService _rootFolderWatchingService;
         private readonly IMediaFileAttributeService _mediaFileAttributeService;
+        private readonly IMediaFileService _mediaFileService;
+        private readonly IRecycleBinProvider _recycleBinProvider;
         private readonly IEventAggregator _eventAggregator;
         private readonly IConfigService _configService;
         private readonly IBuildAuthorPaths _authorPathBuilder;
@@ -43,6 +45,8 @@ namespace NzbDrone.Core.MediaFiles
                                       IDiskProvider diskProvider,
                                       IRootFolderWatchingService rootFolderWatchingService,
                                       IMediaFileAttributeService mediaFileAttributeService,
+                                      IMediaFileService mediaFileService,
+                                      IRecycleBinProvider recycleBinProvider,
                                       IEventAggregator eventAggregator,
                                       IConfigService configService,
                                       IBuildAuthorPaths authorPathBuilder,
@@ -55,6 +59,8 @@ namespace NzbDrone.Core.MediaFiles
             _diskProvider = diskProvider;
             _rootFolderWatchingService = rootFolderWatchingService;
             _mediaFileAttributeService = mediaFileAttributeService;
+            _mediaFileService = mediaFileService;
+            _recycleBinProvider = recycleBinProvider;
             _eventAggregator = eventAggregator;
             _configService = configService;
             _authorPathBuilder = authorPathBuilder;
@@ -135,6 +141,21 @@ namespace NzbDrone.Core.MediaFiles
             if (bookFilePath == destinationFilePath)
             {
                 throw new SameFilenameException("File not moved, source and destination are the same", bookFilePath);
+            }
+
+            // Check if the destination path is occupied by a file tracked under
+            // a different book (e.g. a collection edition vs an individual edition).
+            // If so, recycle the occupying file and remove its DB record so the
+            // transfer can proceed without DestinationAlreadyExistsException.
+            if (_diskProvider.FileExists(destinationFilePath))
+            {
+                var occupyingFile = _mediaFileService.GetFileWithPath(destinationFilePath);
+                if (occupyingFile != null)
+                {
+                    _logger.Warn("Destination path '{0}' is occupied by BookFile {1} from a different edition. Recycling it before import.", destinationFilePath, occupyingFile.Id);
+                    _recycleBinProvider.DeleteFile(destinationFilePath);
+                    _mediaFileService.Delete(occupyingFile, DeleteMediaFileReason.Upgrade);
+                }
             }
 
             _rootFolderWatchingService.ReportFileSystemChangeBeginning(bookFilePath, destinationFilePath);

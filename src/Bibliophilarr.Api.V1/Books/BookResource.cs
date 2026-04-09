@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.Qualities;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Bibliophilarr.Api.V1.Books
@@ -67,28 +68,47 @@ namespace Bibliophilarr.Api.V1.Books
             var editions = model.Editions?.Value;
             if (editions != null)
             {
-                var ebookEditions = editions.Where(e => e.IsEbook);
-                var audiobookEditions = editions.Where(e => !e.IsEbook);
+                // Collect all book files across all editions and group by derived format type.
+                // This ensures format is determined from actual file quality (e.g. EPUB → Ebook,
+                // M4B → Audiobook) rather than relying solely on Edition.IsEbook, which may not
+                // be set correctly by all metadata providers.
+                var allFiles = editions
+                    .Where(e => e.BookFiles?.Value != null)
+                    .SelectMany(e => e.BookFiles.Value)
+                    .ToList();
 
-                if (ebookEditions.Any())
+                var ebookFiles = allFiles.Where(f => Quality.GetFormatType(f.Quality.Quality) == FormatType.Ebook).ToList();
+                var audiobookFiles = allFiles.Where(f => Quality.GetFormatType(f.Quality.Quality) == FormatType.Audiobook).ToList();
+
+                // Also check edition-level classification for books without files
+                var hasEbookEdition = editions.Any(e => e.IsEbook);
+                var hasAudiobookEdition = editions.Any(e => !e.IsEbook);
+
+                // Determine monitored status from editions
+                var monitoredEbookEdition = editions.Where(e => e.IsEbook).FirstOrDefault(e => e.Monitored);
+                var monitoredAudiobookEdition = editions.Where(e => !e.IsEbook).FirstOrDefault(e => e.Monitored);
+
+                // Emit ebook status if we have ebook files OR a classified ebook edition
+                if (ebookFiles.Any() || hasEbookEdition)
                 {
-                    var monitoredEbook = ebookEditions.FirstOrDefault(e => e.Monitored);
                     formatStatuses.Add(new BookFormatStatusResource
                     {
                         FormatType = FormatType.Ebook,
-                        Monitored = monitoredEbook != null,
-                        HasFile = monitoredEbook?.BookFiles?.Value?.Any() ?? false
+                        Monitored = monitoredEbookEdition != null,
+                        HasFile = ebookFiles.Any(),
+                        FileCount = ebookFiles.Count
                     });
                 }
 
-                if (audiobookEditions.Any())
+                // Emit audiobook status if we have audiobook files OR a classified audiobook edition
+                if (audiobookFiles.Any() || hasAudiobookEdition)
                 {
-                    var monitoredAudiobook = audiobookEditions.FirstOrDefault(e => e.Monitored);
                     formatStatuses.Add(new BookFormatStatusResource
                     {
                         FormatType = FormatType.Audiobook,
-                        Monitored = monitoredAudiobook != null,
-                        HasFile = monitoredAudiobook?.BookFiles?.Value?.Any() ?? false
+                        Monitored = monitoredAudiobookEdition != null,
+                        HasFile = audiobookFiles.Any(),
+                        FileCount = audiobookFiles.Count
                     });
                 }
             }

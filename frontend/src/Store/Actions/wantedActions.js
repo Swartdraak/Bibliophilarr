@@ -40,6 +40,12 @@ export const defaultState = {
         isVisible: true
       },
       {
+        name: 'formatType',
+        label: 'Format',
+        isSortable: false,
+        isVisible: true
+      },
+      {
         name: 'releaseDate',
         label: 'Release Date',
         isSortable: true,
@@ -128,6 +134,12 @@ export const defaultState = {
         name: 'books.title',
         label: 'Book',
         isSortable: true,
+        isVisible: true
+      },
+      {
+        name: 'formatType',
+        label: 'Format',
+        isSortable: false,
         isVisible: true
       },
       {

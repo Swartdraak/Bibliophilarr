@@ -4,6 +4,7 @@ import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import { fetchAuthor, saveAuthor, setAuthorValue } from 'Store/Actions/authorActions';
+import { fetchRootFolders } from 'Store/Actions/settingsActions';
 import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
 import selectSettings from 'Store/Selectors/selectSettings';
 import createAjaxRequest from 'Utilities/createAjaxRequest';
@@ -67,7 +68,8 @@ function createMapStateToProps() {
 const mapDispatchToProps = {
   dispatchSetAuthorValue: setAuthorValue,
   dispatchSaveAuthor: saveAuthor,
-  dispatchFetchAuthor: fetchAuthor
+  dispatchFetchAuthor: fetchAuthor,
+  dispatchFetchRootFolders: fetchRootFolders
 };
 
 class EditAuthorModalContentConnector extends Component {
@@ -84,6 +86,10 @@ class EditAuthorModalContentConnector extends Component {
 
   //
   // Lifecycle
+
+  componentDidMount() {
+    this.props.dispatchFetchRootFolders();
+  }
 
   componentDidUpdate(prevProps, prevState) {
     const {
@@ -230,6 +236,7 @@ EditAuthorModalContentConnector.propTypes = {
   dispatchSetAuthorValue: PropTypes.func.isRequired,
   dispatchSaveAuthor: PropTypes.func.isRequired,
   dispatchFetchAuthor: PropTypes.func.isRequired,
+  dispatchFetchRootFolders: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired
 };
 

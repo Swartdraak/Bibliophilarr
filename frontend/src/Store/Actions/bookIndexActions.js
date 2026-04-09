@@ -111,6 +111,12 @@ export const defaultState = {
       isVisible: true
     },
     {
+      name: 'format',
+      label: 'Format',
+      isSortable: false,
+      isVisible: true
+    },
+    {
       name: 'path',
       label: 'Path',
       isSortable: true,
