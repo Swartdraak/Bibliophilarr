@@ -140,7 +140,15 @@ namespace Bibliophilarr.Api.V1.Author
                 }
             }
 
-            return Accepted(_authorService.UpdateAuthors(authorsToUpdate, !resource.MoveFiles).ToResource());
+            var authorResources = _authorService.UpdateAuthors(authorsToUpdate, !resource.MoveFiles).ToResource();
+
+            // Include updated format profiles in the response so the frontend store stays in sync
+            foreach (var authorResource in authorResources)
+            {
+                authorResource.FormatProfiles = _formatProfileService.GetByAuthorId(authorResource.Id).ToResource();
+            }
+
+            return Accepted(authorResources);
         }
 
         [HttpDelete]

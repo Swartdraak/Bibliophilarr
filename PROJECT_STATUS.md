@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 18, 2026 (book QP display, per-format monitoring, rename preview fix)
+**Last Updated**: April 9, 2026 (format-aware decision engine, queue display, import, mass editor)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -52,6 +52,55 @@ The following items were added to canonical planning for immediate/future delive
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 9, 2026 — v1.1.0-dev.23: Format-aware decision engine, queue display, import, and mass editor
+
+Fifteen bug reports addressed across backend decision engine, import pipeline, queue display, mass editor UI, and format profile editor.
+
+#### Decision engine format isolation (Issues #4, #9)
+
+- **CutoffSpecification.cs, UpgradeDiskSpecification.cs, UpgradeAllowedSpecification.cs, QueueSpecification.cs, HistorySpecification.cs**: Changed from `subject.Author.QualityProfile` to `_upgradableSpecification.ResolveProfile(subject)` for format-resolved quality profile. Three disk-comparison specs now filter existing files by `Quality.GetFormatType()`, preventing cross-format comparisons (e.g. EPUB release evaluated against M4B files on disk).
+- **Import UpgradeSpecification.cs**: Full rewrite — injects `IAuthorFormatProfileService` and `IQualityProfileService`, resolves format-specific QP per incoming file, filters existing files by format type.
+
+#### Import QP defaults (Issue #1)
+
+- **AddAuthorService.cs**: `EnsureFormatProfiles()` rewritten to scan all root folders, load their default quality profiles, and assign the format-appropriate QP by checking `Quality.GetFormatType()` on allowed quality items. Falls back to base author QP only when no better match exists.
+
+#### Queue format display (Issue #7)
+
+- **QueueResource.cs**: `FormatType` property changed from `int?` to `FormatType?` enum. JSON serialization now produces `"ebook"`/`"audiobook"` strings matching frontend expectations. Mapper adds fallback derivation from `Quality.GetFormatType()` when `ResolvedFormatType` is null.
+
+#### Manual import author prefill (Issue #8)
+
+- **ManualImportService.cs**: Single-file import path now creates `IdentificationOverrides` with author when provided. `ProcessFolder` applies author fallback to items where file identification returned null author. Fixes "Author must be chosen" error on prefilled manual imports from queue.
+
+#### Mass editor per-format QP persistence (Issues #12, #13)
+
+- **AuthorEditorController.cs**: `SaveAll()` response now iterates author resources and populates `FormatProfiles` from `IAuthorFormatProfileService`, preventing frontend Redux store from overwriting format profiles with null.
+
+#### Mass editor selectors (Issues #10, #11)
+
+- **AuthorEditorFooter.js**: Base quality profile and root folder selectors removed entirely. Per-format selectors (Ebook QP, Audiobook QP, Ebook Root Folder, Audiobook Root Folder) shown unconditionally. `enableDualFormatTracking` gating, `mapStateToProps` Redux connection, and `fetchMediaManagementSettings` import removed.
+
+#### Format profile editor (Issues #2, #3)
+
+- **AuthorFormatProfileEditor.js**: Root folder path selector added per format profile using `inputTypes.ROOT_FOLDER_SELECT`.
+- **EditAuthorModalContentConnector.js**: Dispatches `fetchAuthor` after format profile saves succeed, refreshing author in Redux so monitored checkbox state reflects correctly.
+
+#### Book file editor format column (Issue #5)
+
+- **BookFileEditorRow.js**: Format column added showing Ebook/Audiobook labels with `getFormatType()` helper deriving format from quality ID ranges (10–13 = audiobook, else ebook).
+- **bookFileActions.js**: Column definition added for `format`.
+- **BookFileEditorRow.css**: `.format` style added (100px width).
+
+#### Provider logs check (Issue #15)
+
+- Reviewed recent logs: parser errors for filenames with special characters (apostrophes, ampersands). No metadata provider (Hardcover/OpenLibrary/Inventaire) errors found.
+
+#### Deferred items
+
+- **Issue #6 (header format profile visual consistency)**: AuthorDetailsHeader and BookDetailsHeader both display format information correctly but use different visual layouts (separate QP badge vs inline text with has-file indicator). This is intentional — the two pages serve different contexts (author overview vs book-level detail). A future UX pass may harmonize the visual style but there is no data inconsistency.
+- **Issue #14 (per-format RF change safety)**: Verified safe — per-format root folder changes update only the `AuthorFormatProfile` row for that format. No `BulkMoveAuthorCommand` is triggered. File reorganization occurs only on next import or manual rename, scoped by `Quality.GetFormatType()` matching.
 
 ### April 18, 2026 — v1.1.0-dev.22: Book-level QP display, per-format monitoring, rename preview fix
 

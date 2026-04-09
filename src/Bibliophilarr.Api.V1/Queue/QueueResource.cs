@@ -6,6 +6,7 @@ using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Api.V1.CustomFormats;
 using Bibliophilarr.Http.REST;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Qualities;
@@ -38,7 +39,7 @@ namespace Bibliophilarr.Api.V1.Queue
         public string Indexer { get; set; }
         public string OutputPath { get; set; }
         public bool DownloadForced { get; set; }
-        public int? FormatType { get; set; }
+        public FormatType? FormatType { get; set; }
     }
 
     public static class QueueResourceMapper
@@ -80,7 +81,7 @@ namespace Bibliophilarr.Api.V1.Queue
                 Indexer = model.Indexer,
                 OutputPath = model.OutputPath,
                 DownloadForced = model.DownloadForced,
-                FormatType = model.RemoteBook?.ResolvedFormatType.HasValue == true ? (int)model.RemoteBook.ResolvedFormatType.Value : null
+                FormatType = model.RemoteBook?.ResolvedFormatType ?? (model.Quality?.Quality != null ? Quality.GetFormatType(model.Quality.Quality) : null)
             };
         }
 

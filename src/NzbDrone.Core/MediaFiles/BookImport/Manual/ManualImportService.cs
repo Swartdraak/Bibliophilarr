@@ -115,6 +115,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
 
                 var files = new List<IFileInfo> { _diskProvider.GetFileInfo(path) };
 
+                var idOverride = author != null ? new IdentificationOverrides { Author = author } : null;
                 var config = new ImportDecisionMakerConfig
                 {
                     Filter = FilterFilesType.None,
@@ -125,8 +126,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     KeepAllEditions = true
                 };
 
-                var decision = _importDecisionMaker.GetImportDecisions(files, null, null, config);
+                var decision = _importDecisionMaker.GetImportDecisions(files, idOverride, null, config);
                 var result = MapItem(decision.First(), downloadId, replaceExistingFiles, false);
+
+                if (result.Author == null && author != null)
+                {
+                    result.Author = author;
+                }
 
                 return new List<ManualImportItem> { result };
             }
@@ -195,7 +201,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             var existingDecisions = uniqueDecisions.Except(newFiles.Select(x => x.Decision));
             var existingItems = existingDecisions.Select(x => MapItem(x, null, replaceExistingFiles, false));
 
-            return newItems.Concat(existingItems).ToList();
+            var allItems = newItems.Concat(existingItems).ToList();
+
+            // Ensure author is set from override when file identification didn't assign one
+            if (author != null)
+            {
+                foreach (var item in allItems.Where(x => x.Author == null))
+                {
+                    item.Author = author;
+                }
+            }
+
+            return allItems;
         }
 
         public List<ManualImportItem> UpdateItems(List<ManualImportItem> items)

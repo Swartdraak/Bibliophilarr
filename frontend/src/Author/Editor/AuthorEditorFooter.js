@@ -11,7 +11,6 @@ import SpinnerButton from 'Components/Link/SpinnerButton';
 import PageContentFooter from 'Components/Page/PageContentFooter';
 import { kinds } from 'Helpers/Props';
 import { fetchRootFolders } from 'Store/Actions/Settings/rootFolders';
-import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import translate from 'Utilities/String/translate';
 import AuthorEditorFooterLabel from './AuthorEditorFooterLabel';
 import DeleteAuthorModal from './Delete/DeleteAuthorModal';
@@ -20,15 +19,12 @@ import styles from './AuthorEditorFooter.css';
 
 const NO_CHANGE = 'noChange';
 
-function mapStateToProps(state) {
-  return {
-    enableDualFormatTracking: state.settings.mediaManagement.item.enableDualFormatTracking || false
-  };
+function mapStateToProps() {
+  return {};
 }
 
 const mapDispatchToProps = {
-  dispatchFetchRootFolders: fetchRootFolders,
-  dispatchFetchMediaManagementSettings: fetchMediaManagementSettings
+  dispatchFetchRootFolders: fetchRootFolders
 };
 
 class AuthorEditorFooter extends Component {
@@ -42,9 +38,7 @@ class AuthorEditorFooter extends Component {
     this.state = {
       monitored: NO_CHANGE,
       monitorNewItems: NO_CHANGE,
-      qualityProfileId: NO_CHANGE,
       metadataProfileId: NO_CHANGE,
-      rootFolderPath: NO_CHANGE,
       ebookQualityProfileId: NO_CHANGE,
       audiobookQualityProfileId: NO_CHANGE,
       ebookRootFolderPath: NO_CHANGE,
@@ -62,7 +56,6 @@ class AuthorEditorFooter extends Component {
 
   componentDidMount() {
     this.props.dispatchFetchRootFolders();
-    this.props.dispatchFetchMediaManagementSettings();
   }
 
   componentDidUpdate(prevProps) {
@@ -75,9 +68,7 @@ class AuthorEditorFooter extends Component {
       this.setState({
         monitored: NO_CHANGE,
         monitorNewItems: NO_CHANGE,
-        qualityProfileId: NO_CHANGE,
         metadataProfileId: NO_CHANGE,
-        rootFolderPath: NO_CHANGE,
         ebookQualityProfileId: NO_CHANGE,
         audiobookQualityProfileId: NO_CHANGE,
         ebookRootFolderPath: NO_CHANGE,
@@ -98,7 +89,6 @@ class AuthorEditorFooter extends Component {
     }
 
     switch (name) {
-      case 'rootFolderPath':
       case 'ebookRootFolderPath':
       case 'audiobookRootFolderPath':
         this.setState({
@@ -183,7 +173,6 @@ class AuthorEditorFooter extends Component {
       isDeleting,
       isOrganizingAuthor,
       isRetaggingAuthor,
-      enableDualFormatTracking,
       onOrganizeAuthorPress,
       onRetagAuthorPress
     } = this.props;
@@ -191,9 +180,7 @@ class AuthorEditorFooter extends Component {
     const {
       monitored,
       monitorNewItems,
-      qualityProfileId,
       metadataProfileId,
-      rootFolderPath,
       ebookQualityProfileId,
       audiobookQualityProfileId,
       ebookRootFolderPath,
@@ -245,21 +232,6 @@ class AuthorEditorFooter extends Component {
               />
             </div>
 
-            <div className={styles.inputContainer}>
-              <AuthorEditorFooterLabel
-                label={enableDualFormatTracking ? translate('QualityProfileBase') : translate('QualityProfile')}
-                isSaving={isSaving && qualityProfileId !== NO_CHANGE}
-              />
-
-              <QualityProfileSelectInputConnector
-                name="qualityProfileId"
-                value={qualityProfileId}
-                includeNoChange={true}
-                isDisabled={!selectedCount}
-                onChange={this.onInputChange}
-              />
-            </div>
-
             <div
               className={styles.inputContainer}
             >
@@ -278,17 +250,45 @@ class AuthorEditorFooter extends Component {
               />
             </div>
 
-            <div
-              className={styles.inputContainer}
-            >
+            <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
-                label={translate('RootFolder')}
-                isSaving={isSaving && rootFolderPath !== NO_CHANGE}
+                label={translate('QualityProfileEbook')}
+                isSaving={isSaving && ebookQualityProfileId !== NO_CHANGE}
+              />
+
+              <QualityProfileSelectInputConnector
+                name="ebookQualityProfileId"
+                value={ebookQualityProfileId}
+                includeNoChange={true}
+                isDisabled={!selectedCount}
+                onChange={this.onInputChange}
+              />
+            </div>
+
+            <div className={styles.inputContainer}>
+              <AuthorEditorFooterLabel
+                label={translate('QualityProfileAudiobook')}
+                isSaving={isSaving && audiobookQualityProfileId !== NO_CHANGE}
+              />
+
+              <QualityProfileSelectInputConnector
+                name="audiobookQualityProfileId"
+                value={audiobookQualityProfileId}
+                includeNoChange={true}
+                isDisabled={!selectedCount}
+                onChange={this.onInputChange}
+              />
+            </div>
+
+            <div className={styles.inputContainer}>
+              <AuthorEditorFooterLabel
+                label={translate('RootFolderEbook')}
+                isSaving={isSaving && ebookRootFolderPath !== NO_CHANGE}
               />
 
               <RootFolderSelectInputConnector
-                name="rootFolderPath"
-                value={rootFolderPath}
+                name="ebookRootFolderPath"
+                value={ebookRootFolderPath}
                 includeNoChange={true}
                 isDisabled={!selectedCount}
                 selectedValueOptions={{ includeFreeSpace: false }}
@@ -296,79 +296,21 @@ class AuthorEditorFooter extends Component {
               />
             </div>
 
-            {
-              enableDualFormatTracking &&
-                <div className={styles.inputContainer}>
-                  <AuthorEditorFooterLabel
-                    label={translate('QualityProfileEbook')}
-                    isSaving={isSaving && ebookQualityProfileId !== NO_CHANGE}
-                  />
+            <div className={styles.inputContainer}>
+              <AuthorEditorFooterLabel
+                label={translate('RootFolderAudiobook')}
+                isSaving={isSaving && audiobookRootFolderPath !== NO_CHANGE}
+              />
 
-                  <QualityProfileSelectInputConnector
-                    name="ebookQualityProfileId"
-                    value={ebookQualityProfileId}
-                    includeNoChange={true}
-                    isDisabled={!selectedCount}
-                    onChange={this.onInputChange}
-                  />
-                </div>
-            }
-
-            {
-              enableDualFormatTracking &&
-                <div className={styles.inputContainer}>
-                  <AuthorEditorFooterLabel
-                    label={translate('QualityProfileAudiobook')}
-                    isSaving={isSaving && audiobookQualityProfileId !== NO_CHANGE}
-                  />
-
-                  <QualityProfileSelectInputConnector
-                    name="audiobookQualityProfileId"
-                    value={audiobookQualityProfileId}
-                    includeNoChange={true}
-                    isDisabled={!selectedCount}
-                    onChange={this.onInputChange}
-                  />
-                </div>
-            }
-
-            {
-              enableDualFormatTracking &&
-                <div className={styles.inputContainer}>
-                  <AuthorEditorFooterLabel
-                    label={translate('RootFolderEbook')}
-                    isSaving={isSaving && ebookRootFolderPath !== NO_CHANGE}
-                  />
-
-                  <RootFolderSelectInputConnector
-                    name="ebookRootFolderPath"
-                    value={ebookRootFolderPath}
-                    includeNoChange={true}
-                    isDisabled={!selectedCount}
-                    selectedValueOptions={{ includeFreeSpace: false }}
-                    onChange={this.onInputChange}
-                  />
-                </div>
-            }
-
-            {
-              enableDualFormatTracking &&
-                <div className={styles.inputContainer}>
-                  <AuthorEditorFooterLabel
-                    label={translate('RootFolderAudiobook')}
-                    isSaving={isSaving && audiobookRootFolderPath !== NO_CHANGE}
-                  />
-
-                  <RootFolderSelectInputConnector
-                    name="audiobookRootFolderPath"
-                    value={audiobookRootFolderPath}
-                    includeNoChange={true}
-                    isDisabled={!selectedCount}
-                    selectedValueOptions={{ includeFreeSpace: false }}
-                    onChange={this.onInputChange}
-                  />
-                </div>
-            }
+              <RootFolderSelectInputConnector
+                name="audiobookRootFolderPath"
+                value={audiobookRootFolderPath}
+                includeNoChange={true}
+                isDisabled={!selectedCount}
+                selectedValueOptions={{ includeFreeSpace: false }}
+                onChange={this.onInputChange}
+              />
+            </div>
           </div>
 
           <div className={styles.buttonContainer}>
@@ -458,13 +400,11 @@ AuthorEditorFooter.propTypes = {
   deleteError: PropTypes.object,
   isOrganizingAuthor: PropTypes.bool.isRequired,
   isRetaggingAuthor: PropTypes.bool.isRequired,
-  enableDualFormatTracking: PropTypes.bool.isRequired,
   showMetadataProfile: PropTypes.bool.isRequired,
   onSaveSelected: PropTypes.func.isRequired,
   onOrganizeAuthorPress: PropTypes.func.isRequired,
   onRetagAuthorPress: PropTypes.func.isRequired,
-  dispatchFetchRootFolders: PropTypes.func.isRequired,
-  dispatchFetchMediaManagementSettings: PropTypes.func.isRequired
+  dispatchFetchRootFolders: PropTypes.func.isRequired
 };
 
 export default connect(mapStateToProps, mapDispatchToProps)(AuthorEditorFooter);

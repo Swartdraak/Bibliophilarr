@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
-import { saveAuthor, setAuthorValue } from 'Store/Actions/authorActions';
+import { fetchAuthor, saveAuthor, setAuthorValue } from 'Store/Actions/authorActions';
 import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
 import selectSettings from 'Store/Selectors/selectSettings';
 import createAjaxRequest from 'Utilities/createAjaxRequest';
@@ -66,7 +66,8 @@ function createMapStateToProps() {
 
 const mapDispatchToProps = {
   dispatchSetAuthorValue: setAuthorValue,
-  dispatchSaveAuthor: saveAuthor
+  dispatchSaveAuthor: saveAuthor,
+  dispatchFetchAuthor: fetchAuthor
 };
 
 class EditAuthorModalContentConnector extends Component {
@@ -161,6 +162,9 @@ class EditAuthorModalContentConnector extends Component {
             formatProfileSaveError: null,
             formatProfileChanges: {}
           });
+
+          // Refresh author in Redux to pick up updated format profiles
+          this.props.dispatchFetchAuthor({ id: this.props.authorId });
         },
         (xhr) => {
           this.setState({
@@ -213,6 +217,7 @@ EditAuthorModalContentConnector.propTypes = {
   formatProfiles: PropTypes.arrayOf(PropTypes.object),
   dispatchSetAuthorValue: PropTypes.func.isRequired,
   dispatchSaveAuthor: PropTypes.func.isRequired,
+  dispatchFetchAuthor: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired
 };
 

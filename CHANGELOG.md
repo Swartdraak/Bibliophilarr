@@ -9,6 +9,25 @@ process.
 
 ### Fixed
 
+- **Decision engine format isolation**: Five decision engine specifications (CutoffSpec, UpgradeDiskSpec, UpgradeAllowedSpec, QueueSpec, HistorySpec) now use `UpgradableSpecification.ResolveProfile()` for format-resolved quality profiles instead of the base author QP. Three disk-comparison specs also filter existing files by format type, preventing cross-format comparisons (e.g. EPUB evaluated against M4B files).
+- **Import upgrade format isolation**: Import `UpgradeSpecification` rewritten with per-format QP resolution and file filtering. EPUB imports are no longer rejected as "not an upgrade" when only audiobook files exist on disk.
+- **Import QP defaults**: `EnsureFormatProfiles()` now scans root folders and their default quality profiles to infer the correct QP per format type, instead of defaulting both ebook and audiobook profiles to the base author QP.
+- **Queue format column blank**: `QueueResource.FormatType` changed from `int?` to `FormatType?` enum for correct JSON serialization as `"ebook"`/`"audiobook"` strings. Fallback derivation from quality added for items grabbed before format tracking was enabled.
+- **Manual import author prefill**: Single-file imports now pass author override to the import decision maker. `ProcessFolder` applies author fallback when file identification does not assign one, fixing the "Author must be chosen" error on prefilled manual imports.
+- **Mass editor per-format QP not applying**: `AuthorEditorController.SaveAll()` response now includes format profiles so the frontend Redux store retains per-format quality profile changes instead of overwriting them with null.
+- **Format profile monitored state**: `EditAuthorModalContentConnector` now refreshes the author in Redux after format profile saves, ensuring the monitored checkbox reflects the saved state.
+
+### Changed
+
+- **Mass editor**: Base quality profile and root folder selectors removed entirely; per-format selectors (Ebook QP, Audiobook QP, Ebook Root Folder, Audiobook Root Folder) shown unconditionally. `enableDualFormatTracking` gating and related Redux wiring removed.
+- **Format profile editor**: Root folder path selector added per format profile in the author edit modal.
+
+### Added
+
+- **Book file editor format column**: Format column added to the book files table showing Ebook/Audiobook labels derived from quality ID ranges.
+
+### Fixed
+
 - `MediaCoverMapper.cs` resized image fallback regex updated from `(jpg|png|gif)` to `(jpe?g|png|gif|webp)`, matching `MediaCoverProxyMapper.cs`. Fixes JPEG and WebP cover image fallback paths.
 - rTorrent `GetStatus()` now reports `MusicDirectory` as `OutputRootFolders` when configured, preventing health check blind spots for custom download directories.
 

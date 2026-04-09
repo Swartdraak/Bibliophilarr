@@ -63,6 +63,18 @@ function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
                 onChange={({ value }) => onFormatProfileChange(profile.id, 'qualityProfileId', parseInt(value))}
               />
             </FormGroup>
+
+            <FormGroup>
+              <FormLabel>
+                {translate('RootFolder')}
+              </FormLabel>
+              <FormInputGroup
+                type={inputTypes.ROOT_FOLDER_SELECT}
+                name={`formatProfile_${profile.id}_rootFolderPath`}
+                value={profile.rootFolderPath || ''}
+                onChange={({ value }) => onFormatProfileChange(profile.id, 'rootFolderPath', value)}
+              />
+            </FormGroup>
           </div>
         );
       })}
