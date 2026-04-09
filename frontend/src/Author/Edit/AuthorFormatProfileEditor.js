@@ -54,6 +54,18 @@ function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
 
             <FormGroup>
               <FormLabel>
+                {translate('MonitorNewItems')}
+              </FormLabel>
+              <FormInputGroup
+                type={inputTypes.MONITOR_NEW_ITEMS_SELECT}
+                name={`formatProfile_${profile.id}_monitorNewItems`}
+                value={profile.monitorNewItems}
+                onChange={({ value }) => onFormatProfileChange(profile.id, 'monitorNewItems', value)}
+              />
+            </FormGroup>
+
+            <FormGroup>
+              <FormLabel>
                 {translate('QualityProfile')}
               </FormLabel>
               <FormInputGroup

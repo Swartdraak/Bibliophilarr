@@ -13,6 +13,7 @@ namespace Bibliophilarr.Api.V1.Author
         public string RootFolderPath { get; set; }
         public HashSet<int> Tags { get; set; }
         public bool Monitored { get; set; }
+        public NewItemMonitorTypes MonitorNewItems { get; set; }
     }
 
     public static class AuthorFormatProfileResourceMapper
@@ -32,7 +33,8 @@ namespace Bibliophilarr.Api.V1.Author
                 QualityProfileId = model.QualityProfileId,
                 RootFolderPath = model.RootFolderPath,
                 Tags = model.Tags,
-                Monitored = model.Monitored
+                Monitored = model.Monitored,
+                MonitorNewItems = model.MonitorNewItems
             };
         }
 
@@ -51,7 +53,8 @@ namespace Bibliophilarr.Api.V1.Author
                 QualityProfileId = resource.QualityProfileId,
                 RootFolderPath = resource.RootFolderPath,
                 Tags = resource.Tags ?? new HashSet<int>(),
-                Monitored = resource.Monitored
+                Monitored = resource.Monitored,
+                MonitorNewItems = resource.MonitorNewItems
             };
         }
 

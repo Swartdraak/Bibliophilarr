@@ -85,6 +85,8 @@ class EditAuthorModalContent extends Component {
       tags
     } = item;
 
+    const hasFormatProfiles = formatProfiles && formatProfiles.length > 0;
+
     return (
       <ModalContent onModalClose={onModalClose}>
         <ModalHeader>
@@ -93,47 +95,53 @@ class EditAuthorModalContent extends Component {
 
         <ModalBody>
           <Form {...otherProps}>
-            <FormGroup>
-              <FormLabel>
-                {translate('Monitored')}
-              </FormLabel>
+            {
+              !hasFormatProfiles &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('Monitored')}
+                  </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.CHECK}
-                name="monitored"
-                helpText={translate('MonitoredHelpText')}
-                {...monitored}
-                onChange={onInputChange}
-              />
-            </FormGroup>
-
-            <FormGroup>
-              <FormLabel>
-                {translate('MonitorNewItems')}
-                <Popover
-                  anchor={
-                    <Icon
-                      className={styles.labelIcon}
-                      name={icons.INFO}
-                    />
-                  }
-                  title={translate('MonitorNewItems')}
-                  body={<AuthorMonitorNewItemsOptionsPopoverContent />}
-                  position={tooltipPositions.RIGHT}
-                />
-              </FormLabel>
-
-              <FormInputGroup
-                type={inputTypes.MONITOR_NEW_ITEMS_SELECT}
-                name="monitorNewItems"
-                helpText={translate('MonitorNewItemsHelpText')}
-                {...monitorNewItems}
-                onChange={onInputChange}
-              />
-            </FormGroup>
+                  <FormInputGroup
+                    type={inputTypes.CHECK}
+                    name="monitored"
+                    helpText={translate('MonitoredHelpText')}
+                    {...monitored}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+            }
 
             {
-              (!formatProfiles || formatProfiles.length === 0) &&
+              !hasFormatProfiles &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('MonitorNewItems')}
+                    <Popover
+                      anchor={
+                        <Icon
+                          className={styles.labelIcon}
+                          name={icons.INFO}
+                        />
+                      }
+                      title={translate('MonitorNewItems')}
+                      body={<AuthorMonitorNewItemsOptionsPopoverContent />}
+                      position={tooltipPositions.RIGHT}
+                    />
+                  </FormLabel>
+
+                  <FormInputGroup
+                    type={inputTypes.MONITOR_NEW_ITEMS_SELECT}
+                    name="monitorNewItems"
+                    helpText={translate('MonitorNewItemsHelpText')}
+                    {...monitorNewItems}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+            }
+
+            {
+              !hasFormatProfiles &&
                 <FormGroup>
                   <FormLabel>
                     {translate('QualityProfile')}
@@ -149,7 +157,7 @@ class EditAuthorModalContent extends Component {
             }
 
             {
-              formatProfiles && formatProfiles.length > 0 &&
+              hasFormatProfiles &&
                 <FormGroup>
                   <FormLabel>
                     {translate('FormatProfiles')}
@@ -194,18 +202,21 @@ class EditAuthorModalContent extends Component {
                 </FormGroup>
             }
 
-            <FormGroup>
-              <FormLabel>
-                {translate('Path')}
-              </FormLabel>
+            {
+              !hasFormatProfiles &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('Path')}
+                  </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.PATH}
-                name="path"
-                {...path}
-                onChange={onInputChange}
-              />
-            </FormGroup>
+                  <FormInputGroup
+                    type={inputTypes.PATH}
+                    name="path"
+                    {...path}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+            }
 
             <FormGroup>
               <FormLabel>

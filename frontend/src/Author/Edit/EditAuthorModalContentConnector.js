@@ -126,6 +126,18 @@ class EditAuthorModalContentConnector extends Component {
     const { formatProfileChanges } = this.state;
     const { formatProfiles } = this.props;
 
+    // When format profiles exist, derive the author-level Monitored field
+    // from the per-format profile monitored states (true if ANY format is monitored).
+    if (formatProfiles && formatProfiles.length > 0) {
+      const mergedProfiles = formatProfiles.map((p) => ({
+        ...p,
+        ...(formatProfileChanges[p.id] || {})
+      }));
+
+      const anyMonitored = mergedProfiles.some((p) => p.monitored);
+      this.props.dispatchSetAuthorValue({ name: 'monitored', value: anyMonitored });
+    }
+
     // Collect format profile save promises
     const savePromises = [];
 

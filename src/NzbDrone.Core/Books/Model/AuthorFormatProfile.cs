@@ -11,12 +11,14 @@ namespace NzbDrone.Core.Books
         public string RootFolderPath { get; set; }
         public HashSet<int> Tags { get; set; }
         public bool Monitored { get; set; }
+        public NewItemMonitorTypes MonitorNewItems { get; set; }
         public string Path { get; set; }
 
         public AuthorFormatProfile()
         {
             Tags = new HashSet<int>();
             Monitored = true;
+            MonitorNewItems = NewItemMonitorTypes.All;
             Path = string.Empty;
         }
     }

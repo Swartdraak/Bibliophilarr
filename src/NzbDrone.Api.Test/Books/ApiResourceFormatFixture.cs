@@ -22,7 +22,8 @@ namespace NzbDrone.Api.Test.Books
                 QualityProfileId = 3,
                 RootFolderPath = "/audiobooks",
                 Tags = new HashSet<int> { 1, 2 },
-                Monitored = true
+                Monitored = true,
+                MonitorNewItems = NewItemMonitorTypes.New
             };
 
             var resource = model.ToResource();
@@ -34,6 +35,7 @@ namespace NzbDrone.Api.Test.Books
             resource.RootFolderPath.Should().Be("/audiobooks");
             resource.Tags.Should().Contain(new[] { 1, 2 });
             resource.Monitored.Should().BeTrue();
+            resource.MonitorNewItems.Should().Be(NewItemMonitorTypes.New);
         }
 
         [Test]
@@ -47,7 +49,8 @@ namespace NzbDrone.Api.Test.Books
                 QualityProfileId = 2,
                 RootFolderPath = "/ebooks",
                 Tags = new HashSet<int> { 3 },
-                Monitored = false
+                Monitored = false,
+                MonitorNewItems = NewItemMonitorTypes.None
             };
 
             var model = resource.ToModel();
@@ -59,6 +62,7 @@ namespace NzbDrone.Api.Test.Books
             model.RootFolderPath.Should().Be("/ebooks");
             model.Tags.Should().Contain(3);
             model.Monitored.Should().BeFalse();
+            model.MonitorNewItems.Should().Be(NewItemMonitorTypes.None);
         }
 
         [Test]

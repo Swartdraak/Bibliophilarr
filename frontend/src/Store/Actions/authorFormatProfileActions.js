@@ -36,38 +36,30 @@ export const setAuthorFormatProfileValue = createAction(SET_AUTHOR_FORMAT_PROFIL
 //
 // Details
 
-export default {
-
-  //
-  // State
-
-  section,
-
-  defaultState: {
-    isFetching: false,
-    isPopulated: false,
-    error: null,
-    isSaving: false,
-    saveError: null,
-    isDeleting: false,
-    deleteError: null,
-    items: [],
-    pendingChanges: {}
-  },
-
-  //
-  // Action Handlers
-
-  actionHandlers: handleThunks({
-    [FETCH_AUTHOR_FORMAT_PROFILES]: createFetchHandler(section, '/authorformatprofile'),
-    [SAVE_AUTHOR_FORMAT_PROFILE]: createSaveProviderHandler(section, '/authorformatprofile'),
-    [DELETE_AUTHOR_FORMAT_PROFILE]: createRemoveItemHandler(section, '/authorformatprofile')
-  }),
-
-  //
-  // Reducers
-
-  reducers: createHandleActions({
-    [SET_AUTHOR_FORMAT_PROFILE_VALUE]: createSetSettingValueReducer(section)
-  }, {})
+export const defaultState = {
+  isFetching: false,
+  isPopulated: false,
+  error: null,
+  isSaving: false,
+  saveError: null,
+  isDeleting: false,
+  deleteError: null,
+  items: [],
+  pendingChanges: {}
 };
+
+//
+// Action Handlers
+
+export const actionHandlers = handleThunks({
+  [FETCH_AUTHOR_FORMAT_PROFILES]: createFetchHandler(section, '/authorformatprofile'),
+  [SAVE_AUTHOR_FORMAT_PROFILE]: createSaveProviderHandler(section, '/authorformatprofile'),
+  [DELETE_AUTHOR_FORMAT_PROFILE]: createRemoveItemHandler(section, '/authorformatprofile')
+});
+
+//
+// Reducers
+
+export const reducers = createHandleActions({
+  [SET_AUTHOR_FORMAT_PROFILE_VALUE]: createSetSettingValueReducer(section)
+}, defaultState);

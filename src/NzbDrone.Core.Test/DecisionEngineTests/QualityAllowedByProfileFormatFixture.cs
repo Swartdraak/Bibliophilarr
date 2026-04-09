@@ -58,24 +58,17 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         [Test]
         public void should_accept_epub_with_ebook_format_profile()
         {
+            // Simulate DownloadDecisionMaker pre-resolving format context
             Mocker.GetMock<IConfigService>()
                 .Setup(s => s.EnableDualFormatTracking).Returns(true);
 
-            Mocker.GetMock<IAuthorFormatProfileService>()
-                .Setup(s => s.GetByAuthorIdAndFormat(1, FormatType.Ebook))
-                .Returns(new AuthorFormatProfile { QualityProfileId = 10 });
-
-            Mocker.GetMock<IQualityProfileService>()
-                .Setup(s => s.Get(10))
-                .Returns(_ebookProfile);
-
             _remoteBook.ParsedBookInfo.Quality = new QualityModel(Quality.EPUB);
+            _remoteBook.ResolvedFormatType = FormatType.Ebook;
+            _remoteBook.ResolvedQualityProfile = _ebookProfile;
 
             var result = Subject.IsSatisfiedBy(_remoteBook, null);
 
             result.Accepted.Should().BeTrue();
-            _remoteBook.ResolvedFormatType.Should().Be(FormatType.Ebook);
-            _remoteBook.ResolvedQualityProfile.Should().BeSameAs(_ebookProfile);
         }
 
         [Test]
@@ -84,20 +77,13 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             Mocker.GetMock<IConfigService>()
                 .Setup(s => s.EnableDualFormatTracking).Returns(true);
 
-            Mocker.GetMock<IAuthorFormatProfileService>()
-                .Setup(s => s.GetByAuthorIdAndFormat(1, FormatType.Audiobook))
-                .Returns(new AuthorFormatProfile { QualityProfileId = 20 });
-
-            Mocker.GetMock<IQualityProfileService>()
-                .Setup(s => s.Get(20))
-                .Returns(_audiobookProfile);
-
             _remoteBook.ParsedBookInfo.Quality = new QualityModel(Quality.M4B);
+            _remoteBook.ResolvedFormatType = FormatType.Audiobook;
+            _remoteBook.ResolvedQualityProfile = _audiobookProfile;
 
             var result = Subject.IsSatisfiedBy(_remoteBook, null);
 
             result.Accepted.Should().BeTrue();
-            _remoteBook.ResolvedFormatType.Should().Be(FormatType.Audiobook);
         }
 
         [Test]
@@ -106,16 +92,14 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             Mocker.GetMock<IConfigService>()
                 .Setup(s => s.EnableDualFormatTracking).Returns(true);
 
-            // No ebook format profile — returns null
-            Mocker.GetMock<IAuthorFormatProfileService>()
-                .Setup(s => s.GetByAuthorIdAndFormat(1, FormatType.Ebook))
-                .Returns((AuthorFormatProfile)null);
-
-            // EPUB is ebook quality; author's default profile only allows audio
+            // No format profile resolved — falls back to author's default profile
+            // which only allows audio qualities
             _remoteBook.Author.QualityProfile.Value.Items =
                 Qualities.QualityFixture.GetDefaultQualities(Quality.MP3, Quality.FLAC, Quality.M4B);
 
             _remoteBook.ParsedBookInfo.Quality = new QualityModel(Quality.EPUB);
+            _remoteBook.ResolvedFormatType = FormatType.Ebook;
+            _remoteBook.ResolvedQualityProfile = null;
 
             var result = Subject.IsSatisfiedBy(_remoteBook, null);
 

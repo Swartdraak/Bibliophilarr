@@ -5,12 +5,15 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Common.Serializer;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.Download.Aggregation;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.DecisionEngine
@@ -27,18 +30,27 @@ namespace NzbDrone.Core.DecisionEngine
         private readonly ICustomFormatCalculationService _formatCalculator;
         private readonly IParsingService _parsingService;
         private readonly IRemoteBookAggregationService _aggregationService;
+        private readonly IConfigService _configService;
+        private readonly IAuthorFormatProfileService _formatProfileService;
+        private readonly IQualityProfileService _qualityProfileService;
         private readonly Logger _logger;
 
         public DownloadDecisionMaker(IEnumerable<IDecisionEngineSpecification> specifications,
             IParsingService parsingService,
             ICustomFormatCalculationService formatService,
             IRemoteBookAggregationService aggregationService,
+            IConfigService configService,
+            IAuthorFormatProfileService formatProfileService,
+            IQualityProfileService qualityProfileService,
             Logger logger)
         {
             _specifications = specifications;
             _parsingService = parsingService;
             _formatCalculator = formatService;
             _aggregationService = aggregationService;
+            _configService = configService;
+            _formatProfileService = formatProfileService;
+            _qualityProfileService = qualityProfileService;
             _logger = logger;
         }
 
@@ -145,6 +157,8 @@ namespace NzbDrone.Core.DecisionEngine
                             remoteBook.CustomFormats = _formatCalculator.ParseCustomFormat(remoteBook, remoteBook.Release.Size);
                             remoteBook.CustomFormatScore = remoteBook?.Author?.QualityProfile?.Value.CalculateCustomFormatScore(remoteBook.CustomFormats) ?? 0;
 
+                            ResolveFormatContext(remoteBook);
+
                             remoteBook.DownloadAllowed = remoteBook.Books.Any();
                             decision = GetDecisionForReport(remoteBook, searchCriteria);
                         }
@@ -236,6 +250,34 @@ namespace NzbDrone.Core.DecisionEngine
                     }
 
                     yield return decision;
+                }
+            }
+        }
+
+        private void ResolveFormatContext(RemoteBook remoteBook)
+        {
+            if (!_configService.EnableDualFormatTracking || remoteBook.Author == null)
+            {
+                return;
+            }
+
+            var quality = remoteBook.ParsedBookInfo?.Quality?.Quality;
+            if (quality == null)
+            {
+                return;
+            }
+
+            var formatType = Quality.GetFormatType(quality);
+            remoteBook.ResolvedFormatType = formatType;
+
+            var formatProfile = _formatProfileService.GetByAuthorIdAndFormat(remoteBook.Author.Id, formatType);
+            if (formatProfile != null)
+            {
+                var formatQualityProfile = _qualityProfileService.Get(formatProfile.QualityProfileId);
+                if (formatQualityProfile != null)
+                {
+                    _logger.Debug("Using format-specific quality profile '{0}' for {1}", formatQualityProfile.Name, formatType);
+                    remoteBook.ResolvedQualityProfile = formatQualityProfile;
                 }
             }
         }

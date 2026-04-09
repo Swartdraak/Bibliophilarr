@@ -6,12 +6,14 @@ using Bibliophilarr.Http;
 using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Http.REST.Attributes;
 using NzbDrone.SignalR;
 using BadRequestException = NzbDrone.Core.Exceptions.BadRequestException;
@@ -30,6 +32,7 @@ namespace Bibliophilarr.Api.V1.BookFiles
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IUpgradableSpecification _upgradableSpecification;
+        private readonly IConfigService _configService;
 
         public BookFileController(IBroadcastSignalRMessage signalRBroadcaster,
                                IMediaFileService mediaFileService,
@@ -37,7 +40,8 @@ namespace Bibliophilarr.Api.V1.BookFiles
                                IMetadataTagService metadataTagService,
                                IAuthorService authorService,
                                IBookService bookService,
-                               IUpgradableSpecification upgradableSpecification)
+                               IUpgradableSpecification upgradableSpecification,
+                               IConfigService configService)
             : base(signalRBroadcaster)
         {
             _mediaFileService = mediaFileService;
@@ -46,6 +50,7 @@ namespace Bibliophilarr.Api.V1.BookFiles
             _authorService = authorService;
             _bookService = bookService;
             _upgradableSpecification = upgradableSpecification;
+            _configService = configService;
         }
 
         private BookFileResource MapToResource(BookFile bookFile)
@@ -68,7 +73,7 @@ namespace Bibliophilarr.Api.V1.BookFiles
         }
 
         [HttpGet]
-        public List<BookFileResource> GetBookFiles(int? authorId, [FromQuery] List<int> bookFileIds, [FromQuery(Name = "bookId")] List<int> bookIds, bool? unmapped)
+        public List<BookFileResource> GetBookFiles(int? authorId, [FromQuery] List<int> bookFileIds, [FromQuery(Name = "bookId")] List<int> bookIds, bool? unmapped, [FromQuery] string formatType = null)
         {
             if (!authorId.HasValue && !bookFileIds.Any() && !bookIds.Any() && !unmapped.HasValue)
             {
@@ -96,6 +101,20 @@ namespace Bibliophilarr.Api.V1.BookFiles
                     var book = _bookService.GetBook(bookId);
                     var bookAuthor = _authorService.GetAuthor(book.AuthorId);
                     result.AddRange(_mediaFileService.GetFilesByBook(book.Id).ConvertAll(f => f.ToResource(bookAuthor, _upgradableSpecification)));
+                }
+
+                // When formatType is specified and dual-format tracking is enabled,
+                // filter to only return files matching the requested format type.
+                // This prevents the confirm-import dialog from showing cross-format
+                // files (e.g. ebook files when importing audiobooks).
+                if (!string.IsNullOrEmpty(formatType) && _configService.EnableDualFormatTracking)
+                {
+                    var requestedFormat = string.Equals(formatType, "audiobook", global::System.StringComparison.OrdinalIgnoreCase)
+                        ? FormatType.Audiobook
+                        : FormatType.Ebook;
+
+                    result = result.Where(f => f.Quality?.Quality != null &&
+                        Quality.GetFormatType(Quality.FindById(f.Quality.Quality.Id)) == requestedFormat).ToList();
                 }
 
                 return result;

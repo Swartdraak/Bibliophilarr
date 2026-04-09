@@ -403,7 +403,8 @@ namespace NzbDrone.Core.Books
                 QualityProfileId = ebookQualityProfileId,
                 RootFolderPath = ebookRootFolderPath,
                 Tags = author.Tags ?? new HashSet<int>(),
-                Monitored = true,
+                Monitored = author.Monitored,
+                MonitorNewItems = author.MonitorNewItems,
                 Path = author.Path ?? string.Empty
             });
 
@@ -414,7 +415,8 @@ namespace NzbDrone.Core.Books
                 QualityProfileId = audiobookQualityProfileId,
                 RootFolderPath = audiobookRootFolderPath,
                 Tags = author.Tags ?? new HashSet<int>(),
-                Monitored = true,
+                Monitored = author.Monitored,
+                MonitorNewItems = author.MonitorNewItems,
                 Path = author.Path ?? string.Empty
             });
 
