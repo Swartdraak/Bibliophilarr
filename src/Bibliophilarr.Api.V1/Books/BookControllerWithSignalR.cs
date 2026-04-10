@@ -117,28 +117,45 @@ namespace Bibliophilarr.Api.V1.Books
 
         private void EnrichFormatStatuses(BookResource resource)
         {
-            if (resource?.FormatStatuses == null || !resource.FormatStatuses.Any())
+            if (resource == null)
             {
                 return;
             }
 
             var formatProfiles = _formatProfileService.GetByAuthorId(resource.AuthorId);
+            if (formatProfiles == null || !formatProfiles.Any())
+            {
+                return;
+            }
+
+            resource.FormatStatuses ??= new List<BookFormatStatusResource>();
             var profileCache = new Dictionary<int, string>();
 
-            foreach (var fs in resource.FormatStatuses)
+            foreach (var fp in formatProfiles)
             {
-                var fp = formatProfiles?.FirstOrDefault(p => p.FormatType == fs.FormatType);
-                if (fp != null)
+                var fs = resource.FormatStatuses.FirstOrDefault(s => s.FormatType == fp.FormatType);
+                if (fs == null)
                 {
-                    fs.QualityProfileId = fp.QualityProfileId;
-                    if (!profileCache.TryGetValue(fp.QualityProfileId, out var name))
+                    // Author has a format profile for this type but no status entry exists yet
+                    // (no files of this type and edition not classified). Add a placeholder entry.
+                    fs = new BookFormatStatusResource
                     {
-                        name = _qualityProfileService.Get(fp.QualityProfileId)?.Name;
-                        profileCache[fp.QualityProfileId] = name;
-                    }
-
-                    fs.QualityProfileName = name;
+                        FormatType = fp.FormatType,
+                        Monitored = fp.Monitored,
+                        HasFile = false,
+                        FileCount = 0
+                    };
+                    resource.FormatStatuses.Add(fs);
                 }
+
+                fs.QualityProfileId = fp.QualityProfileId;
+                if (!profileCache.TryGetValue(fp.QualityProfileId, out var name))
+                {
+                    name = _qualityProfileService.Get(fp.QualityProfileId)?.Name;
+                    profileCache[fp.QualityProfileId] = name;
+                }
+
+                fs.QualityProfileName = name;
             }
         }
 
@@ -156,30 +173,36 @@ namespace Bibliophilarr.Api.V1.Books
 
             foreach (var resource in resources)
             {
-                if (resource.FormatStatuses == null || !resource.FormatStatuses.Any())
-                {
-                    continue;
-                }
-
                 if (!profilesByAuthor.TryGetValue(resource.AuthorId, out var formatProfiles))
                 {
                     continue;
                 }
 
-                foreach (var fs in resource.FormatStatuses)
-                {
-                    var fp = formatProfiles.FirstOrDefault(p => p.FormatType == fs.FormatType);
-                    if (fp != null)
-                    {
-                        fs.QualityProfileId = fp.QualityProfileId;
-                        if (!qpCache.TryGetValue(fp.QualityProfileId, out var name))
-                        {
-                            name = _qualityProfileService.Get(fp.QualityProfileId)?.Name;
-                            qpCache[fp.QualityProfileId] = name;
-                        }
+                resource.FormatStatuses ??= new List<BookFormatStatusResource>();
 
-                        fs.QualityProfileName = name;
+                foreach (var fp in formatProfiles)
+                {
+                    var fs = resource.FormatStatuses.FirstOrDefault(s => s.FormatType == fp.FormatType);
+                    if (fs == null)
+                    {
+                        fs = new BookFormatStatusResource
+                        {
+                            FormatType = fp.FormatType,
+                            Monitored = fp.Monitored,
+                            HasFile = false,
+                            FileCount = 0
+                        };
+                        resource.FormatStatuses.Add(fs);
                     }
+
+                    fs.QualityProfileId = fp.QualityProfileId;
+                    if (!qpCache.TryGetValue(fp.QualityProfileId, out var name))
+                    {
+                        name = _qualityProfileService.Get(fp.QualityProfileId)?.Name;
+                        qpCache[fp.QualityProfileId] = name;
+                    }
+
+                    fs.QualityProfileName = name;
                 }
             }
         }
