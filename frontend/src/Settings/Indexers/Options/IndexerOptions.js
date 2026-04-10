@@ -100,7 +100,7 @@ function IndexerOptions(props) {
                 unit="minutes"
                 helpText={translate('RssSyncIntervalHelpText')}
                 helpTextWarning={translate('ThisWillApplyToAllIndexersPleaseFollowTheRulesSetForthByThem')}
-                helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/faq#how-does-bibliophilarr-work"
+                helpLink="/system/wiki/getting-started"
                 onChange={onInputChange}
                 {...settings.rssSyncInterval}
               />

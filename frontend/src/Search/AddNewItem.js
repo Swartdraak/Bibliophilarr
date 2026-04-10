@@ -135,7 +135,7 @@ class AddNewItem extends Component {
                 <Alert kind={kinds.WARNING}>{getErrorMessage(error)}</Alert>
 
                 <div>
-                  <Link to="https://github.com/Swartdraak/Bibliophilarr/wiki/troubleshooting#invalid-response-received-from-metadata-api">
+                  <Link to="/system/wiki/troubleshooting">
                     {translate('WhySearchesCouldBeFailing')}
                   </Link>
                 </div>

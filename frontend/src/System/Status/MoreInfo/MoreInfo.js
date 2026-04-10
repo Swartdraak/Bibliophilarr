@@ -22,7 +22,7 @@ class MoreInfo extends Component {
 
           <DescriptionListItemTitle>Wiki</DescriptionListItemTitle>
           <DescriptionListItemDescription>
-            <Link to="https://github.com/Swartdraak/Bibliophilarr/wiki">Wiki</Link>
+            <Link to="/system/wiki">Wiki</Link>
           </DescriptionListItemDescription>
 
           <DescriptionListItemTitle>Reddit</DescriptionListItemTitle>

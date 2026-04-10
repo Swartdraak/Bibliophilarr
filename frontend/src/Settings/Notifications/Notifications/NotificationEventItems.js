@@ -53,7 +53,7 @@ function NotificationEventItems(props) {
       <div>
         <FormInputHelpText
           text="Select which events should trigger this notification"
-          link="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#connections"
+          link="/system/wiki/notifications"
         />
         <div className={styles.events}>
           <div>
