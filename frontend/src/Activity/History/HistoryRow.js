@@ -4,12 +4,14 @@ import AuthorNameLink from 'Author/AuthorNameLink';
 import BookFormats from 'Book/BookFormats';
 import BookQuality from 'Book/BookQuality';
 import BookTitleLink from 'Book/BookTitleLink';
+import Icon from 'Components/Icon';
 import IconButton from 'Components/Link/IconButton';
+import Label from 'Components/Label';
 import RelativeDateCellConnector from 'Components/Table/Cells/RelativeDateCellConnector';
 import TableRowCell from 'Components/Table/Cells/TableRowCell';
 import TableRow from 'Components/Table/TableRow';
 import Tooltip from 'Components/Tooltip/Tooltip';
-import { icons, tooltipPositions } from 'Helpers/Props';
+import { icons, kinds, sizes, tooltipPositions } from 'Helpers/Props';
 import formatCustomFormatScore from 'Utilities/Number/formatCustomFormatScore';
 import HistoryDetailsModal from './Details/HistoryDetailsModal';
 import HistoryEventTypeCell from './HistoryEventTypeCell';
@@ -128,6 +130,32 @@ class HistoryRow extends Component {
                     quality={quality}
                     isCutoffMet={qualityCutoffNotMet}
                   />
+                </TableRowCell>
+              );
+            }
+
+            if (name === 'formatType') {
+              const qualityId = quality && quality.quality ? quality.quality.id : null;
+              const isAudiobook = qualityId !== null && qualityId >= 10 && qualityId <= 13;
+              const formatLabel = isAudiobook ? 'Audiobook' : 'Ebook';
+              const formatShort = isAudiobook ? 'A' : 'E';
+              const formatIcon = isAudiobook ? icons.TRACK_FILE : icons.BOOK;
+
+              return (
+                <TableRowCell key={name}>
+                  {qualityId !== null ? (
+                    <Label
+                      kind={kinds.DEFAULT}
+                      size={sizes.SMALL}
+                      title={formatLabel}
+                    >
+                      <Icon
+                        name={formatIcon}
+                        size={11}
+                      />
+                      {' '}{formatShort}
+                    </Label>
+                  ) : null}
                 </TableRowCell>
               );
             }

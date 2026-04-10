@@ -21,7 +21,7 @@ function MissingRow(props) {
     title,
     lastSearchTime,
     disambiguation,
-    formatType,
+    formatStatuses,
     isSelected,
     columns,
     onSelectedChange
@@ -74,24 +74,31 @@ function MissingRow(props) {
           }
 
           if (name === 'formatType') {
-            const label = formatType === 'ebook' ? 'Ebook' : formatType === 'audiobook' ? 'Audiobook' : '';
-            const icon = formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE;
-
             return (
               <TableRowCell key={name}>
-                {formatType ? (
-                  <Label
-                    kind={kinds.DEFAULT}
-                    size={sizes.SMALL}
-                    title={label}
-                  >
-                    <Icon
-                      name={icon}
-                      size={11}
-                    />
-                    {' '}{label}
-                  </Label>
-                ) : null}
+                {
+                  (formatStatuses || []).filter((fs) => fs.monitored).map((fs) => {
+                    const label = fs.formatType === 'ebook' ? 'E' : fs.formatType === 'audiobook' ? 'A' : '';
+                    const fullLabel = fs.formatType === 'ebook' ? 'Ebook' : fs.formatType === 'audiobook' ? 'Audiobook' : '';
+                    const kind = fs.hasFile ? kinds.SUCCESS : kinds.DANGER;
+                    const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
+
+                    return (
+                      <Label
+                        key={fs.formatType}
+                        kind={kind}
+                        size={sizes.SMALL}
+                        title={`${fullLabel}: Missing${qpLabel}`}
+                      >
+                        <Icon
+                          name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
+                          size={11}
+                        />
+                        {' '}{label}
+                      </Label>
+                    );
+                  })
+                }
               </TableRowCell>
             );
           }
@@ -143,7 +150,7 @@ MissingRow.propTypes = {
   title: PropTypes.string.isRequired,
   lastSearchTime: PropTypes.string,
   disambiguation: PropTypes.string,
-  formatType: PropTypes.string,
+  formatStatuses: PropTypes.arrayOf(PropTypes.object),
   isSelected: PropTypes.bool,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   onSelectedChange: PropTypes.func.isRequired

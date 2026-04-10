@@ -53,6 +53,12 @@ export const defaultState = {
       isVisible: true
     },
     {
+      name: 'formatType',
+      label: 'Format',
+      isSortable: false,
+      isVisible: true
+    },
+    {
       name: 'customFormats',
       label: 'Formats',
       isSortable: false,
