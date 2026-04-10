@@ -293,11 +293,12 @@ other fork-specific dependencies.
 ## Dual-format tracking
 
 Bibliophilarr supports tracking both ebook and audiobook editions for the same
-author/title in a single instance. The feature is opt-in:
+author/title in a single instance. The feature is enabled by default.
+
+To disable it:
 
 1. Navigate to Settings > Media Management > Dual Format (advanced settings).
-2. Enable the "Enable Dual Format Tracking" toggle.
-3. Configure per-author format profiles via the author edit modal.
+2. Disable the "Enable Dual Format Tracking" toggle.
 
 When enabled, each author can have separate quality profiles, root folders,
 tags, and monitoring state for ebook and audiobook formats. When disabled,

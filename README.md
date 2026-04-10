@@ -45,8 +45,8 @@ maintained here include:
 - Calibre integration for library and conversion workflows
 - metadata search and refresh across supported providers
 
-Dual-format tracking (ebook + audiobook under one author/instance) is available
-as an opt-in feature via Settings > Media Management > Dual Format. See
+Dual-format tracking (ebook + audiobook under one author/instance) is enabled
+by default. It can be disabled via Settings > Media Management > Dual Format. See
 [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for architecture details.
 
 ## Installation

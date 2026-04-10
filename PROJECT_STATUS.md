@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 10, 2026 (bookFile DELETE fix, formatStatuses enrichment, progress bar colors, QP column removal, translations)
+**Last Updated**: April 10, 2026 (Track C/D/E added; bookFile DELETE fix, formatStatuses enrichment, progress bar colors, QP column removal, translations)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -31,7 +31,7 @@ The following items were added to canonical planning for immediate/future delive
 
 - **Implementation complete** (April 2026). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
 - `AuthorFormatProfile` entity: per-author, per-format (ebook/audiobook) quality profile, root folder, tags, monitoring, and path.
-- 16 implementation slices defined (DF-1 through DF-16). Feature-flagged with `EnableDualFormatTracking`.
+- 16 implementation slices defined (DF-1 through DF-16). Enabled by default via `EnableDualFormatTracking`.
 - **DF-1 complete**: domain model, schema migration 045, feature flag, `Quality.GetFormatType()` helper.
 - **DF-2 complete**: edition monitoring per format type — format-aware housekeeping, `BookEditionSelector` overloads, `SetMonitoredByFormat`.
 - **DF-3 complete**: decision engine format-aware quality evaluation — format-specific profile resolution in `QualityAllowedByProfileSpecification`, `UpgradableSpecification.ResolveProfile()`.
@@ -42,7 +42,7 @@ The following items were added to canonical planning for immediate/future delive
 - **DF-8 complete**: API resources and controllers — `AuthorFormatProfileResource`, `BookFormatStatusResource`, CRUD controller, `BookResource.SingleOrDefault` crash fix.
 - **DF-9 complete**: frontend format profile UI — author edit modal, detail header badges, Redux store module.
 - **DF-10 complete**: rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle.
-- **All 16 slices complete.** Feature is opt-in via Settings > Media Management > Dual Format.
+- **All 16 slices complete.** Feature is enabled by default. Can be disabled via Settings > Media Management > Dual Format.
 - **DF-11 complete** (hardened April 2026): format-aware download client categories — `IFormatCategorySettings` interface, per-format category fields on 6 download clients, `GetCategoryForFormat()` extension, `MatchesAnyCategory()` multi-category monitoring. GetItems() and GetStatus() now cover all configured categories.
 - **DF-12 complete**: format-aware remote path mappings — nullable `FormatType` on `RemotePathMappings` (migration 046), format-priority path resolution in `RemotePathMappingService`, frontend format selector.
 - **DF-13 complete**: queue format display — `FormatType` on `QueueResource`, format column in queue table UI.
@@ -50,6 +50,29 @@ The following items were added to canonical planning for immediate/future delive
 - **DF-15 complete**: calendar format filter — ebook/audiobook filter options in calendar view.
 - **DF-16 complete**: author index format column — format profiles column with monitored status indicators.
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
+
+3. Native ebook metadata tag writing (without Calibre)
+
+- **Status**: planned (Track C in [ROADMAP.md](ROADMAP.md)).
+- 7 implementation slices (ET-1 through ET-7): EpubWriter class, CalibreId gate removal for EPUB, cover embedding, series metadata, preview/diff, PDF assessment, integration tests.
+- EPUB is P1 (writable with built-in .NET APIs, no new dependencies). PDF is P3 (requires NuGet library evaluation). AZW3/MOBI/KFX are P4-P5 (Calibre-only, proprietary formats).
+- Ebook tag reading already works natively via vendored `VersOne.Epub` reader.
+- Current write path requires Calibre Content Server (`CalibreId > 0`); without it, ebook tag writing is silently skipped.
+
+4. Application update pipeline
+
+- **Status**: planned (Track D in [ROADMAP.md](ROADMAP.md)).
+- 7 implementation slices (UP-1 through UP-7): services endpoint, release automation, enable built-in updater, Docker path, npm launcher path, notification UX, safety/observability.
+- Update checking works when `BIBLIOPHILARR_SERVICES_URL` is set; installation step is explicitly disabled pending release pipeline.
+- Docker updates are external (container image pull). npm launcher updates download from GitHub Releases.
+- Graceful degradation: local-only installs without services URL operate normally with no update noise.
+
+5. Frontend standardizations and quality improvements
+
+- **Status**: in progress (Track E in [ROADMAP.md](ROADMAP.md)).
+- 7 items (STD-1 through STD-7): form label i18n, EnhancedSelectInput accessibility, ebook format diagnostics, calendar state hardening, toast notifications, skeleton screens, TypeScript expansion.
+- STD-1 partially addressed in v1.1.0-dev.26 (FormLabel `name` props and input `id` attributes added, i18n pending).
+- STD-4 partially addressed in v1.1.0-dev.26 (Calendar crash fixed with `new Date()` fallback, root cause in Redux initial state pending).
 
 ## Latest delivery update
 

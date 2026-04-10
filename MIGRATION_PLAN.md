@@ -791,7 +791,7 @@ Files affected:
 
 ##### Feature flag and backward compatibility
 
-Configuration key: `EnableDualFormatTracking` (default: `false`)
+Configuration key: `EnableDualFormatTracking` (default: `true`)
 
 When **disabled** (legacy mode):
 

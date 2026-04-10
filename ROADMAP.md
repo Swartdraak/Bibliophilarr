@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: April 6, 2026 (Node 22 migration, change management codification, Docker/CI/branding milestones completed)
+**Last Updated**: April 10, 2026 (Track C native ebook tag writing, Track D update pipeline, Track E standardizations added)
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -139,7 +139,10 @@ Planned entry conditions:
 | .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | complete |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
-| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **implemented** — all 16 slices (DF-1 through DF-16) complete, feature-flagged via `EnableDualFormatTracking`. Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
+| Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **implemented** — all 16 slices (DF-1 through DF-16) complete, enabled by default via `EnableDualFormatTracking`. Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
+| Native ebook tag writing | write metadata tags to EPUB files without Calibre dependency; assess PDF; document AZW3/MOBI/KFX as Calibre-only | planned — Track C (ET-1 through ET-7) |
+| Application update pipeline | end-to-end update lifecycle across binary, Docker, and npm distribution channels | planned — Track D (UP-1 through UP-7) |
+| Frontend standardizations | accessible form labels, toast notifications, skeleton screens, TypeScript expansion | in progress — Track E (STD-1 through STD-7) |
 
 ## Dependency migration queue
 
@@ -332,7 +335,10 @@ Current frontend audit reveals a mature but aging UI architecture with clear mod
 16. ~~Execute documentation normalization pass: fix MIGRATION_PLAN.md duplicate H2 headings, update stale references, archive dated operational docs, align wiki with ROADMAP phases. Remediation items RQ-007, RQ-048, RQ-044, RQ-047, RQ-079, RQ-080, RQ-121-RQ-125.~~ **COMPLETED** — all 11 RQ items fixed: H2 deduplication, wiki alignment, archive banners, stale references updated.
 17. Implement import-performance tranche 1 (instrumentation, batching, staged provider lookups, and bounded concurrency controls) with benchmarked before/after evidence.
 18. Plan React 18 upgrade path: audit breaking changes, upgrade @testing-library, remove `react-addons-shallow-compare`, begin `connected-react-router` removal. Remediation items RQ-068, RQ-069, RQ-159.
-19. ~~Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.~~ **IMPLEMENTED** — all 16 slices (DF-1 through DF-16) complete. Feature-flagged via `EnableDualFormatTracking` (Settings > Media Management > Dual Format). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
+19. ~~Implement dual-format tranche 1 data-model and policy design for per-title ebook/audiobook variant intent without requiring multiple instances.~~ **IMPLEMENTED** — all 16 slices (DF-1 through DF-16) complete. Enabled by default via `EnableDualFormatTracking` (Settings > Media Management > Dual Format). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
+20. Implement native EPUB tag writing without Calibre dependency (Track C, slices ET-1 through ET-7). Assess PDF writing. Document AZW3/MOBI/KFX as Calibre-only formats.
+21. Enable application update pipeline across all distribution channels (Track D, slices UP-1 through UP-7). Requires services endpoint and release automation.
+22. Complete frontend standardizations: internationalize form labels, fix EnhancedSelectInput accessibility, add toast notifications, skeleton screens (Track E, slices STD-1 through STD-7).
 
 ## Requested implementation additions (March 2026)
 
@@ -410,7 +416,7 @@ Current data model has partial infrastructure for dual-format:
 - Format profile lives at Author level — quality profile, root folder, tags, and download client routing apply uniformly across all books by that author.
 - Per-book format tracking via Edition monitoring: one monitored edition per format type per book.
 - One metadata search per book — releases sorted into format slots by detected quality.
-- Feature-flagged via config: `EnableDualFormatTracking` (default: false). When off, legacy behavior is preserved exactly.
+- Feature-flagged via config: `EnableDualFormatTracking` (default: true). When off, legacy behavior is preserved exactly.
 
 **Migration strategy**:
 
@@ -443,6 +449,179 @@ Measurement criteria:
 - Isolation: variant-specific upgrades do not alter opposite-format tracking state.
 - Compatibility: legacy single-format libraries remain functionally unchanged when flag is off.
 - Operability: variant-level telemetry and diagnostics are queryable by operators.
+
+### Track C: Native ebook metadata tag writing (without Calibre)
+
+**Status**: planned — Phase 6-7
+
+**Problem**: Ebook tag writing currently requires a running Calibre Content Server instance (`CalibreId > 0`). Without Calibre configured, `MetadataTagService.WriteTags()` skips ebook files entirely. The tag read path already works natively via vendored `VersOne.Epub` reader in `src/NzbDrone.Core/MediaFiles/EpubTag/`, proving the format is accessible.
+
+**Goal**: Enable native metadata tag writing for common ebook formats without external Calibre dependency, so ebook libraries receive the same embedded-tag management that audiobooks already have via TagLibSharp.
+
+**Architecture**:
+
+- EPUB files are ZIP archives containing OPF (Open Packaging Format) XML metadata. Writable using `System.IO.Compression.ZipArchive` + `System.Xml.Linq` — both built into .NET 8 with no new NuGet dependencies.
+- AZW3/MOBI/KFX are proprietary Amazon formats requiring reverse-engineered binary manipulation (Calibre is the de facto implementation). Native writing is not feasible without significant reverse-engineering.
+- PDF metadata is writable via iTextSharp or PdfPig (NuGet), but PDF is a secondary format for book management.
+
+**Format feasibility matrix**:
+
+| Format | Read support | Native write feasibility | Dependency | Priority |
+|---|---|---|---|---|
+| EPUB | existing (VersOne.Epub) | high — OPF XML in ZIP archive | none (built-in .NET) | P1 |
+| PDF | existing (basic) | medium — requires NuGet library | iTextSharp or PdfPig | P3 |
+| AZW3 | existing (Calibre only) | low — proprietary binary format | reverse-engineered or Calibre | P4 (Calibre-only) |
+| MOBI | existing (Calibre only) | low — proprietary binary format | reverse-engineered or Calibre | P4 (Calibre-only) |
+| KFX | none | very low — DRM-adjacent proprietary format | Calibre only | P5 (Calibre-only) |
+
+Implementation slices:
+
+1. ET-1: EpubWriter class — read/modify/write OPF metadata in EPUB ZIP archives
+   - Parse existing OPF XML via `System.Xml.Linq`.
+   - Update `dc:title`, `dc:creator`, `dc:identifier` (ISBN, ASIN, Hardcover ID), `dc:publisher`, `dc:date`, `dc:language`, `dc:subject`, `dc:description`.
+   - Write modified OPF back into ZIP without corrupting other archive entries.
+   - Preserve original OPF structure and namespaces (Dublin Core, OPF extensions).
+   - Handle EPUB 2.0 and EPUB 3.0+ namespace differences.
+   - Add deterministic unit tests with fixture EPUB files.
+2. ET-2: EbookTagService refactor — remove CalibreId gate for EPUB
+   - Refactor `EbookTagService.WriteTagsInternal()` to attempt native EPUB write when `CalibreId == 0` and file extension is `.epub`.
+   - Preserve existing Calibre path when `CalibreId > 0` (Calibre may handle additional formats and custom columns).
+   - Update `MetadataTagService.WriteTags()` routing logic to invoke ebook tag writing for EPUB regardless of Calibre configuration.
+3. ET-3: Cover image embedding in EPUB
+   - Read cover image from metadata or book artwork cache.
+   - Replace or insert cover image entry in EPUB ZIP archive.
+   - Update OPF `<meta name="cover" content="..."/>` and manifest entry.
+   - Validate cover image dimensions and format (JPEG/PNG).
+4. ET-4: Series and collection metadata in EPUB
+   - Write Calibre-compatible series metadata (`calibre:series`, `calibre:series_index`) into OPF for interoperability.
+   - Write EPUB 3.0 `belongs-to-collection` refinement for standards-compliant readers.
+5. ET-5: Preview and diff for ebook tag changes
+   - Expose tag preview endpoint showing current vs proposed metadata changes before writing.
+   - Support dry-run mode in bulk tag operations.
+   - Reuse existing preview pattern from audiobook tag writing if applicable.
+6. ET-6: PDF metadata writing (optional, requires NuGet dependency decision)
+   - Evaluate PdfPig (MIT license, .NET native) vs iTextSharp (AGPL license concern).
+   - Write XMP/DocumentInfo metadata fields: Title, Author, Subject, Keywords, Creator.
+   - Add to format write routing in `EbookTagService`.
+7. ET-7: Integration tests and edge cases
+   - EPUB files with missing or malformed OPF.
+   - EPUB files with encryption/DRM (must skip gracefully, not corrupt).
+   - Multi-OPF EPUB archives (rare but valid).
+   - Round-trip validation: write then read back, verify no data loss.
+   - Large EPUB files (>100MB audiobook containers sometimes use .epub extension).
+   - Files on network shares (NFS/SMB locking behavior).
+
+Measurement criteria:
+
+- Correctness: written metadata is readable by Calibre, Adobe Digital Editions, and major e-reader apps.
+- Safety: original file is backed up or write is atomic (write to temp, rename on success).
+- Compatibility: Calibre-configured users see no behavior change; Calibre path remains preferred when `CalibreId > 0`.
+- Coverage: EPUB write path handles both EPUB 2.0 and 3.0 format variants.
+- Graceful degradation: AZW3/MOBI/KFX files without Calibre produce a clear "Calibre required" diagnostic rather than silent skip.
+
+### Track D: Application update pipeline
+
+**Status**: planned — Phase 7
+
+**Problem**: The built-in update command is explicitly disabled with `throw new CommandFailedException("Application updates are disabled until release pipeline support is implemented.")`. Update checking works when `BIBLIOPHILARR_SERVICES_URL` is configured but the install step is blocked. Users have no automated path from detecting an update to installing it.
+
+**Goal**: Enable a complete, safe, and observable update lifecycle across all distribution channels (binary, Docker, npm launcher).
+
+**Current state**:
+
+| Component | Status | Notes |
+|---|---|---|
+| Update version check | working (if services configured) | `UpdatePackageProvider` → `GET /v1/update/{branch}` |
+| Frontend update page | working | Shows available updates, warns when services not configured |
+| Health check for stale builds | working | `UpdateCheck` warns when build > 14 days old and update available |
+| ApplicationUpdateCommand (install) | **disabled** | Hard block in `InstallUpdateService.Execute()` and `CommandController` |
+| Update package download/extract | implemented but unreachable | `InstallUpdate()` pipeline: backup → extract → terminate → transfer → restart |
+| Docker update awareness | working | Detects Docker via `/.dockerenv`, disables built-in updater, shows external-update message |
+| npm launcher version control | working | `BIBLIOPHILARR_VERSION` env var, GitHub release download, cache in `~/.cache/bibliophilarr/` |
+| Services endpoint contract | documented | `docs/operations/services-endpoint-runbook.md` |
+| Graceful degradation (no services) | working | All cloud features return safe no-ops when `BIBLIOPHILARR_SERVICES_URL` unset |
+
+Implementation slices:
+
+1. UP-1: Services endpoint implementation
+   - Implement or deploy a minimal services endpoint conforming to `docs/operations/services-endpoint-runbook.md`.
+   - `GET /v1/update/{branch}` returns latest release metadata (version, URL, hash, changelog).
+   - `GET /v1/update/{branch}/changes` returns recent update history.
+   - Can be a static JSON file hosted on GitHub Pages, a serverless function, or a self-hosted service.
+   - Must support `BIBLIOPHILARR_SERVICES_URL` pointing to it.
+2. UP-2: Release artifact publishing automation
+   - GitHub Actions workflow to build release artifacts on tag push.
+   - Publish platform-specific archives (Linux x64/ARM64, macOS ARM64/x64, Windows x64) to GitHub Releases.
+   - Generate and publish SHA256 checksums alongside artifacts.
+   - Update services endpoint metadata (version, URL, hash) on successful release.
+3. UP-3: Enable built-in update command (binary installs)
+   - Remove the `CommandFailedException` block in `InstallUpdateService.Execute()`.
+   - Remove the `ApplicationUpdateCommand` rejection in `CommandController.StartCommand()`.
+   - Validate the existing backup → extract → terminate → transfer → restart pipeline.
+   - Add pre-update permission checks (writable startup folder, writable UI folder).
+   - Add rollback mechanism: if update fails, restore from backup.
+4. UP-4: Docker update path
+   - Docker users update by pulling new container images — no in-app mechanism.
+   - Ensure `UpdateCheck` health check correctly identifies Docker and directs users to `docker pull`.
+   - Add version label comparison: running container version vs latest available tag.
+   - Document Docker update procedure in QUICKSTART.md.
+5. UP-5: npm launcher update path
+   - npm users update via `npm update -g bibliophilarr` (pulls latest launcher) which downloads the latest binary release.
+   - Implement cache invalidation: detect when cached binary version differs from desired version.
+   - Add `bibliophilarr --update` command to force re-download of latest binary.
+   - Document npm update procedure in QUICKSTART.md.
+6. UP-6: Update notification and UX improvements
+   - Add system tray / dashboard banner when update is available.
+   - Show changelog preview before update initiation.
+   - Add update progress indicator during download and installation.
+   - Send notification (if configured) on successful/failed update.
+7. UP-7: Update safety and observability
+   - Log update events to `UpdateHistory` table (already exists).
+   - Add health check for failed update attempts.
+   - Verify SHA256 hash before applying update (existing `UpdateVerification` class).
+   - Test rollback scenario: corrupt update package triggers safe restore.
+
+Measurement criteria:
+
+- Safety: failed updates do not leave the application in an unrecoverable state.
+- Observability: update checks, downloads, and installations are logged and queryable.
+- Compatibility: all three distribution channels (binary, Docker, npm) have documented and tested update paths.
+- Graceful degradation: local-only installs without `BIBLIOPHILARR_SERVICES_URL` continue to operate normally with no update noise.
+
+### Track E: Remaining standardizations and quality improvements
+
+**Status**: in progress — ongoing
+
+Outstanding items identified during v1.1.0-dev.22 through v1.1.0-dev.26 delivery:
+
+1. STD-1: Form label accessibility — internationalize hardcoded label text
+   - The 26 `FormLabel` components in `MetadataProvider.js` now have proper `name`/`htmlFor` association (fixed in v1.1.0-dev.26), but label display text remains hardcoded English strings.
+   - Convert all metadata provider form labels to use `translate()` with keys from `en.json`.
+   - Audit other settings pages for similar hardcoded label patterns.
+2. STD-2: EnhancedSelectInput accessibility
+   - `EnhancedSelectInput` wraps `react-select` and does not forward `id` prop to the underlying `<input>`.
+   - Add `inputId={name}` prop to `react-select` component for proper `htmlFor`↔`id` association.
+   - Affects all dropdown/select fields across Settings pages.
+3. STD-3: Ebook format diagnostic messaging
+   - When ebook tag writing is skipped due to missing Calibre (and native EPUB writing is not yet available), show a clear user-facing diagnostic instead of silent skip.
+   - Add health check or manual import warning: "Ebook tag writing requires Calibre Content Server or native EPUB support (planned)."
+   - Remove silent skip once Track C (ET-2) enables native EPUB writing.
+4. STD-4: Calendar edge case hardening
+   - Calendar crash was fixed in v1.1.0-dev.26 with `new Date()` fallback, but the root cause is `calendar.time` being `undefined` in initial Redux state.
+   - Set explicit initial state for `calendar.time` in reducer to `new Date().toISOString()` to prevent the class of bug entirely.
+   - Audit other Redux store slices for undefined initial state that could cause similar runtime errors.
+5. STD-5: Toast notification system
+   - UI modernization assessment identified toast notifications as a gap (error boundary expansion, item 3).
+   - Add non-blocking toast system for transient success/error/warning messages.
+   - Replace `alert()` calls and console-only error paths with user-visible toasts.
+6. STD-6: Skeleton loading screens
+   - UI modernization assessment item 2: replace spinner-only loading states with content placeholders.
+   - Priority pages: author index, book details, calendar.
+   - Improves perceived performance on slower connections.
+7. STD-7: TypeScript expansion (ongoing)
+   - Currently ~5% TypeScript in frontend.
+   - Convert new/touched files to `.tsx` on contact.
+   - Priority: Store/Actions (type-safe reducers), Utilities, high-reuse Components.
 
 ## Local install testing enablement (develop branch)
 

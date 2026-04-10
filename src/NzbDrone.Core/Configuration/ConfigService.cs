@@ -468,7 +468,7 @@ namespace NzbDrone.Core.Configuration
 
         public bool EnableDualFormatTracking
         {
-            get { return GetValueBoolean("EnableDualFormatTracking", false); }
+            get { return GetValueBoolean("EnableDualFormatTracking", true); }
 
             set { SetValue("EnableDualFormatTracking", value); }
         }
