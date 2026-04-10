@@ -238,10 +238,11 @@ export const actionHandlers = handleThunks({
     const unmonitored = calendar.selectedFilterKey === 'all';
 
     const {
-      time = calendar.time,
+      time: rawTime = calendar.time,
       view = calendar.view
     } = payload;
 
+    const time = rawTime || new Date();
     const dayCount = state.calendar.dayCount;
     const timeDate = time instanceof Date ? time : parseISO(time);
     const dates = getDates(timeDate, view, state.settings.ui.item.firstDayOfWeek, dayCount);
@@ -353,7 +354,8 @@ export const actionHandlers = handleThunks({
 
     const amount = view === calendarViews.FORECAST ? dayCount : 1;
     const range = viewRanges[view];
-    const calendarTime = typeof state.calendar.time === 'string' ? parseISO(state.calendar.time) : state.calendar.time;
+    const rawTime = state.calendar.time;
+    const calendarTime = typeof rawTime === 'string' ? parseISO(rawTime) : (rawTime || new Date());
     const time = subFns[range](calendarTime, amount);
 
     dispatch(fetchCalendar({ time, view }));
@@ -369,7 +371,8 @@ export const actionHandlers = handleThunks({
 
     const amount = view === calendarViews.FORECAST ? dayCount : 1;
     const nextRange = viewRanges[view];
-    const calendarTimeNext = typeof state.calendar.time === 'string' ? parseISO(state.calendar.time) : state.calendar.time;
+    const rawTimeNext = state.calendar.time;
+    const calendarTimeNext = typeof rawTimeNext === 'string' ? parseISO(rawTimeNext) : (rawTimeNext || new Date());
     const time = addFns[nextRange](calendarTimeNext, amount);
 
     dispatch(fetchCalendar({ time, view }));

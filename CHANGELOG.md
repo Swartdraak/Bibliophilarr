@@ -9,6 +9,12 @@ process.
 
 ### Fixed
 
+- **Calendar page crash**: `fetchCalendar` action handler called `parseISO()` on `undefined` when `calendar.time` was not yet initialized (e.g., direct navigation to `/calendar` URL, page refresh). Guarded all three calendar action handlers (`FETCH_CALENDAR`, `GOTO_CALENDAR_PREVIOUS_RANGE`, `GOTO_CALENDAR_NEXT_RANGE`) to fall back to `new Date()` when `time` is undefined. Also added null guard in `CalendarHeader.getTitle()`.
+- **Missing translation key**: Added `ProviderResilience` to `en.json`. Previously rendered as raw key string on Settings > Metadata page.
+- **Missing form field label associations**: Added `name` prop to all 26 `FormLabel` components in `MetadataProvider.js` for proper `htmlFor`→`id` label-input association. Added `id={name}` attribute to `TextInput`, `CheckInput`, and `TextArea` components so browser accessibility tools can link labels to their inputs.
+
+### Fixed (previous)
+
 - **bookFile DELETE cross-root-folder error**: `MediaFileDeletionService.DeleteTrackFile()` used `author.Path` to derive the root folder, causing `NotParentException` when deleting ebook files under `/media/ebooks/` for authors whose base path is `/media/audiobooks/`. Now uses `IRootFolderService.GetBestRootFolder()` to resolve the correct root folder for the file being deleted.
 - **formatStatuses missing format entries**: `BookControllerWithSignalR.EnrichFormatStatuses()` only enriched existing format status entries but never created missing ones. Books without ebook files (777 of 794) had no ebook format entry even when the author had an ebook format profile. Now iterates author format profiles and adds placeholder entries for any missing format type. All 794 books now show both ebook and audiobook statuses.
 - **Progress bar colors for unmonitored items**: `getProgressBarKind()` showed WARNING (orange) for unmonitored authors/books with progress < 100%. Now checks monitored state first — all unmonitored items show PRIMARY (blue) since nothing is being tracked.

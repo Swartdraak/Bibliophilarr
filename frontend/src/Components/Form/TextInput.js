@@ -143,6 +143,7 @@ class TextInput extends Component {
     return (
       <input
         ref={this.setInputRef}
+        id={name}
         type={type}
         readOnly={readOnly}
         autoFocus={autoFocus}

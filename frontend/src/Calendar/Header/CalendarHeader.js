@@ -16,6 +16,10 @@ import CalendarHeaderViewButton from './CalendarHeaderViewButton';
 import styles from './CalendarHeader.css';
 
 function getTitle(time, start, end, view, longDateFormat) {
+  if (!time || !start || !end) {
+    return '';
+  }
+
   const timeDate = parseISO(time);
   const startDate = parseISO(start);
   const endDate = parseISO(end);

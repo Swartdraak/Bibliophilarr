@@ -754,6 +754,7 @@
   "PropersAndRepacks": "Propers and Repacks",
   "Protocol": "Protocol",
   "ProtocolHelpText": "Choose which protocol(s) to use and which one is preferred when choosing between otherwise equal releases",
+  "ProviderResilience": "Provider Resilience",
   "Proxy": "Proxy",
   "ProxyBypassFilterHelpText": "Use ',' as a separator, and '*.' as a wildcard for subdomains",
   "ProxyCheckBadRequestMessage": "Failed to test proxy. StatusCode: {0}",
