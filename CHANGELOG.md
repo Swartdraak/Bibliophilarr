@@ -9,6 +9,8 @@ process.
 
 ### Fixed
 
+- **Search format bias**: `ProcessDownloadDecisions.IsBookProcessed()` now format-aware when dual format tracking is enabled — ebook and audiobook releases for the same book are grabbed independently instead of first-format-wins behavior that caused searches to only queue audiobooks.
+- **Import match threshold**: `CloseBookMatchSpecification` uses lenient 50% threshold for app-initiated tracked downloads to prevent false rejections from verbose audiobook filenames that scored 58-65% against the default 70% threshold.
 - **Calendar page crash**: `fetchCalendar` action handler called `parseISO()` on `undefined` when `calendar.time` was not yet initialized (e.g., direct navigation to `/calendar` URL, page refresh). Guarded all three calendar action handlers (`FETCH_CALENDAR`, `GOTO_CALENDAR_PREVIOUS_RANGE`, `GOTO_CALENDAR_NEXT_RANGE`) to fall back to `new Date()` when `time` is undefined. Also added null guard in `CalendarHeader.getTitle()`.
 - **Missing translation key**: Added `ProviderResilience` to `en.json`. Previously rendered as raw key string on Settings > Metadata page.
 - **Missing form field label associations**: Added `name` prop to all 26 `FormLabel` components in `MetadataProvider.js` for proper `htmlFor`→`id` label-input association. Added `id={name}` attribute to `TextInput`, `CheckInput`, and `TextArea` components so browser accessibility tools can link labels to their inputs.
@@ -49,6 +51,7 @@ process.
 
 ### Changed
 
+- **Wiki content enrichment**: All 13 built-in wiki pages comprehensively rewritten with detailed content sourced from Servarr wiki, adapted for Bibliophilarr (627→1465 lines). Covers getting started, library management, dual-format tracking, quality profiles, indexers, download clients, wanted, activity, media management, notifications, system, troubleshooting, FAQ, and custom formats.
 - **Mass editor**: Base quality profile and root folder selectors removed entirely; per-format selectors (Ebook QP, Audiobook QP, Ebook Root Folder, Audiobook Root Folder) shown unconditionally. `enableDualFormatTracking` gating and related Redux wiring removed.
 - **Format profile editor**: Root folder path selector added per format profile in the author edit modal.
 

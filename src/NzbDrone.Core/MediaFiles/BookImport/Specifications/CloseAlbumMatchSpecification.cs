@@ -22,6 +22,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
         public Decision IsSatisfiedBy(LocalEdition item, DownloadClientItem downloadClientItem)
         {
             var thresholdPercent = Math.Max(50, Math.Min(100, _configService.BookImportMatchThresholdPercent));
+
+            // For app-initiated downloads (tracked downloads), use a more lenient threshold.
+            // The search already verified author/book match, so verbose filenames (especially
+            // audiobooks with subtitles and series notation) should not cause false rejections.
+            if (item.NewDownload && downloadClientItem != null)
+            {
+                thresholdPercent = Math.Max(50, Math.Min(thresholdPercent, 50));
+            }
+
             var distanceThreshold = 1.0 - (thresholdPercent / 100.0);
 
             double dist;
