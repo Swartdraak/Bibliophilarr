@@ -9,6 +9,13 @@ process.
 
 ### Fixed
 
+- **Manual Import dual-format scanning**: `ManualImportController` now scans all format profile root folders (e.g. `/media/ebooks/Shirtaloon` + `/media/audiobooks/Shirtaloon`) when dual-format tracking is enabled and authorId is provided. Previously passed only the single `author.Path` to the modal, blocking file assignment across root folders. Constructs full paths from `AuthorFormatProfile.RootFolderPath` + author folder name when `Path` is empty.
+- **Missing page format-aware query**: `BookRepository.BooksWithoutFilesBuilder` uses quality-based NOT EXISTS subqueries (ebook IDs 0-4, audiobook IDs 10-13) instead of edition-level file joins when dual-format is enabled. Books with audiobook files but no ebook files (e.g. Shirtaloon books 737-742, 317, 745-747) now correctly appear on the Wanted/Missing page. Total missing jumped from 15 → 44.
+- **Author page per-format status column**: `BookStatus.js` rewritten to show per-format status badges when `formatStatuses` is available. Each monitored format gets its own badge — green quality badge for formats with files, red "Missing" label for monitored formats without files, blue "Not Available" for unreleased. Previously showed only a single quality badge for the first file found.
+- **Interactive Import modal title**: `AuthorDetails.js` now passes `title={authorName}` instead of `folder={path}` to the Interactive Import modal. Modal title shows "Manual Import - Shirtaloon" instead of the single root folder path.
+
+### Fixed (previous session)
+
 - **Search format bias**: `ProcessDownloadDecisions.IsBookProcessed()` now format-aware when dual format tracking is enabled — ebook and audiobook releases for the same book are grabbed independently instead of first-format-wins behavior that caused searches to only queue audiobooks.
 - **Import match threshold**: `CloseBookMatchSpecification` uses lenient 50% threshold for app-initiated tracked downloads to prevent false rejections from verbose audiobook filenames that scored 58-65% against the default 70% threshold.
 - **Calendar page crash**: `fetchCalendar` action handler called `parseISO()` on `undefined` when `calendar.time` was not yet initialized (e.g., direct navigation to `/calendar` URL, page refresh). Guarded all three calendar action handlers (`FETCH_CALENDAR`, `GOTO_CALENDAR_PREVIOUS_RANGE`, `GOTO_CALENDAR_NEXT_RANGE`) to fall back to `new Date()` when `time` is undefined. Also added null guard in `CalendarHeader.getTitle()`.

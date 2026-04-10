@@ -4,6 +4,7 @@ using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaCover;
@@ -14,6 +15,8 @@ namespace Bibliophilarr.Api.V1.Wanted
     [V1ApiController("wanted/missing")]
     public class MissingController : BookControllerWithSignalR
     {
+        private readonly IConfigService _configService;
+
         public MissingController(IBookService bookService,
                              ISeriesBookLinkService seriesBookLinkService,
                              IAuthorStatisticsService authorStatisticsService,
@@ -21,9 +24,11 @@ namespace Bibliophilarr.Api.V1.Wanted
                              IUpgradableSpecification upgradableSpecification,
                              IBroadcastSignalRMessage signalRBroadcaster,
                              IAuthorFormatProfileService formatProfileService,
-                             NzbDrone.Core.Profiles.Qualities.IQualityProfileService qualityProfileService)
+                             NzbDrone.Core.Profiles.Qualities.IQualityProfileService qualityProfileService,
+                             IConfigService configService)
         : base(bookService, seriesBookLinkService, authorStatisticsService, coverMapper, upgradableSpecification, signalRBroadcaster, formatProfileService, qualityProfileService)
         {
+            _configService = configService;
         }
 
         [HttpGet]
@@ -47,7 +52,9 @@ namespace Bibliophilarr.Api.V1.Wanted
                 pagingSpec.FilterExpressions.Add(v => v.Monitored == false || v.Author.Value.Monitored == false);
             }
 
-            return pagingSpec.ApplyToPage(spec => _bookService.BooksWithoutFiles(spec, formatType), v => MapToResource(v, includeAuthor));
+            var dualFormatEnabled = _configService.EnableDualFormatTracking;
+
+            return pagingSpec.ApplyToPage(spec => _bookService.BooksWithoutFiles(spec, formatType, dualFormatEnabled), v => MapToResource(v, includeAuthor));
         }
     }
 }

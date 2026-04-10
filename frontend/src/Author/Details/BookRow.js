@@ -258,6 +258,8 @@ class BookRow extends Component {
                     isAvailable={isAvailable}
                     monitored={monitored}
                     bookFile={bookFile}
+                    bookFiles={bookFiles}
+                    formatStatuses={formatStatuses}
                   />
                 </TableRowCell>
               );

@@ -39,6 +39,7 @@ class InteractiveImportModal extends Component {
       isOpen,
       folder,
       downloadId,
+      authorId,
       onModalClose,
       ...otherProps
     } = this.props;
@@ -53,10 +54,11 @@ class InteractiveImportModal extends Component {
         onModalClose={onModalClose}
       >
         {
-          folderPath || downloadId ?
+          folderPath || downloadId || authorId ?
             <InteractiveImportModalContentConnector
               folder={folderPath}
               downloadId={downloadId}
+              authorId={authorId}
               {...otherProps}
               onModalClose={onModalClose}
             /> :
@@ -75,6 +77,7 @@ InteractiveImportModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   folder: PropTypes.string,
   downloadId: PropTypes.string,
+  authorId: PropTypes.number,
   modalTitle: PropTypes.string.isRequired,
   onModalClose: PropTypes.func.isRequired
 };

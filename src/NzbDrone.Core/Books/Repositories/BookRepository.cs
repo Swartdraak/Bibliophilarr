@@ -22,6 +22,7 @@ namespace NzbDrone.Core.Books
         Book FindBySlug(string titleSlug);
         PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec);
         PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType);
+        PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType, bool dualFormatEnabled);
         PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff);
         PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType);
         List<Book> BooksBetweenDates(DateTime startDate, DateTime endDate, bool includeUnmonitored);
@@ -109,8 +110,16 @@ namespace NzbDrone.Core.Books
 
         //x.Id == null is converted to SQL, so warning incorrect
 #pragma warning disable CS0472
-        private SqlBuilder BooksWithoutFilesBuilder(DateTime currentTime, FormatType? formatType = null)
+        private SqlBuilder BooksWithoutFilesBuilder(DateTime currentTime, FormatType? formatType = null, bool dualFormatEnabled = false)
         {
+            // When dual-format tracking is enabled, use quality-based file existence checks
+            // instead of edition-level file joins. This correctly handles the case where both
+            // ebook and audiobook files are attached to the same edition (IsEbook=false).
+            if (dualFormatEnabled)
+            {
+                return BooksWithoutFilesFormatAwareBuilder(currentTime, formatType);
+            }
+
             var builder = Builder()
                 .Join<Book, Author>((l, r) => l.AuthorMetadataId == r.AuthorMetadataId)
                 .Join<Author, AuthorMetadata>((l, r) => l.AuthorMetadataId == r.Id)
@@ -128,19 +137,64 @@ namespace NzbDrone.Core.Books
 
             return builder;
         }
+
+        private SqlBuilder BooksWithoutFilesFormatAwareBuilder(DateTime currentTime, FormatType? formatType)
+        {
+            // Quality IDs: Ebook = 0-4 (Unknown, PDF, MOBI, EPUB, AZW3)
+            //              Audiobook = 10-13 (MP3, FLAC, M4B, UnknownAudio)
+            var ebookQualityLikes = string.Join(" OR ",
+                Enumerable.Range(0, 5).Select(q => $"\"BookFiles\".\"Quality\" LIKE '%_quality_: {q},%'"));
+
+            var audiobookQualityLikes = string.Join(" OR ",
+                Enumerable.Range(10, 4).Select(q => $"\"BookFiles\".\"Quality\" LIKE '%_quality_: {q},%'"));
+
+            var builder = Builder()
+                .Join<Book, Author>((l, r) => l.AuthorMetadataId == r.AuthorMetadataId)
+                .Join<Author, AuthorMetadata>((l, r) => l.AuthorMetadataId == r.Id)
+                .Where<Book>(a => a.ReleaseDate <= currentTime);
+
+            if (formatType.HasValue)
+            {
+                // Specific format filter: find books where the author has a monitored format
+                // profile for this type AND no BookFiles with matching quality exist.
+                var ft = (int)formatType.Value;
+                var qualityLikes = formatType.Value == FormatType.Ebook ? ebookQualityLikes : audiobookQualityLikes;
+
+                builder = builder
+                    .Where($"EXISTS (SELECT 1 FROM \"AuthorFormatProfiles\" WHERE \"AuthorFormatProfiles\".\"AuthorId\" = \"Authors\".\"Id\" AND \"AuthorFormatProfiles\".\"FormatType\" = {ft} AND \"AuthorFormatProfiles\".\"Monitored\" = 1)")
+                    .Where($"NOT EXISTS (SELECT 1 FROM \"BookFiles\" INNER JOIN \"Editions\" ON \"BookFiles\".\"EditionId\" = \"Editions\".\"Id\" WHERE \"Editions\".\"BookId\" = \"Books\".\"Id\" AND ({qualityLikes}))");
+            }
+            else
+            {
+                // No format filter: find books missing files for ANY monitored format.
+                // A book is included if (author has monitored ebook profile AND no ebook files)
+                // OR (author has monitored audiobook profile AND no audiobook files).
+                var missingEbook = $"(EXISTS (SELECT 1 FROM \"AuthorFormatProfiles\" WHERE \"AuthorFormatProfiles\".\"AuthorId\" = \"Authors\".\"Id\" AND \"AuthorFormatProfiles\".\"FormatType\" = 0 AND \"AuthorFormatProfiles\".\"Monitored\" = 1) AND NOT EXISTS (SELECT 1 FROM \"BookFiles\" INNER JOIN \"Editions\" ON \"BookFiles\".\"EditionId\" = \"Editions\".\"Id\" WHERE \"Editions\".\"BookId\" = \"Books\".\"Id\" AND ({ebookQualityLikes})))";
+                var missingAudiobook = $"(EXISTS (SELECT 1 FROM \"AuthorFormatProfiles\" WHERE \"AuthorFormatProfiles\".\"AuthorId\" = \"Authors\".\"Id\" AND \"AuthorFormatProfiles\".\"FormatType\" = 1 AND \"AuthorFormatProfiles\".\"Monitored\" = 1) AND NOT EXISTS (SELECT 1 FROM \"BookFiles\" INNER JOIN \"Editions\" ON \"BookFiles\".\"EditionId\" = \"Editions\".\"Id\" WHERE \"Editions\".\"BookId\" = \"Books\".\"Id\" AND ({audiobookQualityLikes})))";
+
+                builder = builder.Where($"({missingEbook} OR {missingAudiobook})");
+            }
+
+            return builder;
+        }
 #pragma warning restore CS0472
 
         public PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec)
         {
-            return BooksWithoutFiles(pagingSpec, null);
+            return BooksWithoutFiles(pagingSpec, null, false);
         }
 
         public PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType)
         {
+            return BooksWithoutFiles(pagingSpec, formatType, false);
+        }
+
+        public PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType, bool dualFormatEnabled)
+        {
             var currentTime = DateTime.UtcNow;
 
-            pagingSpec.Records = GetPagedRecords(BooksWithoutFilesBuilder(currentTime, formatType), pagingSpec, PagedQuery);
-            pagingSpec.TotalRecords = GetPagedRecordCount(BooksWithoutFilesBuilder(currentTime, formatType).SelectCountDistinct<Book>(x => x.Id), pagingSpec);
+            pagingSpec.Records = GetPagedRecords(BooksWithoutFilesBuilder(currentTime, formatType, dualFormatEnabled), pagingSpec, PagedQuery);
+            pagingSpec.TotalRecords = GetPagedRecordCount(BooksWithoutFilesBuilder(currentTime, formatType, dualFormatEnabled).SelectCountDistinct<Book>(x => x.Id), pagingSpec);
 
             return pagingSpec;
         }
