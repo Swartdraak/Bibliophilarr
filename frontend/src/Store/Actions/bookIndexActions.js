@@ -93,12 +93,6 @@ export const defaultState = {
       isVisible: false
     },
     {
-      name: 'qualityProfileId',
-      label: 'Quality Profile',
-      isSortable: true,
-      isVisible: true
-    },
-    {
       name: 'added',
       label: 'Added',
       isSortable: true,

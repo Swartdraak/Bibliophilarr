@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 10, 2026 (formatStatuses data model fix, Hardcover IsEbook, frontend format columns, Author Editor UX)
+**Last Updated**: April 10, 2026 (bookFile DELETE fix, formatStatuses enrichment, progress bar colors, QP column removal, translations)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -52,6 +52,36 @@ The following items were added to canonical planning for immediate/future delive
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
 
 ## Latest delivery update
+
+### April 10, 2026 — v1.1.0-dev.25: bookFile DELETE fix, formatStatuses enrichment, progress bar colors, QP column cleanup, translations
+
+Five fixes addressing post-v1.1.0-dev.24 user-reported issues.
+
+#### bookFile DELETE cross-root-folder error
+
+- **MediaFileDeletionService.cs**: `DeleteTrackFile(Author, BookFile)` derived root folder from `author.Path` (`/media/audiobooks`), failing with `NotParentException` when deleting ebook files under `/media/ebooks/`. Now uses `IRootFolderService.GetBestRootFolder(bookFile.Path)` to resolve the correct root, then computes subfolder relative to that root. Falls back to `author.Path` for legacy compatibility.
+
+#### formatStatuses missing format entries
+
+- **BookControllerWithSignalR.cs**: Both single and batch `EnrichFormatStatuses()` methods now iterate author format profiles and add placeholder entries (`HasFile=false`, `FileCount=0`, `Monitored` from profile) for any format type missing from the book's `formatStatuses`. All 794 books now show both ebook and audiobook entries.
+
+#### Progress bar color logic
+
+- **getProgressBarKind.js**: Unmonitored authors/books previously showed WARNING (orange) when progress < 100%. Now checks monitored state first — all unmonitored items return PRIMARY (blue) since nothing is being tracked.
+
+#### Quality Profile column removal
+
+- **bookIndexActions.js / BookIndexRow.js**: Removed redundant `qualityProfileId` column from Book Index table. The Format column already shows per-format QP names in badge tooltips.
+
+#### Missing translations
+
+- **en.json**: Added `TableOptions` ("Table Options") and `InteractiveSearch` ("Interactive Search") keys. Previously caused console warnings on Book/Author Index headers and Book Search cells.
+
+#### Build and test verification
+
+- .NET backend: 0 errors
+- Frontend webpack: compiled successfully
+- API verified: all 794 books show 2 format statuses; bookFile DELETE on cross-root ebook returns 200; translations served correctly
 
 ### April 10, 2026 — v1.1.0-dev.24: formatStatuses data model fix, Hardcover IsEbook, frontend format columns, Author Editor UX
 

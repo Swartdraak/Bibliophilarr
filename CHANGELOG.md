@@ -9,6 +9,17 @@ process.
 
 ### Fixed
 
+- **bookFile DELETE cross-root-folder error**: `MediaFileDeletionService.DeleteTrackFile()` used `author.Path` to derive the root folder, causing `NotParentException` when deleting ebook files under `/media/ebooks/` for authors whose base path is `/media/audiobooks/`. Now uses `IRootFolderService.GetBestRootFolder()` to resolve the correct root folder for the file being deleted.
+- **formatStatuses missing format entries**: `BookControllerWithSignalR.EnrichFormatStatuses()` only enriched existing format status entries but never created missing ones. Books without ebook files (777 of 794) had no ebook format entry even when the author had an ebook format profile. Now iterates author format profiles and adds placeholder entries for any missing format type. All 794 books now show both ebook and audiobook statuses.
+- **Progress bar colors for unmonitored items**: `getProgressBarKind()` showed WARNING (orange) for unmonitored authors/books with progress < 100%. Now checks monitored state first — all unmonitored items show PRIMARY (blue) since nothing is being tracked.
+- **Missing translation keys**: Added `TableOptions` and `InteractiveSearch` to `en.json`. Previously caused console warnings on Book Index, Author Index, and Book Search pages.
+
+### Removed
+
+- **Quality Profile column from Book Index**: Removed redundant `qualityProfileId` column. The Format column already shows per-format quality profile names in badge tooltips.
+
+### Fixed
+
 - **formatStatuses file-based format derivation**: `BookResource.ToResource()` now derives format type from actual book file qualities via `Quality.GetFormatType()` instead of relying on `Edition.IsEbook` (which was never set for Hardcover direct results). Per-format file counts exposed via new `FileCount` property on `BookFormatStatusResource`. Books with ebook files now correctly report ebook format status.
 - **Hardcover IsEbook never set**: `HardcoverFallbackSearchProvider.MapDirectBookResult()` now reads `reading_format_id` from GraphQL edition data and sets `IsEbook = true` for ebook editions (format ID 2). Added `reading_format_id` to all three GraphQL edition queries (`FetchBookByWorkId`, `FetchAuthorBooks`, `FetchAuthorBooksById`). Future metadata refreshes will populate `IsEbook` correctly.
 - **Author Editor path recomputation**: `AuthorEditorController.SaveAll()` now recomputes `AuthorFormatProfile.Path` when a per-format root folder path changes, using `global::System.IO.Path.Combine(rootFolderPath, author.CleanName)`.

@@ -192,17 +192,6 @@ class BookIndexRow extends Component {
               );
             }
 
-            if (name === 'qualityProfileId') {
-              return (
-                <VirtualTableRowCell
-                  key={name}
-                  className={styles[name]}
-                >
-                  {qualityProfile?.name ?? ''}
-                </VirtualTableRowCell>
-              );
-            }
-
             if (name === 'releaseDate') {
               return (
                 <RelativeDateCellConnector
