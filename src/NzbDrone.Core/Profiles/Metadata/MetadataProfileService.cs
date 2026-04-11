@@ -156,7 +156,91 @@ namespace NzbDrone.Core.Profiles.Metadata
             var localHash = new HashSet<string>(localBooks.Where(x => x.AddOptions.AddType == BookAddType.Manual).Select(x => x.ForeignBookId));
             localHash.UnionWith(localFiles.Select(x => x.Edition.Value.Book.Value.ForeignBookId));
 
+            // Build ForeignBookId → series IDs index for series-completeness checks
+            var bookSeriesIndex = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kvp in seriesLinks)
+            {
+                var fid = kvp.Key.ForeignBookId;
+                if (fid.IsNotNullOrWhiteSpace())
+                {
+                    foreach (var link in kvp.Value)
+                    {
+                        var seriesId = link.Series?.Value?.ForeignSeriesId;
+                        if (seriesId.IsNotNullOrWhiteSpace())
+                        {
+                            if (!bookSeriesIndex.TryGetValue(fid, out var ids))
+                            {
+                                ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                bookSeriesIndex[fid] = ids;
+                            }
+
+                            ids.Add(seriesId);
+                        }
+                    }
+                }
+            }
+
+            // Snapshot before popularity filter for series-completeness rescue
+            var beforePopularity = new HashSet<Book>(hash);
+
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, BookAllowedByRating, "rating criteria not met");
+
+            // Series completeness: if any book in a series survived the popularity filter
+            // (or was in localHash), restore other series members that were filtered out.
+            // This ensures complete series for authors whose books have files on disk.
+            if (bookSeriesIndex.Any())
+            {
+                var removedByPopularity = beforePopularity.Where(b => !hash.Contains(b)).ToList();
+                if (removedByPopularity.Any())
+                {
+                    var survivingSeriesIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var book in hash)
+                    {
+                        if (bookSeriesIndex.TryGetValue(book.ForeignBookId, out var seriesIds))
+                        {
+                            survivingSeriesIds.UnionWith(seriesIds);
+                        }
+                    }
+
+                    if (survivingSeriesIds.Any())
+                    {
+                        var rescued = removedByPopularity
+                            .Where(b => bookSeriesIndex.TryGetValue(b.ForeignBookId, out var seriesIds) &&
+                                        seriesIds.Overlaps(survivingSeriesIds))
+                            .ToList();
+
+                        if (rescued.Any())
+                        {
+                            _logger.Debug("Restoring {0} book(s) for series completeness after popularity filter: {1}",
+                                rescued.Count,
+                                string.Join(", ", rescued.Select(b => b.Title)));
+                            hash.UnionWith(rescued);
+                        }
+                    }
+                }
+            }
+
+            // New-author minimum guarantee: if the popularity filter removed ALL books
+            // and the author has no local books or files (i.e. newly added), restore the
+            // top books by popularity so the author has some content to work with.
+            if (!hash.Any() && !localHash.Any() && beforePopularity.Any())
+            {
+                var topBooks = beforePopularity
+                    .OrderByDescending(b => b.Ratings.Popularity)
+                    .ThenByDescending(b => b.Ratings.Value)
+                    .Take(25)
+                    .ToList();
+
+                _logger.Info("All {0} book(s) filtered by popularity (MinPopularity={1}). " +
+                             "Restoring top {2} book(s) for newly added author: {3}",
+                    beforePopularity.Count,
+                    profile.MinPopularity,
+                    topBooks.Count,
+                    string.Join(", ", topBooks.Select(b => $"{b.Title} (pop={b.Ratings.Popularity})")));
+
+                hash.UnionWith(topBooks);
+            }
+
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => !p.SkipMissingDate || x.ReleaseDate.HasValue, "release date is missing");
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => !p.SkipPartsAndSets || !IsPartOrSet(x, seriesLinks.GetValueOrDefault(x), titles), "book is part of set");
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => !p.SkipSeriesSecondary || !seriesLinks.ContainsKey(x) || seriesLinks[x].Any(y => y.IsPrimary), "book is a secondary series item");

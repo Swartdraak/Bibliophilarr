@@ -93,6 +93,8 @@ namespace NzbDrone.Core.MetadataSource
                 throw new BookNotFoundException(id);
             }
 
+            TryEnrichEditionIdentifiers(result.Item2, InferProviderFromScopedId(id));
+
             return result;
         }
 
@@ -232,6 +234,74 @@ namespace NzbDrone.Core.MetadataSource
             where T : class
         {
             return ExecuteFirst(operation, operationName, supports);
+        }
+
+        /// <summary>
+        /// Enriches missing edition identifiers (ASIN) by consulting supplementary providers
+        /// when the primary provider returned incomplete data. Uses ISBN-based lookup
+        /// against non-primary providers to fill gaps.
+        /// </summary>
+        private void TryEnrichEditionIdentifiers(Book book, string primaryProviderName)
+        {
+            if (book?.Editions?.Value == null)
+            {
+                return;
+            }
+
+            var editionsNeedingAsin = book.Editions.Value
+                .Where(e => e.Asin.IsNullOrWhiteSpace() && e.Isbn13.IsNotNullOrWhiteSpace())
+                .ToList();
+
+            if (!editionsNeedingAsin.Any())
+            {
+                return;
+            }
+
+            var supplementaryProviders = _registry.GetProviders()
+                .Where(p => p is ISearchForNewBook)
+                .Where(p => p.SupportsIsbnLookup)
+                .Where(p => primaryProviderName == null ||
+                            !string.Equals(p.ProviderName, primaryProviderName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (!supplementaryProviders.Any())
+            {
+                return;
+            }
+
+            foreach (var edition in editionsNeedingAsin)
+            {
+                foreach (var provider in supplementaryProviders)
+                {
+                    try
+                    {
+                        var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
+                        var matchedAsin = results?
+                            .SelectMany(b => b.Editions?.Value ?? new List<Edition>())
+                            .Select(e => e.Asin)
+                            .FirstOrDefault(a => a.IsNotNullOrWhiteSpace());
+
+                        if (matchedAsin != null)
+                        {
+                            edition.Asin = matchedAsin;
+                            _logger.Debug(
+                                "Enriched ASIN '{0}' for edition '{1}' from provider '{2}'",
+                                edition.Asin,
+                                edition.ForeignEditionId,
+                                provider.ProviderName);
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug(
+                            ex,
+                            "ASIN enrichment from '{0}' failed for ISBN '{1}'",
+                            provider.ProviderName,
+                            edition.Isbn13);
+                    }
+                }
+            }
         }
     }
 }

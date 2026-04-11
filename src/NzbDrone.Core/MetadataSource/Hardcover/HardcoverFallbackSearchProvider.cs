@@ -919,6 +919,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         }
                         editions(limit: 1) {
                             isbn_13
+                            asin
                             reading_format_id
                         }
                     }
@@ -1055,6 +1056,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                     }
                                     editions(limit: 1) {
                                         isbn_13
+                                        asin
                                         reading_format_id
                                     }
                                 }
@@ -1188,6 +1190,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                 }
                                 editions(limit: 1) {
                                     isbn_13
+                                    asin
                                     reading_format_id
                                 }
                             }
@@ -1416,6 +1419,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var authorId = bookData.SelectToken("cached_contributors[0].author.id")?.Value<int?>();
             var authorSlug = bookData.SelectToken("cached_contributors[0].author.slug")?.Value<string>();
             var isbn13 = bookData.SelectToken("editions[0].isbn_13")?.Value<string>();
+            var asin = bookData.SelectToken("editions[0].asin")?.Value<string>();
 
             // Hardcover reading_format_id: 1=Physical, 2=Ebook, 3=Audiobook, 4=Audio CD
             // Null when the field is not present in the schema or not populated.
@@ -1508,6 +1512,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 ReleaseDate = publishedDate,
                 Language = null,
                 Isbn13 = isbn13,
+                Asin = asin,
                 IsEbook = isEbook,
                 Book = book,
                 PageCount = pages ?? 0,

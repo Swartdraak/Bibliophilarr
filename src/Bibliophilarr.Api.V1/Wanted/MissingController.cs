@@ -43,16 +43,33 @@ namespace Bibliophilarr.Api.V1.Wanted
                 SortDirection = pagingResource.SortDirection
             };
 
+            var dualFormatEnabled = _configService.EnableDualFormatTracking;
+
             if (monitored)
             {
-                pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Author.Value.Monitored == true);
+                if (dualFormatEnabled)
+                {
+                    // In dual-format mode, monitoring is driven by AuthorFormatProfiles
+                    // which is already checked by the format-aware SQL builder.
+                    // Only require the author to be monitored at book level.
+                    pagingSpec.FilterExpressions.Add(v => v.Author.Value.Monitored == true);
+                }
+                else
+                {
+                    pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Author.Value.Monitored == true);
+                }
             }
             else
             {
-                pagingSpec.FilterExpressions.Add(v => v.Monitored == false || v.Author.Value.Monitored == false);
+                if (dualFormatEnabled)
+                {
+                    pagingSpec.FilterExpressions.Add(v => v.Author.Value.Monitored == false);
+                }
+                else
+                {
+                    pagingSpec.FilterExpressions.Add(v => v.Monitored == false || v.Author.Value.Monitored == false);
+                }
             }
-
-            var dualFormatEnabled = _configService.EnableDualFormatTracking;
 
             return pagingSpec.ApplyToPage(spec => _bookService.BooksWithoutFiles(spec, formatType, dualFormatEnabled), v => MapToResource(v, includeAuthor));
         }

@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 10, 2026 (Track C/D/E added; bookFile DELETE fix, formatStatuses enrichment, progress bar colors, QP column removal, translations)
+**Last Updated**: April 11, 2026 (v1.1.0-dev.33: decision engine format-aware profiles, monitoring sync, search/parser guards, test fixes)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -50,6 +50,7 @@ The following items were added to canonical planning for immediate/future delive
 - **DF-15 complete**: calendar format filter — ebook/audiobook filter options in calendar view.
 - **DF-16 complete**: author index format column — format profiles column with monitored status indicators.
 - **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
+- **Decision engine hardened (v1.1.0-dev.33)**: `DelaySpecification` and `CustomFormatAllowedByProfileSpecification` now use `ResolveProfile()` for format-aware quality profiles. All 7 decision engine specifications (5 prior + 2 new) consistently resolve per-format profiles when dual-format tracking is enabled. Monitoring sync, search filters, parser guards, and history table null safety also addressed.
 
 3. Native ebook metadata tag writing (without Calibre)
 

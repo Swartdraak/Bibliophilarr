@@ -21,16 +21,19 @@ namespace NzbDrone.Core.Books
     {
         private readonly IAuthorFormatProfileRepository _repository;
         private readonly Lazy<IAuthorService> _authorService;
+        private readonly Lazy<IBookService> _bookService;
         private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public AuthorFormatProfileService(IAuthorFormatProfileRepository repository,
                                           Lazy<IAuthorService> authorService,
+                                          Lazy<IBookService> bookService,
                                           IConfigService configService,
                                           Logger logger)
         {
             _repository = repository;
             _authorService = authorService;
+            _bookService = bookService;
             _configService = configService;
             _logger = logger;
         }
@@ -117,10 +120,38 @@ namespace NzbDrone.Core.Books
                     author.Monitored = anyMonitored;
                     _authorService.Value.UpdateAuthor(author);
                 }
+
+                // Keep Books.Monitored in sync: when any format profile is monitored,
+                // books need Monitored=true so they appear in Wanted/Missing and search.
+                SyncBooksMonitored(authorId, anyMonitored);
             }
             catch (Exception ex)
             {
                 _logger.Warn(ex, "Failed to sync Author.Monitored for author id {0}", authorId);
+            }
+        }
+
+        private void SyncBooksMonitored(int authorId, bool monitored)
+        {
+            try
+            {
+                var books = _bookService.Value.GetBooksByAuthor(authorId);
+                var toUpdate = books.Where(b => b.Monitored != monitored).Select(b => b.Id).ToList();
+
+                if (toUpdate.Any())
+                {
+                    _bookService.Value.SetMonitored(toUpdate, monitored);
+
+                    _logger.Debug(
+                        "Synced Books.Monitored to {0} for {1} book(s) of author id {2}",
+                        monitored,
+                        toUpdate.Count,
+                        authorId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Failed to sync Books.Monitored for author id {0}", authorId);
             }
         }
     }

@@ -41,7 +41,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                 return Decision.Accept();
             }
 
-            var qualityProfile = subject.Author.QualityProfile.Value;
+            var qualityProfile = _upgradableSpecification.ResolveProfile(subject);
             var delayProfile = _delayProfileService.BestForTags(subject.Author.Tags);
             var delay = delayProfile.GetProtocolDelay(subject.Release.DownloadProtocol);
             var isPreferredProtocol = subject.Release.DownloadProtocol == delayProfile.PreferredProtocol;

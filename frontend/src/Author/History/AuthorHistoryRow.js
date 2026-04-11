@@ -96,7 +96,7 @@ class AuthorHistoryRow extends Component {
         />
 
         <TableRowCell key={name}>
-          {book.title}
+          {book ? book.title : translate('Unknown')}
         </TableRowCell>
 
         <TableRowCell className={styles.sourceTitle}>

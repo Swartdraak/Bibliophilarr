@@ -7,11 +7,28 @@ process.
 
 ## [Unreleased]
 
+## [1.1.0-dev.33] - 2026-04-11
+
+### Fixed
+
+- **Decision engine format-aware profiles (DelaySpecification)**: `DelaySpecification` now uses `UpgradableSpecification.ResolveProfile(subject)` for format-resolved quality profile instead of `subject.Author.QualityProfile.Value`. Ensures delay bypass (highest quality, custom format score) evaluates against the correct format-specific profile when dual-format tracking is enabled.
+- **Decision engine format-aware profiles (CustomFormatAllowedByProfileSpecification)**: `CustomFormatAllowedByProfileSpecification` now injects `UpgradableSpecification` and uses `ResolveProfile(subject)` to resolve `MinFormatScore`. Previously used the base author quality profile directly, ignoring per-format profile overrides.
+- **Monitoring sync batch optimization**: `AuthorFormatProfileService.SyncBooksMonitored()` now uses batch `SetMonitored(ids, monitored)` instead of per-book `SetToggleMonitored()`, preventing O(n) event storms when toggling author monitoring state.
+- **Missing/Cutoff dual-format monitoring filter**: `MissingController` and `CutoffController` now apply format-aware monitoring filters via `IConfigService.EnableDualFormatTracking`, correctly filtering books where the author has a format profile with monitoring enabled for the requested format type.
+- **Book search dual-format filter**: `BookSearchService.AddMonitoredFilter()` respects per-format monitoring state when dual-format tracking is enabled, preventing searches for formats the author has disabled.
+- **Release search format awareness**: `ReleaseSearchService.AuthorSearch()` and `BookSearch()` now evaluate format type when building search decisions, with NRE guard (`monitoredEdition?.Title ?? book.Title`) for books without monitored editions.
+- **History table null guard**: `AuthorHistoryRow.js` now renders `book ? book.title : translate('Unknown')` instead of crashing when the book prop is null (e.g. for deleted books in history).
+- **Parser crash guard**: `Parser.ParseBookTitleWithSearchCriteria()` now pre-filters books to those with monitored editions (`.Where(x => x.Editions.Value.Any(e => e.Monitored))`) and uses `FirstOrDefault()` instead of `First()`, preventing `InvalidOperationException` on empty result sets.
+- **Metadata profile new-author minimum guarantee**: `MetadataProfileService` ensures new authors get at least the top 25 books by popularity when metadata profile filtering would otherwise exclude all books due to missing series data or low popularity scores.
+- **ASIN enrichment in search**: `HardcoverFallbackSearchProvider` now includes ASIN in all three GraphQL queries and `MapDirectBookResult` extraction, improving search result matching for Amazon-sourced books.
+- **Test: DelaySpecificationFixture**: Added `ResolveProfile` mock to test setup so format-resolved profile is available during delay evaluation tests.
+- **Test: DownloadDecisionMakerFixture**: Removed stale `ExpectedErrors(1)` assertion from `should_return_rejected_result_for_unparsable_search` — the Parser's new monitored-edition guard returns null gracefully instead of throwing, so 0 errors are expected.
+
 ### Added
 
 - **Hardlink-aware download tracking**: `CompletedDownloadService.Check()` detects when completed download files are already hardlinked into the library via inode comparison (`IDiskProvider.AreSameFile`). When all download files share inodes with library files, the download is marked `Imported` immediately — no re-import attempted, no overwrite confirmation. The download stays tracked in the client for seed time enforcement. Implemented via `Syscall.stat` inode+device comparison on Linux and `GetFileInformationByHandle` file index comparison on Windows.
 
-### Fixed
+### Fixed (previous session)
 
 - **Manual Import dual-format scanning**: `ManualImportController` now scans all format profile root folders (e.g. `/media/ebooks/Shirtaloon` + `/media/audiobooks/Shirtaloon`) when dual-format tracking is enabled and authorId is provided. Previously passed only the single `author.Path` to the modal, blocking file assignment across root folders. Constructs full paths from `AuthorFormatProfile.RootFolderPath` + author folder name when `Path` is empty.
 - **Missing page format-aware query**: `BookRepository.BooksWithoutFilesBuilder` uses quality-based NOT EXISTS subqueries (ebook IDs 0-4, audiobook IDs 10-13) instead of edition-level file joins when dual-format is enabled. Books with audiobook files but no ebook files (e.g. Shirtaloon books 737-742, 317, 745-747) now correctly appear on the Wanted/Missing page. Total missing jumped from 15 → 44.
