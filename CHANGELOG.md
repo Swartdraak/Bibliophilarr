@@ -7,6 +7,10 @@ process.
 
 ## [Unreleased]
 
+### Added
+
+- **Hardlink-aware download tracking**: `CompletedDownloadService.Check()` detects when completed download files are already hardlinked into the library via inode comparison (`IDiskProvider.AreSameFile`). When all download files share inodes with library files, the download is marked `Imported` immediately — no re-import attempted, no overwrite confirmation. The download stays tracked in the client for seed time enforcement. Implemented via `Syscall.stat` inode+device comparison on Linux and `GetFileInformationByHandle` file index comparison on Windows.
+
 ### Fixed
 
 - **Manual Import dual-format scanning**: `ManualImportController` now scans all format profile root folders (e.g. `/media/ebooks/Shirtaloon` + `/media/audiobooks/Shirtaloon`) when dual-format tracking is enabled and authorId is provided. Previously passed only the single `author.Path` to the modal, blocking file assignment across root folders. Constructs full paths from `AuthorFormatProfile.RootFolderPath` + author folder name when `Path` is empty.

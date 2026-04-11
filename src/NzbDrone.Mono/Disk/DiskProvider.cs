@@ -484,6 +484,24 @@ namespace NzbDrone.Mono.Disk
             return _createRefLink.TryCreateRefLink(source, destination);
         }
 
+        public override bool AreSameFile(string path1, string path2)
+        {
+            try
+            {
+                if (Syscall.stat(path1, out var stat1) != 0 || Syscall.stat(path2, out var stat2) != 0)
+                {
+                    return false;
+                }
+
+                return stat1.st_ino == stat2.st_ino && stat1.st_dev == stat2.st_dev;
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Failed to compare inodes for '{0}' and '{1}'", path1, path2);
+                return false;
+            }
+        }
+
         private uint GetUserId(string user)
         {
             if (user.IsNullOrWhiteSpace())

@@ -36,6 +36,7 @@ namespace NzbDrone.Common.Disk
         bool TryRenameFile(string source, string destination);
         bool TryCreateHardLink(string source, string destination);
         bool TryCreateRefLink(string source, string destination);
+        bool AreSameFile(string path1, string path2);
         void DeleteFolder(string path, bool recursive);
         string ReadAllText(string filePath);
         void WriteAllText(string filename, string contents);

@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NLog;
+using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
@@ -29,6 +31,9 @@ namespace NzbDrone.Core.Download
         private readonly IProvideImportItemService _provideImportItemService;
         private readonly IDownloadedBooksImportService _downloadedTracksImportService;
         private readonly ITrackedDownloadAlreadyImported _trackedDownloadAlreadyImported;
+        private readonly IDiskProvider _diskProvider;
+        private readonly IMediaFileService _mediaFileService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public CompletedDownloadService(IEventAggregator eventAggregator,
@@ -36,6 +41,9 @@ namespace NzbDrone.Core.Download
                                         IProvideImportItemService provideImportItemService,
                                         IDownloadedBooksImportService downloadedTracksImportService,
                                         ITrackedDownloadAlreadyImported trackedDownloadAlreadyImported,
+                                        IDiskProvider diskProvider,
+                                        IMediaFileService mediaFileService,
+                                        IConfigService configService,
                                         Logger logger)
         {
             _eventAggregator = eventAggregator;
@@ -43,6 +51,9 @@ namespace NzbDrone.Core.Download
             _provideImportItemService = provideImportItemService;
             _downloadedTracksImportService = downloadedTracksImportService;
             _trackedDownloadAlreadyImported = trackedDownloadAlreadyImported;
+            _diskProvider = diskProvider;
+            _mediaFileService = mediaFileService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -71,6 +82,19 @@ namespace NzbDrone.Core.Download
 
             if (!ValidatePath(trackedDownload))
             {
+                return;
+            }
+
+            // When using hardlinks, check if download files are already linked into the library.
+            // If so, skip import and mark as Imported — the files are already in place.
+            // The download stays tracked in the client for seed time enforcement.
+            if (_configService.CopyUsingHardlinks && IsAlreadyLinkedToLibrary(trackedDownload))
+            {
+                _logger.Info("Download '{0}' files are already hardlinked to library, marking as imported (tracked for seeding)", trackedDownload.DownloadItem.Title);
+                trackedDownload.State = TrackedDownloadState.Imported;
+
+                var authorId = trackedDownload.RemoteBook?.Author?.Id ?? 0;
+                _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, authorId));
                 return;
             }
 
@@ -190,6 +214,81 @@ namespace NzbDrone.Core.Download
         private void SetImportItem(TrackedDownload trackedDownload)
         {
             trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+        }
+
+        private bool IsAlreadyLinkedToLibrary(TrackedDownload trackedDownload)
+        {
+            var outputPath = trackedDownload.ImportItem?.OutputPath;
+
+            if (outputPath == null || outputPath.Value.IsEmpty)
+            {
+                return false;
+            }
+
+            var author = trackedDownload.RemoteBook?.Author;
+
+            if (author == null)
+            {
+                return false;
+            }
+
+            var libraryFiles = _mediaFileService.GetFilesByAuthor(author.Id);
+
+            if (!libraryFiles.Any())
+            {
+                return false;
+            }
+
+            var downloadPath = outputPath.Value.FullPath;
+            List<string> downloadFiles;
+
+            if (_diskProvider.FolderExists(downloadPath))
+            {
+                downloadFiles = _diskProvider.GetFiles(downloadPath, true).ToList();
+            }
+            else if (_diskProvider.FileExists(downloadPath))
+            {
+                downloadFiles = new List<string> { downloadPath };
+            }
+            else
+            {
+                return false;
+            }
+
+            if (!downloadFiles.Any())
+            {
+                return false;
+            }
+
+            // Check if every download file has a matching library file with the same inode.
+            // This confirms the library already contains hardlinks to these download files.
+            var libraryPaths = libraryFiles
+                .Where(f => f.Path.IsNotNullOrWhiteSpace() && _diskProvider.FileExists(f.Path))
+                .Select(f => f.Path)
+                .ToList();
+
+            var linkedCount = 0;
+
+            foreach (var dlFile in downloadFiles)
+            {
+                foreach (var libPath in libraryPaths)
+                {
+                    if (_diskProvider.AreSameFile(dlFile, libPath))
+                    {
+                        _logger.Debug("Download file '{0}' is hardlinked to library file '{1}'", Path.GetFileName(dlFile), Path.GetFileName(libPath));
+                        linkedCount++;
+                        break;
+                    }
+                }
+            }
+
+            _logger.Debug(
+                "Hardlink check for '{0}': {1}/{2} download files linked to library",
+                trackedDownload.DownloadItem.Title,
+                linkedCount,
+                downloadFiles.Count);
+
+            return linkedCount == downloadFiles.Count;
         }
 
         private bool ValidatePath(TrackedDownload trackedDownload)
