@@ -169,16 +169,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (localYear > 0 && edition.ReleaseDate.HasValue)
             {
                 var bookYear = edition.ReleaseDate?.Year ?? 0;
-                if (localYear == bookYear)
+                var diff = Math.Abs(localYear - bookYear);
+
+                // Tolerate differences of up to 1 year as equivalent (no penalty).
+                // Ebook and audiobook editions of the same work commonly differ by
+                // a year, and file metadata tags may reference the audiobook release
+                // date while the DB stores the first publication date.  Without this
+                // tolerance, a 1-year offset can incorrectly tip the balance toward
+                // a wrong candidate with a worse title match but exact year.
+                if (diff <= 1)
                 {
                     dist.Add("year", 0.0);
                 }
                 else
                 {
-                    var remoteYear = bookYear;
-                    var diff = Math.Abs(localYear - remoteYear);
-                    var diff_max = Math.Abs(DateTime.Now.Year - remoteYear);
-                    dist.AddRatio("year", diff, diff_max);
+                    var diff_max = Math.Abs(DateTime.Now.Year - bookYear);
+                    dist.AddRatio("year", diff - 1, diff_max);
                 }
 
                 Logger.Trace($"year: {localYear} vs {edition.ReleaseDate?.Year}; {dist.NormalizedDistance()}");
