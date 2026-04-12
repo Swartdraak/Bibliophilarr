@@ -40,6 +40,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             { "recording_id", 10.0 },
             { "volume_mismatch", 5.0 },
             { "volume_absent_vs_present", 0.5 },
+            { "collection_set", 5.0 },
         };
 
         private Dictionary<string, List<double>> _penalties;

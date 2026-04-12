@@ -27,6 +27,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             @"(?:vol(?:ume)?|book|part|b|v|#)[\s._-]*(\d+)",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // Matches collection / box-set title patterns so the identification
+        // service can penalise these editions when the file title is clearly
+        // for a standalone work (prevents "Lights Out" matching a collection
+        // set that embeds the title in a longer string).
+        private static readonly Regex CollectionSetRegex = new Regex(
+            @"\b(?:\d+[\s-]*books?\s+collection|collection\s+set|box\s*set|boxed\s+set|omnibus\s+edition)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private static readonly List<string> EbookFormats = new List<string> { "Kindle Edition", "Nook", "ebook" };
 
         private static readonly List<string> AudiobookFormats = new List<string> { "Audiobook", "Audio CD", "Audio Cassette", "Audible Audio", "CD-ROM", "MP3 CD" };
@@ -84,6 +92,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             dist.AddString(titleKey, fileTitles, titleOptions);
             Logger.Trace("book: '{0}' vs '{1}' ({2:0.00}); {3}", fileTitles.ConcatToString("' or '"), titleOptions.ConcatToString("' or '"), titleConfidence, dist.NormalizedDistance());
+
+            // Penalise collection/box-set editions when the file title isn't
+            // itself a collection.  Without this, a long collection title that
+            // embeds a standalone book name can accidentally score better than
+            // the actual standalone edition due to normalisation effects.
+            var editionIsSet = CollectionSetRegex.IsMatch(edition.Title);
+            var fileIsSet = fileTitles.Any(t => CollectionSetRegex.IsMatch(t));
+            if (editionIsSet && !fileIsSet)
+            {
+                dist.AddBool("collection_set", true);
+                Logger.Trace("collection_set penalty applied for edition '{0}'; {1}", edition.Title, dist.NormalizedDistance());
+            }
 
             // Volume/series number comparison: prevents stripping from collapsing all
             // volumes to the same base title and losing volume-specific matching.
