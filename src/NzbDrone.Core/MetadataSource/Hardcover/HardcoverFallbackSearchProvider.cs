@@ -921,6 +921,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             isbn_13
                             asin
                             reading_format_id
+                            language { language }
                         }
                     }
                 }",
@@ -1058,6 +1059,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                         isbn_13
                                         asin
                                         reading_format_id
+                                        language { language }
                                     }
                                 }
                             }
@@ -1089,6 +1091,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     return new List<Book>();
                 }
 
+                // Build the queried author's identity so co-authored books get
+                // attributed to this author, not to cached_contributors[0].
+                var queriedAuthorName = authorData.Value<string>("name")?.Trim();
+                var queriedAuthorId = authorData.Value<int?>("id");
+
                 var books = new List<Book>();
                 var seenIds = new HashSet<string>();
                 var seriesCount = 0;
@@ -1104,6 +1111,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     var book = MapDirectBookResult(bookData);
                     if (book != null && seenIds.Add(book.ForeignBookId))
                     {
+                        OverrideBookAuthor(book, queriedAuthorId, queriedAuthorName);
                         books.Add(book);
                         if (book.SeriesLinks?.Value?.Any() == true)
                         {
@@ -1192,6 +1200,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                     isbn_13
                                     asin
                                     reading_format_id
+                                    language { language }
                                 }
                             }
                         }
@@ -1225,6 +1234,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     return new List<Book>();
                 }
 
+                var queriedAuthorId = authorData.Value<int?>("id");
+
                 var books = new List<Book>();
                 var seenIds = new HashSet<string>();
                 var seriesCount = 0;
@@ -1240,6 +1251,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     var book = MapDirectBookResult(bookData);
                     if (book != null && seenIds.Add(book.ForeignBookId))
                     {
+                        OverrideBookAuthor(book, queriedAuthorId, authorName);
                         books.Add(book);
                         if (book.SeriesLinks?.Value?.Any() == true)
                         {
@@ -1391,6 +1403,43 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
         }
 
+        /// <summary>
+        /// Overrides the author metadata on a book to match the queried author rather
+        /// than whichever contributor happened to be first in cached_contributors.
+        /// This is critical for co-authored books where the searched author may not
+        /// be the first contributor in Hardcover's data.
+        /// </summary>
+        private static void OverrideBookAuthor(Book book, int? authorId, string authorName)
+        {
+            if (authorName.IsNullOrWhiteSpace())
+            {
+                return;
+            }
+
+            var foreignAuthorId = authorId.HasValue
+                ? BuildHardcoverAuthorId(authorId.Value)
+                : BuildHardcoverAuthorId(authorName);
+
+            var metadata = book.AuthorMetadata?.Value;
+            if (metadata != null && !string.Equals(metadata.ForeignAuthorId, foreignAuthorId, StringComparison.OrdinalIgnoreCase))
+            {
+                metadata.ForeignAuthorId = foreignAuthorId;
+                metadata.TitleSlug = foreignAuthorId.ToUrlSlug();
+                metadata.Name = authorName;
+                metadata.SortName = authorName.ToLowerInvariant();
+                metadata.NameLastFirst = authorName.ToLastFirst();
+                metadata.SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant();
+            }
+
+            if (book.Author?.Value?.Metadata != null)
+            {
+                book.Author.Value.Metadata = metadata;
+                book.Author.Value.AuthorMetadataId = metadata?.Id ?? 0;
+            }
+
+            book.AuthorMetadata = metadata;
+        }
+
         private static Book MapDirectBookResult(JToken bookData)
         {
             if (bookData == null)
@@ -1420,6 +1469,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var authorSlug = bookData.SelectToken("cached_contributors[0].author.slug")?.Value<string>();
             var isbn13 = bookData.SelectToken("editions[0].isbn_13")?.Value<string>();
             var asin = bookData.SelectToken("editions[0].asin")?.Value<string>();
+            var editionLanguage = bookData.SelectToken("editions[0].language.language")?.Value<string>();
 
             // Hardcover reading_format_id: 1=Physical, 2=Ebook, 3=Audiobook, 4=Audio CD
             // Null when the field is not present in the schema or not populated.
@@ -1510,7 +1560,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 TitleSlug = $"hardcover:edition:{id}".ToUrlSlug(),
                 Title = title,
                 ReleaseDate = publishedDate,
-                Language = null,
+                Language = editionLanguage,
                 Isbn13 = isbn13,
                 Asin = asin,
                 IsEbook = isEbook,

@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 11, 2026 (v1.1.0-dev.33: decision engine format-aware profiles, monitoring sync, search/parser guards, test fixes)
+**Last Updated**: April 12, 2026 (v1.1.0-dev.34: Hardcover sparse-data popularity fix, co-authored book attribution, collection detection, manual import path fix, BookFiles dedupe)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 

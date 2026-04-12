@@ -7,6 +7,17 @@ process.
 
 ## [Unreleased]
 
+## [1.1.0-dev.34] - 2026-04-12
+
+### Fixed
+
+- **Sparse Hardcover data popularity guarantee**: `MetadataProfileService.FilterBooks()` now applies a sparse-data minimum guarantee when the popularity filter removes >75% of an author's books. Restores up to 25 top books by popularity regardless of local file state. Previously, the guarantee only fired for newly added authors with zero local files — causing authors like David Weber (1 file) and Anne McCaffrey (5 files) to have most of their bibliography filtered out because Hardcover books commonly have 0 ratings (popularity = 0).
+- **Co-authored book attribution**: `HardcoverFallbackSearchProvider.FetchAuthorBooks()` and `FetchAuthorBooksById()` now override each book's `AuthorMetadata` with the queried author's identity after `MapDirectBookResult()`. Previously, `cached_contributors[0]` determined the author, causing co-authored books (e.g. Anne McCaffrey & Mercedes Lackey's "The Ship Who Searched") to be attributed to whichever contributor Hardcover listed first instead of the searched author.
+- **Collection/box-set detection**: `MetadataProfileService.IsPartOrSet()` now detects common collection title patterns ("N Books Collection Set", "Box Set", "Boxed Set", "Omnibus Edition") via a dedicated regex, in addition to the existing numeric-range patterns. Prevents collection entries like "Into Darkness Series, 2 Books Collection Set" from being imported as real books.
+- **Manual Import path discovery**: `ManualImportController.GetMediaFiles()` no longer filters format profile paths by `fp.Monitored` when discovering scan paths. All format profiles with root folders are used for path discovery, so unmonitored author format profiles still allow manual import file scanning.
+- **BookFiles UNIQUE constraint on rescan**: `DiskScanService.Scan()` deduplicates new file insertions by path before calling `AddMany()`, preventing `UNIQUE constraint failed: BookFiles.Path` errors when overlapping folder scans (e.g. two format profiles pointing to the same directory) produce duplicate file decisions.
+- **Edition language filter blocking all Hardcover books**: `MetadataProfileService.FilterEditions()` now passes editions with null/unknown language through the `AllowedLanguages` filter instead of rejecting them. Previously, editions with `Language = null` never matched any allowed language (e.g. "eng"), silently removing every Hardcover-sourced edition — which cascaded to remove all books without local files. This was the root cause preventing any new book metadata from being imported during author refresh. Additionally, `HardcoverFallbackSearchProvider` now requests `language { language }` in all three GraphQL edition queries (`FetchAuthorBooks`, `FetchAuthorBooksById`, `FetchBookByWorkId`) and maps the response into `Edition.Language` via `MapDirectBookResult()`.
+
 ## [1.1.0-dev.33] - 2026-04-11
 
 ### Fixed

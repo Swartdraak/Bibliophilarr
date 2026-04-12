@@ -63,8 +63,12 @@ namespace Bibliophilarr.Api.V1.ManualImport
                     {
                         var formatProfiles = _formatProfileService.GetByAuthorId(author.Id);
                         var authorFolderName = new DirectoryInfo(author.Path).Name;
+
+                        // Use all format profiles for path discovery — not just
+                        // monitored ones.  Manual import should show files from all
+                        // known locations regardless of monitoring state.
                         var paths = formatProfiles
-                            .Where(fp => fp.Monitored && !string.IsNullOrWhiteSpace(fp.RootFolderPath))
+                            .Where(fp => !string.IsNullOrWhiteSpace(fp.RootFolderPath))
                             .Select(fp => !string.IsNullOrWhiteSpace(fp.Path) ? fp.Path : Path.Combine(fp.RootFolderPath, authorFolderName))
                             .Distinct()
                             .ToList();

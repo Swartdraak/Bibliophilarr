@@ -35,6 +35,13 @@ namespace NzbDrone.Core.Profiles.Metadata
         private static readonly Regex PartOrSetRegex = new Regex(@"(?<from>\d+) of (?<to>\d+)|(?<from>\d+)\s?/\s?(?<to>\d+)|(?<from>\d+)\s?-\s?(?<to>\d+)",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        // Matches common collection / box-set title patterns (e.g.
+        // "2 Books Collection Set", "Complete Box Set", "Boxed Set",
+        // "3-Book Collection", "Omnibus Edition").
+        private static readonly Regex CollectionSetRegex = new Regex(
+            @"\b(?:\d+[\s-]*books?\s+collection|collection\s+set|box\s*set|boxed\s+set|omnibus\s+edition)\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private readonly IMetadataProfileRepository _profileRepository;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
@@ -220,25 +227,45 @@ namespace NzbDrone.Core.Profiles.Metadata
                 }
             }
 
-            // New-author minimum guarantee: if the popularity filter removed ALL books
-            // and the author has no local books or files (i.e. newly added), restore the
-            // top books by popularity so the author has some content to work with.
-            if (!hash.Any() && !localHash.Any() && beforePopularity.Any())
+            // Sparse-data minimum guarantee: when the popularity filter removes a
+            // large fraction of books (>75%), restore the top books so the author
+            // maintains a reasonable catalogue.  Hardcover data commonly has very
+            // sparse ratings (many books with 0 votes → popularity 0), which causes
+            // the MinPopularity threshold to remove most or all of an author's
+            // bibliography.  The guarantee fires for *all* authors — not just newly-
+            // added ones — so that authors with a few local files still have their
+            // catalogue filled in once metadata refreshes.
+            const int MinGuaranteedBooks = 25;
+            const double SparseDataThreshold = 0.75;
+
+            if (beforePopularity.Count > 0 && hash.Count < MinGuaranteedBooks)
             {
-                var topBooks = beforePopularity
-                    .OrderByDescending(b => b.Ratings.Popularity)
-                    .ThenByDescending(b => b.Ratings.Value)
-                    .Take(25)
-                    .ToList();
+                var removedFraction = 1.0 - ((double)hash.Count / beforePopularity.Count);
+                if (removedFraction >= SparseDataThreshold)
+                {
+                    var needed = MinGuaranteedBooks - hash.Count;
+                    var candidates = beforePopularity
+                        .Where(b => !hash.Contains(b))
+                        .OrderByDescending(b => b.Ratings.Popularity)
+                        .ThenByDescending(b => b.Ratings.Value)
+                        .Take(needed)
+                        .ToList();
 
-                _logger.Info("All {0} book(s) filtered by popularity (MinPopularity={1}). " +
-                             "Restoring top {2} book(s) for newly added author: {3}",
-                    beforePopularity.Count,
-                    profile.MinPopularity,
-                    topBooks.Count,
-                    string.Join(", ", topBooks.Select(b => $"{b.Title} (pop={b.Ratings.Popularity})")));
+                    if (candidates.Any())
+                    {
+                        _logger.Info(
+                            "Popularity filter removed {0:P0} of {1} book(s) (MinPopularity={2}, surviving={3}). " +
+                            "Restoring {4} top book(s) for sparse-data guarantee: {5}",
+                            removedFraction,
+                            beforePopularity.Count,
+                            profile.MinPopularity,
+                            hash.Count,
+                            candidates.Count,
+                            string.Join(", ", candidates.Select(b => $"{b.Title} (pop={b.Ratings.Popularity})")));
 
-                hash.UnionWith(topBooks);
+                        hash.UnionWith(candidates);
+                    }
+                }
             }
 
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => !p.SkipMissingDate || x.ReleaseDate.HasValue, "release date is missing");
@@ -268,7 +295,7 @@ namespace NzbDrone.Core.Profiles.Metadata
             var localHash = new HashSet<string>(localEditions.Where(x => x.ManualAdd).Select(x => x.ForeignEditionId));
             localHash.UnionWith(localFiles.Select(x => x.Edition.Value.ForeignEditionId));
 
-            FilterByPredicate(hash, x => x.ForeignEditionId, localHash, profile, (x, p) => !allowedLanguages.Any() || allowedLanguages.Contains(x.Language?.CanonicalizeLanguage()), "edition language not allowed");
+            FilterByPredicate(hash, x => x.ForeignEditionId, localHash, profile, (x, p) => !allowedLanguages.Any() || x.Language.IsNullOrWhiteSpace() || allowedLanguages.Contains(x.Language.CanonicalizeLanguage()), "edition language not allowed");
             FilterByPredicate(hash, x => x.ForeignEditionId, localHash, profile, (x, p) => !p.SkipMissingIsbn || x.Isbn13.IsNotNullOrWhiteSpace() || x.Asin.IsNotNullOrWhiteSpace(), "isbn and asin is missing");
             FilterByPredicate(hash, x => x.ForeignEditionId, localHash, profile, (x, p) => !p.Ignored.Any(i => MatchesTerms(x.Title, i)), "contains ignored terms");
 
@@ -323,6 +350,12 @@ namespace NzbDrone.Core.Profiles.Metadata
             {
                 var from = int.Parse(match.Groups["from"].Value);
                 return from <= 1800 || from > DateTime.UtcNow.Year;
+            }
+
+            // Detect common collection / box-set title patterns
+            if (CollectionSetRegex.IsMatch(book.Title))
+            {
+                return true;
             }
 
             return false;
