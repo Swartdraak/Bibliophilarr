@@ -7,6 +7,17 @@ process.
 
 ## [Unreleased]
 
+## [1.1.0-dev.35] - 2026-04-12
+
+### Fixed
+
+- **Duplicate work deduplication**: `HardcoverFallbackSearchProvider` now deduplicates similar works from Hardcover by normalized base title (stripping series suffixes and parentheticals). Groups are resolved by data richness (ISBN, ASIN, page count, ratings), keeping the best-scoring work. Removes re-entries like "Caught Up" vs "Caught Up: Into Darkness Trilogy" and "Lights Out" vs "Lights Out: Into Darkness, Book 1".
+- **Deduped books actually removed from DB**: `RefreshAuthorService.RefreshChildren()` now explicitly deletes books marked as "Deleted" (not in remote set) when they have no local files and were not manually added, then refreshes only the remaining books. Previously, deleted books were passed to `RefreshBookInfo` which re-fetched them individually from Hardcover, so duplicates survived every refresh cycle.
+- **Unwanted author auto-addition guard**: `RefreshBookService.EnsureNewParent()` now guards against auto-adding unknown authors during individual book refresh. When the remote provider returns a different author (e.g. an anthology editor) that doesn't already exist in the DB, the method overrides the remote metadata back to the local author instead of creating a new author entry. Prevents cases like John Joseph Adams (editor) being auto-added when refreshing a book by Alan Dean Foster.
+- **Zero-page books filtered when MinPages > 0**: `MetadataProfileService.FilterBooks()` page-count filter changed from `|| x.Editions.Value.All(e => e.PageCount == 0)` (which let all zero-page books through regardless) to `p.MinPages <= 0 ||` guard — zero-page books are now correctly filtered when the metadata profile sets a minimum page count.
+- **Multi-edition language selection**: All three Hardcover GraphQL queries now fetch up to 5 editions (was 1) with the `pages` field. New `SelectBestEdition()` method scores editions by language preference (English +100, null +50), identifier richness (ISBN/ASIN), and page data, ensuring the best English edition is selected instead of whichever Hardcover returns first. Fixes non-English editions (German, French, Portuguese, etc.) being imported despite `AllowedLanguages=eng`.
+- **Cross-provider metadata enrichment**: New `TryEnrichEditionMetadata()` in `MetadataProviderOrchestrator` enriches missing page counts, release dates, languages, and overviews from supplementary providers (OpenLibrary, Google Books) via ISBN lookup after initial Hardcover fetch.
+
 ## [1.1.0-dev.34] - 2026-04-12
 
 ### Fixed

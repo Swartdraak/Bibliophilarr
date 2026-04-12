@@ -917,11 +917,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                 primary_books_count
                             }
                         }
-                        editions(limit: 1) {
+                        editions(limit: 5) {
                             isbn_13
                             asin
                             reading_format_id
                             language { language }
+                            pages
                         }
                     }
                 }",
@@ -1055,11 +1056,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             primary_books_count
                                         }
                                     }
-                                    editions(limit: 1) {
+                                    editions(limit: 5) {
                                         isbn_13
                                         asin
                                         reading_format_id
                                         language { language }
+                                        pages
                                     }
                                 }
                             }
@@ -1121,7 +1123,14 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
 
                 _logger.Debug("Hardcover author search for '{0}' returned {1} books via contributions ({2} with series).", authorName, books.Count, seriesCount);
-                return books;
+
+                var deduped = DeduplicateSimilarWorks(books);
+                if (deduped.Count < books.Count)
+                {
+                    _logger.Debug("Deduplicated {0} → {1} books for '{2}'.", books.Count, deduped.Count, authorName);
+                }
+
+                return deduped;
             }
             catch (Exception ex)
             {
@@ -1196,11 +1205,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                         primary_books_count
                                     }
                                 }
-                                editions(limit: 1) {
+                                editions(limit: 5) {
                                     isbn_13
                                     asin
                                     reading_format_id
                                     language { language }
+                                    pages
                                 }
                             }
                         }
@@ -1266,7 +1276,14 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     authorName ?? "?",
                     books.Count,
                     seriesCount);
-                return books;
+
+                var deduped = DeduplicateSimilarWorks(books);
+                if (deduped.Count < books.Count)
+                {
+                    _logger.Debug("Deduplicated {0} → {1} books for author ID {2}.", books.Count, deduped.Count, authorId);
+                }
+
+                return deduped;
             }
             catch (Exception ex)
             {
@@ -1440,6 +1457,160 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             book.AuthorMetadata = metadata;
         }
 
+        /// <summary>
+        /// Removes duplicate Hardcover works that represent the same real-world book.
+        /// Hardcover sometimes has multiple work entries for the same title with slight
+        /// variations (e.g. "Lights Out" vs "Lights Out: Into Darkness, Book 1" vs
+        /// "Caught Up" vs "Caught Up: Into Darkness Trilogy").
+        ///
+        /// Groups books by a normalised base title (stripping series suffixes like
+        /// ": Series Name, Book N" and common subtitle patterns). When duplicates
+        /// are found, keeps the work with the most metadata (ISBN, ASIN, pages,
+        /// ratings).
+        /// </summary>
+        private static List<Book> DeduplicateSimilarWorks(List<Book> books)
+        {
+            if (books.Count <= 1)
+            {
+                return books;
+            }
+
+            var result = new List<Book>();
+            var consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Sort by data richness descending so the best candidate is first
+            var sorted = books.OrderByDescending(b => ScoreBookData(b)).ToList();
+
+            foreach (var book in sorted)
+            {
+                if (consumed.Contains(book.ForeignBookId))
+                {
+                    continue;
+                }
+
+                var baseTitle = NormalizeForDedup(book.Title);
+                if (baseTitle.IsNullOrWhiteSpace())
+                {
+                    result.Add(book);
+                    consumed.Add(book.ForeignBookId);
+                    continue;
+                }
+
+                // Find all other unconsumed books whose normalised title matches
+                var duplicates = sorted
+                    .Where(b => !consumed.Contains(b.ForeignBookId) &&
+                                b.ForeignBookId != book.ForeignBookId &&
+                                IsDuplicateTitle(baseTitle, NormalizeForDedup(b.Title)))
+                    .ToList();
+
+                result.Add(book);
+                consumed.Add(book.ForeignBookId);
+
+                foreach (var dup in duplicates)
+                {
+                    consumed.Add(dup.ForeignBookId);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Normalises a book title for dedup comparison by stripping common suffixes:
+        ///   - Series subtitles like ": Into Darkness, Book 1"
+        ///   - Parenthetical suffixes like "(Series Name #1)"
+        ///   - Leading "The " / trailing punctuation
+        /// </summary>
+        private static string NormalizeForDedup(string title)
+        {
+            if (title.IsNullOrWhiteSpace())
+            {
+                return string.Empty;
+            }
+
+            // Strip everything after the first colon (series subtitles)
+            var colonIdx = title.IndexOf(':');
+            if (colonIdx > 2)
+            {
+                title = title.Substring(0, colonIdx);
+            }
+
+            // Strip parenthetical suffixes
+            var parenIdx = title.IndexOf('(');
+            if (parenIdx > 2)
+            {
+                title = title.Substring(0, parenIdx);
+            }
+
+            return title.Trim().ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Checks if two normalised titles are duplicates. Returns true if they are
+        /// identical or if one is a substring of the other (to catch "Lights Out"
+        /// matching "Lights Out" from different works with different subtitles).
+        /// </summary>
+        private static bool IsDuplicateTitle(string a, string b)
+        {
+            if (a.IsNullOrWhiteSpace() || b.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Scores a book by data richness for dedup winner selection.
+        /// Higher score = more complete metadata = preferred work.
+        /// </summary>
+        private static int ScoreBookData(Book book)
+        {
+            var score = 0;
+            var edition = book.Editions?.Value?.FirstOrDefault();
+
+            if (edition != null)
+            {
+                if (edition.Isbn13.IsNotNullOrWhiteSpace())
+                {
+                    score += 20;
+                }
+
+                if (edition.Asin.IsNotNullOrWhiteSpace())
+                {
+                    score += 20;
+                }
+
+                if (edition.PageCount > 0)
+                {
+                    score += 10;
+                }
+
+                if (edition.Language.IsNotNullOrWhiteSpace())
+                {
+                    score += 5;
+                }
+            }
+
+            if (book.Ratings.Votes > 0)
+            {
+                score += 10;
+            }
+
+            if (book.ReleaseDate.HasValue)
+            {
+                score += 5;
+            }
+
+            // Prefer shorter titles (less likely to be subtitle-duplicates)
+            if (book.Title != null && book.Title.Length < 50)
+            {
+                score += 3;
+            }
+
+            return score;
+        }
+
         private static Book MapDirectBookResult(JToken bookData)
         {
             if (bookData == null)
@@ -1467,13 +1638,18 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                              ?? "Unknown Author";
             var authorId = bookData.SelectToken("cached_contributors[0].author.id")?.Value<int?>();
             var authorSlug = bookData.SelectToken("cached_contributors[0].author.slug")?.Value<string>();
-            var isbn13 = bookData.SelectToken("editions[0].isbn_13")?.Value<string>();
-            var asin = bookData.SelectToken("editions[0].asin")?.Value<string>();
-            var editionLanguage = bookData.SelectToken("editions[0].language.language")?.Value<string>();
+
+            // Select the best edition from up to 5 returned.  Prefer English (or
+            // null-language) editions with the most identifiers and page data.
+            var bestEdition = SelectBestEdition(bookData.SelectToken("editions") as JArray);
+            var isbn13 = bestEdition?.Value<string>("isbn_13");
+            var asin = bestEdition?.Value<string>("asin");
+            var editionLanguage = bestEdition?.SelectToken("language.language")?.Value<string>();
+            var editionPages = bestEdition?.Value<int?>("pages");
 
             // Hardcover reading_format_id: 1=Physical, 2=Ebook, 3=Audiobook, 4=Audio CD
             // Null when the field is not present in the schema or not populated.
-            var readingFormatId = bookData.SelectToken("editions[0].reading_format_id")?.Value<int?>();
+            var readingFormatId = bestEdition?.Value<int?>("reading_format_id");
             var isEbook = readingFormatId == 2;
 
             var publishedDate = ParseDate(releaseDate, releaseYear);
@@ -1565,7 +1741,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Asin = asin,
                 IsEbook = isEbook,
                 Book = book,
-                PageCount = pages ?? 0,
+                PageCount = pages ?? editionPages ?? 0,
                 Overview = description,
                 Ratings = new Ratings
                 {
@@ -1591,6 +1767,74 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             edition.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
 
             return book;
+        }
+
+        /// <summary>
+        /// Selects the best edition from a JSON array of Hardcover editions.
+        /// Prefers English (or null-language) editions with the most identifiers
+        /// and page data to avoid importing non-English metadata when an English
+        /// edition is available.
+        /// </summary>
+        private static JToken SelectBestEdition(JArray editions)
+        {
+            if (editions == null || !editions.Any())
+            {
+                return null;
+            }
+
+            if (editions.Count == 1)
+            {
+                return editions[0];
+            }
+
+            // Score each edition: prefer English language, then null language,
+            // then presence of ISBN/ASIN/pages.
+            JToken best = null;
+            var bestScore = -1;
+
+            foreach (var ed in editions)
+            {
+                var lang = ed.SelectToken("language.language")?.Value<string>();
+                var score = 0;
+
+                // Strong preference for English
+                if (lang != null && lang.Equals("English", StringComparison.OrdinalIgnoreCase))
+                {
+                    score += 100;
+                }
+                else if (lang == null || string.IsNullOrWhiteSpace(lang))
+                {
+                    // Null/unknown language is neutral — might be English
+                    score += 50;
+                }
+
+                // Penalise known non-English
+                // (score stays 0 for non-English, which is less than null/English)
+
+                // Bonus for identifiers and page data
+                if (ed.Value<string>("isbn_13").IsNotNullOrWhiteSpace())
+                {
+                    score += 10;
+                }
+
+                if (ed.Value<string>("asin").IsNotNullOrWhiteSpace())
+                {
+                    score += 10;
+                }
+
+                if ((ed.Value<int?>("pages") ?? 0) > 0)
+                {
+                    score += 5;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = ed;
+                }
+            }
+
+            return best ?? editions[0];
         }
 
         private bool IsDeterministicErrorCooldownActive(out DateTime? cooldownUntilUtc)

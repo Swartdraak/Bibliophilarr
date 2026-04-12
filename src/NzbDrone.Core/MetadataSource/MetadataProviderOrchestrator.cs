@@ -94,6 +94,7 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             TryEnrichEditionIdentifiers(result.Item2, InferProviderFromScopedId(id));
+            TryEnrichEditionMetadata(result.Item2, InferProviderFromScopedId(id));
 
             return result;
         }
@@ -297,6 +298,103 @@ namespace NzbDrone.Core.MetadataSource
                         _logger.Debug(
                             ex,
                             "ASIN enrichment from '{0}' failed for ISBN '{1}'",
+                            provider.ProviderName,
+                            edition.Isbn13);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Enriches missing edition metadata (page count, release date, language) by
+        /// consulting supplementary providers when the primary provider returned
+        /// incomplete data. Uses ISBN-based lookup against non-primary providers.
+        /// </summary>
+        private void TryEnrichEditionMetadata(Book book, string primaryProviderName)
+        {
+            if (book?.Editions?.Value == null)
+            {
+                return;
+            }
+
+            var editionsNeedingData = book.Editions.Value
+                .Where(e => e.Isbn13.IsNotNullOrWhiteSpace() &&
+                            (e.PageCount == 0 || !book.ReleaseDate.HasValue || e.Language.IsNullOrWhiteSpace()))
+                .ToList();
+
+            if (!editionsNeedingData.Any())
+            {
+                return;
+            }
+
+            var supplementaryProviders = _registry.GetProviders()
+                .Where(p => p is ISearchForNewBook)
+                .Where(p => p.SupportsIsbnLookup)
+                .Where(p => primaryProviderName == null ||
+                            !string.Equals(p.ProviderName, primaryProviderName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (!supplementaryProviders.Any())
+            {
+                return;
+            }
+
+            foreach (var edition in editionsNeedingData)
+            {
+                foreach (var provider in supplementaryProviders)
+                {
+                    try
+                    {
+                        var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
+                        var matchedBook = results?.FirstOrDefault();
+                        var matchedEdition = matchedBook?.Editions?.Value?.FirstOrDefault();
+
+                        if (matchedEdition == null)
+                        {
+                            continue;
+                        }
+
+                        var enriched = false;
+
+                        if (edition.PageCount == 0 && matchedEdition.PageCount > 0)
+                        {
+                            edition.PageCount = matchedEdition.PageCount;
+                            enriched = true;
+                        }
+
+                        if (!book.ReleaseDate.HasValue && matchedBook.ReleaseDate.HasValue)
+                        {
+                            book.ReleaseDate = matchedBook.ReleaseDate;
+                            enriched = true;
+                        }
+
+                        if (edition.Language.IsNullOrWhiteSpace() && matchedEdition.Language.IsNotNullOrWhiteSpace())
+                        {
+                            edition.Language = matchedEdition.Language;
+                            enriched = true;
+                        }
+
+                        if (edition.Overview.IsNullOrWhiteSpace() && matchedEdition.Overview.IsNotNullOrWhiteSpace())
+                        {
+                            edition.Overview = matchedEdition.Overview;
+                            enriched = true;
+                        }
+
+                        if (enriched)
+                        {
+                            _logger.Debug(
+                                "Enriched metadata for edition '{0}' (ISBN {1}) from provider '{2}'",
+                                edition.ForeignEditionId,
+                                edition.Isbn13,
+                                provider.ProviderName);
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug(
+                            ex,
+                            "Metadata enrichment from '{0}' failed for ISBN '{1}'",
                             provider.ProviderName,
                             edition.Isbn13);
                     }
