@@ -288,7 +288,9 @@ namespace NzbDrone.Core.Profiles.Metadata
 
         private List<Edition> FilterEditions(IEnumerable<Edition> editions, List<Edition> localEditions, List<BookFile> localFiles, MetadataProfile profile)
         {
-            var allowedLanguages = profile.AllowedLanguages.IsNotNullOrWhiteSpace() ? new HashSet<string>(profile.AllowedLanguages.Trim(',').Split(',').Select(x => x.CanonicalizeLanguage())) : new HashSet<string>();
+            var allowedLanguages = profile.AllowedLanguages.IsNotNullOrWhiteSpace()
+                ? new HashSet<string>(profile.AllowedLanguages.Trim(',').Split(',').Select(x => x.CanonicalizeLanguage()).Where(x => x != null))
+                : new HashSet<string>();
 
             var hash = new HashSet<Edition>(editions);
 

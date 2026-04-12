@@ -72,6 +72,22 @@ namespace NzbDrone.Core.Books.Calibre
                 return null;
             }
 
+            // Some providers use semicolon-separated language names
+            // (e.g. "Dutch; Flemish"). Try each part individually.
+            if (raw.Contains(';'))
+            {
+                foreach (var part in raw.Split(';'))
+                {
+                    var result = CanonicalizeLanguage(part);
+                    if (result != null)
+                    {
+                        return result;
+                    }
+                }
+
+                return null;
+            }
+
             raw = raw.ToLowerInvariant().Trim();
 
             if (raw.IsNullOrWhiteSpace())
