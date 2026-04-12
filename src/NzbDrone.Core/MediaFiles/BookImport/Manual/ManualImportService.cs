@@ -257,12 +257,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     var item = pair.Item;
                     var decision = pair.Decision;
 
-                    if (decision.Item.Author != null)
+                    if (decision.Item.Author != null && (decision.Item.Author.Id > 0 || item.Author == null))
                     {
                         item.Author = decision.Item.Author;
                     }
 
-                    if (decision.Item.Book != null)
+                    if (decision.Item.Book != null && (decision.Item.Book.Id > 0 || item.Book == null))
                     {
                         item.Book = decision.Item.Book;
                         item.Edition = decision.Item.Edition;
