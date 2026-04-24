@@ -7,6 +7,18 @@ process.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-24
+
+### Fixed
+
+- Release-readiness hardening: upgraded `MailKit` to `4.16.0` (GHSA-9j88-vvj5-vhgr) so backend restore no longer fails on `NU1902` vulnerability-as-error checks.
+- Frontend readiness alignment: `ci-frontend.yml` now runs on `staging`, and the release-readiness report now includes frontend workflow status.
+
+### Changed
+
+- Canonical release and provider documentation now matches current workflow behavior, provider controls, and versioning sources.
+- Root Volta pin updated to Node.js `22.22.2` to match CI, Docker, and Quickstart guidance.
+
 ## [1.1.0-dev.42] - 2026-04-24
 
 ### Changed
