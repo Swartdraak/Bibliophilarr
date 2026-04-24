@@ -7,6 +7,8 @@ process.
 
 ## [Unreleased]
 
+## [1.1.0-dev.41] - 2026-04-24
+
 ### Fixed
 
 - Release-readiness hardening: upgraded `MailKit` to `4.16.0` (GHSA-9j88-vvj5-vhgr) so backend restore no longer fails on `NU1902` vulnerability-as-error checks.
