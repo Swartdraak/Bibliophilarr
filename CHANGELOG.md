@@ -7,6 +7,12 @@ process.
 
 ## [Unreleased]
 
+## [1.1.0-dev.42] - 2026-04-24
+
+### Changed
+
+- Release metadata alignment: added explicit release section for `v1.1.0-dev.42` so automated release-version validation can run against a tagged changelog entry.
+
 ## [1.1.0-dev.41] - 2026-04-24
 
 ### Fixed
