@@ -117,6 +117,7 @@ class CheckInput extends Component {
         >
           <input
             ref={this.setRef}
+            id={name}
             className={styles.checkbox}
             type="checkbox"
             name={name}

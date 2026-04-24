@@ -60,7 +60,7 @@ function UpdateSettings(props) {
           type={inputTypes.AUTO_COMPLETE}
           name="branch"
           helpText={usingExternalUpdateMechanism ? translate('BranchUpdateMechanism') : translate('BranchUpdate')}
-          helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#updates"
+          helpLink="/system/wiki/system"
           {...branch}
           values={branchValues}
           onChange={onInputChange}
@@ -97,7 +97,7 @@ function UpdateSettings(props) {
             name="updateMechanism"
             values={updateOptions}
             helpText={translate('UpdateMechanismHelpText')}
-            helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#updates"
+            helpLink="/system/wiki/system"
             onChange={onInputChange}
             {...updateMechanism}
           />

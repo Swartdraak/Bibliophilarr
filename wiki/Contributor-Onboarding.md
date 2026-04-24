@@ -3,11 +3,11 @@
 ## Prerequisites
 
 - .NET SDK 8.0+ (see `global.json` for exact version)
-- Node.js 20.19.x (see `Dockerfile` for exact version)
+- Node.js 22.x (see `Dockerfile` for exact version)
 - Yarn 1.22.19 (see `package.json` `packageManager` field)
 - Git
 
-## Quick Start
+## Quick start
 
 ```bash
 # Clone and build backend
@@ -26,7 +26,7 @@ yarn test:frontend
 
 See [QUICKSTART.md](../QUICKSTART.md) for detailed setup instructions.
 
-## Recommended First Contribution Areas
+## Recommended first contribution areas
 
 - Documentation improvements (see open `area:docs` issues).
 - Metadata provider test scaffolding.
@@ -34,7 +34,7 @@ See [QUICKSTART.md](../QUICKSTART.md) for detailed setup instructions.
 - CI workflow polish.
 - Frontend accessibility improvements (`alt` text, `aria-label` additions).
 
-## Collaboration Conventions
+## Collaboration conventions
 
 - Keep PRs focused and reviewable — one logical change per PR.
 - Add tests and docs with functional changes.
@@ -42,7 +42,7 @@ See [QUICKSTART.md](../QUICKSTART.md) for detailed setup instructions.
 - No `TODO`/`FIXME`/`XXX` markers in code — use `NOTE:` for contextual comments (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 - Follow the PR template for description, test evidence, and risk assessment.
 
-## Key References
+## Key references
 
 - [README.md](../README.md) — Project overview and current status.
 - [CONTRIBUTING.md](../CONTRIBUTING.md) — Quality expectations and coding standards.

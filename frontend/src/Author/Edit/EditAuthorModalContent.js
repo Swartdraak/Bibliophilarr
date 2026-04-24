@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import AuthorMetadataProfilePopoverContent from 'AddAuthor/AuthorMetadataProfilePopoverContent';
 import AuthorMonitorNewItemsOptionsPopoverContent from 'AddAuthor/AuthorMonitorNewItemsOptionsPopoverContent';
+import AuthorFormatProfileEditor from 'Author/Edit/AuthorFormatProfileEditor';
 import MoveAuthorModal from 'Author/MoveAuthor/MoveAuthorModal';
 import Form from 'Components/Form/Form';
 import FormGroup from 'Components/Form/FormGroup';
@@ -66,6 +67,9 @@ class EditAuthorModalContent extends Component {
       isSaving,
       showMetadataProfile,
       originalPath,
+      formatProfiles,
+      formatProfileSaveError,
+      onFormatProfileChange,
       onInputChange,
       onModalClose,
       onDeleteAuthorPress,
@@ -81,6 +85,8 @@ class EditAuthorModalContent extends Component {
       tags
     } = item;
 
+    const hasFormatProfiles = formatProfiles && formatProfiles.length > 0;
+
     return (
       <ModalContent onModalClose={onModalClose}>
         <ModalHeader>
@@ -89,63 +95,87 @@ class EditAuthorModalContent extends Component {
 
         <ModalBody>
           <Form {...otherProps}>
-            <FormGroup>
-              <FormLabel>
-                {translate('Monitored')}
-              </FormLabel>
+            {
+              !hasFormatProfiles &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('Monitored')}
+                  </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.CHECK}
-                name="monitored"
-                helpText={translate('MonitoredHelpText')}
-                {...monitored}
-                onChange={onInputChange}
-              />
-            </FormGroup>
+                  <FormInputGroup
+                    type={inputTypes.CHECK}
+                    name="monitored"
+                    helpText={translate('MonitoredHelpText')}
+                    {...monitored}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+            }
 
-            <FormGroup>
-              <FormLabel>
-                {translate('MonitorNewItems')}
-                <Popover
-                  anchor={
-                    <Icon
-                      className={styles.labelIcon}
-                      name={icons.INFO}
+            {
+              !hasFormatProfiles &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('MonitorNewItems')}
+                    <Popover
+                      anchor={
+                        <Icon
+                          className={styles.labelIcon}
+                          name={icons.INFO}
+                        />
+                      }
+                      title={translate('MonitorNewItems')}
+                      body={<AuthorMonitorNewItemsOptionsPopoverContent />}
+                      position={tooltipPositions.RIGHT}
                     />
-                  }
-                  title={translate('MonitorNewItems')}
-                  body={<AuthorMonitorNewItemsOptionsPopoverContent />}
-                  position={tooltipPositions.RIGHT}
-                />
-              </FormLabel>
+                  </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.MONITOR_NEW_ITEMS_SELECT}
-                name="monitorNewItems"
-                helpText={translate('MonitorNewItemsHelpText')}
-                {...monitorNewItems}
-                onChange={onInputChange}
-              />
-            </FormGroup>
+                  <FormInputGroup
+                    type={inputTypes.MONITOR_NEW_ITEMS_SELECT}
+                    name="monitorNewItems"
+                    helpText={translate('MonitorNewItemsHelpText')}
+                    {...monitorNewItems}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+            }
 
-            <FormGroup>
-              <FormLabel>
-                {translate('QualityProfile')}
-              </FormLabel>
+            {
+              !hasFormatProfiles &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('QualityProfile')}
+                  </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.QUALITY_PROFILE_SELECT}
-                name="qualityProfileId"
-                {...qualityProfileId}
-                onChange={onInputChange}
-              />
-            </FormGroup>
+                  <FormInputGroup
+                    type={inputTypes.QUALITY_PROFILE_SELECT}
+                    name="qualityProfileId"
+                    {...qualityProfileId}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+            }
+
+            {
+              hasFormatProfiles &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('FormatProfiles')}
+                  </FormLabel>
+
+                  <AuthorFormatProfileEditor
+                    formatProfiles={formatProfiles}
+                    onFormatProfileChange={onFormatProfileChange}
+                    saveError={formatProfileSaveError}
+                  />
+                </FormGroup>
+            }
 
             {
               showMetadataProfile &&
                 <FormGroup>
                   <FormLabel>
-                    Metadata Profile
+                    {translate('MetadataProfile')}
 
                     <Popover
                       anchor={
@@ -172,18 +202,21 @@ class EditAuthorModalContent extends Component {
                 </FormGroup>
             }
 
-            <FormGroup>
-              <FormLabel>
-                {translate('Path')}
-              </FormLabel>
+            {
+              !hasFormatProfiles &&
+                <FormGroup>
+                  <FormLabel>
+                    {translate('Path')}
+                  </FormLabel>
 
-              <FormInputGroup
-                type={inputTypes.PATH}
-                name="path"
-                {...path}
-                onChange={onInputChange}
-              />
-            </FormGroup>
+                  <FormInputGroup
+                    type={inputTypes.PATH}
+                    name="path"
+                    {...path}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+            }
 
             <FormGroup>
               <FormLabel>
@@ -205,20 +238,20 @@ class EditAuthorModalContent extends Component {
             kind={kinds.DANGER}
             onPress={onDeleteAuthorPress}
           >
-            Delete
+            {translate('Delete')}
           </Button>
 
           <Button
             onPress={onModalClose}
           >
-            Cancel
+            {translate('Cancel')}
           </Button>
 
           <SpinnerButton
             isSpinning={isSaving}
             onPress={this.onSavePress}
           >
-            Save
+            {translate('Save')}
           </SpinnerButton>
         </ModalFooter>
 
@@ -243,7 +276,10 @@ EditAuthorModalContent.propTypes = {
   showMetadataProfile: PropTypes.bool.isRequired,
   isPathChanging: PropTypes.bool.isRequired,
   originalPath: PropTypes.string.isRequired,
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
+  formatProfileSaveError: PropTypes.object,
   onInputChange: PropTypes.func.isRequired,
+  onFormatProfileChange: PropTypes.func.isRequired,
   onSavePress: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired,
   onDeleteAuthorPress: PropTypes.func.isRequired

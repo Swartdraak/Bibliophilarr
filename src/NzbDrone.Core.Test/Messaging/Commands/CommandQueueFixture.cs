@@ -2,9 +2,9 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books.Commands;
-using NzbDrone.Core.Download;
 using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.Indexers;
+using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Update.Commands;
@@ -18,8 +18,8 @@ namespace NzbDrone.Core.Test.Messaging.Commands
         {
             var commandModel = Builder<CommandModel>
                 .CreateNew()
-                .With(c => c.Name = "ProcessMonitoredDownloads")
-                .With(c => c.Body = new ProcessMonitoredDownloadsCommand())
+                .With(c => c.Name = "RescanFolders")
+                .With(c => c.Body = new RescanFoldersCommand())
                 .With(c => c.Status = CommandStatus.Started)
                 .Build();
 
@@ -69,8 +69,8 @@ namespace NzbDrone.Core.Test.Messaging.Commands
 
             var newCommandModel = Builder<CommandModel>
                 .CreateNew()
-                .With(c => c.Name = "ProcessMonitoredDownloads")
-                .With(c => c.Body = new ProcessMonitoredDownloadsCommand())
+                .With(c => c.Name = "RescanFolders")
+                .With(c => c.Body = new RescanFoldersCommand())
                 .Build();
 
             Subject.Add(newCommandModel);

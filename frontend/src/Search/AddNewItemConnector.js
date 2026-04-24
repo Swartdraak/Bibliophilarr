@@ -66,7 +66,7 @@ class AddNewItemConnector extends Component {
     } else {
       this._searchTimeout = setTimeout(() => {
         this.props.getSearchResults({ term });
-      }, 300);
+      }, 600);
     }
   };
 

@@ -7,13 +7,15 @@ import EditAuthorModalConnector from 'Author/Edit/EditAuthorModalConnector';
 import BookNameLink from 'Book/BookNameLink';
 import EditBookModalConnector from 'Book/Edit/EditBookModalConnector';
 import HeartRating from 'Components/HeartRating';
+import Icon from 'Components/Icon';
+import Label from 'Components/Label';
 import IconButton from 'Components/Link/IconButton';
 import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
 import RelativeDateCellConnector from 'Components/Table/Cells/RelativeDateCellConnector';
 import VirtualTableRowCell from 'Components/Table/Cells/VirtualTableRowCell';
 import VirtualTableSelectCell from 'Components/Table/Cells/VirtualTableSelectCell';
 import TagListConnector from 'Components/TagListConnector';
-import { icons } from 'Helpers/Props';
+import { icons, kinds, sizes } from 'Helpers/Props';
 import formatBytes from 'Utilities/Number/formatBytes';
 import translate from 'Utilities/String/translate';
 import BookStatusCell from './BookStatusCell';
@@ -90,13 +92,13 @@ class BookIndexRow extends Component {
       title,
       author,
       titleSlug,
-      qualityProfile,
       releaseDate,
       added,
       statistics,
       genres,
       ratings,
       tags,
+      formatStatuses,
       showSearchAction,
       columns,
       isRefreshingBook,
@@ -189,17 +191,6 @@ class BookIndexRow extends Component {
               );
             }
 
-            if (name === 'qualityProfileId') {
-              return (
-                <VirtualTableRowCell
-                  key={name}
-                  className={styles[name]}
-                >
-                  {qualityProfile?.name ?? ''}
-                </VirtualTableRowCell>
-              );
-            }
-
             if (name === 'releaseDate') {
               return (
                 <RelativeDateCellConnector
@@ -229,6 +220,56 @@ class BookIndexRow extends Component {
                   className={styles[name]}
                 >
                   {bookFileCount}
+                </VirtualTableRowCell>
+              );
+            }
+
+            if (name === 'format') {
+              return (
+                <VirtualTableRowCell
+                  key={name}
+                  className={styles[name]}
+                >
+                  {
+                    (formatStatuses || []).map((fs) => {
+                      let label = '';
+                      let fullLabel = '';
+
+                      if (fs.formatType === 'ebook') {
+                        label = 'E';
+                        fullLabel = 'Ebook';
+                      } else if (fs.formatType === 'audiobook') {
+                        label = 'A';
+                        fullLabel = 'Audiobook';
+                      }
+
+                      let kind = kinds.DEFAULT;
+
+                      if (fs.hasFile) {
+                        kind = kinds.SUCCESS;
+                      } else if (fs.monitored) {
+                        kind = kinds.INFO;
+                      }
+
+                      const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
+                      const fileCountLabel = fs.fileCount > 0 ? ` (${fs.fileCount} file${fs.fileCount !== 1 ? 's' : ''})` : '';
+
+                      return (
+                        <Label
+                          key={fs.formatType}
+                          kind={kind}
+                          size={sizes.SMALL}
+                          title={`${fullLabel}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${qpLabel}${fileCountLabel}`}
+                        >
+                          <Icon
+                            name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
+                            size={11}
+                          />
+                          {' '}{label}{fs.fileCount > 0 ? `: ${fs.fileCount}` : ''}
+                        </Label>
+                      );
+                    })
+                  }
                 </VirtualTableRowCell>
               );
             }
@@ -379,6 +420,7 @@ BookIndexRow.propTypes = {
   ratings: PropTypes.object.isRequired,
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
+  formatStatuses: PropTypes.arrayOf(PropTypes.object),
   showSearchAction: PropTypes.bool.isRequired,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   isRefreshingBook: PropTypes.bool.isRequired,

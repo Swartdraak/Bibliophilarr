@@ -1,5 +1,7 @@
 using System.Linq;
 using NLog;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
 
@@ -7,10 +9,16 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
 {
     public class MonitoredBookSpecification : IDecisionEngineSpecification
     {
+        private readonly IConfigService _configService;
+        private readonly IAuthorFormatProfileService _formatProfileService;
         private readonly Logger _logger;
 
-        public MonitoredBookSpecification(Logger logger)
+        public MonitoredBookSpecification(IConfigService configService,
+                                          IAuthorFormatProfileService formatProfileService,
+                                          Logger logger)
         {
+            _configService = configService;
+            _formatProfileService = formatProfileService;
             _logger = logger;
         }
 
@@ -32,6 +40,23 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
             {
                 _logger.Debug("{0} is present in the DB but not tracked. Rejecting.", subject.Author);
                 return Decision.Reject("Author is not monitored");
+            }
+
+            // When dual-format tracking is enabled, check per-format monitoring
+            if (_configService.EnableDualFormatTracking && subject.ResolvedFormatType.HasValue)
+            {
+                var formatProfile = _formatProfileService.GetByAuthorIdAndFormat(
+                    subject.Author.Id,
+                    subject.ResolvedFormatType.Value);
+
+                if (formatProfile != null && !formatProfile.Monitored)
+                {
+                    _logger.Debug(
+                        "{0} format is not monitored for {1}. Rejecting.",
+                        subject.ResolvedFormatType.Value,
+                        subject.Author);
+                    return Decision.Reject("{0} format is not monitored", subject.ResolvedFormatType.Value);
+                }
             }
 
             var monitoredCount = subject.Books.Count(book => book.Monitored);

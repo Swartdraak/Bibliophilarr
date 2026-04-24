@@ -1,9 +1,9 @@
 using System.Net;
+using System.Net.Http;
 using Bibliophilarr.Api.V1.Metadata;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Integration.Test.Client;
-using RestSharp;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
@@ -23,7 +23,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         public void should_expose_conflict_telemetry_snapshot_over_http()
         {
             var request = _telemetry.BuildRequest();
-            request.Method = Method.GET;
+            request.Method = HttpMethod.Get;
 
             var response = _telemetry.Execute<MetadataConflictTelemetryResource>(request, HttpStatusCode.OK);
 

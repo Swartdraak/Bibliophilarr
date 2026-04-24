@@ -24,6 +24,7 @@ namespace NzbDrone.Core.Books
         Edition FindByTitleInexact(int authorMetadataId, string title);
         List<Edition> GetCandidates(int authorMetadataId, string title);
         List<Edition> SetMonitored(Edition edition);
+        List<Edition> SetMonitoredByFormat(Edition edition);
     }
 
     public class EditionService : IEditionService,
@@ -130,6 +131,11 @@ namespace NzbDrone.Core.Books
         public List<Edition> SetMonitored(Edition edition)
         {
             return _editionRepository.SetMonitored(edition);
+        }
+
+        public List<Edition> SetMonitoredByFormat(Edition edition)
+        {
+            return _editionRepository.SetMonitoredByFormat(edition);
         }
 
         public void Handle(BookDeletedEvent message)

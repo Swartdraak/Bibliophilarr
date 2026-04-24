@@ -10,6 +10,7 @@ namespace NzbDrone.Core.Books
     public interface IBookCutoffService
     {
         PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec);
+        PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, FormatType? formatType);
     }
 
     public class BookCutoffService : IBookCutoffService
@@ -24,6 +25,11 @@ namespace NzbDrone.Core.Books
         }
 
         public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec)
+        {
+            return BooksWhereCutoffUnmet(pagingSpec, null);
+        }
+
+        public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, FormatType? formatType)
         {
             var qualitiesBelowCutoff = new List<QualitiesBelowCutoff>();
             var profiles = _qualityProfileService.All();
@@ -48,7 +54,7 @@ namespace NzbDrone.Core.Books
                 return pagingSpec;
             }
 
-            return _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff);
+            return _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, formatType);
         }
     }
 }

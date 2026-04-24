@@ -1,7 +1,11 @@
-import moment from 'moment';
+import { isAfter as isAfterFn, isBefore as isBeforeFn, parseISO } from 'date-fns';
 import * as filterTypes from 'Helpers/Props/filterTypes';
 import isAfter from 'Utilities/Date/isAfter';
 import isBefore from 'Utilities/Date/isBefore';
+
+function toDate(value) {
+  return value instanceof Date ? value : parseISO(value);
+}
 
 export default function(itemValue, filterValue, type) {
   if (!itemValue) {
@@ -10,10 +14,10 @@ export default function(itemValue, filterValue, type) {
 
   switch (type) {
     case filterTypes.LESS_THAN:
-      return moment(itemValue).isBefore(filterValue);
+      return isBeforeFn(toDate(itemValue), toDate(filterValue));
 
     case filterTypes.GREATER_THAN:
-      return moment(itemValue).isAfter(filterValue);
+      return isAfterFn(toDate(itemValue), toDate(filterValue));
 
     case filterTypes.IN_LAST:
       return (

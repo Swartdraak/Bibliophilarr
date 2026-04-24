@@ -1,4 +1,4 @@
-import moment from 'moment';
+import { format, parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import TextTruncate from 'react-text-truncate';
@@ -13,6 +13,7 @@ import MonitorToggleButton from 'Components/MonitorToggleButton';
 import Tooltip from 'Components/Tooltip/Tooltip';
 import { icons, kinds, sizes, tooltipPositions } from 'Helpers/Props';
 import fonts from 'Styles/Variables/fonts';
+import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
 import formatBytes from 'Utilities/Number/formatBytes';
 import stripHtml from 'Utilities/String/stripHtml';
 import BookDetailsLinks from './BookDetailsLinks';
@@ -65,13 +66,15 @@ class BookDetailsHeader extends Component {
       monitored,
       releaseDate,
       ratings,
+      formatStatuses,
       images,
       links,
       isSaving,
       shortDateFormat,
       author,
       isSmallScreen,
-      onMonitorTogglePress
+      onMonitorTogglePress,
+      onFormatMonitorTogglePress
     } = this.props;
 
     const {
@@ -166,7 +169,7 @@ class BookDetailsHeader extends Component {
 
                     <span className={styles.sizeOnDisk}>
                       {
-                        moment(releaseDate).format(shortDateFormat)
+                        format(parseISO(releaseDate), momentFormatToDateFns(shortDateFormat))
                       }
                     </span>
                   </Label>
@@ -187,6 +190,50 @@ class BookDetailsHeader extends Component {
                   }
                 </span>
               </Label>
+
+              {
+                (formatStatuses || []).map((fs) => {
+                  const formatLabel = fs.formatType === 'ebook' ? 'Ebook' : 'Audiobook';
+                  const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
+                  const fileCountLabel = fs.fileCount > 0 ? ` — ${fs.fileCount} file${fs.fileCount !== 1 ? 's' : ''}` : '';
+                  let kind = kinds.DEFAULT;
+
+                  if (fs.hasFile) {
+                    kind = kinds.SUCCESS;
+                  } else if (fs.monitored) {
+                    kind = kinds.INFO;
+                  }
+
+                  return (
+                    <Label
+                      key={fs.formatType}
+                      className={styles.detailsLabel}
+                      kind={kind}
+                      size={sizes.LARGE}
+                      title={`Click to ${fs.monitored ? 'unmonitor' : 'monitor'} ${formatLabel}`}
+                      onClick={() => onFormatMonitorTogglePress && onFormatMonitorTogglePress(fs.formatType, !fs.monitored)}
+                    >
+                      <Icon
+                        name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
+                        size={17}
+                      />
+
+                      <span className={styles.qualityProfileName}>
+                        {`${formatLabel}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${qpLabel}${fileCountLabel}`}
+                      </span>
+
+                      {
+                        fs.hasFile &&
+                          <Icon
+                            name={icons.CHECK}
+                            size={12}
+                            title="Has file"
+                          />
+                      }
+                    </Label>
+                  );
+                })
+              }
 
               <Label
                 className={styles.detailsLabel}
@@ -256,6 +303,7 @@ BookDetailsHeader.propTypes = {
   statistics: PropTypes.object.isRequired,
   releaseDate: PropTypes.string.isRequired,
   ratings: PropTypes.object.isRequired,
+  formatStatuses: PropTypes.arrayOf(PropTypes.object),
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   links: PropTypes.arrayOf(PropTypes.object).isRequired,
   monitored: PropTypes.bool.isRequired,
@@ -263,7 +311,8 @@ BookDetailsHeader.propTypes = {
   isSaving: PropTypes.bool.isRequired,
   author: PropTypes.object,
   isSmallScreen: PropTypes.bool.isRequired,
-  onMonitorTogglePress: PropTypes.func.isRequired
+  onMonitorTogglePress: PropTypes.func.isRequired,
+  onFormatMonitorTogglePress: PropTypes.func
 };
 
 BookDetailsHeader.defaultProps = {

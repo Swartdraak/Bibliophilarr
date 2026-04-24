@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.RemotePathMappings;
 
 namespace Bibliophilarr.Api.V1.RemotePathMappings
@@ -10,6 +11,7 @@ namespace Bibliophilarr.Api.V1.RemotePathMappings
         public string Host { get; set; }
         public string RemotePath { get; set; }
         public string LocalPath { get; set; }
+        public int? FormatType { get; set; }
     }
 
     public static class RemotePathMappingResourceMapper
@@ -27,7 +29,8 @@ namespace Bibliophilarr.Api.V1.RemotePathMappings
 
                 Host = model.Host,
                 RemotePath = model.RemotePath,
-                LocalPath = model.LocalPath
+                LocalPath = model.LocalPath,
+                FormatType = model.FormatType.HasValue ? (int)model.FormatType.Value : null
             };
         }
 
@@ -44,7 +47,8 @@ namespace Bibliophilarr.Api.V1.RemotePathMappings
 
                 Host = resource.Host,
                 RemotePath = resource.RemotePath,
-                LocalPath = resource.LocalPath
+                LocalPath = resource.LocalPath,
+                FormatType = resource.FormatType.HasValue ? (FormatType)resource.FormatType.Value : null
             };
         }
 

@@ -2,7 +2,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
-import { toggleBooksMonitored } from 'Store/Actions/bookActions';
+import { toggleBookFormatMonitored, toggleBooksMonitored } from 'Store/Actions/bookActions';
 import createBookSelector from 'Store/Selectors/createBookSelector';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
 import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
@@ -35,7 +35,8 @@ function createMapStateToProps() {
 }
 
 const mapDispatchToProps = {
-  toggleBooksMonitored
+  toggleBooksMonitored,
+  toggleBookFormatMonitored
 };
 
 class BookDetailsHeaderConnector extends Component {
@@ -50,6 +51,14 @@ class BookDetailsHeaderConnector extends Component {
     });
   };
 
+  onFormatMonitorTogglePress = (formatType, monitored) => {
+    this.props.toggleBookFormatMonitored({
+      bookId: this.props.bookId,
+      formatType,
+      monitored
+    });
+  };
+
   //
   // Render
 
@@ -58,6 +67,7 @@ class BookDetailsHeaderConnector extends Component {
       <BookDetailsHeader
         {...this.props}
         onMonitorTogglePress={this.onMonitorTogglePress}
+        onFormatMonitorTogglePress={this.onFormatMonitorTogglePress}
       />
     );
   }
@@ -66,6 +76,7 @@ class BookDetailsHeaderConnector extends Component {
 BookDetailsHeaderConnector.propTypes = {
   bookId: PropTypes.number,
   toggleBooksMonitored: PropTypes.func.isRequired,
+  toggleBookFormatMonitored: PropTypes.func.isRequired,
   author: PropTypes.object
 };
 

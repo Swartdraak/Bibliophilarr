@@ -3,6 +3,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.CustomFormats;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 
@@ -15,6 +16,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
         bool CutoffNotMet(QualityProfile profile, List<QualityModel> currentQualities, List<CustomFormat> currentFormats, QualityModel newQuality = null);
         bool IsRevisionUpgrade(QualityModel currentQuality, QualityModel newQuality);
         bool IsUpgradeAllowed(QualityProfile qualityProfile, QualityModel currentQuality, List<CustomFormat> currentCustomFormats, QualityModel newQuality, List<CustomFormat> newCustomFormats);
+        QualityProfile ResolveProfile(RemoteBook remoteBook);
     }
 
     public class UpgradableSpecification : IUpgradableSpecification
@@ -26,6 +28,16 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
         {
             _configService = configService;
             _logger = logger;
+        }
+
+        public QualityProfile ResolveProfile(RemoteBook remoteBook)
+        {
+            if (_configService.EnableDualFormatTracking && remoteBook.ResolvedQualityProfile != null)
+            {
+                return remoteBook.ResolvedQualityProfile;
+            }
+
+            return remoteBook.Author.QualityProfile.Value;
         }
 
         private ProfileComparisonResult IsQualityUpgradable(QualityProfile profile, QualityModel currentQuality, QualityModel newQuality = null)

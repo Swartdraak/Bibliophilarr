@@ -232,5 +232,25 @@ module.exports = {
   progressBarFrontTextColor: white,
   progressBarBackTextColor: darkGray,
   progressBarBackgroundColor: white,
-  logEventsBackgroundColor: white
+  logEventsBackgroundColor: white,
+
+  // Log levels
+  logInfoColor: '#1e90ff',
+  logDebugColor: '#808080',
+  logTraceColor: '#d3d3d3',
+
+  // Star rating
+  starBackColor: '#515253',
+  starFrontColor: '#ffbc0b',
+
+  // Hover accents
+  dangerHoverColor: '#e01313',
+  warningHoverColor: '#e36c00',
+
+  // Status page
+  statusLogoBorderColor: '#e6e6e6',
+  statusLogoBackgroundColor: '#f8f8ff',
+
+  // Author poster
+  authorProgressBackgroundColor: '#5b5b5b'
 };

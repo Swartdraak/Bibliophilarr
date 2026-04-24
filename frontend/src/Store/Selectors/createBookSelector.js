@@ -6,6 +6,10 @@ function createBookSelector() {
     (state) => state.books.itemMap,
     (state) => state.books.items,
     (bookId, itemMap, allBooks) => {
+      if (!itemMap) {
+        return undefined;
+      }
+
       return allBooks[itemMap[bookId]];
     }
   );

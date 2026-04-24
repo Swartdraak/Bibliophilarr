@@ -40,6 +40,7 @@ const Logs = React.lazy(() => import('System/Logs/Logs'));
 const Status = React.lazy(() => import('System/Status/Status'));
 const Tasks = React.lazy(() => import('System/Tasks/Tasks'));
 const Updates = React.lazy(() => import('System/Updates/Updates'));
+const Wiki = React.lazy(() => import('System/Wiki/Wiki'));
 
 function AppRoutes(props) {
   const {
@@ -262,6 +263,11 @@ function AppRoutes(props) {
         <Route
           path="/system/logs/files"
           component={Logs}
+        />
+
+        <Route
+          path="/system/wiki"
+          component={Wiki}
         />
 
         {/*

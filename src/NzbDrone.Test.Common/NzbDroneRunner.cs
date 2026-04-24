@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Xml.Linq;
 using NLog;
@@ -13,14 +14,13 @@ using NzbDrone.Common.Processes;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
-using RestSharp;
 
 namespace NzbDrone.Test.Common
 {
     public class NzbDroneRunner
     {
         private readonly IProcessProvider _processProvider;
-        private readonly IRestClient _restClient;
+        private readonly HttpClient _httpClient;
         private Process _nzbDroneProcess;
         private List<string> _startupLog;
 
@@ -32,7 +32,10 @@ namespace NzbDrone.Test.Common
         public NzbDroneRunner(Logger logger, PostgresOptions postgresOptions, int port = 8787)
         {
             _processProvider = new ProcessProvider(logger);
-            _restClient = new RestClient($"http://localhost:{port}/api/v1");
+            _httpClient = new HttpClient
+            {
+                BaseAddress = new Uri($"http://localhost:{port}/api/v1/")
+            };
 
             PostgresOptions = postgresOptions;
             Port = port;
@@ -70,20 +73,27 @@ namespace NzbDrone.Test.Common
                     Assert.Fail("Process has exited: ExitCode={0} Output={1}", _nzbDroneProcess.ExitCode, output);
                 }
 
-                var request = new RestRequest("system/status");
-                request.AddHeader("Authorization", ApiKey);
-                request.AddHeader("X-Api-Key", ApiKey);
+                var request = new HttpRequestMessage(HttpMethod.Get, "system/status");
+                request.Headers.Add("Authorization", ApiKey);
+                request.Headers.Add("X-Api-Key", ApiKey);
 
-                var statusCall = _restClient.Get(request);
-
-                if (statusCall.ResponseStatus == ResponseStatus.Completed)
+                try
                 {
-                    _startupLog = null;
-                    TestContext.Progress.WriteLine($"Bibliophilarr {Port} is started. Running Tests");
-                    return;
-                }
+                    var statusCall = _httpClient.SendAsync(request).GetAwaiter().GetResult();
 
-                TestContext.Progress.WriteLine("Waiting for Bibliophilarr to start. Response Status : {0}  [{1}] {2}", statusCall.ResponseStatus, statusCall.StatusDescription, statusCall.ErrorException.Message);
+                    if (statusCall.IsSuccessStatusCode)
+                    {
+                        _startupLog = null;
+                        TestContext.Progress.WriteLine($"Bibliophilarr {Port} is started. Running Tests");
+                        return;
+                    }
+
+                    TestContext.Progress.WriteLine("Waiting for Bibliophilarr to start. Status : {0}", statusCall.StatusCode);
+                }
+                catch (Exception ex)
+                {
+                    TestContext.Progress.WriteLine("Waiting for Bibliophilarr to start. Error : {0}", ex.Message);
+                }
 
                 Thread.Sleep(500);
             }

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
+using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Commands;
@@ -13,12 +14,16 @@ namespace Bibliophilarr.Api.V1.Author
     public class AuthorEditorController : Controller
     {
         private readonly IAuthorService _authorService;
+        private readonly IAuthorFormatProfileService _formatProfileService;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly Logger _logger;
 
-        public AuthorEditorController(IAuthorService authorService, IManageCommandQueue commandQueueManager)
+        public AuthorEditorController(IAuthorService authorService, IAuthorFormatProfileService formatProfileService, IManageCommandQueue commandQueueManager, Logger logger)
         {
             _authorService = authorService;
+            _formatProfileService = formatProfileService;
             _commandQueueManager = commandQueueManager;
+            _logger = logger;
         }
 
         [HttpPut]
@@ -88,7 +93,93 @@ namespace Bibliophilarr.Api.V1.Author
                 });
             }
 
-            return Accepted(_authorService.UpdateAuthors(authorsToUpdate, !resource.MoveFiles).ToResource());
+            // Update per-format profiles (ebook/audiobook QP and root folders)
+            var hasFormatChanges = resource.EbookQualityProfileId.HasValue ||
+                                   resource.AudiobookQualityProfileId.HasValue ||
+                                   resource.EbookRootFolderPath.IsNotNullOrWhiteSpace() ||
+                                   resource.AudiobookRootFolderPath.IsNotNullOrWhiteSpace();
+
+            if (resource.MoveFiles && !authorsToMove.Any() && hasFormatChanges)
+            {
+                _logger.Warn("Move files requested for format-specific root folder change but file moves are not yet supported for per-format paths. Files will be relocated during next import or manual rename.");
+            }
+
+            if (hasFormatChanges)
+            {
+                _logger.Info("Applying format profile changes to {0} author(s): EbookQP={1}, AudiobookQP={2}, EbookRF={3}, AudiobookRF={4}",
+                    authorsToUpdate.Count,
+                    resource.EbookQualityProfileId,
+                    resource.AudiobookQualityProfileId,
+                    resource.EbookRootFolderPath,
+                    resource.AudiobookRootFolderPath);
+
+                foreach (var author in authorsToUpdate)
+                {
+                    if (resource.EbookQualityProfileId.HasValue || resource.EbookRootFolderPath.IsNotNullOrWhiteSpace())
+                    {
+                        var ebookProfile = _formatProfileService.GetByAuthorIdAndFormat(author.Id, FormatType.Ebook);
+                        if (ebookProfile != null)
+                        {
+                            if (resource.EbookQualityProfileId.HasValue)
+                            {
+                                ebookProfile.QualityProfileId = resource.EbookQualityProfileId.Value;
+                            }
+
+                            if (resource.EbookRootFolderPath.IsNotNullOrWhiteSpace())
+                            {
+                                ebookProfile.RootFolderPath = resource.EbookRootFolderPath;
+                                ebookProfile.Path = global::System.IO.Path.Combine(resource.EbookRootFolderPath, author.CleanName ?? author.Name);
+                            }
+
+                            _formatProfileService.Update(ebookProfile);
+                            _logger.Debug(
+                                "Updated ebook format profile for author '{0}' (id: {1}): QP={2}, RootFolder={3}, Path={4}",
+                                author.Name,
+                                author.Id,
+                                ebookProfile.QualityProfileId,
+                                ebookProfile.RootFolderPath,
+                                ebookProfile.Path);
+                        }
+                    }
+
+                    if (resource.AudiobookQualityProfileId.HasValue || resource.AudiobookRootFolderPath.IsNotNullOrWhiteSpace())
+                    {
+                        var audiobookProfile = _formatProfileService.GetByAuthorIdAndFormat(author.Id, FormatType.Audiobook);
+                        if (audiobookProfile != null)
+                        {
+                            if (resource.AudiobookQualityProfileId.HasValue)
+                            {
+                                audiobookProfile.QualityProfileId = resource.AudiobookQualityProfileId.Value;
+                            }
+
+                            if (resource.AudiobookRootFolderPath.IsNotNullOrWhiteSpace())
+                            {
+                                audiobookProfile.RootFolderPath = resource.AudiobookRootFolderPath;
+                                audiobookProfile.Path = global::System.IO.Path.Combine(resource.AudiobookRootFolderPath, author.CleanName ?? author.Name);
+                            }
+
+                            _formatProfileService.Update(audiobookProfile);
+                            _logger.Debug(
+                                "Updated audiobook format profile for author '{0}' (id: {1}): QP={2}, RootFolder={3}, Path={4}",
+                                author.Name,
+                                author.Id,
+                                audiobookProfile.QualityProfileId,
+                                audiobookProfile.RootFolderPath,
+                                audiobookProfile.Path);
+                        }
+                    }
+                }
+            }
+
+            var authorResources = _authorService.UpdateAuthors(authorsToUpdate, !resource.MoveFiles).ToResource();
+
+            // Include updated format profiles in the response so the frontend store stays in sync
+            foreach (var authorResource in authorResources)
+            {
+                authorResource.FormatProfiles = _formatProfileService.GetByAuthorId(authorResource.Id).ToResource();
+            }
+
+            return Accepted(authorResources);
         }
 
         [HttpDelete]

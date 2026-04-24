@@ -7,11 +7,13 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Organizer;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.MediaFiles
 {
@@ -28,6 +30,8 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IMoveBookFiles _bookFileMover;
         private readonly IEventAggregator _eventAggregator;
         private readonly IBuildFileNames _filenameBuilder;
+        private readonly IBuildAuthorPaths _authorPathBuilder;
+        private readonly IConfigService _configService;
         private readonly IDiskProvider _diskProvider;
         private readonly Logger _logger;
 
@@ -36,6 +40,8 @@ namespace NzbDrone.Core.MediaFiles
                                         IMoveBookFiles bookFileMover,
                                         IEventAggregator eventAggregator,
                                         IBuildFileNames filenameBuilder,
+                                        IBuildAuthorPaths authorPathBuilder,
+                                        IConfigService configService,
                                         IDiskProvider diskProvider,
                                         Logger logger)
         {
@@ -44,6 +50,8 @@ namespace NzbDrone.Core.MediaFiles
             _bookFileMover = bookFileMover;
             _eventAggregator = eventAggregator;
             _filenameBuilder = filenameBuilder;
+            _authorPathBuilder = authorPathBuilder;
+            _configService = configService;
             _diskProvider = diskProvider;
             _logger = logger;
         }
@@ -73,6 +81,7 @@ namespace NzbDrone.Core.MediaFiles
         private IEnumerable<RenameBookFilePreview> GetPreviews(Author author, List<BookFile> files)
         {
             var counts = files.GroupBy(x => x.EditionId).ToDictionary(g => g.Key, g => g.Count());
+            var useDualFormat = _configService.EnableDualFormatTracking;
 
             // Don't rename Calibre files
             foreach (var f in files.Where(x => x.CalibreId == 0))
@@ -93,7 +102,17 @@ namespace NzbDrone.Core.MediaFiles
 
                 _logger.Trace($"got name {newName}");
 
-                var newPath = _filenameBuilder.BuildBookFilePath(author, book, newName, Path.GetExtension(bookFilePath));
+                string newPath;
+                if (useDualFormat && file.Quality?.Quality != null)
+                {
+                    var formatType = Quality.GetFormatType(file.Quality.Quality);
+                    var formatBasePath = _authorPathBuilder.BuildFormatPath(author, formatType);
+                    newPath = Path.Combine(formatBasePath, newName + Path.GetExtension(bookFilePath));
+                }
+                else
+                {
+                    newPath = _filenameBuilder.BuildBookFilePath(author, book, newName, Path.GetExtension(bookFilePath));
+                }
 
                 _logger.Trace($"got path {newPath}");
 
@@ -116,12 +135,72 @@ namespace NzbDrone.Core.MediaFiles
             var allFiles = _mediaFileService.GetFilesByAuthor(author.Id);
             var counts = allFiles.GroupBy(x => x.EditionId).ToDictionary(g => g.Key, g => g.Count());
             var renamed = new List<RenamedBookFile>();
+            var useDualFormat = _configService.EnableDualFormatTracking;
+
+            // Pre-compute destination paths to detect collisions within the batch
+            var filesToRename = bookFiles.Where(x => x.CalibreId == 0).ToList();
+            var destinationPaths = new Dictionary<string, List<BookFile>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var bookFile in filesToRename)
+            {
+                bookFile.PartCount = counts.GetValueOrDefault(bookFile.EditionId, 1);
+                var book = bookFile.Edition.Value;
+
+                if (book == null)
+                {
+                    continue;
+                }
+
+                var newName = _filenameBuilder.BuildBookFileName(author, book, bookFile);
+                string newPath;
+                if (useDualFormat && bookFile.Quality?.Quality != null)
+                {
+                    var formatType = Quality.GetFormatType(bookFile.Quality.Quality);
+                    var formatBasePath = _authorPathBuilder.BuildFormatPath(author, formatType);
+                    newPath = Path.Combine(formatBasePath, newName + Path.GetExtension(bookFile.Path));
+                }
+                else
+                {
+                    newPath = _filenameBuilder.BuildBookFilePath(author, book, newName, Path.GetExtension(bookFile.Path));
+                }
+
+                if (!destinationPaths.TryGetValue(newPath, out var collisionList))
+                {
+                    collisionList = new List<BookFile>();
+                    destinationPaths[newPath] = collisionList;
+                }
+
+                collisionList.Add(bookFile);
+            }
+
+            // Log and skip files that would collide with each other
+            var collisions = destinationPaths.Where(kvp => kvp.Value.Count > 1).ToList();
+            var skipFiles = new HashSet<int>();
+
+            foreach (var collision in collisions)
+            {
+                var collidingPaths = collision.Value.Select(f => f.Path).ToList();
+                _logger.Warn("Rename collision detected: {0} files would be renamed to the same destination '{1}'. " +
+                             "This usually means files are mapped to the wrong book/edition. Skipping these files: {2}",
+                             collision.Value.Count,
+                             collision.Key,
+                             string.Join(", ", collidingPaths));
+
+                foreach (var file in collision.Value)
+                {
+                    skipFiles.Add(file.Id);
+                }
+            }
 
             // Don't rename Calibre files
-            foreach (var bookFile in bookFiles.Where(x => x.CalibreId == 0))
+            foreach (var bookFile in filesToRename)
             {
+                if (skipFiles.Contains(bookFile.Id))
+                {
+                    continue;
+                }
+
                 var previousPath = bookFile.Path;
-                bookFile.PartCount = counts[bookFile.EditionId];
 
                 try
                 {

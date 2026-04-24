@@ -1,4 +1,4 @@
-import moment from 'moment';
+import { formatDistanceToNow, parseISO } from 'date-fns';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { CommandBody } from 'Commands/Command';
@@ -67,9 +67,13 @@ function getFormattedDates(
 ) {
   if (showRelativeDates) {
     return {
-      queuedAt: moment(queued).fromNow(),
-      startedAt: started ? moment(started).fromNow() : '-',
-      endedAt: ended ? moment(ended).fromNow() : '-',
+      queuedAt: formatDistanceToNow(parseISO(queued), { addSuffix: true }),
+      startedAt: started
+        ? formatDistanceToNow(parseISO(started), { addSuffix: true })
+        : '-',
+      endedAt: ended
+        ? formatDistanceToNow(parseISO(ended), { addSuffix: true })
+        : '-',
     };
   }
 

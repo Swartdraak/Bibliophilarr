@@ -11,6 +11,7 @@ function VirtualTableRowCell(props) {
   return (
     <div
       className={className}
+      role="gridcell"
     >
       {children}
     </div>

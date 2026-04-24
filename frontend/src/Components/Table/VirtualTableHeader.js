@@ -4,7 +4,7 @@ import styles from './VirtualTableHeader.css';
 
 function VirtualTableHeader({ children }) {
   return (
-    <div className={styles.header}>
+    <div className={styles.header} role="row">
       {children}
     </div>
   );

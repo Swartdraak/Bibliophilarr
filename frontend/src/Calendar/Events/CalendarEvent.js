@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import moment from 'moment';
+import { parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import getStatusStyle from 'Calendar/getStatusStyle';
@@ -60,7 +60,7 @@ class CalendarEvent extends Component {
       return null;
     }
 
-    const startTime = moment(releaseDate);
+    const startTime = parseISO(releaseDate);
     // const endTime = startTime.add(author.runtime, 'minutes');
     const downloading = !!(queueItem || grabbed);
     const isMonitored = author.monitored && monitored;

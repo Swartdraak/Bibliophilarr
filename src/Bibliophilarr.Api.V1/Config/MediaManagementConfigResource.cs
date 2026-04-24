@@ -27,6 +27,7 @@ namespace Bibliophilarr.Api.V1.Config
         public bool CopyUsingHardlinks { get; set; }
         public bool ImportExtraFiles { get; set; }
         public string ExtraFileExtensions { get; set; }
+        public bool EnableDualFormatTracking { get; set; }
     }
 
     public static class MediaManagementConfigResourceMapper
@@ -55,6 +56,7 @@ namespace Bibliophilarr.Api.V1.Config
                 CopyUsingHardlinks = model.CopyUsingHardlinks,
                 ImportExtraFiles = model.ImportExtraFiles,
                 ExtraFileExtensions = model.ExtraFileExtensions,
+                EnableDualFormatTracking = model.EnableDualFormatTracking,
             };
         }
     }

@@ -3,10 +3,12 @@ import React, { Component } from 'react';
 import AppUpdatedModalConnector from 'App/AppUpdatedModalConnector';
 import ColorImpairedContext from 'App/ColorImpairedContext';
 import ConnectionLostModalConnector from 'App/ConnectionLostModalConnector';
+import ErrorBoundary from 'Components/Error/ErrorBoundary';
 import SignalRConnector from 'Components/SignalRConnector';
 import AuthenticationRequiredModal from 'FirstRun/AuthenticationRequiredModal';
 import locationShape from 'Helpers/Props/Shapes/locationShape';
 import PageHeader from './Header/PageHeader';
+import PageContentError from './PageContentError';
 import PageSidebar from './Sidebar/PageSidebar';
 import styles from './Page.css';
 
@@ -98,7 +100,9 @@ class Page extends Component {
               onSidebarVisibleChange={onSidebarVisibleChange}
             />
 
-            {children}
+            <ErrorBoundary errorComponent={PageContentError}>
+              {children}
+            </ErrorBoundary>
           </div>
 
           <AppUpdatedModalConnector

@@ -11,6 +11,10 @@ namespace Bibliophilarr.Api.V1.Author
         public int? QualityProfileId { get; set; }
         public int? MetadataProfileId { get; set; }
         public string RootFolderPath { get; set; }
+        public int? EbookQualityProfileId { get; set; }
+        public int? AudiobookQualityProfileId { get; set; }
+        public string EbookRootFolderPath { get; set; }
+        public string AudiobookRootFolderPath { get; set; }
         public List<int> Tags { get; set; }
         public ApplyTags ApplyTags { get; set; }
         public bool MoveFiles { get; set; }

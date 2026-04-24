@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Download;
 
 namespace NzbDrone.Core.RemotePathMappings
@@ -19,6 +20,7 @@ namespace NzbDrone.Core.RemotePathMappings
         RemotePathMapping Update(RemotePathMapping mapping);
 
         OsPath RemapRemoteToLocal(string host, OsPath remotePath);
+        OsPath RemapRemoteToLocal(string host, OsPath remotePath, FormatType? formatType);
         OsPath RemapLocalToRemote(string host, OsPath localPath);
         OsPath TryRemapRemoteToLocal(OsPath remotePath);
     }
@@ -123,6 +125,11 @@ namespace NzbDrone.Core.RemotePathMappings
 
         public OsPath RemapRemoteToLocal(string host, OsPath remotePath)
         {
+            return RemapRemoteToLocal(host, remotePath, null);
+        }
+
+        public OsPath RemapRemoteToLocal(string host, OsPath remotePath, FormatType? formatType)
+        {
             if (remotePath.IsEmpty)
             {
                 return remotePath;
@@ -137,13 +144,35 @@ namespace NzbDrone.Core.RemotePathMappings
 
             _logger.Trace("Evaluating remote path remote mappings for match to host [{0}] and remote path [{1}]", host, remotePath.FullPath);
 
-            foreach (var mapping in mappings)
+            // Prefer format-specific mapping over generic
+            if (formatType.HasValue)
             {
-                _logger.Trace("Checking configured remote path mapping: {0} - {1}", mapping.Host, mapping.RemotePath);
+                foreach (var mapping in mappings.Where(m => m.FormatType == formatType))
+                {
+                    _logger.Trace("Checking format-specific remote path mapping: {0} - {1} (format: {2})", mapping.Host, mapping.RemotePath, mapping.FormatType);
+                    if (host.Equals(mapping.Host, StringComparison.InvariantCultureIgnoreCase) && new OsPath(mapping.RemotePath).Contains(remotePath))
+                    {
+                        var localPath = new OsPath(mapping.LocalPath) + (remotePath - new OsPath(mapping.RemotePath));
+                        _logger.Debug("Remapped remote path [{0}] to local path [{1}] for host [{2}] (format: {3})", remotePath, localPath, host, formatType);
+
+                        return localPath;
+                    }
+                }
+            }
+
+            // Fall back: when formatType is null, check ALL mappings (format-specific + generic) to find a match.
+            // When formatType has a value but no format-specific mapping matched, try generic (null FormatType) mappings.
+            var fallbackMappings = formatType.HasValue
+                ? mappings.Where(m => !m.FormatType.HasValue)
+                : mappings;
+
+            foreach (var mapping in fallbackMappings)
+            {
+                _logger.Trace("Checking fallback remote path mapping: {0} - {1} (format: {2})", mapping.Host, mapping.RemotePath, mapping.FormatType);
                 if (host.Equals(mapping.Host, StringComparison.InvariantCultureIgnoreCase) && new OsPath(mapping.RemotePath).Contains(remotePath))
                 {
                     var localPath = new OsPath(mapping.LocalPath) + (remotePath - new OsPath(mapping.RemotePath));
-                    _logger.Debug("Remapped remote path [{0}] to local path [{1}] for host [{2}]", remotePath, localPath, host);
+                    _logger.Debug("Remapped remote path [{0}] to local path [{1}] for host [{2}] (fallback, mapping format: {3})", remotePath, localPath, host, mapping.FormatType);
 
                     return localPath;
                 }

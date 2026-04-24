@@ -55,6 +55,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IMetadataTagService _metadataTagService;
         private readonly IAugmentingService _augmentingService;
         private readonly IIdentificationService _identificationService;
+        private readonly IImportRunTracker _importRunTracker;
         private readonly IConfigService _configService;
         private readonly IRootFolderService _rootFolderService;
         private readonly IQualityProfileService _qualityProfileService;
@@ -66,6 +67,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IMetadataTagService metadataTagService,
                                    IAugmentingService augmentingService,
                                    IIdentificationService identificationService,
+                                   IImportRunTracker importRunTracker,
                                    IConfigService configService,
                                    IRootFolderService rootFolderService,
                                    IQualityProfileService qualityProfileService,
@@ -77,6 +79,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _metadataTagService = metadataTagService;
             _augmentingService = augmentingService;
             _identificationService = identificationService;
+            _importRunTracker = importRunTracker;
             _configService = configService;
             _rootFolderService = rootFolderService;
             _qualityProfileService = qualityProfileService;
@@ -172,6 +175,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
         public List<ImportDecision<LocalBook>> GetImportDecisions(List<IFileInfo> musicFiles, IdentificationOverrides idOverrides, ImportDecisionMakerInfo itemInfo, ImportDecisionMakerConfig config)
         {
+            var totalWatch = System.Diagnostics.Stopwatch.StartNew();
+            var runSummary = _importRunTracker.CreateRun();
+            runSummary.FilesScanned = musicFiles.Count;
+
             idOverrides = idOverrides ?? new IdentificationOverrides();
             itemInfo = itemInfo ?? new ImportDecisionMakerInfo();
 
@@ -179,9 +186,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var localTracks = trackData.Item1;
             var decisions = trackData.Item2;
 
+            runSummary.FilesFiltered = musicFiles.Count - localTracks.Count - decisions.Count;
+            runSummary.TagReadMs = totalWatch.ElapsedMilliseconds;
+
             localTracks.ForEach(x => x.ExistingFile = !config.NewDownload);
 
-            var releases = _identificationService.Identify(localTracks, idOverrides, config);
+            var releases = _identificationService.Identify(localTracks, idOverrides, config, runSummary);
 
             foreach (var release in releases)
             {
@@ -196,14 +206,28 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 {
                     if (releaseDecision.Approved)
                     {
-                        decisions.AddIfNotNull(GetDecision(localTrack, itemInfo.DownloadClientItem));
+                        var trackDecision = GetDecision(localTrack, itemInfo.DownloadClientItem);
+                        decisions.AddIfNotNull(trackDecision);
+                        if (trackDecision?.Approved == true)
+                        {
+                            runSummary.Imported++;
+                        }
+                        else
+                        {
+                            runSummary.Rejected++;
+                        }
                     }
                     else
                     {
                         decisions.Add(new ImportDecision<LocalBook>(localTrack, releaseDecision.Rejections.ToArray()));
+                        runSummary.Rejected++;
                     }
                 }
             }
+
+            totalWatch.Stop();
+            runSummary.TotalMs = totalWatch.ElapsedMilliseconds;
+            _importRunTracker.LogSummary(runSummary, _logger);
 
             return decisions;
         }

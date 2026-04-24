@@ -1,13 +1,13 @@
 using System.Collections.Generic;
+using System.Net.Http;
 using Bibliophilarr.Api.V1.Notifications;
-using RestSharp;
 
 namespace NzbDrone.Integration.Test.Client
 {
     public class NotificationClient : ClientBase<NotificationResource>
     {
-        public NotificationClient(IRestClient restClient, string apiKey)
-            : base(restClient, apiKey)
+        public NotificationClient(HttpClient httpClient, string apiKey)
+            : base(httpClient, apiKey)
         {
         }
 

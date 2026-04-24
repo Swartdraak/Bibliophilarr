@@ -50,6 +50,11 @@ const COLUMNS = [
     isVisible: true
   },
   {
+    name: 'format',
+    label: 'Format',
+    isVisible: true
+  },
+  {
     name: 'releaseGroup',
     label: 'Release Group',
     isVisible: true
@@ -136,6 +141,7 @@ class InteractiveImportModalContent extends Component {
       invalidRowsSelected: [],
       selectModalOpen: null,
       booksImported: [],
+      importQualities: [],
       isConfirmImportModalOpen: false,
       inconsistentBookReleases: false
     };
@@ -195,9 +201,9 @@ class InteractiveImportModalContent extends Component {
 
     // potentially deleting files
     const selectedIds = this.getSelectedIds();
-    const booksImported = _(this.props.items)
-      .filter((x) => _.includes(selectedIds, x.id))
-      .filter((x) => x.book)
+    const selectedItems = this.props.items.filter((x) => _.includes(selectedIds, x.id) && x.book);
+
+    const booksImported = _(selectedItems)
       .keyBy((x) => x.book.id)
       .map((x) => x.book)
       .value();
@@ -209,8 +215,16 @@ class InteractiveImportModalContent extends Component {
       return;
     }
 
+    // Collect quality IDs being imported so the confirm modal can filter
+    // out cross-format existing files (e.g. don't warn about ebook files
+    // when importing audiobooks).
+    const importQualities = selectedItems
+      .filter((x) => x.quality && x.quality.quality)
+      .map((x) => x.quality.quality.id);
+
     this.setState({
       booksImported,
+      importQualities,
       isConfirmImportModalOpen: true
     });
   };
@@ -302,6 +316,7 @@ class InteractiveImportModalContent extends Component {
       invalidRowsSelected,
       selectModalOpen,
       booksImported,
+      importQualities,
       isConfirmImportModalOpen,
       inconsistentBookReleases
     } = this.state;
@@ -563,6 +578,7 @@ class InteractiveImportModalContent extends Component {
         <ConfirmImportModal
           isOpen={isConfirmImportModalOpen}
           books={booksImported}
+          importQualities={importQualities}
           onModalClose={this.onConfirmImportModalClose}
           onConfirmImportPress={this.onConfirmImportPress}
         />

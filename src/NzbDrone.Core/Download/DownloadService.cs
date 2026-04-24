@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.EnsureThat;
@@ -6,6 +7,8 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Common.TPL;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download.Clients;
 using NzbDrone.Core.Download.Pending;
 using NzbDrone.Core.Exceptions;
@@ -29,6 +32,8 @@ namespace NzbDrone.Core.Download
         private readonly IRateLimitService _rateLimitService;
         private readonly IEventAggregator _eventAggregator;
         private readonly ISeedConfigProvider _seedConfigProvider;
+        private readonly IConfigService _configService;
+        private readonly IAuthorFormatProfileService _formatProfileService;
         private readonly Logger _logger;
 
         public DownloadService(IProvideDownloadClient downloadClientProvider,
@@ -38,6 +43,8 @@ namespace NzbDrone.Core.Download
                                IRateLimitService rateLimitService,
                                IEventAggregator eventAggregator,
                                ISeedConfigProvider seedConfigProvider,
+                               IConfigService configService,
+                               IAuthorFormatProfileService formatProfileService,
                                Logger logger)
         {
             _downloadClientProvider = downloadClientProvider;
@@ -47,6 +54,8 @@ namespace NzbDrone.Core.Download
             _rateLimitService = rateLimitService;
             _eventAggregator = eventAggregator;
             _seedConfigProvider = seedConfigProvider;
+            _configService = configService;
+            _formatProfileService = formatProfileService;
             _logger = logger;
         }
 
@@ -55,6 +64,20 @@ namespace NzbDrone.Core.Download
             var filterBlockedClients = remoteBook.Release.PendingReleaseReason == PendingReleaseReason.DownloadClientUnavailable;
 
             var tags = remoteBook.Author?.Tags;
+
+            if (_configService.EnableDualFormatTracking &&
+                remoteBook.ResolvedFormatType.HasValue &&
+                remoteBook.Author != null)
+            {
+                var formatProfile = _formatProfileService.GetByAuthorIdAndFormat(
+                    remoteBook.Author.Id, remoteBook.ResolvedFormatType.Value);
+
+                if (formatProfile?.Tags != null && formatProfile.Tags.Any())
+                {
+                    _logger.Debug("Using format profile tags for {0} download routing", remoteBook.ResolvedFormatType.Value);
+                    tags = formatProfile.Tags;
+                }
+            }
 
             var downloadClient = downloadClientId.HasValue
                 ? _downloadClientProvider.Get(downloadClientId.Value)

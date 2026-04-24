@@ -7,8 +7,242 @@ process.
 
 ## [Unreleased]
 
+### Fixed
+
+- Release-readiness hardening: upgraded `MailKit` to `4.16.0` (GHSA-9j88-vvj5-vhgr) so backend restore no longer fails on `NU1902` vulnerability-as-error checks.
+- Frontend readiness alignment: `ci-frontend.yml` now runs on `staging`, and the release-readiness report now includes frontend workflow status.
+
 ### Changed
 
+- Canonical release and provider documentation now matches current workflow behavior, provider controls, and versioning sources.
+- Root Volta pin updated to Node.js `22.22.2` to match CI, Docker, and Quickstart guidance.
+
+## [1.1.0-dev.35] - 2026-04-12
+
+### Fixed
+
+- **Duplicate work deduplication**: `HardcoverFallbackSearchProvider` now deduplicates similar works from Hardcover by normalized base title (stripping series suffixes and parentheticals). Groups are resolved by data richness (ISBN, ASIN, page count, ratings), keeping the best-scoring work. Removes re-entries like "Caught Up" vs "Caught Up: Into Darkness Trilogy" and "Lights Out" vs "Lights Out: Into Darkness, Book 1".
+- **Deduped books actually removed from DB**: `RefreshAuthorService.RefreshChildren()` now explicitly deletes books marked as "Deleted" (not in remote set) when they have no local files and were not manually added, then refreshes only the remaining books. Previously, deleted books were passed to `RefreshBookInfo` which re-fetched them individually from Hardcover, so duplicates survived every refresh cycle.
+- **Unwanted author auto-addition guard**: `RefreshBookService.EnsureNewParent()` now guards against auto-adding unknown authors during individual book refresh. When the remote provider returns a different author (e.g. an anthology editor) that doesn't already exist in the DB, the method overrides the remote metadata back to the local author instead of creating a new author entry. Prevents cases like John Joseph Adams (editor) being auto-added when refreshing a book by Alan Dean Foster.
+- **Zero-page books filtered when MinPages > 0**: `MetadataProfileService.FilterBooks()` page-count filter changed from `|| x.Editions.Value.All(e => e.PageCount == 0)` (which let all zero-page books through regardless) to `p.MinPages <= 0 ||` guard — zero-page books are now correctly filtered when the metadata profile sets a minimum page count.
+- **Multi-edition language selection**: All three Hardcover GraphQL queries now fetch up to 5 editions (was 1) with the `pages` field. New `SelectBestEdition()` method scores editions by language preference (English +100, null +50), identifier richness (ISBN/ASIN), and page data, ensuring the best English edition is selected instead of whichever Hardcover returns first. Fixes non-English editions (German, French, Portuguese, etc.) being imported despite `AllowedLanguages=eng`.
+- **Cross-provider metadata enrichment**: New `TryEnrichEditionMetadata()` in `MetadataProviderOrchestrator` enriches missing page counts, release dates, languages, and overviews from supplementary providers (OpenLibrary, Google Books) via ISBN lookup after initial Hardcover fetch.
+
+## [1.1.0-dev.34] - 2026-04-12
+
+### Fixed
+
+- **Sparse Hardcover data popularity guarantee**: `MetadataProfileService.FilterBooks()` now applies a sparse-data minimum guarantee when the popularity filter removes >75% of an author's books. Restores up to 25 top books by popularity regardless of local file state. Previously, the guarantee only fired for newly added authors with zero local files — causing authors like David Weber (1 file) and Anne McCaffrey (5 files) to have most of their bibliography filtered out because Hardcover books commonly have 0 ratings (popularity = 0).
+- **Co-authored book attribution**: `HardcoverFallbackSearchProvider.FetchAuthorBooks()` and `FetchAuthorBooksById()` now override each book's `AuthorMetadata` with the queried author's identity after `MapDirectBookResult()`. Previously, `cached_contributors[0]` determined the author, causing co-authored books (e.g. Anne McCaffrey & Mercedes Lackey's "The Ship Who Searched") to be attributed to whichever contributor Hardcover listed first instead of the searched author.
+- **Collection/box-set detection**: `MetadataProfileService.IsPartOrSet()` now detects common collection title patterns ("N Books Collection Set", "Box Set", "Boxed Set", "Omnibus Edition") via a dedicated regex, in addition to the existing numeric-range patterns. Prevents collection entries like "Into Darkness Series, 2 Books Collection Set" from being imported as real books.
+- **Manual Import path discovery**: `ManualImportController.GetMediaFiles()` no longer filters format profile paths by `fp.Monitored` when discovering scan paths. All format profiles with root folders are used for path discovery, so unmonitored author format profiles still allow manual import file scanning.
+- **BookFiles UNIQUE constraint on rescan**: `DiskScanService.Scan()` deduplicates new file insertions by path before calling `AddMany()`, preventing `UNIQUE constraint failed: BookFiles.Path` errors when overlapping folder scans (e.g. two format profiles pointing to the same directory) produce duplicate file decisions.
+- **Edition language filter blocking all Hardcover books**: `MetadataProfileService.FilterEditions()` now passes editions with null/unknown language through the `AllowedLanguages` filter instead of rejecting them. Previously, editions with `Language = null` never matched any allowed language (e.g. "eng"), silently removing every Hardcover-sourced edition — which cascaded to remove all books without local files. This was the root cause preventing any new book metadata from being imported during author refresh. Additionally, `HardcoverFallbackSearchProvider` now requests `language { language }` in all three GraphQL edition queries (`FetchAuthorBooks`, `FetchAuthorBooksById`, `FetchBookByWorkId`) and maps the response into `Edition.Language` via `MapDirectBookResult()`.
+
+## [1.1.0-dev.33] - 2026-04-11
+
+### Fixed
+
+- **Decision engine format-aware profiles (DelaySpecification)**: `DelaySpecification` now uses `UpgradableSpecification.ResolveProfile(subject)` for format-resolved quality profile instead of `subject.Author.QualityProfile.Value`. Ensures delay bypass (highest quality, custom format score) evaluates against the correct format-specific profile when dual-format tracking is enabled.
+- **Decision engine format-aware profiles (CustomFormatAllowedByProfileSpecification)**: `CustomFormatAllowedByProfileSpecification` now injects `UpgradableSpecification` and uses `ResolveProfile(subject)` to resolve `MinFormatScore`. Previously used the base author quality profile directly, ignoring per-format profile overrides.
+- **Monitoring sync batch optimization**: `AuthorFormatProfileService.SyncBooksMonitored()` now uses batch `SetMonitored(ids, monitored)` instead of per-book `SetToggleMonitored()`, preventing O(n) event storms when toggling author monitoring state.
+- **Missing/Cutoff dual-format monitoring filter**: `MissingController` and `CutoffController` now apply format-aware monitoring filters via `IConfigService.EnableDualFormatTracking`, correctly filtering books where the author has a format profile with monitoring enabled for the requested format type.
+- **Book search dual-format filter**: `BookSearchService.AddMonitoredFilter()` respects per-format monitoring state when dual-format tracking is enabled, preventing searches for formats the author has disabled.
+- **Release search format awareness**: `ReleaseSearchService.AuthorSearch()` and `BookSearch()` now evaluate format type when building search decisions, with NRE guard (`monitoredEdition?.Title ?? book.Title`) for books without monitored editions.
+- **History table null guard**: `AuthorHistoryRow.js` now renders `book ? book.title : translate('Unknown')` instead of crashing when the book prop is null (e.g. for deleted books in history).
+- **Parser crash guard**: `Parser.ParseBookTitleWithSearchCriteria()` now pre-filters books to those with monitored editions (`.Where(x => x.Editions.Value.Any(e => e.Monitored))`) and uses `FirstOrDefault()` instead of `First()`, preventing `InvalidOperationException` on empty result sets.
+- **Metadata profile new-author minimum guarantee**: `MetadataProfileService` ensures new authors get at least the top 25 books by popularity when metadata profile filtering would otherwise exclude all books due to missing series data or low popularity scores.
+- **ASIN enrichment in search**: `HardcoverFallbackSearchProvider` now includes ASIN in all three GraphQL queries and `MapDirectBookResult` extraction, improving search result matching for Amazon-sourced books.
+- **Test: DelaySpecificationFixture**: Added `ResolveProfile` mock to test setup so format-resolved profile is available during delay evaluation tests.
+- **Test: DownloadDecisionMakerFixture**: Removed stale `ExpectedErrors(1)` assertion from `should_return_rejected_result_for_unparsable_search` — the Parser's new monitored-edition guard returns null gracefully instead of throwing, so 0 errors are expected.
+
+### Added
+
+- **Hardlink-aware download tracking**: `CompletedDownloadService.Check()` detects when completed download files are already hardlinked into the library via inode comparison (`IDiskProvider.AreSameFile`). When all download files share inodes with library files, the download is marked `Imported` immediately — no re-import attempted, no overwrite confirmation. The download stays tracked in the client for seed time enforcement. Implemented via `Syscall.stat` inode+device comparison on Linux and `GetFileInformationByHandle` file index comparison on Windows.
+
+### Fixed (previous session)
+
+- **Manual Import dual-format scanning**: `ManualImportController` now scans all format profile root folders (e.g. `/media/ebooks/Shirtaloon` + `/media/audiobooks/Shirtaloon`) when dual-format tracking is enabled and authorId is provided. Previously passed only the single `author.Path` to the modal, blocking file assignment across root folders. Constructs full paths from `AuthorFormatProfile.RootFolderPath` + author folder name when `Path` is empty.
+- **Missing page format-aware query**: `BookRepository.BooksWithoutFilesBuilder` uses quality-based NOT EXISTS subqueries (ebook IDs 0-4, audiobook IDs 10-13) instead of edition-level file joins when dual-format is enabled. Books with audiobook files but no ebook files (e.g. Shirtaloon books 737-742, 317, 745-747) now correctly appear on the Wanted/Missing page. Total missing jumped from 15 → 44.
+- **Author page per-format status column**: `BookStatus.js` rewritten to show per-format status badges when `formatStatuses` is available. Each monitored format gets its own badge — green quality badge for formats with files, red "Missing" label for monitored formats without files, blue "Not Available" for unreleased. Previously showed only a single quality badge for the first file found.
+- **Interactive Import modal title**: `AuthorDetails.js` now passes `title={authorName}` instead of `folder={path}` to the Interactive Import modal. Modal title shows "Manual Import - Shirtaloon" instead of the single root folder path.
+
+### Fixed (previous session)
+
+- **Search format bias**: `ProcessDownloadDecisions.IsBookProcessed()` now format-aware when dual format tracking is enabled — ebook and audiobook releases for the same book are grabbed independently instead of first-format-wins behavior that caused searches to only queue audiobooks.
+- **Import match threshold**: `CloseBookMatchSpecification` uses lenient 50% threshold for app-initiated tracked downloads to prevent false rejections from verbose audiobook filenames that scored 58-65% against the default 70% threshold.
+- **Calendar page crash**: `fetchCalendar` action handler called `parseISO()` on `undefined` when `calendar.time` was not yet initialized (e.g., direct navigation to `/calendar` URL, page refresh). Guarded all three calendar action handlers (`FETCH_CALENDAR`, `GOTO_CALENDAR_PREVIOUS_RANGE`, `GOTO_CALENDAR_NEXT_RANGE`) to fall back to `new Date()` when `time` is undefined. Also added null guard in `CalendarHeader.getTitle()`.
+- **Missing translation key**: Added `ProviderResilience` to `en.json`. Previously rendered as raw key string on Settings > Metadata page.
+- **Missing form field label associations**: Added `name` prop to all 26 `FormLabel` components in `MetadataProvider.js` for proper `htmlFor`→`id` label-input association. Added `id={name}` attribute to `TextInput`, `CheckInput`, and `TextArea` components so browser accessibility tools can link labels to their inputs.
+
+### Fixed (previous)
+
+- **bookFile DELETE cross-root-folder error**: `MediaFileDeletionService.DeleteTrackFile()` used `author.Path` to derive the root folder, causing `NotParentException` when deleting ebook files under `/media/ebooks/` for authors whose base path is `/media/audiobooks/`. Now uses `IRootFolderService.GetBestRootFolder()` to resolve the correct root folder for the file being deleted.
+- **formatStatuses missing format entries**: `BookControllerWithSignalR.EnrichFormatStatuses()` only enriched existing format status entries but never created missing ones. Books without ebook files (777 of 794) had no ebook format entry even when the author had an ebook format profile. Now iterates author format profiles and adds placeholder entries for any missing format type. All 794 books now show both ebook and audiobook statuses.
+- **Progress bar colors for unmonitored items**: `getProgressBarKind()` showed WARNING (orange) for unmonitored authors/books with progress < 100%. Now checks monitored state first — all unmonitored items show PRIMARY (blue) since nothing is being tracked.
+- **Missing translation keys**: Added `TableOptions` and `InteractiveSearch` to `en.json`. Previously caused console warnings on Book Index, Author Index, and Book Search pages.
+
+### Removed
+
+- **Quality Profile column from Book Index**: Removed redundant `qualityProfileId` column. The Format column already shows per-format quality profile names in badge tooltips.
+
+### Fixed
+
+- **formatStatuses file-based format derivation**: `BookResource.ToResource()` now derives format type from actual book file qualities via `Quality.GetFormatType()` instead of relying on `Edition.IsEbook` (which was never set for Hardcover direct results). Per-format file counts exposed via new `FileCount` property on `BookFormatStatusResource`. Books with ebook files now correctly report ebook format status.
+- **Hardcover IsEbook never set**: `HardcoverFallbackSearchProvider.MapDirectBookResult()` now reads `reading_format_id` from GraphQL edition data and sets `IsEbook = true` for ebook editions (format ID 2). Added `reading_format_id` to all three GraphQL edition queries (`FetchBookByWorkId`, `FetchAuthorBooks`, `FetchAuthorBooksById`). Future metadata refreshes will populate `IsEbook` correctly.
+- **Author Editor path recomputation**: `AuthorEditorController.SaveAll()` now recomputes `AuthorFormatProfile.Path` when a per-format root folder path changes, using `global::System.IO.Path.Combine(rootFolderPath, author.CleanName)`.
+- **Author Editor logging**: `AuthorEditorController` now logs format profile update operations (Info for batch summary, Debug per author per format) via NLog for operational observability.
+
+### Added
+
+- **Book Index format column**: Format column in Book Index table showing per-format badges with file counts, icons (book/audiotrack), and quality profile tooltips.
+- **Wanted pages format column**: Format Type column added to Missing and Cutoff Unmet tables showing ebook/audiobook indicator badges.
+- **Book detail format file counts**: BookRow and BookDetailsHeader format badges now display per-format file counts (e.g. "1 file", "3 files").
+
+### Fixed
+
+- **Decision engine format isolation**: Five decision engine specifications (CutoffSpec, UpgradeDiskSpec, UpgradeAllowedSpec, QueueSpec, HistorySpec) now use `UpgradableSpecification.ResolveProfile()` for format-resolved quality profiles instead of the base author QP. Three disk-comparison specs also filter existing files by format type, preventing cross-format comparisons (e.g. EPUB evaluated against M4B files).
+- **Import upgrade format isolation**: Import `UpgradeSpecification` rewritten with per-format QP resolution and file filtering. EPUB imports are no longer rejected as "not an upgrade" when only audiobook files exist on disk.
+- **Import QP defaults**: `EnsureFormatProfiles()` now scans root folders and their default quality profiles to infer the correct QP per format type, instead of defaulting both ebook and audiobook profiles to the base author QP.
+- **Queue format column blank**: `QueueResource.FormatType` changed from `int?` to `FormatType?` enum for correct JSON serialization as `"ebook"`/`"audiobook"` strings. Fallback derivation from quality added for items grabbed before format tracking was enabled.
+- **Manual import author prefill**: Single-file imports now pass author override to the import decision maker. `ProcessFolder` applies author fallback when file identification does not assign one, fixing the "Author must be chosen" error on prefilled manual imports.
+- **Mass editor per-format QP not applying**: `AuthorEditorController.SaveAll()` response now includes format profiles so the frontend Redux store retains per-format quality profile changes instead of overwriting them with null.
+- **Format profile monitored state**: `EditAuthorModalContentConnector` now refreshes the author in Redux after format profile saves, ensuring the monitored checkbox reflects the saved state.
+
+### Changed
+
+- **Wiki content enrichment**: All 13 built-in wiki pages comprehensively rewritten with detailed content sourced from Servarr wiki, adapted for Bibliophilarr (627→1465 lines). Covers getting started, library management, dual-format tracking, quality profiles, indexers, download clients, wanted, activity, media management, notifications, system, troubleshooting, FAQ, and custom formats.
+- **Mass editor**: Base quality profile and root folder selectors removed entirely; per-format selectors (Ebook QP, Audiobook QP, Ebook Root Folder, Audiobook Root Folder) shown unconditionally. `enableDualFormatTracking` gating and related Redux wiring removed.
+- **Format profile editor**: Root folder path selector added per format profile in the author edit modal.
+
+### Added
+
+- **Book file editor format column**: Format column added to the book files table showing Ebook/Audiobook labels derived from quality ID ranges.
+
+### Fixed
+
+- `MediaCoverMapper.cs` resized image fallback regex updated from `(jpg|png|gif)` to `(jpe?g|png|gif|webp)`, matching `MediaCoverProxyMapper.cs`. Fixes JPEG and WebP cover image fallback paths.
+- rTorrent `GetStatus()` now reports `MusicDirectory` as `OutputRootFolders` when configured, preventing health check blind spots for custom download directories.
+
+### Changed
+
+- Hadouken download client upgraded to dual-format: `IFormatCategorySettings` on settings, proxy passes category to `webui.addTorrent`, `GetItems()` uses `MatchesAnyCategory()`, `AddFrom*` uses `GetCategoryForFormat()`. Total `IFormatCategorySettings` clients: 10 of 14.
+- Documentation drift fixed: `MIGRATION_PLAN.md` and `PROJECT_STATUS.md` updated from "10 slices" to "16 slices" for TD-DUAL-FORMAT-001.
+
+### Removed
+
+- Dead `GetImportedCategoryForFormat()` extension method from `IFormatCategorySettings`. Was designed but never adopted; clients infer format from current category string.
+
+### Fixed
+
+- **CRITICAL**: Download client `GetItems()` now monitors all configured format categories (default, ebook, audiobook) instead of only the default `MusicCategory`. Affects SABnzbd, NZBGet, Deluge, rTorrent, and Transmission. Items sent to format-specific categories were previously invisible to download monitoring.
+- **HIGH**: Download client `GetStatus()` now reports output folders for all configured categories (default, ebook, audiobook) instead of only the default category. Affects SABnzbd, NZBGet, and Transmission. Prevents false-positive health check warnings for format-specific download paths.
+- Download client validation failures now use user-friendly field names (`Category`, `PostImportCategory`) instead of leaking internal property names (`MusicCategory`, `MusicImportedCategory`).
+- `MetadataService` log message now includes author name and path context when skipping metadata creation for missing author folders.
+- `AuthorFormatProfileService.Add()` now checks for existing profile before insert, preventing duplicate format profile records in the database.
+- Author details header: format profile labels are deduplicated by format type, preventing duplicate "Ebook" or "Audiobook" badges.
+- Search results: items are now sorted by relevance (exact match, starts with, contains) for more intuitive result ordering.
+
+### Changed
+
+- Added `MatchesAnyCategory()` extension method to `IFormatCategorySettings` for centralized multi-category matching across all download clients.
+- Download client settings: `EbookCategory` and `AudiobookCategory` fields are now visually grouped under a "Format-Specific Categories" section header in the edit form.
+
+### Added
+
+- **DF-11**: Format-aware download client categories — `IFormatCategorySettings` interface with `EbookCategory`/`AudiobookCategory` fields and `GetCategoryForFormat()` extension method. Implemented across 6 download client settings (SABnzbd, NZBGet, qBittorrent, Deluge, Transmission, rTorrent) and 4 client implementations.
+- **DF-12**: Format-aware remote path mappings — nullable `FormatType` column on `RemotePathMappings` table (migration 046), format-specific path resolution with generic fallback in `RemotePathMappingService`, frontend format selector in remote path mapping editor.
+- **DF-13**: Queue format display — `FormatType` field on `QueueResource`, format column in queue table (Ebook/Audiobook indicator).
+- **DF-14**: Wanted/missing and cutoff unmet format filters — ebook/audiobook filter options in both Wanted views.
+- **DF-15**: Calendar format filter — ebook/audiobook filter options in calendar view.
+- **DF-16**: Author index format column — format profiles column showing monitored ebook/audiobook status per author.
+
+### Fixed
+
+- Search results: book cover images now display correctly by overriding `resource.Book.Images` from the selected edition before URL conversion in `SearchController`.
+- Search results: author images now display correctly via individual author detail fallback queries when batch API returns empty results in `HardcoverFallbackSearchProvider`.
+- Add Author modal: modal now properly closes after successful author addition via `componentDidUpdate` lifecycle handler detecting `isAdding` state transition.
+- Author details header: format profile labels now show quality profile name with monitored/unmonitored indicator instead of plain text.
+
+### Changed
+
+- Add Author flow: auto-creates Ebook and Audiobook format profiles when `EnableDualFormatTracking` is enabled (`AddAuthorService.EnsureFormatProfiles`).
+- Add Author modal: per-format quality profile and root folder selection when dual-format tracking is enabled.
+- Author edit modal: format profiles are now editable with per-format monitored toggle and quality profile selector; changes saved via API alongside author updates.
+
+- **DF-1**: Domain model, schema, and feature flag for dual-format tracking — `FormatType` enum, `AuthorFormatProfile` entity, migration 045, `EnableDualFormatTracking` config flag, `Quality.GetFormatType()` helper. 10/10 tests pass.
+- **DF-2**: Edition monitoring per format type — format-aware housekeeping (`FixMultipleMonitoredEditions` groups by BookId+IsEbook when flag on), `BookEditionSelector.GetPreferredEdition(FormatType)` overloads, `EditionRepository.SetMonitoredByFormat()`. 17/17 tests pass.
+- **DF-3**: Decision engine format-aware quality evaluation — `QualityAllowedByProfileSpecification` resolves format-specific quality profile, `UpgradableSpecification.ResolveProfile(RemoteBook)` helper, `RemoteBook.ResolvedFormatType` and `ResolvedQualityProfile` properties. 9/9 tests pass.
+- **DF-4**: Download client routing by format — `DownloadService.DownloadReport` uses format profile tags when dual-format enabled, falls back to author tags. 4/4 tests pass.
+- **DF-5**: Import pipeline format awareness — `ImportApprovedBooks` assigns files to format-specific editions and root folders when dual-format enabled. 12/12 tests pass.
+- **DF-6**: File path building by format — path builder resolves format profile root folder for file placement. 8/8 tests pass.
+- **DF-7**: Missing and cutoff evaluation by format — format-filtered SQL builders in `BookRepository`, `FormatType?` query parameter on Missing and Cutoff controllers. 7/7 tests pass.
+- **DF-8**: API resources and controllers — `AuthorFormatProfileResource` with CRUD controller, `BookFormatStatusResource` for per-format book status, format profiles linked in `AuthorResource` and `BookResource`. Fixed `SingleOrDefault` crash in `BookResource` mapper for dual-format editions. 9/9 tests pass.
+- **DF-9**: Frontend format profile UI — author edit modal format profile display, detail header format badges with book/audiobook icons, `authorFormatProfileActions` Redux store module.
+- **DF-10**: Rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle (Settings > Media Management > Dual Format, advanced settings).
+- Frontend test suite expanded: 3 new test suites (AuthorFormatProfileEditor, InteractiveImport validation, authorFormatProfileActions) with 20 new tests. Total: 12 suites, 39 tests.
+- Container resource limits documentation: sizing table in QUICKSTART.md and `deploy.resources` block in docker-compose.local.yml (RQ-169).
+- VirtualTable accessibility: ARIA roles (`role="grid"`, `role="row"`, `role="columnheader"` with `aria-sort`, `role="gridcell"`) on all virtual table components; 7 tests added.
+- Page-level error boundary wrapping route children in `Page.js` to catch routing-level render errors.
+- Theme color variables for log levels, star rating, hover accents, status page, and author progress background in both light and dark themes.
+- VirtualTable keyboard navigation: Arrow Up/Down scrolls by row height, Page Up/Down by viewport, Home/End to start/end; `tabIndex` and `aria-rowcount` on Scroller container (RQ-143).
+- Targeted author query methods: `AuthorExistsWithMetadataProfile()`, `GetAuthorsByMetadataProfile()`, `AuthorExistsWithQualityProfile()` in AuthorRepository/AuthorService (RQ-033).
+- 1 new keyboard navigation accessibility test; total: 13 suites, 47 tests.
+
+### Fixed
+
+- Heading case normalized to sentence case across ROADMAP.md, PROJECT_STATUS.md, MIGRATION_PLAN.md, QUICKSTART.md, README.md, and 3 wiki files per docs-style rule (RQ-147).
+- ROADMAP milestone table: Frontend test infrastructure and Documentation normalization now marked complete (was still showing "planned").
+- Documentation drift: MIGRATION_PLAN.md status updated from "not yet started" to "implementation complete" for TD-DUAL-FORMAT-001.
+- README.md updated to mention dual-format tracking and v1.0.0 release; removed stale "run separate instances" advice.
+
+### Removed
+
+- Unused `react-async-script` dependency (RQ-137).
+
+### Changed
+
+- Hardcoded CSS hex colors replaced with theme variables across 8 files: LogsTableRow, StarRating, FormInputHelpText, AuthorDetails, AuthorDetailsHeader, Status, AuthorIndexProgressBar, AuthorIndexPoster (RQ-100).
+- Z-index `9999` in DragPreviewLayer.css replaced with `$dragLayerZIndex` PostCSS variable (RQ-101).
+- QUICKSTART.md now includes dual-format tracking enablement guide.
+- CHANGELOG.md entry `[2026-03-17]` assigned version `[0.9.0]` per Keep a Changelog format.
+- ROADMAP.md: DMQ-002 sequencing language corrected (.NET 10 GA available, no longer "blocked"); items #9, #13, #15, #16 marked COMPLETED.
+- Import run summary telemetry (Slice A1): structured per-run metrics for files scanned/filtered, match quality distribution, stage timing, throughput, and match rate. Logged at Info level on each import run completion.
+- Commit message convention (Conventional Commits format) with type/scope rules, branch naming convention, and production readiness expectations in `CONTRIBUTING.md`.
+- Release gate checklist in `CONTRIBUTING.md` enforcing CI, CHANGELOG, artifact, and rollback verification before tagging releases.
+- Enhanced PR template with type-of-change checkboxes, production safety checklist, and CHANGELOG update requirement.
+- Detailed dual-format architecture design (TD-DUAL-FORMAT-001) in `MIGRATION_PLAN.md`: `AuthorFormatProfile` entity, per-format quality profiles and root folders, 10 implementation slices (DF-1 through DF-10), feature flag `EnableDualFormatTracking`, migration 045 schema, acceptance criteria, and rollback strategy.
+
+### Fixed
+
+- ManualImport: added `AuthorId > 0` and `BookId > 0` guard clauses in `ManualImportService` to reject incomplete import requests early instead of crashing downstream.
+- ManualImport frontend: added `author.id` and `book.id` validation in `InteractiveImportModalContentConnector` before dispatching import commands.
+- AudioTag: added NFS writeable pre-check and IOException retry with exponential backoff in `AudioTag.cs` and `AudioTagService.cs` to handle transient NFS mount failures.
+- Search: added minimum 3-character server-side guard in `SearchController` to prevent empty/short search queries from hitting indexers.
+- `test: fix 13 failing Core unit tests for updated metadata profiles and import behavior`
+
+### Changed
+
+- Search: increased frontend search debounce from 300ms to 600ms and added minimum 3-character enforcement in `searchActions.js` to reduce unnecessary API calls.
+- 10 API resource files converted to file-scoped namespaces: BookStatisticsResource, AuthorStatisticsResource, AuthorEditorDeleteResource, TagResource, BackupResource, QueueStatusResource, LanguageResource, TaskResource, ProviderHealthResource, RootFolderResource (RQ-050).
+- OpenLibraryIdBackfillService restructured to chunked processing with per-chunk edition loading, progress logging, and early budget exhaustion exit (RQ-031).
+- MetadataProfileService and QualityProfileService use targeted author queries instead of `GetAllAuthors()` for profile deletion checks and legacy migration (RQ-033).
+- ManageImportListsEditModalContent, ManageIndexersEditModalContent, ManageDownloadClientsEditModalContent use `SpinnerButton` with local `isSaving` state for save feedback (RQ-103).
+- RQ-099 assessed: 27 of 29 CSS `!important` flags are legitimately needed (third-party inline style overrides, CSS module ordering, mixin reliability).
+- RQ-108 assessed: build.sh SDK modification already has .ORI backup, variable quoting, and error guards; full SDK copy deferred as structural pipeline change.
+- ROADMAP.md Track B updated with finalized 10-slice dual-format architecture and milestone status changed from "assessed" to "designed".
+- PROJECT_STATUS.md dual-format section updated to "Design complete (April 2026)" with implementation slice count and next action.
+
+- `refactor(deps): replace moment.js with date-fns across all 34 frontend date utility, Calendar, Store, and System files` — moment.js (328KB) removed; tree-shakeable date-fns 4.1.0 imported. Format token converter preserves backend format compatibility.
+- `refactor: migrate test infrastructure from RestSharp to System.Net.Http.HttpClient`
+- `docs: normalize canonical documentation, fix stale Node.js versions and milestone statuses`
+- `build(deps): upgrade stylelint 15.11.0 → 16.26.1 and stylelint-order 6.0.4 → 8.1.1` (DMQ-005)
+- `build(deps): upgrade FluentAssertions 5.10.3 → 8.9.0` — migrated assertion API across 11 test files: `AssertionOptions` → `AssertionConfiguration`, renamed comparison methods, updated `BeCloseTo` precision signatures, replaced `Should().Equals()` with `Should().Be()`, converted `SelectedMemberInfo` exclusions to explicit property exclusions (DMQ-006)
+- React 18 upgrade path assessed: 3 critical blockers (connected-react-router removal, ReactDOM.render→createRoot, Router 5→6), 6-step migration sequence documented in ROADMAP.md.
+- Redux modernization assessed: 224 connect() HOCs, 35+ action modules, 100+ thunks. Migration to Redux Toolkit sequenced after React 18.
+- moment.js migration completed: 34 import sites across Utilities/Date, Calendar, Store, and System modules replaced with date-fns 4.1.0. moment.js removed from dependencies.
+- Upgraded Node.js 20.19.2 → 22.22.2 LTS across Dockerfile, `ci-frontend.yml`, `npm-publish.yml`, and `release.yml`. Node 20 reached EOL April 2026.
+- Added `org.opencontainers.image.vendor` OCI label to Dockerfile.
 - Bumped GitHub Actions: `docker/metadata-action` v5 → v6, `actions/setup-node` v4 → v6, `actions/github-script` v7 → v8, `docker/login-action` v3 → v4, `docker/setup-buildx-action` v3 → v4.
 - Bumped npm dev dependencies: `@types/node` 20 → 25, `jest` 30.1.2 → 30.3.0.
 - Bumped NuGet packages: `coverlet.collector` 3.1.0 → 8.0.1, `Dapper` 2.0.151 → 2.1.72.
@@ -243,7 +477,7 @@ process.
 - Removed `frontend/src/Shared/piwikCheck.js`: legacy Sonarr Piwik analytics script that loaded a tracking beacon from `piwik.sonarr.tv`. No Bibliophilarr analytics replacement needed; the backend `IAnalyticsService` (install-activity telemetry for update checks) is unaffected.
 - Removed `azure-pipelines.yml` (1,251 lines): legacy Readarr Azure DevOps pipeline. GitHub Actions is the sole authoritative CI system; the Azure config was never adapted for Bibliophilarr and caused dual-CI confusion.
 
-## [2026-03-17]
+## [0.9.0] - 2026-03-17
 
 - Fixed ConfigService property setters: removed clamping logic from `IsbnContextFallbackLimit` and `BookImportMatchThresholdPercent` to preserve exact config values (validation moved to API controller layer).
 - Fixed 16 test fixture failures across 6 core test suites:

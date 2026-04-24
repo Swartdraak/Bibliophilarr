@@ -1,10 +1,13 @@
+using System.Collections.Generic;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books.Calibre;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.MediaFiles
@@ -22,6 +25,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IMoveBookFiles _bookFileMover;
         private readonly IDiskProvider _diskProvider;
         private readonly IRootFolderService _rootFolderService;
+        private readonly IConfigService _configService;
         private readonly ICalibreProxy _calibre;
         private readonly Logger _logger;
 
@@ -31,6 +35,7 @@ namespace NzbDrone.Core.MediaFiles
                                        IMoveBookFiles bookFileMover,
                                        IDiskProvider diskProvider,
                                        IRootFolderService rootFolderService,
+                                       IConfigService configService,
                                        ICalibreProxy calibre,
                                        Logger logger)
         {
@@ -40,6 +45,7 @@ namespace NzbDrone.Core.MediaFiles
             _bookFileMover = bookFileMover;
             _diskProvider = diskProvider;
             _rootFolderService = rootFolderService;
+            _configService = configService;
             _calibre = calibre;
             _logger = logger;
         }
@@ -47,7 +53,29 @@ namespace NzbDrone.Core.MediaFiles
         public BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false)
         {
             var moveFileResult = new BookFileMoveResult();
-            var existingFiles = localBook.Book.BookFiles.Value;
+            var allExistingFiles = localBook.Book.BookFiles.Value;
+
+            // When dual-format tracking is enabled, only replace files of the same
+            // format type (ebook vs audiobook).  This prevents importing an ebook from
+            // deleting an existing audiobook and vice-versa.
+            List<BookFile> existingFiles;
+            if (_configService.EnableDualFormatTracking)
+            {
+                var incomingFormatType = Quality.GetFormatType(bookFile.Quality.Quality);
+                existingFiles = allExistingFiles
+                    .Where(f => Quality.GetFormatType(f.Quality.Quality) == incomingFormatType)
+                    .ToList();
+
+                var skippedCount = allExistingFiles.Count - existingFiles.Count;
+                if (skippedCount > 0)
+                {
+                    _logger.Debug("Dual-format tracking: preserving {0} file(s) of other format type during upgrade", skippedCount);
+                }
+            }
+            else
+            {
+                existingFiles = allExistingFiles;
+            }
 
             var rootFolderPath = _diskProvider.GetParentFolder(localBook.Author.Path);
             var rootFolder = _rootFolderService.GetBestRootFolder(rootFolderPath);
@@ -64,7 +92,15 @@ namespace NzbDrone.Core.MediaFiles
             foreach (var file in existingFiles)
             {
                 var bookFilePath = file.Path;
-                var subfolder = rootFolderPath.GetRelativePath(_diskProvider.GetParentFolder(bookFilePath));
+
+                // The existing file may live under a different root folder than the
+                // author (e.g. ebooks root vs audiobooks root). Compute the recycle
+                // subfolder relative to the root that actually contains the file to
+                // avoid NotParentException.
+                var fileParent = _diskProvider.GetParentFolder(bookFilePath);
+                var fileRoot = _rootFolderService.GetBestRootFolder(fileParent);
+                var effectiveRootPath = fileRoot?.Path ?? rootFolderPath;
+                var subfolder = effectiveRootPath.GetRelativePath(fileParent);
 
                 bookFile.CalibreId = file.CalibreId;
 

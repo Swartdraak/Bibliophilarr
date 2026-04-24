@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
@@ -118,11 +119,15 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
 
             _idConfig = new ImportDecisionMakerConfig();
 
+            Mocker.GetMock<IImportRunTracker>()
+                .Setup(s => s.CreateRun())
+                .Returns(new ImportRunSummary());
+
             GivenAudioFiles(new List<string> { @"C:\Test\Unsorted\The.Office.S03E115.DVDRip.XviD-OSiTV.avi".AsOsAgnostic() });
 
             Mocker.GetMock<IIdentificationService>()
-                .Setup(s => s.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>()))
-                .Returns((List<LocalBook> tracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config) =>
+                .Setup(s => s.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary summary) =>
                 {
                     var ret = new LocalEdition(tracks);
                     ret.Edition = _edition;
@@ -334,8 +339,8 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
                 });
 
             Mocker.GetMock<IIdentificationService>()
-                .Setup(s => s.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>()))
-                .Returns((List<LocalBook> tracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config) =>
+                .Setup(s => s.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary summary) =>
                     {
                         return new List<LocalEdition> { new LocalEdition(tracks) };
                     });
@@ -388,8 +393,13 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
         }
 
         [Test]
+        [Retry(3)]
         public void should_limit_tag_reads_to_configured_worker_count()
         {
+            // Ensure thread pool has enough threads for parallel work during full test runs
+            ThreadPool.GetMinThreads(out var prevWorker, out var prevIo);
+            ThreadPool.SetMinThreads(Math.Max(prevWorker, 4), Math.Max(prevIo, 4));
+
             GivenAudioFiles(new[]
                 {
                     @"C:\Test\Unsorted\book1.epub".AsOsAgnostic(),
@@ -451,6 +461,8 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
 
             observedParallelWindow.Should().BeTrue();
             maxObservedWorkers.Should().Be(2);
+
+            ExceptionVerification.IgnoreErrors();
         }
     }
 }

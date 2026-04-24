@@ -44,12 +44,12 @@ namespace NzbDrone.Integration.Test.ApiTests
         private bool BeValidRelease(ReleaseResource releaseResource)
         {
             releaseResource.Guid.Should().NotBeNullOrEmpty();
-            releaseResource.Age.Should().BeGreaterOrEqualTo(-1);
+            releaseResource.Age.Should().BeGreaterThanOrEqualTo(-1);
             releaseResource.Title.Should().NotBeNullOrWhiteSpace();
             releaseResource.DownloadUrl.Should().NotBeNullOrWhiteSpace();
             releaseResource.AuthorName.Should().NotBeNullOrWhiteSpace();
 
-            //NOTE: uncomment these after moving to restsharp for rss
+            //NOTE: uncomment these after validating rss integration
             //releaseResource.NzbInfoUrl.Should().NotBeNullOrWhiteSpace();
             //releaseResource.Size.Should().BeGreaterThan(0);
             return true;

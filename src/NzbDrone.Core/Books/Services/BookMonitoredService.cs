@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
+using NzbDrone.Core.Configuration;
 
 namespace NzbDrone.Core.Books
 {
@@ -14,12 +15,14 @@ namespace NzbDrone.Core.Books
     {
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
-        public BookMonitoredService(IAuthorService authorService, IBookService bookService, Logger logger)
+        public BookMonitoredService(IAuthorService authorService, IBookService bookService, IConfigService configService, Logger logger)
         {
             _authorService = authorService;
             _bookService = bookService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -28,6 +31,11 @@ namespace NzbDrone.Core.Books
             if (monitoringOptions != null)
             {
                 _logger.Debug("[{0}] Setting book monitored status.", author.Name);
+
+                if (_configService.EnableDualFormatTracking)
+                {
+                    _logger.Debug("[{0}] Dual-format tracking enabled, edition monitoring scoped per format type.", author.Name);
+                }
 
                 var books = _bookService.GetBooksByAuthor(author.Id);
 

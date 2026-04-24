@@ -348,11 +348,15 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             var tracks = GivenTracksWithNoTags($"C:\\music\\incoming\\book".AsOsAgnostic(), 10);
 
             TrackGroupingService.IsVariousAuthors(tracks).Should().Be(false);
-            TrackGroupingService.LooksLikeSingleRelease(tracks).Should().Be(true);
+
+            // Files with no book metadata should not be grouped as a single
+            // release — each file is treated individually so the identification
+            // service can match them independently.
+            TrackGroupingService.LooksLikeSingleRelease(tracks).Should().Be(false);
 
             var output = Subject.GroupTracks(tracks);
-            output.Count.Should().Be(1);
-            output[0].LocalBooks.Count.Should().Be(10);
+            output.Count.Should().Be(10);
+            output[0].LocalBooks.Count.Should().Be(1);
         }
 
         [Test]

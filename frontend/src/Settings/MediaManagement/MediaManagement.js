@@ -234,6 +234,31 @@ class MediaManagement extends Component {
                     </FieldSet>
                 }
 
+                {
+                  advancedSettings &&
+                    <FieldSet
+                      legend="Dual Format"
+                    >
+                      <FormGroup
+                        advancedSettings={advancedSettings}
+                        isAdvanced={true}
+                        size={sizes.MEDIUM}
+                      >
+                        <FormLabel>
+                          Enable Dual Format Tracking
+                        </FormLabel>
+
+                        <FormInputGroup
+                          type={inputTypes.CHECK}
+                          name="enableDualFormatTracking"
+                          helpText="Track both ebook and audiobook editions separately per author. When enabled, authors can have independent quality profiles, root folders, and monitoring for each format."
+                          onChange={onInputChange}
+                          {...settings.enableDualFormatTracking}
+                        />
+                      </FormGroup>
+                    </FieldSet>
+                }
+
                 <FieldSet
                   legend={translate('FileManagement')}
                 >

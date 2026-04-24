@@ -1,5 +1,5 @@
+import { getUnixTime, isSameDay, parseISO } from 'date-fns';
 import _ from 'lodash';
-import moment from 'moment';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
@@ -12,10 +12,10 @@ function createCalendarEventsConnector() {
     (state) => state.calendar.items,
     (date, items) => {
       const filtered = _.filter(items, (item) => {
-        return moment(date).isSame(moment(item.releaseDate), 'day');
+        return isSameDay(parseISO(date), parseISO(item.releaseDate));
       });
 
-      return _.sortBy(filtered, (item) => moment(item.releaseDate).unix());
+      return _.sortBy(filtered, (item) => getUnixTime(parseISO(item.releaseDate)));
     }
   );
 }

@@ -320,9 +320,10 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.DownloadStationTests
                 .Returns(_serialNumber);
         }
 
-        protected void GivenMusicCategory()
+        protected void GivenEbookCategory()
         {
-            _settings.MusicCategory = _category;
+            _settings.EbookCategory = _category;
+            _settings.AudiobookCategory = "bibliophilarr-audiobooks";
         }
 
         protected void GivenTvDirectory()
@@ -406,7 +407,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.DownloadStationTests
         public async Task Download_with_category_should_force_directory()
         {
             GivenSerialNumber();
-            GivenMusicCategory();
+            GivenEbookCategory();
             GivenSuccessfulDownload();
 
             var remoteBook = CreateRemoteBook();
@@ -539,7 +540,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.DownloadStationTests
         public void GetStatus_should_map_outputpath_when_using_category()
         {
             GivenSerialNumber();
-            GivenMusicCategory();
+            GivenEbookCategory();
             GivenSharedFolder($"/somepath/{_category}");
 
             var status = Subject.GetStatus();

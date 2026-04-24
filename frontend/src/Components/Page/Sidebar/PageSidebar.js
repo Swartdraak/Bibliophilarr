@@ -175,6 +175,10 @@ const links = [
       {
         title: () => translate('LogFiles'),
         to: '/system/logs/files'
+      },
+      {
+        title: () => translate('Wiki'),
+        to: '/system/wiki'
       }
     ]
   }

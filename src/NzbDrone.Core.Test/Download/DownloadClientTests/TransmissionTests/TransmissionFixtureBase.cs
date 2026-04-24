@@ -112,9 +112,10 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
                   .Returns(() => Json.Deserialize<TransmissionConfig>(_transmissionConfigItems.ToJson()));
         }
 
-        protected void GivenMusicCategory()
+        protected void GivenEbookCategory()
         {
-            _settings.MusicCategory = "Bibliophilarr";
+            _settings.EbookCategory = "Bibliophilarr";
+            _settings.AudiobookCategory = "Bibliophilarr-Audiobooks";
         }
 
         protected void GivenTvDirectory()

@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.Qualities;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Bibliophilarr.Api.V1.Books
@@ -37,6 +38,7 @@ namespace Bibliophilarr.Api.V1.Books
         public string RemoteCover { get; set; }
         public DateTime? LastSearchTime { get; set; }
         public List<EditionResource> Editions { get; set; }
+        public List<BookFormatStatusResource> FormatStatuses { get; set; }
 
         //Hiding this so people don't think its usable (only used to set the initial state)
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -53,7 +55,8 @@ namespace Bibliophilarr.Api.V1.Books
                 return null;
             }
 
-            var selectedEdition = model.Editions?.Value.Where(x => x.Monitored).SingleOrDefault();
+            var selectedEdition = model.Editions?.Value.Where(x => x.Monitored).FirstOrDefault()
+                                  ?? model.Editions?.Value.FirstOrDefault();
 
             var title = selectedEdition?.Title ?? model.Title;
             var authorTitle = $"{model.Author?.Value?.Metadata?.Value?.SortNameLastFirst} {title}";
@@ -61,12 +64,61 @@ namespace Bibliophilarr.Api.V1.Books
             var seriesLinks = model.SeriesLinks?.Value?.OrderBy(x => x.SeriesPosition);
             var seriesTitle = seriesLinks?.Select(x => x?.Series?.Value?.Title + (x?.Position.IsNotNullOrWhiteSpace() ?? false ? $" #{x.Position}" : string.Empty)).ConcatToString("; ");
 
+            var formatStatuses = new List<BookFormatStatusResource>();
+            var editions = model.Editions?.Value;
+            if (editions != null)
+            {
+                // Collect all book files across all editions and group by derived format type.
+                // This ensures format is determined from actual file quality (e.g. EPUB → Ebook,
+                // M4B → Audiobook) rather than relying solely on Edition.IsEbook, which may not
+                // be set correctly by all metadata providers.
+                var allFiles = editions
+                    .Where(e => e.BookFiles?.Value != null)
+                    .SelectMany(e => e.BookFiles.Value)
+                    .ToList();
+
+                var ebookFiles = allFiles.Where(f => Quality.GetFormatType(f.Quality.Quality) == FormatType.Ebook).ToList();
+                var audiobookFiles = allFiles.Where(f => Quality.GetFormatType(f.Quality.Quality) == FormatType.Audiobook).ToList();
+
+                // Also check edition-level classification for books without files
+                var hasEbookEdition = editions.Any(e => e.IsEbook);
+                var hasAudiobookEdition = editions.Any(e => !e.IsEbook);
+
+                // Determine monitored status from editions
+                var monitoredEbookEdition = editions.Where(e => e.IsEbook).FirstOrDefault(e => e.Monitored);
+                var monitoredAudiobookEdition = editions.Where(e => !e.IsEbook).FirstOrDefault(e => e.Monitored);
+
+                // Emit ebook status if we have ebook files OR a classified ebook edition
+                if (ebookFiles.Any() || hasEbookEdition)
+                {
+                    formatStatuses.Add(new BookFormatStatusResource
+                    {
+                        FormatType = FormatType.Ebook,
+                        Monitored = monitoredEbookEdition != null,
+                        HasFile = ebookFiles.Any(),
+                        FileCount = ebookFiles.Count
+                    });
+                }
+
+                // Emit audiobook status if we have audiobook files OR a classified audiobook edition
+                if (audiobookFiles.Any() || hasAudiobookEdition)
+                {
+                    formatStatuses.Add(new BookFormatStatusResource
+                    {
+                        FormatType = FormatType.Audiobook,
+                        Monitored = monitoredAudiobookEdition != null,
+                        HasFile = audiobookFiles.Any(),
+                        FileCount = audiobookFiles.Count
+                    });
+                }
+            }
+
             return new BookResource
             {
                 Id = model.Id,
                 AuthorId = model.AuthorId,
                 ForeignBookId = model.ForeignBookId,
-                ForeignEditionId = model.Editions?.Value?.SingleOrDefault(x => x.Monitored)?.ForeignEditionId,
+                ForeignEditionId = selectedEdition?.ForeignEditionId,
                 TitleSlug = model.TitleSlug,
                 Monitored = model.Monitored,
                 AnyEditionOk = model.AnyEditionOk,
@@ -81,7 +133,9 @@ namespace Bibliophilarr.Api.V1.Books
                 Links = model.Links.Concat(selectedEdition?.Links ?? new List<Links>()).GroupBy(l => l.Url).Select(g => g.First()).ToList(),
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,
-                LastSearchTime = model.LastSearchTime
+                LastSearchTime = model.LastSearchTime,
+                Editions = editions?.Select(e => e.ToResource()).ToList() ?? new List<EditionResource>(),
+                FormatStatuses = formatStatuses
             };
         }
 

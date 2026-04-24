@@ -31,7 +31,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
                 Port = 2222,
                 Username = "admin",
                 Password = "pass",
-                MusicCategory = "bibliophilarr"
+                EbookCategory = "bibliophilarr",
+                AudiobookCategory = "bibliophilarr-audiobooks"
             };
 
             _queued = new UTorrentTorrent

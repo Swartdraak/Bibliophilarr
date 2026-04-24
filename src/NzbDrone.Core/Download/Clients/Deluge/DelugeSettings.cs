@@ -12,12 +12,14 @@ namespace NzbDrone.Core.Download.Clients.Deluge
             RuleFor(c => c.Host).ValidHost();
             RuleFor(c => c.Port).InclusiveBetween(1, 65535);
 
-            RuleFor(c => c.MusicCategory).Matches("^[-a-z0-9]*$").WithMessage("Allowed characters a-z, 0-9 and -");
-            RuleFor(c => c.MusicImportedCategory).Matches("^[-a-z0-9]*$").WithMessage("Allowed characters a-z, 0-9 and -");
+            RuleFor(c => c.EbookCategory).Matches("^[-a-z0-9]*$").WithMessage("Allowed characters a-z, 0-9 and -");
+            RuleFor(c => c.AudiobookCategory).Matches("^[-a-z0-9]*$").WithMessage("Allowed characters a-z, 0-9 and -");
+            RuleFor(c => c.EbookImportedCategory).Matches("^[-a-z0-9]*$").WithMessage("Allowed characters a-z, 0-9 and -");
+            RuleFor(c => c.AudiobookImportedCategory).Matches("^[-a-z0-9]*$").WithMessage("Allowed characters a-z, 0-9 and -");
         }
     }
 
-    public class DelugeSettings : IProviderConfig
+    public class DelugeSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly DelugeSettingsValidator Validator = new DelugeSettingsValidator();
 
@@ -26,7 +28,8 @@ namespace NzbDrone.Core.Download.Clients.Deluge
             Host = "localhost";
             Port = 8112;
             Password = "deluge";
-            MusicCategory = "bibliophilarr";
+            EbookCategory = "bibliophilarr-ebooks";
+            AudiobookCategory = "bibliophilarr-audiobooks";
         }
 
         [FieldDefinition(0, Label = "Host", Type = FieldType.Textbox)]
@@ -44,25 +47,31 @@ namespace NzbDrone.Core.Download.Clients.Deluge
         [FieldDefinition(3, Label = "Password", Type = FieldType.Password, Privacy = PrivacyLevel.Password)]
         public string Password { get; set; }
 
-        [FieldDefinition(5, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.")]
-        public string MusicCategory { get; set; }
+        [FieldDefinition(5, Label = "Ebook Category", Type = FieldType.Textbox, HelpText = "Category for ebook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
+        public string EbookCategory { get; set; }
 
-        [FieldDefinition(6, Label = "Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category for Bibliophilarr to set after it has imported the download. Bibliophilarr will not remove torrents in that category even if seeding finished. Leave blank to keep same category.")]
-        public string MusicImportedCategory { get; set; }
+        [FieldDefinition(6, Label = "Audiobook Category", Type = FieldType.Textbox, HelpText = "Category for audiobook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
+        public string AudiobookCategory { get; set; }
 
-        [FieldDefinition(7, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(DelugePriority), HelpText = "Priority to use when grabbing books that were released within the last 14 days")]
+        [FieldDefinition(7, Label = "Ebook Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category to set after importing an ebook download. Leave blank to keep same category.")]
+        public string EbookImportedCategory { get; set; }
+
+        [FieldDefinition(8, Label = "Audiobook Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category to set after importing an audiobook download. Leave blank to keep same category.")]
+        public string AudiobookImportedCategory { get; set; }
+
+        [FieldDefinition(9, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(DelugePriority), HelpText = "Priority to use when grabbing books that were released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
-        [FieldDefinition(8, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(DelugePriority), HelpText = "Priority to use when grabbing books that were released over 14 days ago")]
+        [FieldDefinition(10, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(DelugePriority), HelpText = "Priority to use when grabbing books that were released over 14 days ago")]
         public int OlderTvPriority { get; set; }
 
-        [FieldDefinition(9, Label = "Add Paused", Type = FieldType.Checkbox)]
+        [FieldDefinition(11, Label = "Add Paused", Type = FieldType.Checkbox)]
         public bool AddPaused { get; set; }
 
-        [FieldDefinition(10, Label = "DownloadClientDelugeSettingsDirectory", Type = FieldType.Textbox, Advanced = true, HelpText = "DownloadClientDelugeSettingsDirectoryHelpText")]
+        [FieldDefinition(12, Label = "DownloadClientDelugeSettingsDirectory", Type = FieldType.Textbox, Advanced = true, HelpText = "DownloadClientDelugeSettingsDirectoryHelpText")]
         public string DownloadDirectory { get; set; }
 
-        [FieldDefinition(11, Label = "DownloadClientDelugeSettingsDirectoryCompleted", Type = FieldType.Textbox, Advanced = true, HelpText = "DownloadClientDelugeSettingsDirectoryCompletedHelpText")]
+        [FieldDefinition(13, Label = "DownloadClientDelugeSettingsDirectoryCompleted", Type = FieldType.Textbox, Advanced = true, HelpText = "DownloadClientDelugeSettingsDirectoryCompletedHelpText")]
         public string CompletedDirectory { get; set; }
 
         public NzbDroneValidationResult Validate()

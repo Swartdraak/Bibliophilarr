@@ -1,13 +1,29 @@
 import PropTypes from 'prop-types';
 import React from 'react';
 import BookQuality from 'Book/BookQuality';
+import Label from 'Components/Label';
 import RelativeDateCellConnector from 'Components/Table/Cells/RelativeDateCellConnector';
 import TableRowCell from 'Components/Table/Cells/TableRowCell';
 import TableSelectCell from 'Components/Table/Cells/TableSelectCell';
 import TableRow from 'Components/Table/TableRow';
+import { kinds } from 'Helpers/Props';
 import formatBytes from 'Utilities/Number/formatBytes';
 import BookFileActionsCell from './BookFileActionsCell';
 import styles from './BookFileEditorRow.css';
+
+function getFormatType(quality) {
+  if (!quality || !quality.quality) {
+    return null;
+  }
+
+  const qualityId = quality.quality.id;
+
+  if (qualityId >= 10 && qualityId <= 13) {
+    return 'audiobook';
+  }
+
+  return 'ebook';
+}
 
 function BookFileEditorRow(props) {
   const {
@@ -53,6 +69,16 @@ function BookFileEditorRow(props) {
           quality={quality}
           isCutoffNotMet={qualityCutoffNotMet}
         />
+      </TableRowCell>
+
+      <TableRowCell
+        className={styles.format}
+      >
+        {
+          getFormatType(quality) === 'audiobook' ?
+            <Label kind={kinds.INFO}>Audiobook</Label> :
+            <Label kind={kinds.DEFAULT}>Ebook</Label>
+        }
       </TableRowCell>
 
       <BookFileActionsCell

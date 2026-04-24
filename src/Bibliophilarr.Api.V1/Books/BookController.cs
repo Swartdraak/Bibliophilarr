@@ -56,10 +56,12 @@ namespace Bibliophilarr.Api.V1.Books
                           IMapCoversToLocal coverMapper,
                           IUpgradableSpecification upgradableSpecification,
                           IBroadcastSignalRMessage signalRBroadcaster,
+                          IAuthorFormatProfileService formatProfileService,
+                          NzbDrone.Core.Profiles.Qualities.IQualityProfileService qualityProfileService,
                           QualityProfileExistsValidator qualityProfileExistsValidator,
                           MetadataProfileExistsValidator metadataProfileExistsValidator)
 
-        : base(bookService, seriesBookLinkService, authorStatisticsService, coverMapper, upgradableSpecification, signalRBroadcaster)
+        : base(bookService, seriesBookLinkService, authorStatisticsService, coverMapper, upgradableSpecification, signalRBroadcaster, formatProfileService, qualityProfileService)
         {
             _authorService = authorService;
             _editionService = editionService;
@@ -209,6 +211,29 @@ namespace Bibliophilarr.Api.V1.Books
         [HttpPut("monitor")]
         public IActionResult SetBooksMonitored([FromBody] BooksMonitoredResource resource)
         {
+            if (resource.FormatType.HasValue)
+            {
+                // Format-aware monitoring: toggle edition monitoring for specific format
+                foreach (var bookId in resource.BookIds)
+                {
+                    var editions = _editionService.GetEditionsByBook(bookId);
+                    var isEbook = resource.FormatType.Value == FormatType.Ebook;
+                    var formatEditions = editions.Where(e => e.IsEbook == isEbook).ToList();
+
+                    foreach (var edition in formatEditions)
+                    {
+                        edition.Monitored = resource.Monitored;
+                    }
+
+                    if (formatEditions.Any())
+                    {
+                        _editionService.UpdateMany(formatEditions);
+                    }
+                }
+
+                return Accepted(MapToResource(_bookService.GetBooks(resource.BookIds), false));
+            }
+
             _bookService.SetMonitored(resource.BookIds, resource.Monitored);
 
             if (resource.BookIds.Count == 1)

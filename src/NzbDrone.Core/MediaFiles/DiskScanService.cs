@@ -176,6 +176,7 @@ namespace NzbDrone.Core.MediaFiles
 
             var newFiles = decisions
                 .ExceptBy(x => x.Item.Path, knownFiles, x => x.Path, PathEqualityComparer.Instance)
+                .DistinctBy(x => x.Item.Path, PathEqualityComparer.Instance)
                 .Select(decision => new BookFile
                 {
                     Path = decision.Item.Path,

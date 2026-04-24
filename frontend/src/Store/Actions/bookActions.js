@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import moment from 'moment';
 import React from 'react';
 import { createAction } from 'redux-actions';
 import { batchActions } from 'redux-batched-actions';
@@ -83,7 +82,7 @@ export const filters = [
       },
       {
         key: 'releaseDate',
-        value: moment(),
+        value: new Date(),
         type: filterTypes.LESS_THAN
       }
     ]
@@ -246,6 +245,11 @@ export const defaultState = {
       isVisible: true
     },
     {
+      name: 'format',
+      label: 'Format',
+      isVisible: true
+    },
+    {
       name: 'indexerFlags',
       columnLabel: () => translate('IndexerFlags'),
       label: React.createElement(Icon, {
@@ -288,6 +292,7 @@ export const DELETE_BOOK = 'books/deleteBook';
 export const DELETE_AUTHOR_BOOKS = 'books/deleteAuthorBooks';
 export const TOGGLE_BOOK_MONITORED = 'books/toggleBookMonitored';
 export const TOGGLE_BOOKS_MONITORED = 'books/toggleBooksMonitored';
+export const TOGGLE_BOOK_FORMAT_MONITORED = 'books/toggleBookFormatMonitored';
 
 //
 // Action Creators
@@ -298,6 +303,7 @@ export const setBooksTableOption = createAction(SET_BOOKS_TABLE_OPTION);
 export const clearBooks = createAction(CLEAR_BOOKS);
 export const toggleBookMonitored = createThunk(TOGGLE_BOOK_MONITORED);
 export const toggleBooksMonitored = createThunk(TOGGLE_BOOKS_MONITORED);
+export const toggleBookFormatMonitored = createThunk(TOGGLE_BOOK_FORMAT_MONITORED);
 
 export const saveBook = createThunk(SAVE_BOOK);
 
@@ -471,6 +477,49 @@ export const actionHandlers = handleThunks({
           });
         })
       ));
+    });
+  },
+
+  [TOGGLE_BOOK_FORMAT_MONITORED]: function(getState, payload, dispatch) {
+    const {
+      bookId,
+      bookEntity = bookEntities.BOOKS,
+      formatType,
+      monitored
+    } = payload;
+
+    const bookSection = _.last(bookEntity.split('.'));
+
+    dispatch(updateItem({
+      id: bookId,
+      section: bookSection,
+      isSaving: true
+    }));
+
+    const promise = createAjaxRequest({
+      url: '/book/monitor',
+      method: 'PUT',
+      data: JSON.stringify({ bookIds: [bookId], monitored, formatType }),
+      dataType: 'json'
+    }).request;
+
+    promise.done((data) => {
+      const book = data && data[0];
+
+      dispatch(updateItem({
+        id: bookId,
+        section: bookSection,
+        isSaving: false,
+        ...(book || {})
+      }));
+    });
+
+    promise.fail((xhr) => {
+      dispatch(updateItem({
+        id: bookId,
+        section: bookSection,
+        isSaving: false
+      }));
     });
   }
 });

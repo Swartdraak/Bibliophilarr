@@ -54,7 +54,7 @@ class RemotePathMappings extends Component {
         >
 
           <Alert kind={kinds.INFO}>
-            <InlineMarkdown data={translate('RemotePathMappingsInfo', { app: 'Bibliophilarr', wikiLink: 'https://github.com/Swartdraak/Bibliophilarr/wiki/settings#remote-path-mappings' })} />
+            <InlineMarkdown data={translate('RemotePathMappingsInfo', { app: 'Bibliophilarr', wikiLink: '/system/wiki/download-clients' })} />
           </Alert>
 
           <div className={styles.remotePathMappingsHeader}>

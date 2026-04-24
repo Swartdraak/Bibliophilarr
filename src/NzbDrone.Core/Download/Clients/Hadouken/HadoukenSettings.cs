@@ -22,7 +22,7 @@ namespace NzbDrone.Core.Download.Clients.Hadouken
         }
     }
 
-    public class HadoukenSettings : IProviderConfig
+    public class HadoukenSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly HadoukenSettingsValidator Validator = new HadoukenSettingsValidator();
 
@@ -30,7 +30,8 @@ namespace NzbDrone.Core.Download.Clients.Hadouken
         {
             Host = "localhost";
             Port = 7070;
-            Category = "bibliophilarr-music";
+            EbookCategory = "bibliophilarr-ebooks";
+            AudiobookCategory = "bibliophilarr-audiobooks";
         }
 
         [FieldDefinition(0, Label = "Host", Type = FieldType.Textbox)]
@@ -51,8 +52,15 @@ namespace NzbDrone.Core.Download.Clients.Hadouken
         [FieldDefinition(5, Label = "Password", Type = FieldType.Password, Privacy = PrivacyLevel.Password)]
         public string Password { get; set; }
 
-        [FieldDefinition(6, Label = "Category", Type = FieldType.Textbox)]
-        public string Category { get; set; }
+        [FieldDefinition(6, Label = "Ebook Category", Type = FieldType.Textbox, HelpText = "Label for ebook downloads. Avoids conflicts with unrelated downloads.")]
+        public string EbookCategory { get; set; }
+
+        [FieldDefinition(7, Label = "Audiobook Category", Type = FieldType.Textbox, HelpText = "Label for audiobook downloads. Avoids conflicts with unrelated downloads.")]
+        public string AudiobookCategory { get; set; }
+
+        // Hadouken doesn't support post-import categories
+        public string EbookImportedCategory { get; set; }
+        public string AudiobookImportedCategory { get; set; }
 
         public NzbDroneValidationResult Validate()
         {

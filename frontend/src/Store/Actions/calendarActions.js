@@ -1,5 +1,5 @@
+import { addDays, addMonths, addWeeks, differenceInDays, endOfDay, endOfISOWeek, endOfMonth, endOfWeek, isAfter, isBefore, parseISO, startOfDay, startOfISOWeek, startOfMonth, startOfWeek, subDays, subMonths, subWeeks } from 'date-fns';
 import _ from 'lodash';
-import moment from 'moment';
 import { createAction } from 'redux-actions';
 import { batchActions } from 'redux-batched-actions';
 import * as calendarViews from 'Calendar/calendarViews';
@@ -16,6 +16,9 @@ import createClearReducer from './Creators/Reducers/createClearReducer';
 // Variables
 
 export const section = 'calendar';
+
+const addFns = { day: addDays, week: addWeeks, month: addMonths };
+const subFns = { day: subDays, week: subWeeks, month: subMonths };
 
 const viewRanges = {
   [calendarViews.DAY]: 'day',
@@ -69,6 +72,28 @@ export const defaultState = {
           type: filterTypes.EQUAL
         }
       ]
+    },
+    {
+      key: 'ebook',
+      label: 'Ebook',
+      filters: [
+        {
+          key: 'formatType',
+          value: 'ebook',
+          type: filterTypes.EQUAL
+        }
+      ]
+    },
+    {
+      key: 'audiobook',
+      label: 'Audiobook',
+      filters: [
+        {
+          key: 'formatType',
+          value: 'audiobook',
+          type: filterTypes.EQUAL
+        }
+      ]
     }
   ]
 };
@@ -97,40 +122,41 @@ export const GOTO_CALENDAR_PREVIOUS_RANGE = 'calendar/gotoCalendarPreviousRange'
 // Helpers
 
 function getDays(start, end) {
-  const startTime = moment(start);
-  const endTime = moment(end);
-  const difference = endTime.diff(startTime, 'days');
+  const startTime = typeof start === 'string' ? parseISO(start) : start;
+  const endTime = typeof end === 'string' ? parseISO(end) : end;
+  const difference = differenceInDays(endTime, startTime);
 
   // Difference is one less than the number of days we need to account for.
   return _.times(difference + 1, (i) => {
-    return startTime.clone().add(i, 'days').toISOString();
+    return addDays(startTime, i).toISOString();
   });
 }
 
 function getDates(time, view, firstDayOfWeek, dayCount) {
-  const weekName = firstDayOfWeek === 0 ? 'week' : 'isoWeek';
+  const startOfWeekFn = firstDayOfWeek === 0 ? startOfWeek : startOfISOWeek;
+  const endOfWeekFn = firstDayOfWeek === 0 ? endOfWeek : endOfISOWeek;
 
-  let start = time.clone().startOf('day');
-  let end = time.clone().endOf('day');
+  let start = startOfDay(time);
+  let end = endOfDay(time);
 
   if (view === calendarViews.WEEK) {
-    start = time.clone().startOf(weekName);
-    end = time.clone().endOf(weekName);
+    start = startOfWeekFn(time);
+    end = endOfWeekFn(time);
   }
 
   if (view === calendarViews.FORECAST) {
-    start = time.clone().subtract(1, 'day').startOf('day');
-    end = time.clone().add(dayCount - 2, 'days').endOf('day');
+    start = startOfDay(subDays(time, 1));
+    end = endOfDay(addDays(time, dayCount - 2));
   }
 
   if (view === calendarViews.MONTH) {
-    start = time.clone().startOf('month').startOf(weekName);
-    end = time.clone().endOf('month').endOf(weekName);
+    start = startOfWeekFn(startOfMonth(time));
+    end = endOfWeekFn(endOfMonth(time));
   }
 
   if (view === calendarViews.AGENDA) {
-    start = time.clone().subtract(1, 'day').startOf('day');
-    end = time.clone().add(1, 'month').endOf('day');
+    start = startOfDay(subDays(time, 1));
+    end = endOfDay(addMonths(time, 1));
   }
 
   return {
@@ -145,14 +171,14 @@ function getPopulatableRange(startDate, endDate, view) {
   switch (view) {
     case calendarViews.DAY:
       return {
-        start: moment(startDate).subtract(1, 'day').toISOString(),
-        end: moment(endDate).add(1, 'day').toISOString()
+        start: subDays(parseISO(startDate), 1).toISOString(),
+        end: addDays(parseISO(endDate), 1).toISOString()
       };
     case calendarViews.WEEK:
     case calendarViews.FORECAST:
       return {
-        start: moment(startDate).subtract(1, 'week').toISOString(),
-        end: moment(endDate).add(1, 'week').toISOString()
+        start: subWeeks(parseISO(startDate), 1).toISOString(),
+        end: addWeeks(parseISO(endDate), 1).toISOString()
       };
     default:
       return {
@@ -179,8 +205,8 @@ function isRangePopulated(start, end, state) {
   } = getPopulatableRange(currentStart, currentEnd, currentView);
 
   if (
-    moment(start).isAfter(currentPopulatedStart) &&
-    moment(start).isBefore(currentPopulatedEnd)
+    isAfter(parseISO(start), parseISO(currentPopulatedStart)) &&
+    isBefore(parseISO(start), parseISO(currentPopulatedEnd))
   ) {
     return true;
   }
@@ -212,12 +238,14 @@ export const actionHandlers = handleThunks({
     const unmonitored = calendar.selectedFilterKey === 'all';
 
     const {
-      time = calendar.time,
+      time: rawTime = calendar.time,
       view = calendar.view
     } = payload;
 
+    const time = rawTime || new Date();
     const dayCount = state.calendar.dayCount;
-    const dates = getDates(moment(time), view, state.settings.ui.item.firstDayOfWeek, dayCount);
+    const timeDate = time instanceof Date ? time : parseISO(time);
+    const dates = getDates(timeDate, view, state.settings.ui.item.firstDayOfWeek, dayCount);
     const { start, end } = getPopulatableRange(dates.start, dates.end, view);
     const isPrePopulated = isRangePopulated(start, end, state.calendar);
 
@@ -302,7 +330,7 @@ export const actionHandlers = handleThunks({
     const state = getState();
     const view = payload.view;
     const time = view === calendarViews.FORECAST || calendarViews.AGENDA ?
-      moment() :
+      new Date() :
       state.calendar.time;
 
     dispatch(fetchCalendar({ time, view }));
@@ -311,7 +339,7 @@ export const actionHandlers = handleThunks({
   [GOTO_CALENDAR_TODAY]: function(getState, payload, dispatch) {
     const state = getState();
     const view = state.calendar.view;
-    const time = moment();
+    const time = new Date();
 
     dispatch(fetchCalendar({ time, view }));
   },
@@ -325,7 +353,10 @@ export const actionHandlers = handleThunks({
     } = state.calendar;
 
     const amount = view === calendarViews.FORECAST ? dayCount : 1;
-    const time = moment(state.calendar.time).subtract(amount, viewRanges[view]);
+    const range = viewRanges[view];
+    const rawTime = state.calendar.time;
+    const calendarTime = typeof rawTime === 'string' ? parseISO(rawTime) : (rawTime || new Date());
+    const time = subFns[range](calendarTime, amount);
 
     dispatch(fetchCalendar({ time, view }));
   },
@@ -339,7 +370,10 @@ export const actionHandlers = handleThunks({
     } = state.calendar;
 
     const amount = view === calendarViews.FORECAST ? dayCount : 1;
-    const time = moment(state.calendar.time).add(amount, viewRanges[view]);
+    const nextRange = viewRanges[view];
+    const rawTimeNext = state.calendar.time;
+    const calendarTimeNext = typeof rawTimeNext === 'string' ? parseISO(rawTimeNext) : (rawTimeNext || new Date());
+    const time = addFns[nextRange](calendarTimeNext, amount);
 
     dispatch(fetchCalendar({ time, view }));
   },

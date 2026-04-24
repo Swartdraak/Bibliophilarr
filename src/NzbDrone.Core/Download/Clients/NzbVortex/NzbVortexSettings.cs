@@ -17,13 +17,13 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
             RuleFor(c => c.ApiKey).NotEmpty()
                                   .WithMessage("API Key is required");
 
-            RuleFor(c => c.MusicCategory).NotEmpty()
+            RuleFor(c => c.EbookCategory).NotEmpty()
                                       .WithMessage("A category is recommended")
                                       .AsWarning();
         }
     }
 
-    public class NzbVortexSettings : IProviderConfig
+    public class NzbVortexSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly NzbVortexSettingsValidator Validator = new NzbVortexSettingsValidator();
 
@@ -31,7 +31,8 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
         {
             Host = "localhost";
             Port = 4321;
-            MusicCategory = "Bibliophilarr";
+            EbookCategory = "bibliophilarr-ebooks";
+            AudiobookCategory = "bibliophilarr-audiobooks";
             RecentTvPriority = (int)NzbVortexPriority.Normal;
             OlderTvPriority = (int)NzbVortexPriority.Normal;
         }
@@ -48,10 +49,17 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
         [FieldDefinition(3, Label = "API Key", Type = FieldType.Textbox, Privacy = PrivacyLevel.ApiKey)]
         public string ApiKey { get; set; }
 
-        [FieldDefinition(4, Label = "Group", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.")]
-        public string MusicCategory { get; set; }
+        [FieldDefinition(4, Label = "Ebook Group", Type = FieldType.Textbox, HelpText = "Group for ebook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
+        public string EbookCategory { get; set; }
 
-        [FieldDefinition(5, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(NzbVortexPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
+        [FieldDefinition(5, Label = "Audiobook Group", Type = FieldType.Textbox, HelpText = "Group for audiobook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
+        public string AudiobookCategory { get; set; }
+
+        // NzbVortex doesn't support post-import categories
+        public string EbookImportedCategory { get; set; }
+        public string AudiobookImportedCategory { get; set; }
+
+        [FieldDefinition(6, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(NzbVortexPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
         [FieldDefinition(6, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(NzbVortexPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]

@@ -70,6 +70,10 @@ namespace NzbDrone.Core.Test.DecisionEngineTests.RssSync
             Mocker.GetMock<IPendingReleaseService>()
                   .Setup(s => s.GetPendingRemoteBooks(It.IsAny<int>()))
                   .Returns(new List<RemoteBook>());
+
+            Mocker.GetMock<IUpgradableSpecification>()
+                  .Setup(s => s.ResolveProfile(It.IsAny<RemoteBook>()))
+                  .Returns(_profile);
         }
 
         private void GivenExistingFile(QualityModel quality)

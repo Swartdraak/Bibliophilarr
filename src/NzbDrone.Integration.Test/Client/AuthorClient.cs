@@ -1,14 +1,14 @@
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
 using Bibliophilarr.Api.V1.Author;
-using RestSharp;
 
 namespace NzbDrone.Integration.Test.Client
 {
     public class AuthorClient : ClientBase<AuthorResource>
     {
-        public AuthorClient(IRestClient restClient, string apiKey)
-            : base(restClient, apiKey)
+        public AuthorClient(HttpClient httpClient, string apiKey)
+            : base(httpClient, apiKey)
         {
         }
 
@@ -35,8 +35,8 @@ namespace NzbDrone.Integration.Test.Client
 
     public class SystemInfoClient : ClientBase<AuthorResource>
     {
-        public SystemInfoClient(IRestClient restClient, string apiKey)
-            : base(restClient, apiKey)
+        public SystemInfoClient(HttpClient httpClient, string apiKey)
+            : base(httpClient, apiKey)
         {
         }
     }

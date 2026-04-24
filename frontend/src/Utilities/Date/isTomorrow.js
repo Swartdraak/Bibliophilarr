@@ -1,11 +1,11 @@
-import moment from 'moment';
+import { isTomorrow as isSameAsTomorrow, parseISO } from 'date-fns';
 
 function isTomorrow(date) {
   if (!date) {
     return false;
   }
 
-  return moment(date).isSame(moment().add(1, 'day'), 'day');
+  return isSameAsTomorrow(parseISO(date));
 }
 
 export default isTomorrow;

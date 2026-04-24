@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import moment from 'moment';
+import { format, parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import CalendarEventQueueDetails from 'Calendar/Events/CalendarEventQueueDetails';
@@ -8,6 +8,7 @@ import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import { icons } from 'Helpers/Props';
 import formatTime from 'Utilities/Date/formatTime';
+import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
 import translate from 'Utilities/String/translate';
 import styles from './AgendaEvent.css';
 
@@ -54,8 +55,8 @@ class AgendaEvent extends Component {
       colorImpairedMode
     } = this.props;
 
-    const startTime = moment(releaseDate);
-    // const endTime = startTime.add(author.runtime, 'minutes');
+    const startTime = parseISO(releaseDate);
+    // const endTime = addMinutes(startTime, author.runtime);
     const downloading = !!(queueItem || grabbed);
     const isMonitored = author.monitored && monitored;
     const statusStyle = getStatusStyle(id, downloading, startTime, isMonitored, statistics.percentOfBooks);
@@ -70,7 +71,7 @@ class AgendaEvent extends Component {
           <div className={styles.date}>
             {
               showDate &&
-                startTime.format(longDateFormat)
+                format(startTime, momentFormatToDateFns(longDateFormat))
             }
           </div>
 

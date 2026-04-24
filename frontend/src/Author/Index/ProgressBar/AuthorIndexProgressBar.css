@@ -2,7 +2,7 @@
   composes: container from '~Components/ProgressBar.css';
 
   border-radius: 0;
-  background-color: #5b5b5b;
+  background-color: var(--authorProgressBackgroundColor);
   color: var(--white);
   transition: width 200ms ease;
 }

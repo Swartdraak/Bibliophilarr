@@ -13,11 +13,11 @@ namespace NzbDrone.Core.Download.Clients.UTorrent
             RuleFor(c => c.Host).ValidHost();
             RuleFor(c => c.Port).InclusiveBetween(1, 65535);
             RuleFor(c => c.UrlBase).ValidUrlBase().When(c => c.UrlBase.IsNotNullOrWhiteSpace());
-            RuleFor(c => c.MusicCategory).NotEmpty();
+            RuleFor(c => c.EbookCategory).NotEmpty();
         }
     }
 
-    public class UTorrentSettings : IProviderConfig
+    public class UTorrentSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly UTorrentSettingsValidator Validator = new UTorrentSettingsValidator();
 
@@ -25,7 +25,8 @@ namespace NzbDrone.Core.Download.Clients.UTorrent
         {
             Host = "localhost";
             Port = 8080;
-            MusicCategory = "bibliophilarr";
+            EbookCategory = "bibliophilarr-ebooks";
+            AudiobookCategory = "bibliophilarr-audiobooks";
         }
 
         [FieldDefinition(0, Label = "Host", Type = FieldType.Textbox)]
@@ -46,13 +47,19 @@ namespace NzbDrone.Core.Download.Clients.UTorrent
         [FieldDefinition(5, Label = "Password", Type = FieldType.Password, Privacy = PrivacyLevel.Password)]
         public string Password { get; set; }
 
-        [FieldDefinition(6, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.")]
-        public string MusicCategory { get; set; }
+        [FieldDefinition(6, Label = "Ebook Category", Type = FieldType.Textbox, HelpText = "Category for ebook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
+        public string EbookCategory { get; set; }
 
-        [FieldDefinition(7, Label = "Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category for Bibliophilarr to set after it has imported the download. Bibliophilarr will not remove the torrent if seeding has finished. Leave blank to keep same category.")]
-        public string MusicImportedCategory { get; set; }
+        [FieldDefinition(7, Label = "Audiobook Category", Type = FieldType.Textbox, HelpText = "Category for audiobook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
+        public string AudiobookCategory { get; set; }
 
-        [FieldDefinition(8, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(UTorrentPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
+        [FieldDefinition(8, Label = "Ebook Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category to set after importing an ebook download. Leave blank to keep same category.")]
+        public string EbookImportedCategory { get; set; }
+
+        [FieldDefinition(9, Label = "Audiobook Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category to set after importing an audiobook download. Leave blank to keep same category.")]
+        public string AudiobookImportedCategory { get; set; }
+
+        [FieldDefinition(10, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(UTorrentPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
         [FieldDefinition(9, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(UTorrentPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]

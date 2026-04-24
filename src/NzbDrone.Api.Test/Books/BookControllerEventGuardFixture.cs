@@ -33,6 +33,8 @@ namespace NzbDrone.Api.Test.Books
                 Mock.Of<IMapCoversToLocal>(),
                 Mock.Of<IUpgradableSpecification>(),
                 Mock.Of<IBroadcastSignalRMessage>(),
+                Mock.Of<IAuthorFormatProfileService>(),
+                Mock.Of<IQualityProfileService>(),
                 qualityProfileValidator,
                 metadataProfileValidator);
 

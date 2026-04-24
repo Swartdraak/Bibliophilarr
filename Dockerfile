@@ -5,8 +5,8 @@ COPY . .
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl xz-utils ca-certificates \
-    && curl -fsSL https://nodejs.org/dist/v20.19.2/node-v20.19.2-linux-x64.tar.xz -o /tmp/node.tar.xz \
-    && echo "cbe59620b21732313774df4428586f7222a84af29e556f848abf624ba41caf90  /tmp/node.tar.xz" | sha256sum -c - \
+    && curl -fsSL https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz -o /tmp/node.tar.xz \
+    && echo "88fd1ce767091fd8d4a99fdb2356e98c819f93f3b1f8663853a2dee9b438068a  /tmp/node.tar.xz" | sha256sum -c - \
     && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
     && rm -f /tmp/node.tar.xz \
     && rm -rf /var/lib/apt/lists/*
@@ -23,7 +23,8 @@ LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.description="Ebook and audiobook library manager" \
       org.opencontainers.image.url="https://github.com/Swartdraak/Bibliophilarr" \
       org.opencontainers.image.source="https://github.com/Swartdraak/Bibliophilarr" \
-      org.opencontainers.image.licenses="GPL-3.0-only"
+      org.opencontainers.image.licenses="GPL-3.0-only" \
+      org.opencontainers.image.vendor="Bibliophilarr"
 
 RUN groupadd --gid 1000 bibliophilarr \
     && useradd --uid 1000 --gid bibliophilarr --shell /bin/false --create-home bibliophilarr \

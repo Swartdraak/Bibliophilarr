@@ -31,9 +31,9 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var books = Subject.Search("Dune");
 
             books.Should().ContainSingle();
-            books[0].TitleSlug.Should().Be("openlibrary:work:OL123W");
+            books[0].TitleSlug.Should().Be("openlibrary-work-ol123w");
             books[0].Editions.Value.Should().ContainSingle();
-            books[0].Editions.Value[0].TitleSlug.Should().Be("openlibrary:edition:OL123W");
+            books[0].Editions.Value[0].TitleSlug.Should().Be("openlibrary-edition-ol123w");
             books[0].Editions.Value[0].Images.Should().ContainSingle();
             books[0].Editions.Value[0].Images[0].Url.Should().Be("https://covers.openlibrary.org/b/id/987654-L.jpg");
         }

@@ -16,6 +16,12 @@ using NzbDrone.Core.Validation;
 
 namespace NzbDrone.Core.Download.Clients.Aria2
 {
+    /// <summary>
+    /// Aria2 download client. Does not implement IFormatCategorySettings because
+    /// Aria2's RPC API has no category/label concept — items are tracked by GID and
+    /// Category is always null. Dual-format separation must be handled at the
+    /// root-folder level (different download directories per format profile).
+    /// </summary>
     public class Aria2 : TorrentClientBase<Aria2Settings>
     {
         private readonly IAria2Proxy _proxy;

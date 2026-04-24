@@ -402,7 +402,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>())).Returns(new List<AuthorMetadata> { authorMetadata });
             Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>())).Returns(new List<Edition>());
 
-            Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 0, BatchSize = 2 });
+            Subject.Execute(new BackfillOpenLibraryIdsCommand { MaxLookups = 100, BatchSize = 2 });
 
             Mocker.GetMock<IBookService>()
                 .Verify(x => x.UpdateMany(It.IsAny<List<Book>>()), Times.Exactly(2));
