@@ -4,6 +4,7 @@
     <OutputType>Library</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="FluentValidation" />
     <ProjectReference Include="..\NzbDrone.Core\Bibliophilarr.Core.csproj" />
   </ItemGroup>
 </Project>
