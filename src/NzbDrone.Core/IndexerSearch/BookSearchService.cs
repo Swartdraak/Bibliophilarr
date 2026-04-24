@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
@@ -22,6 +23,7 @@ namespace NzbDrone.Core.IndexerSearch
         private readonly IBookCutoffService _bookCutoffService;
         private readonly IQueueService _queueService;
         private readonly IProcessDownloadDecisions _processDownloadDecisions;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public BookSearchService(ISearchForReleases releaseSearchService,
@@ -29,6 +31,7 @@ namespace NzbDrone.Core.IndexerSearch
             IBookCutoffService bookCutoffService,
             IQueueService queueService,
             IProcessDownloadDecisions processDownloadDecisions,
+            IConfigService configService,
             Logger logger)
         {
             _releaseSearchService = releaseSearchService;
@@ -36,6 +39,7 @@ namespace NzbDrone.Core.IndexerSearch
             _bookCutoffService = bookCutoffService;
             _queueService = queueService;
             _processDownloadDecisions = processDownloadDecisions;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -80,6 +84,7 @@ namespace NzbDrone.Core.IndexerSearch
         public void Execute(MissingBookSearchCommand message)
         {
             List<Book> books;
+            var dualFormatEnabled = _configService.EnableDualFormatTracking;
 
             if (message.AuthorId.HasValue)
             {
@@ -93,7 +98,7 @@ namespace NzbDrone.Core.IndexerSearch
                     SortKey = "Id"
                 };
 
-                pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Author.Value.Monitored == true);
+                AddMonitoredFilter(pagingSpec, dualFormatEnabled);
 
                 books = _bookService.BooksWithoutFiles(pagingSpec).Records.Where(e => e.AuthorId.Equals(authorId)).ToList();
             }
@@ -107,7 +112,7 @@ namespace NzbDrone.Core.IndexerSearch
                     SortKey = "Id"
                 };
 
-                pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Author.Value.Monitored == true);
+                AddMonitoredFilter(pagingSpec, dualFormatEnabled);
 
                 books = _bookService.BooksWithoutFiles(pagingSpec).Records.ToList();
             }
@@ -128,7 +133,7 @@ namespace NzbDrone.Core.IndexerSearch
                 SortKey = "Id"
             };
 
-            pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Author.Value.Monitored == true);
+            AddMonitoredFilter(pagingSpec, _configService.EnableDualFormatTracking);
 
             var books = _bookCutoffService.BooksWhereCutoffUnmet(pagingSpec).Records.ToList();
 
@@ -136,6 +141,20 @@ namespace NzbDrone.Core.IndexerSearch
             var cutoffUnmet = books.Where(e => !queue.Contains(e.Id)).ToList();
 
             SearchForBulkBooks(cutoffUnmet, message.Trigger == CommandTrigger.Manual).GetAwaiter().GetResult();
+        }
+
+        private static void AddMonitoredFilter(PagingSpec<Book> pagingSpec, bool dualFormatEnabled)
+        {
+            if (dualFormatEnabled)
+            {
+                // In dual-format mode, monitoring is per-format (AuthorFormatProfiles),
+                // not per-book. The format-aware SQL builder already checks format monitoring.
+                pagingSpec.FilterExpressions.Add(v => v.Author.Value.Monitored == true);
+            }
+            else
+            {
+                pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Author.Value.Monitored == true);
+            }
         }
     }
 }

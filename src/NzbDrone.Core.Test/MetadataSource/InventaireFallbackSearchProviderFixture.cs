@@ -59,10 +59,10 @@ namespace NzbDrone.Core.Test.MetadataSource
             books.Should().ContainSingle();
             books[0].Title.Should().Be("Dune");
             books[0].ForeignBookId.Should().Be("inventaire:work:wd:Q123");
-            books[0].TitleSlug.Should().Be("inventaire:work:wd:Q123");
+            books[0].TitleSlug.Should().Be("inventaire-work-wd-q123");
             books[0].AuthorMetadata.Value.Name.Should().Be("Frank Herbert");
             books[0].Editions.Value.Should().ContainSingle();
-            books[0].Editions.Value[0].TitleSlug.Should().Be("inventaire:edition:wd:Q123");
+            books[0].Editions.Value[0].TitleSlug.Should().Be("inventaire-edition-wd-q123");
             books[0].Editions.Value[0].Images.Should().ContainSingle();
             books[0].Editions.Value[0].Images[0].Url.Should().Be("https://inventaire.example/covers/dune.jpg");
 

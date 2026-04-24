@@ -63,12 +63,20 @@ class VirtualTableHeaderCell extends Component {
       icons.SORT_ASCENDING :
       icons.SORT_DESCENDING;
 
+    let ariaSortValue = 'none';
+
+    if (isSorting) {
+      ariaSortValue = sortDirection === sortDirections.ASCENDING ? 'ascending' : 'descending';
+    }
+
     return (
       isSortable ?
         <Link
           component="div"
           className={className}
           onPress={this.onPress}
+          role="columnheader"
+          aria-sort={ariaSortValue}
           {...otherProps}
         >
           {children}
@@ -82,7 +90,7 @@ class VirtualTableHeaderCell extends Component {
           }
         </Link> :
 
-        <div className={className}>
+        <div className={className} role="columnheader">
           {children}
         </div>
     );

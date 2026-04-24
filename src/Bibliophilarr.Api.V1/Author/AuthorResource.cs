@@ -57,6 +57,7 @@ namespace Bibliophilarr.Api.V1.Author
         public Ratings Ratings { get; set; }
 
         public AuthorStatisticsResource Statistics { get; set; }
+        public List<AuthorFormatProfileResource> FormatProfiles { get; set; }
     }
 
     public static class AuthorResourceMapper

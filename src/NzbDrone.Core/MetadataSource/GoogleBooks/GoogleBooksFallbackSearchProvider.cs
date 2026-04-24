@@ -150,6 +150,18 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
         // ── IProvideBookInfo ─────────────────────────────────────────────────
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string foreignBookId)
         {
+            // Skip non-Google IDs — other providers (Hardcover, OpenLibrary) use
+            // their own prefixes and should be resolved by their own providers.
+            if (foreignBookId.IsNotNullOrWhiteSpace() &&
+                !foreignBookId.StartsWith("googlebooks:", StringComparison.OrdinalIgnoreCase) &&
+                (foreignBookId.StartsWith("hardcover:", StringComparison.OrdinalIgnoreCase) ||
+                 foreignBookId.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase) ||
+                 foreignBookId.StartsWith("ol:", StringComparison.OrdinalIgnoreCase) ||
+                 foreignBookId.StartsWith("inventaire:", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new BookNotFoundException(foreignBookId);
+            }
+
             var token = NormalizeGoogleBookToken(foreignBookId);
 
             var volume = GetVolume(token);

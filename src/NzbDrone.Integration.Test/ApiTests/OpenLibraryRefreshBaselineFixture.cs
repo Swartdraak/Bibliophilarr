@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Integration.Test.Client;
-using RestSharp;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
@@ -30,7 +30,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         public void should_include_openlibrary_in_provider_health_projection()
         {
             var request = _metadataHealth.BuildRequest();
-            request.Method = Method.GET;
+            request.Method = HttpMethod.Get;
 
             var health = _metadataHealth.Execute<List<MetadataProviderHealthResourceEnvelope>>(request, HttpStatusCode.OK);
 

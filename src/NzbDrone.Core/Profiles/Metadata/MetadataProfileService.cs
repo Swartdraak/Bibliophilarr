@@ -35,6 +35,13 @@ namespace NzbDrone.Core.Profiles.Metadata
         private static readonly Regex PartOrSetRegex = new Regex(@"(?<from>\d+) of (?<to>\d+)|(?<from>\d+)\s?/\s?(?<to>\d+)|(?<from>\d+)\s?-\s?(?<to>\d+)",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        // Matches common collection / box-set title patterns (e.g.
+        // "2 Books Collection Set", "Complete Box Set", "Boxed Set",
+        // "3-Book Collection", "Omnibus Edition").
+        private static readonly Regex CollectionSetRegex = new Regex(
+            @"\b(?:\d+[\s-]*books?\s+collection|collection\s+set|box\s*set|boxed\s+set|omnibus\s+edition)\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private readonly IMetadataProfileRepository _profileRepository;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
@@ -86,7 +93,7 @@ namespace NzbDrone.Core.Profiles.Metadata
             var profile = _profileRepository.Get(id);
 
             if (profile.Name == NONE_PROFILE_NAME ||
-                _authorService.GetAllAuthors().Any(c => c.MetadataProfileId == id) ||
+                _authorService.AuthorExistsWithMetadataProfile(id) ||
                 _importListFactory.All().Any(c => c.MetadataProfileId == id) ||
                 _rootFolderService.All().Any(c => c.DefaultMetadataProfileId == id))
             {
@@ -156,7 +163,111 @@ namespace NzbDrone.Core.Profiles.Metadata
             var localHash = new HashSet<string>(localBooks.Where(x => x.AddOptions.AddType == BookAddType.Manual).Select(x => x.ForeignBookId));
             localHash.UnionWith(localFiles.Select(x => x.Edition.Value.Book.Value.ForeignBookId));
 
+            // Build ForeignBookId → series IDs index for series-completeness checks
+            var bookSeriesIndex = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kvp in seriesLinks)
+            {
+                var fid = kvp.Key.ForeignBookId;
+                if (fid.IsNotNullOrWhiteSpace())
+                {
+                    foreach (var link in kvp.Value)
+                    {
+                        var seriesId = link.Series?.Value?.ForeignSeriesId;
+                        if (seriesId.IsNotNullOrWhiteSpace())
+                        {
+                            if (!bookSeriesIndex.TryGetValue(fid, out var ids))
+                            {
+                                ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                bookSeriesIndex[fid] = ids;
+                            }
+
+                            ids.Add(seriesId);
+                        }
+                    }
+                }
+            }
+
+            // Snapshot before popularity filter for series-completeness rescue
+            var beforePopularity = new HashSet<Book>(hash);
+
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, BookAllowedByRating, "rating criteria not met");
+
+            // Series completeness: if any book in a series survived the popularity filter
+            // (or was in localHash), restore other series members that were filtered out.
+            // This ensures complete series for authors whose books have files on disk.
+            if (bookSeriesIndex.Any())
+            {
+                var removedByPopularity = beforePopularity.Where(b => !hash.Contains(b)).ToList();
+                if (removedByPopularity.Any())
+                {
+                    var survivingSeriesIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var book in hash)
+                    {
+                        if (bookSeriesIndex.TryGetValue(book.ForeignBookId, out var seriesIds))
+                        {
+                            survivingSeriesIds.UnionWith(seriesIds);
+                        }
+                    }
+
+                    if (survivingSeriesIds.Any())
+                    {
+                        var rescued = removedByPopularity
+                            .Where(b => bookSeriesIndex.TryGetValue(b.ForeignBookId, out var seriesIds) &&
+                                        seriesIds.Overlaps(survivingSeriesIds))
+                            .ToList();
+
+                        if (rescued.Any())
+                        {
+                            _logger.Debug("Restoring {0} book(s) for series completeness after popularity filter: {1}",
+                                rescued.Count,
+                                string.Join(", ", rescued.Select(b => b.Title)));
+                            hash.UnionWith(rescued);
+                        }
+                    }
+                }
+            }
+
+            // Sparse-data minimum guarantee: when the popularity filter removes a
+            // large fraction of books (>75%), restore the top books so the author
+            // maintains a reasonable catalogue.  Hardcover data commonly has very
+            // sparse ratings (many books with 0 votes → popularity 0), which causes
+            // the MinPopularity threshold to remove most or all of an author's
+            // bibliography.  The guarantee fires for *all* authors — not just newly-
+            // added ones — so that authors with a few local files still have their
+            // catalogue filled in once metadata refreshes.
+            const int MinGuaranteedBooks = 25;
+            const double SparseDataThreshold = 0.75;
+
+            if (beforePopularity.Count > 0 && hash.Count < MinGuaranteedBooks)
+            {
+                var removedFraction = 1.0 - ((double)hash.Count / beforePopularity.Count);
+                if (removedFraction >= SparseDataThreshold)
+                {
+                    var needed = MinGuaranteedBooks - hash.Count;
+                    var candidates = beforePopularity
+                        .Where(b => !hash.Contains(b))
+                        .OrderByDescending(b => b.Ratings.Popularity)
+                        .ThenByDescending(b => b.Ratings.Value)
+                        .Take(needed)
+                        .ToList();
+
+                    if (candidates.Any())
+                    {
+                        _logger.Info(
+                            "Popularity filter removed {0:P0} of {1} book(s) (MinPopularity={2}, surviving={3}). " +
+                            "Restoring {4} top book(s) for sparse-data guarantee: {5}",
+                            removedFraction,
+                            beforePopularity.Count,
+                            profile.MinPopularity,
+                            hash.Count,
+                            candidates.Count,
+                            string.Join(", ", candidates.Select(b => $"{b.Title} (pop={b.Ratings.Popularity})")));
+
+                        hash.UnionWith(candidates);
+                    }
+                }
+            }
+
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => !p.SkipMissingDate || x.ReleaseDate.HasValue, "release date is missing");
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => !p.SkipPartsAndSets || !IsPartOrSet(x, seriesLinks.GetValueOrDefault(x), titles), "book is part of set");
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => !p.SkipSeriesSecondary || !seriesLinks.ContainsKey(x) || seriesLinks[x].Any(y => y.IsPrimary), "book is a secondary series item");
@@ -169,7 +280,7 @@ namespace NzbDrone.Core.Profiles.Metadata
                 book.Editions = FilterEditions(book.Editions.Value, localEditions, localFiles, profile);
             }
 
-            FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => x.Editions.Value.Any(e => e.PageCount > p.MinPages) || x.Editions.Value.All(e => e.PageCount == 0), "minimum page count not met");
+            FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => p.MinPages <= 0 || x.Editions.Value.Any(e => e.PageCount > p.MinPages), "minimum page count not met");
             FilterByPredicate(hash, x => x.ForeignBookId, localHash, profile, (x, p) => x.Editions.Value.Any(), "all editions filtered out");
 
             return hash.ToList();
@@ -177,14 +288,16 @@ namespace NzbDrone.Core.Profiles.Metadata
 
         private List<Edition> FilterEditions(IEnumerable<Edition> editions, List<Edition> localEditions, List<BookFile> localFiles, MetadataProfile profile)
         {
-            var allowedLanguages = profile.AllowedLanguages.IsNotNullOrWhiteSpace() ? new HashSet<string>(profile.AllowedLanguages.Trim(',').Split(',').Select(x => x.CanonicalizeLanguage())) : new HashSet<string>();
+            var allowedLanguages = profile.AllowedLanguages.IsNotNullOrWhiteSpace()
+                ? new HashSet<string>(profile.AllowedLanguages.Trim(',').Split(',').Select(x => x.CanonicalizeLanguage()).Where(x => x != null))
+                : new HashSet<string>();
 
             var hash = new HashSet<Edition>(editions);
 
             var localHash = new HashSet<string>(localEditions.Where(x => x.ManualAdd).Select(x => x.ForeignEditionId));
             localHash.UnionWith(localFiles.Select(x => x.Edition.Value.ForeignEditionId));
 
-            FilterByPredicate(hash, x => x.ForeignEditionId, localHash, profile, (x, p) => !allowedLanguages.Any() || allowedLanguages.Contains(x.Language?.CanonicalizeLanguage()), "edition language not allowed");
+            FilterByPredicate(hash, x => x.ForeignEditionId, localHash, profile, (x, p) => !allowedLanguages.Any() || x.Language.IsNullOrWhiteSpace() || allowedLanguages.Contains(x.Language.CanonicalizeLanguage()), "edition language not allowed");
             FilterByPredicate(hash, x => x.ForeignEditionId, localHash, profile, (x, p) => !p.SkipMissingIsbn || x.Isbn13.IsNotNullOrWhiteSpace() || x.Asin.IsNotNullOrWhiteSpace(), "isbn and asin is missing");
             FilterByPredicate(hash, x => x.ForeignEditionId, localHash, profile, (x, p) => !p.Ignored.Any(i => MatchesTerms(x.Title, i)), "contains ignored terms");
 
@@ -241,6 +354,12 @@ namespace NzbDrone.Core.Profiles.Metadata
                 return from <= 1800 || from > DateTime.UtcNow.Year;
             }
 
+            // Detect common collection / box-set title patterns
+            if (CollectionSetRegex.IsMatch(book.Title))
+            {
+                return true;
+            }
+
             return false;
         }
 
@@ -277,7 +396,7 @@ namespace NzbDrone.Core.Profiles.Metadata
                 _logger.Info("Removing legacy OpenLibrary metadata profile");
 
                 // Check if any authors/root folders use it and migrate them to Standard
-                var authorsUsingProfile = _authorService.GetAllAuthors().Where(a => a.MetadataProfileId == openLibraryProfile.Id).ToList();
+                var authorsUsingProfile = _authorService.GetAuthorsByMetadataProfile(openLibraryProfile.Id);
                 var rootFoldersUsingProfile = _rootFolderService.All().Where(r => r.DefaultMetadataProfileId == openLibraryProfile.Id).ToList();
 
                 if (standardProfile != null && (authorsUsingProfile.Any() || rootFoldersUsingProfile.Any()))

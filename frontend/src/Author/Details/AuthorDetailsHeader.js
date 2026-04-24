@@ -73,6 +73,7 @@ class AuthorDetailsHeader extends Component {
       images,
       alternateTitles,
       tags,
+      formatProfiles,
       isSaving,
       isSmallScreen,
       onMonitorTogglePress
@@ -202,24 +203,78 @@ class AuthorDetailsHeader extends Component {
                 </span>
               </Label>
 
-              <Label
-                className={styles.detailsLabel}
-                title={translate('QualityProfile')}
-                size={sizes.LARGE}
-              >
-                <Icon
-                  name={icons.PROFILE}
-                  size={17}
-                />
-
-                <span className={styles.qualityProfileName}>
-                  {
-                    <QualityProfileName
-                      qualityProfileId={qualityProfileId}
+              {
+                (!formatProfiles || formatProfiles.length === 0) &&
+                  <Label
+                    className={styles.detailsLabel}
+                    title={translate('QualityProfile')}
+                    size={sizes.LARGE}
+                  >
+                    <Icon
+                      name={icons.PROFILE}
+                      size={17}
                     />
-                  }
-                </span>
-              </Label>
+
+                    <span className={styles.qualityProfileName}>
+                      {
+                        <QualityProfileName
+                          qualityProfileId={qualityProfileId}
+                        />
+                      }
+                    </span>
+                  </Label>
+              }
+
+              {
+                formatProfiles && formatProfiles.length > 0 &&
+                  // Deduplicate by formatType (keep first occurrence)
+                  formatProfiles.filter((fp, index, self) =>
+                    self.findIndex((f) => f.formatType === fp.formatType) === index
+                  ).map((fp) => {
+                    const formatLabel = fp.formatType === 'ebook' ? translate('Ebook') : translate('Audiobook');
+
+                    return (
+                      <Label
+                        key={fp.id}
+                        className={styles.detailsLabel}
+                        title={`${formatLabel}: ${fp.monitored ? translate('Monitored') : translate('Unmonitored')}`}
+                        kind={fp.monitored ? kinds.INFO : kinds.DEFAULT}
+                        size={sizes.LARGE}
+                      >
+                        <Icon
+                          name={fp.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
+                          size={17}
+                        />
+
+                        <span className={styles.qualityProfileName}>
+                          {formatLabel}
+                        </span>
+
+                        <Icon
+                          className={styles.formatSeparator}
+                          name={icons.ARROW_RIGHT}
+                          size={10}
+                        />
+
+                        <span className={styles.qualityProfileName}>
+                          <QualityProfileName
+                            qualityProfileId={fp.qualityProfileId}
+                          />
+                        </span>
+
+                        {
+                          !fp.monitored &&
+                            <Icon
+                              className={styles.formatUnmonitored}
+                              name={icons.UNMONITORED}
+                              size={12}
+                              title="Not monitored"
+                            />
+                        }
+                      </Label>
+                    );
+                  })
+              }
 
               <Label
                 className={styles.detailsLabel}
@@ -331,6 +386,7 @@ AuthorDetailsHeader.propTypes = {
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   alternateTitles: PropTypes.arrayOf(PropTypes.string).isRequired,
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
   isSaving: PropTypes.bool.isRequired,
   isSmallScreen: PropTypes.bool.isRequired,
   onMonitorTogglePress: PropTypes.func.isRequired

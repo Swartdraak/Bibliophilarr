@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
@@ -314,104 +316,126 @@ namespace NzbDrone.Core.MediaFiles
             BookAuthors = BookAuthors ?? new string[0];
             Genres = Genres ?? new string[0];
 
-            TagLib.File file = null;
-            try
+            const int maxRetries = 3;
+
+            for (var attempt = 0; attempt <= maxRetries; attempt++)
             {
-                file = TagLib.File.Create(path);
-                var tag = file.Tag;
-
-                // do the ones with direct support in TagLib
-                tag.Title = Title;
-                tag.Performers = Performers;
-                tag.AlbumArtists = BookAuthors;
-                tag.Track = Track;
-                tag.TrackCount = TrackCount;
-                tag.Album = Book;
-                tag.Disc = Disc;
-                tag.DiscCount = DiscCount;
-                tag.Publisher = Publisher;
-                tag.Genres = Genres;
-
-                if (ImageFile.IsNotNullOrWhiteSpace())
+                TagLib.File file = null;
+                try
                 {
-                    tag.Pictures = new IPicture[1] { new Picture(ImageFile) };
-                }
+                    file = TagLib.File.Create(path);
 
-                if (file.TagTypes.HasFlag(TagTypes.Id3v2))
+                    if (!file.Writeable)
+                    {
+                        Logger.Warn("Cannot write tags to {0}: file is not writable. If this is an NFS mount, ensure the process user has write access (check uid/gid mapping in NAS export settings).", path);
+                        return;
+                    }
+
+                    var tag = file.Tag;
+
+                    // do the ones with direct support in TagLib
+                    tag.Title = Title;
+                    tag.Performers = Performers;
+                    tag.AlbumArtists = BookAuthors;
+                    tag.Track = Track;
+                    tag.TrackCount = TrackCount;
+                    tag.Album = Book;
+                    tag.Disc = Disc;
+                    tag.DiscCount = DiscCount;
+                    tag.Publisher = Publisher;
+                    tag.Genres = Genres;
+
+                    if (ImageFile.IsNotNullOrWhiteSpace())
+                    {
+                        tag.Pictures = new IPicture[1] { new Picture(ImageFile) };
+                    }
+
+                    if (file.TagTypes.HasFlag(TagTypes.Id3v2))
+                    {
+                        var id3tag = (TagLib.Id3v2.Tag)file.GetTag(TagTypes.Id3v2);
+                        id3tag.SetTextFrame("TMED", Media);
+                        WriteId3Date(id3tag, "TDRC", "TYER", "TDAT", Date);
+                        WriteId3Date(id3tag, "TDOR", "TORY", null, OriginalReleaseDate);
+                    }
+                    else if (file.TagTypes.HasFlag(TagTypes.Xiph))
+                    {
+                        // while publisher is handled by taglib, it seems to be mapped to 'ORGANIZATION' and not 'LABEL' like Picard is
+                        // https://picard.musicbrainz.org/docs/mappings/
+                        tag.Publisher = null;
+
+                        // taglib inserts leading zeros so set manually
+                        tag.Track = 0;
+
+                        var flactag = (TagLib.Ogg.XiphComment)file.GetTag(TagLib.TagTypes.Xiph);
+
+                        flactag.SetField("DATE", Date.HasValue ? Date.Value.ToString("yyyy-MM-dd") : null);
+                        flactag.SetField("ORIGINALDATE", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.ToString("yyyy-MM-dd") : null);
+                        flactag.SetField("ORIGINALYEAR", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.Year.ToString() : null);
+                        flactag.SetField("TRACKTOTAL", TrackCount);
+                        flactag.SetField("TOTALTRACKS", TrackCount);
+                        flactag.SetField("TRACKNUMBER", Track);
+                        flactag.SetField("TOTALDISCS", DiscCount);
+                        flactag.SetField("MEDIA", Media);
+                        flactag.SetField("LABEL", Publisher);
+                    }
+                    else if (file.TagTypes.HasFlag(TagTypes.Ape))
+                    {
+                        var apetag = (TagLib.Ape.Tag)file.GetTag(TagTypes.Ape);
+
+                        apetag.SetValue("Year", Date.HasValue ? Date.Value.ToString("yyyy-MM-dd") : null);
+                        apetag.SetValue("Original Date", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.ToString("yyyy-MM-dd") : null);
+                        apetag.SetValue("Original Year", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.Year.ToString() : null);
+                        apetag.SetValue("Media", Media);
+                        apetag.SetValue("Label", Publisher);
+                    }
+                    else if (file.TagTypes.HasFlag(TagTypes.Asf))
+                    {
+                        var asftag = (TagLib.Asf.Tag)file.GetTag(TagTypes.Asf);
+
+                        asftag.SetDescriptorString(Date.HasValue ? Date.Value.ToString("yyyy-MM-dd") : null, "WM/Year");
+                        asftag.SetDescriptorString(OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.ToString("yyyy-MM-dd") : null, "WM/OriginalReleaseTime");
+                        asftag.SetDescriptorString(OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.Year.ToString() : null, "WM/OriginalReleaseYear");
+                        asftag.SetDescriptorString(Media, "WM/Media");
+                        asftag.SetDescriptorString(Publisher, "WM/Publisher");
+                    }
+                    else if (file.TagTypes.HasFlag(TagTypes.Apple))
+                    {
+                        var appletag = (TagLib.Mpeg4.AppleTag)file.GetTag(TagTypes.Apple);
+
+                        appletag.SetText(FixAppleId("day"), Date.HasValue ? Date.Value.ToString("yyyy-MM-dd") : null);
+                        appletag.SetDashBox("com.apple.iTunes", "Original Date", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.ToString("yyyy-MM-dd") : null);
+                        appletag.SetDashBox("com.apple.iTunes", "Original Year", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.Year.ToString() : null);
+                        appletag.SetDashBox("com.apple.iTunes", "MEDIA", Media);
+                    }
+
+                    file.Save();
+                    return;
+                }
+                catch (IOException ex) when (attempt < maxRetries)
                 {
-                    var id3tag = (TagLib.Id3v2.Tag)file.GetTag(TagTypes.Id3v2);
-                    id3tag.SetTextFrame("TMED", Media);
-                    WriteId3Date(id3tag, "TDRC", "TYER", "TDAT", Date);
-                    WriteId3Date(id3tag, "TDOR", "TORY", null, OriginalReleaseDate);
+                    Logger.Debug(ex, "Tag write attempt {0} failed for {1} due to file access conflict, retrying", attempt + 1, path);
+                    file?.Dispose();
+                    file = null;
+                    Thread.Sleep(500 * (attempt + 1));
                 }
-                else if (file.TagTypes.HasFlag(TagTypes.Xiph))
+                catch (CorruptFileException ex)
                 {
-                    // while publisher is handled by taglib, it seems to be mapped to 'ORGANIZATION' and not 'LABEL' like Picard is
-                    // https://picard.musicbrainz.org/docs/mappings/
-                    tag.Publisher = null;
-
-                    // taglib inserts leading zeros so set manually
-                    tag.Track = 0;
-
-                    var flactag = (TagLib.Ogg.XiphComment)file.GetTag(TagLib.TagTypes.Xiph);
-
-                    flactag.SetField("DATE", Date.HasValue ? Date.Value.ToString("yyyy-MM-dd") : null);
-                    flactag.SetField("ORIGINALDATE", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.ToString("yyyy-MM-dd") : null);
-                    flactag.SetField("ORIGINALYEAR", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.Year.ToString() : null);
-                    flactag.SetField("TRACKTOTAL", TrackCount);
-                    flactag.SetField("TOTALTRACKS", TrackCount);
-                    flactag.SetField("TRACKNUMBER", Track);
-                    flactag.SetField("TOTALDISCS", DiscCount);
-                    flactag.SetField("MEDIA", Media);
-                    flactag.SetField("LABEL", Publisher);
+                    Logger.Warn(ex, $"Tag writing failed for {path}.  File is corrupt");
+                    return;
                 }
-                else if (file.TagTypes.HasFlag(TagTypes.Ape))
+                catch (Exception ex)
                 {
-                    var apetag = (TagLib.Ape.Tag)file.GetTag(TagTypes.Ape);
-
-                    apetag.SetValue("Year", Date.HasValue ? Date.Value.ToString("yyyy-MM-dd") : null);
-                    apetag.SetValue("Original Date", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.ToString("yyyy-MM-dd") : null);
-                    apetag.SetValue("Original Year", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.Year.ToString() : null);
-                    apetag.SetValue("Media", Media);
-                    apetag.SetValue("Label", Publisher);
+                    Logger.ForWarnEvent()
+                        .Exception(ex)
+                        .Message($"Tag writing failed for {path}")
+                        .WriteSentryWarn("Tag writing failed")
+                        .Log();
+                    return;
                 }
-                else if (file.TagTypes.HasFlag(TagTypes.Asf))
+                finally
                 {
-                    var asftag = (TagLib.Asf.Tag)file.GetTag(TagTypes.Asf);
-
-                    asftag.SetDescriptorString(Date.HasValue ? Date.Value.ToString("yyyy-MM-dd") : null, "WM/Year");
-                    asftag.SetDescriptorString(OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.ToString("yyyy-MM-dd") : null, "WM/OriginalReleaseTime");
-                    asftag.SetDescriptorString(OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.Year.ToString() : null, "WM/OriginalReleaseYear");
-                    asftag.SetDescriptorString(Media, "WM/Media");
-                    asftag.SetDescriptorString(Publisher, "WM/Publisher");
+                    file?.Dispose();
                 }
-                else if (file.TagTypes.HasFlag(TagTypes.Apple))
-                {
-                    var appletag = (TagLib.Mpeg4.AppleTag)file.GetTag(TagTypes.Apple);
-
-                    appletag.SetText(FixAppleId("day"), Date.HasValue ? Date.Value.ToString("yyyy-MM-dd") : null);
-                    appletag.SetDashBox("com.apple.iTunes", "Original Date", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.ToString("yyyy-MM-dd") : null);
-                    appletag.SetDashBox("com.apple.iTunes", "Original Year", OriginalReleaseDate.HasValue ? OriginalReleaseDate.Value.Year.ToString() : null);
-                    appletag.SetDashBox("com.apple.iTunes", "MEDIA", Media);
-                }
-
-                file.Save();
-            }
-            catch (CorruptFileException ex)
-            {
-                Logger.Warn(ex, $"Tag writing failed for {path}.  File is corrupt");
-            }
-            catch (Exception ex)
-            {
-                Logger.ForWarnEvent()
-                    .Exception(ex)
-                    .Message($"Tag writing failed for {path}")
-                    .WriteSentryWarn("Tag writing failed")
-                    .Log();
-            }
-            finally
-            {
-                file?.Dispose();
             }
         }
 

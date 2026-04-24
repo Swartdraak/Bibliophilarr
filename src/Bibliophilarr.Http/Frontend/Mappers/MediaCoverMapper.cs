@@ -10,7 +10,7 @@ namespace Bibliophilarr.Http.Frontend.Mappers
 {
     public class MediaCoverMapper : StaticResourceMapperBase
     {
-        private static readonly Regex RegexResizedImage = new Regex(@"-\d+(?=\.(jpg|png|gif)($|\?))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RegexResizedImage = new Regex(@"-\d+(?=\.(jpe?g|png|gif|webp)($|\?))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly IAppFolderInfo _appFolderInfo;
         private readonly IDiskProvider _diskProvider;

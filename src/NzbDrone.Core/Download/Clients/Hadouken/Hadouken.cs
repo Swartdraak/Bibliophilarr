@@ -42,7 +42,7 @@ namespace NzbDrone.Core.Download.Clients.Hadouken
 
             foreach (var torrent in torrents)
             {
-                if (Settings.Category.IsNotNullOrWhiteSpace() && torrent.Label != Settings.Category)
+                if (!Settings.MatchesAnyCategory(torrent.Label))
                 {
                     continue;
                 }
@@ -141,14 +141,16 @@ namespace NzbDrone.Core.Download.Clients.Hadouken
 
         protected override string AddFromMagnetLink(RemoteBook remoteBook, string hash, string magnetLink)
         {
-            _proxy.AddTorrentUri(Settings, magnetLink);
+            var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
+            _proxy.AddTorrentUri(Settings, magnetLink, category);
 
             return hash.ToUpper();
         }
 
         protected override string AddFromTorrentFile(RemoteBook remoteBook, string hash, string filename, byte[] fileContent)
         {
-            return _proxy.AddTorrentFile(Settings, fileContent).ToUpper();
+            var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
+            return _proxy.AddTorrentFile(Settings, fileContent, category).ToUpper();
         }
 
         private ValidationFailure TestConnection()

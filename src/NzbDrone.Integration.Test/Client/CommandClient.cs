@@ -1,12 +1,12 @@
 using System;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using Bibliophilarr.Http.REST;
 using FluentAssertions;
 using Newtonsoft.Json;
 using NUnit.Framework;
 using NzbDrone.Core.Messaging.Commands;
-using RestSharp;
 
 namespace NzbDrone.Integration.Test.Client
 {
@@ -35,8 +35,8 @@ namespace NzbDrone.Integration.Test.Client
 
     public class CommandClient : ClientBase<SimpleCommandResource>
     {
-        public CommandClient(IRestClient restClient, string apiKey)
-        : base(restClient, apiKey, "command")
+        public CommandClient(HttpClient httpClient, string apiKey)
+        : base(httpClient, apiKey, "command")
         {
         }
 

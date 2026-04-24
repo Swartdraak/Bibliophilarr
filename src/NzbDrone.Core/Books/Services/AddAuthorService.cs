@@ -8,11 +8,15 @@ using NLog;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser;
+using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Qualities;
+using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.Books
 {
@@ -30,6 +34,10 @@ namespace NzbDrone.Core.Books
         private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IAddAuthorValidator _addAuthorValidator;
+        private readonly IAuthorFormatProfileService _formatProfileService;
+        private readonly IConfigService _configService;
+        private readonly IQualityProfileService _qualityProfileService;
+        private readonly IRootFolderService _rootFolderService;
         private readonly Logger _logger;
 
         public AddAuthorService(IAuthorService authorService,
@@ -38,6 +46,10 @@ namespace NzbDrone.Core.Books
                                 IMetadataProviderOrchestrator orchestrator,
                                 IBuildFileNames fileNameBuilder,
                                 IAddAuthorValidator addAuthorValidator,
+                                IAuthorFormatProfileService formatProfileService,
+                                IConfigService configService,
+                                IQualityProfileService qualityProfileService,
+                                IRootFolderService rootFolderService,
                                 Logger logger)
         {
             _authorService = authorService;
@@ -46,6 +58,10 @@ namespace NzbDrone.Core.Books
             _orchestrator = orchestrator;
             _fileNameBuilder = fileNameBuilder;
             _addAuthorValidator = addAuthorValidator;
+            _formatProfileService = formatProfileService;
+            _configService = configService;
+            _qualityProfileService = qualityProfileService;
+            _rootFolderService = rootFolderService;
             _logger = logger;
         }
 
@@ -78,7 +94,11 @@ namespace NzbDrone.Core.Books
             }
 
             // add the author itself
-            return _authorService.AddAuthor(newAuthor, doRefresh);
+            var addedAuthor = _authorService.AddAuthor(newAuthor, doRefresh);
+
+            EnsureFormatProfiles(addedAuthor);
+
+            return addedAuthor;
         }
 
         public List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh = true)
@@ -138,6 +158,12 @@ namespace NzbDrone.Core.Books
             }
 
             var inserted = actuallyNew.Any() ? _authorService.AddAuthors(actuallyNew, doRefresh) : new List<Author>();
+
+            foreach (var author in inserted)
+            {
+                EnsureFormatProfiles(author);
+            }
+
             return inserted.Concat(existingMatches).DistinctBy(x => x.Id).ToList();
         }
 
@@ -279,6 +305,122 @@ namespace NzbDrone.Core.Books
             }
 
             return newAuthor;
+        }
+
+        private void EnsureFormatProfiles(Author author)
+        {
+            if (!_configService.EnableDualFormatTracking || author.Id <= 0)
+            {
+                return;
+            }
+
+            var existing = _formatProfileService.GetByAuthorId(author.Id);
+
+            if (existing.Any())
+            {
+                return;
+            }
+
+            var addOptions = author.AddOptions;
+
+            var ebookQualityProfileId = addOptions?.EbookQualityProfileId ?? 0;
+            var audiobookQualityProfileId = addOptions?.AudiobookQualityProfileId ?? 0;
+            var ebookRootFolderPath = addOptions?.EbookRootFolderPath ?? string.Empty;
+            var audiobookRootFolderPath = addOptions?.AudiobookRootFolderPath ?? string.Empty;
+
+            // When per-format QPs aren't explicitly set, infer the best QP for each format
+            // by checking which root folders/QPs contain ebook vs audiobook qualities
+            if (ebookQualityProfileId <= 0 || audiobookQualityProfileId <= 0)
+            {
+                var rootFolders = _rootFolderService.All();
+                var allQualityProfiles = _qualityProfileService.All();
+
+                var bestEbookQpId = 0;
+                var bestAudiobookQpId = 0;
+
+                // Check each root folder's default QP to find format-appropriate matches
+                foreach (var rf in rootFolders)
+                {
+                    var qp = allQualityProfiles.FirstOrDefault(p => p.Id == rf.DefaultQualityProfileId);
+                    if (qp == null)
+                    {
+                        continue;
+                    }
+
+                    var allowedQualities = qp.Items
+                        .Where(i => i.Allowed)
+                        .SelectMany(i => i.GetQualities())
+                        .ToList();
+
+                    var hasEbookQualities = allowedQualities.Any(q => Quality.GetFormatType(q) == FormatType.Ebook);
+                    var hasAudiobookQualities = allowedQualities.Any(q => Quality.GetFormatType(q) == FormatType.Audiobook);
+
+                    if (hasEbookQualities && !hasAudiobookQualities && bestEbookQpId == 0)
+                    {
+                        bestEbookQpId = qp.Id;
+                        if (ebookRootFolderPath.IsNullOrWhiteSpace())
+                        {
+                            ebookRootFolderPath = rf.Path;
+                        }
+                    }
+
+                    if (hasAudiobookQualities && !hasEbookQualities && bestAudiobookQpId == 0)
+                    {
+                        bestAudiobookQpId = qp.Id;
+                        if (audiobookRootFolderPath.IsNullOrWhiteSpace())
+                        {
+                            audiobookRootFolderPath = rf.Path;
+                        }
+                    }
+                }
+
+                if (ebookQualityProfileId <= 0)
+                {
+                    ebookQualityProfileId = bestEbookQpId > 0 ? bestEbookQpId : author.QualityProfileId;
+                }
+
+                if (audiobookQualityProfileId <= 0)
+                {
+                    audiobookQualityProfileId = bestAudiobookQpId > 0 ? bestAudiobookQpId : author.QualityProfileId;
+                }
+            }
+
+            // Ensure root folder paths have sensible defaults
+            if (ebookRootFolderPath.IsNullOrWhiteSpace())
+            {
+                ebookRootFolderPath = author.RootFolderPath ?? string.Empty;
+            }
+
+            if (audiobookRootFolderPath.IsNullOrWhiteSpace())
+            {
+                audiobookRootFolderPath = author.RootFolderPath ?? string.Empty;
+            }
+
+            _formatProfileService.Add(new AuthorFormatProfile
+            {
+                AuthorId = author.Id,
+                FormatType = FormatType.Ebook,
+                QualityProfileId = ebookQualityProfileId,
+                RootFolderPath = ebookRootFolderPath,
+                Tags = author.Tags ?? new HashSet<int>(),
+                Monitored = author.Monitored,
+                MonitorNewItems = author.MonitorNewItems,
+                Path = author.Path ?? string.Empty
+            });
+
+            _formatProfileService.Add(new AuthorFormatProfile
+            {
+                AuthorId = author.Id,
+                FormatType = FormatType.Audiobook,
+                QualityProfileId = audiobookQualityProfileId,
+                RootFolderPath = audiobookRootFolderPath,
+                Tags = author.Tags ?? new HashSet<int>(),
+                Monitored = author.Monitored,
+                MonitorNewItems = author.MonitorNewItems,
+                Path = author.Path ?? string.Empty
+            });
+
+            _logger.Debug("Created dual-format profiles for author {0} (Ebook QP={1}, Audiobook QP={2})", author, ebookQualityProfileId, audiobookQualityProfileId);
         }
     }
 }

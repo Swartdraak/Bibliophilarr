@@ -20,7 +20,7 @@ function Tags(props) {
       <Alert kind={kinds.INFO}>
         {translate('NoTagsHaveBeenAddedYet')}
         {' '}
-        <Link to='https://github.com/Swartdraak/Bibliophilarr/wiki/settings#tags'>
+        <Link to='/system/wiki/faq'>
           {translate('ClickHereForMoreInfoAboutTags')}
         </Link>
       </Alert>

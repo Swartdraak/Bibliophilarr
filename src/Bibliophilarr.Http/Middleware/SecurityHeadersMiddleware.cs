@@ -1,15 +1,33 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using NzbDrone.Common.EnvironmentInfo;
 
 namespace Bibliophilarr.Http.Middleware
 {
     public class SecurityHeadersMiddleware
     {
         private readonly RequestDelegate _next;
+        private readonly string _csp;
 
         public SecurityHeadersMiddleware(RequestDelegate next)
         {
             _next = next;
+
+            // Debug builds use webpack eval-source-map which requires 'unsafe-eval'
+            var scriptSrc = BuildInfo.IsDebug
+                ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                : "script-src 'self' 'unsafe-inline'; ";
+
+            _csp = "default-src 'self'; " +
+                scriptSrc +
+                "style-src 'self' 'unsafe-inline'; " +
+                "img-src 'self' data: https:; " +
+                "font-src 'self'; " +
+                "connect-src 'self' ws: wss:; " +
+                "worker-src 'self' blob:; " +
+                "object-src 'none'; " +
+                "frame-ancestors 'none'; " +
+                "base-uri 'self'";
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -33,17 +51,7 @@ namespace Bibliophilarr.Http.Middleware
 
             // Content Security Policy: restrict resource loading to same origin,
             // allow inline styles/scripts needed by the SPA, and block object/embed
-            headers["Content-Security-Policy"] =
-                "default-src 'self'; " +
-                "script-src 'self' 'unsafe-inline'; " +
-                "style-src 'self' 'unsafe-inline'; " +
-                "img-src 'self' data: https:; " +
-                "font-src 'self'; " +
-                "connect-src 'self' ws: wss:; " +
-                "worker-src 'self' blob:; " +
-                "object-src 'none'; " +
-                "frame-ancestors 'none'; " +
-                "base-uri 'self'";
+            headers["Content-Security-Policy"] = _csp;
 
             await _next(context);
         }

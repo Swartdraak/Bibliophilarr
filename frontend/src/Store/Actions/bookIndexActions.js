@@ -93,12 +93,6 @@ export const defaultState = {
       isVisible: false
     },
     {
-      name: 'qualityProfileId',
-      label: 'Quality Profile',
-      isSortable: true,
-      isVisible: true
-    },
-    {
       name: 'added',
       label: 'Added',
       isSortable: true,
@@ -108,6 +102,12 @@ export const defaultState = {
       name: 'bookFileCount',
       label: 'File Count',
       isSortable: true,
+      isVisible: true
+    },
+    {
+      name: 'format',
+      label: 'Format',
+      isSortable: false,
       isVisible: true
     },
     {

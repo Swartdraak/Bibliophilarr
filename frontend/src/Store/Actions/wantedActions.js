@@ -40,6 +40,12 @@ export const defaultState = {
         isVisible: true
       },
       {
+        name: 'formatType',
+        label: 'Format',
+        isSortable: false,
+        isVisible: true
+      },
+      {
         name: 'releaseDate',
         label: 'Release Date',
         isSortable: true,
@@ -80,6 +86,28 @@ export const defaultState = {
           {
             key: 'monitored',
             value: false,
+            type: filterTypes.EQUAL
+          }
+        ]
+      },
+      {
+        key: 'ebook',
+        label: 'Ebook',
+        filters: [
+          {
+            key: 'formatType',
+            value: 'ebook',
+            type: filterTypes.EQUAL
+          }
+        ]
+      },
+      {
+        key: 'audiobook',
+        label: 'Audiobook',
+        filters: [
+          {
+            key: 'formatType',
+            value: 'audiobook',
             type: filterTypes.EQUAL
           }
         ]
@@ -109,6 +137,12 @@ export const defaultState = {
         isVisible: true
       },
       {
+        name: 'formatType',
+        label: 'Format',
+        isSortable: false,
+        isVisible: true
+      },
+      {
         name: 'releaseDate',
         label: 'Release Date',
         isSortable: true,
@@ -149,6 +183,28 @@ export const defaultState = {
           {
             key: 'monitored',
             value: false,
+            type: filterTypes.EQUAL
+          }
+        ]
+      },
+      {
+        key: 'ebook',
+        label: 'Ebook',
+        filters: [
+          {
+            key: 'formatType',
+            value: 'ebook',
+            type: filterTypes.EQUAL
+          }
+        ]
+      },
+      {
+        key: 'audiobook',
+        label: 'Audiobook',
+        filters: [
+          {
+            key: 'formatType',
+            value: 'audiobook',
             type: filterTypes.EQUAL
           }
         ]

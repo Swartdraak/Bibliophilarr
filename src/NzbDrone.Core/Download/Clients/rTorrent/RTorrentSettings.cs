@@ -11,13 +11,13 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         {
             RuleFor(c => c.Host).ValidHost();
             RuleFor(c => c.Port).InclusiveBetween(1, 65535);
-            RuleFor(c => c.MusicCategory).NotEmpty()
+            RuleFor(c => c.EbookCategory).NotEmpty()
                                       .WithMessage("A category is recommended")
                                       .AsWarning();
         }
     }
 
-    public class RTorrentSettings : IProviderConfig
+    public class RTorrentSettings : IProviderConfig, IFormatCategorySettings
     {
         private static readonly RTorrentSettingsValidator Validator = new RTorrentSettingsValidator();
 
@@ -26,7 +26,8 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             Host = "localhost";
             Port = 8080;
             UrlBase = "RPC2";
-            MusicCategory = "bibliophilarr";
+            EbookCategory = "bibliophilarr-ebooks";
+            AudiobookCategory = "bibliophilarr-audiobooks";
             OlderTvPriority = (int)RTorrentPriority.Normal;
             RecentTvPriority = (int)RTorrentPriority.Normal;
         }
@@ -49,22 +50,28 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         [FieldDefinition(5, Label = "Password", Type = FieldType.Password, Privacy = PrivacyLevel.Password)]
         public string Password { get; set; }
 
-        [FieldDefinition(6, Label = "Category", Type = FieldType.Textbox, HelpText = "Adding a category specific to Bibliophilarr avoids conflicts with unrelated non-Bibliophilarr downloads. Using a category is optional, but strongly recommended.")]
-        public string MusicCategory { get; set; }
+        [FieldDefinition(6, Label = "Ebook Category", Type = FieldType.Textbox, HelpText = "Category for ebook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
+        public string EbookCategory { get; set; }
 
-        [FieldDefinition(7, Label = "Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category for Bibliophilarr to set after it has imported the download. Bibliophilarr will not remove torrents in that category even if seeding finished. Leave blank to keep same category.")]
-        public string MusicImportedCategory { get; set; }
+        [FieldDefinition(7, Label = "Audiobook Category", Type = FieldType.Textbox, HelpText = "Category for audiobook downloads. Avoids conflicts with unrelated downloads. Strongly recommended.")]
+        public string AudiobookCategory { get; set; }
 
-        [FieldDefinition(8, Label = "Directory", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional location to put downloads in, leave blank to use the default rTorrent location")]
+        [FieldDefinition(8, Label = "Ebook Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category to set after importing an ebook download. Leave blank to keep same category.")]
+        public string EbookImportedCategory { get; set; }
+
+        [FieldDefinition(9, Label = "Audiobook Post-Import Category", Type = FieldType.Textbox, Advanced = true, HelpText = "Category to set after importing an audiobook download. Leave blank to keep same category.")]
+        public string AudiobookImportedCategory { get; set; }
+
+        [FieldDefinition(10, Label = "Directory", Type = FieldType.Textbox, Advanced = true, HelpText = "Optional location to put downloads in, leave blank to use the default rTorrent location")]
         public string MusicDirectory { get; set; }
 
-        [FieldDefinition(9, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(RTorrentPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
+        [FieldDefinition(11, Label = "Recent Priority", Type = FieldType.Select, SelectOptions = typeof(RTorrentPriority), HelpText = "Priority to use when grabbing books released within the last 14 days")]
         public int RecentTvPriority { get; set; }
 
-        [FieldDefinition(10, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(RTorrentPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
+        [FieldDefinition(12, Label = "Older Priority", Type = FieldType.Select, SelectOptions = typeof(RTorrentPriority), HelpText = "Priority to use when grabbing books released over 14 days ago")]
         public int OlderTvPriority { get; set; }
 
-        [FieldDefinition(11, Label = "Add Stopped", Type = FieldType.Checkbox, HelpText = "Enabling will add torrents and magnets to rTorrent in a stopped state. This may break magnet files.")]
+        [FieldDefinition(13, Label = "Add Stopped", Type = FieldType.Checkbox, HelpText = "Enabling will add torrents and magnets to rTorrent in a stopped state. This may break magnet files.")]
         public bool AddStopped { get; set; }
 
         public NzbDroneValidationResult Validate()

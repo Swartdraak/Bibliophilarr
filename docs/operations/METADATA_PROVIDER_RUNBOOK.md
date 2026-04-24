@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This runbook defines how operators detect provider degradation, tune fallback behavior, and safely recover metadata operations when Open Library, Google Books, BookInfo, or Inventaire are unstable.
+This runbook defines how operators detect provider degradation, tune fallback behavior, and safely recover metadata operations when Open Library, Google Books, Hardcover, or Inventaire are unstable.
 
 ## Scope
 
@@ -70,7 +70,7 @@ Action at warning:
 Action at critical:
 
 1. Disable impacted provider immediately.
-2. Enable environment kill-switch for Inventaire when needed.
+2. Use the metadata-provider config/API toggles to disable the impacted provider when needed.
 3. Open incident and track recovery checkpoints every 30 minutes.
 
 ### Interpretation
@@ -277,19 +277,19 @@ Escalation criteria:
 - Open an incident when unexpected winner shifts persist for more than two telemetry checkpoints.
 - Attach conflict telemetry snapshot and matching provider operation telemetry to release-entry artifacts.
 
-## Inventaire Kill-Switch
+## Provider emergency disablement
 
-For emergency environment-level disablement:
+For emergency provider disablement, use the persisted metadata-provider configuration exposed in the UI and API:
 
-- `BIBLIOPHILARR_DISABLE_INVENTAIRE=1`
-
-This forces `EnableInventaireProvider` to resolve as disabled at runtime regardless of stored config.
+- `enableOpenLibraryProvider`
+- `enableGoogleBooksProvider`
+- `enableInventaireProvider`
 
 ### Rollout Policy
 
 - Authorized operators: release manager, on-call maintainer, or incident commander.
 - Activation window: immediate during P1/P2 metadata degradation.
-- Rollback target: remove kill-switch within 2 hours after telemetry recovers below warning thresholds for at least 30 continuous minutes.
+- Rollback target: restore the provider setting within 2 hours after telemetry recovers below warning thresholds for at least 30 continuous minutes.
 - Change record: document activation and rollback timestamps in incident notes and release-entry checklist.
 
 ## Recommended Tuning Profiles

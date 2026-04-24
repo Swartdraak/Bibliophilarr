@@ -225,6 +225,8 @@ namespace NzbDrone.Core.Datastore
             Mapper.Entity<UpdateHistory>("UpdateHistory").RegisterModel();
 
             Mapper.Entity<MetadataProviderSettings>("MetadataProviderSettings").RegisterModel();
+
+            Mapper.Entity<AuthorFormatProfile>("AuthorFormatProfiles").RegisterModel();
         }
 
         private static void RegisterMappers()

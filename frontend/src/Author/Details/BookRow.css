@@ -33,3 +33,9 @@
 
   width: 50px;
 }
+
+.format {
+  composes: cell from '~Components/Table/Cells/TableRowCell.css';
+
+  width: 90px;
+}

@@ -56,7 +56,7 @@ class AddSpecificationModalContent extends Component {
                   </div>
                   <div>
                     {'Visit the wiki for more details: '}
-                    <Link to="https://github.com/Swartdraak/Bibliophilarr/wiki/settings#custom-formats-2">{'Wiki'}</Link>
+                    <Link to="/system/wiki/custom-formats">{'Wiki'}</Link>
                   </div>
                 </Alert>
 

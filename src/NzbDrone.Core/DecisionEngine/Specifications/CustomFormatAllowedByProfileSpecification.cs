@@ -6,12 +6,19 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 {
     public class CustomFormatAllowedbyProfileSpecification : IDecisionEngineSpecification
     {
+        private readonly UpgradableSpecification _upgradableSpecification;
+
+        public CustomFormatAllowedbyProfileSpecification(UpgradableSpecification upgradableSpecification)
+        {
+            _upgradableSpecification = upgradableSpecification;
+        }
+
         public SpecificationPriority Priority => SpecificationPriority.Default;
         public RejectionType Type => RejectionType.Permanent;
 
         public virtual Decision IsSatisfiedBy(RemoteBook subject, SearchCriteriaBase searchCriteria)
         {
-            var minScore = subject.Author.QualityProfile.Value.MinFormatScore;
+            var minScore = _upgradableSpecification.ResolveProfile(subject).MinFormatScore;
             var score = subject.CustomFormatScore;
 
             if (score < minScore)

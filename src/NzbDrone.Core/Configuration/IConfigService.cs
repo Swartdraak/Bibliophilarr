@@ -63,6 +63,9 @@ namespace NzbDrone.Core.Configuration
         //Internal
         bool CleanupMetadataImages { get; set; }
 
+        //Dual-format tracking
+        bool EnableDualFormatTracking { get; set; }
+
         string PlexClientIdentifier { get; }
 
         //Metadata

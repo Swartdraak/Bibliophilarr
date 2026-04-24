@@ -4,6 +4,7 @@ using System.Linq;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Download.Clients;
+using NzbDrone.Core.Profiles.Qualities;
 
 namespace NzbDrone.Core.Parser.Model
 {
@@ -18,6 +19,10 @@ namespace NzbDrone.Core.Parser.Model
         public List<CustomFormat> CustomFormats { get; set; }
         public int CustomFormatScore { get; set; }
         public ReleaseSourceType ReleaseSource { get; set; }
+
+        // Dual-format tracking: set by decision engine when format-specific profile is resolved
+        public FormatType? ResolvedFormatType { get; set; }
+        public QualityProfile ResolvedQualityProfile { get; set; }
 
         public RemoteBook()
         {

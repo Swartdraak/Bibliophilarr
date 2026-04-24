@@ -13,7 +13,7 @@ File: `.github/workflows/release-readiness-report.yml`
 Responsibilities:
 
 - Snapshot protected-branch policy and review-count parity
-- Report latest backend/docs/smoke/packaging workflow outcomes
+- Report latest backend/frontend/docs/smoke workflow outcomes
 - Summarize dependency security drift from Dependabot open-alert state
 - Publish markdown/json artifacts for operator review
 
@@ -94,7 +94,13 @@ The repository currently documents release-entry readiness, branch-policy audit,
 operational drift, and metadata dry-run workflows. Release and publish workflows
 are present in this repository (`release.yml`, `docker-image.yml`, and
 `npm-publish.yml`), while readiness and branch-policy workflows remain the
-authoritative gates for promotion decisions.
+authoritative operator decision inputs for promotion decisions.
+
+Current limitation:
+
+- `release.yml` still runs the release-entry gate in advisory mode (`continue-on-error: true`).
+- The series-persistence snapshot step is skipped when `stagingDbPath` is not supplied.
+- Operators must therefore treat a non-PASS gate result as release-blocking even though packaging can still continue in workflow execution today.
 
 ## Workflow dispatch commands (GitHub CLI)
 
@@ -145,8 +151,8 @@ gh workflow run "Metadata Migration Dry Run" \
 
 Before tagging a release from `main`, all of the following must be true:
 
-1. The latest `ci-backend.yml`, `docs-validation.yml`, and `staging-smoke-metadata-telemetry.yml` runs are successful on `develop`.
-2. The latest `ci-backend.yml`, `docs-validation.yml`, and `staging-smoke-metadata-telemetry.yml` runs are successful on `staging`.
+1. The latest `ci-backend.yml`, `ci-frontend.yml`, `docs-validation.yml`, and `staging-smoke-metadata-telemetry.yml` runs are successful on `develop`.
+2. The latest `ci-backend.yml`, `ci-frontend.yml`, `docs-validation.yml`, and `staging-smoke-metadata-telemetry.yml` runs are successful on `staging`.
 3. The latest `branch-policy-audit.yml` and `release-readiness-report.yml` runs are successful on `main`.
 4. Required contexts on protected branches remain aligned with branch protection policy.
 5. The latest dated install evidence in `docs/operations/install-test-snapshots` still reflects successful local installation validation.
@@ -185,7 +191,7 @@ Legacy symbol guard:
 - The gate supports an explicit allowlist for approved compatibility shims via `--symbol-allowlist` (defaults include parser model alias files used for backward-compatible JSON deserialization).
 
 4. Promotion is blocked unless the gate report returns `Overall: PASS`.
-5. `release.yml` enforces this gate automatically in the `Release Entry Gate` job.
+5. `release.yml` publishes this gate automatically in the `Release Entry Gate` job, but the job is currently advisory and does not yet hard-stop packaging on failure.
 
 Packaging scope note:
 

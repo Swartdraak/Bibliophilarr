@@ -43,9 +43,9 @@ namespace NzbDrone.Core.Test.MetadataSource
             var books = Subject.Search("Dune", "Frank Herbert");
 
             books.Should().ContainSingle();
-            books[0].TitleSlug.Should().Be("googlebooks:work:gb-123");
+            books[0].TitleSlug.Should().Be("googlebooks-work-gb-123");
             books[0].Editions.Value.Should().ContainSingle();
-            books[0].Editions.Value[0].TitleSlug.Should().Be("googlebooks:edition:gb-123");
+            books[0].Editions.Value[0].TitleSlug.Should().Be("googlebooks-edition-gb-123");
             books[0].Editions.Value[0].Images.Should().ContainSingle();
             books[0].Editions.Value[0].Images[0].Url.Should().Be("https://books.google.example/cover-thumb.jpg");
         }

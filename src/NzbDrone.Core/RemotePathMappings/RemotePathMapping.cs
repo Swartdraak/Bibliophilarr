@@ -1,3 +1,4 @@
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
 
 namespace NzbDrone.Core.RemotePathMappings
@@ -7,5 +8,6 @@ namespace NzbDrone.Core.RemotePathMappings
         public string Host { get; set; }
         public string RemotePath { get; set; }
         public string LocalPath { get; set; }
+        public FormatType? FormatType { get; set; }
     }
 }

@@ -96,6 +96,8 @@ class AuthorIndexRow extends Component {
       path,
       tags,
       images,
+      formatProfiles,
+      resolvedFormatProfiles,
       showBanners,
       showTitle,
       showSearchAction,
@@ -204,12 +206,36 @@ class AuthorIndexRow extends Component {
             }
 
             if (name === 'qualityProfileId') {
+              const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0 ?
+                resolvedFormatProfiles.map((fp) => {
+                  const prefix = fp.formatType === 'ebook' ? 'E' : 'A';
+                  return `${prefix}: ${fp.qualityProfileName}`;
+                }).join(' / ') :
+                qualityProfile?.name ?? '';
+
               return (
                 <VirtualTableRowCell
                   key={name}
                   className={styles[name]}
                 >
-                  {qualityProfile?.name ?? ''}
+                  {profileDisplay}
+                </VirtualTableRowCell>
+              );
+            }
+
+            if (name === 'formatProfiles') {
+              return (
+                <VirtualTableRowCell
+                  key={name}
+                  className={styles[name]}
+                >
+                  {
+                    formatProfiles && formatProfiles.length > 0 ?
+                      formatProfiles.map((fp) =>
+                        `${fp.formatType === 'ebook' ? 'E' : 'A'}${fp.monitored ? '' : '(off)'}`
+                      ).join(' / ') :
+                      '-'
+                  }
                 </VirtualTableRowCell>
               );
             }
@@ -442,6 +468,8 @@ AuthorIndexRow.propTypes = {
   ratings: PropTypes.object.isRequired,
   tags: PropTypes.arrayOf(PropTypes.number).isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
+  resolvedFormatProfiles: PropTypes.arrayOf(PropTypes.object),
   showBanners: PropTypes.bool.isRequired,
   showTitle: PropTypes.string.isRequired,
   showSearchAction: PropTypes.bool.isRequired,

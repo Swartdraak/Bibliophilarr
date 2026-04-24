@@ -1,4 +1,4 @@
-import moment from 'moment';
+import { format, parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import TextTruncate from 'react-text-truncate';
@@ -166,7 +166,7 @@ class AddNewBookSearchResult extends Component {
               {
                 !!releaseDate &&
                   <Label size={sizes.LARGE}>
-                    {moment(releaseDate).format('YYYY')}
+                    {format(parseISO(releaseDate), 'yyyy')}
                   </Label>
               }
 

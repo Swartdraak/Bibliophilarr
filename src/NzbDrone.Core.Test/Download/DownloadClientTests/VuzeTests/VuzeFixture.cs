@@ -97,7 +97,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.VuzeTests
         [Test]
         public async Task Download_with_category_should_force_directory()
         {
-            GivenMusicCategory();
+            GivenEbookCategory();
             GivenSuccessfulDownload();
 
             var remoteBook = CreateRemoteBook();
@@ -113,7 +113,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.VuzeTests
         [Test]
         public async Task Download_with_category_should_not_have_double_slashes()
         {
-            GivenMusicCategory();
+            GivenEbookCategory();
             GivenSuccessfulDownload();
 
             _transmissionConfigItems["download-dir"] += "/";
@@ -220,7 +220,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.VuzeTests
         [Test]
         public void should_exclude_items_not_in_category()
         {
-            GivenMusicCategory();
+            GivenEbookCategory();
 
             _downloading.DownloadDir = @"C:/Downloads/Finished/transmission/Bibliophilarr";
 

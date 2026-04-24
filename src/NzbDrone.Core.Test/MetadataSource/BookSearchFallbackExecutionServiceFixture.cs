@@ -183,11 +183,12 @@ namespace NzbDrone.Core.Test.MetadataSource
             }
 
             var health = Mocker.Resolve<IMetadataProviderRegistry>().GetProvidersHealthStatus()["Hardcover"];
-            health.RateLimitWindowRequests.Should().BeGreaterOrEqualTo(9);
+            health.RateLimitWindowRequests.Should().BeGreaterThanOrEqualTo(9);
             health.RateLimitWindowLimit.Should().Be(10);
             health.IsRateLimitNearCeiling.Should().BeTrue();
-            health.RateLimitUsageRatio.Should().BeGreaterOrEqualTo(0.85);
-            health.RateLimitRemaining.Should().BeLessOrEqualTo(1);
+            health.RateLimitUsageRatio.Should().BeGreaterThanOrEqualTo(0.85);
+
+            health.RateLimitRemaining.Should().BeLessThanOrEqualTo(1);
         }
     }
 }

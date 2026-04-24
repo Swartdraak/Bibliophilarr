@@ -93,7 +93,7 @@ function MetadataProvider(props) {
               </Alert>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="enableHardcoverFallback">
                   Enable Hardcover Provider
                 </FormLabel>
 
@@ -107,7 +107,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="hardcoverApiToken">
                   Hardcover API Token
                 </FormLabel>
 
@@ -121,7 +121,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="hardcoverRequestTimeoutSeconds">
                   Hardcover Request Timeout (seconds)
                 </FormLabel>
 
@@ -143,7 +143,7 @@ function MetadataProvider(props) {
               </Alert>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="enableOpenLibraryProvider">
                   Enable Open Library
                 </FormLabel>
 
@@ -157,7 +157,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="enableInventaireProvider">
                   Enable Inventaire
                 </FormLabel>
 
@@ -171,7 +171,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="enableGoogleBooksProvider">
                   Enable Google Books
                 </FormLabel>
 
@@ -185,7 +185,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="googleBooksApiKey">
                   Google Books API Key
                 </FormLabel>
 
@@ -199,7 +199,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="metadataProviderPriorityOrder">
                   Provider Priority Order
                 </FormLabel>
 
@@ -215,7 +215,7 @@ function MetadataProvider(props) {
 
             <FieldSet legend={translate('ProviderResilience')}>
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="metadataProviderTimeoutSeconds">
                   Provider Timeout (seconds)
                 </FormLabel>
 
@@ -229,7 +229,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="metadataProviderRetryBudget">
                   Retry Budget
                 </FormLabel>
 
@@ -243,7 +243,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="metadataProviderCircuitBreakerThreshold">
                   Circuit Breaker Failure Threshold
                 </FormLabel>
 
@@ -257,7 +257,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="metadataProviderCircuitBreakerDurationSeconds">
                   Circuit Breaker Duration (seconds)
                 </FormLabel>
 
@@ -273,7 +273,7 @@ function MetadataProvider(props) {
 
             <FieldSet legend={translate('CalibreMetadata')}>
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="writeBookTags">
                   {translate('SendMetadataToCalibre')}
                 </FormLabel>
 
@@ -288,7 +288,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="updateCovers">
                   {translate('UpdateCovers')}
                 </FormLabel>
 
@@ -302,7 +302,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="embedMetadata">
                   {translate('EmbedMetadataInBookFiles')}
                 </FormLabel>
 
@@ -319,7 +319,7 @@ function MetadataProvider(props) {
 
             <FieldSet legend={translate('AudioFileMetadata')}>
               <FormGroup>
-                <FormLabel>{translate('WriteAudioTags')}</FormLabel>
+                <FormLabel name="writeAudioTags">{translate('WriteAudioTags')}</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.SELECT}
@@ -332,7 +332,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>{translate('WriteAudioTagsScrub')}</FormLabel>
+                <FormLabel name="scrubAudioTags">{translate('WriteAudioTagsScrub')}</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
@@ -347,7 +347,7 @@ function MetadataProvider(props) {
 
             <FieldSet legend="Import Identification Settings">
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="enableInventaireFallback">
                   Enable Fallback Searches
                 </FormLabel>
 
@@ -361,7 +361,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name="enableGoogleBooksFallback">
                   Enable Google Books Fallback
                 </FormLabel>
 
@@ -375,7 +375,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>ISBN Fallback Attempt Limit</FormLabel>
+                <FormLabel name="isbnContextFallbackLimit">ISBN Fallback Attempt Limit</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.NUMBER}
@@ -389,7 +389,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>Identification Workers</FormLabel>
+                <FormLabel name="identificationWorkerCount">Identification Workers</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.NUMBER}
@@ -403,7 +403,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>Tag Read Workers</FormLabel>
+                <FormLabel name="importTagReadWorkerCount">Tag Read Workers</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.NUMBER}
@@ -417,7 +417,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>Remote Candidate Search Workers</FormLabel>
+                <FormLabel name="remoteCandidateSearchWorkerCount">Remote Candidate Search Workers</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.NUMBER}
@@ -431,7 +431,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>{translate('EnableMetadataConflictStrategyVariants')}</FormLabel>
+                <FormLabel name="enableMetadataConflictStrategyVariants">{translate('EnableMetadataConflictStrategyVariants')}</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
@@ -452,7 +452,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>{translate('MetadataAuthorAliases')}</FormLabel>
+                <FormLabel name="metadataAuthorAliases">{translate('MetadataAuthorAliases')}</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.TEXT_AREA}
@@ -464,7 +464,7 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>{translate('MetadataTitleStripPatterns')}</FormLabel>
+                <FormLabel name="metadataTitleStripPatterns">{translate('MetadataTitleStripPatterns')}</FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.TEXT_AREA}

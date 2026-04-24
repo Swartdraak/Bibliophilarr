@@ -11,6 +11,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Extras;
@@ -51,6 +52,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly IMonitorNewBookService _monitorNewBookService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public ImportApprovedBooks(IUpgradeMediaFiles bookFileUpgrader,
@@ -68,6 +70,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IEventAggregator eventAggregator,
                                    IManageCommandQueue commandQueueManager,
                                    IMonitorNewBookService monitorNewBookService,
+                                   IConfigService configService,
                                    Logger logger)
         {
             _bookFileUpgrader = bookFileUpgrader;
@@ -85,6 +88,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
             _monitorNewBookService = monitorNewBookService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -149,7 +153,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 // set the correct release to be monitored before importing the new files
                 var newRelease = bookDecision.First().Item.Edition;
                 _logger.Debug("Updating release to {0}", newRelease);
-                book.Editions = _editionService.SetMonitored(newRelease);
+
+                if (_configService.EnableDualFormatTracking)
+                {
+                    // Only un-monitor editions of the same format type, preserving
+                    // monitoring of the other format's editions.
+                    book.Editions = _editionService.SetMonitoredByFormat(newRelease);
+                }
+                else
+                {
+                    book.Editions = _editionService.SetMonitored(newRelease);
+                }
 
                 // Publish book edited event.
                 // Deliberately don't put in the old book since we don't want to trigger an AuthorScan.
@@ -329,7 +343,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             foreach (var bookImport in bookImports)
             {
                 var book = bookImport.First().ImportDecision.Item.Book;
-                var edition = book.Editions.Value.Single(x => x.Monitored);
+                var importedEdition = bookImport.First().ImportDecision.Item.Edition;
+
+                // When dual-format tracking is on, multiple editions may be monitored
+                // (one per format). Use the edition that was actually imported.
+                var edition = importedEdition ?? book.Editions.Value.Single(x => x.Monitored);
                 var author = bookImport.First().ImportDecision.Item.Author;
 
                 if (bookImport.Where(e => e.Errors.Count == 0).ToList().Count > 0 && author != null && book != null)

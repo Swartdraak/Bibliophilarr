@@ -60,6 +60,12 @@
   flex: 1 0 125px;
 }
 
+.format {
+  composes: cell;
+
+  flex: 0 0 150px;
+}
+
 .releaseDate,
 .added,
 .genres {

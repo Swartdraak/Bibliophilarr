@@ -17,6 +17,9 @@ namespace NzbDrone.Core.Books
         Dictionary<int, List<int>> AllAuthorTags();
         Author GetAuthorByMetadataId(int authorMetadataId);
         List<Author> GetAuthorsByMetadataId(IEnumerable<int> authorMetadataId);
+        bool AuthorExistsWithMetadataProfile(int metadataProfileId);
+        List<Author> GetAuthorsByMetadataProfile(int metadataProfileId);
+        bool AuthorExistsWithQualityProfile(int qualityProfileId);
     }
 
     public class AuthorRepository : BasicRepository<Author>, IAuthorRepository
@@ -89,6 +92,21 @@ namespace NzbDrone.Core.Books
         public List<Author> GetAuthorsByMetadataId(IEnumerable<int> authorMetadataIds)
         {
             return Query(s => authorMetadataIds.Contains(s.AuthorMetadataId));
+        }
+
+        public bool AuthorExistsWithMetadataProfile(int metadataProfileId)
+        {
+            return Query(s => s.MetadataProfileId == metadataProfileId).Any();
+        }
+
+        public List<Author> GetAuthorsByMetadataProfile(int metadataProfileId)
+        {
+            return Query(s => s.MetadataProfileId == metadataProfileId);
+        }
+
+        public bool AuthorExistsWithQualityProfile(int qualityProfileId)
+        {
+            return Query(s => s.QualityProfileId == qualityProfileId).Any();
         }
     }
 }

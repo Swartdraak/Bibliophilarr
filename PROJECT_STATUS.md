@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 5, 2026 (dependency migration queue tracking added)
+**Last Updated**: April 24, 2026 (release hardening: MailKit remediation, staging frontend CI, canonical-doc alignment)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -8,7 +8,7 @@
 
 Bibliophilarr is a community-driven continuation focused on replacing fragile or proprietary metadata dependencies with sustainable FOSS providers while keeping library automation reliable and observable.
 
-## Current Operational State
+## Current operational state
 
 - Protected branches `develop`, `staging`, and `main` now use the same required contexts:
   - `build-test`
@@ -17,6 +17,7 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
   - `Staging Smoke Metadata Telemetry / smoke-metadata-telemetry`
 - Required approving review count is `0` across those protected branches.
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
+- Release entry is not yet clear for promotion: the committed dated evidence set is stale, the latest committed series persistence snapshot is failing, and local `develop` is ahead of the remote promotion branches.
 
 ## Requested implementation tracks (March 23, 2026)
 
@@ -29,10 +30,492 @@ The following items were added to canonical planning for immediate/future delive
 
 2. Single-instance ebook and audiobook variant management
 
-- Add per-title variant intent (ebook/audiobook) with independent format/quality policy.
-- Ensure variant isolation across monitoring, search, import, and upgrade workflows.
+- **Implementation complete** (April 2026). Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md).
+- `AuthorFormatProfile` entity: per-author, per-format (ebook/audiobook) quality profile, root folder, tags, monitoring, and path.
+- 16 implementation slices defined (DF-1 through DF-16). Enabled by default via `EnableDualFormatTracking`.
+- **DF-1 complete**: domain model, schema migration 045, feature flag, `Quality.GetFormatType()` helper.
+- **DF-2 complete**: edition monitoring per format type — format-aware housekeeping, `BookEditionSelector` overloads, `SetMonitoredByFormat`.
+- **DF-3 complete**: decision engine format-aware quality evaluation — format-specific profile resolution in `QualityAllowedByProfileSpecification`, `UpgradableSpecification.ResolveProfile()`.
+- **DF-4 complete**: download client routing by format — tag resolution from format profiles in `DownloadService`.
+- **DF-5 complete**: import pipeline format awareness — format-specific edition and root folder assignment in `ImportApprovedBooks`.
+- **DF-6 complete**: file path building by format — format profile root folder resolution in path builder.
+- **DF-7 complete**: missing/cutoff evaluation by format — format-filtered SQL in `BookRepository`, controller query parameters.
+- **DF-8 complete**: API resources and controllers — `AuthorFormatProfileResource`, `BookFormatStatusResource`, CRUD controller, `BookResource.SingleOrDefault` crash fix.
+- **DF-9 complete**: frontend format profile UI — author edit modal, detail header badges, Redux store module.
+- **DF-10 complete**: rollout controls — `EnableDualFormatTracking` exposed in Media Management config API and frontend toggle.
+- **All 16 slices complete.** Feature is enabled by default. Can be disabled via Settings > Media Management > Dual Format.
+- **DF-11 complete** (hardened April 2026): format-aware download client categories — `IFormatCategorySettings` interface, per-format category fields on 6 download clients, `GetCategoryForFormat()` extension, `MatchesAnyCategory()` multi-category monitoring. GetItems() and GetStatus() now cover all configured categories.
+- **DF-12 complete**: format-aware remote path mappings — nullable `FormatType` on `RemotePathMappings` (migration 046), format-priority path resolution in `RemotePathMappingService`, frontend format selector.
+- **DF-13 complete**: queue format display — `FormatType` on `QueueResource`, format column in queue table UI.
+- **DF-14 complete**: wanted/missing and cutoff unmet format filters — ebook/audiobook filter options in both Wanted views.
+- **DF-15 complete**: calendar format filter — ebook/audiobook filter options in calendar view.
+- **DF-16 complete**: author index format column — format profiles column with monitored status indicators.
+- **UX fixes complete**: search book/author image display, Add Author modal close behavior, author detail format profile labels with quality profile names, per-format add author options, editable format profiles in author edit modal.
+- **Decision engine hardened (v1.1.0-dev.33)**: `DelaySpecification` and `CustomFormatAllowedByProfileSpecification` now use `ResolveProfile()` for format-aware quality profiles. All 7 decision engine specifications (5 prior + 2 new) consistently resolve per-format profiles when dual-format tracking is enabled. Monitoring sync, search filters, parser guards, and history table null safety also addressed.
 
-## Latest Delivery Update
+3. Native ebook metadata tag writing (without Calibre)
+
+- **Status**: planned (Track C in [ROADMAP.md](ROADMAP.md)).
+- 7 implementation slices (ET-1 through ET-7): EpubWriter class, CalibreId gate removal for EPUB, cover embedding, series metadata, preview/diff, PDF assessment, integration tests.
+- EPUB is P1 (writable with built-in .NET APIs, no new dependencies). PDF is P3 (requires NuGet library evaluation). AZW3/MOBI/KFX are P4-P5 (Calibre-only, proprietary formats).
+- Ebook tag reading already works natively via vendored `VersOne.Epub` reader.
+- Current write path requires Calibre Content Server (`CalibreId > 0`); without it, ebook tag writing is silently skipped.
+
+4. Application update pipeline
+
+- **Status**: planned (Track D in [ROADMAP.md](ROADMAP.md)).
+- 7 implementation slices (UP-1 through UP-7): services endpoint, release automation, enable built-in updater, Docker path, npm launcher path, notification UX, safety/observability.
+- Update checking works when `BIBLIOPHILARR_SERVICES_URL` is set; installation step is explicitly disabled pending release pipeline.
+- Docker updates are external (container image pull). npm launcher updates download from GitHub Releases.
+- Graceful degradation: local-only installs without services URL operate normally with no update noise.
+
+5. Frontend standardizations and quality improvements
+
+- **Status**: in progress (Track E in [ROADMAP.md](ROADMAP.md)).
+- 7 items (STD-1 through STD-7): form label i18n, EnhancedSelectInput accessibility, ebook format diagnostics, calendar state hardening, toast notifications, skeleton screens, TypeScript expansion.
+- STD-1 partially addressed in v1.1.0-dev.26 (FormLabel `name` props and input `id` attributes added, i18n pending).
+- STD-4 partially addressed in v1.1.0-dev.26 (Calendar crash fixed with `new Date()` fallback, root cause in Redux initial state pending).
+
+## Latest delivery update
+
+### April 10, 2026 — v1.1.0-dev.25: bookFile DELETE fix, formatStatuses enrichment, progress bar colors, QP column cleanup, translations
+
+Five fixes addressing post-v1.1.0-dev.24 user-reported issues.
+
+#### bookFile DELETE cross-root-folder error
+
+- **MediaFileDeletionService.cs**: `DeleteTrackFile(Author, BookFile)` derived root folder from `author.Path` (`/media/audiobooks`), failing with `NotParentException` when deleting ebook files under `/media/ebooks/`. Now uses `IRootFolderService.GetBestRootFolder(bookFile.Path)` to resolve the correct root, then computes subfolder relative to that root. Falls back to `author.Path` for legacy compatibility.
+
+#### formatStatuses missing format entries
+
+- **BookControllerWithSignalR.cs**: Both single and batch `EnrichFormatStatuses()` methods now iterate author format profiles and add placeholder entries (`HasFile=false`, `FileCount=0`, `Monitored` from profile) for any format type missing from the book's `formatStatuses`. All 794 books now show both ebook and audiobook entries.
+
+#### Progress bar color logic
+
+- **getProgressBarKind.js**: Unmonitored authors/books previously showed WARNING (orange) when progress < 100%. Now checks monitored state first — all unmonitored items return PRIMARY (blue) since nothing is being tracked.
+
+#### Quality Profile column removal
+
+- **bookIndexActions.js / BookIndexRow.js**: Removed redundant `qualityProfileId` column from Book Index table. The Format column already shows per-format QP names in badge tooltips.
+
+#### Missing translations
+
+- **en.json**: Added `TableOptions` ("Table Options") and `InteractiveSearch` ("Interactive Search") keys. Previously caused console warnings on Book/Author Index headers and Book Search cells.
+
+#### Build and test verification
+
+- .NET backend: 0 errors
+- Frontend webpack: compiled successfully
+- API verified: all 794 books show 2 format statuses; bookFile DELETE on cross-root ebook returns 200; translations served correctly
+
+### April 10, 2026 — v1.1.0-dev.24: formatStatuses data model fix, Hardcover IsEbook, frontend format columns, Author Editor UX
+
+Root cause investigation and four-phase fix for broken dual-format tracking. All 794 editions had `IsEbook = 0` because the Hardcover direct result mapper never set it, causing formatStatuses to report only audiobook format for all books.
+
+#### Phase 1: formatStatuses file-based format derivation
+
+- **BookFormatStatusResource.cs**: Added `FileCount` (int) property to the per-format status DTO.
+- **BookResource.cs**: Rewrote `formatStatuses` construction in `ToResource()`. Instead of relying on `Edition.IsEbook`, now collects all book files across editions, groups by `Quality.GetFormatType()` on each file's quality, and generates format status entries per format. Books with 17 ebook files now correctly report ebook format status.
+
+#### Phase 2: Hardcover MapDirectBookResult IsEbook fix
+
+- **HardcoverFallbackSearchProvider.cs**: Added `reading_format_id` to GraphQL editions subquery in `FetchBookByWorkId`, `FetchAuthorBooks`, and `FetchAuthorBooksById`. `MapDirectBookResult()` now reads `reading_format_id` from edition data and sets `IsEbook = true` for format ID 2 (ebook). Future metadata refreshes will populate `IsEbook` correctly in the database.
+
+#### Phase 3: Frontend format-aware pages
+
+- **BookIndexRow.js / BookIndexRow.css / bookIndexActions.js**: Added Format column to Book Index table. Per-format badges show icon (Book/AudioTrack), file count, and quality profile tooltip.
+- **MissingRow.js / CutoffUnmetRow.js / wantedActions.js**: Added Format Type column to Missing and Cutoff Unmet tables with ebook/audiobook indicator badges.
+- **BookRow.js**: Updated format badge tooltip to show per-format file count.
+- **BookDetailsHeader.js**: Updated format badge text to include per-format file count.
+
+#### Phase 4: Author Editor UX fixes
+
+- **AuthorEditorController.cs**: Added NLog Logger injection. Logs format profile update operations at Info (batch summary) and Debug (per author per format) levels. Recomputes `AuthorFormatProfile.Path` when root folder changes via `global::System.IO.Path.Combine()`. Added warning log when file move requested for format-specific root folder changes.
+
+#### Build and test verification
+
+- .NET backend: 0 errors (Bibliophilarr.sln Debug/Posix)
+- Frontend webpack: compiled successfully
+- API verified: 17 books with ebook files now show correct ebook format status, 3 books correctly report both ebook and audiobook formats, `fileCount` populated across all format entries
+
+### April 9, 2026 — v1.1.0-dev.23: Format-aware decision engine, queue display, import, and mass editor
+
+Fifteen bug reports addressed across backend decision engine, import pipeline, queue display, mass editor UI, and format profile editor.
+
+#### Decision engine format isolation (Issues #4, #9)
+
+- **CutoffSpecification.cs, UpgradeDiskSpecification.cs, UpgradeAllowedSpecification.cs, QueueSpecification.cs, HistorySpecification.cs**: Changed from `subject.Author.QualityProfile` to `_upgradableSpecification.ResolveProfile(subject)` for format-resolved quality profile. Three disk-comparison specs now filter existing files by `Quality.GetFormatType()`, preventing cross-format comparisons (e.g. EPUB release evaluated against M4B files on disk).
+- **Import UpgradeSpecification.cs**: Full rewrite — injects `IAuthorFormatProfileService` and `IQualityProfileService`, resolves format-specific QP per incoming file, filters existing files by format type.
+
+#### Import QP defaults (Issue #1)
+
+- **AddAuthorService.cs**: `EnsureFormatProfiles()` rewritten to scan all root folders, load their default quality profiles, and assign the format-appropriate QP by checking `Quality.GetFormatType()` on allowed quality items. Falls back to base author QP only when no better match exists.
+
+#### Queue format display (Issue #7)
+
+- **QueueResource.cs**: `FormatType` property changed from `int?` to `FormatType?` enum. JSON serialization now produces `"ebook"`/`"audiobook"` strings matching frontend expectations. Mapper adds fallback derivation from `Quality.GetFormatType()` when `ResolvedFormatType` is null.
+
+#### Manual import author prefill (Issue #8)
+
+- **ManualImportService.cs**: Single-file import path now creates `IdentificationOverrides` with author when provided. `ProcessFolder` applies author fallback to items where file identification returned null author. Fixes "Author must be chosen" error on prefilled manual imports from queue.
+
+#### Mass editor per-format QP persistence (Issues #12, #13)
+
+- **AuthorEditorController.cs**: `SaveAll()` response now iterates author resources and populates `FormatProfiles` from `IAuthorFormatProfileService`, preventing frontend Redux store from overwriting format profiles with null.
+
+#### Mass editor selectors (Issues #10, #11)
+
+- **AuthorEditorFooter.js**: Base quality profile and root folder selectors removed entirely. Per-format selectors (Ebook QP, Audiobook QP, Ebook Root Folder, Audiobook Root Folder) shown unconditionally. `enableDualFormatTracking` gating, `mapStateToProps` Redux connection, and `fetchMediaManagementSettings` import removed.
+
+#### Format profile editor (Issues #2, #3)
+
+- **AuthorFormatProfileEditor.js**: Root folder path selector added per format profile using `inputTypes.ROOT_FOLDER_SELECT`.
+- **EditAuthorModalContentConnector.js**: Dispatches `fetchAuthor` after format profile saves succeed, refreshing author in Redux so monitored checkbox state reflects correctly.
+
+#### Book file editor format column (Issue #5)
+
+- **BookFileEditorRow.js**: Format column added showing Ebook/Audiobook labels with `getFormatType()` helper deriving format from quality ID ranges (10–13 = audiobook, else ebook).
+- **bookFileActions.js**: Column definition added for `format`.
+- **BookFileEditorRow.css**: `.format` style added (100px width).
+
+#### Provider logs check (Issue #15)
+
+- Reviewed recent logs: parser errors for filenames with special characters (apostrophes, ampersands). No metadata provider (Hardcover/OpenLibrary/Inventaire) errors found.
+
+#### Deferred items
+
+- **Issue #6 (header format profile visual consistency)**: AuthorDetailsHeader and BookDetailsHeader both display format information correctly but use different visual layouts (separate QP badge vs inline text with has-file indicator). This is intentional — the two pages serve different contexts (author overview vs book-level detail). A future UX pass may harmonize the visual style but there is no data inconsistency.
+- **Issue #14 (per-format RF change safety)**: Verified safe — per-format root folder changes update only the `AuthorFormatProfile` row for that format. No `BulkMoveAuthorCommand` is triggered. File reorganization occurs only on next import or manual rename, scoped by `Quality.GetFormatType()` matching.
+
+### April 18, 2026 — v1.1.0-dev.22: Book-level QP display, per-format monitoring, rename preview fix
+
+Four deferred items from the v1.1.0-dev.21 audit addressed in this delivery.
+
+#### Fix #12: Book quality profile display (backend + frontend)
+
+- **BookFormatStatusResource.cs**: added `QualityProfileId` (int?) and
+  `QualityProfileName` (string) fields to the per-format status DTO.
+- **BookControllerWithSignalR.cs**: added `EnrichFormatStatuses()` methods
+  (single + batch) that resolve author format profiles and populate QP names
+  on format status resources. Batch variant groups lookups by authorId with
+  QP name caching to avoid N+1.
+- **BookController, MissingController, CutoffController, CalendarController**:
+  updated constructors to pass `IAuthorFormatProfileService` and
+  `IQualityProfileService` to base class.
+- **BookDetailsHeader.js**: format badges now show QP name — e.g.
+  `"Ebook: Monitored [eBook]"`.
+- **BookRow.js**: format badge tooltip includes QP name.
+
+#### Fix #7: Per-format monitoring toggle (backend + frontend)
+
+- **BooksMonitoredResource.cs**: added `FormatType?` property.
+- **BookController.SetBooksMonitored()**: when `FormatType` is specified,
+  toggles `edition.Monitored` only for editions matching the requested format
+  instead of toggling book-level monitoring.
+- **bookActions.js**: added `TOGGLE_BOOK_FORMAT_MONITORED` constant, thunk
+  creator, and handler calling `PUT /book/monitor` with `formatType`.
+- **BookDetailsHeaderConnector.js**: dispatches `toggleBookFormatMonitored`.
+- **BookDetailsHeader.js**: format badges are now clickable to toggle
+  per-format monitoring.
+
+#### Fix #11: Rename preview format-aware paths
+
+- **RenameBookFileService.cs**: injected `IBuildAuthorPaths` and
+  `IConfigService`. `GetPreviews()` and `RenameFiles()` collision detection
+  now use `AuthorPathBuilder.BuildFormatPath()` when `EnableDualFormatTracking`
+  is true, so preview paths match actual execution paths for format-specific
+  root folders.
+
+#### Fix #9: Import quality profile per format — verified already working
+
+- `QualityAllowedByProfileSpecification.IsSatisfiedBy()` resolves per-format
+  QP via `_formatProfileService.GetByAuthorIdAndFormat()`.
+- `UpgradableSpecification.ResolveProfile()` uses the resolved format QP.
+- `AddAuthorService.EnsureFormatProfiles()` creates format profiles for new
+  authors. No code changes needed.
+
+#### Metadata refresh
+
+- Triggered `RefreshAuthor` for all 79 authors to re-fetch ratings, bios, and
+  images from Hardcover (26 authors had zero ratings, 36 had empty bios).
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix)
+- Frontend webpack: compiled successfully
+- API verified: `formatStatuses` include `qualityProfileId` and
+  `qualityProfileName`; per-format monitoring toggle confirmed via API
+
+### April 17–18, 2026 — v1.1.0-dev.16 through v1.1.0-dev.21 (consolidated)
+
+- **v1.1.0-dev.16**: mass editor format-profile awareness — bulk QP selector
+  labeled "Quality Profile (Base)" when dual format enabled; removed dead
+  `AuthorEditorRow.js` / `AuthorEditorRowConnector.js`.
+- **v1.1.0-dev.17**: format profile save race condition fixed — modal save now
+  uses `Promise.all` for author + format profile saves; i18n localization for
+  format profile strings.
+- **v1.1.0-dev.18**: resolved 690 webpack CSS errors from doubled `frontend/`
+  paths; all CSS/PostCSS paths switched to absolute `__dirname`-based.
+- **v1.1.0-dev.19**: author search crash fix — null book tokens in Hardcover
+  contributions caused `InvalidOperationException`; added `JTokenType.Object`
+  guard and per-author `try-catch` in `FetchAuthorDetailsBatch`.
+- **v1.1.0-dev.20**: manual import fixes — volume-number-aware distance penalty,
+  path-based deduplication, `authorId`-only crash resolution.
+- **v1.1.0-dev.21**: format tracking UI — manual import string enum fix, Format
+  column in book table, per-format QP/RootFolder controls in mass editor footer,
+  indexer category warning instead of validation error.
+
+### April 17, 2026 — v1.1.0-dev.15 comprehensive audit: all remaining formatType, DI routing, and UI issues
+
+Full codebase sweep for patterns partially addressed in v1.1.0-dev.14. The initial
+round fixed 7 display files + 2 backend files, but a systematic audit found 8
+additional locations with identical or related issues.
+
+#### Frontend: formatType store/action filters (2 files, 4 filter definitions)
+
+The `filterTypePredicates.js` predicate uses strict `===` equality, so integer
+filter values (`0`, `1`) could never match string API values (`'ebook'`,
+`'audiobook'`). All format filters in Calendar and Wanted views were completely
+non-functional.
+
+- **calendarActions.js**: ebook filter `value: 0` → `'ebook'`, audiobook `value: 1` → `'audiobook'`
+- **wantedActions.js**: same fix in both `missing` and `cutoffUnmet` filter sections (4 filters total)
+
+#### Frontend: PropTypes corrections (2 files)
+
+- **QueueRow.js**: `formatType: PropTypes.number` → `PropTypes.string`
+- **InteractiveImportRow.js**: `formatType: PropTypes.number` → `PropTypes.string`
+
+#### Frontend: test fixture alignment (1 file)
+
+- **AuthorFormatProfileEditor.test.js**: all 4 test fixtures updated from
+  `formatType: 0`/`1` to `formatType: 'ebook'`/`'audiobook'` — tests now match
+  actual API data shape
+
+#### Frontend: EditAuthor modal QP conditional (1 file)
+
+- **EditAuthorModalContent.js**: legacy single "Quality Profile" dropdown now
+  hidden when format profiles exist (each format profile row already includes its
+  own QP selector via `AuthorFormatProfileEditor`). Mirrors the conditional
+  pattern applied to `AuthorDetailsHeader` in v1.1.0-dev.14.
+
+#### Backend: ManualImport DI architecture fix (1 file)
+
+- **ManualImportService.cs**: replaced `IProvideBookInfo` field/constructor
+  injection with `IMetadataProviderOrchestrator`. The bare `IProvideBookInfo`
+  injection let DryIoC resolve an arbitrary provider implementation, bypassing
+  the orchestrator's `IsProviderCompatibleWithIdScope()` routing that correctly
+  sends `hardcover:` IDs to Hardcover and `googlebooks:` IDs to GoogleBooks.
+  This was the architectural root cause of ManualImport crashes for
+  Hardcover-sourced books.
+
+#### Backend: Hardcover author ID enrichment in book search (1 file)
+
+- **HardcoverFallbackSearchProvider.cs**: added `Id` property to
+  `HardcoverAuthorResult` model (Typesense results already include `author.id`).
+  `MapBook()` now prefers numeric `author_id` from contributors over name-based
+  `hardcover:author:Anne%20Rice` format, matching the existing pattern already
+  used in `FetchBookByWorkId` and `GetAuthorInfo`. This enables proper
+  deduplication when book-search-derived authors are later matched against
+  enriched author search results.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix)
+- Frontend tests: 6/6 passing (AuthorFormatProfileEditor.test.js)
+- Frontend webpack: 0 JS errors (690 pre-existing CSS module typing warnings)
+
+#### Identified but deferred (lower priority) — RESOLVED in v1.1.0-dev.16
+
+- **AuthorEditorRow.js** / **AuthorEditorRowConnector.js**: discovered to be dead
+  code — never imported. The mass editor table uses `AuthorIndexRow` via
+  `AuthorIndexItemConnector`, which already has full format profile support.
+  Both files removed.
+- **AuthorEditorFooter.js**: bulk QP selector now reads `enableDualFormatTracking`
+  from media management settings. When enabled, labels the selector
+  "Quality Profile (Base)" to clarify it sets the fallback QP, not per-format QPs.
+  Fetches settings on mount to ensure the flag is available.
+
+### April 17, 2026 — v1.1.0-dev.14 UI format fixes, search enrichment, ManualImport crash fix
+
+User-reported bugs from live testing addressed across frontend and backend.
+
+#### Frontend: formatType enum serialization fix (7 files, 9 locations)
+
+Root cause: C# `FormatType` enum serializes as lowercase strings (`"ebook"`,
+`"audiobook"`) in JSON API responses, but all frontend code compared against
+integers (`=== 0`, `=== 1`). This caused both format badges to display
+"Audiobook" and format-conditional logic to fail silently.
+
+- **QueueRow.js**: `formatType === 0` → `=== 'ebook'`, `=== 1` → `=== 'audiobook'`
+- **InteractiveImportRow.js**: same fix
+- **AuthorFormatProfileEditor.js**: same fix
+- **AuthorDetailsHeader.js**: same fix (2 locations) + legacy Quality Profile
+  label now hidden when format profiles exist
+- **AuthorIndexOverviewInfo.js**: same fix
+- **AuthorIndexPosterInfo.js**: same fix
+- **AuthorIndexRow.js**: same fix (2 locations)
+
+#### Frontend: dual-format conditional display (3 files)
+
+- **AuthorIndexPoster.js**: added `resolvedFormatProfiles` prop support; quality
+  profile title now shows `E: ProfileName / A: ProfileName` when format profiles
+  are available
+- **AddAuthorOptionsForm.js**: restructured to show single Root Folder / Quality
+  Profile when `enableDualFormatTracking` is off, and per-format selectors when on
+
+#### Backend: GoogleBooks crash for non-Google IDs
+
+- **GoogleBooksFallbackSearchProvider.cs**: `GetBookInfo()` now detects
+  `hardcover:`, `openlibrary:`, `ol:`, `inventaire:` prefixed IDs and throws
+  `BookNotFoundException` immediately instead of attempting Google API lookup.
+  Fixes ManualImport crash for Hardcover-sourced books.
+
+#### Backend: Hardcover author search enrichment
+
+- **HardcoverFallbackSearchProvider.cs**: GraphQL queries in
+  `FetchAuthorDetailsBatch` and `FetchAuthorDetailsIndividual` used a `books`
+  field that does not exist on Hardcover's `authors` type, causing silent
+  validation failures. Replaced with `contributions(limit: 10, order_by:
+  {book: {ratings_count: desc_nulls_last}}) { book { rating ratings_count } }`
+  and added `users_count` field. This was the root cause of author search
+  returning no bio/image/ratings (e.g., searching "Anne Rice" returned empty
+  data despite Hardcover having full author profiles with 111 books).
+
+#### Investigation notes
+
+- **Download client category validation (#1)**: Already implemented for 5 major
+  clients (QBittorrent, Nzbget, SABnzbd, NzbVortex, Deluge). Remaining clients
+  either auto-create categories or lack verification APIs.
+- **MyAnonamouse indexer categories (#3)**: Log message "no results in configured
+  categories" is a standard indexer test validation. Requires Prowlarr category
+  mapping configuration, not a code fix.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix).
+- Frontend: webpack compiled successfully.
+
+### April 17, 2026 — v1.1.0-dev.13 deep analysis remediation
+
+Deep project analysis identified 4 code defects, 5 documentation drift items, and
+3 integration observations. All findings addressed in this delivery.
+
+#### Code defect fixes
+
+- **F-1**: `MediaCoverMapper.cs` regex pattern updated from `(jpg|png|gif)` to
+  `(jpe?g|png|gif|webp)` to match `MediaCoverProxyMapper.cs` — fixes resized
+  image fallback for JPEG/WebP cover images.
+- **F-2**: Removed dead `GetImportedCategoryForFormat()` extension method from
+  `IFormatCategorySettings`. Investigation confirmed it was designed but never
+  adopted — clients infer format from current category string instead.
+- **F-3**: rTorrent `GetStatus()` now reports `MusicDirectory` as
+  `OutputRootFolders` when configured, fixing health check blind spots.
+- **F-4**: NzbVortex `GetStatus()` documented API limitation (no config endpoint
+  for default download directory).
+
+#### Download client dual-format expansion (DF-11 addendum)
+
+- **Hadouken**: full dual-format upgrade — `IFormatCategorySettings` on settings,
+  proxy accepts category parameter, `GetItems()` uses `MatchesAnyCategory()`,
+  `AddFrom*` uses `GetCategoryForFormat()`. Test fixture updated.
+- **Aria2, Flood, Pneumatic, Blackhole (usenet + torrent)**: documented
+  dual-format limitations with XML doc comments explaining why
+  `IFormatCategorySettings` is not applicable (no category concept, tag-based,
+  or file-based dropper).
+- Total download clients with `IFormatCategorySettings`: **10** of 14.
+
+#### TASK-15 investigation: Hardcover 429 rate limit handling
+
+Thorough investigation confirmed implementation is production-ready:
+
+- 3-layer defense: HTTP 429 detection → typed exception → execution service catch.
+- Polly circuit breaker: 3 consecutive failures → 2-minute break.
+- `Retry-After` parsing: both relative seconds and absolute HTTP-date formats.
+- Cooldown clamped to [30 s, 15 min] preventing tight retry loops.
+- Degraded health tracking: 85% quota threshold → 15 s request spacing.
+- 6+ dedicated tests in `BookSearchFallbackExecutionServiceFixture`.
+- No critical gaps found.
+
+#### Documentation drift fixes
+
+- `MIGRATION_PLAN.md`: updated "10 slices" → "16 slices" in two locations
+  (lines 324, 460).
+- `PROJECT_STATUS.md`: updated slice count and definition to 16.
+- `CHANGELOG.md`: added entries for all remediation changes.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (`Bibliophilarr.sln` Debug).
+
+### April 16, 2026 — v1.1.0-dev.12 QA audit phases 1-3
+
+Comprehensive QA audit identified critical download monitoring gaps, data integrity risks, and UI polish issues. All three phases implemented and verified.
+
+#### Phase 1 — Critical: download client category fix
+
+- **GetItems() multi-category monitoring** (5 clients): SABnzbd, NZBGet, Deluge, rTorrent, and Transmission now monitor all configured format categories (default, ebook, audiobook) via `MatchesAnyCategory()` extension on `IFormatCategorySettings`. Previously, items sent to format-specific categories were invisible to download monitoring.
+- **GetStatus() multi-folder reporting** (3 clients): SABnzbd, NZBGet, and Transmission now report output folders for all category types, preventing false-positive health check warnings.
+- **Validation key cleanup** (11 instances): replaced internal property names (`MusicCategory` → `Category`, `MusicImportedCategory` → `PostImportCategory`) in validation failure messages across 5 client files.
+
+#### Phase 2 — Logging and data integrity
+
+- **MetadataService logging**: "Author folder does not exist" message now includes author name and path for operator troubleshooting.
+- **FormatProfile duplicate guard**: `AuthorFormatProfileService.Add()` now checks for existing profile before insert, preventing duplicate records.
+
+#### Phase 3 — UI improvements
+
+- **Author detail label dedup**: format profile badges deduplicated by `formatType` before rendering.
+- **Search result sorting**: client-side relevance sort (exact match → starts with → contains).
+- **Download client form sections**: `EbookCategory` and `AudiobookCategory` fields grouped under "Format-Specific Categories" section header via `Section` annotation and `FieldSet` rendering.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix).
+- Frontend: webpack compiled successfully (67s), ESLint clean on all modified files.
+
+#### Files changed
+
+| Area | Files |
+|---|---|
+| Backend core | `IFormatCategorySettings.cs`, `AuthorFormatProfileService.cs`, `MetadataService.cs` |
+| Download clients | `Sabnzbd.cs`, `Nzbget.cs`, `Deluge.cs`, `RTorrent.cs`, `TransmissionBase.cs` |
+| Client settings | `SabnzbdSettings.cs`, `NzbgetSettings.cs`, `QBittorrentSettings.cs`, `DelugeSettings.cs`, `RTorrentSettings.cs`, `TransmissionSettings.cs` |
+| Frontend | `AuthorDetailsHeader.js`, `AddNewItem.js`, `EditDownloadClientModalContent.js` |
+
+### April 6, 2026 — v1.1.0-dev.9 dual-format UX completion
+
+Completed dual-format UX integration across all major application surfaces:
+
+#### Bug fixes (Phase A)
+
+- Search results now display book cover images correctly (selected edition image override in `SearchController`).
+- Search results now display author images correctly (individual fallback queries in `HardcoverFallbackSearchProvider`).
+- Add Author modal now closes properly after successful addition (componentDidUpdate lifecycle fix).
+
+#### Add/edit author improvements (Phase B)
+
+- Auto-creation of Ebook and Audiobook format profiles on author add when dual-format enabled.
+- Per-format quality profile and root folder selection in Add Author modal.
+- Editable format profiles in author edit modal with monitored toggle and quality selector.
+- Enhanced format profile display in author details header with quality profile names and monitored indicators.
+
+#### Download client format awareness (Phase C)
+
+- Format-aware download categories: `IFormatCategorySettings` interface with `EbookCategory`/`AudiobookCategory` on 6 download clients (SABnzbd, NZBGet, qBittorrent, Deluge, Transmission, rTorrent).
+- Format-aware remote path mappings: nullable `FormatType` column (migration 046), format-priority path resolution with generic fallback, frontend format selector.
+- Queue format display: format column showing Ebook/Audiobook indicator for queued items.
+
+#### UI filtering and display (Phase D)
+
+- Wanted/Missing and Cutoff Unmet: ebook/audiobook format filter options.
+- Calendar: ebook/audiobook format filter.
+- Author index: format profiles column with ebook/audiobook monitored status.
+
+#### Build verification
+
+- .NET backend: 0 warnings, 0 errors (Bibliophilarr.sln Debug/Posix).
+- Frontend: webpack compiled successfully (38.8s).
 
 ### April 5, 2026 — v1.0.0 release published
 
@@ -536,7 +1019,7 @@ Immediate fixes applied:
 - 1,251-line legacy Readarr Azure DevOps pipeline never adapted for Bibliophilarr.
 - GitHub Actions is the sole authoritative CI system.
 
-## Prioritized Remediation Queue (March 24, 2026 comprehensive audit v2)
+## Prioritized remediation queue (March 24, 2026 comprehensive audit v2)
 
 Six parallel audits (backend C#, frontend, CI/CD, documentation, Docker/infrastructure,
 packages/dependencies) produced 287 distinct findings. These are consolidated below into
@@ -555,9 +1038,9 @@ new items start at RQ-064.
 | RQ-005 | Docker | Node.js tarball downloaded without checksum verification — `Dockerfile:8` | **FIXED** — Added SHA256 checksum verification for Node.js tarball |
 | RQ-006 | Scripts | `release_readiness_report.py` and `operational_drift_report.py` reference deleted `phase6-packaging-validation.yml` — `scripts/release_readiness_report.py`, `scripts/operational_drift_report.py` | **FIXED** — Removed workflow from both scripts |
 | RQ-007 | Docs | `MIGRATION_PLAN.md` references migration file `041` but actual file is `042` — `MIGRATION_PLAN.md:909` | **FIXED** — Changed `041` to `042` in MIGRATION_PLAN.md |
-| RQ-064 | Packages | RestSharp 106.15.0 — unmaintained, known security issues, no modern TLS/HTTP2 support — `src/Directory.Packages.props:46` | Replace with `System.Net.Http.HttpClient` via interface wrapper; remove RestSharp and RestSharp.Serializers.SystemTextJson |
+| RQ-064 | Packages | RestSharp 106.15.0 — unmaintained, known security issues, no modern TLS/HTTP2 support — `src/Directory.Packages.props:46` | **FIXED** — RestSharp fully removed, replaced by `System.Net.Http.HttpClient` |
 | RQ-065 | Packages | **FIXED** — Removed dead `Bibliophilarr.Automation.Test` project from solution (zero CI integration, no test runs); removed Selenium.Support and Selenium.WebDriver.ChromeDriver from Directory.Packages.props — `Bibliophilarr.sln`, `Directory.Packages.props` | ~~Verify if still used; if so upgrade to Selenium 4.x~~ |
-| RQ-066 | Frontend | Zero frontend test files exist in entire codebase — no `.test.js`, `.spec.js`, or `__tests__/` directories — `frontend/src/` (entire) | Install test infrastructure (jest + @testing-library/react), create tests for critical flows (search, metadata mapping, imports), add CI step |
+| RQ-066 | Frontend | Zero frontend test files exist in entire codebase — no `.test.js`, `.spec.js`, or `__tests__/` directories — `frontend/src/` (entire) | **FIXED** — Jest 30.3.0 + @testing-library/react 12.1.5 installed; 9 test suites (19 tests) covering search, metadata providers, utilities, components; CI enforcement in `ci-frontend.yml` |
 | RQ-067 | Packages | **FIXED** — Replaced `redux-localstorage` with custom store enhancer in `createPersistState.js`; removed dependency from package.json — `createPersistState.js`, `package.json` | ~~Replace with lightweight custom Redux middleware for localStorage persistence~~ |
 | RQ-068 | Packages | **FIXED** — Removed dead `react-addons-shallow-compare` dependency (zero usages in codebase); removed from package.json — `package.json` | ~~Replace usages with `React.memo()` or `PureComponent`; remove package~~ |
 | RQ-069 | Packages | `connected-react-router` 6.9.3 — abandoned, no longer maintained — `package.json` | Remove when upgrading to React Router 6.x; use hooks (`useNavigate`, `useParams`) instead |
@@ -608,9 +1091,9 @@ new items start at RQ-064.
 | ID | Area | Issue — File(s) | Remediation |
 |---|---| --- — --- |---|
 | RQ-030 | Backend | `FetchAndParseImportListService` uses `Task.WaitAll()` with no timeout or cancellation — `src/NzbDrone.Core/ImportLists/` | **FIXED** — Added 5-minute timeout to both `Task.WaitAll` calls with warning log on timeout |
-| RQ-031 | Backend | `OpenLibraryIdBackfillService` loads all books + authors in one pass — `src/NzbDrone.Core/MetadataSource/` | Add pagination/chunking |
+| RQ-031 | Backend | `OpenLibraryIdBackfillService` loads all books + authors in one pass — `src/NzbDrone.Core/MetadataSource/` | **FIXED** — Restructured to chunked processing with per-chunk edition loading, progress logging, early exit on budget exhaustion, and per-chunk save instead of single bulk save |
 | RQ-032 | Backend | `MetadataProfileService` loads all books + editions + files for single profile validation — `src/NzbDrone.Core/Profiles/` | Add targeted queries |
-| RQ-033 | Backend | `AuthorService.GetAllAuthors()` cached 30s loads entire table — `src/NzbDrone.Core/Books/Services/AuthorService.cs` | Filter by monitored status where appropriate |
+| RQ-033 | Backend | `AuthorService.GetAllAuthors()` cached 30s loads entire table — `src/NzbDrone.Core/Books/Services/AuthorService.cs` | **FIXED** — Added `AuthorExistsWithMetadataProfile()`, `GetAuthorsByMetadataProfile()`, `AuthorExistsWithQualityProfile()` targeted queries to AuthorRepository/AuthorService; updated MetadataProfileService and QualityProfileService to use them instead of loading all authors |
 | RQ-034 | Backend | Provider response exception handling doesn't distinguish timeout vs 404 vs auth failure — `MetadataAggregator` and provider clients | **FIXED** — Added typed catch blocks for 404/Gone (not-found), 401/403 (auth failure), and rate-limit (429) with differentiated logging and telemetry |
 | RQ-035 | Backend | Multiple `.FirstOrDefault()` chains without null guards on provider responses — `GoogleBooksFallbackSearchProvider`, `MetadataAggregator` | **FIXED** — Verified all chains already use null-conditional operators |
 | RQ-036 | CI/CD | Workflow permissions inconsistently scoped (workflow-level vs job-level) — All `.github/workflows/*.yml` | **FIXED** — Audited all 16 workflows; permissions already consistently scoped (restrictive top-level, job-level override where needed) |
@@ -620,7 +1103,7 @@ new items start at RQ-064.
 | RQ-040 | Frontend | `tsconfig.json` trailing comma in `include` array — `frontend/tsconfig.json` | **FIXED** — Removed trailing comma |
 | RQ-041 | Frontend | 17+ stale TODO/FIXME comments in frontend JS/JSX/TSX — See frontend audit TODO list (17 items across 15 files) | **FIXED** — Converted all 17 TODO/FIXME/HACK comments to `NOTE:` per CONTRIBUTING.md policy across 15 files |
 | RQ-042 | Frontend | No frontend test coverage thresholds configured — `frontend/package.json` (jest config) | **FIXED** — Added jest `collectCoverageFrom`, `coverageDirectory`, and `coverageThreshold` with 0% baseline in `jest.config.cjs` |
-| RQ-043 | Frontend | No tests for Book/Author indices, Search flows, Redux selectors, or Redux actions — `frontend/src/Store/`, `frontend/src/Author/`, `frontend/src/Book/`, `frontend/src/Search/` | Add integration/snapshot/unit tests for critical flows |
+| RQ-043 | Frontend | No tests for Book/Author indices, Search flows, Redux selectors, or Redux actions — `frontend/src/Store/`, `frontend/src/Author/`, `frontend/src/Book/`, `frontend/src/Search/` | **FIXED** — Initial test suite added: search result rendering, metadata provider health, Redux action thunks, utility functions; additional coverage tracked as incremental work |
 | RQ-044 | Docs | 10 archive files use `ARCHIVED` keyword instead of `DEPRECATED` per style guide Rule D1 — `docs/archive/operations/` (10 files) | **FIXED** — Changed ARCHIVED→DEPRECATED in 11 archive docs via sed |
 | RQ-045 | Docs | `MIGRATION_PLAN.md` has empty validation/gap sections at L143-146 — `MIGRATION_PLAN.md:143-146` | **FIXED** — Validation sections already backfilled with content in prior session |
 | RQ-046 | Docs | `CHANGELOG.md` missing blank line before `## [2026-03-17]` — `CHANGELOG.md` | **FIXED** — blank line added |
@@ -640,16 +1123,16 @@ new items start at RQ-064.
 | RQ-096 | Frontend | Limited `aria-label` coverage — only 4 found across entire codebase — `IconButton.js`, `PageHeaderActionsMenu.js`, `PageHeader.js`, `ProgressBar.js` | **FIXED** — Updated IconButton to use dynamic `aria-label={title}`; added missing `title` props to 8 IconButton/SpinnerIconButton usages across BackupRow, QueueRow, ScheduledTaskRow, BookSearchCell, AuthorIndexHeader, BookIndexHeader |
 | RQ-097 | Frontend | **FIXED** — Converted 28 route components from eager imports to `React.lazy()` with `Suspense` fallback in `AppRoutes.js`; kept 5 core pages (AuthorIndex, BookIndex, Bookshelf, AddNewItem, NotFound) eager — `AppRoutes.js` | ~~Implement `React.lazy()` and `Suspense` for route-based code splitting~~ |
 | RQ-098 | Frontend | No memoization on connected components; missing reselect usage — `frontend/src/Store/Selectors/` and connector files | Apply `React.memo` to presentational components; ensure selectors use reselect |
-| RQ-099 | Frontend | 25+ `!important` flags in CSS modules indicating specificity conflicts — `truncate.css`, `Modal.css:29,97`, `CalendarEvent.css:47-82`, `EnhancedSelectInput.css:22,63-64` | Refactor to proper CSS Module specificity; remove `!important` |
-| RQ-100 | Frontend | Hardcoded color values instead of CSS variables — `AuthorIndexFooter.css`, `AuthorDetailsHeader.css`, `ProgressBar.css`, `LogsTableRow.css` | Extract to CSS variables in `Styles/Variables/colors.css` |
-| RQ-101 | Frontend | Z-index values scattered without centralized strategy (1-4 vs 9999) — `DragPreviewLayer.css:5`, `Modal.css:4`, various | Create `Styles/Variables/zIndexes.js` with semantic names |
+| RQ-099 | Frontend | 25+ `!important` flags in CSS modules indicating specificity conflicts — `truncate.css`, `Modal.css:29,97`, `CalendarEvent.css:47-82`, `EnhancedSelectInput.css:22,63-64` | **ASSESSED** — 27 of 29 instances are legitimately needed: third-party inline style overrides (react-virtualized, react-modal), CSS module ordering safety (CalendarEvent status colors), mixin reliability (truncate.css). Removing requires visual regression testing infrastructure |
+| RQ-100 | Frontend | Hardcoded color values instead of CSS variables — `AuthorIndexFooter.css`, `AuthorDetailsHeader.css`, `ProgressBar.css`, `LogsTableRow.css` | **FIXED** — Extracted hardcoded hex colors to theme variables (`logInfoColor`, `logDebugColor`, `logTraceColor`, `starBackColor`, `starFrontColor`, `dangerHoverColor`, `warningHoverColor`, `statusLogoBorderColor`, `statusLogoBackgroundColor`, `authorProgressBackgroundColor`) in both light and dark themes; updated 8 CSS files |
+| RQ-101 | Frontend | Z-index values scattered without centralized strategy (1-4 vs 9999) — `DragPreviewLayer.css:5`, `Modal.css:4`, various | **FIXED** — Added `dragLayerZIndex: 9999` to `Styles/Variables/zIndexes.js`; updated `DragPreviewLayer.css` to use `$dragLayerZIndex` variable |
 | RQ-102 | Frontend | `ReactDOM.findDOMNode` usage — deprecated in StrictMode — `frontend/src/Components/Page/Sidebar/PageSidebar.js:384` | **FIXED** — Replaced `findDOMNode` with direct ref access in PageSidebar.js and Modal.js; removed unused ReactDOM import from PageSidebar |
-| RQ-103 | Frontend | Missing error/loading states in some modal forms — `ManageImportListsEditModalContent.tsx`, `ManageIndexersEditModalContent.tsx`, `ManageDownloadClientsEditModalContent.tsx` | Add `isLoading`/`isSaving`/`saveError` props; show spinner on submit |
+| RQ-103 | Frontend | Missing error/loading states in some modal forms — `ManageImportListsEditModalContent.tsx`, `ManageIndexersEditModalContent.tsx`, `ManageDownloadClientsEditModalContent.tsx` | **FIXED** — Added `SpinnerButton` with local `isSaving` state to all 3 manage edit modals; save button shows spinner during save dispatch |
 | RQ-104 | Frontend | `checkJs` disabled in tsconfig — JSX files not type-checked — `frontend/tsconfig.json:3` | **FIXED** — Added `// @ts-check` directive to 5 core utility files (`isString.js`, `roundNumber.js`, `combinePath.js`, `convertToBytes.js`, `titleCase.js`) for incremental TypeScript checking |
 | RQ-105 | Frontend | `jsconfig.json` exists alongside `tsconfig.json` — maintenance burden — `frontend/jsconfig.json`, `frontend/tsconfig.json` | **FIXED** — Removed redundant `jsconfig.json`; `tsconfig.json` with `allowJs: true` covers all JS files |
 | RQ-106 | Frontend | ESLint not enforced in CI — linting gaps drift — `frontend/.eslintrc.js` (if exists) | **FIXED** — ESLint already runs via `yarn lint` step in ci-frontend.yml |
 | RQ-107 | Frontend | Source maps configuration unknown for production — may leak source code — Webpack production config | **FIXED** — Changed production `devtool` from `source-map` to `hidden-source-map` in webpack config |
-| RQ-108 | CI/CD | `build.sh:49-58` `EnableExtraPlatformsInSDK` modifies system SDK in-place — `build.sh:49-58` | **FIXED** (partial) — Quoted `$BUNDLEDVERSIONS` variable to prevent word-splitting; full SDK copy deferred |
+| RQ-108 | CI/CD | `build.sh:49-58` `EnableExtraPlatformsInSDK` modifies system SDK in-place — `build.sh:49-58` | **ASSESSED** — Variable quoting, .ORI backup, and error guards already applied. Full SDK copy (copying SDK to local directory before modification) deferred as build pipeline structural change |
 | RQ-109 | CI/CD | Node version mismatch: Dockerfile `v20.19.2` vs release workflow `'20'` (floating) — `Dockerfile:9`, `.github/workflows/release.yml:108` | **FIXED** — Pinned release workflow Node to `20.19.2` |
 | RQ-110 | CI/CD | Yarn version inconsistency — no `.yarnrc` or `packageManager` field — `Dockerfile:12`, `.github/workflows/release.yml:113-116` | **FIXED** — Added `"packageManager": "yarn@1.22.19"` to root `package.json` |
 | RQ-111 | CI/CD | **FIXED** — Added Trivy vulnerability scanner step to `docker-image.yml`; scans built image for CRITICAL/HIGH vulnerabilities; fails build on findings — `.github/workflows/docker-image.yml` | ~~Add Trivy vulnerability scan step after build; fail on CRITICAL~~ |
@@ -677,10 +1160,10 @@ new items start at RQ-064.
 
 | ID | Area | Issue | Remediation |
 |---|---|---|---|
-| RQ-050 | Backend | .NET 8 features underutilized (records, file-scoped namespaces, nullable refs, primary constructors) | **PARTIAL** — Added `#nullable enable` to 5 DTO files (`AlternateTitleResource.cs`, `BookEditorResource.cs`, `BookshelfAuthorResource.cs`, `CalibreLibraryInfo.cs`, `CalibreConversionStatus.cs`) with proper `?` annotations for nullable reference types |
+| RQ-050 | Backend | .NET 8 features underutilized (records, file-scoped namespaces, nullable refs, primary constructors) | **PARTIAL** — Added `#nullable enable` to 5 DTO files; converted 10 API resource files to file-scoped namespaces (`BookStatisticsResource`, `AuthorStatisticsResource`, `AuthorEditorDeleteResource`, `TagResource`, `BackupResource`, `QueueStatusResource`, `LanguageResource`, `TaskResource`, `ProviderHealthResource`, `RootFolderResource`) |
 | RQ-051 | Backend | **FIXED** — Added `ValidateGraphQlResponse()` to Hardcover provider; validates GraphQL error envelope, missing data/search payload, and logs structured warnings. Added `HardcoverGraphQlError` model for typed error parsing — `HardcoverFallbackSearchProvider.cs` | ~~Add schema validation for critical payloads~~ |
 | RQ-052 | Frontend | React 17.0.2 — two major versions behind LTS (18.x); EOL risk in 2026 | Upgrade to React 18.2.0 LTS first, then plan 19.x. Update `@testing-library/react` 12→14 simultaneously |
-| RQ-053 | Frontend | `moment.js` (34 imports, ~13KB gzipped, maintenance mode) | Migrate to `date-fns` (~2KB tree-shaken) or `day.js` (~1.6KB) over 2-3 sprints |
+| RQ-053 | Frontend | **FIXED** — `moment.js` replaced with `date-fns` 4.1.0 across all 34 frontend files (~10-12KB bundle savings). Created `momentFormatToDateFns.js` format converter and `parseTimeSpan.js` TimeSpan parser. All tests pass. | ~~Migrate to `date-fns` (~2KB tree-shaken) or `day.js` (~1.6KB) over 2-3 sprints~~ |
 | RQ-054 | Frontend | 100+ class components and 200+ `connect()` HOC patterns (legacy Redux) | Incremental migration to functional components + hooks + `useSelector`/`useDispatch` |
 | RQ-055 | Frontend | Unused logo images (radarr, lidarr, prowlarr, sonarr) | **FIXED** — Removed as part of RQ-084 |
 | RQ-056 | CI/CD | **FIXED** — Added `lint-workflows.yml` CI workflow that downloads actionlint (pinned v1.7.7) and runs on all workflow file changes — `.github/workflows/lint-workflows.yml` | ~~Add to pre-commit hook or CI pipeline~~ |
@@ -697,17 +1180,17 @@ new items start at RQ-064.
 | RQ-134 | Packages | `System.IO.FileSystem.AccessControl` 5.0.0 → 6.0.0 | **FIXED** — 5.0.0 IS the latest stable NuGet version |
 | RQ-135 | Packages | `System.Data.SQLite.Core` 1.0.115.5 → 1.0.118+ | **FIXED** — Upgraded to 1.0.119 in Directory.Packages.props |
 | RQ-136 | Packages | **FIXED** — Replaced `ImpromptuInterface` duck-typing with direct `System.Reflection` calls in `DuplicateEndpointDetector.cs`; removed dependency from `Bibliophilarr.Http.csproj` and `Directory.Packages.props` — `DuplicateEndpointDetector.cs`, `Bibliophilarr.Http.csproj`, `Directory.Packages.props` | ~~Audit usage; consider replacing with explicit interfaces or Moq~~ |
-| RQ-137 | Packages | `react-async-script` 1.2.0 — abandoned (2018) | Replace with native dynamic `<script>` injection or `react-helmet` |
+| RQ-137 | Packages | `react-async-script` 1.2.0 — abandoned (2018) | **FIXED** — Package had zero usages in codebase; removed from `package.json` |
 | RQ-138 | Packages | `redux-batched-actions` 0.5.0 — unmaintained | Audit usage; remove by refactoring dispatch calls or using built-in Redux batching |
 | RQ-139 | Packages | `element-class` 0.2.2 — unmaintained (2013) | **FIXED** — Replaced all 4 usages with native `document.body.classList` in Modal.js; removed `element-class` from package.json |
 | RQ-140 | Packages | `react-google-recaptcha` 2.1.0 → 3.x (reCAPTCHA v3 support) (Dependabot PR [#36](https://github.com/Swartdraak/Bibliophilarr/pull/36) closed; DMQ-004) | Plan upgrade with React 18 upgrade |
 | RQ-141 | Packages | `react-popper` 1.3.11 → 2.3.0 (Popper.js 2.x support) | Plan upgrade during component audit |
 | RQ-142 | Frontend | **FIXED** — Added `returnFocus={true}` to `FocusLock` in Modal.js to restore focus to the trigger element when modal closes — `Modal.js` | ~~Implement focus restoration with ref-based tracking~~ |
-| RQ-143 | Frontend | Keyboard navigation gaps in virtualized tables — `VirtualTable.js`, `AuthorIndexTable.js`, `BookIndexTable.js` | Add keyboard event handlers (Tab, Enter, Arrow keys) |
+| RQ-143 | Frontend | Keyboard navigation gaps in virtualized tables — `VirtualTable.js`, `AuthorIndexTable.js`, `BookIndexTable.js` | **FIXED** — Added keyboard event handler to VirtualTable: Arrow Up/Down scrolls by row height, Page Up/Down by viewport, Home/End to start/end; added `tabIndex={0}` and `aria-rowcount` to Scroller container |
 | RQ-144 | Frontend | Derived state stored instead of computed via selectors — `Store/Selectors/selectSettings.js`, various connectors | Enforce reselect memoization for all derived state |
 | RQ-145 | Frontend | `Object.assign({}, ...)` used instead of spread operator — `Store/Selectors/selectSettings.js:25,61` | **FIXED** — Converted all 38 `Object.assign` calls to spread operator across 28 frontend files |
 | RQ-146 | Docs | `CLA.md` uses trailing `##` ATX heading markers inconsistent with other docs — `CLA.md` | **FIXED** — Removed trailing `##` from all 7 headings |
-| RQ-147 | Docs | Heading case inconsistencies (Title Case vs sentence case) across docs — Various | Adopt sentence case for new headings; batch-normalize existing |
+| RQ-147 | Docs | Heading case inconsistencies (Title Case vs sentence case) across docs — Various | **FIXED** — Batch-normalized headings to sentence case across ROADMAP.md, PROJECT_STATUS.md, MIGRATION_PLAN.md, QUICKSTART.md, README.md, and 3 wiki files per docs-style rule; remaining operations docs tracked as incremental |
 | RQ-148 | Docs | Several operational docs lack `## References` section per style guide Rule R1 — `DOTNET_MODERNIZATION.md`, `ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md`, `GITHUB_PROJECTS_BLUEPRINT.md`, `REPOSITORY_TAGS.md`, `MCP_SERVER_RECOMMENDATIONS.md` | **FIXED** — Added `## References` sections to BRANCH_STRATEGY.md, GITHUB_PROJECTS_BLUEPRINT.md, PROVIDER_IMPLEMENTATION_GUIDE.md |
 | RQ-149 | Docs | `ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md` Phase 2 status shows identical source/dest — `docs/operations/ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md:77-82` | **FIXED** — Fixed self-referencing renames; updated audit baseline to 42 content / 8 path matches |
 | RQ-150 | Docs | `BRANCH_STRATEGY.md` lists `release` and `hotfix` branches not in managed protection set — `docs/operations/BRANCH_STRATEGY.md:10` | **FIXED** — Replaced bullet list with table showing Active/On-demand status and protection state |
@@ -715,26 +1198,26 @@ new items start at RQ-064.
 | RQ-152 | CI/CD | `build.sh` sed commands lack explicit error checking — `build.sh:64-74` — **FIXED** — Added ` —  | { echo "ERROR: ..."; exit 1; }` guards to all 6 sed operations |
 | RQ-153 | CI/CD | Inno Setup installer downloaded without checksum verification in `build.sh` — `build.sh:282` | **FIXED** — Added SHA256 checksum verification using `INNO_SETUP_SHA256` env var; exits on mismatch |
 | RQ-154 | CI/CD | `merge_pr_reliably.sh` does not validate PR number is numeric — `scripts/merge_pr_reliably.sh:5-9` | **FIXED** — Added regex check for numeric input before any API calls |
-| RQ-155 | Infra | Legacy `Mono.Posix.NETStandard` references — .NET 8 provides `PosixSignalRegistration` natively — `build.sh:190-191`, `InstallUpdateService.cs:108` | Migrate to `System.Runtime.InteropServices.PosixSignalRegistration` |
+| RQ-155 | Infra | Legacy `Mono.Posix.NETStandard` references — .NET 8 provides `PosixSignalRegistration` natively — `build.sh:190-191`, `InstallUpdateService.cs:108` | **PARTIAL** — Signal handling migrated to native `PosixSignalRegistration` in `AppLifetime.cs`; deeper `Mono.Unix` disk operations (chmod, chown, symlinks, drive info) still require the package; full removal blocked on P/Invoke replacement layer |
 | RQ-156 | Infra | `.dockerignore` misses `_temp/`, `src/**/bin/`, `src/**/obj/`, `.git/` — `.dockerignore` | **FIXED** — Expanded with `src/**/bin`, `src/**/obj`, `docs`, `wiki`, `Logo`, `schemas`, and more |
 
 ### P4 — Strategic and migration opportunities (future phases)
 
 | ID | Area | Opportunity — Phase | Impact |
 |---|---| --- — --- |---|
-| RQ-157 | Packages | RestSharp → `System.Net.Http.HttpClient` migration (also resolves RQ-064) — Phase 6 | Removes ~200KB dependency, enables proper async/CancellationToken, modern TLS/HTTP2 |
+| RQ-157 | Packages | RestSharp → `System.Net.Http.HttpClient` migration (also resolves RQ-064) — Phase 6 | **FIXED** — RestSharp fully removed, replaced by `System.Net.Http.HttpClient` |
 | RQ-158 | Packages | `Newtonsoft.Json` 13.0.3 → `System.Text.Json` (built-in, faster, smaller) — Phase 7+ | Removes ~200KB dependency; medium-high effort but high performance value |
 | RQ-159 | Frontend | React 17 → 18 → 19 upgrade path (includes Babel, TypeScript types, @testing-library updates) — Phase 6-7 | Enables concurrent rendering, automatic batching, better performance. React 17 approaches EOL 2026 |
 | RQ-160 | Frontend | React Router 5 → 6 migration (remove `connected-react-router`, adopt hooks) — Phase 7 (Dependabot PR [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) closed; DMQ-003) | High effort but necessary; react-router 5 EOL since 2021 |
 | RQ-161 | Frontend | Redux modernization: `react-redux` 7→9, Redux Toolkit adoption, remove `connect()` HOCs — Phase 7 | Reduces boilerplate, better tree-shaking, TypeScript integration |
-| RQ-162 | Frontend | `moment.js` → `date-fns` bundle size migration (34 imports, ~10-12KB savings) — Phase 7 | Significant bundle size reduction; same API patterns |
+| RQ-162 | Frontend | **FIXED** — `moment.js` → `date-fns` 4.1.0 migration completed (34 files, ~10-12KB savings). See RQ-053 for details. | ~~Significant bundle size reduction; same API patterns~~ |
 | RQ-163 | Frontend | `react-virtualized` → `react-window` (same author, 50KB → 6KB gzipped) — Phase 7+ | Only if basic windowing sufficient; audit feature usage first |
 | RQ-164 | Backend | .NET 10 LTS upgrade planning (.NET 8 EOL November 2026, .NET 10 LTS expected late 2025) — Phase 7 (Dependabot PRs [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) and [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) closed; DMQ-001, DMQ-002) | Skip .NET 9 (non-LTS, short support window); jump directly to .NET 10 LTS |
-| RQ-165 | Frontend | Node.js 20 → 22 LTS migration (Node 20 EOL April 2026) — Phase 6-7 | Required before Node 20 EOL; plan alongside React 18 upgrade |
+| RQ-165 | Frontend | **FIXED** — Node.js 20.19.2 → 22.22.2 LTS migration completed across Dockerfile, ci-frontend.yml, npm-publish.yml, and release.yml (Node 20 EOL April 2026) | ~~Required before Node 20 EOL; plan alongside React 18 upgrade~~ |
 | RQ-166 | Infra | Kubernetes manifests and Helm chart creation — Phase 7+ | Deployment, ConfigMap, Service, PVC, NetworkPolicy for K8s users |
 | RQ-167 | Infra | Prometheus metrics endpoint (`/metrics`) for monitoring — Phase 7+ | Observability for uptime, DB health, job queue, provider health |
 | RQ-168 | Infra | Structured JSON logging to stdout/stderr for container aggregation — Phase 7+ | Enable ELK/Splunk/cloud log aggregation; add NLog JSON layout target |
-| RQ-169 | Infra | Resource limits documentation for Docker/K8s deployments — Phase 6-7 | Document CPU/memory requests/limits in QUICKSTART.md and docker-compose |
+| RQ-169 | Infra | Resource limits documentation for Docker/K8s deployments — Phase 6-7 | **FIXED** — Added resource limits table to QUICKSTART.md and `deploy.resources` block to docker-compose.local.yml with size-tiered CPU/memory recommendations |
 | RQ-170 | Infra | Windows installer code signing — Phase 7 | Prevent AV false positives and Windows security warnings |
 | RQ-171 | Infra | macOS app bundle code signing and Apple notarization — Phase 7 | Required for Catalina+ to run without quarantine |
 | RQ-172 | Infra | SLSA provenance attestation for release artifacts — Phase 7 | Supply-chain transparency and compliance |
@@ -768,65 +1251,34 @@ Remediation queue summary: 179 items (RQ-001 through RQ-181, RQ-008 and RQ-009 u
 - P3 Low: 40 items
 - P4 Strategic/Migration: 25 items
 
-## Docker and Infrastructure Hardening Plan
+## Docker and infrastructure hardening plan
 
 The current Dockerfile and infrastructure have the following security and reliability gaps.
 These will be addressed in dedicated hardening slices aligned with Phase 6 release-readiness
 goals. Items are cross-referenced to the remediation queue above.
 
-Current state (`Dockerfile`):
+Current state (`Dockerfile`) — **Phase 6 hardening complete** (April 2026):
 
-```
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build        # unpinned tag (RQ-004)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime    # unpinned tag (RQ-004)
-# Node downloaded via curl without checksum             (RQ-005)
-# Runtime runs as root                                  (RQ-023)
-# No HEALTHCHECK                                        (RQ-024)
-# No OCI version labels                                 (RQ-059)
-# No container image scanning                           (RQ-111)
-# No SBOM generation                                    (RQ-112)
-# .dockerignore incomplete                              (RQ-156)
-```
+- Base images pinned to SHA256 digests (RQ-004 FIXED)
+- Node.js tarball SHA256 checksum verified (RQ-005 FIXED)
+- Non-root runtime user `bibliophilarr` (RQ-023 FIXED)
+- `HEALTHCHECK` directive present (RQ-024 FIXED)
+- OCI labels including version and vendor (RQ-059 FIXED)
+- Trivy container image scanning in CI (RQ-111 FIXED)
+- CycloneDX SBOM generation (RQ-112 FIXED)
+- `.dockerignore` expanded (RQ-156 FIXED)
 
-### Planned changes — Phase 6
+### Completed changes — Phase 6
 
-1. **Pin base images to SHA256 digests** (RQ-004)
-   - `FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:<digest> AS build`
-   - `FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:<digest> AS runtime`
-   - Update digests on a scheduled cadence (monthly or on security advisory).
-
-2. **Node.js tarball integrity verification** (RQ-005)
-   - Download `SHASUMS256.txt` from nodejs.org and verify tarball hash before extraction.
-   - Alternative: use a pinned Node base image in a separate build stage.
-
-3. **Non-root runtime user** (RQ-023)
-   - Add `RUN useradd --system --uid 1001 --no-create-home bibliophilarr` in runtime stage.
-   - `USER bibliophilarr` before `ENTRYPOINT`.
-   - Ensure data volume mount permissions are compatible (RQ-116).
-
-4. **Health check** (RQ-024)
-   - `HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD curl -sf http://localhost:8787/ping || exit 1`
-   - Requires `curl` in runtime image or use a compiled health check binary.
-
-5. **OCI image labels** (RQ-059)
-   - `LABEL org.opencontainers.image.version="$BIBLIOPHILARR_VERSION"` via build arg.
-   - Add source, authors, and description labels.
-
-6. **Build cache optimization**
-   - Separate dependency restore layer from source copy.
-   - Copy `.sln` + `*.csproj` files first, restore, then copy source.
-   - Reduces rebuild time when only source changes.
-
-7. **Container image scanning** (RQ-111)
-   - Add Trivy or Grype scan step in `docker-image.yml` workflow.
-   - Fail pipeline on CRITICAL or HIGH severity vulnerabilities.
-
-8. **Expand `.dockerignore`** (RQ-156)
-   - Add `_temp/`, `src/**/bin/`, `src/**/obj/`, `.git/`, `_artifacts/`, `_tests/`.
-
-9. **SBOM generation** (RQ-112)
-   - Add CycloneDX step to generate SBOM during Docker build.
-   - Attach as image layer or publish alongside image.
+1. **Pin base images to SHA256 digests** (RQ-004) — **COMPLETED**
+2. **Node.js tarball integrity verification** (RQ-005) — **COMPLETED**
+3. **Non-root runtime user** (RQ-023) — **COMPLETED**
+4. **Health check** (RQ-024) — **COMPLETED**
+5. **OCI image labels** (RQ-059) — **COMPLETED**
+6. **Build cache optimization** — **COMPLETED**
+7. **Container image scanning** (RQ-111) — **COMPLETED** (Trivy in `docker-image.yml`)
+8. **Expand `.dockerignore`** (RQ-156) — **COMPLETED**
+9. **SBOM generation** (RQ-112) — **COMPLETED** (CycloneDX)
 
 ### Planned changes — Phase 7
 
@@ -1781,7 +2233,7 @@ Validation completed with exact command evidence and outcomes:
 - Added config-driven metadata provider controls (enable flags, provider order, timeout/retry/circuit knobs) and exposed them in both API and UI settings.
 - Introduced metadata provider orchestration and provider telemetry, and switched high-traffic metadata flows (search/add/refresh/import-list) to orchestrated fallback behavior.
 - Added Inventaire provider/client baseline and metadata diagnostics API endpoints for provider health and counters.
-- Added environment kill-switch support for Inventaire rollout (`BIBLIOPHILARR_DISABLE_INVENTAIRE=1`) and surfaced guidance in settings/runbook.
+- Added Inventaire provider rollout guidance in settings/runbook via the persisted provider enablement controls exposed in API and UI.
 - Added Open Library ID backfill command/service and propagated Open Library provenance identifiers through API resources and book index UI.
 - Added status-page metadata provider health dashboard and scheduled dry-run automation artifacts for staging provenance snapshots.
 - Validation completed with:
@@ -1888,7 +2340,7 @@ Validation completed with exact command evidence and outcomes:
     - `/ping` returned `200`
     - `/api/v1/system/status` returned `401` (expected without API key)
 
-## What Is Complete
+## What is complete
 
 ### Metadata migration foundation
 
@@ -1905,10 +2357,10 @@ Validation completed with exact command evidence and outcomes:
 
 ### Packaging validation
 
-- Phase 6 packaging validation runs on `develop` and `staging`.
+- Packaging validation runs via `release.yml`, `docker-image.yml`, and `npm-publish.yml` workflows.
 - The latest validated matrix state is green for binary, Docker, and npm installation paths.
 
-## Current Risks And Follow-Up Areas
+## Current risks and follow-up areas
 
 - GitHub-backed readiness reporting and Dependabot triage cannot currently be revalidated from this environment because `gh` is installed but not authenticated; workflow/branch-protection/Dependabot API state is therefore unverified in this execution pass.
 - Open dependency security remediation remains active work, but exact current alert counts could not be refreshed locally until `gh auth login` or `GH_TOKEN` is supplied.
@@ -2075,7 +2527,7 @@ For each debt item closure:
 3. Record rollback notes for any change touching auth, search, or import paths.
 4. Update this table status and acceptance evidence in the same change set.
 
-## Local Install Testing Program Recommendations
+## Local install testing program recommendations
 
 To keep the project moving toward practical release confidence, the `develop` branch should treat local install testing as a primary delivery outcome.
 
@@ -2097,7 +2549,7 @@ Immediate next actions:
 2. Add an install-evidence section to weekly/project status updates.
 3. Use `develop` as the proving lane and promote only install-verified slices to `staging`.
 
-## Metadata Readiness Release Criteria
+## Metadata readiness release criteria
 
 Metadata migration readiness is now a release-entry gate, not an advisory check.
 
@@ -2108,12 +2560,12 @@ Required to proceed with release tagging:
 3. Provider telemetry remains inside warning SLO thresholds in `docs/operations/METADATA_PROVIDER_RUNBOOK.md`.
 4. Any temporary Inventaire kill-switch activation is rolled back and documented.
 
-## Delivery Process Guardrail
+## Delivery process guardrail
 
 - Scoped commit iteration process is required for migration and hardening slices.
 - Reference: [docs/operations/SCOPED_COMMIT_PROCESS.md](docs/operations/SCOPED_COMMIT_PROCESS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Recommended Operator Checks
+## Recommended operator checks
 
 Run these after significant branch-policy or release-readiness changes:
 
@@ -2128,7 +2580,7 @@ python3 scripts/release_readiness_report.py \
   --json-out _artifacts/release-readiness/release-readiness.json
 ```
 
-## Related Documents
+## Related documents
 
 - [QUICKSTART.md](QUICKSTART.md)
 - [docs/operations/BRANCH_PROTECTION_RUNBOOK.md](docs/operations/BRANCH_PROTECTION_RUNBOOK.md)

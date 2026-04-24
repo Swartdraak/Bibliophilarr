@@ -84,14 +84,14 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             return response;
         }
 
-        public List<QBittorrentTorrent> GetTorrents(QBittorrentSettings settings)
+        public List<QBittorrentTorrent> GetTorrents(string category, QBittorrentSettings settings)
         {
             var request = BuildRequest(settings).Resource("/query/torrents");
 
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (category.IsNotNullOrWhiteSpace())
             {
-                request.AddQueryParam("label", settings.MusicCategory);
-                request.AddQueryParam("category", settings.MusicCategory);
+                request.AddQueryParam("label", category);
+                request.AddQueryParam("category", category);
             }
 
             var response = ProcessRequest<List<QBittorrentTorrent>>(request, settings);
@@ -132,15 +132,15 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             return response;
         }
 
-        public void AddTorrentFromUrl(string torrentUrl, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings)
+        public void AddTorrentFromUrl(string torrentUrl, string category, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings)
         {
             var request = BuildRequest(settings).Resource("/command/download")
                                                 .Post()
                                                 .AddFormParameter("urls", torrentUrl);
 
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (category.IsNotNullOrWhiteSpace())
             {
-                request.AddFormParameter("category", settings.MusicCategory);
+                request.AddFormParameter("category", category);
             }
 
             // Note: ForceStart is handled by separate api call
@@ -162,15 +162,15 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
             }
         }
 
-        public void AddTorrentFromFile(string fileName, byte[] fileContent, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings)
+        public void AddTorrentFromFile(string fileName, byte[] fileContent, string category, TorrentSeedConfiguration seedConfiguration, QBittorrentSettings settings)
         {
             var request = BuildRequest(settings).Resource("/command/upload")
                                                 .Post()
                                                 .AddFormUpload("torrents", fileName, fileContent);
 
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
+            if (category.IsNotNullOrWhiteSpace())
             {
-                request.AddFormParameter("category", settings.MusicCategory);
+                request.AddFormParameter("category", category);
             }
 
             // Note: ForceStart is handled by separate api call

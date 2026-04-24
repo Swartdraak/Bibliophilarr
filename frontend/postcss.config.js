@@ -1,3 +1,4 @@
+const path = require('path');
 const reload = require('require-nocache')(module);
 
 const cssVarsFiles = [
@@ -8,11 +9,11 @@ const cssVarsFiles = [
 ].map(require.resolve);
 
 const mixinsFiles = [
-  'frontend/src/Styles/Mixins/colorImpairedGradients.css',
-  'frontend/src/Styles/Mixins/cover.css',
-  'frontend/src/Styles/Mixins/linkOverlay.css',
-  'frontend/src/Styles/Mixins/scroller.css',
-  'frontend/src/Styles/Mixins/truncate.css'
+  path.join(__dirname, 'src/Styles/Mixins/colorImpairedGradients.css'),
+  path.join(__dirname, 'src/Styles/Mixins/cover.css'),
+  path.join(__dirname, 'src/Styles/Mixins/linkOverlay.css'),
+  path.join(__dirname, 'src/Styles/Mixins/scroller.css'),
+  path.join(__dirname, 'src/Styles/Mixins/truncate.css')
 ];
 
 module.exports = {

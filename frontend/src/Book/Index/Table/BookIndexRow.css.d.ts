@@ -9,6 +9,7 @@ interface CssExports {
   'bookProgress': string;
   'cell': string;
   'checkInput': string;
+  'format': string;
   'genres': string;
   'link': string;
   'metadataProfileId': string;

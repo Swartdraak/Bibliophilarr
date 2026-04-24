@@ -62,16 +62,17 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
 
                     var customFormats = _formatService.ParseCustomFormat(mostRecent, subject.Author);
 
-                    // The series will be the same as the one in history since it's the same episode.
-                    // Instead of fetching the series from the DB reuse the known series.
+                    // Use format-aware quality profile when dual format tracking is enabled
+                    var qualityProfile = _upgradableSpecification.ResolveProfile(subject);
+
                     var cutoffUnmet = _upgradableSpecification.CutoffNotMet(
-                        subject.Author.QualityProfile,
+                        qualityProfile,
                         new List<QualityModel> { mostRecent.Quality },
                         customFormats,
                         subject.ParsedBookInfo.Quality);
 
                     var upgradeable = _upgradableSpecification.IsUpgradable(
-                        subject.Author.QualityProfile,
+                        qualityProfile,
                         mostRecent.Quality,
                         customFormats,
                         subject.ParsedBookInfo.Quality,

@@ -77,6 +77,18 @@ services:
       retries: 3
       start_period: 30s
 
+    # ── Resource limits ────────────────────────────────────────────────────
+    # Recommended minimums for a typical library (500-1000 authors).
+    # Adjust upward for very large libraries or heavy import workloads.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
 volumes:
   bibliophilarr_config:
     driver: local

@@ -97,7 +97,7 @@ module.exports = (env) => {
       }),
 
       new HtmlWebpackPlugin({
-        template: 'frontend/src/index.ejs',
+        template: path.join(srcFolder, 'index.ejs'),
         filename: 'index.html',
         publicPath: '/',
         inject: false
@@ -109,31 +109,31 @@ module.exports = (env) => {
             copy: [
               // HTML
               {
-                source: 'frontend/src/*.html',
+                source: path.join(srcFolder, '*.html'),
                 destination: distFolder
               },
 
               // Fonts
               {
-                source: 'frontend/src/Content/Fonts/*.*',
+                source: path.join(srcFolder, 'Content/Fonts/*.*'),
                 destination: path.join(distFolder, 'Content/Fonts')
               },
 
               // Icon Images
               {
-                source: 'frontend/src/Content/Images/Icons/*.*',
+                source: path.join(srcFolder, 'Content/Images/Icons/*.*'),
                 destination: path.join(distFolder, 'Content/Images/Icons')
               },
 
               // Images
               {
-                source: 'frontend/src/Content/Images/*.*',
+                source: path.join(srcFolder, 'Content/Images/*.*'),
                 destination: path.join(distFolder, 'Content/Images')
               },
 
               // Robots
               {
-                source: 'frontend/src/Content/robots.txt',
+                source: path.join(srcFolder, 'Content/robots.txt'),
                 destination: path.join(distFolder, 'Content/robots.txt')
               }
             ]
@@ -149,7 +149,7 @@ module.exports = (env) => {
     resolveLoader: {
       modules: [
         'node_modules',
-        'frontend/build/webpack/'
+        path.join(frontendFolder, 'build', 'webpack')
       ]
     },
 
@@ -211,7 +211,7 @@ module.exports = (env) => {
               loader: 'postcss-loader',
               options: {
                 postcssOptions: {
-                  config: 'frontend/postcss.config.js'
+                  config: path.join(frontendFolder, 'postcss.config.js')
                 }
               }
             }

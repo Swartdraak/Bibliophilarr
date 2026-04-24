@@ -15,6 +15,7 @@ const VirtualTableRow = forwardRef((props, ref) => {
       ref={ref}
       className={className}
       style={style}
+      role="row"
       {...otherProps}
     >
       {children}

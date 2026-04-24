@@ -135,7 +135,7 @@ class AddNewItem extends Component {
                 <Alert kind={kinds.WARNING}>{getErrorMessage(error)}</Alert>
 
                 <div>
-                  <Link to="https://github.com/Swartdraak/Bibliophilarr/wiki/troubleshooting#invalid-response-received-from-metadata-api">
+                  <Link to="/system/wiki/troubleshooting">
                     {translate('WhySearchesCouldBeFailing')}
                   </Link>
                 </div>
@@ -146,7 +146,29 @@ class AddNewItem extends Component {
             !isFetching && !error && !!items.length &&
               <div className={styles.searchResults}>
                 {
-                  items.map((item) => {
+                  [...items].sort((a, b) => {
+                    const termLower = term.toLowerCase();
+                    const nameA = (a.author?.authorName || a.book?.title || '').toLowerCase();
+                    const nameB = (b.author?.authorName || b.book?.title || '').toLowerCase();
+                    const exactA = nameA === termLower ? 0 : 1;
+                    const exactB = nameB === termLower ? 0 : 1;
+
+                    if (exactA !== exactB) {
+                      return exactA - exactB;
+                    }
+
+                    const startsA = nameA.startsWith(termLower) ? 0 : 1;
+                    const startsB = nameB.startsWith(termLower) ? 0 : 1;
+
+                    if (startsA !== startsB) {
+                      return startsA - startsB;
+                    }
+
+                    const containsA = nameA.includes(termLower) ? 0 : 1;
+                    const containsB = nameB.includes(termLower) ? 0 : 1;
+
+                    return containsA - containsB;
+                  }).map((item) => {
                     if (item.author) {
                       const author = item.author;
                       return (

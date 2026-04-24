@@ -303,6 +303,11 @@ namespace NzbDrone.Common.Disk
             return false;
         }
 
+        public virtual bool AreSameFile(string path1, string path2)
+        {
+            return false;
+        }
+
         public void DeleteFolder(string path, bool recursive)
         {
             Ensure.That(path, () => path).IsValidPath(PathValidationType.CurrentOs);

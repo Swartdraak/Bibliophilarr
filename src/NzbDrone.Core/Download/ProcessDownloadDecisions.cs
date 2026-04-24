@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using NLog;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download.Clients;
 using NzbDrone.Core.Download.Pending;
@@ -22,16 +23,19 @@ namespace NzbDrone.Core.Download
         private readonly IDownloadService _downloadService;
         private readonly IPrioritizeDownloadDecision _prioritizeDownloadDecision;
         private readonly IPendingReleaseService _pendingReleaseService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public ProcessDownloadDecisions(IDownloadService downloadService,
                                         IPrioritizeDownloadDecision prioritizeDownloadDecision,
                                         IPendingReleaseService pendingReleaseService,
+                                        IConfigService configService,
                                         Logger logger)
         {
             _downloadService = downloadService;
             _prioritizeDownloadDecision = prioritizeDownloadDecision;
             _pendingReleaseService = pendingReleaseService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -167,6 +171,20 @@ namespace NzbDrone.Core.Download
         private bool IsBookProcessed(List<DownloadDecision> decisions, DownloadDecision report)
         {
             var bookIds = report.RemoteBook.Books.Select(e => e.Id).ToList();
+
+            // When dual-format tracking is enabled, a book is only "processed" for the same format.
+            // This allows grabbing one ebook AND one audiobook per book instead of just one release.
+            if (_configService.EnableDualFormatTracking && report.RemoteBook.ResolvedFormatType.HasValue)
+            {
+                var reportFormat = report.RemoteBook.ResolvedFormatType.Value;
+
+                return decisions.Where(r => r.RemoteBook.ResolvedFormatType == reportFormat)
+                                .SelectMany(r => r.RemoteBook.Books)
+                                .Select(e => e.Id)
+                                .ToList()
+                                .Intersect(bookIds)
+                                .Any();
+            }
 
             return decisions.SelectMany(r => r.RemoteBook.Books)
                             .Select(e => e.Id)

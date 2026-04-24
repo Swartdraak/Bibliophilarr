@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch.Definitions;
@@ -24,18 +25,24 @@ namespace NzbDrone.Core.IndexerSearch
         private readonly IIndexerFactory _indexerFactory;
         private readonly IBookService _bookService;
         private readonly IAuthorService _authorService;
+        private readonly IAuthorFormatProfileService _formatProfileService;
+        private readonly IConfigService _configService;
         private readonly IMakeDownloadDecision _makeDownloadDecision;
         private readonly Logger _logger;
 
         public ReleaseSearchService(IIndexerFactory indexerFactory,
                                 IBookService bookService,
                                 IAuthorService authorService,
+                                IAuthorFormatProfileService formatProfileService,
+                                IConfigService configService,
                                 IMakeDownloadDecision makeDownloadDecision,
                                 Logger logger)
         {
             _indexerFactory = indexerFactory;
             _bookService = bookService;
             _authorService = authorService;
+            _formatProfileService = formatProfileService;
+            _configService = configService;
             _makeDownloadDecision = makeDownloadDecision;
             _logger = logger;
         }
@@ -69,7 +76,22 @@ namespace NzbDrone.Core.IndexerSearch
             var searchSpec = Get<AuthorSearchCriteria>(author, userInvokedSearch, interactiveSearch);
             var books = _bookService.GetBooksByAuthor(author.Id);
 
-            books = books.Where(a => a.Monitored).ToList();
+            // In dual-format mode, monitoring is per-format on the author level
+            // (AuthorFormatProfiles.Monitored), not per-book. Include all books
+            // when any format profile is monitored.
+            if (_configService.EnableDualFormatTracking)
+            {
+                var profiles = _formatProfileService.GetByAuthorId(author.Id);
+                var anyMonitored = profiles.Any(p => p.Monitored);
+                if (!anyMonitored)
+                {
+                    books = new List<Book>();
+                }
+            }
+            else
+            {
+                books = books.Where(a => a.Monitored).ToList();
+            }
 
             searchSpec.Books = books;
 
@@ -82,7 +104,8 @@ namespace NzbDrone.Core.IndexerSearch
 
             var searchSpec = Get<BookSearchCriteria>(author, new List<Book> { book }, userInvokedSearch, interactiveSearch);
 
-            searchSpec.BookTitle = book.Editions.Value.SingleOrDefault(x => x.Monitored).Title;
+            var monitoredEdition = book.Editions.Value.SingleOrDefault(x => x.Monitored);
+            searchSpec.BookTitle = monitoredEdition?.Title ?? book.Title;
 
             // searchSpec.BookIsbn = book.Isbn13;
             if (book.ReleaseDate.HasValue)

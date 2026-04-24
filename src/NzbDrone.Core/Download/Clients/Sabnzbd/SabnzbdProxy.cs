@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
 using Newtonsoft.Json.Linq;
@@ -29,6 +30,9 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
         private readonly IHttpClient _httpClient;
         private readonly Logger _logger;
 
+        private static readonly ConcurrentDictionary<string, (SabnzbdConfig Config, DateTime CachedAt)> _configCache = new ();
+        private static readonly TimeSpan ConfigCacheTtl = TimeSpan.FromSeconds(10);
+
         public SabnzbdProxy(IHttpClient httpClient, Logger logger)
         {
             _httpClient = httpClient;
@@ -47,7 +51,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
         {
             var request = BuildRequest("addfile", settings).Post();
 
-            request.AddQueryParam("cat", settings.MusicCategory);
+            request.AddQueryParam("cat", category);
             request.AddQueryParam("priority", priority);
 
             request.AddFormUpload("name", filename, nzbData, "application/x-nzb");
@@ -96,9 +100,19 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
 
         public SabnzbdConfig GetConfig(SabnzbdSettings settings)
         {
+            var cacheKey = $"{settings.Host}:{settings.Port}:{settings.ApiKey}";
+
+            if (_configCache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow - cached.CachedAt < ConfigCacheTtl)
+            {
+                _logger.Trace("Using cached SABnzbd config for {0}:{1}", settings.Host, settings.Port);
+                return cached.Config;
+            }
+
             var request = BuildRequest("get_config", settings);
 
             var response = Json.Deserialize<SabnzbdConfigResponse>(ProcessRequest(request, settings));
+
+            _configCache[cacheKey] = (response.Config, DateTime.UtcNow);
 
             return response.Config;
         }
@@ -119,11 +133,6 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
             request.AddQueryParam("start", start);
             request.AddQueryParam("limit", limit);
 
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
-            {
-                request.AddQueryParam("category", settings.MusicCategory);
-            }
-
             var response = ProcessRequest(request, settings);
 
             return Json.Deserialize<SabnzbdQueue>(JObject.Parse(response).SelectToken("queue").ToString());
@@ -134,11 +143,6 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
             var request = BuildRequest("history", settings);
             request.AddQueryParam("start", start);
             request.AddQueryParam("limit", limit);
-
-            if (settings.MusicCategory.IsNotNullOrWhiteSpace())
-            {
-                request.AddQueryParam("category", settings.MusicCategory);
-            }
 
             var response = ProcessRequest(request, settings);
 

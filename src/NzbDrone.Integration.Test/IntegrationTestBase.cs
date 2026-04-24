@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Bibliophilarr.Api.V1.Author;
@@ -25,15 +26,14 @@ using NzbDrone.Integration.Test.Client;
 using NzbDrone.SignalR;
 using NzbDrone.Test.Common;
 using NzbDrone.Test.Common.Categories;
-using RestSharp;
-using RestSharp.Serializers.SystemTextJson;
 
 namespace NzbDrone.Integration.Test
 {
     [IntegrationTest]
     public abstract class IntegrationTestBase
     {
-        protected RestClient RestClient { get; private set; }
+        protected HttpClient RestClient { get; private set; }
+        private ClientBase _rawClient;
 
         public ClientBase<BlocklistResource> Blocklist;
         public CommandClient Commands;
@@ -95,10 +95,14 @@ namespace NzbDrone.Integration.Test
 
         protected virtual void InitRestClients()
         {
-            RestClient = new RestClient(RootUrl + "api/v1/");
-            RestClient.AddDefaultHeader("Authentication", ApiKey);
-            RestClient.AddDefaultHeader("X-Api-Key", ApiKey);
-            RestClient.UseSystemTextJson();
+            RestClient = new HttpClient
+            {
+                BaseAddress = new Uri(RootUrl + "api/v1/")
+            };
+            RestClient.DefaultRequestHeaders.Add("Authentication", ApiKey);
+            RestClient.DefaultRequestHeaders.Add("X-Api-Key", ApiKey);
+
+            _rawClient = new ClientBase(RestClient, ApiKey, "");
 
             Blocklist = new ClientBase<BlocklistResource>(RestClient, ApiKey);
             Commands = new CommandClient(RestClient, ApiKey);
@@ -119,6 +123,18 @@ namespace NzbDrone.Integration.Test
             Tags = new ClientBase<TagResource>(RestClient, ApiKey);
             WantedMissing = new WantedClient(RestClient, ApiKey, "wanted/missing");
             WantedCutoffUnmet = new WantedClient(RestClient, ApiKey, "wanted/cutoff");
+        }
+
+        protected SimpleRestResponse ExecuteRequest(SimpleRestRequest request)
+        {
+            return _rawClient.ExecuteRaw(request);
+        }
+
+        protected SimpleRestResponse ExecuteAnonymousRequest(string baseUrl, SimpleRestRequest request)
+        {
+            using var anonymousClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            var rawClient = new ClientBase(anonymousClient, "", "");
+            return rawClient.ExecuteRaw(request);
         }
 
         [OneTimeTearDown]

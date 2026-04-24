@@ -27,6 +27,9 @@ namespace NzbDrone.Core.Books
         List<Author> GetAllAuthors();
         Dictionary<int, List<int>> GetAllAuthorTags();
         List<Author> AllForTag(int tagId);
+        bool AuthorExistsWithMetadataProfile(int metadataProfileId);
+        List<Author> GetAuthorsByMetadataProfile(int metadataProfileId);
+        bool AuthorExistsWithQualityProfile(int qualityProfileId);
         Author UpdateAuthor(Author author);
         List<Author> UpdateAuthors(List<Author> authors, bool useExistingRelativeFolder);
         Dictionary<int, string> AllAuthorPaths();
@@ -206,6 +209,21 @@ namespace NzbDrone.Core.Books
         {
             return GetAllAuthors().Where(s => s.Tags.Contains(tagId))
                                  .ToList();
+        }
+
+        public bool AuthorExistsWithMetadataProfile(int metadataProfileId)
+        {
+            return _authorRepository.AuthorExistsWithMetadataProfile(metadataProfileId);
+        }
+
+        public List<Author> GetAuthorsByMetadataProfile(int metadataProfileId)
+        {
+            return _authorRepository.GetAuthorsByMetadataProfile(metadataProfileId);
+        }
+
+        public bool AuthorExistsWithQualityProfile(int qualityProfileId)
+        {
+            return _authorRepository.AuthorExistsWithQualityProfile(qualityProfileId);
         }
 
         public Author GetAuthor(int authorId)

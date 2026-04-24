@@ -3,6 +3,7 @@ using NLog;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.DecisionEngine.Specifications
 {
@@ -26,7 +27,8 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
         public virtual Decision IsSatisfiedBy(RemoteBook subject, SearchCriteriaBase searchCriteria)
         {
-            var qualityProfile = subject.Author.QualityProfile.Value;
+            var qualityProfile = _upgradableSpecification.ResolveProfile(subject);
+            var subjectFormatType = subject.ResolvedFormatType;
 
             foreach (var file in subject.Books.SelectMany(b => b.BookFiles.Value))
             {
@@ -34,6 +36,16 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                 {
                     _logger.Debug("File is no longer available, skipping this file.");
                     continue;
+                }
+
+                // When dual format tracking is active, only compare against files of the same format type
+                if (subjectFormatType.HasValue)
+                {
+                    var fileFormatType = Quality.GetFormatType(file.Quality.Quality);
+                    if (fileFormatType != subjectFormatType.Value)
+                    {
+                        continue;
+                    }
                 }
 
                 var fileCustomFormats = _formatService.ParseCustomFormat(file, subject.Author);

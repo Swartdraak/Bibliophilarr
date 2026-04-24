@@ -1,12 +1,12 @@
 # Bibliophilarr Metadata Migration Plan
 
-## Executive Summary
+## Executive summary
 
 This document outlines the comprehensive technical plan for migrating Bibliophilarr from proprietary Goodreads metadata to Free and Open Source Software (FOSS) metadata providers. The goal is to create a sustainable, reliable, and community-maintainable book and audiobook collection manager.
 
-## Implementation Progress Snapshots
+## Implementation progress snapshots
 
-### March 26, 2026 — Hardcover Metadata Expansion and Series Persistence Progress
+### March 26, 2026 — Hardcover metadata expansion and series persistence progress
 
 Hardcover metadata provider fixes deployed and RefreshAuthor triggered for all 430 library
 authors. Key improvements:
@@ -29,7 +29,7 @@ Migration risk posture update:
 - Hardcover API intermittently rate-limits under batch load (408/500 errors); handled
   gracefully but some authors require re-refresh.
 
-### March 24, 2026 — Comprehensive Deep Audit v2
+### March 24, 2026 — Comprehensive deep audit v2
 
 Comprehensive audit v2 across six parallel audits (backend C#, frontend, CI/CD and build,
 documentation, Docker and infrastructure, packages and dependencies) identified **287 distinct
@@ -91,7 +91,7 @@ in `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 
 Full prioritized remediation queue: see `PROJECT_STATUS.md` § Prioritized Remediation Queue.
 
-### March 24, 2026 — Book Import Identification Quality Fixes
+### March 24, 2026 — Book import identification quality fixes
 
 Three compounding bugs in the import identification pipeline were identified during production library analysis (81% unlinked files) and fixed:
 
@@ -109,7 +109,7 @@ Impact on metadata migration posture:
 
 Validation: 40/40 targeted tests passed; 158/159 broader import tests passed (1 pre-existing flaky test confirmed unrelated).
 
-### March 22, 2026 — Hardcover/Runtime Logging Hardening
+### March 22, 2026 — Hardcover/runtime logging hardening
 
 Completed in this migration-hardening slice:
 
@@ -122,7 +122,7 @@ Validation status for this slice:
 - Targeted Hardcover provider fixture coverage updated for environment-token routing.
 - Script syntax and solution build validation executed after the logging changes.
 
-### March 22, 2026 — Release-Evidence/Test-Runner Completion
+### March 22, 2026 — Release-evidence/test-runner completion
 
 Additional verification update (March 22, 2026):
 
@@ -168,16 +168,16 @@ Migration risk posture update:
   progress via Hardcover provider.
 - Duplicate author convergence in staging DB state remains a secondary concern.
 
-### March 18, 2026 — Provider Orchestration Integration
+### March 18, 2026 — Provider orchestration integration
 
 Completed in the current migration slice:
 
 - Metadata provider orchestration is implemented and integrated into search, add, refresh, and import-list flows.
 - Runtime provider controls are available via config/API/UI, including provider enablement and ordering.
 - Runtime provider controls are available via config/API/UI, including timeout, retry, and circuit-breaker settings.
-- Open Library and BookInfo provider enablement now respects configuration flags.
+- Open Library, Google Books, and Inventaire provider enablement now respect configuration flags.
 - Inventaire provider baseline is implemented and registered as a secondary metadata source.
-- Inventaire can be force-disabled by environment kill-switch (`BIBLIOPHILARR_DISABLE_INVENTAIRE=1`) for staged rollout control.
+- Inventaire can be disabled through the runtime metadata-provider configuration exposed in API and UI settings.
 - Provider telemetry collection and diagnostics API endpoints are available for operational visibility.
 - Open Library identifier backfill command/service is implemented for startup-triggered migration assistance.
 - Provenance fields are exposed in API resources and surfaced in book index UI.
@@ -189,7 +189,19 @@ Validation status for this slice:
 - Core targeted tests: pass for `MetadataProviderOrchestratorFixture` and `ImportListSyncServiceFixture`
 - Import-list edge-case handling updated to avoid adding unresolved external-ID books
 
-### March 21, 2026 — TD-META Completion
+### March 17, 2026 — Open Library provider implementation
+
+Completed in code on branch `feature/open-library-provider-2026-03-17`:
+
+- Added provider abstraction and fallback orchestration (`IMetadataProvider`, `IMetadataProviderRegistry`, `MetadataProviderRegistry`).
+- Refactored search abstraction to be provider-agnostic (`ISearchForNewBook.SearchByExternalId(string idType, string id)` replaces direct `SearchByGoodreadsBookId(...)` interface usage).
+- Implemented Open Library provider stack: `OpenLibraryClient` with endpoint wrappers and 429 retry handling, `OpenLibraryMapper` with deterministic resource-to-domain mapping, `OpenLibraryProvider` implementing search and metadata interfaces.
+- Added additive database migration for Open Library foreign IDs (`042_add_open_library_ids.cs`, `Book.OpenLibraryWorkId`, `AuthorMetadata.OpenLibraryAuthorId`).
+- Updated import/sync path to remove direct Goodreads proxy coupling in `ImportListSyncService` by using `ISearchForNewBook` abstraction.
+
+Validation status: Core and test projects build cleanly. Open Library mapper and model equality tests pass. Provider fixture tests blocked by pre-existing test harness platform assembly naming mismatch (not caused by Open Library implementation).
+
+### March 21, 2026 — TD-META completion
 
 Completed in this migration-hardening slice:
 
@@ -211,7 +223,7 @@ Migration safety posture:
 - No destructive schema changes were introduced in this slice.
 - Existing fallback behavior is preserved while routing now uses health-aware ordering.
 
-### March 21, 2026 — Routing/Dedupe/Import Hardening Continuation
+### March 21, 2026 — Routing/dedupe/import hardening continuation
 
 Completed in this continuation slice:
 
@@ -230,11 +242,11 @@ Completed in this continuation slice:
   - Added `scripts/series_persistence_gate.py` and integrated series snapshot requirement into `scripts/release_entry_gate.py`.
   - Added `scripts/replay_comparison.py` for baseline vs post-fix replay comparison metrics.
 
-Validation status:
+Validation status: Deferred — covered by subsequent hardening passes (March 22–26).
 
-Known gap:
+Known gap: Series persistence completeness under concurrent author-refresh scenarios not yet validated end-to-end.
 
-### March 22, 2026 — Hardening Pass
+### March 22, 2026 — Hardening pass
 
 Completed in this hardening and validation slice:
 
@@ -258,7 +270,7 @@ Migration safety posture:
 - All changes backward-compatible and non-breaking.
 - No temporary files or test artifacts remain in working tree.
 
-### March 21, 2026 — Hardening Follow-up
+### March 21, 2026 — Hardening follow-up
 
 Completed in this hardening slice:
 
@@ -280,7 +292,7 @@ Validation status for this slice:
 - API targeted fixtures: pass (2/2).
 - Full solution build: pass.
 
-### March 21, 2026 — Full-Library QA Triage
+### March 21, 2026 — Full-library QA triage
 
 A full-library validation run identified additional migration-critical gaps and one
 newly confirmed provider mapping fault.
@@ -309,7 +321,7 @@ Next migration slices (priority order):
 4. Identification fallback quality expansion with richer candidate-rejection telemetry.
 5. Frontend interaction audit for author index jump-bar and related click handlers.
 6. Import throughput optimization for production-shaped libraries (instrumentation + phased execution + bounded concurrency).
-7. Single-instance dual-format management for ebook/audiobook variants per title.
+7. ~~Single-instance dual-format management for ebook/audiobook variants per title.~~ **DONE** — all 16 slices (DF-1 through DF-16) implemented.
 
 Additional migration progress (March 18, 2026):
 
@@ -445,78 +457,729 @@ Measurement plan:
 
 #### TD-DUAL-FORMAT-001: Single-instance ebook and audiobook variant management
 
-Objective:
+**Status**: Implementation complete (April 2026). All 16 slices (DF-1 through DF-16) delivered and feature-flagged via `EnableDualFormatTracking`.
 
-- Manage ebook and audiobook variants for the same title in one instance without policy conflicts or tracking loss.
+##### Objective
 
-Primary touch points:
+Manage ebook and audiobook variants for the same title in one instance without
+policy conflicts, tracking loss, or requiring duplicate author entries. A single
+Author object tracks both formats independently at the per-book level, with each
+format owning its own quality profile, root folder, download client routing tags,
+monitored state, and file tracking.
 
-- `src/NzbDrone.Core/Books/Book.cs`
-- `src/NzbDrone.Core/MediaFiles/*`
-- `src/NzbDrone.Core/Profiles/*`
-- `src/Bibliophilarr.Api.V1/*`
-- `frontend/src/*`
+##### Design principles
 
-Proposed change shape:
+1. **One author, multiple formats** — metadata is shared (author, series, book,
+   cover, identifiers). Only the physical-format tracking (quality, files, paths)
+   diverges per format.
+2. **One metadata search** — a search for a book queries indexers once. The
+   returned releases are then matched to the appropriate format slot based on the
+   detected quality falling within a format's quality profile.
+3. **Format-scoped policy** — each format has its own quality profile, root
+   folder, tags, monitored state, and upgrade tracking. No cross-format
+   interference.
+4. **Additive schema** — new tables and columns only. No destructive changes to
+   existing tables. Feature-flagged with full rollback path.
 
-1. Add additive variant model for per-title format intent (`ebook`, `audiobook`).
-2. Add independent quality/format policy attachment per variant.
-3. Partition search/import/upgrade decisions by variant to prevent cross-over writes.
-4. Expose variant-level status and controls in API/UI.
+##### Current architecture (blockers)
 
-Acceptance criteria:
+The existing data model has three structural constraints that prevent dual-format
+tracking:
+
+| Constraint | Location | Impact |
+|---|---|---|
+| One `QualityProfileId` per Author | [Author.cs](src/NzbDrone.Core/Books/Model/Author.cs#L29) | Cannot express "Spoken for audiobooks AND eBook for ebooks" on the same author |
+| One `Path` / `RootFolderPath` per Author | [Author.cs](src/NzbDrone.Core/Books/Model/Author.cs#L26-L27) | Files for both formats would land under one directory tree |
+| One monitored Edition per Book | [FixMultipleMonitoredEditions.cs](src/NzbDrone.Core/Housekeeping/Housekeepers/FixMultipleMonitoredEditions.cs#L17), [BookEditionSelector.cs](src/NzbDrone.Core/Books/BookEditionSelector.cs#L21) | Even if both ebook and audiobook editions exist, housekeeping forcibly un-monitors all but one |
+
+Additional pipeline constraints:
+
+- `QualityAllowedByProfileSpecification` reads `subject.Author.QualityProfile.Value` — a single profile per author. ([QualityAllowedByProfileSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/QualityAllowedByProfileSpecification.cs#L22))
+- `DownloadService.DownloadReport` passes `remoteBook.Author.Tags` for download client routing — a single tag set per author. ([DownloadService.cs](src/NzbDrone.Core/Download/DownloadService.cs#L58))
+- `AuthorPathBuilder.BuildPath` uses `author.RootFolderPath` — a single root folder. ([AuthorPathBuilder.cs](src/NzbDrone.Core/Books/Utilities/AuthorPathBuilder.cs#L28))
+- `BookCutoffService.BooksWhereCutoffUnmet` evaluates against one quality profile. ([BookCutoffService.cs](src/NzbDrone.Core/Books/Services/BookCutoffService.cs))
+- `ReleaseSearchService.BookSearch` uses `book.Editions.Value.SingleOrDefault(x => x.Monitored).Title` — expects exactly one monitored edition. ([ReleaseSearchService.cs](src/NzbDrone.Core/IndexerSearch/ReleaseSearchService.cs#L84))
+
+##### Target data model
+
+New entity: **AuthorFormatProfile**
+
+```
+┌─────────────────────────────────────────────┐
+│ AuthorFormatProfiles (new table)            │
+├─────────────────────────────────────────────┤
+│ Id              INT PK AUTO                 │
+│ AuthorId        INT FK → Authors.Id         │
+│ FormatType      INT (enum: 0=Ebook,         │
+│                            1=Audiobook)     │
+│ QualityProfileId INT FK → QualityProfiles.Id│
+│ RootFolderPath  TEXT NOT NULL               │
+│ Tags            TEXT (JSON array of int)    │
+│ Monitored       BOOL DEFAULT true           │
+│ Path            TEXT (computed author path   │
+│                       under this root)      │
+├─────────────────────────────────────────────┤
+│ UNIQUE(AuthorId, FormatType)                │
+└─────────────────────────────────────────────┘
+```
+
+Modified entity: **Edition** monitoring
+
+```
+Current:  One Monitored=true edition per Book (enforced globally)
+Target:   One Monitored=true edition per Book PER FormatType
+          (i.e. one monitored ebook edition AND one monitored audiobook edition)
+```
+
+Relationship map:
+
+```
+Author (Robert Blaise)
+  ├─ AuthorFormatProfiles
+  │    ├─ { FormatType: Audiobook, QualityProfileId: 2 (Spoken),
+  │    │    RootFolderPath: /media/audiobooks/, Tags: [1],
+  │    │    Path: /media/audiobooks/Robert Blaise }
+  │    └─ { FormatType: Ebook, QualityProfileId: 1 (eBook),
+  │         RootFolderPath: /media/ebooks/, Tags: [2],
+  │         Path: /media/ebooks/Robert Blaise }
+  │
+  └─ Book (1% Lifesteal)
+       ├─ Edition (audiobook edition)
+       │    ├─ Format: "Audiobook"
+       │    ├─ Monitored: true  ← monitored for Audiobook format
+       │    └─ BookFiles: [Robert Blaise - 1% Lifesteal.m4b]
+       └─ Edition (ebook edition)
+            ├─ Format: "Ebook"
+            ├─ Monitored: true  ← monitored for Ebook format
+            └─ BookFiles: [Robert Blaise - 1% Lifesteal.epub]
+```
+
+**Design decision rationale: AuthorFormatProfile vs. BookVariant**
+
+The format profile lives at the Author level (not per-Book) because:
+
+- Quality profile, root folder, tags, and download client routing are
+  author-scoped concerns — they apply uniformly across all books by that author.
+- Per-book format configuration would create O(books x formats) configuration
+  overhead. Authors typically want "all audiobooks go here with this profile."
+- The per-book format tracking is handled by Edition monitoring: the Edition
+  already has `Format` and `IsEbook` fields, and the "one monitored edition per
+  format type" constraint provides per-book format-level control.
+- This mirrors how the current single-profile model works: QualityProfile is set
+  on Author and applies to all books.
+
+##### Data flow changes by pipeline stage
+
+**1. Author add flow**
+
+Current: User selects one root folder and one quality profile when adding an author.
+
+Target: User can configure one or more format profiles when adding an author.
+Each format profile specifies: format type, quality profile, root folder, and
+tags. At minimum one format profile is required (backward compatible with current
+single-profile behavior).
+
+Files affected:
+
+- [AddAuthorService.cs](src/NzbDrone.Core/Books/Services/AddAuthorService.cs) — `SetPropertiesAndValidate()` creates format profiles from add options
+- [AuthorController.cs](src/Bibliophilarr.Api.V1/Author/AuthorController.cs) — `AddAuthor()` accepts format profile array
+- [AuthorResource.cs](src/Bibliophilarr.Api.V1/Author/AuthorResource.cs) — new `FormatProfiles` property
+- Frontend `AddNewAuthorModal` — format profile configuration UI
+
+**2. Book monitoring**
+
+Current: `Book.Monitored` is a single boolean. `Edition.Monitored` allows one
+monitored edition per book. `FixMultipleMonitoredEditions` housekeeping enforces
+the single-monitored-edition constraint.
+
+Target: `Book.Monitored` remains a single boolean (does the user want this book
+at all?). Edition monitoring becomes per-format: one monitored edition per format
+type per book. The housekeeping task is updated to enforce "one monitored edition
+per format type" instead of "one monitored edition globally."
+
+Files affected:
+
+- [FixMultipleMonitoredEditions.cs](src/NzbDrone.Core/Housekeeping/Housekeepers/FixMultipleMonitoredEditions.cs) — scope constraint per format type
+- [BookEditionSelector.cs](src/NzbDrone.Core/Books/BookEditionSelector.cs) — `GetPreferredEdition(formatType)` overload
+- [EditionRepository.cs](src/NzbDrone.Core/Books/Repositories/EditionRepository.cs) — `SetMonitoredEdition` scoped by format
+- [BookMonitoredService.cs](src/NzbDrone.Core/Books/Services/BookMonitoredService.cs) — monitor/unmonitor per format
+
+**3. Search and indexer query**
+
+Current: `ReleaseSearchService.BookSearch()` builds search criteria from the
+single monitored edition's title and sends one query to indexers.
+
+Target: Search remains a single indexer query (metadata is shared across
+formats). The search criteria is built from the book's title. The change is
+downstream: returned releases are evaluated against each active format's quality
+profile separately during decision-making.
+
+Key insight: a search for "Robert Blaise 1% Lifesteal" returns BOTH m4b and epub
+releases. The decision engine sorts them into the correct format slot.
+
+Files affected:
+
+- [ReleaseSearchService.cs](src/NzbDrone.Core/IndexerSearch/ReleaseSearchService.cs) — use book title instead of monitored edition title; pass format context to decision maker
+- [BookSearchService.cs](src/NzbDrone.Core/IndexerSearch/BookSearchService.cs) — `MissingBookSearchCommand` checks missing status per format
+
+**4. Download decision engine**
+
+Current: `QualityAllowedByProfileSpecification` evaluates against
+`subject.Author.QualityProfile.Value` — one profile.
+
+Target: When the feature flag is active, the specification identifies which
+format the release belongs to (based on detected quality: audio qualities
+MP3/M4B/FLAC → Audiobook format; ebook qualities PDF/MOBI/EPUB/AZW3 → Ebook
+format). It then evaluates against the matching `AuthorFormatProfile`'s quality
+profile.
+
+Quality-to-format mapping (deterministic, based on existing quality weight
+ranges):
+
+| Quality | Weight | FormatType |
+|---|---|---|
+| PDF | 5 | Ebook |
+| MOBI | 10 | Ebook |
+| EPUB | 11 | Ebook |
+| AZW3 | 12 | Ebook |
+| MP3 | 100 | Audiobook |
+| M4B | 105 | Audiobook |
+| FLAC | 110 | Audiobook |
+| Unknown | 0 | Falls back to author's legacy profile |
+| UnknownAudio | 50 | Audiobook |
+
+Files affected:
+
+- [QualityAllowedByProfileSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/QualityAllowedByProfileSpecification.cs) — resolve format-specific profile
+- [Quality.cs](src/NzbDrone.Core/Qualities/Quality.cs) — add `FormatType` classification helper
+- [RemoteBook.cs](src/NzbDrone.Core/Parser/Model/RemoteBook.cs) — carry resolved format context
+- [UpgradableSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/UpgradableSpecification.cs) — compare against format-specific cutoff
+
+**5. Download client routing**
+
+Current: `DownloadService.DownloadReport` passes `remoteBook.Author.Tags` to
+`DownloadClientProvider.GetDownloadClient()`.
+
+Target: When format is resolved, use the format profile's tags instead of the
+author's tags. This routes audiobook grabs to qBittorrent-Audiobooks (via
+audiobook tag) and ebook grabs to qBittorrent-Ebooks (via ebook tag).
+
+Files affected:
+
+- [DownloadService.cs](src/NzbDrone.Core/Download/DownloadService.cs) — resolve tags from format profile
+
+**6. Import pipeline**
+
+Current: `ImportDecisionMaker` → `IdentificationService` matches files to an
+Edition by metadata/tags. `ImportApprovedBooks` writes `BookFile` with
+`EditionId`.
+
+Target: After identification matches a file to a Book, the import pipeline also
+resolves which format profile applies based on the file's detected quality. The
+file is assigned to the correct format-specific edition. Import rejection
+(`AuthorPathInRootFolderSpecification`) checks against the format-specific root
+folder path, not the author's single path.
+
+Files affected:
+
+- [ImportDecisionMaker.cs](src/NzbDrone.Core/MediaFiles/BookImport/ImportDecisionMaker.cs) — pass format context through import decisions
+- [IdentificationService.cs](src/NzbDrone.Core/MediaFiles/BookImport/Identification/IdentificationService.cs) — prefer edition matching format type
+- [ImportApprovedBooks.cs](src/NzbDrone.Core/MediaFiles/BookImport/ImportApprovedBooks.cs) — assign to format-specific edition
+- [AuthorPathInRootFolderSpecification.cs](src/NzbDrone.Core/MediaFiles/BookImport/Specifications/AuthorPathInRootFolderSpecification.cs) — check against format-specific root
+
+**7. File path building**
+
+Current: `AuthorPathBuilder.BuildPath` uses `author.RootFolderPath` to construct
+`/media/audiobooks/Robert Blaise/`.
+
+Target: Path building uses the format profile's `RootFolderPath` to construct
+format-specific paths:
+
+- Audiobook: `/media/audiobooks/Robert Blaise/1% Lifesteal/`
+- Ebook: `/media/ebooks/Robert Blaise/1% Lifesteal/`
+
+Files affected:
+
+- [AuthorPathBuilder.cs](src/NzbDrone.Core/Books/Utilities/AuthorPathBuilder.cs) — accept format context, use format profile root
+- [FileNameBuilder.cs](src/NzbDrone.Core/Organizer/FileNameBuilder.cs) — `BuildBookFilePath` uses format-aware author path
+- [BookFileMovingService.cs](src/NzbDrone.Core/MediaFiles/BookFileMovingService.cs) — pass format context to path builder
+
+**8. Missing and cutoff evaluation**
+
+Current: `BookCutoffService.BooksWhereCutoffUnmet` evaluates book files against
+the author's single quality profile cutoff.
+
+Target: Missing/cutoff evaluation is per-format. A book can be simultaneously
+"missing audiobook" and "has ebook at cutoff." The Wanted/Missing and
+Wanted/Cutoff Unmet pages show format-scoped results.
+
+Files affected:
+
+- [BookCutoffService.cs](src/NzbDrone.Core/Books/Services/BookCutoffService.cs) — evaluate per format profile
+- [BookService.cs](src/NzbDrone.Core/Books/Services/BookService.cs) — `BooksWithoutFiles` scoped by format
+- [WantedController / CutoffController](src/Bibliophilarr.Api.V1/Wanted/) — expose format filter
+- [BookSearchService.cs](src/NzbDrone.Core/IndexerSearch/BookSearchService.cs) — missing/cutoff commands specify format
+
+**9. API resources**
+
+New and modified API resources:
+
+```csharp
+// New resource
+public class AuthorFormatProfileResource
+{
+    public int Id { get; set; }
+    public int FormatType { get; set; }       // 0=Ebook, 1=Audiobook
+    public int QualityProfileId { get; set; }
+    public string RootFolderPath { get; set; }
+    public HashSet<int> Tags { get; set; }
+    public bool Monitored { get; set; }
+    public string Path { get; set; }          // computed
+}
+
+// Modified: AuthorResource
+public class AuthorResource
+{
+    // ... existing fields ...
+    public List<AuthorFormatProfileResource> FormatProfiles { get; set; }
+    // QualityProfileId, Path, RootFolderPath kept for backward compat
+    // (legacy clients read these; new clients use FormatProfiles)
+}
+
+// Modified: BookResource
+public class BookResource
+{
+    // ... existing fields ...
+    public List<BookFormatStatusResource> FormatStatuses { get; set; }
+    // Per-format: { formatType, monitored, hasFile, quality, editionId }
+}
+```
+
+Files affected:
+
+- [AuthorResource.cs](src/Bibliophilarr.Api.V1/Author/AuthorResource.cs) — add `FormatProfiles`
+- [BookResource.cs](src/Bibliophilarr.Api.V1/Books/BookResource.cs) — add `FormatStatuses`
+- [AuthorController.cs](src/Bibliophilarr.Api.V1/Author/AuthorController.cs) — CRUD for format profiles
+- New: `AuthorFormatProfileResource.cs`, `BookFormatStatusResource.cs`
+
+**10. Frontend changes**
+
+Author detail page:
+
+- Header shows format profile badges (e.g., "Audiobook: Spoken | Ebook: eBook")
+- Each format profile's root folder, quality profile, and tags are configurable
+  via the author edit modal
+- Add Author modal allows configuring format profiles (with sensible defaults
+  based on selected root folder)
+
+Book table:
+
+- Each book row shows per-format status columns (e.g., audiobook icon with
+  green/red, ebook icon with green/red)
+- Monitoring toggle can be per-format (click audiobook icon to toggle audiobook
+  monitoring for that book)
+
+Files affected:
+
+- [AuthorDetails.js](frontend/src/Author/Details/AuthorDetails.js) — format profile display
+- [AuthorDetailsHeader.js](frontend/src/Author/Details/AuthorDetailsHeader.js) — show format badges
+- [AuthorDetailsSeason.js](frontend/src/Author/Details/AuthorDetailsSeason.js) — per-format status columns
+- [EditAuthorModalContent.js](frontend/src/Author/Edit/EditAuthorModalContent.js) — format profile configuration
+- [AddNewAuthorModal*.js](frontend/src/AddNewItem/) — format profile setup
+- [bookActions.js](frontend/src/Store/Actions/bookActions.js) — per-format monitoring toggles
+- New: `AuthorFormatProfileEditor.js` component
+
+##### Feature flag and backward compatibility
+
+Configuration key: `EnableDualFormatTracking` (default: `true`)
+
+When **disabled** (legacy mode):
+
+- Author continues to use its single `QualityProfileId`, `Path`,
+  `RootFolderPath`, and `Tags` fields exactly as today.
+- `AuthorFormatProfiles` table exists but is not read.
+- `FixMultipleMonitoredEditions` enforces the current single-monitored-edition
+  constraint.
+- All API responses omit `FormatProfiles` and `FormatStatuses` (or return empty
+  arrays).
+- No behavioral change for existing users.
+
+When **enabled** (dual-format mode):
+
+- Author's legacy `QualityProfileId`, `Path`, `RootFolderPath`, `Tags` become
+  fallback defaults for new format profiles.
+- `AuthorFormatProfiles` table is authoritative for per-format routing.
+- `FixMultipleMonitoredEditions` enforces one monitored edition per format type
+  per book.
+- API responses include populated `FormatProfiles` and `FormatStatuses`.
+- All pipeline stages (search, decision, grab, import, path build, missing/cutoff)
+  operate in format-aware mode.
+
+##### Database migration
+
+Migration number: 045 (next sequential after 044_normalize_title_slugs)
+
+```sql
+-- Additive: new table
+CREATE TABLE "AuthorFormatProfiles" (
+    "Id"               INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "AuthorId"         INTEGER NOT NULL,
+    "FormatType"       INTEGER NOT NULL,   -- 0=Ebook, 1=Audiobook
+    "QualityProfileId" INTEGER NOT NULL,
+    "RootFolderPath"   TEXT NOT NULL,
+    "Tags"             TEXT NOT NULL DEFAULT '[]',
+    "Monitored"        BOOLEAN NOT NULL DEFAULT 1,
+    "Path"             TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY ("AuthorId") REFERENCES "Authors"("Id") ON DELETE CASCADE,
+    FOREIGN KEY ("QualityProfileId") REFERENCES "QualityProfiles"("Id")
+);
+
+CREATE UNIQUE INDEX "IX_AuthorFormatProfiles_AuthorId_FormatType"
+    ON "AuthorFormatProfiles" ("AuthorId", "FormatType");
+
+-- Auto-populate: one format profile per existing author from current config
+-- Detect format type from current quality profile's allowed qualities
+INSERT INTO "AuthorFormatProfiles"
+    ("AuthorId", "FormatType", "QualityProfileId", "RootFolderPath", "Tags",
+     "Monitored", "Path")
+SELECT
+    a."Id",
+    CASE
+        WHEN EXISTS (
+            SELECT 1 FROM json_each(qp."Items")
+            WHERE json_extract(value, '$.quality') IN (10, 11, 12, 13)
+              AND json_extract(value, '$.allowed') = 1
+        ) THEN 1  -- Audiobook
+        ELSE 0    -- Ebook
+    END,
+    a."QualityProfileId",
+    COALESCE(a."RootFolderPath",
+             substr(a."Path", 1, length(a."Path")
+                    - length(replace(a."Path",
+                                     rtrim(a."Path", replace(a."Path",'/','')),
+                                     '')))),
+    COALESCE(a."Tags", '[]'),
+    1,
+    a."Path"
+FROM "Authors" a
+JOIN "QualityProfiles" qp ON qp."Id" = a."QualityProfileId";
+```
+
+Rollback: `DROP TABLE "AuthorFormatProfiles"` and set feature flag to false. No
+existing tables are modified.
+
+##### Acceptance criteria
 
 - Ebook and audiobook variants can co-exist for the same title without conflict.
-- Variant-specific quality upgrades do not overwrite opposite-format tracking state.
-- Existing single-format libraries remain backward compatible without migration breakage.
+- Variant-specific quality upgrades do not alter opposite-format tracking state.
+- Existing single-format libraries remain functionally unchanged when flag is off.
+- Search produces one indexer query per book (not per format).
+- Releases are routed to the correct format slot based on detected quality.
+- Download client routing uses format-specific tags.
+- Imported files land in format-specific root folder paths.
+- Missing/cutoff evaluation reports per-format status.
+- API backward compatibility: legacy clients ignoring `FormatProfiles` continue
+  to work via the existing author-level `QualityProfileId`/`Path`/`Tags` fields.
 
-Rollback/mitigation:
+##### Rollback and mitigation
 
-- Feature-flag the variant model and preserve legacy single-track behavior as fallback until parity tests pass.
+- Feature flag `EnableDualFormatTracking=false` reverts to legacy behavior.
+- `AuthorFormatProfiles` table is additive — dropping it restores the original
+  schema with no data loss.
+- Auto-populated format profiles are derived from existing author config, so
+  enabling the flag does not require manual re-configuration.
+- If a format profile is deleted, the author falls back to its legacy fields.
 
-Implementation task outline:
+##### Measurement plan
 
-1. DF-1 Variant domain model
-     - Deliverables:
-         - Add per-title variant intent model (`ebook`, `audiobook`) with additive schema changes.
-         - Backward-compatible defaults for existing records.
-     - Validation:
-         - Migration test verifies old schema upgrade and downgrade safety.
-2. DF-2 Variant policy separation
-     - Deliverables:
-         - Independent quality/format profile linkage per variant.
-         - Explicit persistence boundaries for variant policy state.
-     - Validation:
-         - Unit tests confirm policy reads/writes are variant-scoped.
-3. DF-3 Variant pipeline isolation
-     - Deliverables:
-         - Search/import/upgrade paths keyed by variant context.
-         - Cross-variant overwrite prevention checks.
-     - Validation:
-         - Integration fixtures for same-title dual-variant scenarios.
-4. DF-4 API and UI surfaces
-     - Deliverables:
-         - API resources expose variant state and decisions.
-         - UI can set/inspect wanted status and quality by variant.
-     - Validation:
-         - API contract tests and frontend behavior tests for dual-variant flows.
-5. DF-5 Rollout and compatibility gates
-     - Deliverables:
-         - Feature flag, migration runbook, rollback path.
-         - Operator diagnostics for per-variant tracking health.
-     - Validation:
-         - Flag-off mode preserves legacy behavior.
-         - Flag-on mode passes dual-variant acceptance suite.
+Correctness KPIs:
 
-Measurement plan:
+- `variant_conflict_count` (target: 0) — books where format profiles disagree
+  on the same file.
+- `cross_variant_overwrite_count` (target: 0) — import events that overwrote a
+  file tracked by the opposite format.
 
-- Correctness KPIs:
-  - `variant_conflict_count` (target: 0)
-  - `cross_variant_overwrite_count` (target: 0)
-- Usability KPI:
-  - `variant_policy_apply_success_rate` (target: 100 percent in acceptance suite)
-- Compatibility KPI:
-  - `legacy_library_regression_failures` (target: 0)
+Usability KPIs:
+
+- `variant_policy_apply_success_rate` (target: 100 percent in acceptance suite)
+  — format profile correctly resolved for every grab/import decision.
+- `search_query_count_per_book` (target: 1) — confirm searches are not
+  multiplied per format.
+
+Compatibility KPIs:
+
+- `legacy_library_regression_failures` (target: 0) — existing test suite passes
+  with flag off and with flag on (single-profile author).
+
+##### Implementation slices
+
+**DF-1: Domain model and schema** (backend only, no behavioral change)
+
+Deliverables:
+
+- New `FormatType` enum (`Ebook = 0`, `Audiobook = 1`).
+- New `AuthorFormatProfile` entity class.
+- New `IAuthorFormatProfileRepository` and `IAuthorFormatProfileService`.
+- Migration 045: create `AuthorFormatProfiles` table with auto-population.
+- `Quality.cs`: add `GetFormatType(Quality quality)` static helper.
+- Feature flag `EnableDualFormatTracking` in `IConfigService`.
+- Unit tests for migration up/down, format type mapping, repository CRUD.
+
+Files to create:
+
+- `src/NzbDrone.Core/Books/Model/FormatType.cs`
+- `src/NzbDrone.Core/Books/Model/AuthorFormatProfile.cs`
+- `src/NzbDrone.Core/Books/Repositories/AuthorFormatProfileRepository.cs`
+- `src/NzbDrone.Core/Books/Services/AuthorFormatProfileService.cs`
+- `src/NzbDrone.Core/Datastore/Migration/045_add_author_format_profiles.cs`
+
+Files to modify:
+
+- [Quality.cs](src/NzbDrone.Core/Qualities/Quality.cs) — add `GetFormatType()` helper
+- [ConfigService.cs](src/NzbDrone.Core/Configuration/ConfigService.cs) — add `EnableDualFormatTracking` property
+- [IConfigService.cs](src/NzbDrone.Core/Configuration/IConfigService.cs) — add interface member
+- [TableMapping.cs](src/NzbDrone.Core/Datastore/TableMapping.cs) — register `AuthorFormatProfile` entity
+
+Validation:
+
+- Migration test verifies schema creation and auto-population.
+- Repository test confirms CRUD operations and unique constraint.
+- `Quality.GetFormatType()` test covers all quality values.
+- Build succeeds. Existing test suite passes unchanged.
+
+**DF-2: Edition monitoring per format type** (behavioral change when flag on)
+
+Deliverables:
+
+- Modify `FixMultipleMonitoredEditions.Clean()` to enforce one monitored edition
+  per format type per book (when flag enabled) instead of one globally.
+- Modify `BookEditionSelector.GetPreferredEdition()` to accept optional
+  `FormatType` parameter.
+- Modify `EditionRepository.SetMonitoredEdition()` to scope by format.
+- `BookMonitoredService` — apply monitoring changes per format when flag enabled.
+
+Files to modify:
+
+- [FixMultipleMonitoredEditions.cs](src/NzbDrone.Core/Housekeeping/Housekeepers/FixMultipleMonitoredEditions.cs)
+- [BookEditionSelector.cs](src/NzbDrone.Core/Books/BookEditionSelector.cs)
+- [EditionRepository.cs](src/NzbDrone.Core/Books/Repositories/EditionRepository.cs)
+- [BookMonitoredService.cs](src/NzbDrone.Core/Books/Services/BookMonitoredService.cs)
+
+Validation:
+
+- Test: book with ebook edition (monitored) + audiobook edition (monitored) —
+  housekeeping does NOT un-monitor either.
+- Test: book with two ebook editions (both monitored) — housekeeping un-monitors
+  one, keeps one.
+- Test: flag off — legacy single-monitored behavior preserved exactly.
+
+**DF-3: Decision engine format-aware quality evaluation** (behavioral change when flag on)
+
+Deliverables:
+
+- `QualityAllowedByProfileSpecification` resolves the format-specific quality
+  profile from `AuthorFormatProfileService` when flag enabled.
+- `UpgradableSpecification` evaluates cutoff against format-specific profile.
+- `RemoteBook` gains optional `ResolvedFormatType` property for downstream use.
+
+Files to modify:
+
+- [QualityAllowedByProfileSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/QualityAllowedByProfileSpecification.cs)
+- [UpgradableSpecification.cs](src/NzbDrone.Core/DecisionEngine/Specifications/UpgradableSpecification.cs)
+- [RemoteBook.cs](src/NzbDrone.Core/Parser/Model/RemoteBook.cs)
+
+Validation:
+
+- Test: EPUB release for author with both profiles → evaluated against eBook
+  profile, accepted.
+- Test: M4B release for same author → evaluated against Spoken profile, accepted.
+- Test: EPUB release but only audiobook profile configured → rejected (not in
+  profile).
+- Test: flag off → falls back to `Author.QualityProfile.Value` exactly as before.
+
+**DF-4: Download client routing by format** (behavioral change when flag on)
+
+Deliverables:
+
+- `DownloadService.DownloadReport` resolves tags from the format profile matching
+  the release's detected format type. Falls back to author tags if no format
+  profile match.
+
+Files to modify:
+
+- [DownloadService.cs](src/NzbDrone.Core/Download/DownloadService.cs)
+
+Validation:
+
+- Test: audiobook release → uses audiobook format profile tags → routes to
+  qBittorrent-Audiobooks.
+- Test: ebook release → uses ebook format profile tags → routes to
+  qBittorrent-Ebooks.
+- Test: no matching format profile → falls back to author tags.
+- Test: flag off → uses `Author.Tags` exactly as before.
+
+**DF-5: Import pipeline format awareness** (behavioral change when flag on)
+
+Deliverables:
+
+- `ImportDecisionMaker` carries format context through import decisions.
+- `IdentificationService` prefers edition with matching format type when multiple
+  editions exist for a book.
+- `ImportApprovedBooks` assigns files to format-specific editions.
+- `AuthorPathInRootFolderSpecification` checks the format-specific root folder
+  when resolving path validity.
+
+Files to modify:
+
+- [ImportDecisionMaker.cs](src/NzbDrone.Core/MediaFiles/BookImport/ImportDecisionMaker.cs)
+- [IdentificationService.cs](src/NzbDrone.Core/MediaFiles/BookImport/Identification/IdentificationService.cs)
+- [ImportApprovedBooks.cs](src/NzbDrone.Core/MediaFiles/BookImport/ImportApprovedBooks.cs)
+- [AuthorPathInRootFolderSpecification.cs](src/NzbDrone.Core/MediaFiles/BookImport/Specifications/AuthorPathInRootFolderSpecification.cs)
+
+Validation:
+
+- Test: import m4b file → assigned to audiobook edition, lands under audiobook
+  root folder.
+- Test: import epub file → assigned to ebook edition, lands under ebook root
+  folder.
+- Test: import m4b for book with no audiobook edition → creates/selects audiobook
+  edition.
+- Test: flag off → existing import behavior unchanged.
+
+**DF-6: File path building by format** (behavioral change when flag on)
+
+Deliverables:
+
+- `AuthorPathBuilder.BuildPath` accepts optional `FormatType` and uses matching
+  format profile's `RootFolderPath`.
+- `FileNameBuilder.BuildBookFilePath` passes format context to path builder.
+- `BookFileMovingService.MoveBookFile` resolves format from file quality.
+
+Files to modify:
+
+- [AuthorPathBuilder.cs](src/NzbDrone.Core/Books/Utilities/AuthorPathBuilder.cs)
+- [FileNameBuilder.cs](src/NzbDrone.Core/Organizer/FileNameBuilder.cs)
+- [BookFileMovingService.cs](src/NzbDrone.Core/MediaFiles/BookFileMovingService.cs)
+
+Validation:
+
+- Test: audiobook file → path under `/media/audiobooks/Author Name/Book Title/`.
+- Test: ebook file → path under `/media/ebooks/Author Name/Book Title/`.
+- Test: flag off → uses `Author.RootFolderPath` as before.
+
+**DF-7: Missing and cutoff evaluation by format** (behavioral change when flag on)
+
+Deliverables:
+
+- `BookCutoffService.BooksWhereCutoffUnmet` evaluates per format profile.
+- `BookService.BooksWithoutFiles` can filter by format type.
+- `MissingBookSearchCommand` and `CutoffUnmetBookSearchCommand` carry optional
+  format filter.
+- Wanted/Missing and Wanted/Cutoff Unmet API endpoints support format filter
+  query parameter.
+
+Files to modify:
+
+- [BookCutoffService.cs](src/NzbDrone.Core/Books/Services/BookCutoffService.cs)
+- [BookService.cs](src/NzbDrone.Core/Books/Services/BookService.cs)
+- [BookSearchService.cs](src/NzbDrone.Core/IndexerSearch/BookSearchService.cs)
+- [MissingController.cs](src/Bibliophilarr.Api.V1/Wanted/MissingController.cs)
+- [CutoffController.cs](src/Bibliophilarr.Api.V1/Wanted/CutoffController.cs)
+
+Validation:
+
+- Test: book has audiobook file but no ebook file → appears in missing (ebook)
+  but not missing (audiobook).
+- Test: book has low-quality audiobook → appears in cutoff (audiobook) but not if
+  ebook cutoff is met.
+- Test: flag off → existing missing/cutoff behavior unchanged.
+
+**DF-8: API resources and controllers** (API surface change)
+
+Deliverables:
+
+- New `AuthorFormatProfileResource` and `BookFormatStatusResource` classes.
+- `AuthorResource` mapper includes `FormatProfiles`.
+- `BookResource` mapper includes `FormatStatuses`.
+- `AuthorController` CRUD endpoints for format profiles.
+- New `AuthorFormatProfileController` for dedicated format profile management.
+
+Files to create:
+
+- `src/Bibliophilarr.Api.V1/Author/AuthorFormatProfileResource.cs`
+- `src/Bibliophilarr.Api.V1/Books/BookFormatStatusResource.cs`
+- `src/Bibliophilarr.Api.V1/Author/AuthorFormatProfileController.cs`
+
+Files to modify:
+
+- [AuthorResource.cs](src/Bibliophilarr.Api.V1/Author/AuthorResource.cs)
+- [BookResource.cs](src/Bibliophilarr.Api.V1/Books/BookResource.cs)
+- [AuthorController.cs](src/Bibliophilarr.Api.V1/Author/AuthorController.cs)
+
+Validation:
+
+- API contract tests for `GET /api/v1/author/{id}` returning `FormatProfiles`.
+- API contract tests for `GET /api/v1/book/{id}` returning `FormatStatuses`.
+- API contract tests for `POST/PUT/DELETE /api/v1/authorformatprofile`.
+- Backward compat: legacy clients ignoring new fields continue to work.
+
+**DF-9: Frontend format profile UI** (UI change)
+
+Deliverables:
+
+- Author edit modal: format profile editor (add/remove format, assign quality
+  profile, root folder, tags per format).
+- Add Author modal: format profile setup with defaults from selected root folder.
+- Author detail header: format profile badges showing active formats.
+- Book table: per-format status icons (audiobook/ebook with monitored/missing/
+  available indicators).
+- Per-format monitoring toggle on book rows.
+- Wanted/Missing and Wanted/Cutoff pages: format filter dropdown.
+- Redux store updates for format profile CRUD and per-format book status.
+
+Files to create:
+
+- `frontend/src/Author/Edit/AuthorFormatProfileEditor.js`
+- `frontend/src/Store/Actions/authorFormatProfileActions.js`
+
+Files to modify:
+
+- [AuthorDetails.js](frontend/src/Author/Details/AuthorDetails.js)
+- [AuthorDetailsHeader.js](frontend/src/Author/Details/AuthorDetailsHeader.js)
+- [AuthorDetailsSeason.js](frontend/src/Author/Details/AuthorDetailsSeason.js)
+- [EditAuthorModalContent.js](frontend/src/Author/Edit/EditAuthorModalContent.js)
+- [bookActions.js](frontend/src/Store/Actions/bookActions.js)
+- [authorActions.js](frontend/src/Store/Actions/authorActions.js)
+- Add Author modal components
+
+Validation:
+
+- Manual UI testing: add author with dual format, verify both format profiles
+  visible.
+- Manual UI testing: toggle audiobook monitoring independently of ebook.
+- Manual UI testing: Wanted pages filter by format.
+- Frontend build succeeds.
+
+**DF-10: Rollout controls and compatibility gates** (operational)
+
+Deliverables:
+
+- Feature flag wiring: config service, API exposure, frontend config consumer.
+- Migration runbook documenting enable/disable/rollback procedure.
+- Acceptance test suite covering all dual-variant scenarios.
+- Operator diagnostic endpoint for format profile health.
+
+Files to modify:
+
+- [ConfigService.cs](src/NzbDrone.Core/Configuration/ConfigService.cs)
+- [HostConfigResource.cs](src/Bibliophilarr.Api.V1/Config/HostConfigResource.cs) (or equivalent config resource)
+
+Validation:
+
+- Full test suite passes with flag off.
+- Full test suite passes with flag on (with dual-format test data).
+- Manual toggle test: enable flag mid-run, verify format profiles activate.
+- Manual toggle test: disable flag mid-run, verify legacy behavior restored.
 
 Primary touch points:
 
@@ -655,29 +1318,37 @@ Migration risk note:
 - [Testing Strategy](#testing-strategy)
 - [Migration Tools](#migration-tools)
 - [Risks and Mitigations](#risks-and-mitigations)
-- [Timeline and Milestones](#timeline-and-milestones)
+- [Historical milestones](#historical-milestones)
 
 ---
 
-## Current State
+## Current state
 
-### Existing Architecture
+### Existing architecture
 
-Bibliophilarr currently uses a two-tier metadata system:
+Bibliophilarr currently uses a multi-provider metadata system:
 
-1. **BookInfoProxy** (Primary Provider)
-   - Implements: `IProvideAuthorInfo`, `IProvideBookInfo`, `ISearchForNewBook`, `ISearchForNewAuthor`, `ISearchForNewEntity`
-   - JSON-based API
-   - Comprehensive book and author metadata
-   - Advanced search with special syntax (edition:, author:, work:, isbn:, asin:)
+1. **Hardcover** (Primary runtime provider)
 
-2. **OpenLibrarySearchProxy** (Primary search/lookup provider)
-    - Implements: `IOpenLibrarySearchProxy`
-    - OpenLibrary API-backed search and identifier lookup
-    - Handles title/author query search and ISBN/ASIN lookup fallback behavior
-    - Active and in use
+- Primary source for author, book, and series metadata.
+- GraphQL-backed provider with fallback-oriented search behavior.
 
-### Problems with Current System
+2. **Open Library** (Secondary provider and primary FOSS lookup path)
+
+- OpenLibrary API-backed search and identifier lookup.
+- Active in search, lookup, refresh, and identifier backfill flows.
+
+3. **Google Books** (Supplementary fallback provider)
+
+- Used for selected enrichment and fallback scenarios when enabled.
+
+4. **Inventaire** (Supplementary provider)
+
+- Optional secondary metadata source when enabled.
+
+Legacy `BookInfoProxy` references later in this document are historical architecture context, not the current active runtime baseline.
+
+### Problems with current system
 
 - **Legacy Goodreads API paths**: Removed from active runtime provider implementations
 - **Proprietary Dependency**: Not community maintainable
@@ -686,7 +1357,7 @@ Bibliophilarr currently uses a two-tier metadata system:
 - **Data Quality**: Inconsistent metadata, missing books
 - **Rate Limiting**: Restrictive API quotas
 
-### Foreign ID System
+### Foreign ID system
 
 Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign IDs as the active identity path:
 
@@ -698,7 +1369,7 @@ Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign 
 
 ## Goals
 
-### Primary Goals
+### Primary goals
 
 1. **Complete FOSS Migration**: Replace all Goodreads dependencies with FOSS providers
 2. **Multi-Provider Support**: Implement fallback and aggregation strategies
@@ -706,7 +1377,7 @@ Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign 
 4. **Backward Compatibility**: Support legacy Goodreads IDs during transition
 5. **Improved Reliability**: Multiple sources prevent single point of failure
 
-### Secondary Goals
+### Secondary goals
 
 1. **Better Metadata Quality**: Aggregate data from multiple sources
 2. **Community Contribution**: Enable users to improve metadata
@@ -716,9 +1387,23 @@ Current migration direction uses provider-agnostic/OpenLibrary-oriented foreign 
 
 ---
 
-## FOSS Metadata Provider Options
+## FOSS metadata provider options
 
-### Primary Provider: Open Library
+> **Note:** This section was originally written before Hardcover was integrated as the
+> primary provider. The hierarchy below reflects the current operational state.
+> See [README.md](README.md) for the current provider summary.
+
+### Primary Provider: Hardcover
+
+**URL**: <https://hardcover.app/>
+
+Hardcover is the primary metadata source for Bibliophilarr. It provides a GraphQL API
+with comprehensive book, author, and series data. The Hardcover provider was implemented
+with structured GraphQL error handling, rate-limit awareness, and fallback search
+capability. See `HardcoverProxy.cs` and `HardcoverFallbackSearchProvider.cs` in the
+codebase for implementation details.
+
+### Secondary Provider: Open Library
 
 **URL**: <https://openlibrary.org/>
 
@@ -801,15 +1486,15 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
 
 **Usage**: Fallback only for critical missing data
 
-### Additional Data Sources
+### Additional data sources
 
-#### MusicBrainz BookBrainz (Future Consideration)
+#### MusicBrainz BookBrainz (future consideration)
 
 - Still in development
 - Community-driven book database
 - Would be ideal when mature
 
-#### ISBN Database Services
+#### ISBN database services
 
 - ISBN.org (official ISBN registry)
 - ISBNdb.com (freemium, requires key)
@@ -817,9 +1502,9 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
 
 ---
 
-## Architecture Design
+## Architecture design
 
-### Multi-Provider Architecture
+### Multi-provider architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -838,13 +1523,13 @@ ISBN: /api/entities?action=by-isbn&isbns={isbn}
         ┌───────────────────┼───────────────────┐
         │                   │                   │
 ┌───────▼────────┐  ┌──────▼──────┐  ┌────────▼─────────┐
-│  Open Library  │  │  Inventaire │  │  Google Books    │
+│   Hardcover    │  │ Open Library│  │  Google Books    │
 │    Provider    │  │   Provider  │  │    Provider      │
 │   (Primary)    │  │ (Secondary) │  │   (Fallback)     │
 └────────────────┘  └─────────────┘  └──────────────────┘
 ```
 
-### Provider Interface Design
+### Provider interface design
 
 ```csharp
 // Core Provider Interface
@@ -895,9 +1580,12 @@ public interface IMetadataAggregator
 }
 ```
 
-### ID Mapping Strategy
+### ID mapping strategy
 
 To handle the transition from Goodreads IDs to multiple provider IDs:
+
+> **Note:** `GoodreadsId` properties are retained as read-only legacy compatibility fields
+> for existing library databases. They are not populated by active providers.
 
 ```csharp
 public class BookIdentifiers
@@ -931,7 +1619,7 @@ public class AuthorIdentifiers
 }
 ```
 
-### Caching Strategy
+### Caching strategy
 
 ```csharp
 public class MetadataCacheManager
@@ -953,37 +1641,12 @@ public class MetadataCacheManager
 
 ---
 
-## Implementation Phases
+## Implementation phases
 
-### Session Progress Update (2026-03-17)
+> **Note:** Phase headings below reflect the original 2024 plan structure.
+> Current delivery is tracked via [ROADMAP.md](ROADMAP.md) phase model.
 
-Completed in code on branch `feature/open-library-provider-2026-03-17`:
-
-- Added provider abstraction and fallback orchestration:
-  - `IMetadataProvider`
-  - `IMetadataProviderRegistry`
-  - `MetadataProviderRegistry`
-- Refactored search abstraction to be provider-agnostic:
-  - `ISearchForNewBook.SearchByExternalId(string idType, string id)` replaces direct `SearchByGoodreadsBookId(...)` interface usage
-- Implemented Open Library provider stack:
-  - `OpenLibraryClient` with endpoint wrappers (`/search`, `/works`, `/authors`, `/isbn`, `/books`) and 429 retry handling
-  - `OpenLibraryMapper` with deterministic resource-to-domain mapping
-  - `OpenLibraryProvider` implementing search and metadata interfaces with priority-based fallback role
-  - Open Library resource DTOs and `OpenLibraryException`
-- Added additive database migration for Open Library foreign IDs:
-  - `042_add_open_library_ids.cs`
-  - `Book.OpenLibraryWorkId`
-  - `AuthorMetadata.OpenLibraryAuthorId`
-- Updated import/sync path to remove direct Goodreads proxy coupling in `ImportListSyncService` by using `ISearchForNewBook` abstraction.
-
-Validation status:
-
-- `Bibliophilarr.Core.csproj` builds cleanly (0 errors).
-- `Bibliophilarr.Core.Test.csproj` builds cleanly (0 errors).
-- Open Library mapper and model equality tests pass.
-- Provider fixture tests currently fail due to pre-existing test harness platform assembly naming mismatch (`AutoMoqer.LoadPlatformLibrary()` expected name does not match embedded mono assembly name), not due to Open Library implementation logic.
-
-### Phase 1: Foundation & Documentation ✓
+### Phase 1: Foundation & documentation ✓
 
 **Status**: Completed foundational phase (historical)
 
@@ -1001,7 +1664,7 @@ Validation status:
 - Updated README.md
 - Contributor guidelines for metadata work
 
-### Phase 2: Infrastructure Setup ✓
+### Phase 2: Infrastructure setup ✓
 
 **Status**: Completed (core slice)
 
@@ -1024,14 +1687,14 @@ Validation status:
 
 - `IMetadataProvider` and `IMetadataProviderRegistry`
 - `MetadataProviderRegistry` priority-based fallback execution
-- Provider abstraction wiring for `BookInfoProxy` (priority 1) and Open Library (priority 2)
+- Provider abstraction wiring that enabled the later Hardcover/Open Library/Google Books/Inventaire runtime model
 
 **Deferred to later phases:**
 
 - Metadata quality scorer
 - Expanded provider health/telemetry and scoring instrumentation
 
-### Phase 3: Open Library Provider Implementation ✓
+### Phase 3: Open Library provider implementation ✓
 
 **Status**: Implemented and partially validated
 
@@ -1081,7 +1744,7 @@ src/NzbDrone.Core/MetadataSource/OpenLibrary/
 
 - Provider fixture execution is blocked by existing test harness assembly load mismatch and needs a dedicated infrastructure fix before full provider fixture green status can be asserted.
 
-### Phase 4: Inventaire Provider Implementation
+### Phase 4: Inventaire provider implementation
 
 **Tasks:**
 
@@ -1101,7 +1764,7 @@ src/NzbDrone.Core/MetadataSource/Inventaire/
   └── Resources/
 ```
 
-### Phase 5: Provider Aggregation Layer
+### Phase 5: Provider aggregation layer
 
 **Tasks:**
 
@@ -1148,7 +1811,7 @@ public class MetadataAggregator
 }
 ```
 
-### Phase 6: Database Migration
+### Phase 6: Database migration
 
 **Tasks:**
 
@@ -1189,7 +1852,7 @@ CREATE INDEX IX_Books_OpenLibraryWorkId ON Books(OpenLibraryWorkId);
 CREATE INDEX IX_Authors_OpenLibraryAuthorId ON Authors(OpenLibraryAuthorId);
 ```
 
-### Phase 7: Migration Tools
+### Phase 7: Migration tools
 
 **Tasks:**
 
@@ -1242,7 +1905,7 @@ public class LibraryMigrationService
 }
 ```
 
-### Phase 8: UI/UX Updates
+### Phase 8: UI/UX updates
 
 **Tasks:**
 
@@ -1268,7 +1931,7 @@ Settings → Metadata
       └── Google Books: ● Healthy (Response: 180ms)
 ```
 
-### Phase 9: Testing & Quality Assurance
+### Phase 9: Testing & quality assurance
 
 **Tasks:**
 
@@ -1286,7 +1949,7 @@ Settings → Metadata
 - Migration tools: >85%
 - UI components: >80%
 
-### Phase 10: Documentation & Release
+### Phase 10: Documentation & release
 
 **Tasks:**
 
@@ -1300,11 +1963,11 @@ Settings → Metadata
 
 ---
 
-## Technical Specifications
+## Technical specifications
 
-### Open Library Implementation Details
+### Open Library implementation details
 
-#### Search Endpoint
+#### Search endpoint
 
 ```
 GET /search.json?q={query}&author={author}&title={title}
@@ -1326,7 +1989,7 @@ Response:
 }
 ```
 
-#### Work Endpoint
+#### Work endpoint
 
 ```
 GET /works/{OLID}.json
@@ -1359,7 +2022,7 @@ Response:
 }
 ```
 
-### Rate Limiting Implementation
+### Rate limiting implementation
 
 ```csharp
 public class RateLimitedHttpClient
@@ -1410,7 +2073,7 @@ public class RateLimitedHttpClient
 }
 ```
 
-### Metadata Quality Scoring
+### Metadata quality scoring
 
 ```csharp
 public class MetadataQualityScorer
@@ -1442,30 +2105,30 @@ public class MetadataQualityScorer
 
 ---
 
-## Testing Strategy
+## Testing strategy
 
-### Unit Testing
+### Unit testing
 
 - Test each provider independently with mocked HTTP responses
 - Test data mapping/transformation logic
 - Test rate limiting logic
 - Test error handling
 
-### Integration Testing
+### Integration testing
 
 - Test against real provider APIs (with caching to avoid rate limits)
 - Test provider fallback scenarios
 - Test metadata aggregation
 - Test database migrations
 
-### Performance Testing
+### Performance testing
 
 - Benchmark search performance
 - Test with libraries of varying sizes (100, 1000, 10000+ books)
 - Measure cache effectiveness
 - Test concurrent request handling
 
-### User Acceptance Testing
+### User acceptance testing
 
 - Beta release to community
 - Migration of real user libraries
@@ -1474,9 +2137,9 @@ public class MetadataQualityScorer
 
 ---
 
-## Migration Tools
+## Migration tools
 
-### Goodreads ID Mapper
+### Goodreads ID mapper
 
 For existing libraries with Goodreads IDs, we need to map them to ISBNs and new provider IDs:
 
@@ -1507,7 +2170,7 @@ public class GoodreadsIdMapper
 }
 ```
 
-### Migration Report
+### Migration report
 
 ```csharp
 public class MigrationReport
@@ -1531,7 +2194,7 @@ public class MigrationReport
 
 ## Risks and Mitigations
 
-### Risk 1: Open Library Rate Limiting
+### Risk 1: Open Library rate limiting
 
 **Impact**: High  
 **Probability**: Medium
@@ -1544,7 +2207,7 @@ public class MigrationReport
 - Register for API key (5x higher limits)
 - Consider hosting a local Open Library mirror for large instances
 
-### Risk 2: Incomplete Metadata Coverage
+### Risk 2: Incomplete metadata coverage
 
 **Impact**: Medium  
 **Probability**: Medium
@@ -1557,7 +2220,7 @@ public class MigrationReport
 - Community contribution tools
 - Gradual migration with user validation
 
-### Risk 3: ISBN Mapping Failures
+### Risk 3: ISBN mapping failures
 
 **Impact**: High  
 **Probability**: Medium
@@ -1570,7 +2233,7 @@ public class MigrationReport
 - Community-contributed mapping database
 - Keep Goodreads IDs as legacy reference
 
-### Risk 4: Performance Degradation
+### Risk 4: Performance degradation
 
 **Impact**: Medium  
 **Probability**: Low
@@ -1583,7 +2246,7 @@ public class MigrationReport
 - Async/await throughout
 - Connection pooling and keep-alive
 
-### Risk 5: Provider API Changes
+### Risk 5: Provider API changes
 
 **Impact**: Medium  
 **Probability**: Low
@@ -1596,7 +2259,7 @@ public class MigrationReport
 - Quick rollback capability
 - Multiple provider redundancy
 
-### Risk 6: Data Quality Issues
+### Risk 6: Data quality issues
 
 **Impact**: Medium  
 **Probability**: High
@@ -1611,70 +2274,27 @@ public class MigrationReport
 
 ---
 
-## Timeline and Milestones
+## Historical milestones
 
-### Milestone 1: Foundation (Current - Week 4)
+> **Note:** This section reflects the original 2024 migration proposal timeline.
+> The project now follows the phase-based delivery model documented in [ROADMAP.md](ROADMAP.md).
+> Milestones 1–4 have been substantially completed; the remaining work is tracked
+> as Phase 6–7 items in the roadmap.
 
-- ✅ Repository analysis
-- ✅ Migration plan creation
-- ✅ Documentation updates
-- 🔄 Community engagement (ongoing)
-
-### Milestone 2: Infrastructure (Week 5-8)
-
-- Provider interfaces
-- Testing framework
-- Quality scoring system
-- Monitoring/logging
-
-### Milestone 3: Open Library Provider (Week 9-14)
-
-- Complete implementation
-- Comprehensive testing
-- Performance optimization
-- Documentation
-
-### Milestone 4: Multi-Provider Support (Week 15-18)
-
-- Inventaire implementation
-- Aggregation layer
-- Fallback logic
-- Provider management UI
-
-### Milestone 5: Migration Tools (Week 19-22)
-
-- Database migration
-- ID mapping tools
-- Bulk updater
-- User migration guide
-
-### Milestone 6: Beta Release (Week 23-26)
-
-- Community testing
-- Bug fixes
-- Performance tuning
-- Documentation updates
-
-### Milestone 7: Stable Release (Week 31-34)
-
-- Final testing
-- Production deployment
-- Goodreads deprecation
-- Celebration! 🎉
+| Milestone | Original scope | Status |
+|---|---|---|
+| 1. Foundation | Repository analysis, migration plan, documentation, community engagement | Complete |
+| 2. Infrastructure | Provider interfaces, testing framework, quality scoring, monitoring | Complete |
+| 3. Provider implementation | Open Library + Hardcover providers, testing, performance | Complete (Hardcover added as primary) |
+| 4. Multi-provider support | Aggregation layer, fallback logic, provider management | Complete |
+| 5. Migration tools | Database migration, ID mapping, bulk updater | Partially complete — see ROADMAP Track A |
+| 6. Beta / Stable release | Community testing, performance tuning, documentation | In progress — see ROADMAP Phase 6–7 |
 
 ---
 
 ## Contributing
 
-We welcome contributions to this migration effort! Priority areas:
-
-1. **Provider Implementation**: Help build Open Library and Inventaire providers
-2. **Testing**: Write tests, report bugs, test with real libraries
-3. **Documentation**: Improve guides, add examples, translate
-4. **UI/UX**: Design provider settings, improve metadata display
-5. **Migration Tools**: Build tools to help users migrate
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and priority areas.
 
 ---
 
@@ -1694,6 +2314,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Appendix: API Comparison
 
+> **Note:** Goodreads has been removed from the runtime. The column is retained for historical comparison only.
+
 | Feature | Open Library | Inventaire | Google Books | Goodreads (Legacy) |
 |---------|--------------|------------|--------------|-------------------|
 | **License** | AGPL (Open) | AGPL (Open) | Proprietary | Proprietary |
@@ -1712,15 +2334,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ---
 
-## Document Version History
+## Document version history
 
 Major revisions are tracked via git history. Key milestones:
 
 - **v1.0** (2024-02-16): Initial comprehensive migration plan
 - **v2.0** (2026-03): Phase 5/6 consolidation, Hardcover primary provider, telemetry integration
+- **v2.1** (2026-04): Documentation normalization — updated provider hierarchy to reflect Hardcover as primary, rewrote stale Timeline section, backfilled empty validation sections, aligned with ROADMAP.md phase model
 
 ---
 
-**Last Updated**: March 23, 2026  
+**Last Updated**: April 5, 2026  
 **Status**: Active migration program (Phase 5 consolidation, Phase 6 hardening)  
 **Next Review**: Next canonical roadmap/status update cycle

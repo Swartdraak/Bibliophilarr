@@ -61,23 +61,35 @@ namespace NzbDrone.Core.MediaFiles
         public void DeleteTrackFile(Author author, BookFile bookFile)
         {
             var fullPath = bookFile.Path;
-            var rootFolder = _diskProvider.GetParentFolder(author.Path);
 
-            if (!_diskProvider.FolderExists(rootFolder))
+            // Use the best matching root folder for the file's actual path, not the author's
+            // base path. With dual-format tracking, ebook files may be under a different root
+            // folder (e.g. /media/ebooks) than the author's primary path (e.g. /media/audiobooks).
+            var fileRootFolder = _rootFolderService.GetBestRootFolder(fullPath);
+            var rootFolderPath = fileRootFolder?.Path ?? _diskProvider.GetParentFolder(author.Path);
+
+            if (!_diskProvider.FolderExists(rootFolderPath))
             {
-                _logger.Warn("Author's root folder ({0}) doesn't exist.", rootFolder);
-                throw new NzbDroneClientException(HttpStatusCode.Conflict, "Author's root folder ({0}) doesn't exist.", rootFolder);
+                _logger.Warn("Root folder ({0}) doesn't exist for file {1}.", rootFolderPath, fullPath);
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "Root folder ({0}) doesn't exist.", rootFolderPath);
             }
 
-            if (_diskProvider.GetDirectories(rootFolder).Empty())
+            if (_diskProvider.GetDirectories(rootFolderPath).Empty())
             {
-                _logger.Warn("Author's root folder ({0}) is empty.", rootFolder);
-                throw new NzbDroneClientException(HttpStatusCode.Conflict, "Author's root folder ({0}) is empty.", rootFolder);
+                _logger.Warn("Root folder ({0}) is empty.", rootFolderPath);
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "Root folder ({0}) is empty.", rootFolderPath);
             }
 
-            if (_diskProvider.FolderExists(author.Path))
+            // Determine the author folder under this root folder
+            var fileParent = _diskProvider.GetParentFolder(fullPath);
+            if (rootFolderPath.IsParentPath(fileParent))
             {
-                var subfolder = _diskProvider.GetParentFolder(author.Path).GetRelativePath(_diskProvider.GetParentFolder(fullPath));
+                var subfolder = rootFolderPath.GetRelativePath(fileParent);
+                DeleteTrackFile(bookFile, subfolder);
+            }
+            else if (_diskProvider.FolderExists(author.Path))
+            {
+                var subfolder = _diskProvider.GetParentFolder(author.Path).GetRelativePath(fileParent);
                 DeleteTrackFile(bookFile, subfolder);
             }
             else

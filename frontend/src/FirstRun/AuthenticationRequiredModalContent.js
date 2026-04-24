@@ -87,7 +87,7 @@ function AuthenticationRequiredModalContent(props) {
                   values={authenticationMethodOptions}
                   helpText={translate('AuthenticationMethodHelpText')}
                   helpTextWarning={authenticationMethod.value === 'none' ? translate('AuthenticationMethodHelpTextWarning') : undefined}
-                  helpLink="https://github.com/Swartdraak/Bibliophilarr/wiki/faq#forced-authentication"
+                  helpLink="/system/wiki/faq"
                   onChange={onInputChange}
                   {...authenticationMethod}
                 />

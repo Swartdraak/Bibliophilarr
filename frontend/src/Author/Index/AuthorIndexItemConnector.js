@@ -38,12 +38,14 @@ function createMapStateToProps() {
     createAuthorMetadataProfileSelector(),
     selectShowSearchAction(),
     createExecutingCommandsSelector(),
+    (state) => state.settings.qualityProfiles.items,
     (
       author,
       qualityProfile,
       metadataProfile,
       showSearchAction,
-      executingCommands
+      executingCommands,
+      qualityProfiles
     ) => {
 
       // If an author is deleted this selector may fire before the parent
@@ -71,11 +73,21 @@ function createMapStateToProps() {
 
       const latestBook = _.maxBy(author.books, (book) => book.releaseDate);
 
+      // Resolve quality profile names for each format profile
+      const resolvedFormatProfiles = (author.formatProfiles || []).map((fp) => {
+        const qp = qualityProfiles.find((p) => p.id === fp.qualityProfileId);
+        return {
+          ...fp,
+          qualityProfileName: qp ? qp.name : ''
+        };
+      });
+
       return {
         ...author,
         qualityProfile,
         metadataProfile,
         latestBook,
+        resolvedFormatProfiles,
         showSearchAction,
         isRefreshingAuthor,
         isSearchingAuthor

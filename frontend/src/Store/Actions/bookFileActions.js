@@ -75,6 +75,12 @@ export const defaultState = {
       isVisible: true
     },
     {
+      name: 'format',
+      label: 'Format',
+      isSortable: false,
+      isVisible: true
+    },
+    {
       name: 'actions',
       columnLabel: 'Actions',
       isVisible: true,

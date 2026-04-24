@@ -23,6 +23,11 @@ const columns = [
     isVisible: true
   },
   {
+    name: 'format',
+    label: 'Format',
+    isVisible: true
+  },
+  {
     name: 'releaseDate',
     label: 'Release Date',
     isSortable: true,

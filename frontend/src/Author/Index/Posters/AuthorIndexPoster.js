@@ -94,6 +94,7 @@ class AuthorIndexPoster extends Component {
       showMonitored,
       showQualityProfile,
       qualityProfile,
+      resolvedFormatProfiles,
       metadataProfile,
       showSearchAction,
       showRelativeDates,
@@ -237,7 +238,13 @@ class AuthorIndexPoster extends Component {
 
           {showQualityProfile && !!qualityProfile?.name ? (
             <div className={styles.title} title={translate('QualityProfile')}>
-              {qualityProfile.name}
+              {resolvedFormatProfiles && resolvedFormatProfiles.length > 0 ?
+                resolvedFormatProfiles.map((fp) => {
+                  const prefix = fp.formatType === 'ebook' ? 'E' : 'A';
+                  return `${prefix}: ${fp.qualityProfileName}`;
+                }).join(' / ') :
+                qualityProfile.name
+              }
             </div>
           ) : null}
 
@@ -304,6 +311,7 @@ AuthorIndexPoster.propTypes = {
   showMonitored: PropTypes.bool.isRequired,
   showQualityProfile: PropTypes.bool.isRequired,
   qualityProfile: PropTypes.object.isRequired,
+  resolvedFormatProfiles: PropTypes.arrayOf(PropTypes.object),
   metadataProfile: PropTypes.object.isRequired,
   showSearchAction: PropTypes.bool.isRequired,
   showRelativeDates: PropTypes.bool.isRequired,

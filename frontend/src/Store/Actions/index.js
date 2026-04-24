@@ -9,6 +9,7 @@
 import * as app from './appActions';
 import * as author from './authorActions';
 import * as authorDetails from './authorDetailsActions';
+import * as authorFormatProfiles from './authorFormatProfileActions';
 import * as authorHistory from './authorHistoryActions';
 import * as authorIndex from './authorIndexActions';
 import * as blocklist from './blocklistActions';
@@ -42,6 +43,7 @@ export default [
   app,
   author,
   authorDetails,
+  authorFormatProfiles,
   authorHistory,
   authorIndex,
   blocklist,

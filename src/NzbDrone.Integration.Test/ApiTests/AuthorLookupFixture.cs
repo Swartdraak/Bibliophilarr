@@ -1,6 +1,6 @@
 using FluentAssertions;
 using NUnit.Framework;
-using RestSharp;
+using NzbDrone.Integration.Test.Client;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
@@ -19,10 +19,10 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Test]
         public void lookup_with_malformed_identifier_should_not_return_server_error()
         {
-            var request = new RestRequest("author/lookup", Method.GET);
+            var request = new SimpleRestRequest("author/lookup");
             request.AddQueryParameter("term", "edition:bad value with spaces");
 
-            var response = RestClient.Execute(request);
+            var response = ExecuteRequest(request);
 
             ((int)response.StatusCode).Should().BeLessThan(500);
         }

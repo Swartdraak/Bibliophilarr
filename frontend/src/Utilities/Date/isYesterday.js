@@ -1,11 +1,11 @@
-import moment from 'moment';
+import { isYesterday as isSameAsYesterday, parseISO } from 'date-fns';
 
 function isYesterday(date) {
   if (!date) {
     return false;
   }
 
-  return moment(date).isSame(moment().subtract(1, 'day'), 'day');
+  return isSameAsYesterday(parseISO(date));
 }
 
 export default isYesterday;

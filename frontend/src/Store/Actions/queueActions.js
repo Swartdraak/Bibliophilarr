@@ -111,6 +111,12 @@ export const defaultState = {
         isVisible: false
       },
       {
+        name: 'formatType',
+        label: 'Format',
+        isSortable: false,
+        isVisible: false
+      },
+      {
         name: 'indexer',
         label: () => translate('Indexer'),
         isSortable: true,

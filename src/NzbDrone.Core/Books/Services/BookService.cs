@@ -33,6 +33,8 @@ namespace NzbDrone.Core.Books
         void SetMonitored(IEnumerable<int> ids, bool monitored);
         void UpdateLastSearchTime(List<Book> books);
         PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec);
+        PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType);
+        PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType, bool dualFormatEnabled);
         List<Book> BooksBetweenDates(DateTime start, DateTime end, bool includeUnmonitored);
         List<Book> AuthorBooksBetweenDates(Author author, DateTime start, DateTime end, bool includeUnmonitored);
         void InsertMany(List<Book> books);
@@ -223,9 +225,17 @@ namespace NzbDrone.Core.Books
 
         public PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec)
         {
-            var bookResult = _bookRepository.BooksWithoutFiles(pagingSpec);
+            return BooksWithoutFiles(pagingSpec, null, false);
+        }
 
-            return bookResult;
+        public PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType)
+        {
+            return BooksWithoutFiles(pagingSpec, formatType, false);
+        }
+
+        public PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType, bool dualFormatEnabled)
+        {
+            return _bookRepository.BooksWithoutFiles(pagingSpec, formatType, dualFormatEnabled);
         }
 
         public List<Book> BooksBetweenDates(DateTime start, DateTime end, bool includeUnmonitored)

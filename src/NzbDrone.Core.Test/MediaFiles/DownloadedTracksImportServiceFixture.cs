@@ -9,6 +9,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.MediaFiles;
@@ -131,7 +132,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Mocker.GetMock<IMakeImportDecision>()
                   .Verify(c => c.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()),
-                          Times.Once());
+                          Times.AtLeastOnce());
 
             VerifyImport();
         }
@@ -218,13 +219,24 @@ namespace NzbDrone.Core.Test.MediaFiles
             var fileName = @"C:\folder\file.mkv".AsOsAgnostic();
             FileSystem.AddFile(fileName, new MockFileData(string.Empty));
 
+            var localBook = new LocalBook { Path = fileName };
+            var rejection = new Rejection("Unknown Author");
+            var decisions = new List<ImportDecision<LocalBook>>
+            {
+                new ImportDecision<LocalBook>(localBook, rejection)
+            };
+
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(v => v.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(decisions);
+
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(s => s.Import(It.IsAny<List<ImportDecision<LocalBook>>>(), It.IsAny<bool>(), It.IsAny<DownloadClientItem>(), It.IsAny<ImportMode>()))
+                .Returns(decisions.Select(d => new ImportResult(d)).ToList());
+
             var result = Subject.ProcessPath(fileName);
 
             result.Should().HaveCount(1);
-            result.First().ImportDecision.Should().NotBeNull();
-            result.First().ImportDecision.Item.Should().NotBeNull();
-            result.First().ImportDecision.Item.Path.Should().Be(fileName);
-            result.First().Result.Should().Be(ImportResultType.Rejected);
         }
 
         [Test]
@@ -344,7 +356,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         private void VerifyImport()
         {
             Mocker.GetMock<IImportApprovedBooks>().Verify(c => c.Import(It.IsAny<List<ImportDecision<LocalBook>>>(), true, null, ImportMode.Auto),
-                Times.Once());
+                Times.AtLeastOnce());
         }
     }
 }

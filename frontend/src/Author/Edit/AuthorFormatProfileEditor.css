@@ -1,0 +1,27 @@
+.formatProfiles {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+
+  margin-top: 5px;
+}
+
+.profileSection {
+  padding: 10px;
+  border: 1px solid var(--borderColor);
+  border-radius: 4px;
+}
+
+.profileHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  margin-bottom: 10px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.profileTitle {
+  margin-left: 3px;
+}

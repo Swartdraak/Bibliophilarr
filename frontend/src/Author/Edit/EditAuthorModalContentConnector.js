@@ -3,9 +3,11 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
-import { saveAuthor, setAuthorValue } from 'Store/Actions/authorActions';
+import { fetchAuthor, saveAuthor, setAuthorValue } from 'Store/Actions/authorActions';
+import { fetchRootFolders } from 'Store/Actions/settingsActions';
 import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
 import selectSettings from 'Store/Selectors/selectSettings';
+import createAjaxRequest from 'Utilities/createAjaxRequest';
 import EditAuthorModalContent from './EditAuthorModalContent';
 
 function createIsPathChangingSelector() {
@@ -56,6 +58,7 @@ function createMapStateToProps() {
         originalPath: author.path,
         item: settings.settings,
         showMetadataProfile: metadataProfiles.items.length > 1,
+        formatProfiles: author.formatProfiles || [],
         ...settings
       };
     }
@@ -64,16 +67,44 @@ function createMapStateToProps() {
 
 const mapDispatchToProps = {
   dispatchSetAuthorValue: setAuthorValue,
-  dispatchSaveAuthor: saveAuthor
+  dispatchSaveAuthor: saveAuthor,
+  dispatchFetchAuthor: fetchAuthor,
+  dispatchFetchRootFolders: fetchRootFolders
 };
 
 class EditAuthorModalContentConnector extends Component {
 
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      formatProfileChanges: {},
+      formatProfilesSaving: false,
+      formatProfileSaveError: null
+    };
+  }
+
   //
   // Lifecycle
 
+  componentDidMount() {
+    this.props.dispatchFetchRootFolders();
+  }
+
   componentDidUpdate(prevProps, prevState) {
-    if (prevProps.isSaving && !this.props.isSaving && !this.props.saveError) {
+    const {
+      isSaving,
+      saveError
+    } = this.props;
+
+    const { formatProfilesSaving, formatProfileSaveError } = this.state;
+
+    // Close modal only when both author save and format profile saves are complete and successful
+    if (
+      !isSaving && !saveError &&
+      !formatProfilesSaving && !formatProfileSaveError &&
+      (prevProps.isSaving || prevState.formatProfilesSaving)
+    ) {
       this.props.onModalClose();
     }
   }
@@ -85,7 +116,84 @@ class EditAuthorModalContentConnector extends Component {
     this.props.dispatchSetAuthorValue({ name, value });
   };
 
+  onFormatProfileChange = (profileId, field, value) => {
+    this.setState((prevState) => ({
+      formatProfileChanges: {
+        ...prevState.formatProfileChanges,
+        [profileId]: {
+          ...(prevState.formatProfileChanges[profileId] || {}),
+          [field]: value
+        }
+      }
+    }));
+  };
+
   onSavePress = (moveFiles) => {
+    const { formatProfileChanges } = this.state;
+    const { formatProfiles } = this.props;
+
+    // When format profiles exist, derive the author-level Monitored field
+    // from the per-format profile monitored states (true if ANY format is monitored).
+    if (formatProfiles && formatProfiles.length > 0) {
+      const mergedProfiles = formatProfiles.map((p) => ({
+        ...p,
+        ...(formatProfileChanges[p.id] || {})
+      }));
+
+      const anyMonitored = mergedProfiles.some((p) => p.monitored);
+      this.props.dispatchSetAuthorValue({ name: 'monitored', value: anyMonitored });
+    }
+
+    // Collect format profile save promises
+    const savePromises = [];
+
+    Object.keys(formatProfileChanges).forEach((profileIdStr) => {
+      const profileId = parseInt(profileIdStr);
+      const changes = formatProfileChanges[profileId];
+      const original = formatProfiles.find((p) => p.id === profileId);
+
+      if (original && Object.keys(changes).length > 0) {
+        const updated = { ...original, ...changes };
+
+        const { request } = createAjaxRequest({
+          url: `/authorformatprofile/${profileId}`,
+          method: 'PUT',
+          data: JSON.stringify(updated),
+          dataType: 'json',
+          contentType: 'application/json'
+        });
+
+        savePromises.push(request);
+      }
+    });
+
+    if (savePromises.length > 0) {
+      this.setState({
+        formatProfilesSaving: true,
+        formatProfileSaveError: null
+      });
+
+      Promise.all(savePromises).then(
+        () => {
+          this.setState({
+            formatProfilesSaving: false,
+            formatProfileSaveError: null,
+            formatProfileChanges: {}
+          });
+
+          // Refresh author in Redux to pick up updated format profiles
+          this.props.dispatchFetchAuthor({ id: this.props.authorId });
+        },
+        (xhr) => {
+          this.setState({
+            formatProfilesSaving: false,
+            formatProfileSaveError: xhr
+          });
+        }
+      );
+    }
+
+    // Save author (runs in parallel with format profile saves)
     this.props.dispatchSaveAuthor({
       id: this.props.authorId,
       moveFiles
@@ -96,10 +204,23 @@ class EditAuthorModalContentConnector extends Component {
   // Render
 
   render() {
+    const { formatProfiles, isSaving: authorSaving } = this.props;
+    const { formatProfileChanges, formatProfilesSaving, formatProfileSaveError } = this.state;
+
+    // Merge pending changes into format profiles for display
+    const mergedProfiles = formatProfiles.map((p) => ({
+      ...p,
+      ...(formatProfileChanges[p.id] || {})
+    }));
+
     return (
       <EditAuthorModalContent
         {...this.props}
+        isSaving={authorSaving || formatProfilesSaving}
+        formatProfiles={mergedProfiles}
+        formatProfileSaveError={formatProfileSaveError}
         onInputChange={this.onInputChange}
+        onFormatProfileChange={this.onFormatProfileChange}
         onSavePress={this.onSavePress}
         onMoveAuthorPress={this.onMoveAuthorPress}
       />
@@ -111,8 +232,11 @@ EditAuthorModalContentConnector.propTypes = {
   authorId: PropTypes.number,
   isSaving: PropTypes.bool.isRequired,
   saveError: PropTypes.object,
+  formatProfiles: PropTypes.arrayOf(PropTypes.object),
   dispatchSetAuthorValue: PropTypes.func.isRequired,
   dispatchSaveAuthor: PropTypes.func.isRequired,
+  dispatchFetchAuthor: PropTypes.func.isRequired,
+  dispatchFetchRootFolders: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired
 };
 

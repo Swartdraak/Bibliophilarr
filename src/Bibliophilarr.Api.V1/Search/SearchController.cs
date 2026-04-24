@@ -33,7 +33,7 @@ namespace Bibliophilarr.Api.V1.Search
         [HttpGet]
         public object Search([FromQuery] string term)
         {
-            if (string.IsNullOrWhiteSpace(term))
+            if (string.IsNullOrWhiteSpace(term) || term.Trim().Length < 3)
             {
                 return new List<SearchResource>();
             }
@@ -73,6 +73,14 @@ namespace Bibliophilarr.Api.V1.Search
                     var selectedEdition = editions.FirstOrDefault(x => x.Monitored) ?? editions.FirstOrDefault();
 
                     resource.Book.Overview = selectedEdition?.Overview;
+
+                    // Search-result editions have Monitored=false, so ToResource() produces
+                    // empty Images.  Override with the selected edition's images.
+                    if (selectedEdition?.Images?.Any() == true)
+                    {
+                        resource.Book.Images = selectedEdition.Images;
+                    }
+
                     resource.Book.Author = book.Author?.Value?.ToResource();
                     resource.Book.Editions = editions.ToResource();
                     resource.ForeignId = book.ForeignBookId;

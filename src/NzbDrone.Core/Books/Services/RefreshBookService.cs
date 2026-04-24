@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using NLog;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Books.Events;
@@ -96,7 +97,12 @@ namespace NzbDrone.Core.Books
             }
             catch (BookNotFoundException)
             {
-                _logger.Error($"Could not find book with id {book.ForeignBookId}");
+                _logger.Warn("Metadata provider could not find book '{0}' (id: {1}). " +
+                             "The book will be kept with existing metadata. " +
+                             "This may occur when a provider removes a work entry. " +
+                             "Consider manually updating the book's metadata or re-identifying the file.",
+                             book.Title,
+                             book.ForeignBookId);
             }
 
             return null;
@@ -132,16 +138,44 @@ namespace NzbDrone.Core.Books
 
         protected override void EnsureNewParent(Book local, Book remote)
         {
-            // Make sure the appropriate author exists (it could be that an book changes parent)
+            // Make sure the appropriate author exists (it could be that a book changes parent)
             // The authorMetadata entry will be in the db but make sure a corresponding author is too
             // so that the book doesn't just disappear.
 
             // NOTE filter by metadata id before hitting database
             _logger.Trace($"Ensuring parent author exists [{remote.AuthorMetadata.Value.ForeignAuthorId}]");
 
-            var newAuthor = _authorService.FindById(remote.AuthorMetadata.Value.ForeignAuthorId);
+            var newAuthorForeignId = remote.AuthorMetadata.Value.ForeignAuthorId;
+            var oldAuthorForeignId = local.AuthorMetadata?.Value?.ForeignAuthorId;
 
-            if (newAuthor == null)
+            // Guard: if the remote author differs from the local author, this is
+            // likely a co-authored book where cached_contributors[0] returned a
+            // different person (e.g. an editor like John Joseph Adams).  Do NOT
+            // auto-add an entirely new author that the user never requested.
+            // Instead, keep the book under its current author.
+            if (oldAuthorForeignId.IsNotNullOrWhiteSpace() &&
+                !string.Equals(newAuthorForeignId, oldAuthorForeignId, StringComparison.OrdinalIgnoreCase))
+            {
+                var newAuthor = _authorService.FindById(newAuthorForeignId);
+                if (newAuthor == null)
+                {
+                    _logger.Debug(
+                        "Skipping parent author change for '{0}': remote says [{1}] but local is [{2}] and the remote author is not in the library.",
+                        local.Title,
+                        newAuthorForeignId,
+                        oldAuthorForeignId);
+
+                    // Override the remote book's metadata back to the local author
+                    // so downstream processing keeps the book in place.
+                    remote.AuthorMetadata = local.AuthorMetadata;
+                    remote.AuthorMetadataId = local.AuthorMetadataId;
+                    return;
+                }
+            }
+
+            var existingAuthor = _authorService.FindById(newAuthorForeignId);
+
+            if (existingAuthor == null)
             {
                 var oldAuthor = local.Author.Value;
                 var addAuthor = new Author

@@ -178,5 +178,47 @@ namespace NzbDrone.Windows.Disk
                 return false;
             }
         }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct BY_HANDLE_FILE_INFORMATION
+        {
+            public uint FileAttributes;
+            public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+            public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+            public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+            public uint VolumeSerialNumber;
+            public uint FileSizeHigh;
+            public uint FileSizeLow;
+            public uint NumberOfLinks;
+            public uint FileIndexHigh;
+            public uint FileIndexLow;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetFileInformationByHandle(IntPtr hFile, out BY_HANDLE_FILE_INFORMATION lpFileInformation);
+
+        public override bool AreSameFile(string path1, string path2)
+        {
+            try
+            {
+                using var fs1 = new FileStream(path1, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var fs2 = new FileStream(path2, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+                if (!GetFileInformationByHandle(fs1.SafeFileHandle.DangerousGetHandle(), out var info1) ||
+                    !GetFileInformationByHandle(fs2.SafeFileHandle.DangerousGetHandle(), out var info2))
+                {
+                    return false;
+                }
+
+                return info1.VolumeSerialNumber == info2.VolumeSerialNumber &&
+                       info1.FileIndexHigh == info2.FileIndexHigh &&
+                       info1.FileIndexLow == info2.FileIndexLow;
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug(ex, "Failed to compare file IDs for '{0}' and '{1}'", path1, path2);
+                return false;
+            }
+        }
     }
 }

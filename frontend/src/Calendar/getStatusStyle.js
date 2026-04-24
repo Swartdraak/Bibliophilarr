@@ -1,8 +1,8 @@
 /* eslint max-params: 0 */
-import moment from 'moment';
+import { isAfter } from 'date-fns';
 
 function getStatusStyle(episodeNumber, downloading, startTime, isMonitored, percentOfBooks) {
-  const currentTime = moment();
+  const currentTime = new Date();
 
   if (percentOfBooks === 100) {
     return 'downloaded';
@@ -20,7 +20,7 @@ function getStatusStyle(episodeNumber, downloading, startTime, isMonitored, perc
     return 'unmonitored';
   }
 
-  if (currentTime.isAfter(startTime)) {
+  if (isAfter(currentTime, startTime)) {
     return 'missing';
   }
 

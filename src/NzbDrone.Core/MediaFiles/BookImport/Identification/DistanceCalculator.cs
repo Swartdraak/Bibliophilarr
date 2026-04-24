@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NLog;
@@ -21,6 +22,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private static readonly RegexReplace StripSeriesRegex = new RegexReplace(@"\([^\)].+?\)$", string.Empty, RegexOptions.Compiled);
 
         private static readonly RegexReplace CleanTitleCruft = new RegexReplace(@"\((?:unabridged)\)", string.Empty, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex VolumeNumberRegex = new Regex(
+            @"(?:vol(?:ume)?|book|part|b|v|#)[\s._-]*(\d+)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Matches collection / box-set title patterns so the identification
+        // service can penalise these editions when the file title is clearly
+        // for a standalone work (prevents "Lights Out" matching a collection
+        // set that embeds the title in a longer string).
+        private static readonly Regex CollectionSetRegex = new Regex(
+            @"\b(?:\d+[\s-]*books?\s+collection|collection\s+set|box\s*set|boxed\s+set|omnibus\s+edition)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly List<string> EbookFormats = new List<string> { "Kindle Edition", "Nook", "ebook" };
 
@@ -80,6 +93,53 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             dist.AddString(titleKey, fileTitles, titleOptions);
             Logger.Trace("book: '{0}' vs '{1}' ({2:0.00}); {3}", fileTitles.ConcatToString("' or '"), titleOptions.ConcatToString("' or '"), titleConfidence, dist.NormalizedDistance());
 
+            // Penalise collection/box-set editions when the file title isn't
+            // itself a collection.  Without this, a long collection title that
+            // embeds a standalone book name can accidentally score better than
+            // the actual standalone edition due to normalisation effects.
+            var editionIsSet = CollectionSetRegex.IsMatch(edition.Title);
+            var fileIsSet = fileTitles.Any(t => CollectionSetRegex.IsMatch(t));
+            if (editionIsSet && !fileIsSet)
+            {
+                dist.AddBool("collection_set", true);
+                Logger.Trace("collection_set penalty applied for edition '{0}'; {1}", edition.Title, dist.NormalizedDistance());
+            }
+
+            // Volume/series number comparison: prevents stripping from collapsing all
+            // volumes to the same base title and losing volume-specific matching.
+            // Check both metadata tags and file paths for volume numbers. The file
+            // path is preferred when both exist and disagree, because metadata tags
+            // may have been overwritten by a prior incorrect import.
+            var metadataVolume = ExtractVolumeNumber(title);
+            int? pathVolume = null;
+
+            if (localTracks.Any())
+            {
+                var samplePath = localTracks.First().Path;
+                if (samplePath.IsNotNullOrWhiteSpace())
+                {
+                    pathVolume = ExtractVolumeNumber(Path.GetFileNameWithoutExtension(samplePath))
+                                 ?? ExtractVolumeNumber(Path.GetFileName(Path.GetDirectoryName(samplePath)));
+                }
+            }
+
+            var fileVolume = pathVolume ?? metadataVolume;
+            var editionVolume = ExtractVolumeNumber(edition.Title);
+
+            if (fileVolume.HasValue && editionVolume.HasValue)
+            {
+                if (fileVolume.Value != editionVolume.Value)
+                {
+                    dist.AddBool("volume_mismatch", true);
+                    Logger.Trace("volume_mismatch: file={0} vs edition={1}; {2}", fileVolume.Value, editionVolume.Value, dist.NormalizedDistance());
+                }
+            }
+            else if (!fileVolume.HasValue && editionVolume.HasValue)
+            {
+                dist.AddBool("volume_absent_vs_present", true);
+                Logger.Trace("volume_absent_vs_present: file has no volume, edition has {0}; {1}", editionVolume.Value, dist.NormalizedDistance());
+            }
+
             var isbn = localTracks.MostCommon(x => x.FileTrackInfo.Isbn);
             if (isbn.IsNotNullOrWhiteSpace() && edition.Isbn13.IsNotNullOrWhiteSpace())
             {
@@ -109,16 +169,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (localYear > 0 && edition.ReleaseDate.HasValue)
             {
                 var bookYear = edition.ReleaseDate?.Year ?? 0;
-                if (localYear == bookYear)
+                var diff = Math.Abs(localYear - bookYear);
+
+                // Tolerate differences of up to 1 year as equivalent (no penalty).
+                // Ebook and audiobook editions of the same work commonly differ by
+                // a year, and file metadata tags may reference the audiobook release
+                // date while the DB stores the first publication date.  Without this
+                // tolerance, a 1-year offset can incorrectly tip the balance toward
+                // a wrong candidate with a worse title match but exact year.
+                if (diff <= 1)
                 {
                     dist.Add("year", 0.0);
                 }
                 else
                 {
-                    var remoteYear = bookYear;
-                    var diff = Math.Abs(localYear - remoteYear);
-                    var diff_max = Math.Abs(DateTime.Now.Year - remoteYear);
-                    dist.AddRatio("year", diff, diff_max);
+                    var diff_max = Math.Abs(DateTime.Now.Year - bookYear);
+                    dist.AddRatio("year", diff - 1, diff_max);
                 }
 
                 Logger.Trace($"year: {localYear} vs {edition.ReleaseDate?.Year}; {dist.NormalizedDistance()}");
@@ -247,6 +313,26 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return localTracks.Select(x => x.FileTrackInfo?.AuthorConfidence ?? 1.0)
                 .DefaultIfEmpty(1.0)
                 .Average();
+        }
+
+        /// <summary>
+        /// Extracts the first volume/part/book number from a title string.
+        /// Matches patterns like "Volume 2", "Vol. 3", "Book 1", "Part 4", "#5".
+        /// </summary>
+        internal static int? ExtractVolumeNumber(string title)
+        {
+            if (title.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var match = VolumeNumberRegex.Match(title);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var volume))
+            {
+                return volume;
+            }
+
+            return null;
         }
     }
 }

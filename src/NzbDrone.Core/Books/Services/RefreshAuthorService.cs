@@ -92,7 +92,10 @@ namespace NzbDrone.Core.Books
             }
             catch (AuthorNotFoundException)
             {
-                _logger.Error($"Could not find author with id {foreignId}");
+                _logger.Warn("Metadata provider could not find author with id '{0}'. " +
+                             "The author will be kept with existing metadata. " +
+                             "This may occur when a provider removes an author entry.",
+                             foreignId);
             }
 
             return null;
@@ -282,7 +285,28 @@ namespace NzbDrone.Core.Books
 
         protected override bool RefreshChildren(SortedChildren localChildren, List<Book> remoteChildren, Author remoteData, bool forceChildRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
-            return _refreshBookService.RefreshBookInfo(localChildren.All, remoteChildren, remoteData, forceChildRefresh, forceUpdateFileTags, lastUpdate);
+            // Delete books that are no longer in the remote set (e.g. removed by dedup)
+            // only if they have no associated files and were not manually added.
+            foreach (var deleted in localChildren.Deleted)
+            {
+                if (deleted.AddOptions?.AddType == BookAddType.Manual)
+                {
+                    _logger.Debug("Keeping manually-added book {0} despite remote removal", deleted);
+                    continue;
+                }
+
+                if (_mediaFileService.GetFilesByBook(deleted.Id).Any())
+                {
+                    _logger.Debug("Keeping book {0} with local files despite remote removal", deleted);
+                    continue;
+                }
+
+                _logger.Info("Removing duplicate/stale book {0} ({1}) — not in remote set and has no files", deleted.Title, deleted.ForeignBookId);
+                _bookService.DeleteBook(deleted.Id, false);
+            }
+
+            // Only refresh books that are still in the remote set
+            return _refreshBookService.RefreshBookInfo(localChildren.Future, remoteChildren, remoteData, forceChildRefresh, forceUpdateFileTags, lastUpdate);
         }
 
         protected override void PublishEntityUpdatedEvent(Author entity)

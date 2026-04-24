@@ -36,7 +36,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
 
         protected override string AddFromNzbFile(RemoteBook remoteBook, string filename, byte[] fileContent)
         {
-            var category = Settings.MusicCategory;
+            var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
             var priority = remoteBook.IsRecentBook() ? Settings.RecentTvPriority : Settings.OlderTvPriority;
 
             var addpaused = Settings.AddPaused;
@@ -189,7 +189,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
 
         public override IEnumerable<DownloadClientItem> GetItems()
         {
-            return GetQueue().Concat(GetHistory()).Where(downloadClientItem => downloadClientItem.Category == Settings.MusicCategory);
+            return GetQueue().Concat(GetHistory()).Where(downloadClientItem => Settings.MatchesAnyCategory(downloadClientItem.Category));
         }
 
         public override void RemoveItem(DownloadClientItem item, bool deleteData)
@@ -205,17 +205,38 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
         public override DownloadClientInfo GetStatus()
         {
             var config = _proxy.GetConfig(Settings);
-
-            var category = GetCategories(config).FirstOrDefault(v => v.Name == Settings.MusicCategory);
+            var categories = GetCategories(config).ToList();
 
             var status = new DownloadClientInfo
             {
                 IsLocalhost = Settings.Host == "127.0.0.1" || Settings.Host == "localhost"
             };
 
-            if (category != null)
+            var outputFolders = new List<OsPath>();
+
+            // Add ebook category folder
+            if (Settings.EbookCategory.IsNotNullOrWhiteSpace())
             {
-                status.OutputRootFolders = new List<OsPath> { _remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(category.DestDir)) };
+                var ebookCategory = categories.FirstOrDefault(v => v.Name == Settings.EbookCategory);
+                if (ebookCategory != null)
+                {
+                    outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(ebookCategory.DestDir)));
+                }
+            }
+
+            // Add audiobook category folder if configured and different
+            if (Settings.AudiobookCategory.IsNotNullOrWhiteSpace() && Settings.AudiobookCategory != Settings.EbookCategory)
+            {
+                var audiobookCategory = categories.FirstOrDefault(v => v.Name == Settings.AudiobookCategory);
+                if (audiobookCategory != null)
+                {
+                    outputFolders.Add(_remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(audiobookCategory.DestDir)));
+                }
+            }
+
+            if (outputFolders.Any())
+            {
+                status.OutputRootFolders = outputFolders;
             }
 
             return status;
@@ -293,13 +314,16 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
             var config = _proxy.GetConfig(Settings);
             var categories = GetCategories(config);
 
-            if (!Settings.MusicCategory.IsNullOrWhiteSpace() && !categories.Any(v => v.Name == Settings.MusicCategory))
+            foreach (var categoryName in Settings.GetAllCategories())
             {
-                return new NzbDroneValidationFailure("MusicCategory", "Category does not exist")
+                if (!categoryName.IsNullOrWhiteSpace() && !categories.Any(v => v.Name == categoryName))
                 {
-                    InfoLink = _proxy.GetBaseUrl(Settings),
-                    DetailedDescription = "The Category your entered doesn't exist in NzbGet. Go to NzbGet to create it."
-                };
+                    return new NzbDroneValidationFailure("Category", $"Category '{categoryName}' does not exist")
+                    {
+                        InfoLink = _proxy.GetBaseUrl(Settings),
+                        DetailedDescription = "The Category your entered doesn't exist in NzbGet. Go to NzbGet to create it."
+                    };
+                }
             }
 
             return null;

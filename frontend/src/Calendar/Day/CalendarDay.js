@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import moment from 'moment';
+import { getDate, isSameMonth, parseISO } from 'date-fns';
 import PropTypes from 'prop-types';
 import React from 'react';
 import * as calendarViews from 'Calendar/calendarViews';
@@ -27,10 +27,10 @@ function CalendarDay(props) {
           <div className={classNames(
             styles.dayOfMonth,
             isTodaysDate && styles.isToday,
-            !moment(date).isSame(moment(time), 'month') && styles.isDifferentMonth
+            !isSameMonth(parseISO(date), parseISO(time)) && styles.isDifferentMonth
           )}
           >
-            {moment(date).date()}
+            {getDate(parseISO(date))}
           </div>
       }
       <div>

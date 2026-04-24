@@ -124,6 +124,7 @@ class TextArea extends Component {
     return (
       <textarea
         ref={this.setInputRef}
+        id={name}
         readOnly={readOnly}
         autoFocus={autoFocus}
         placeholder={placeholder}

@@ -13,8 +13,8 @@ namespace NzbDrone.Core.Download.Clients.Hadouken
         HadoukenSystemInfo GetSystemInfo(HadoukenSettings settings);
         HadoukenTorrent[] GetTorrents(HadoukenSettings settings);
         IReadOnlyDictionary<string, object> GetConfig(HadoukenSettings settings);
-        string AddTorrentFile(HadoukenSettings settings, byte[] fileContent);
-        void AddTorrentUri(HadoukenSettings settings, string torrentUrl);
+        string AddTorrentFile(HadoukenSettings settings, byte[] fileContent, string category);
+        void AddTorrentUri(HadoukenSettings settings, string torrentUrl, string category);
         void RemoveTorrent(HadoukenSettings settings, string downloadId);
         void RemoveTorrentAndData(HadoukenSettings settings, string downloadId);
     }
@@ -47,14 +47,14 @@ namespace NzbDrone.Core.Download.Clients.Hadouken
             return ProcessRequest<IReadOnlyDictionary<string, object>>(settings, "webui.getSettings");
         }
 
-        public string AddTorrentFile(HadoukenSettings settings, byte[] fileContent)
+        public string AddTorrentFile(HadoukenSettings settings, byte[] fileContent, string category)
         {
-            return ProcessRequest<string>(settings, "webui.addTorrent", "file", Convert.ToBase64String(fileContent), new { label = settings.Category });
+            return ProcessRequest<string>(settings, "webui.addTorrent", "file", Convert.ToBase64String(fileContent), new { label = category });
         }
 
-        public void AddTorrentUri(HadoukenSettings settings, string torrentUrl)
+        public void AddTorrentUri(HadoukenSettings settings, string torrentUrl, string category)
         {
-            ProcessRequest<string>(settings, "webui.addTorrent", "url", torrentUrl, new { label = settings.Category });
+            ProcessRequest<string>(settings, "webui.addTorrent", "url", torrentUrl, new { label = category });
         }
 
         public void RemoveTorrent(HadoukenSettings settings, string downloadId)

@@ -32,9 +32,10 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
 
         protected override string AddFromNzbFile(RemoteBook remoteBook, string filename, byte[] fileContent)
         {
+            var category = Settings.GetCategoryForFormat(remoteBook.ResolvedFormatType);
             var priority = remoteBook.IsRecentBook() ? Settings.RecentTvPriority : Settings.OlderTvPriority;
 
-            var response = _proxy.DownloadNzb(fileContent, filename, priority, Settings);
+            var response = _proxy.DownloadNzb(fileContent, filename, category, priority, Settings);
 
             if (response == null)
             {
@@ -48,11 +49,13 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
 
         public override IEnumerable<DownloadClientItem> GetItems()
         {
-            var vortexQueue = _proxy.GetQueue(30, Settings);
-
             var queueItems = new List<DownloadClientItem>();
 
-            foreach (var vortexQueueItem in vortexQueue)
+            foreach (var category in Settings.GetAllCategories())
+            {
+                var vortexQueue = _proxy.GetQueue(30, category, Settings);
+
+                foreach (var vortexQueueItem in vortexQueue)
             {
                 var queueItem = new DownloadClientItem();
 
@@ -106,6 +109,7 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
 
                 queueItems.Add(queueItem);
             }
+            }
 
             return queueItems;
         }
@@ -119,7 +123,7 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
             }
             else
             {
-                var queue = _proxy.GetQueue(30, Settings);
+                var queue = _proxy.GetQueue(30, string.Empty, Settings);
                 var queueItem = queue.FirstOrDefault(c => c.AddUUID == item.DownloadId);
 
                 if (queueItem != null)
@@ -136,6 +140,8 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
 
         public override DownloadClientInfo GetStatus()
         {
+            // NzbVortex API does not expose a config endpoint for default download directory.
+            // Output paths are only available per-item (DestinationPath on queue items).
             var status = new DownloadClientInfo
             {
                 IsLocalhost = Settings.Host == "127.0.0.1" || Settings.Host == "localhost"
@@ -196,7 +202,7 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
         {
             try
             {
-                _proxy.GetQueue(1, Settings);
+                _proxy.GetQueue(1, Settings.EbookCategory, Settings);
             }
             catch (NzbVortexAuthenticationException)
             {
@@ -208,16 +214,21 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
 
         private ValidationFailure TestCategory()
         {
-            var group = GetGroups().FirstOrDefault(c => c.GroupName == Settings.MusicCategory);
+            var groups = GetGroups();
 
-            if (group == null)
+            foreach (var categoryName in Settings.GetAllCategories())
             {
-                if (Settings.MusicCategory.IsNotNullOrWhiteSpace())
+                var group = groups.FirstOrDefault(c => c.GroupName == categoryName);
+
+                if (group == null)
                 {
-                    return new NzbDroneValidationFailure("MusicCategory", "Group does not exist")
+                    if (categoryName.IsNotNullOrWhiteSpace())
                     {
-                        DetailedDescription = "The Group you entered doesn't exist in NzbVortex. Go to NzbVortex to create it."
-                    };
+                        return new NzbDroneValidationFailure("Category", $"Group '{categoryName}' does not exist")
+                        {
+                            DetailedDescription = "The Group you entered doesn't exist in NzbVortex. Go to NzbVortex to create it."
+                        };
+                    }
                 }
             }
 

@@ -75,7 +75,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         public void should_return_provider_health_diagnostics_with_telemetry_payload()
         {
             var request = _providerHealth.BuildRequest();
-            request.Method = RestSharp.Method.GET;
+            request.Method = System.Net.Http.HttpMethod.Get;
             var health = _providerHealth.Execute<List<MetadataProviderHealthResourceEnvelope>>(request, System.Net.HttpStatusCode.OK);
 
             health.Should().NotBeNull();
@@ -94,7 +94,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         public void should_return_provider_telemetry_feed()
         {
             var request = _providerTelemetry.BuildRequest();
-            request.Method = RestSharp.Method.GET;
+            request.Method = System.Net.Http.HttpMethod.Get;
             var telemetry = _providerTelemetry.Execute<List<MetadataProviderTelemetrySnapshotResource>>(request, System.Net.HttpStatusCode.OK);
 
             telemetry.Should().NotBeNull();
@@ -104,7 +104,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         public void should_return_provider_operation_telemetry_feed()
         {
             var request = _providerOperationTelemetry.BuildRequest();
-            request.Method = RestSharp.Method.GET;
+            request.Method = System.Net.Http.HttpMethod.Get;
             var telemetry = _providerOperationTelemetry.Execute<List<MetadataProviderTelemetrySnapshotResource>>(request, System.Net.HttpStatusCode.OK);
 
             telemetry.Should().NotBeNull();

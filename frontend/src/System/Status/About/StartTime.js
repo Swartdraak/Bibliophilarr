@@ -1,11 +1,17 @@
-import moment from 'moment';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import formatDateTime from 'Utilities/Date/formatDateTime';
-import formatTimeSpan from 'Utilities/Date/formatTimeSpan';
 
 function getUptime(startTime) {
-  return formatTimeSpan(moment().diff(startTime));
+  const diff = Date.now() - new Date(startTime).getTime();
+  const totalSeconds = Math.floor(diff / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = String(Math.floor((totalSeconds % 86400) / 3600)).padStart(2, '0');
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  const time = `${hours}:${minutes}:${seconds}`;
+
+  return days > 0 ? `${days}d ${time}` : time;
 }
 
 class StartTime extends Component {
