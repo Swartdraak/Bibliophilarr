@@ -206,12 +206,12 @@ class AuthorIndexRow extends Component {
             }
 
             if (name === 'qualityProfileId') {
-              const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0
-                ? resolvedFormatProfiles.map((fp) => {
+              const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0 ?
+                resolvedFormatProfiles.map((fp) => {
                   const prefix = fp.formatType === 'ebook' ? 'E' : 'A';
                   return `${prefix}: ${fp.qualityProfileName}`;
-                }).join(' / ')
-                : qualityProfile?.name ?? '';
+                }).join(' / ') :
+                qualityProfile?.name ?? '';
 
               return (
                 <VirtualTableRowCell

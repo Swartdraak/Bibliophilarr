@@ -29,7 +29,9 @@ function AuthorFormatProfileEditor({ formatProfiles, onFormatProfileChange }) {
         const monitoredStatus = profile.monitored ? translate('Monitored') : translate('Unmonitored');
 
         return (
-          <div key={profile.id} className={styles.profileSection} title={`${formatInfo.label}: ${monitoredStatus}`}>
+          <div key={profile.id} className={styles.profileSection}
+            title={`${formatInfo.label}: ${monitoredStatus}`}
+          >
             <div className={styles.profileHeader}>
               <Icon
                 name={formatInfo.icon}

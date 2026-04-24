@@ -236,19 +236,23 @@ after verifying the sprint's changes pass CI.
 - **Build-time injection**: CI sets `BIBLIOPHILARRVERSION` env var, which
   `build.sh` writes into `src/Directory.Build.props` `<AssemblyVersion>`.
 - **CHANGELOG.md** must have a matching `## [X.Y.Z]` entry before tagging.
-- **package.json** root version is updated by the release workflow.
+- **Root `package.json`** tracks frontend tooling metadata and local engine pinning.
+- **`npm/bibliophilarr-launcher/package.json`** is the npm package version source
+  updated by the publish workflow before release publication.
 
 ### Contributor responsibilities
 
 - Do not manually edit version numbers in source files.
-- Add a changelog entry under `## [Unreleased]` for every user-facing change.
+- Add a changelog entry under `## [Unreleased]` for every user-facing change
+  that is not already captured in the next dated/dev-tag section.
 - Maintainers handle version tagging and release coordination.
 
 ### Agent and automation responsibilities
 
 - All agents and automation must respect the version in `CHANGELOG.md`.
 - Agents must add changelog entries for behavioral changes, bug fixes,
-  and new features under `## [Unreleased]` in the same change set.
+  and new features in the current active changelog section in the same change
+  set. Use `## [Unreleased]` when no new dated/dev-tag section has been cut yet.
 - Version bumping is a maintainer-only action via git tags.
 
 ## Pull request requirements
@@ -273,7 +277,7 @@ A PR is mergeable when all of these are true:
 - All required CI checks pass (`build-test`, `Markdown lint`, `triage`, smoke telemetry).
 - At least one maintainer has reviewed the change.
 - The PR description follows the template with complete validation evidence.
-- `CHANGELOG.md` has an entry under `## [Unreleased]` for user-facing changes.
+- `CHANGELOG.md` has an entry in the active unreleased or upcoming release section for user-facing changes.
 - No unresolved review comments remain.
 - The branch is up to date with the target branch.
 

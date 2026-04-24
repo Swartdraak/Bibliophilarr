@@ -238,12 +238,12 @@ class AuthorIndexPoster extends Component {
 
           {showQualityProfile && !!qualityProfile?.name ? (
             <div className={styles.title} title={translate('QualityProfile')}>
-              {resolvedFormatProfiles && resolvedFormatProfiles.length > 0
-                ? resolvedFormatProfiles.map((fp) => {
+              {resolvedFormatProfiles && resolvedFormatProfiles.length > 0 ?
+                resolvedFormatProfiles.map((fp) => {
                   const prefix = fp.formatType === 'ebook' ? 'E' : 'A';
                   return `${prefix}: ${fp.qualityProfileName}`;
-                }).join(' / ')
-                : qualityProfile.name
+                }).join(' / ') :
+                qualityProfile.name
               }
             </div>
           ) : null}

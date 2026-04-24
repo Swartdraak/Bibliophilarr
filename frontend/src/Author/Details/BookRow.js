@@ -224,8 +224,22 @@ class BookRow extends Component {
                 >
                   {
                     (formatStatuses || []).map((fs) => {
-                      const label = fs.formatType === 'ebook' ? 'Ebook' : fs.formatType === 'audiobook' ? 'Audiobook' : '';
-                      const kind = fs.hasFile ? kinds.SUCCESS : fs.monitored ? kinds.INFO : kinds.DEFAULT;
+                      let label = '';
+
+                      if (fs.formatType === 'ebook') {
+                        label = 'Ebook';
+                      } else if (fs.formatType === 'audiobook') {
+                        label = 'Audiobook';
+                      }
+
+                      let kind = kinds.DEFAULT;
+
+                      if (fs.hasFile) {
+                        kind = kinds.SUCCESS;
+                      } else if (fs.monitored) {
+                        kind = kinds.INFO;
+                      }
+
                       const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
                       const fileCountLabel = fs.fileCount > 0 ? ` (${fs.fileCount} file${fs.fileCount !== 1 ? 's' : ''})` : '';
 

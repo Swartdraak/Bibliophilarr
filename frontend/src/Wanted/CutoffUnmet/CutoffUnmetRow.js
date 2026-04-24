@@ -78,8 +78,17 @@ function CutoffUnmetRow(props) {
               <TableRowCell key={name}>
                 {
                   (formatStatuses || []).filter((fs) => fs.monitored).map((fs) => {
-                    const label = fs.formatType === 'ebook' ? 'E' : fs.formatType === 'audiobook' ? 'A' : '';
-                    const fullLabel = fs.formatType === 'ebook' ? 'Ebook' : fs.formatType === 'audiobook' ? 'Audiobook' : '';
+                    let label = '';
+                    let fullLabel = '';
+
+                    if (fs.formatType === 'ebook') {
+                      label = 'E';
+                      fullLabel = 'Ebook';
+                    } else if (fs.formatType === 'audiobook') {
+                      label = 'A';
+                      fullLabel = 'Audiobook';
+                    }
+
                     const kind = fs.hasFile ? kinds.SUCCESS : kinds.DANGER;
                     const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
 

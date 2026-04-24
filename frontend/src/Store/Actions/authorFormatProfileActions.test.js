@@ -1,4 +1,5 @@
-import authorFormatProfileActions, {
+import * as authorFormatProfileActions from './authorFormatProfileActions';
+import {
   DELETE_AUTHOR_FORMAT_PROFILE,
   FETCH_AUTHOR_FORMAT_PROFILES,
   SAVE_AUTHOR_FORMAT_PROFILE,

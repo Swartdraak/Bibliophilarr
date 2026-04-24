@@ -196,12 +196,19 @@ class BookDetailsHeader extends Component {
                   const formatLabel = fs.formatType === 'ebook' ? 'Ebook' : 'Audiobook';
                   const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
                   const fileCountLabel = fs.fileCount > 0 ? ` — ${fs.fileCount} file${fs.fileCount !== 1 ? 's' : ''}` : '';
+                  let kind = kinds.DEFAULT;
+
+                  if (fs.hasFile) {
+                    kind = kinds.SUCCESS;
+                  } else if (fs.monitored) {
+                    kind = kinds.INFO;
+                  }
 
                   return (
                     <Label
                       key={fs.formatType}
                       className={styles.detailsLabel}
-                      kind={fs.hasFile ? kinds.SUCCESS : fs.monitored ? kinds.INFO : kinds.DEFAULT}
+                      kind={kind}
                       size={sizes.LARGE}
                       title={`Click to ${fs.monitored ? 'unmonitor' : 'monitor'} ${formatLabel}`}
                       onClick={() => onFormatMonitorTogglePress && onFormatMonitorTogglePress(fs.formatType, !fs.monitored)}

@@ -92,7 +92,6 @@ class BookIndexRow extends Component {
       title,
       author,
       titleSlug,
-      qualityProfile,
       releaseDate,
       added,
       statistics,
@@ -233,9 +232,25 @@ class BookIndexRow extends Component {
                 >
                   {
                     (formatStatuses || []).map((fs) => {
-                      const label = fs.formatType === 'ebook' ? 'E' : fs.formatType === 'audiobook' ? 'A' : '';
-                      const fullLabel = fs.formatType === 'ebook' ? 'Ebook' : fs.formatType === 'audiobook' ? 'Audiobook' : '';
-                      const kind = fs.hasFile ? kinds.SUCCESS : fs.monitored ? kinds.INFO : kinds.DEFAULT;
+                      let label = '';
+                      let fullLabel = '';
+
+                      if (fs.formatType === 'ebook') {
+                        label = 'E';
+                        fullLabel = 'Ebook';
+                      } else if (fs.formatType === 'audiobook') {
+                        label = 'A';
+                        fullLabel = 'Audiobook';
+                      }
+
+                      let kind = kinds.DEFAULT;
+
+                      if (fs.hasFile) {
+                        kind = kinds.SUCCESS;
+                      } else if (fs.monitored) {
+                        kind = kinds.INFO;
+                      }
+
                       const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
                       const fileCountLabel = fs.fileCount > 0 ? ` (${fs.fileCount} file${fs.fileCount !== 1 ? 's' : ''})` : '';
 

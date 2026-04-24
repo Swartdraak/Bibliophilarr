@@ -75,9 +75,15 @@ class SelectBookRow extends Component {
             if (name === 'format') {
               const hasEbook = editions && editions.some((e) => e.isEbook);
               const hasAudio = editions && editions.some((e) => !e.isEbook);
-              const formatLabel = hasEbook && hasAudio ? 'Ebook / Audiobook' :
-                hasEbook ? 'Ebook' :
-                  hasAudio ? 'Audiobook' : '';
+              let formatLabel = '';
+
+              if (hasEbook && hasAudio) {
+                formatLabel = 'Ebook / Audiobook';
+              } else if (hasEbook) {
+                formatLabel = 'Ebook';
+              } else if (hasAudio) {
+                formatLabel = 'Audiobook';
+              }
 
               return (
                 <TableRowCell key={name}>

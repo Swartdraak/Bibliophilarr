@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: April 10, 2026 (Track C native ebook tag writing, Track D update pipeline, Track E standardizations added)
+**Last Updated**: April 24, 2026 (release-readiness alignment, staging frontend CI, dependency remediation)
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -11,6 +11,7 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 - Default branch posture: `main` is the default branch, release-entry branch, and the source for tagged releases.
 - Packaging scope: v1.0.0 released with binary builds (Linux x64, macOS ARM64, Windows x64), Docker image on GHCR, and npm launcher on npmjs.org.
 - Actions token posture: branch-policy and readiness workflows remain report-only when GitHub Actions integration tokens cannot read admin or Dependabot APIs.
+- Release-entry posture: promotion to `main` remains blocked until fresh dated PASS evidence exists for install, metadata dry-run, telemetry, and series persistence gates.
 
 ## Delivery lanes
 
@@ -120,7 +121,7 @@ Planned entry conditions:
 | Main dispatch validation | manual readiness and branch-policy workflows succeed on `main` | complete |
 | Packaging confidence | release confidence covered by active smoke/build/readiness workflows | complete |
 | Operational drift checks | scheduled drift signal exists with actionable artifacts | in progress |
-| Release entry criteria | `main` release gate documented and enforced operationally | in progress |
+| Release entry criteria | `main` release gate documented and enforced operationally | in progress — workflow gate remains advisory until evidence generation is fully automated |
 | Security drift cleanup | open Dependabot set reduced via lockfile-backed remediation slices | in progress |
 | Metadata path parity debt burn-down | add/refresh/import/identification use aligned orchestrated metadata request policy | complete |
 | Identifier normalization convergence | canonical external-ID normalization is enforced at persistence boundaries | complete |

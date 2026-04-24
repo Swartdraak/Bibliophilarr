@@ -219,7 +219,6 @@ class AuthorDetails extends Component {
     const {
       id,
       authorName,
-      path,
       monitored,
       isRefreshing,
       isSearching,

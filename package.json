@@ -147,7 +147,7 @@
     "**/serialize-javascript": "7.0.3"
   },
   "volta": {
-    "node": "20.19.2",
+    "node": "22.22.2",
     "yarn": "1.22.19"
   }
 }

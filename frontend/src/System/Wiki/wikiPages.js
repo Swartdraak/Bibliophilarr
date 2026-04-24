@@ -1240,7 +1240,7 @@ const wikiPages = [
       {
         heading: 'Why aren\'t my missing books being downloaded automatically?',
         paragraphs: [
-          'RSS sync only matches brand-new indexer releases to your library. It does NOT search for old or backlog content. For existing/historical releases, you must trigger a search manually:',
+          'RSS sync only matches brand-new indexer releases to your library. It does NOT search for old or backlog content. For existing/historical releases, you must trigger a search manually:'
         ],
         list: [
           'When adding an author: check "Search for Missing Books".',
@@ -1266,7 +1266,7 @@ const wikiPages = [
       {
         heading: 'How do I force a search for all missing books?',
         paragraphs: [
-          'Go to Wanted → Missing, select all books using the header checkbox, then click "Search Selected". You can also use "Search All" to search without selecting. For a single author, use the search button on their detail page.',
+          'Go to Wanted → Missing, select all books using the header checkbox, then click "Search Selected". You can also use "Search All" to search without selecting. For a single author, use the search button on their detail page.'
         ],
         note: 'Large mass searches may take a long time and could hit indexer rate limits. Consider searching in smaller batches.'
       },

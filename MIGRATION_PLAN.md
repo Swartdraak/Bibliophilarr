@@ -175,9 +175,9 @@ Completed in the current migration slice:
 - Metadata provider orchestration is implemented and integrated into search, add, refresh, and import-list flows.
 - Runtime provider controls are available via config/API/UI, including provider enablement and ordering.
 - Runtime provider controls are available via config/API/UI, including timeout, retry, and circuit-breaker settings.
-- Open Library and BookInfo provider enablement now respects configuration flags.
+- Open Library, Google Books, and Inventaire provider enablement now respect configuration flags.
 - Inventaire provider baseline is implemented and registered as a secondary metadata source.
-- Inventaire can be force-disabled by environment kill-switch (`BIBLIOPHILARR_DISABLE_INVENTAIRE=1`) for staged rollout control.
+- Inventaire can be disabled through the runtime metadata-provider configuration exposed in API and UI settings.
 - Provider telemetry collection and diagnostics API endpoints are available for operational visibility.
 - Open Library identifier backfill command/service is implemented for startup-triggered migration assistance.
 - Provenance fields are exposed in API resources and surfaced in book index UI.
@@ -1326,19 +1326,27 @@ Migration risk note:
 
 ### Existing architecture
 
-Bibliophilarr currently uses a two-tier metadata system:
+Bibliophilarr currently uses a multi-provider metadata system:
 
-1. **BookInfoProxy** (Primary Provider)
-   - Implements: `IProvideAuthorInfo`, `IProvideBookInfo`, `ISearchForNewBook`, `ISearchForNewAuthor`, `ISearchForNewEntity`
-   - JSON-based API
-   - Comprehensive book and author metadata
-   - Advanced search with special syntax (edition:, author:, work:, isbn:, asin:)
+1. **Hardcover** (Primary runtime provider)
 
-2. **OpenLibrarySearchProxy** (Primary search/lookup provider)
-    - Implements: `IOpenLibrarySearchProxy`
-    - OpenLibrary API-backed search and identifier lookup
-    - Handles title/author query search and ISBN/ASIN lookup fallback behavior
-    - Active and in use
+- Primary source for author, book, and series metadata.
+- GraphQL-backed provider with fallback-oriented search behavior.
+
+2. **Open Library** (Secondary provider and primary FOSS lookup path)
+
+- OpenLibrary API-backed search and identifier lookup.
+- Active in search, lookup, refresh, and identifier backfill flows.
+
+3. **Google Books** (Supplementary fallback provider)
+
+- Used for selected enrichment and fallback scenarios when enabled.
+
+4. **Inventaire** (Supplementary provider)
+
+- Optional secondary metadata source when enabled.
+
+Legacy `BookInfoProxy` references later in this document are historical architecture context, not the current active runtime baseline.
 
 ### Problems with current system
 
@@ -1679,7 +1687,7 @@ public class MetadataCacheManager
 
 - `IMetadataProvider` and `IMetadataProviderRegistry`
 - `MetadataProviderRegistry` priority-based fallback execution
-- Provider abstraction wiring for `BookInfoProxy` (priority 1) and Open Library (priority 2)
+- Provider abstraction wiring that enabled the later Hardcover/Open Library/Google Books/Inventaire runtime model
 
 **Deferred to later phases:**
 

@@ -1,6 +1,6 @@
 # Project Status Summary
 
-**Last Updated**: April 12, 2026 (v1.1.0-dev.34: Hardcover sparse-data popularity fix, co-authored book attribution, collection detection, manual import path fix, BookFiles dedupe)
+**Last Updated**: April 24, 2026 (release hardening: MailKit remediation, staging frontend CI, canonical-doc alignment)
 **Project**: Bibliophilarr  
 **Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
@@ -17,6 +17,7 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
   - `Staging Smoke Metadata Telemetry / smoke-metadata-telemetry`
 - Required approving review count is `0` across those protected branches.
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
+- Release entry is not yet clear for promotion: the committed dated evidence set is stale, the latest committed series persistence snapshot is failing, and local `develop` is ahead of the remote promotion branches.
 
 ## Requested implementation tracks (March 23, 2026)
 
@@ -2232,7 +2233,7 @@ Validation completed with exact command evidence and outcomes:
 - Added config-driven metadata provider controls (enable flags, provider order, timeout/retry/circuit knobs) and exposed them in both API and UI settings.
 - Introduced metadata provider orchestration and provider telemetry, and switched high-traffic metadata flows (search/add/refresh/import-list) to orchestrated fallback behavior.
 - Added Inventaire provider/client baseline and metadata diagnostics API endpoints for provider health and counters.
-- Added environment kill-switch support for Inventaire rollout (`BIBLIOPHILARR_DISABLE_INVENTAIRE=1`) and surfaced guidance in settings/runbook.
+- Added Inventaire provider rollout guidance in settings/runbook via the persisted provider enablement controls exposed in API and UI.
 - Added Open Library ID backfill command/service and propagated Open Library provenance identifiers through API resources and book index UI.
 - Added status-page metadata provider health dashboard and scheduled dry-run automation artifacts for staging provenance snapshots.
 - Validation completed with:

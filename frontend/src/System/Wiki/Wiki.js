@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
-import { Route, Switch, Link as RouterLink, Redirect } from 'react-router-dom';
+import { Redirect, Route, Switch } from 'react-router-dom';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import PageContent from 'Components/Page/PageContent';
@@ -8,8 +8,8 @@ import PageContentBody from 'Components/Page/PageContentBody';
 import { icons } from 'Helpers/Props';
 import getPathWithUrlBase from 'Utilities/getPathWithUrlBase';
 import translate from 'Utilities/String/translate';
-import wikiPages from './wikiPages';
 import WikiPage from './WikiPage';
+import wikiPages from './wikiPages';
 import styles from './Wiki.css';
 
 function WikiHome() {

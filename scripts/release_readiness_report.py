@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 
 WORKFLOWS = [
     "ci-backend.yml",
+    "ci-frontend.yml",
     "docs-validation.yml",
     "staging-smoke-metadata-telemetry.yml",
 ]

@@ -79,12 +79,12 @@ function getInfoRowProps(row, props) {
 
   if (name === 'qualityProfileId' && !!props.qualityProfile?.name) {
     const resolvedFormatProfiles = props.resolvedFormatProfiles;
-    const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0
-      ? resolvedFormatProfiles.map((fp) => {
+    const profileDisplay = resolvedFormatProfiles && resolvedFormatProfiles.length > 0 ?
+      resolvedFormatProfiles.map((fp) => {
         const prefix = fp.formatType === 'ebook' ? 'E' : 'A';
         return `${prefix}: ${fp.qualityProfileName}`;
-      }).join(' / ')
-      : props.qualityProfile.name;
+      }).join(' / ') :
+      props.qualityProfile.name;
 
     return {
       title: translate('QualityProfile'),
