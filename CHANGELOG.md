@@ -7,6 +7,10 @@ process.
 
 ## [Unreleased]
 
+### Changed
+
+- **Default update branch**: Changed from `develop` to `main`. New installations now default to stable release tracking. Existing users retain their current branch setting and can change to `main` in Settings > General > Updates > Branch. The `main`, `master`, `develop`, and `nightly` branches are all recognized as valid update branches.
+
 ## [1.1.0] - 2026-04-24
 
 ### Fixed

@@ -78,6 +78,16 @@ npm install -g bibliophilarr
 bibliophilarr
 ```
 
+## Updates
+
+Bibliophilarr defaults to the `main` branch for stable releases. Updates are
+published when new versions are tagged and released. Docker users update by
+pulling new images (`docker pull ghcr.io/swartdraak/bibliophilarr:latest`).
+
+The update branch can be changed in Settings > General > Updates > Branch.
+Available options: `main` (stable), `master` (alias for main), `develop`, and
+`nightly`. Currently only `main`/`master` releases are published.
+
 The npm launcher downloads the correct platform binary from GitHub Releases
 automatically.
 

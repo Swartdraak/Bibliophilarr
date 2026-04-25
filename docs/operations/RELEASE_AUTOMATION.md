@@ -147,6 +147,23 @@ gh workflow run "Metadata Migration Dry Run" \
 6. `docker-image.yml` triggers on the tag push in parallel with `release.yml`.
 7. Verify GitHub Release assets, GHCR image tags, and npm package version after workflows complete.
 
+## Update branch configuration
+
+As of v1.2.0, Bibliophilarr defaults to the `main` branch for application updates. Users receive notifications when new stable releases are published.
+
+### Available branches
+
+- **main**: Stable releases (default, fully implemented)
+- **master**: Alias for main (backward compatibility)
+- **develop**: Development branch (configured but no automated builds published)
+- **nightly**: Bleeding-edge branch (configured but no automated builds published)
+
+Users can change their update branch in Settings > General > Updates > Branch.
+
+Currently, only `main`/`master` branch releases are published via automated workflows. Support for `develop` and `nightly` branch builds is planned for a future release.
+
+See [wiki/Updates-and-Branches.md](../../wiki/Updates-and-Branches.md) for user-facing update documentation.
+
 ## Release entry criteria
 
 Before tagging a release from `main`, all of the following must be true:
