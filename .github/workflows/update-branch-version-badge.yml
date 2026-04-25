@@ -54,9 +54,11 @@ jobs:
             *) color='6b7280' ;;
           esac
 
-          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "color=${color}" >> "$GITHUB_OUTPUT"
+          {
+            echo "branch=${branch}"
+            echo "version=${version}"
+            echo "color=${color}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Commit badge update
         shell: bash
