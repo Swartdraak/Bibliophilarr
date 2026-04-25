@@ -95,10 +95,18 @@ def context_variants(context: str) -> Set[str]:
 
 def is_permission_limited_error(message: str) -> bool:
     normalized = message.lower()
+    # Check for HTTP 403/401/404 with permission-related keywords
+    if "http 403" in normalized:
+        return any(keyword in normalized for keyword in [
+            "resource not accessible",
+            "must have admin rights",
+            "disabled",
+            "not enabled",
+            "not available",
+            "permission",
+        ])
     return (
-        ("http 403" in normalized and "resource not accessible by integration" in normalized)
-        or ("http 403" in normalized and "must have admin rights" in normalized)
-        or "http 401" in normalized
+        "http 401" in normalized
         or "requires authentication" in normalized
         or "gh auth login" in normalized
         or "http 404" in normalized
