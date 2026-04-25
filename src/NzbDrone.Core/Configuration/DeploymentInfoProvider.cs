@@ -35,8 +35,7 @@ namespace NzbDrone.Core.Configuration
 
             PackageUpdateMechanism = UpdateMechanism.BuiltIn;
 
-            // NOTE: Change DefaultBranch to "master" once a stable release ships.
-            DefaultBranch = "develop";
+            DefaultBranch = "main";
 
             if (Path.GetFileName(bin) == "bin" && diskProvider.FileExists(packageInfoPath))
             {
