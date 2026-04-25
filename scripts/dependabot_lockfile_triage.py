@@ -61,8 +61,16 @@ def at_or_above(version: str, floor: str) -> bool:
     return semver_key(version) >= semver_key(floor)
 
 
-def is_integration_403(message: str) -> bool:
-    return "HTTP 403" in message and "Resource not accessible by integration" in message
+def is_permission_limited_error(message: str) -> bool:
+    normalized = message.lower()
+    return (
+        ("http 403" in normalized and "resource not accessible by integration" in normalized)
+        or ("http 403" in normalized and "must have admin rights" in normalized)
+        or "http 401" in normalized
+        or "requires authentication" in normalized
+        or "gh auth login" in normalized
+        or "http 404" in normalized
+    )
 
 
 def main() -> int:
@@ -85,7 +93,7 @@ def main() -> int:
         alerts = gh_api(f"repos/{args.owner}/{args.repo}/dependabot/alerts?state=open&per_page=100")
     except RuntimeError as exc:
         message = str(exc)
-        if args.allow_integration_403 and is_integration_403(message):
+        if args.allow_integration_403 and is_permission_limited_error(message):
             dependabot_error = message
         else:
             raise
