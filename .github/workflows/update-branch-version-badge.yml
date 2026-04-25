@@ -15,7 +15,6 @@ permissions:
 
 jobs:
   update-badge:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -55,26 +54,53 @@ jobs:
             *) color='6b7280' ;;
           esac
 
-          mkdir -p .github/badges
-          cat > .github/badges/branch-version.json <<EOF
-          {
-            "schemaVersion": 1,
-            "label": "$branch",
-            "message": "$version",
-            "color": "$color"
-          }
-          EOF
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "color=${color}" >> "$GITHUB_OUTPUT"
 
       - name: Commit badge update
         shell: bash
         run: |
-          if git diff --quiet -- .github/badges/branch-version.json; then
+          set -euo pipefail
+
+          branch="${{ steps.ver.outputs.branch }}"
+          version="${{ steps.ver.outputs.version }}"
+          color="${{ steps.ver.outputs.color }}"
+          badge_worktree="$RUNNER_TEMP/badge-data"
+          badge_file=".github/badges/${branch}-version.json"
+
+          rm -rf "$badge_worktree"
+          git fetch origin badge-data:badge-data 2>/dev/null || true
+
+          if git show-ref --verify --quiet refs/heads/badge-data; then
+            git worktree add "$badge_worktree" badge-data
+          else
+            git worktree add --detach "$badge_worktree" HEAD
+            (
+              cd "$badge_worktree"
+              git checkout --orphan badge-data
+              git rm -rf . >/dev/null 2>&1 || true
+            )
+          fi
+
+          cd "$badge_worktree"
+          mkdir -p .github/badges
+          cat > "$badge_file" <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "${branch}",
+            "message": "${version}",
+            "color": "${color}"
+          }
+          EOF
+
+          if [[ -z "$(git status --porcelain -- "$badge_file")" ]]; then
             echo "Badge already up to date"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/badges/branch-version.json
-          git commit -m "chore(ci): refresh ${GITHUB_REF_NAME} version badge"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git add "$badge_file"
+          git commit -m "chore(ci): refresh ${branch} version badge"
+          git push origin HEAD:badge-data
