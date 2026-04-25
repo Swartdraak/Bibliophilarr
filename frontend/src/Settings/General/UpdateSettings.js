@@ -9,6 +9,7 @@ import titleCase from 'Utilities/String/titleCase';
 import translate from 'Utilities/String/translate';
 
 const branchValues = [
+  'main',
   'master',
   'develop',
   'nightly'

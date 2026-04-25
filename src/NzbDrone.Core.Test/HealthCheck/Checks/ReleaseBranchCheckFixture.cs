@@ -27,9 +27,6 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
 
         [TestCase("book-index")]
         [TestCase("phantom")]
-
-        // ToDo: Master should be valid once released
-        [TestCase("master")]
         public void should_return_warning_when_branch_is_not_valid(string branch)
         {
             GivenValidBranch(branch);
@@ -37,6 +34,10 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
             Subject.Check().ShouldBeWarning();
         }
 
+        [TestCase("main")]
+        [TestCase("Main")]
+        [TestCase("master")]
+        [TestCase("Master")]
         [TestCase("nightly")]
         [TestCase("Nightly")]
         [TestCase("develop")]
