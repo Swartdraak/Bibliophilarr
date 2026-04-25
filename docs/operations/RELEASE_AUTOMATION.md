@@ -142,10 +142,10 @@ gh workflow run "Metadata Migration Dry Run" \
 1. Merge validated changes to `main` only after readiness criteria are met.
 2. Review the latest readiness, branch-policy, and operational drift artifacts.
 3. Tag the release: `git tag v<major>.<minor>.<patch> && git push origin v<major>.<minor>.<patch>`.
-4. `release.yml` triggers automatically on the tag push: builds all platform binaries and creates a draft GitHub Release with artifacts and SHA256 checksums.
-5. Review the draft release on GitHub and publish it.
-6. Publishing triggers `npm-publish.yml` automatically, which publishes the launcher to npmjs.org.
-7. `docker-image.yml` triggers on the tag push in parallel with `release.yml`.
+4. `release.yml` triggers automatically on the tag push: builds all platform binaries and publishes a GitHub Release with artifacts and SHA256 checksums.
+5. `npm-publish.yml` triggers automatically on the same tag push and publishes the launcher to npmjs.org.
+6. `docker-image.yml` triggers on the tag push in parallel with `release.yml`.
+7. Verify GitHub Release assets, GHCR image tags, and npm package version after workflows complete.
 
 ## Release entry criteria
 

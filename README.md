@@ -3,6 +3,9 @@
 [![Backend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml)
 [![Frontend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml)
 [![Docs Validation](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml)
+[![main version](https://img.shields.io/badge/main-v1.1.0-2ea44f)](https://github.com/Swartdraak/Bibliophilarr/tree/main)
+[![staging version](https://img.shields.io/badge/staging-v1.1.0--dev.40-f59e0b)](https://github.com/Swartdraak/Bibliophilarr/tree/staging)
+[![develop version](https://img.shields.io/badge/develop-v1.1.0--dev.40-2563eb)](https://github.com/Swartdraak/Bibliophilarr/tree/develop)
 [![GitHub Release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=release)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-bibliophilarr-blue?logo=docker)](https://github.com/Swartdraak/Bibliophilarr/pkgs/container/bibliophilarr)
 [![npm](https://img.shields.io/npm/v/bibliophilarr?logo=npm&label=npm)](https://www.npmjs.com/package/bibliophilarr)
@@ -15,7 +18,7 @@ while preserving reliable ebook and audiobook library automation.
 ## Current status
 
 The repository is operating in Phase 5 consolidation with Phase 6 hardening
-active. The v1.0.0 release is published and available via GitHub Releases,
+active. The v1.1.0 release is published and available via GitHub Releases,
 Docker (GHCR), and npm. Metadata delivery uses Hardcover as the primary
 provider, Open Library as secondary coverage, and config-driven fallback,
 telemetry, diagnostics, and rollout controls.

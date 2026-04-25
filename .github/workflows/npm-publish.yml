@@ -2,8 +2,9 @@ name: Bibliophilarr npm Publish
 
 # npm publish workflow — runs only from main branch (via release events or manual dispatch).
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
@@ -37,7 +38,7 @@ jobs:
         id: ver
         shell: bash
         run: |
-          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
             VERSION="${{ github.event.inputs.version }}"
