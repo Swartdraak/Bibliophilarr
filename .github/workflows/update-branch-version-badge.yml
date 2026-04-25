@@ -1,0 +1,72 @@
+name: Update Branch Version Badge
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - develop
+    paths-ignore:
+      - '.github/badges/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-badge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve branch version
+        id: ver
+        shell: bash
+        run: |
+          git fetch --tags --force
+
+          branch="${GITHUB_REF_NAME}"
+
+          if version=$(git describe --tags --exact-match HEAD 2>/dev/null); then
+            :
+          elif version=$(git describe --tags --abbrev=0 HEAD 2>/dev/null); then
+            :
+          else
+            version="$(git rev-parse --short HEAD)"
+          fi
+
+          case "$branch" in
+            main) color='2ea44f' ;;
+            staging) color='f59e0b' ;;
+            develop) color='2563eb' ;;
+            *) color='6b7280' ;;
+          esac
+
+          mkdir -p .github/badges
+          cat > .github/badges/branch-version.json <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "$branch",
+            "message": "$version",
+            "color": "$color"
+          }
+          EOF
+
+      - name: Commit badge update
+        shell: bash
+        run: |
+          if git diff --quiet -- .github/badges/branch-version.json; then
+            echo "Badge already up to date"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/badges/branch-version.json
+          git commit -m "chore(ci): refresh ${GITHUB_REF_NAME} version badge"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
