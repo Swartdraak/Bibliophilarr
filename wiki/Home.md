@@ -5,6 +5,7 @@ Welcome to the Bibliophilarr wiki.
 ## Start here
 
 - [Architecture Overview](Architecture.md)
+- [Updates and Branches](Updates-and-Branches.md)
 - [Metadata Migration Program](Metadata-Migration-Program.md)
 - [Contributor Onboarding](Contributor-Onboarding.md)
 

@@ -7,6 +7,10 @@ process.
 
 ## [Unreleased]
 
+### Changed
+
+- **Default update branch**: Changed from `develop` to `main`. New installations now default to stable release tracking. Existing users retain their current branch setting and can change to `main` in Settings > General > Updates > Branch. The `main`, `master`, `develop`, and `nightly` branches are all recognized as valid update branches.
+
 ### Fixed
 
 - Release-readiness hardening: upgraded `MailKit` to `4.16.0` (GHSA-9j88-vvj5-vhgr) so backend restore no longer fails on `NU1902` vulnerability-as-error checks.

@@ -546,19 +546,25 @@ Measurement criteria:
 
 ### Track D: Application update pipeline
 
-**Status**: planned — Phase 7
+**Status**: partially implemented — Phase 7
 
 **Problem**: The built-in update command is explicitly disabled with `throw new CommandFailedException("Application updates are disabled until release pipeline support is implemented.")`. Update checking works when `BIBLIOPHILARR_SERVICES_URL` is configured but the install step is blocked. Users have no automated path from detecting an update to installing it.
 
 **Goal**: Enable a complete, safe, and observable update lifecycle across all distribution channels (binary, Docker, npm launcher).
 
-**Current state**:
+**Current state** (as of v1.2.0):
 
 | Component | Status | Notes |
 |---|---|---|
 | Update version check | working (if services configured) | `UpdatePackageProvider` → `GET /v1/update/{branch}` |
 | Frontend update page | working | Shows available updates, warns when services not configured |
 | Health check for stale builds | working | `UpdateCheck` warns when build > 14 days old and update available |
+| Default update branch | ✅ **main** | Changed from `develop` to `main` in v1.2.0 |
+| Valid update branches | ✅ main, master, develop, nightly | All recognized by health checks |
+| Published update branches | ⏸️ **main/master only** | `develop` and `nightly` configured but no automated builds |
+| Built-in update command | disabled | Intentionally disabled until service integration complete |
+| Docker update path | documented | Users pull new images, not in-app updates |
+| npm launcher update path | documented | `npm update -g bibliophilarr` |
 | ApplicationUpdateCommand (install) | **disabled** | Hard block in `InstallUpdateService.Execute()` and `CommandController` |
 | Update package download/extract | implemented but unreachable | `InstallUpdate()` pipeline: backup → extract → terminate → transfer → restart |
 | Docker update awareness | working | Detects Docker via `/.dockerenv`, disables built-in updater, shows external-update message |
