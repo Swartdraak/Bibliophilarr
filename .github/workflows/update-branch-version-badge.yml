@@ -34,9 +34,17 @@ jobs:
 
           if version=$(git describe --tags --exact-match HEAD 2>/dev/null); then
             :
-          elif version=$(git describe --tags --abbrev=0 HEAD 2>/dev/null); then
-            :
+          elif [[ "$branch" == "main" ]]; then
+            version=$(git tag --merged HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
           else
+            version=$(git tag --merged HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$' | sort -V | tail -1)
+          fi
+
+          if [[ -z "$version" ]]; then
+            version=$(git tag --merged HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -1)
+          fi
+
+          if [[ -z "$version" ]]; then
             version="$(git rev-parse --short HEAD)"
           fi
 
