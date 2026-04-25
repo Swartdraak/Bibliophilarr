@@ -1,6 +1,6 @@
 name: Bibliophilarr npm Publish
 
-# npm publish workflow — runs only from main branch (via release events or manual dispatch).
+# npm publish workflow — runs from release tags or manual dispatch.
 on:
   push:
     tags:

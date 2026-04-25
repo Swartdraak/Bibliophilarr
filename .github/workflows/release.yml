@@ -189,7 +189,7 @@ jobs:
           path: release/*
 
   draft-release:
-    name: Draft GitHub Release
+    name: GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: build-package
