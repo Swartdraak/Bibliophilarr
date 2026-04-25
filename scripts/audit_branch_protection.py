@@ -93,8 +93,16 @@ def context_variants(context: str) -> Set[str]:
     return variants
 
 
-def is_integration_403(message: str) -> bool:
-    return "HTTP 403" in message and "Resource not accessible by integration" in message
+def is_permission_limited_error(message: str) -> bool:
+    normalized = message.lower()
+    return (
+        ("http 403" in normalized and "resource not accessible by integration" in normalized)
+        or ("http 403" in normalized and "must have admin rights" in normalized)
+        or "http 401" in normalized
+        or "requires authentication" in normalized
+        or "gh auth login" in normalized
+        or "http 404" in normalized
+    )
 
 
 def main() -> int:
@@ -163,7 +171,7 @@ def main() -> int:
             entry["error"] = message
             entry["exists"] = "Branch not found" not in message
             entry["protected"] = "Branch not protected" not in message
-            if args.allow_integration_403 and is_integration_403(message):
+            if args.allow_integration_403 and is_permission_limited_error(message):
                 entry["permission_limited"] = True
                 report["permission_limited"] = True
             else:
