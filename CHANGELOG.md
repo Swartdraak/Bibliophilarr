@@ -11,6 +11,12 @@ process.
 
 - **Default update branch**: Changed from `develop` to `main`. New installations now default to stable release tracking. Existing users retain their current branch setting and can change to `main` in Settings > General > Updates > Branch. The `main`, `master`, `develop`, and `nightly` branches are all recognized as valid update branches.
 
+### Operations
+
+- Full codebase audit completed May 24, 2026. Report at `docs/operations/AUDIT-2026-05-24.md`. Critical finding: stuck download loop (Issue #72). High finding: Dependabot PR #70 targets wrong .NET runtime (Issue #73). Sprint 7 plan at `docs/sprint-7/plan.md`.
+- Added four new Copilot agents: `runtime-health-monitor`, `release-gate`, `dependabot-triage`, `metadata-health`.
+- Added two new Copilot prompts: `stuck-download-diagnosis`, `dependabot-pr-triage`.
+
 ## [1.1.0] - 2026-04-24
 
 ### Fixed

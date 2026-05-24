@@ -1,8 +1,34 @@
 # Project Status Summary
 
-**Last Updated**: April 24, 2026 (release hardening: MailKit remediation, staging frontend CI, canonical-doc alignment)
+**Last Updated**: May 24, 2026 (Sprint 7 start: full codebase audit, production issue escalation, Dependabot triage kick-off)
 **Project**: Bibliophilarr  
-**Current Phase**: Phase 5 consolidation with Phase 6 hardening active
+**Current Phase**: Phase 5 consolidation with Phase 6 hardening active — Sprint 7 in progress
+
+## Active escalations (May 24, 2026)
+
+The following items were surfaced by the full codebase audit on May 24, 2026. See
+[docs/operations/AUDIT-2026-05-24.md](docs/operations/AUDIT-2026-05-24.md) for
+the full findings register.
+
+### AF-01 — CRITICAL: Stuck download loop (production)
+
+`Ellen.Hopkins.Impulse.2008.RETAiL.EPUB.eBook-NODE` has been processed every 90
+seconds without success since April 20, 2026 (34+ days). Immediate operator action:
+remove the torrent from qBittorrent if the directory is empty. Code fix tracked in
+[GitHub Issue #72](https://github.com/Swartdraak/Bibliophilarr/issues/72).
+
+### AF-02 — HIGH: Dependabot PR #70 targets .NET 10 against .NET 8 project
+
+PR #70 proposes `Microsoft.AspNetCore.SignalR.Client` 8.0.11 → 10.0.7. Merging it
+will break `dotnet restore`. Must be closed and deferred to DMQ-001 (Phase 7).
+Tracked in [GitHub Issue #73](https://github.com/Swartdraak/Bibliophilarr/issues/73).
+
+### AF-04 — HIGH: Dependabot PR queue unprocessed (19+ PRs)
+
+Structured triage in progress this sprint. Triage plan in
+[GitHub Issue #74](https://github.com/Swartdraak/Bibliophilarr/issues/74).
+Use `.github/agents/dependabot-triage.agent.md` and
+`.github/prompts/dependabot-pr-triage.prompt.md`.
 
 ## Overview
 

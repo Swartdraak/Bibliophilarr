@@ -140,6 +140,50 @@ PR descriptions should include:
 4. Risk assessment + rollback/fallback plan
 5. Follow-up tasks for next iteration
 
+## Registered Operational Documents
+
+The following files have been explicitly approved for creation and are registered here
+per the Canonical Document Registry rule above:
+
+### Audit reports (`docs/operations/AUDIT-*.md`)
+
+Point-in-time full-codebase audit evidence. One file per audit cycle. Not updated in
+place after completion — each new audit creates a new dated file. Current:
+
+- `docs/operations/AUDIT-2026-05-24.md` — Full clean-slate audit, May 24, 2026.
+
+### Sprint plans (`docs/sprint-N/plan.md`)
+
+Sprint-scoped delivery plans created by the producer at sprint start. Not canonical
+status documents (status goes in `PROJECT_STATUS.md`). Current:
+
+- `docs/sprint-7/plan.md` — Sprint 7 plan, May 24 – June 21, 2026.
+
+## Registered Custom Agents and Prompts
+
+The following agent and prompt files extend Copilot capabilities for Bibliophilarr
+operational workflows. Read the relevant file before invoking it.
+
+### Agents (`.github/agents/`)
+
+| Agent | Purpose |
+|---|---|
+| `documentation-auditor-readonly.agent.md` | Read-only drift detection across all docs; returns severity-ranked findings |
+| `documentation-maintainer.agent.md` | Consolidates docs, archives superseded files, adds citations |
+| `runtime-health-monitor.agent.md` | Diagnoses stuck downloads, zero-match scans, path-mapping failures from live logs |
+| `release-gate.agent.md` | Validates Phase 6/7 exit criteria before release promotion; returns Go/No-Go |
+| `dependabot-triage.agent.md` | Classifies open Dependabot PRs as safe-to-merge, needs-review, or defer-to-dmq |
+| `metadata-health.agent.md` | Audits Hardcover and OpenLibrary provider health, error rates, and test coverage gaps |
+
+### Prompts (`.github/prompts/`)
+
+| Prompt | Purpose |
+|---|---|
+| `release-docs.prompt.md` | Generates changelog draft, doc checklist, and release notes for a release |
+| `post-run-drift-audit.prompt.md` | Post-merge drift check for documentation consistency |
+| `stuck-download-diagnosis.prompt.md` | Step-by-step diagnosis for stuck completed downloads (files=0 infinite loop) |
+| `dependabot-pr-triage.prompt.md` | Structured checklist for triaging a batch of Dependabot PRs safely |
+
 ## Safety and Security
 
 - Never introduce code that bypasses secure defaults without justification.
