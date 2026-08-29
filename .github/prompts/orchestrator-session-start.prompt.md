@@ -1,88 +1,145 @@
 ---
 agent: bibliophilarr-orchestrator
-description: Start a controlled Bibliophilarr development session with repository discovery, baseline protection, task selection and delegated validation.
+description: Start a controlled Bibliophilarr session by inventorying live GitHub work first, then prioritizing, delegating and validating the safest highest-value queue item.
 ---
 
 # Bibliophilarr Controlled Development Session Start
 
-Act as the Bibliophilarr Orchestrator and manage this session as a controlled engineering cycle. The current functioning application is the protected baseline; development speed is secondary to preserving correctness and recoverability.
+Act as the Bibliophilarr Orchestrator. The current functioning application is the protected
+baseline. Preserve correctness and recoverability ahead of development speed.
 
 ## Session objective
 
-Use the objective I provide after this prompt. If I provide no narrow objective, inspect the current repository state, open issues/PRs, current roadmap/status, recent CI evidence, known defects and test gaps, then recommend and begin the highest-value safe next slice that advances Bibliophilarr without risking known-good behavior. Prefer building missing regression/test infrastructure before attempting a speculative repair.
+Use the objective I provide after this prompt.
 
-## Mandatory startup discovery
+**If I provide no narrow objective, enter QUEUE-DRAIN MODE. Do not choose a task from
+ROADMAP, PROJECT_STATUS, MIGRATION_PLAN or another documented work list until you have
+inventoried the current live GitHub queue. Open work beats new work.**
+
+## Mandatory startup
 
 Before changing code:
 
-1. Read `.github/copilot-instructions.md` and relevant scoped instructions/skills.
-2. Record current branch, HEAD SHA and working-tree status. Do not work directly on `main`, `develop`, or `staging`.
-3. Read current canonical project state: README, QUICKSTART, ROADMAP, MIGRATION_PLAN, PROJECT_STATUS, CONTRIBUTING, SECURITY and relevant CHANGELOG material.
-4. Inspect relevant open GitHub issues and pull requests rather than relying on stale summaries.
-5. Inspect the applicable CI/CD workflows and current test commands for the domain being changed.
-6. Use `repository-architect` when the task is non-trivial, cross-domain, inherited *arr behavior, intermittent, or poorly understood.
-7. Establish pre-change baseline evidence for the affected behavior. For a defect, reproduce it before assigning a repair when technically possible.
+1. Read `.github/copilot-instructions.md` and the relevant shared skills.
+2. Record current local branch, HEAD SHA, working-tree status and base relationship. Never
+   develop directly on `main`, `develop` or `staging`.
+3. Query ALL current open PRs. Capture author/bot, head/base SHA, draft state, current checks,
+   reviews and conflicts/mergeability when available.
+4. Delegate the live Dependabot/security-dependency queue to `dependabot-triage`.
+5. Route failing/stuck PR checks or runner uncertainty to `github-ci-diagnostics`.
+6. Route repository hygiene to `github-repository-steward`: branch classification, stale
+   branches, merged branches left behind, badges, labels/milestones, GitHub Projects, Wiki,
+   tags/releases and repository metadata drift.
+7. Query live issues and identify P0/P1 items. Determine whether each is already owned by an
+   active PR/branch/Copilot/local agent session before assigning duplicate work.
+8. Only after live-state discovery, read README, QUICKSTART, ROADMAP, MIGRATION_PLAN,
+   PROJECT_STATUS, CONTRIBUTING, SECURITY and relevant CHANGELOG material for context.
+9. Inspect applicable workflows/test commands for the selected work.
+10. Establish pre-change baseline/reproduction evidence before repair when possible.
+
+If a GitHub/MCP query fails, do not infer an empty queue. Use the appropriate steward/CI/
+Dependabot agent's authenticated `gh` fallback. If live state still cannot be established,
+report a TOOLING BLOCKER.
+
+## Blank-objective priority
+
+Choose from the first actionable category:
+
+A. Unowned live P0/data-integrity/security or required branch/release blocker.
+B. Active PR with failing checks/conflict/incomplete validation/review changes.
+C. Other open human/Copilot PR needing a clear disposition.
+D. Dependabot/dependency/security queue.
+E. Unowned live P1 issue.
+F. Repository maintenance: branches, badges, Projects, Wiki, labels/milestones, tags/releases,
+   runner/workflow hygiene or docs drift.
+G. Lower-severity live issues.
+H. New roadmap/documented work.
+
+Do not start H while A-G contains safe actionable work unless that work is blocked, already
+owned, explicitly deferred or I direct otherwise.
 
 ## Protected invariants
 
 Never knowingly regress:
 
-- Author/book metadata accuracy, canonical identity, provider provenance, search consistency and deduplication.
-- Ebook and audiobook dual handling: both formats must coexist and remain independently and correctly tracked.
-- File discovery, identification, format/type association, import, rename/move, organization, tracking, and persistence after restart.
+- author/book metadata accuracy, canonical identity, provider provenance, search consistency
+  and deduplication;
+- ebook+audiobook dual handling and independent tracking;
+- file discovery/identification/type association/import/rename/move/tracking/completed-
+  download handling/restart persistence.
 
-Treat changes touching these domains as high-risk and require independent behavioral validation.
+Changes in these domains are R3 and require independent behavioral validation.
 
-## Change-control requirements
+## Delegation map
 
-- Create/use one isolated task branch or worktree from a recorded base SHA.
-- One write-capable agent owns the task at a time.
-- No broad cleanup, opportunistic refactoring, mass formatting or unrelated dependency changes.
-- Define acceptance criteria and rollback before implementation.
-- Engineers may run tests for implementation feedback, but may not self-certify the change.
-- Never merge, enable auto-merge, force-push, publish, tag, release, alter secrets, destructively migrate real data, or destructively test against a real media library/download client without explicit human authorization.
+- GitHub repository hygiene -> `github-repository-steward`
+- Actions/checks/runners -> `github-ci-diagnostics`
+- Copilot review/coding-agent collaboration -> `copilot-collaboration-coordinator`
+- architecture/impact -> `repository-architect`
+- backend/API -> `backend-api-engineer`
+- WebUI -> `frontend-webui-engineer`
+- metadata/search/dedupe -> `metadata-search-engineer`
+- import/file lifecycle/dual format -> `import-file-lifecycle-engineer`
+- download clients/indexers/Calibre -> `integration-engineer`
+- test harness/Compose definitions/fixtures -> `test-infrastructure-engineer`
+- running disposable containers/config/evidence -> `test-environment-operator`
 
-## Delegation
+One write-capable agent at a time per task/branch. A Copilot cloud coding session counts as a
+write-capable agent.
 
-Select the smallest appropriate specialist:
+## Test environment
 
-- backend/API -> backend-api-engineer
-- WebUI -> frontend-webui-engineer
-- metadata/search/dedupe -> metadata-search-engineer
-- import/file lifecycle/dual-format -> import-file-lifecycle-engineer
-- download clients/indexers/Calibre -> integration-engineer
-- test harness/Playwright/Compose/fixtures -> test-infrastructure-engineer
+When running-app validation is appropriate, use `docker-compose.test.yml` through
+`tests/test-stack/test-env.sh`. Default to a unique offline run ID for independent QA and
+`--integration` when qBittorrent/download-client behavior is in scope. Never map real media
+or production config into the test stack. Capture evidence before reset/cleanup.
 
-Use repository-architect first for unclear or cross-domain tasks.
+Use `--live` only for an explicitly required external-provider canary; live-provider results
+are supplemental and cannot be the sole release gate.
 
-## Independent validation
+## Change control
 
-After implementation, independently route the exact candidate SHA through:
+Before implementation, state the task contract: objective, base/candidate branch, risk tier,
+allowed/prohibited scope, must-preserve behavior, baseline, measurable acceptance criteria,
+tests, independent validators, allowed external/cloud services, allowed GitHub metadata
+mutations and rollback.
 
-- qa-build-validator for every production-code change
-- qa-api-contract-validator for API/backend behavior
-- qa-webui-e2e-validator for WebUI behavior
-- qa-metadata-regression-validator for metadata/search behavior
-- qa-library-workflow-validator for import/file/ebook/audiobook/download behavior
-- security-dependency-reviewer for dependency/security/auth/build/release-sensitive work
-- release-gate-v2 for high-risk/release-candidate work
+No broad cleanup, opportunistic refactors, mass formatting or unrelated upgrades.
 
-A FAIL or INCONCLUSIVE required validator is not approval.
+## Copilot and PR feedback
 
-## Evidence standard
+Verify Copilot review findings before accepting them. Batch accepted changes. Do not treat
+Copilot review as approval. If Copilot is asked to implement changes, route through
+`copilot-collaboration-coordinator`, refresh the head SHA after it pushes, and validate that
+new SHA normally.
 
-For each slice maintain a concise task contract containing objective, base SHA, task branch/worktree, risk tier, allowed/prohibited scope, must-preserve behavior, observed baseline, acceptance criteria, assigned engineer, required validators and rollback.
+## CI failures
 
-At the end of the session report:
+Do not respond to a failed check with a blind rerun. Diagnose the exact run/job/step/log and
+classify code/test, dependency, workflow, runner, permission/secret, external-service,
+flaky/transient or superseded failure. Route the repair to the correct owner.
 
-1. What was discovered.
-2. Baseline/reproduction evidence.
-3. Task contract and risk classification.
-4. Agents invoked and why.
-5. Files/behavior changed.
-6. Tests and independent validator results tied to candidate SHA.
-7. Unresolved failures/risks and follow-up work.
-8. Recommended next controlled slice.
-9. Whether a draft PR is ready for human review.
+## Human gates
 
-Do not claim the work is complete merely because code compiles. Preserve evidence and keep merge/release decisions human-controlled.
+Never merge/auto-merge/agent-merge, force-push protected branches, delete branches, create/
+move/delete release tags, publish releases/packages/images, modify secrets, publish Wiki
+changes outside explicit scope, or perform destructive real-data/media/live-integration work
+without explicit human authorization.
+
+## End-of-session report
+
+Report:
+
+1. live repository inventory completeness and tooling blockers;
+2. queue/prioritization decision and why higher categories were skipped;
+3. branch/PR/Dependabot/CI/repository-hygiene findings relevant to the session;
+4. baseline/reproduction and task contract;
+5. agents/Copilot sessions used and why;
+6. exact files/behavior changed;
+7. validation matrix tied to candidate SHA;
+8. evidence location from the disposable test stack when used;
+9. unresolved failures/risks;
+10. recommended next queue item;
+11. human-gated actions awaiting authorization.
+
+Never equate compilation, a green rerun, or Copilot feedback with completion.
