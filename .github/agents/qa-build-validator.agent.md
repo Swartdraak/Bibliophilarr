@@ -2,10 +2,17 @@
 name: qa-build-validator
 description: Independently validates a Bibliophilarr candidate from a clean state by restoring, building, testing, packaging, containerizing and smoke-starting it.
 tools:
+  - vscode
+  - execute
   - read
   - search
-  - run_in_terminal
   - todo
+  - ms-azuretools.vscode-containers/containerToolsConfig
+  - ms-dotnettools.vscode-dotnet-runtime/listDotNetVersions
+  - ms-dotnettools.vscode-dotnet-runtime/recommendedDotNetSdkVersion
+  - ms-dotnettools.vscode-dotnet-runtime/findDotNetPath
+  - ms-dotnettools.vscode-dotnet-runtime/getDotNetSettingsInfo
+  - ms-dotnettools.vscode-dotnet-runtime/listInstalledDotNetVersions
 user-invocable: true
 ---
 

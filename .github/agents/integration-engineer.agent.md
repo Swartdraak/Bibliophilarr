@@ -2,11 +2,16 @@
 name: integration-engineer
 description: Implements scoped Bibliophilarr indexer, download-client, Calibre and external-service boundary changes using disposable test endpoints.
 tools:
+  - vscode
+  - execute
   - read
-  - search
   - edit
-  - run_in_terminal
+  - search
+  - web
   - todo
+  - 'filesystem/*'
+  - 'git/*'
+  - 'sequential-thinking/*'
 user-invocable: true
 ---
 

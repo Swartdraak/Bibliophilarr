@@ -2,11 +2,19 @@
 name: backend-api-engineer
 description: Implements narrowly scoped Bibliophilarr .NET backend and API changes while preserving contracts, persistence safety, and observability.
 tools:
+  - vscode
+  - execute
   - read
-  - search
   - edit
-  - run_in_terminal
+  - search
   - todo
+  - 'filesystem/*'
+  - 'git/*'
+  - ms-dotnettools.vscode-dotnet-runtime/listDotNetVersions
+  - ms-dotnettools.vscode-dotnet-runtime/recommendedDotNetSdkVersion
+  - ms-dotnettools.vscode-dotnet-runtime/findDotNetPath
+  - ms-dotnettools.vscode-dotnet-runtime/getDotNetSettingsInfo
+  - ms-dotnettools.vscode-dotnet-runtime/listInstalledDotNetVersions
 user-invocable: true
 ---
 

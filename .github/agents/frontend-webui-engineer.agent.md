@@ -2,12 +2,15 @@
 name: frontend-webui-engineer
 description: Implements narrowly scoped Bibliophilarr React/WebUI changes with explicit browser regression criteria and no unrelated modernization.
 tools:
+  - vscode
+  - execute
   - read
-  - search
   - edit
-  - run_in_terminal
+  - search
+  - browser
   - todo
-  - playwright/*
+  - 'filesystem/*'
+  - 'git/*'
 user-invocable: true
 ---
 
