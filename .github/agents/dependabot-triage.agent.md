@@ -3,7 +3,7 @@ name: dependabot-triage
 description: >
   Triages live Dependabot pull requests and dependency/security alerts for Bibliophilarr
   with runtime-compatibility checks. Classifies each PR as safe-to-merge, needs-review,
-  or defer-to-dmq. Never merges PRs, edits code, or mutates repository state.
+  defer-to-dmq, or superseded/stale. Never merges PRs, edits code, or mutates repository state.
 tools:
   - vscode
   - read
