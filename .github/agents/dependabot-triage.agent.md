@@ -5,7 +5,6 @@ description: >
   with runtime-compatibility checks. Classifies each PR as safe-to-merge, needs-review,
   defer-to-dmq, or superseded/stale. Never merges PRs, edits code, or mutates repository state.
 tools:
-  - vscode
   - read
   - search
   - web
