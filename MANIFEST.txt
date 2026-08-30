@@ -6,6 +6,9 @@ ARCHITECTURE.md
 BRANCHING.md
 CONTRIBUTING.md
 .github/copilot-instructions.md
+.github/skills/bibliophilarr-pr-lifecycle/SKILL.md
+.github/agents/pr-readiness-gate.agent.md
+.github/agents/agent-governance-engineer.agent.md
 .github/prompts/orchestrator-session-start.prompt.md
 .github/AGENTS.md
 .github/agents/AGENTS.md

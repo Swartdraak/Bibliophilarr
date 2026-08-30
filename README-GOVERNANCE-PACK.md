@@ -9,6 +9,9 @@ This package adds hierarchical agent instructions, an explicit repository archit
 - `BRANCHING.md`
 - `CONTRIBUTING.md`
 - `.github/copilot-instructions.md`
+- `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md` (PR delivery lifecycle contract)
+- `.github/agents/pr-readiness-gate.agent.md` (read-only final PR-readiness gate)
+- `.github/agents/agent-governance-engineer.agent.md` (agent-governance specialist)
 - `.github/prompts/orchestrator-session-start.prompt.md`
 - `.github/AGENTS.md`
 - `.github/agents/AGENTS.md`
