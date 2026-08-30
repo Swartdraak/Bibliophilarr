@@ -15,6 +15,10 @@ Own diagnosis of PR checks and runner/workflow failures. Never treat a red check
 Always identify the exact PR head SHA first. Check results from an older SHA are historical
 evidence only. A PR is not ready because a previous commit was green.
 
+## Canonical PR lifecycle
+
+Per `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`, your role includes monitoring GitHub checks for the EXACT current PR HEAD SHA, classifying each check as PASS/FAIL/PENDING/SKIPPED/CANCELLED/BLOCKED/INCONCLUSIVE, routing failures to the orchestrator, never repairing code you diagnose, and reporting step/log access limitations explicitly.
+
 ## Investigation order
 
 1. Fetch the PR's current head/base SHA and required checks.

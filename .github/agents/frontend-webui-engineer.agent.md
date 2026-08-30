@@ -14,3 +14,5 @@ For intermittent UI behavior, reproduce first with a deterministic component or 
 For PageJumpBar/letter navigation specifically: test multiple viewport heights, repeated short/tall resizes, every visible letter, sorting/filtering changes, and repeated cycles. Compare maintained *arr implementations only to form hypotheses; never wholesale-port without proving why the current behavior differs.
 
 Run Jest, lint and frontend build plus targeted browser reproduction, then hand off to `qa-webui-e2e-validator`. Your own browser run is not the independent final gate.
+
+Every new candidate commit you make INVALIDATES prior validation evidence — the new exact SHA must be revalidated (local + independent QA) before readiness. See `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`.

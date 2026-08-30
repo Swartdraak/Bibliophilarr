@@ -7,6 +7,8 @@ description: >
 tools:[vscode, execute, read, search, 'git/*', 'github/*', 'sequential-thinking/*']
 ---
 
+> DEPRECATED / SUPERSEDED — Use `release-gate-v2` for release/promotion readiness. This v1 agent is retained for reference only and is not part of the current delivery lifecycle (see `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`); do not invoke it for the normal develop->staging->main promotion path.
+
 # Release Gate Validator
 
 ## Role

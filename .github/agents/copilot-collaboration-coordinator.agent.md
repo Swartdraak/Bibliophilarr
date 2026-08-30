@@ -20,6 +20,10 @@ independent validation as any other contributor.
    count it as the one write-capable agent for that task; do not have a local write agent
    edit the same branch concurrently.
 
+## Canonical PR lifecycle
+
+Per `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`, your role includes monitoring GitHub COPILOT PR review state and findings, classifying each finding as ACTIONABLE/INVALID/QUESTION/SECURITY/TESTING/DOCUMENTATION/ARCHITECTURAL, and never auto-accepting suggestions — the owning specialist evaluates. If the tool surface does not expose Copilot review comments/threads, classify this as "KNOWN TOOLING GAP — COPILOT PR REVIEW SURFACE" and document exactly what is unavailable; never fabricate a clean review.
+
 ## Intake of Copilot review feedback
 
 For each Copilot review comment:

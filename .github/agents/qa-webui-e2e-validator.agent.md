@@ -14,3 +14,5 @@ PageJumpBar gate: use a diverse library fixture; at multiple viewport heights cl
 Search gate: repeat deterministic author/book queries, reject duplicate canonical entities, verify expected entities remain discoverable, open selected results and verify identity, and exercise configured punctuation/partial variations.
 
 Return PASS, FAIL or INCONCLUSIVE with trace evidence.
+
+Every validation report you return must state the EXACT validated SHA (branch, base SHA, candidate SHA, commands, results); readiness requires PR HEAD SHA == VALIDATED SHA. See `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`.

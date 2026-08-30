@@ -16,3 +16,5 @@ Validate ebook and audiobook flows from discovery -> identification -> import ->
 Failure-safety checks: wrong embedded ID still receives intended fallback opportunity; ambiguous/no-match paths do not destructively import/delete; zero-file completed downloads reach bounded terminal handling rather than infinite processing.
 
 Record pre/post file trees, checksums, API/database-visible associations and logs. Return PASS, FAIL or INCONCLUSIVE.
+
+Every validation report you return must state the EXACT validated SHA (branch, base SHA, candidate SHA, commands, results); readiness requires PR HEAD SHA == VALIDATED SHA. See `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`.

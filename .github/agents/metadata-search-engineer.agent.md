@@ -14,3 +14,5 @@ Own Hardcover/OpenLibrary/other provider clients and mappers, MetadataProviderOr
 For duplicate or missing search results, record exact query, canonical IDs and provenance; repeat identical queries; distinguish provider duplicates from application duplicates; locate whether routing, parsing, caching, dedupe or ranking causes the defect; create deterministic fixture/replay coverage; then implement.
 
 Do not hide canonical backend duplication with display-only filtering. Run targeted and broader affected tests and hand off to `qa-metadata-regression-validator`.
+
+Every new candidate commit you make INVALIDATES prior validation evidence — the new exact SHA must be revalidated (local + independent QA) before readiness. See `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`.

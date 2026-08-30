@@ -4,7 +4,7 @@ description: >
   Checks Hardcover and OpenLibrary metadata provider health, coverage, and identification
   rates from application logs and test fixtures. Reports provider error rates, fallback
   trigger frequency, and coverage gaps. Read-only — never modifies provider configuration.
-tools:[readFile, searchFiles, todo, 'github/*']
+tools:[vscode, read, search, todo]
 ---
 
 # Metadata Health Agent
@@ -20,7 +20,9 @@ pipeline. Read application logs, test fixtures, and code to assess:
 4. Test fixture completeness
 5. Known provider-specific risks
 
-**This agent never modifies provider configuration or code.** It produces a health
+**This agent never modifies provider configuration or code.** It performs read
+operations only against local logs, test fixtures, and in-repository
+documents; it does not use GitHub mutation of any kind. It produces a health
 report with coverage gaps and recommended actions.
 
 ## Provider baseline
