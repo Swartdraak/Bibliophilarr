@@ -1,8 +1,34 @@
 # Project Status Summary
 
-**Last Updated**: April 24, 2026 (release hardening: MailKit remediation, staging frontend CI, canonical-doc alignment)
+**Last Updated**: May 24, 2026 (Sprint 7 start: full codebase audit, production issue escalation, Dependabot triage kick-off)
 **Project**: Bibliophilarr  
-**Current Phase**: Phase 5 consolidation with Phase 6 hardening active
+**Current Phase**: Phase 5 consolidation with Phase 6 hardening active — Sprint 7 in progress
+
+## Active escalations (May 24, 2026)
+
+The following items were surfaced by the full codebase audit on May 24, 2026. See
+[docs/operations/AUDIT-2026-05-24.md](docs/operations/AUDIT-2026-05-24.md) for
+the full findings register.
+
+### AF-01 — CRITICAL: Stuck download loop (production)
+
+`Ellen.Hopkins.Impulse.2008.RETAiL.EPUB.eBook-NODE` has been processed every 90
+seconds without success since April 20, 2026 (34+ days). Immediate operator action:
+remove the torrent from qBittorrent if the directory is empty. Code fix tracked in
+[GitHub Issue #72](https://github.com/Swartdraak/Bibliophilarr/issues/72).
+
+### AF-02 — HIGH: Dependabot PR #70 targets .NET 10 against .NET 8 project
+
+PR #70 proposes `Microsoft.AspNetCore.SignalR.Client` 8.0.11 → 10.0.7. Merging it
+will break `dotnet restore`. Must be closed and deferred to DMQ-001 (Phase 7).
+Tracked in [GitHub Issue #73](https://github.com/Swartdraak/Bibliophilarr/issues/73).
+
+### AF-04 — HIGH: Dependabot PR queue unprocessed (19+ PRs)
+
+Structured triage in progress this sprint. Triage plan in
+[GitHub Issue #74](https://github.com/Swartdraak/Bibliophilarr/issues/74).
+Use `.github/agents/dependabot-triage.agent.md` and
+`.github/prompts/dependabot-pr-triage.prompt.md`.
 
 ## Overview
 
@@ -18,6 +44,49 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 - Required approving review count is `0` across those protected branches.
 - Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
 - Release entry is not yet clear for promotion: the committed dated evidence set is stale, the latest committed series persistence snapshot is failing, and local `develop` is ahead of the remote promotion branches.
+
+## Open dependency upgrade tasks (April 24, 2026)
+
+Open Dependabot PRs `#52` through `#59` are intentionally deferred to controlled migration slices.
+They require targeted compatibility verification rather than direct PR merges.
+
+1. `#52` (`@fortawesome/free-solid-svg-icons` 6.7.2 → 7.x)
+
+- Validate icon import compatibility, tree-shaking, and rendering in Author/Book/Queue/UI status surfaces.
+
+2. `#53` (`postcss-mixins` 9.0.4 → 12.x)
+
+- Validate PostCSS plugin chain and CSS output parity in frontend build pipeline.
+
+3. `#54` (`webpack-cli` 5.1.4 → 7.x)
+
+- Validate webpack CLI invocation paths, frontend build scripts, and CI frontend workflow behavior.
+
+4. `#55` (`rimraf` 5.0.10 → 6.x)
+
+- Validate Node engine compatibility and cleanup scripts used by build/release tooling.
+
+5. `#56` (`prettier` 2.8.8 → 3.x)
+
+- Run formatting impact audit and stage migration with controlled churn (no unrelated mass reformatting).
+
+6. `#57` (`FluentMigrator.Runner.SQLite` 3.3.2 → 8.x)
+
+- Coordinate with `FluentMigrator.Runner` and `FluentMigrator.Runner.Postgres` migrations in one backend runner compatibility slice.
+
+7. `#58` (`FluentValidation` 9.5.4 → 12.x)
+
+- Audit API and SignalR validation code paths for breaking validator API changes.
+
+8. `#59` (`Ical.Net` 4.3.1 → 5.x)
+
+- Validate calendar recurrence parsing and scheduling behavior for compatibility regressions.
+
+Execution policy:
+
+- Open dedicated migration PRs from `develop` for each approved slice (or grouped slice where coupling exists).
+- Keep `staging` and `main` protected from direct major-version bumps without full CI evidence.
+- Record migration outcomes in [ROADMAP.md](ROADMAP.md) dependency migration queue entries DMQ-009 through DMQ-016.
 
 ## Requested implementation tracks (March 23, 2026)
 

@@ -1,0 +1,108 @@
+name: ${COMPOSE_PROJECT_NAME:-bibliophilarr-test}
+
+services:
+  fixture-service:
+    image: python:3.12-alpine
+    command: ["python", "/srv/fixture_service.py", "--host", "0.0.0.0", "--port", "8080", "--data", "/srv/data"]
+    user: "${BIBLIOPHILARR_TEST_UID:-1000}:${BIBLIOPHILARR_TEST_GID:-1000}"
+    environment:
+      TZ: Etc/UTC
+    volumes:
+      - type: bind
+        source: ./tests/test-stack/fixture_service.py
+        target: /srv/fixture_service.py
+        read_only: true
+      - type: bind
+        source: ${BIBLIOPHILARR_TEST_ROOT:?set BIBLIOPHILARR_TEST_ROOT through tests/test-stack/test-env.sh}/fixture-data
+        target: /srv/data
+        read_only: true
+    ports:
+      - "127.0.0.1:${BIBLIOPHILARR_FIXTURE_PORT:-18080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 2s
+    restart: "no"
+    networks:
+      - bibliophilarr-test
+
+  bibliophilarr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${BIBLIOPHILARR_TEST_IMAGE:-bibliophilarr:test}
+    command:
+      - /data=/config
+      - /nobrowser
+      - /nosingleinstancecheck
+    user: "${BIBLIOPHILARR_TEST_UID:-1000}:${BIBLIOPHILARR_TEST_GID:-1000}"
+    environment:
+      ASPNETCORE_URLS: http://+:8787
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+      TZ: Etc/UTC
+      BIBLIOPHILARR_SERVICES_URL: "${BIBLIOPHILARR_SERVICES_URL:-}"
+      BIBLIOPHILARR_HARDCOVER_API_TOKEN: "${BIBLIOPHILARR_HARDCOVER_API_TOKEN:-}"
+    volumes:
+      - type: bind
+        source: ${BIBLIOPHILARR_TEST_ROOT}/config
+        target: /config
+      - type: bind
+        source: ${BIBLIOPHILARR_TEST_ROOT}/books
+        target: /books
+      - type: bind
+        source: ${BIBLIOPHILARR_TEST_ROOT}/audiobooks
+        target: /audiobooks
+      - type: bind
+        source: ${BIBLIOPHILARR_TEST_ROOT}/downloads
+        target: /downloads
+      - type: bind
+        source: ${BIBLIOPHILARR_TEST_ROOT}/evidence
+        target: /evidence
+    ports:
+      - "127.0.0.1:${BIBLIOPHILARR_TEST_PORT:-18787}:8787"
+    depends_on:
+      fixture-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+    networks:
+      - bibliophilarr-test
+
+  qbittorrent:
+    profiles: ["integration"]
+    image: ${QBITTORRENT_IMAGE:-lscr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls472}
+    environment:
+      PUID: "${BIBLIOPHILARR_TEST_UID:-1000}"
+      PGID: "${BIBLIOPHILARR_TEST_GID:-1000}"
+      TZ: Etc/UTC
+      WEBUI_PORT: "8080"
+      TORRENTING_PORT: "6881"
+    volumes:
+      - type: bind
+        source: ${BIBLIOPHILARR_TEST_ROOT}/qbittorrent-config
+        target: /config
+      - type: bind
+        source: ${BIBLIOPHILARR_TEST_ROOT}/downloads
+        target: /downloads
+    ports:
+      - "127.0.0.1:${BIBLIOPHILARR_QBIT_PORT:-18081}:8080"
+    stop_grace_period: 10s
+    restart: "no"
+    networks:
+      - bibliophilarr-test
+
+networks:
+  bibliophilarr-test:
+    driver: bridge
+    internal: ${BIBLIOPHILARR_TEST_NETWORK_INTERNAL:-true}
