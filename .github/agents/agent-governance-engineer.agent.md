@@ -211,17 +211,7 @@ Use bounded smoke testing when possible.
 
 ## Branching
 
-Agent-governance work follows repository branch policy.
-
-For the current repository-governance initiative, work only on:
-
-`chore/repository-governance`
-
-The PR target must be:
-
-`develop`
-
-Do not merge it.
+Follow `BRANCHING.md`: branch normal task work from `develop` and target PRs to `develop`. Never target a normal task PR to `main` or `staging`. Promotion `develop -> staging -> main` is a separate, human-gated action. Do not merge the PR.
 
 ## Completion
 
