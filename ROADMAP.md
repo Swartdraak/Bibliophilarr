@@ -161,6 +161,14 @@ according to EOL urgency, coupling risk, and prerequisite dependencies.
 | DMQ-006 | `FluentAssertions` | 5.10.3 → 8.x | [#44](https://github.com/Swartdraak/Bibliophilarr/pull/44) | Backend / Test | High | Update assertion syntax across 100+ test files, validate API compatibility | Phase 6-7 | **complete** |
 | DMQ-007 | `FluentMigrator.Runner` | 3.3.2 → 8.x | [#45](https://github.com/Swartdraak/Bibliophilarr/pull/45) | Backend | High | Audit 44+ migration files, validate runner API changes, coordinate with DMQ-008 | Phase 7 | planned |
 | DMQ-008 | `FluentMigrator.Runner.Postgres` | 3.3.2 → 8.x | [#46](https://github.com/Swartdraak/Bibliophilarr/pull/46) | Backend | High | Must upgrade with DMQ-007 in single coordinated slice | Phase 7 | planned |
+| DMQ-009 | `@fortawesome/free-solid-svg-icons` | 6.7.2 → 7.x | [#52](https://github.com/Swartdraak/Bibliophilarr/pull/52) | Frontend | Medium | Audit icon import paths, verify tree-shaking output size, validate icon rendering in key pages | Phase 6-7 | planned |
+| DMQ-010 | `postcss-mixins` | 9.0.4 → 12.x | [#53](https://github.com/Swartdraak/Bibliophilarr/pull/53) | Frontend / Build | Medium | Validate PostCSS plugin compatibility and build output parity in `frontend/build/webpack.config.js` | Phase 6-7 | planned |
+| DMQ-011 | `webpack-cli` | 5.1.4 → 7.x | [#54](https://github.com/Swartdraak/Bibliophilarr/pull/54) | Frontend / Build | High | Validate webpack 5 + cli 7 compatibility, npm scripts, and CI frontend build behavior | Phase 6-7 | planned |
+| DMQ-012 | `rimraf` | 5.0.10 → 6.x | [#55](https://github.com/Swartdraak/Bibliophilarr/pull/55) | Tooling | Medium | Validate Node engine constraints and cross-platform cleanup scripts in build/release flows | Phase 6-7 | planned |
+| DMQ-013 | `prettier` | 2.8.8 → 3.x | [#56](https://github.com/Swartdraak/Bibliophilarr/pull/56) | Frontend / Docs | High | Run formatting impact audit; update lint/format config and avoid mass unrelated churn | Phase 6-7 | planned |
+| DMQ-014 | `FluentMigrator.Runner.SQLite` | 3.3.2 → 8.x | [#57](https://github.com/Swartdraak/Bibliophilarr/pull/57) | Backend | High | Coordinate with DMQ-007/DMQ-008 and execute migration-runner compatibility verification in one slice | Phase 7 | planned |
+| DMQ-015 | `FluentValidation` | 9.5.4 → 12.x | [#58](https://github.com/Swartdraak/Bibliophilarr/pull/58) | Backend | High | Audit validator API changes and request-pipeline behavior; update SignalR and API validation paths | Phase 6-7 | planned |
+| DMQ-016 | `Ical.Net` | 4.3.1 → 5.x | [#59](https://github.com/Swartdraak/Bibliophilarr/pull/59) | Backend | Medium | Validate parser behavior and recurrence handling in calendar import and scheduling surfaces | Phase 6-7 | planned |
 
 ### Migration sequencing and dependencies
 
@@ -168,12 +176,20 @@ according to EOL urgency, coupling risk, and prerequisite dependencies.
 Phase 6-7 (independent, can start now):
   DMQ-005 stylelint 16          — standalone config migration
   DMQ-006 FluentAssertions 8    — test-only, no runtime impact
+   DMQ-009 FontAwesome 7         — icon package compatibility validation
+   DMQ-010 postcss-mixins 12     — PostCSS pipeline compatibility
+   DMQ-011 webpack-cli 7         — frontend build tooling migration
+   DMQ-012 rimraf 6              — cleanup script/node-engine compatibility
+   DMQ-013 prettier 3            — formatting baseline migration with controlled churn
+   DMQ-015 FluentValidation 12   — validator and request-pipeline migration
+   DMQ-016 Ical.Net 5            — calendar parser compatibility checks
 
 Phase 7 (requires .NET 10 GA):
   DMQ-002 dotnet/aspnet 10      — runtime image first
   DMQ-001 dotnet/sdk 10         — build image, depends on DMQ-002 + TFM migration
   DMQ-007 FluentMigrator 8  ──┐
-  DMQ-008 FluentMigrator.PG 8 ┘  coordinated upgrade
+   DMQ-008 FluentMigrator.PG 8 ─┼─ coordinated upgrade
+   DMQ-014 FluentMigrator.SQLite 8 ┘ coordinated upgrade
 
 Phase 7 (requires React 18 first):
   DMQ-003 react-router-dom 6   — after React 18 + connected-react-router removal
@@ -186,7 +202,7 @@ Phase 7 (requires React 18 first):
 - Migrations with test-only impact (DMQ-005, DMQ-006) can proceed independently.
 - .NET 10 migrations (DMQ-001, DMQ-002) are available for scheduling now that .NET 10 LTS has reached GA; blocked by TFM migration scope.
 - Frontend migrations (DMQ-003, DMQ-004) are sequenced after React 18 upgrade (RQ-159).
-- FluentMigrator pair (DMQ-007, DMQ-008) must ship as a single coordinated change.
+- FluentMigrator set (DMQ-007, DMQ-008, DMQ-014) must ship as a single coordinated change.
 - Re-open Dependabot PRs or create fresh PRs against the target version available at migration time.
 
 ### Cross-references
@@ -199,6 +215,14 @@ Phase 7 (requires React 18 first):
 - RQ-179: stylelint 15→16 migration (new)
 - RQ-180: FluentMigrator.Runner 3→8 migration (new)
 - RQ-181: FluentMigrator.Runner.Postgres 3→8 migration (new)
+- RQ-182: FontAwesome 6→7 migration (new)
+- RQ-183: postcss-mixins 9→12 migration (new)
+- RQ-184: webpack-cli 5→7 migration (new)
+- RQ-185: rimraf 5→6 migration (new)
+- RQ-186: prettier 2→3 migration (new)
+- RQ-187: FluentMigrator.Runner.SQLite 3→8 migration (new)
+- RQ-188: FluentValidation 9→12 migration (new)
+- RQ-189: Ical.Net 4→5 migration (new)
 
 ### React 18 upgrade path assessment (completed April 2026)
 

@@ -4,11 +4,7 @@ description: >
   Consolidates project documentation into canonical files, archives superseded docs with
   deprecation banners, adds source citations for high-risk claims, and returns a structured
   change report. Authoritative for Bibliophilarr's documentation health.
-tools:
-  - read
-  - search
-  - edit
-  - todo
+tools:[readFile, searchFiles, editFiles, todo]
 ---
 
 # Documentation Maintainer
