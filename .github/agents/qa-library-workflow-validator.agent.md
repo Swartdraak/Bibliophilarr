@@ -1,13 +1,7 @@
 ---
 name: qa-library-workflow-validator
 description: Independently validates ebook/audiobook dual-format behavior, download completion, import, classification, organization, tracking and restart persistence.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - todo
-  - 'sequential-thinking/*'
+tools:[vscode, execute, read, search, 'filesystem/*', 'git/*']
 user-invocable: true
 ---
 

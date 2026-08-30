@@ -1,17 +1,7 @@
 ---
 name: metadata-search-engineer
 description: Implements Bibliophilarr metadata provider, canonical identity, search, fallback, mapping, scoring and deduplication changes under strict regression controls.
-tools:
-  - vscode
-  - execute
-  - read
-  - edit
-  - search
-  - web
-  - todo
-  - 'filesystem/*'
-  - 'git/*'
-  - 'sequential-thinking/*'
+tools:[vscode, execute, read, edit, search, web, browser, 'filesystem/*', 'git/*', 'sequential-thinking/*']
 user-invocable: true
 ---
 

@@ -1,15 +1,7 @@
 ---
 name: github-repository-steward
 description: Audits and maintains Bibliophilarr GitHub repository hygiene: PR/issue metadata, branches, labels, Projects, Wiki, badges, tags/releases, milestones and stale automation state.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - todo
-  - 'git/*'
-  - 'github/*'
-  - 'sequential-thinking/*'
+tools:[vscode, execute, read, search, 'git/*', 'github/*', 'sequential-thinking/*']
 user-invocable: true
 ---
 

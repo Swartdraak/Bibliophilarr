@@ -1,16 +1,7 @@
 ---
 name: security-dependency-reviewer
 description: Read-only reviewer for Bibliophilarr dependency, supply-chain, auth, secrets, workflow permissions and dangerous file/network behavior.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - web
-  - todo
-  - 'github/*'
-  - 'github-ghas-tools/*'
-  - 'sequential-thinking/*'
+tools:[vscode, execute, read, search, web, 'git/*', 'github/*', 'github-ghas-tools/*', 'sequential-thinking/*']
 user-invocable: true
 ---
 

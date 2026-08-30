@@ -1,12 +1,7 @@
 ---
 name: qa-api-contract-validator
 description: Independently exercises a running disposable Bibliophilarr instance through its API and verifies contracts, side effects, authorization and persistence.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - todo
+tools:[vscode, execute, read, search, browser, 'filesystem/*', 'git/*']
 user-invocable: true
 ---
 

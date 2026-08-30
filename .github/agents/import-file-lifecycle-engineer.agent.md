@@ -1,16 +1,7 @@
 ---
 name: import-file-lifecycle-engineer
 description: Owns Bibliophilarr disk scan, identification, ebook/audiobook association, completed-download import, organization and file tracking changes.
-tools:
-  - vscode
-  - execute
-  - read
-  - edit
-  - search
-  - todo
-  - 'filesystem/*'
-  - 'git/*'
-  - 'sequential-thinking/*'
+tools:[vscode, execute, read, edit, search, todo, 'filesystem/*', 'git/*', 'sequential-thinking/*']
 user-invocable: true
 ---
 

@@ -1,15 +1,7 @@
 ---
 name: github-ci-diagnostics
 description: Diagnoses Bibliophilarr PR checks, GitHub Actions workflow/job failures, runner problems, flaky infrastructure and candidate-SHA evidence without editing production code.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - todo
-  - 'git/*'
-  - 'github/*'
-  - 'sequential-thinking/*'
+tools:[vscode, execute, read, search, 'git/*', 'github/*', 'sequential-thinking/*']
 user-invocable: true
 ---
 

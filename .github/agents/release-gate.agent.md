@@ -4,10 +4,7 @@ description: >
   Validates all Phase 6 and Phase 7 exit criteria for a Bibliophilarr release. Runs
   readiness scripts, checks branch drift, evaluates series persistence, and verifies
   CI health before approving release promotion. Read-only — never triggers releases.
-tools:
-  - read
-  - search
-  - run_in_terminal
+tools:[vscode, execute, read, search, 'git/*', 'github/*', 'sequential-thinking/*']
 ---
 
 # Release Gate Validator

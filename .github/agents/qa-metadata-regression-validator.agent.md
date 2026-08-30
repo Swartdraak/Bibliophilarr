@@ -1,14 +1,7 @@
 ---
 name: qa-metadata-regression-validator
 description: Independently validates author/book metadata accuracy, provider fallback, search stability, deduplication and provenance against deterministic golden cohorts.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - web
-  - todo
-  - 'sequential-thinking/*'
+tools:[vscode, execute, read, search, web, browser, 'filesystem/*', 'git/*']
 user-invocable: true
 ---
 

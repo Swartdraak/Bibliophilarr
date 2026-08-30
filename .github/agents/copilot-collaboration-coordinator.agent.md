@@ -1,16 +1,7 @@
 ---
 name: copilot-collaboration-coordinator
 description: Coordinates GitHub Copilot coding-agent and code-review work on Bibliophilarr PRs, verifies Copilot findings, batches feedback and routes accepted changes through the normal validation gates.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - web
-  - todo
-  - 'git/*'
-  - 'github/*'
-  - 'sequential-thinking/*'
+tools:[vscode, read, search, agent, todo, 'filesystem/*', 'git/*', 'github/*', 'sequential-thinking/*']
 user-invocable: true
 disable-model-invocation: true
 ---

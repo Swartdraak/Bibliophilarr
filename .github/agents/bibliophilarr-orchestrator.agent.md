@@ -1,16 +1,7 @@
 ---
 name: bibliophilarr-orchestrator
 description: Controls Bibliophilarr work by triaging live GitHub state first, classifying risk, delegating narrowly scoped work, and requiring independent validation before readiness.
-tools:
-  - vscode
-  - read
-  - search
-  - agent
-  - todo
-  - 'git/*'
-  - 'github/*'
-  - 'memory/*'
-  - 'sequential-thinking/*'
+tools:[vscode, read, search, agent, todo, 'filesystem/*', 'git/*', 'github/*', 'memory/*', 'sequential-thinking/*']
 agents:
   - github-repository-steward
   - github-ci-diagnostics

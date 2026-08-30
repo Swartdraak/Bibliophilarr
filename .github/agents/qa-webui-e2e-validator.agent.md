@@ -1,13 +1,7 @@
 ---
 name: qa-webui-e2e-validator
 description: Independently validates Bibliophilarr's actual WebUI with Playwright, including repeated navigation/search workflows and browser-error inspection.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - browser
-  - todo
+tools:[vscode, execute, read, search, browser, 'filesystem/*', 'git/*']
 user-invocable: true
 ---
 

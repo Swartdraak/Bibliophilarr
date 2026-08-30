@@ -1,15 +1,7 @@
 ---
 name: release-gate-v2
 description: Final read-only Bibliophilarr GO/NO-GO gate requiring independent build, API, WebUI, metadata and library-workflow evidence appropriate to candidate risk.
-tools:
-  - vscode
-  - read
-  - search
-  - agent
-  - todo
-  - 'git/*'
-  - 'github/*'
-  - 'sequential-thinking/*'
+tools:[vscode, execute, read, search, 'git/*', 'github/*', 'sequential-thinking/*']
 agents:
   - qa-build-validator
   - qa-api-contract-validator

@@ -4,9 +4,7 @@ description: >
   Checks Hardcover and OpenLibrary metadata provider health, coverage, and identification
   rates from application logs and test fixtures. Reports provider error rates, fallback
   trigger frequency, and coverage gaps. Read-only — never modifies provider configuration.
-tools:
-  - read
-  - search
+tools:[readFile, searchFiles, todo, 'github/*']
 ---
 
 # Metadata Health Agent

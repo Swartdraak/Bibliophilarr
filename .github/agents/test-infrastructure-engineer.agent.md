@@ -1,17 +1,7 @@
 ---
 name: test-infrastructure-engineer
 description: Builds Bibliophilarr test-only infrastructure including Playwright, synthetic media, metadata replay, API runners and disposable Docker Compose stacks.
-tools:
-  - vscode
-  - execute
-  - read
-  - edit
-  - search
-  - browser
-  - todo
-  - 'filesystem/*'
-  - 'git/*'
-  - ms-azuretools.vscode-containers/containerToolsConfig
+tools:[vscode, execute, read, edit, search, browser, 'filesystem/*', 'git/*', ms-azuretools.vscode-containers/containerToolsConfig]
 user-invocable: true
 ---
 

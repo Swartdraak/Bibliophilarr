@@ -1,16 +1,7 @@
 ---
 name: test-environment-operator
 description: Operates Bibliophilarr's disposable Docker Compose validation environment, including synthetic fixtures, mock indexer, qBittorrent integration, resets, health checks and evidence capture.
-tools:
-  - vscode
-  - execute
-  - read
-  - search
-  - browser
-  - todo
-  - 'filesystem/*'
-  - 'git/*'
-  - ms-azuretools.vscode-containers/containerToolsConfig
+tools:[vscode, execute, read, search, browser, 'filesystem/*', 'git/*', ms-azuretools.vscode-containers/containerToolsConfig]
 user-invocable: true
 ---
 

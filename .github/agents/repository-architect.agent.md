@@ -1,14 +1,7 @@
 ---
 name: repository-architect
 description: Read-only Bibliophilarr architecture and change-impact analyst; maps contracts, tests, risks, and relevant maintained *arr patterns before implementation.
-tools:
-  - vscode
-  - read
-  - search
-  - web
-  - 'git/*'
-  - 'github/*'
-  - 'sequential-thinking/*'
+tools:[vscode, read, search, web, 'filesystem/*', 'git/*', 'github/*', 'memory/*', 'sequential-thinking/*']
 user-invocable: true
 ---
 

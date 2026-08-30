@@ -4,9 +4,7 @@ description: >
   Diagnoses live Bibliophilarr runtime health from application logs. Identifies stuck
   downloads, zero-match disk scans, path-mapping failures, and provider error patterns.
   Produces a severity-ranked health report. Never modifies files or application state.
-tools:
-  - read
-  - search
+tools:[readFile, searchFiles]
 ---
 
 # Runtime Health Monitor
