@@ -67,19 +67,31 @@ jobs:
           cd ..
           ./build.sh --backend -r linux-x64 -f net8.0
 
+      # RID common targeted step.
+      # HttpClientFixture is deliberately NOT here: it contains the cross-culture
+      # malformed-cookie tests that were made deterministic against an in-process
+      # HTTP listener and are covered in the required `build-test` unit lane.
+      # Keeping only the process/rate-limit fixtures (which exercise real
+      # Process/Timer/RID-sensitive behavior) keeps this step deterministic.
       - name: Run RID-targeted common fixtures
         run: >-
           dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
           --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
           --filter
-          'FullyQualifiedName~HttpClientFixture|FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture'
+          'FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture'
 
+      # RID core targeted step.
+      # The previous filter referenced OpenLibraryIsbnAsinLookupFixture, which does
+      # not exist in src (selecting zero tests). It is replaced with
+      # OpenLibrarySearchProxyFixture, a real Core.MetadataSource fixture.
+      # AddAuthorFixture (class in src/NzbDrone.Core.Test/MusicTests/AddArtistFixture.cs)
+      # and MetadataProviderOrchestratorFixture are real and selected here.
       - name: Run RID-targeted core fixtures
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
           --filter
-          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibraryIsbnAsinLookupFixture'
+          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture'
 
   metadata-provider-fixtures:
     name: Metadata Provider Fixtures
