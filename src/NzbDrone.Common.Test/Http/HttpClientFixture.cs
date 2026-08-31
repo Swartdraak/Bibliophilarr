@@ -844,8 +844,9 @@ namespace NzbDrone.Common.Test.Http
         public async Task should_parse_malformed_cloudflare_cookie(string culture)
         {
             // Deterministic, in-process verification of Bibliophilarr's cookie handling for a
-            // Cloudflare "cfduid" cookie whose "expires" value uses the RFC 1123 two-digit-year
-            // format ("dd-MMM-yy"). This previously relied on the external
+            // Cloudflare "cfduid" cookie whose "expires" value uses a Netscape-style
+            // two-digit-year date format ("dd-MMM-yy" - NOT RFC 1123, which mandates a 4-digit
+            // year). This previously relied on the external
             // https://httpbin.servarr.com echo endpoint, whose "Set-Cookie" behavior drifted and
             // made the test non-deterministic. The same code path - "CookieContainer" parsing of
             // the "expires" attribute under a non-invariant culture, cookie storage across
@@ -854,11 +855,11 @@ namespace NzbDrone.Common.Test.Http
             // reducing coverage.
             //
             // The "expires" date is generated as a future UTC date (30 days out) in the
-            // dd-MMM-yy two-digit-year format. A future date ensures the "CookieContainer" does
-            // not drop the cookie as expired; the two-digit-year RFC 1123 format is what
-            // exercises the cookie-date parsing path the original test targeted. The
-            // day-of-week token is computed from the actual date so the header is internally
-            // consistent in en-US.
+            // dd-MMM-yy Netscape-style two-digit-year format. A future date ensures the
+            // "CookieContainer" does not drop the cookie as expired; the two-digit-year
+            // Netscape-style format is what exercises the cookie-date parsing path the original
+            // test targeted. The day-of-week token is computed from the actual date so the
+            // header is internally consistent in en-US.
             var origCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo(culture);
             Thread.CurrentThread.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
@@ -912,6 +913,20 @@ namespace NzbDrone.Common.Test.Http
                 var request = new HttpRequest($"{prefix}get");
                 var response = await Subject.GetAsync(request);
                 response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+                // Guard against an indefinite hang if the server task failed to complete
+                // (e.g. bind failure, listener start failure, or an exception in the server
+                // task before receiving both requests). Fail fast with a diagnosable message
+                // instead of waiting on the test framework's overall timeout.
+                var completed = await Task.WhenAny(serverTask, Task.Delay(TimeSpan.FromSeconds(15)));
+                if (completed != serverTask)
+                {
+                    throw new TimeoutException(
+                        $"In-process cookie test: server task did not complete within 15 seconds " +
+                        $"(expected 2 HTTP requests on {prefix}). This usually indicates a port " +
+                        $"bind failure, HttpListener start failure, or an unhandled exception on " +
+                        $"the server side.");
+                }
 
                 await serverTask;
                 listener.Stop();
