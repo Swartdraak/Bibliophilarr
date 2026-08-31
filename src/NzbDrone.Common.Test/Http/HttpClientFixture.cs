@@ -844,19 +844,30 @@ namespace NzbDrone.Common.Test.Http
         public async Task should_parse_malformed_cloudflare_cookie(string culture)
         {
             // Deterministic, in-process verification of Bibliophilarr's cookie handling for a
-            // malformed Cloudflare "cfduid" cookie whose "expires" value uses a two-digit year
-            // ("13-Jul-26" -> 2026-07-13). This previously relied on the external
-            // https://httpbin.servarr.com echo endpoint, whose "Set-Cookie" response behavior
-            // drifted and made the test non-deterministic. The same code path - "CookieContainer"
-            // parsing of the "expires" attribute under a non-invariant culture, cookie storage
-            // across requests, and re-serialization into the "Cookie" request header - is
-            // reproduced against a local HTTP listener, so the external dependency is removed
-            // without reducing coverage.
+            // Cloudflare "cfduid" cookie whose "expires" value uses the RFC 1123 two-digit-year
+            // format ("dd-MMM-yy"). This previously relied on the external
+            // https://httpbin.servarr.com echo endpoint, whose "Set-Cookie" behavior drifted and
+            // made the test non-deterministic. The same code path - "CookieContainer" parsing of
+            // the "expires" attribute under a non-invariant culture, cookie storage across
+            // requests, and re-serialization into the "Cookie" request header - is reproduced
+            // against a local HTTP listener, so the external dependency is removed without
+            // reducing coverage.
+            //
+            // The "expires" date is generated as a future UTC date (30 days out) in the
+            // dd-MMM-yy two-digit-year format. A future date ensures the "CookieContainer" does
+            // not drop the cookie as expired; the two-digit-year RFC 1123 format is what
+            // exercises the cookie-date parsing path the original test targeted. The
+            // day-of-week token is computed from the actual date so the header is internally
+            // consistent in en-US.
             var origCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo(culture);
             Thread.CurrentThread.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
             try
             {
+                var expiryUtc = DateTime.UtcNow.AddDays(30);
+                var expiryFull = expiryUtc.ToString("ddd, dd-MMM-yy HH:mm:ss 'GMT'", CultureInfo.InvariantCulture);
+                var setCookieHeader = $"__cfduid=d29e686a9d65800021c66faca0a29b4261436890790; expires={expiryFull}; path=/; HttpOnly";
+
                 // Find a free local port without binding to it
                 int port;
                 using (var probe = new TcpListener(IPAddress.Loopback, 0))
@@ -874,13 +885,13 @@ namespace NzbDrone.Common.Test.Http
                 // Track, on the server side, what Cookie header the client actually re-sent.
                 string sentCookie = null;
 
-                // Serve: (1) /set responds 200 with the malformed "cfduid" "Set-Cookie",
-                // (2) /get captures the incoming "Cookie" header and replies 200.
+                // Serve: (1) /set responds 200 with the cfduid "Set-Cookie" (two-digit-year
+                // "expires"), (2) /get captures the incoming "Cookie" header and replies 200.
                 var serverTask = Task.Run(async () =>
                 {
                     var ctxSet = await listener.GetContextAsync();
                     ctxSet.Response.StatusCode = 200;
-                    ctxSet.Response.AddHeader("Set-Cookie", @"__cfduid=d29e686a9d65800021c66faca0a29b4261436890790; expires=Mon, 13-Jul-26 16:19:50 GMT; path=/; HttpOnly");
+                    ctxSet.Response.AddHeader("Set-Cookie", setCookieHeader);
                     await ctxSet.Response.OutputStream.WriteAsync(Array.Empty<byte>(), 0, 0);
                     ctxSet.Response.Close();
 
