@@ -1,28 +1,116 @@
+# Labeler rules for actions/labeler@v6 (match-object schema).
+# Each label maps to a list of matchers; a PR is labeled when ANY matcher matches.
+# The `any-glob-to-any-file` matcher labels the PR if at least one changed file
+# matches at least one of the listed globs. This replaces the legacy pre-v5
+# "label: [glob-list]" format that actions/labeler v5+/v6 no longer parses.
+
 'Area: API':
-  - src/Bibliophilarr.Api.V1/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/Bibliophilarr.Api.V1/**/*'
 
 'Area: Db-migration':
-  - src/NzbDrone.Core/Datastore/Migration/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Datastore/Migration/*'
 
 'Area: Download Clients':
-  - src/NzbDrone.Core/Download/Clients/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Download/Clients/**/*'
 
 'Area: Import Lists':
-  - src/NzbDrone.Core/ImportLists/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/ImportLists/**/*'
 
 'Area: Indexer':
-  - src/NzbDrone.Core/Indexers/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Indexers/**/*'
 
 'Area: Notifications':
-  - src/NzbDrone.Core/Notifications/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Notifications/**/*'
 
 'Area: Organizer':
-  - src/NzbDrone.Core/Organizer/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Organizer/**/*'
 
 'Area: Parser':
-  - src/NzbDrone.Core/Parser/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Parser/**/*'
 
 'Area: UI':
-  - frontend/**/*
-  - package.json
-  - yarn.lock
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'frontend/**/*'
+          - 'package.json'
+          - 'yarn.lock'
+
+# --- Repository / governance / docs / CI path coverage ---
+# Ensure a governance-only or docs-only PR receives a meaningful area label.
+# Existing labels are reused (documentation, enhancement, backend); no duplicates.
+
+'Area: Docs':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**/*'
+          - '**.md'
+
+'Area: Governance':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/agents/**/*'
+          - '.github/prompts/**/*'
+          - '.github/skills/**/*'
+          - '.github/instructions/**/*'
+          - '.github/copilot-instructions.md'
+          - 'AGENTS.md'
+          - '**/AGENTS.md'
+          - 'ARCHITECTURE.md'
+          - 'BRANCHING.md'
+          - 'CONTRIBUTING.md'
+          - 'README-GOVERNANCE-PACK.md'
+          - 'MANIFEST.txt'
+
+'Area: CI':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**/*'
+          - '.github/labeler.yml'
+          - '.github/dependabot.yml'
+          - 'build.sh'
+          - 'test.sh'
+          - 'docker-compose*.yml'
+          - 'Dockerfile'
+
+'Area: Scripts':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/**/*'
+
+'Area: Tests':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tests/**/*'
+          - 'src/**/*Test/**/*.cs'
+          - 'src/**/*Test*.csproj'
+
+# Type classification for product source / config changes (existing labels).
+'backend':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**/*'
+
+'dependencies':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'global.json'
+          - 'package.json'
+          - 'yarn.lock'
+          - 'src/Directory.Packages.props'
+          - 'src/NuGet.config'

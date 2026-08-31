@@ -843,33 +843,73 @@ namespace NzbDrone.Common.Test.Http
         [TestCase("es-ES")]
         public async Task should_parse_malformed_cloudflare_cookie(string culture)
         {
+            // Deterministic, in-process verification of Bibliophilarr's cookie handling for a
+            // malformed Cloudflare "cfduid" cookie whose "expires" value uses a two-digit year
+            // ("13-Jul-26" -> 2026-07-13). This previously relied on the external
+            // https://httpbin.servarr.com echo endpoint, whose "Set-Cookie" response behavior
+            // drifted and made the test non-deterministic. The same code path - "CookieContainer"
+            // parsing of the "expires" attribute under a non-invariant culture, cookie storage
+            // across requests, and re-serialization into the "Cookie" request header - is
+            // reproduced against a local HTTP listener, so the external dependency is removed
+            // without reducing coverage.
             var origCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo(culture);
             Thread.CurrentThread.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
             try
             {
-                // the date is bad in the below - should be 13-Jul-2026
-                var malformedCookie = @"__cfduid=d29e686a9d65800021c66faca0a29b4261436890790; expires=Mon, 13-Jul-26 16:19:50 GMT; path=/; HttpOnly";
-                var requestSet = new HttpRequestBuilder($"https://{_httpBinHost}/response-headers")
-                    .AddQueryParam("Set-Cookie", malformedCookie)
-                    .Build();
+                // Find a free local port without binding to it
+                int port;
+                using (var probe = new TcpListener(IPAddress.Loopback, 0))
+                {
+                    probe.Start();
+                    port = ((IPEndPoint)probe.LocalEndpoint).Port;
+                    probe.Stop();
+                }
 
+                var prefix = $"http://127.0.0.1:{port}/";
+                using var listener = new HttpListener();
+                listener.Prefixes.Add(prefix);
+                listener.Start();
+
+                // Track, on the server side, what Cookie header the client actually re-sent.
+                string sentCookie = null;
+
+                // Serve: (1) /set responds 200 with the malformed "cfduid" "Set-Cookie",
+                // (2) /get captures the incoming "Cookie" header and replies 200.
+                var serverTask = Task.Run(async () =>
+                {
+                    var ctxSet = await listener.GetContextAsync();
+                    ctxSet.Response.StatusCode = 200;
+                    ctxSet.Response.AddHeader("Set-Cookie", @"__cfduid=d29e686a9d65800021c66faca0a29b4261436890790; expires=Mon, 13-Jul-26 16:19:50 GMT; path=/; HttpOnly");
+                    await ctxSet.Response.OutputStream.WriteAsync(Array.Empty<byte>(), 0, 0);
+                    ctxSet.Response.Close();
+
+                    var ctxGet = await listener.GetContextAsync();
+                    sentCookie = ctxGet.Request.Headers["Cookie"];
+                    ctxGet.Response.StatusCode = 200;
+                    ctxGet.Response.ContentType = "text/plain";
+                    await ctxGet.Response.OutputStream.WriteAsync(Array.Empty<byte>(), 0, 0);
+                    ctxGet.Response.Close();
+                });
+
+                var requestSet = new HttpRequest($"{prefix}set");
                 requestSet.AllowAutoRedirect = false;
                 requestSet.StoreResponseCookie = true;
-
                 var responseSet = await Subject.GetAsync(requestSet);
+                responseSet.StatusCode.Should().Be(HttpStatusCode.OK);
 
-                var request = new HttpRequest($"https://{_httpBinHost}/get");
+                var request = new HttpRequest($"{prefix}get");
+                var response = await Subject.GetAsync(request);
+                response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-                var response = await Subject.GetAsync<HttpBinResource>(request);
+                await serverTask;
+                listener.Stop();
 
-                response.Resource.Headers.Should().ContainKey("Cookie");
+                sentCookie.Should().NotBeNullOrWhiteSpace();
+                sentCookie.Should().Contain("__cfduid=d29e686a9d65800021c66faca0a29b4261436890790",
+                    "the malformed cfduid cookie survived cross-culture 'expires' parsing in the CookieContainer and was re-serialized into the Cookie request header");
 
-                var cookie = response.Resource.Headers["Cookie"].ToString();
-
-                cookie.Should().Contain("__cfduid=d29e686a9d65800021c66faca0a29b4261436890790");
-
-                ExceptionVerification.IgnoreErrors();
+                ExceptionVerification.ExpectedErrors(0);
             }
             finally
             {
