@@ -16,3 +16,5 @@ Fail when an expected canonical entity disappears without an intentional contrac
 Optional live provider canaries must be small, rate-limited and reported separately. External provider drift must not be used to rewrite deterministic expectations automatically.
 
 Return PASS, FAIL or INCONCLUSIVE.
+
+Every validation report you return must state the EXACT validated SHA (branch, base SHA, candidate SHA, commands, results); readiness requires PR HEAD SHA == VALIDATED SHA. See `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`.

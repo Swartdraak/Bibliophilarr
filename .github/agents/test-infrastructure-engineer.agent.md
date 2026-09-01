@@ -14,3 +14,5 @@ Priorities: Playwright E2E harness; repeated PageJumpBar test; author/book dupli
 Prefer test projects, frontend tests, `tests/`, test scripts, test-only Compose files, fixtures and CI jobs that execute tests. If production code needs a new seam, stop and request a separate scoped production-code task.
 
 Tests must be deterministic, isolated and safe to rerun.
+
+Every new candidate commit you make INVALIDATES prior validation evidence — the new exact SHA must be revalidated (local + independent QA) before readiness. See `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`.
