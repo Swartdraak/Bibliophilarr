@@ -8,6 +8,7 @@ using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Download.Exceptions;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
@@ -118,6 +119,16 @@ namespace NzbDrone.Core.Download
             if (importResults.Empty())
             {
                 trackedDownload.Warn("No files found are eligible for import in {0}", outputPath);
+
+                trackedDownload.ZeroFileRetryCount++;
+
+                if (trackedDownload.ZeroFileRetryCount >= _configService.ZeroFileRetryThreshold)
+                {
+                    throw new ImportException(
+                        "No importable files found after {0} monitoring cycles",
+                        trackedDownload.ZeroFileRetryCount);
+                }
+
                 trackedDownload.State = TrackedDownloadState.ImportPending;
                 return;
             }
