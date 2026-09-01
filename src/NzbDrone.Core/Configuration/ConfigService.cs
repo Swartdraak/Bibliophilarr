@@ -403,6 +403,12 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("DownloadProcessingWorkerCount", value); }
         }
 
+        public int ZeroFileRetryThreshold
+        {
+            get { return GetValueInt("ZeroFileRetryThreshold", 5); }
+            set { SetValue("ZeroFileRetryThreshold", value); }
+        }
+
         public int FirstDayOfWeek
         {
             get { return GetValueInt("FirstDayOfWeek", (int)CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek); }

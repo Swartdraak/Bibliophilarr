@@ -16,6 +16,11 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         public string Indexer { get; set; }
         public bool IsTrackable { get; set; }
 
+        // Incremented for each monitoring cycle in which a completed download had no importable files.
+        // Persisted with the tracked download (and its state) so the count survives restarts; the
+        // value drives the configurable zero-file terminal failure threshold.
+        public int ZeroFileRetryCount { get; set; }
+
         public TrackedDownload()
         {
             StatusMessages = new TrackedDownloadStatusMessage[] { };

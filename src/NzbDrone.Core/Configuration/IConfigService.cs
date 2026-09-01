@@ -90,6 +90,7 @@ namespace NzbDrone.Core.Configuration
         int ImportTagReadWorkerCount { get; set; }
         int RemoteCandidateSearchWorkerCount { get; set; }
         int DownloadProcessingWorkerCount { get; set; }
+        int ZeroFileRetryThreshold { get; set; }
 
         //Forms Auth
         string RijndaelPassphrase { get; }
