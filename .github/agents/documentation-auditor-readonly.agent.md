@@ -4,7 +4,7 @@ description: >
   Read-only drift detection agent. Finds contradictions, broken links, stale references,
   and missing high-risk documentation. Returns severity-ranked findings and a remediation
   queue. Never edits files.
-tools:[readFile, searchFiles, todo]
+tools:[vscode, read, search, todo]
 ---
 
 # Documentation Auditor (Read-Only)

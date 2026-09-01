@@ -14,3 +14,5 @@ Own disk scanning/filtering, filename/tag identifier extraction, candidate ident
 Never test destructively against a real library. Use disposable synthetic fixtures and verify source checksums, pre/post file trees, target path, type, database/API association and restart state.
 
 Create a failing regression case first when practical, implement minimally, then hand off to `qa-library-workflow-validator`.
+
+Every new candidate commit you make INVALIDATES prior validation evidence — the new exact SHA must be revalidated (local + independent QA) before readiness. See `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`.

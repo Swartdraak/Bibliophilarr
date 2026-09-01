@@ -5,12 +5,15 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Download.Exceptions;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
+using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -381,6 +384,49 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                   .Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Once());
 
             _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+        }
+
+        [Test]
+        public void should_keep_import_pending_when_zero_files_below_retry_threshold()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(c => c.ZeroFileRetryThreshold)
+                  .Returns(5);
+
+            Mocker.GetMock<IDownloadedBooksImportService>()
+                  .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Author>(), It.IsAny<DownloadClientItem>()))
+                  .Returns(new List<ImportResult>());
+
+            _trackedDownload.ZeroFileRetryCount = 1;
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.ZeroFileRetryCount.Should().Be(2);
+            _trackedDownload.State.Should().Be(TrackedDownloadState.ImportPending);
+        }
+
+        [Test]
+        public void should_throw_import_exception_when_zero_files_exceed_retry_threshold()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(c => c.ZeroFileRetryThreshold)
+                  .Returns(2);
+
+            Mocker.GetMock<IDownloadedBooksImportService>()
+                  .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Author>(), It.IsAny<DownloadClientItem>()))
+                  .Returns(new List<ImportResult>());
+
+            _trackedDownload.ZeroFileRetryCount = 1;
+
+            var act = () => Subject.Import(_trackedDownload);
+
+            act.Should().Throw<ImportException>().WithMessage("*after 2 monitoring cycles*");
+
+            _trackedDownload.ZeroFileRetryCount.Should().Be(2);
+
+            // Verify a history event is published so the terminal state survives restart
+            Mocker.GetMock<IEventAggregator>()
+                  .Verify(v => v.PublishEvent(It.IsAny<BookImportIncompleteEvent>()), Times.Once());
         }
     }
 }
