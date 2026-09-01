@@ -124,6 +124,10 @@ namespace NzbDrone.Core.Download
 
                 if (trackedDownload.ZeroFileRetryCount >= _configService.ZeroFileRetryThreshold)
                 {
+                    // Publish a history event BEFORE throwing so that on restart,
+                    // GetStateFromHistory returns ImportFailed for this download.
+                    _eventAggregator.PublishEvent(new BookImportIncompleteEvent(trackedDownload));
+
                     throw new ImportException(
                         "No importable files found after {0} monitoring cycles",
                         trackedDownload.ZeroFileRetryCount);

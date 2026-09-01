@@ -13,6 +13,7 @@ using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
+using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -420,7 +421,12 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             var act = () => Subject.Import(_trackedDownload);
 
             act.Should().Throw<ImportException>().WithMessage("*after 2 monitoring cycles*");
+
             _trackedDownload.ZeroFileRetryCount.Should().Be(2);
+
+            // Verify a history event is published so the terminal state survives restart
+            Mocker.GetMock<IEventAggregator>()
+                  .Verify(v => v.PublishEvent(It.IsAny<BookImportIncompleteEvent>()), Times.Once());
         }
     }
 }
