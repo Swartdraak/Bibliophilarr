@@ -77,5 +77,50 @@ namespace NzbDrone.Api.Test.Calendar
             Assert.That(parsedEvent.Summary, Is.EqualTo("Author Name - Example Book"));
             Assert.That(parsedEvent.Description, Is.EqualTo("A release description"));
         }
+
+        [Test]
+        public void calendar_feed_should_not_shift_utc_release_dates_across_day_boundaries()
+        {
+            var author = new Author
+            {
+                Metadata = new AuthorMetadata
+                {
+                    Name = "UTC Author"
+                },
+                Tags = new HashSet<int>()
+            };
+
+            var releaseDate = new DateTime(2025, 3, 15, 23, 30, 0, DateTimeKind.Utc);
+            var edition = new Edition
+            {
+                Monitored = true,
+                Overview = "Utc release description",
+                Title = "UTC Book"
+            };
+
+            var book = new Book
+            {
+                Id = 43,
+                Title = "UTC Book",
+                ReleaseDate = releaseDate,
+                Author = new LazyLoaded<Author>(author),
+                Editions = new LazyLoaded<List<Edition>>(new List<Edition> { edition }),
+                Genres = new List<string> { "Fiction" }
+            };
+
+            var bookService = new Mock<IBookService>();
+            bookService.Setup(s => s.BooksBetweenDates(It.IsAny<DateTime>(), It.IsAny<DateTime>(), false))
+                .Returns(new List<Book> { book });
+
+            var authorService = new Mock<IAuthorService>();
+            authorService.Setup(s => s.GetAuthor(book.AuthorId)).Returns(author);
+
+            var controller = new CalendarFeedController(bookService.Object, authorService.Object, Mock.Of<ITagService>());
+            var result = controller.GetCalendarFeed() as Microsoft.AspNetCore.Mvc.ContentResult;
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result.Content, Does.Contain("DTSTART;VALUE=DATE:20250315"));
+            Assert.That(result.Content, Does.Not.Contain("DTSTART;VALUE=DATE:20250316"));
+        }
     }
 }
