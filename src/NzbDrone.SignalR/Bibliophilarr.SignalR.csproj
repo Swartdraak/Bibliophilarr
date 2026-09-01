@@ -4,7 +4,6 @@
     <OutputType>Library</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="IPAddressRange" />
     <ProjectReference Include="..\NzbDrone.Core\Bibliophilarr.Core.csproj" />
   </ItemGroup>
 </Project>
