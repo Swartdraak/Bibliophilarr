@@ -65,9 +65,9 @@ namespace Bibliophilarr.Api.V1.Calendar
                 occurrence.Description = book.Editions.Value.Single(x => x.Monitored).Overview;
                 occurrence.Categories = book.Genres;
 
-                occurrence.Start = new CalDateTime(book.ReleaseDate.Value.ToLocalTime()) { HasTime = false };
-                occurrence.End = occurrence.Start;
-                occurrence.IsAllDay = true;
+                var releaseDate = book.ReleaseDate.Value.Date;
+                occurrence.Start = new CalDateTime(DateTime.SpecifyKind(releaseDate, DateTimeKind.Unspecified), false);
+                occurrence.End = new CalDateTime(DateTime.SpecifyKind(releaseDate.AddDays(1), DateTimeKind.Unspecified), false);
 
                 occurrence.Summary = $"{author.Name} - {book.Title}";
             }
