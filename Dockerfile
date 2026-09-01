@@ -26,8 +26,8 @@ LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
       org.opencontainers.image.vendor="Bibliophilarr"
 
-RUN groupadd --gid 1000 bibliophilarr \
-    && useradd --uid 1000 --gid bibliophilarr --shell /bin/false --create-home bibliophilarr \
+RUN groupadd --gid 1001 bibliophilarr \
+    && useradd --uid 1001 --gid 1001 --shell /usr/sbin/nologin --create-home bibliophilarr \
     && apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
