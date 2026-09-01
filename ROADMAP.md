@@ -168,7 +168,7 @@ according to EOL urgency, coupling risk, and prerequisite dependencies.
 | DMQ-013 | `prettier` | 2.8.8 → 3.x | [#56](https://github.com/Swartdraak/Bibliophilarr/pull/56) | Frontend / Docs | High | Run formatting impact audit; update lint/format config and avoid mass unrelated churn | Phase 6-7 | planned |
 | DMQ-014 | `FluentMigrator.Runner.SQLite` | 3.3.2 → 8.x | [#57](https://github.com/Swartdraak/Bibliophilarr/pull/57) | Backend | High | Coordinate with DMQ-007/DMQ-008 and execute migration-runner compatibility verification in one slice | Phase 7 | planned |
 | DMQ-015 | `FluentValidation` | 9.5.4 → 12.x | [#58](https://github.com/Swartdraak/Bibliophilarr/pull/58) | Backend | High | Audit validator API changes and request-pipeline behavior; update SignalR and API validation paths | Phase 6-7 | planned |
-| DMQ-016 | `Ical.Net` | 4.3.1 → 5.x | [#59](https://github.com/Swartdraak/Bibliophilarr/pull/59) | Backend | Medium | Validate parser behavior and recurrence handling in calendar import and scheduling surfaces | Phase 6-7 | planned |
+| DMQ-016 | `Ical.Net` | 4.3.1 → 5.x | [#59](https://github.com/Swartdraak/Bibliophilarr/pull/59) | Backend | Medium | Validate parser behavior and recurrence handling in calendar import and scheduling surfaces | Phase 6-7 | in progress — active migration slice in [#95](https://github.com/Swartdraak/Bibliophilarr/issues/95), [#94](https://github.com/Swartdraak/Bibliophilarr/pull/94) |
 
 ### Migration sequencing and dependencies
 
