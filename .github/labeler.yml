@@ -5,51 +5,42 @@
 # "label: [glob-list]" format that actions/labeler v5+/v6 no longer parses.
 
 'Area: API':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/Bibliophilarr.Api.V1/**/*'
+  - any-glob-to-any-file:
+      - 'src/Bibliophilarr.Api.V1/**/*'
 
 'Area: Db-migration':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/NzbDrone.Core/Datastore/Migration/*'
+  - any-glob-to-any-file:
+      - 'src/NzbDrone.Core/Datastore/Migration/*'
 
 'Area: Download Clients':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/NzbDrone.Core/Download/Clients/**/*'
+  - any-glob-to-any-file:
+      - 'src/NzbDrone.Core/Download/Clients/**/*'
 
 'Area: Import Lists':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/NzbDrone.Core/ImportLists/**/*'
+  - any-glob-to-any-file:
+      - 'src/NzbDrone.Core/ImportLists/**/*'
 
 'Area: Indexer':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/NzbDrone.Core/Indexers/**/*'
+  - any-glob-to-any-file:
+      - 'src/NzbDrone.Core/Indexers/**/*'
 
 'Area: Notifications':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/NzbDrone.Core/Notifications/**/*'
+  - any-glob-to-any-file:
+      - 'src/NzbDrone.Core/Notifications/**/*'
 
 'Area: Organizer':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/NzbDrone.Core/Organizer/**/*'
+  - any-glob-to-any-file:
+      - 'src/NzbDrone.Core/Organizer/**/*'
 
 'Area: Parser':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/NzbDrone.Core/Parser/**/*'
+  - any-glob-to-any-file:
+      - 'src/NzbDrone.Core/Parser/**/*'
 
 'Area: UI':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'frontend/**/*'
-          - 'package.json'
-          - 'yarn.lock'
+  - any-glob-to-any-file:
+      - 'frontend/**/*'
+      - 'package.json'
+      - 'yarn.lock'
 
 # --- CI / build-infrastructure path coverage ---
 # Mapped to the EXISTING `backend` label (build/CI infra is backend). No new
@@ -70,23 +61,21 @@
 #   directive for this repair.
 
 'backend':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'src/**/*'
-          - '.github/workflows/**/*'
-          - '.github/labeler.yml'
-          - '.github/dependabot.yml'
-          - 'build.sh'
-          - 'test.sh'
-          - 'docker-compose*.yml'
-          - 'Dockerfile'
-          - 'scripts/**/*'
+  - any-glob-to-any-file:
+      - 'src/**/*'
+      - '.github/workflows/**/*'
+      - '.github/labeler.yml'
+      - '.github/dependabot.yml'
+      - 'build.sh'
+      - 'test.sh'
+      - 'docker-compose*.yml'
+      - 'Dockerfile'
+      - 'scripts/**/*'
 
 'dependencies':
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'global.json'
-          - 'package.json'
-          - 'yarn.lock'
-          - 'src/Directory.Packages.props'
-          - 'src/NuGet.config'
+  - any-glob-to-any-file:
+      - 'global.json'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'src/Directory.Packages.props'
+      - 'src/NuGet.config'
