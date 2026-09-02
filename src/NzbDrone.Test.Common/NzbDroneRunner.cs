@@ -204,9 +204,9 @@ namespace NzbDrone.Test.Common
 
             for (var i = 0; i < 6 && !string.IsNullOrEmpty(current); i++)
             {
-                yield return Path.Combine(current, "_output", "net8.0", consoleExeName);
-                yield return Path.Combine(current, "_output", "net8.0", "linux-x64", consoleExeName);
-                yield return Path.Combine(current, "_output", "net8.0", "linux-x64", "publish", consoleExeName);
+                yield return Path.Combine(current, "_output", "net10.0", consoleExeName);
+                yield return Path.Combine(current, "_output", "net10.0", "linux-x64", consoleExeName);
+                yield return Path.Combine(current, "_output", "net10.0", "linux-x64", "publish", consoleExeName);
                 yield return Path.Combine(current, "_output", "net6.0", consoleExeName);
                 yield return Path.Combine(current, "_tests", "bin", consoleExeName);
 
