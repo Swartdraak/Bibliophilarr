@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:0e53453ccfc8ff2d51319fe80c678971c6d0f8008dff3565fa88e15840b69854 AS build
 WORKDIR /src
 
 COPY . .
@@ -17,7 +17,7 @@ RUN ./build.sh --backend -r linux-x64 -f net8.0
 RUN ./build.sh --frontend
 RUN ./build.sh --packages -r linux-x64 -f net8.0
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:d0f61936dbf46d6ba1520a2e4e1ac4cca44617e66ba139f344831c046ee99512 AS runtime
 
 LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.description="Ebook and audiobook library manager" \
@@ -26,8 +26,8 @@ LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
       org.opencontainers.image.vendor="Bibliophilarr"
 
-RUN groupadd --gid 1001 bibliophilarr \
-    && useradd --uid 1001 --gid 1001 --shell /usr/sbin/nologin --create-home bibliophilarr \
+RUN groupadd --gid 1000 bibliophilarr \
+    && useradd --uid 1000 --gid bibliophilarr --shell /bin/false --create-home bibliophilarr \
     && apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
