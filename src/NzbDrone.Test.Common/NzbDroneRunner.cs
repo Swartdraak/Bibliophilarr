@@ -201,12 +201,19 @@ namespace NzbDrone.Test.Common
         private static IEnumerable<string> EnumerateConsoleCandidates(string testDir, string consoleExeName)
         {
             var current = testDir;
+            var runtimeIdentifiers = OsInfo.IsWindows
+                ? new[] { "win-x64", "win-x86" }
+                : new[] { "linux-x64", "linux-musl-x64", "osx-x64" };
 
             for (var i = 0; i < 6 && !string.IsNullOrEmpty(current); i++)
             {
                 yield return Path.Combine(current, "_output", "net10.0", consoleExeName);
-                yield return Path.Combine(current, "_output", "net10.0", "linux-x64", consoleExeName);
-                yield return Path.Combine(current, "_output", "net10.0", "linux-x64", "publish", consoleExeName);
+                foreach (var runtimeIdentifier in runtimeIdentifiers)
+                {
+                    yield return Path.Combine(current, "_output", "net10.0", runtimeIdentifier, consoleExeName);
+                    yield return Path.Combine(current, "_output", "net10.0", runtimeIdentifier, "publish", consoleExeName);
+                }
+
                 yield return Path.Combine(current, "_output", "net6.0", consoleExeName);
                 yield return Path.Combine(current, "_tests", "bin", consoleExeName);
 
