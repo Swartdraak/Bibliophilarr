@@ -49,7 +49,11 @@ UpdateVersionNumber()
 
 EnableExtraPlatformsInSDK()
 {
-    SDK_PATH=$(dotnet --list-sdks | grep -P '8\.\d\.\d+' | head -1 | sed 's/\(8\.[0-9]*\.[0-9]*\).*\[\(.*\)\]/\2\/\1/g')
+    SDK_PATH=$(dotnet --list-sdks | grep -P '^10\.\d+\.\d+' | sort -V | tail -1 | awk -F'[][]' '{print $2}')
+    if [ "$SDK_PATH" = "" ]; then
+        echo "ERROR: .NET 10 SDK not found. Install a 10.x SDK before enabling extra platforms in the SDK."
+        exit 1
+    fi
     BUNDLEDVERSIONS="${SDK_PATH}/Microsoft.NETCoreSdk.BundledVersions.props"
     if grep -q freebsd-x64 "$BUNDLEDVERSIONS"; then
         echo "Extra platforms already enabled"

@@ -17,7 +17,7 @@ RUN ./build.sh --backend -r linux-x64 -f net10.0
 RUN ./build.sh --frontend
 RUN ./build.sh --packages -r linux-x64 -f net10.0
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS runtime
 
 LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.description="Ebook and audiobook library manager" \

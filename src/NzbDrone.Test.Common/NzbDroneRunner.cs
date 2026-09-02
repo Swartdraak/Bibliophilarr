@@ -203,7 +203,7 @@ namespace NzbDrone.Test.Common
             var current = testDir;
             var runtimeIdentifiers = OsInfo.IsWindows
                 ? new[] { "win-x64", "win-x86" }
-                : new[] { "linux-x64", "linux-musl-x64", "osx-x64" };
+                : new[] { "linux-x64", "linux-musl-x64", "linux-arm", "linux-musl-arm", "linux-arm64", "linux-musl-arm64", "osx-x64", "osx-arm64" };
 
             for (var i = 0; i < 6 && !string.IsNullOrEmpty(current); i++)
             {
