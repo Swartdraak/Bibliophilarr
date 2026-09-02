@@ -58,7 +58,9 @@ namespace NzbDrone.Common.Http
             _httpDispatcher = httpDispatcher;
             _logger = logger;
 
+#pragma warning disable SYSLIB0014 // Required for compatibility with legacy HttpWebRequest/ServicePoint behavior still used by this client stack.
             ServicePointManager.DefaultConnectionLimit = 12;
+#pragma warning restore SYSLIB0014
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
         }
 

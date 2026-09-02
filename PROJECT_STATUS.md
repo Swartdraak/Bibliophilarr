@@ -17,10 +17,12 @@ seconds without success since April 20, 2026 (34+ days). Immediate operator acti
 remove the torrent from qBittorrent if the directory is empty. Code fix tracked in
 [GitHub Issue #72](https://github.com/Swartdraak/Bibliophilarr/issues/72).
 
-### AF-02 — HIGH: Dependabot PR #70 targets .NET 10 against .NET 8 project
+### AF-02 — HIGH: Dependabot PR #70 requires re-triage against the migrated .NET 10 project
 
-PR #70 proposes `Microsoft.AspNetCore.SignalR.Client` 8.0.11 → 10.0.7. Merging it
-will break `dotnet restore`. Must be closed and deferred to DMQ-001 (Phase 7).
+PR #70 proposes `Microsoft.AspNetCore.SignalR.Client` 8.0.11 → 10.0.7. It was
+blocked while the repository still targeted .NET 8; now that the app has been
+migrated, it should be re-triaged against the current net10 baseline before any
+merge decision is made.
 Tracked in [GitHub Issue #73](https://github.com/Swartdraak/Bibliophilarr/issues/73).
 
 ### AF-04 — HIGH: Dependabot PR queue unprocessed (19+ PRs)

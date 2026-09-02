@@ -141,7 +141,7 @@ jobs:
         shell: bash
         env:
           BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
-        run: ./build.sh --backend -r ${{ matrix.rid }} -f net8.0
+        run: ./build.sh --backend -r ${{ matrix.rid }} -f net10.0
 
       - name: Build frontend
         shell: bash
@@ -149,14 +149,14 @@ jobs:
 
       - name: Build package
         shell: bash
-        run: ./build.sh --packages -r ${{ matrix.rid }} -f net8.0
+        run: ./build.sh --packages -r ${{ matrix.rid }} -f net10.0
 
       - name: Archive package (unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           mkdir -p release
-          tar -C "_artifacts/${{ matrix.rid }}/net8.0" \
+          tar -C "_artifacts/${{ matrix.rid }}/net10.0" \
             -czf "release/bibliophilarr-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" \
             Bibliophilarr
 
@@ -166,20 +166,20 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
           Compress-Archive `
-            -Path "_artifacts/${{ matrix.rid }}/net8.0/Bibliophilarr/*" `
+            -Path "_artifacts/${{ matrix.rid }}/net10.0/Bibliophilarr/*" `
             -DestinationPath "release/bibliophilarr-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" `
             -Force
 
       - name: Build installer (windows only)
         if: runner.os == 'Windows'
-        continue-on-error: true  # Installer requires net8.0-windows GUI project; portable zip is primary artifact
+        continue-on-error: true  # Installer requires net10.0-windows GUI project; portable zip is primary artifact
         shell: bash
         env:
           MAJORVERSION: ${{ steps.ver.outputs.version }}
           MINORVERSION: '0'
           BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
         run: |
-          ./build.sh --installer -r win-x64 -f net8.0
+          ./build.sh --installer -r win-x64 -f net10.0
           cp distribution/windows/setup/output/*.exe release/ || true
 
       - name: Upload release artifact

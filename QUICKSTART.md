@@ -15,7 +15,7 @@ Start in this order:
 
 ## Prerequisites
 
-- .NET 8 SDK
+- .NET 10 SDK
 - Node.js 22.x
 - Yarn 1.22.x
 - Git
@@ -62,19 +62,19 @@ The repository produces three different artifact trees. Treat them differently:
 For a local binary smoke using `_output`:
 
 ```bash
-rm -rf _output/net8.0 _tests/net8.0 _artifacts/linux-x64
+rm -rf _output/net10.0 _tests/net10.0 _artifacts/linux-x64
 
-./build.sh --backend --frontend --packages --lint --framework net8.0 --runtime linux-x64
-cp -r _output/UI _output/net8.0/linux-x64/UI
+./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
+cp -r _output/UI _output/net10.0/linux-x64/UI
 
-./_output/net8.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
+./_output/net10.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
 curl http://127.0.0.1:8787/ping
 ```
 
 For a package smoke using the packaged runtime tree:
 
 ```bash
-./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
+./_artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr \
   /data=/tmp/bibliophilarr-package \
   /nobrowser /nosingleinstancecheck
 
@@ -85,7 +85,7 @@ Expected outcome:
 
 - `/ping` returns `200`.
 - The packaged runtime starts without any manual UI copy step.
-- `_tests/net8.0/linux-x64` is reserved for test execution only.
+- `_tests/net10.0/linux-x64` is reserved for test execution only.
 
 Optional runtime cloud-services endpoint:
 
@@ -143,7 +143,7 @@ Example:
 
 ```bash
 export BIBLIOPHILARR_HARDCOVER_API_TOKEN='Bearer <your-hardcover-token>'
-./_output/net8.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
+./_output/net10.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
 python3 scripts/provider_metadata_pull_test.py --media-root /media --sample-size 25 --log-level DEBUG
 python3 scripts/live_provider_enrich_missing_metadata.py --root /media/books --log-level INFO
 ```
@@ -165,8 +165,8 @@ yarn build
 ```
 
 For RID-sensitive local reruns that depend on the packaged Linux runtime layout,
-use the runtime identifier explicitly so test resolution matches `_output/net8.0/linux-x64`
-and `_tests/net8.0/linux-x64`:
+use the runtime identifier explicitly so test resolution matches `_output/net10.0/linux-x64`
+and `_tests/net10.0/linux-x64`:
 
 ```bash
 dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj \
@@ -187,19 +187,19 @@ Metadata extraction and import-identification verification (targeted):
 ```bash
 dotnet build src/Bibliophilarr.sln -c Debug -p:Platform=Posix
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "should_extract_isbn_from_filename_during_fallback"
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "should_extract_asin_from_filename_during_fallback"
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "DistanceCalculatorFixture"
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "ImportDecisionMakerFixture"
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "CandidateServiceFixture"
 ```
 

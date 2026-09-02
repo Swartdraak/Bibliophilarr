@@ -1,6 +1,6 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks>net10.0</TargetFrameworks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Host\Bibliophilarr.Host.csproj" />
@@ -8,3 +8,4 @@
     <ProjectReference Include="..\NzbDrone.Test.Dummy\Bibliophilarr.Test.Dummy.csproj" />
   </ItemGroup>
 </Project>
+

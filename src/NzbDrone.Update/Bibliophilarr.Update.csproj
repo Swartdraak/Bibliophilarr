@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks>net10.0</TargetFrameworks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="DryIoc.dll" />
@@ -12,3 +12,4 @@
     <ProjectReference Include="..\NzbDrone.Common\Bibliophilarr.Common.csproj" />
   </ItemGroup>
 </Project>
+

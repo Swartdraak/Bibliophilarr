@@ -34,7 +34,7 @@ jobs:
 
       - name: Restore and build
         run: |
-          ./build.sh --backend -r linux-x64 -f net8.0
+          ./build.sh --backend -r linux-x64 -f net10.0
 
       - name: Prepare isolated appdata
         run: |
@@ -56,10 +56,10 @@ jobs:
           mkdir -p _artifacts/staging-smoke
           app_path=""
           for candidate in \
-            ./_output/net8.0/Bibliophilarr \
-            ./_output/net8.0/linux-x64/publish/Bibliophilarr \
-            ./_output/net8.0/linux-x64/Bibliophilarr \
-            ./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
+            ./_output/net10.0/Bibliophilarr \
+            ./_output/net10.0/linux-x64/publish/Bibliophilarr \
+            ./_output/net10.0/linux-x64/Bibliophilarr \
+            ./_artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr \
             ; do
             if [ -x "$candidate" ]; then
               app_path="$candidate"
