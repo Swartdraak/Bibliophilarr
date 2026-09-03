@@ -157,6 +157,21 @@ Do not create ad-hoc status/plan documents when an existing canonical document o
 
 When adding a maintained top-level directory or major subsystem, add/update its `AGENTS.md`.
 
+## Pre-commit and pre-PR hygiene
+
+Every write-capable agent must explicitly check before committing or opening a PR:
+
+```bash
+git status --short
+git diff --name-status
+git diff --cached --name-status
+git ls-files --others --exclude-standard
+```
+
+Review every changed file and reject unexplained scratch output, temporary logs, query files, agent reports, debug dumps, generated artifacts, or duplicated docs before commit. The file must have a clear task reason, acceptance-criterion owner, directory-contract authorization, and a permanent repository purpose.
+
+Before PR creation, inspect `git fetch origin` and `git diff --name-status origin/develop...HEAD` and ensure every file is intentionally associated with the work.
+
 ## Pull request requirements
 
 Every PR must identify:

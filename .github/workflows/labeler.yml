@@ -11,9 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: "Checkout base branch config"
+      - name: "Checkout PR merge ref for labeler"
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+        # Use the default PR checkout context instead of pinning a head SHA.
+        # This keeps the labeler config and the changed-file set aligned with the
+        # actual pull request candidate while avoiding an inconsistent
+        # "base-branch config" checkout that is later resolved against the wrong ref.
       - uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6.0.1

@@ -82,6 +82,26 @@ For defects, reproduce before repair when possible.
 
 Do not perform unrelated refactors, formatting, modernization, or dependency updates.
 
+## Persistent-file ownership and artifact hygiene
+
+Before creating or modifying a persistent repository file:
+
+1. read root `AGENTS.md`;
+2. read the nearest applicable nested `AGENTS.md`;
+3. identify the directory owner/contract;
+4. confirm the file belongs in that maintained area;
+5. confirm no canonical document already owns the information.
+
+Maintained source and docs directories are never scratch space.
+
+Subagents normally return findings and must not persist analysis reports, scratch notes, validation summaries, query files, raw logs, debug dumps, or temporary scripts inside maintained repository directories. Temporary artifacts belong in `$env:TEMP`, `/tmp`, or ignored disposable repository-local locations such as `.test-env/`, `_tests/`, `_artifacts/`, `_temp*/`, and `TestResults/` when the tooling needs them.
+
+## Normal merge policy
+
+`AUTONOMOUS DEVELOP MERGE AUTHORITY` means the ordinary GitHub PR merge flow after required gates pass. It does not authorize `--admin`, force merges, ruleset bypass, branch-protection bypass, or direct pushes to `develop`.
+
+A normal merge rejection is a policy/requirements problem to diagnose and repair, not a signal to escalate with administrative bypass.
+
 ## Live GitHub state
 
 For orchestration, use live repository information.
