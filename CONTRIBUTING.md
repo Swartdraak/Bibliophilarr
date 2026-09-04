@@ -168,7 +168,7 @@ git diff --cached --name-status
 git ls-files --others --exclude-standard
 ```
 
-Review every changed file and reject unexplained scratch output, temporary logs, query files, agent reports, debug dumps, generated artifacts, or duplicated docs before commit. The file must have a clear task reason, acceptance-criterion owner, directory-contract authorization, and a permanent repository purpose.
+Review every changed file and reject unexplained scratch output, temporary logs, query files, agent reports, debug dumps, generated artifacts, or duplicated docs before commit. The file must have a clear task reason, acceptance criteria owner, directory-contract authorization, and a permanent repository purpose.
 
 Before PR creation, inspect `git fetch origin` and `git diff --name-status origin/develop...HEAD` and ensure every file is intentionally associated with the work.
 
