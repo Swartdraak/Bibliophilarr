@@ -43,6 +43,12 @@ reserved for staging -> main and production release readiness.
   current PR HEAD SHA.
 - It MUST RETURN `INCONCLUSIVE` (not PASS) when any mandatory evidence is
   unavailable OR when the validated SHA != current PR HEAD SHA.
+- It MUST `FAIL` when the diff contains unauthorized files, scratch artifacts,
+  temporary logs, validation dumps, query files, or evidence that was not
+  authored under a valid directory contract.
+- It MUST `FAIL` when repository hygiene or merge-policy rules are violated,
+  including any implicit or explicit attempt to bypass the normal merge flow via
+  admin/ruleset protections.
 - Possible verdicts: `PASS — HUMAN-REVIEW-READY`, `FAIL`, `INCONCLUSIVE`,
   `BLOCKED`.
 

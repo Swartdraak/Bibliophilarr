@@ -1,8 +1,8 @@
 # Labeler rules for actions/labeler@v6 (match-object schema).
-# Each label maps to a list of matchers; a PR is labeled when ANY matcher matches.
-# The `any-glob-to-any-file` matcher labels the PR if at least one changed file
-# matches at least one of the listed globs. This replaces the legacy pre-v5
-# "label: [glob-list]" format that actions/labeler v5+/v6 no longer parses.
+# Each label maps to an array of condition objects; a PR is labeled when ANY
+# condition matches.
+# The `changed-files` matcher applies when at least one changed file matches one
+# of the listed globs. This is the valid v6 structure.
 
 'Area: API':
   - changed-files:
@@ -65,6 +65,7 @@
 #   - docs/** + **.md          (no existing docs-area label)
 #   - .github/{agents,prompts,skills,instructions} + AGENTS.md  (no governance label)
 #   - .github/workflows/** + build.sh/test.sh/Dockerfile etc. -> REMAPPED to `backend` (build/CI infra is backend)
+#   - scripts/**/* -> REMAPPED to `backend` (repository automation lives with backend/build infra)
 #   - tests/** + src/**/*Test* (no existing testing-area label)
 #   These are recorded as a follow-up governance task, per the no-new-label-taxonomy
 #   directive for this repair.

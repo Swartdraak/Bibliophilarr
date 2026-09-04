@@ -112,6 +112,32 @@ Tests written by the implementation agent are evidence, not independent approval
 
 Do not alter test expectations solely to make an incorrect implementation pass.
 
+## Persistent-file ownership and artifact hygiene
+
+Before creating or modifying a persistent repository file:
+
+1. read the root `AGENTS.md`;
+2. read the nearest applicable nested `AGENTS.md`;
+3. identify the directory owner/contract;
+4. confirm the file belongs in that maintained area;
+5. confirm no canonical document already owns the information.
+
+A maintained source/docs directory is never scratch space.
+
+Subagents normally return findings. They do not persist analysis reports, validation summaries, scratch notes, query files, logs, debug dumps, handoff documents, or temporary scripts inside maintained repository directories. Temporary investigation artifacts belong in `$env:TEMP`, `/tmp`, or repository-local ignored disposable locations such as `.test-env/`, `_tests/`, `_artifacts/`, `_temp*/`, and `TestResults/` when tooling requires them.
+
+## Autonomous develop merge authority
+
+`AUTONOMOUS DEVELOP MERGE AUTHORITY` means normal GitHub PR merge after all required gates are satisfied. It never means:
+
+- `--admin`;
+- force merge;
+- ruleset or branch-protection bypass;
+- direct push to `develop`;
+- local merge and push without the normal PR flow.
+
+When a normal merge is rejected, the required response is to inspect the failing checks, review requirements, branch-policy state, and candidate governance, then repair or retry the normal path. It is not authorization to escalate via administrative bypass.
+
 ## Live GitHub state
 
 For orchestration and prioritization, live repository state is mandatory.

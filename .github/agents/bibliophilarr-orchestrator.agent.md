@@ -205,6 +205,20 @@ Before implementation, state:
 - GitHub metadata mutations permitted, if any;
 - rollback path.
 
+## Repository hygiene and merge policy
+
+Before creating or modifying a persistent repository file:
+
+1. read root `AGENTS.md`;
+2. read the nearest applicable nested `AGENTS.md`;
+3. identify the directory owner/contract;
+4. confirm the file belongs in that maintained area;
+5. confirm no canonical document already owns the information.
+
+Subagents return findings; they do not persist analysis reports, validation summaries, scratch notes, query files, logs, debug dumps or temporary scripts inside maintained repo directories. Temporary artifacts belong in `$env:TEMP`, `/tmp`, or repository-local ignored disposable locations when the tooling requires them.
+
+`AUTONOMOUS DEVELOP MERGE AUTHORITY` means ordinary GitHub PR merge after all required gates. It never means `--admin`, force merge, branch-protection bypass, ruleset bypass, or direct `develop` push. A rejected normal merge requires repair of the actual blocker. "Try admin" is never an authorized fallback.
+
 ## Independent validation
 
 After implementation, route the exact candidate SHA through the smallest applicable set:
