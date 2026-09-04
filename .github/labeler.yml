@@ -1,28 +1,93 @@
+# Labeler rules for actions/labeler@v6 (match-object schema).
+# Each label maps to a list of matchers; a PR is labeled when ANY matcher matches.
+# The `any-glob-to-any-file` matcher labels the PR if at least one changed file
+# matches at least one of the listed globs. This replaces the legacy pre-v5
+# "label: [glob-list]" format that actions/labeler v5+/v6 no longer parses.
+
 'Area: API':
-  - src/Bibliophilarr.Api.V1/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/Bibliophilarr.Api.V1/**/*'
 
 'Area: Db-migration':
-  - src/NzbDrone.Core/Datastore/Migration/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Datastore/Migration/*'
 
 'Area: Download Clients':
-  - src/NzbDrone.Core/Download/Clients/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Download/Clients/**/*'
 
 'Area: Import Lists':
-  - src/NzbDrone.Core/ImportLists/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/ImportLists/**/*'
 
 'Area: Indexer':
-  - src/NzbDrone.Core/Indexers/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Indexers/**/*'
 
 'Area: Notifications':
-  - src/NzbDrone.Core/Notifications/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Notifications/**/*'
 
 'Area: Organizer':
-  - src/NzbDrone.Core/Organizer/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Organizer/**/*'
 
 'Area: Parser':
-  - src/NzbDrone.Core/Parser/**/*
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/NzbDrone.Core/Parser/**/*'
 
 'Area: UI':
-  - frontend/**/*
-  - package.json
-  - yarn.lock
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'frontend/**/*'
+          - 'package.json'
+          - 'yarn.lock'
+
+# --- CI / build-infrastructure path coverage ---
+# Mapped to the EXISTING `backend` label (build/CI infra is backend). No new
+# labels are created in this repair PR: every top-level key below must already
+# exist in the repository, otherwise actions/labeler (pull-requests:write,
+# no label-creation) cannot apply it.
+#
+# NOTE: The following path classes were intentionally OMITTED from this repair
+# because NO semantically-correct EXISTING label targets them, and creating new
+# labels (`Area: Docs`, `Area: Governance`, `Area: CI`, `Area: Scripts`,
+# `Area: Tests`) is a separate repository-governance improvement, not part of
+# the broken-baseline repair:
+#   - docs/** + **.md          (no existing docs-area label)
+#   - .github/{agents,prompts,skills,instructions} + AGENTS.md  (no governance label)
+#   - .github/workflows/** + build.sh/test.sh/Dockerfile etc. -> REMAPPED to `backend` (build/CI infra is backend)
+#   - scripts/**/* -> REMAPPED to `backend` (repository automation lives with backend/build infra)
+#   - tests/** + src/**/*Test* (no existing testing-area label)
+#   These are recorded as a follow-up governance task, per the no-new-label-taxonomy
+#   directive for this repair.
+
+'backend':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**/*'
+          - '.github/workflows/**/*'
+          - '.github/labeler.yml'
+          - '.github/dependabot.yml'
+          - 'build.sh'
+          - 'test.sh'
+          - 'docker-compose*.yml'
+          - 'Dockerfile'
+          - 'scripts/**/*'
+
+'dependencies':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'global.json'
+          - 'package.json'
+          - 'yarn.lock'
+          - 'src/Directory.Packages.props'
+          - 'src/NuGet.config'
