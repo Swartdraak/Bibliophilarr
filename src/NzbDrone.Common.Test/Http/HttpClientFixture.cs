@@ -63,17 +63,14 @@ namespace NzbDrone.Common.Test.Http
             {
                 using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
                 client.GetAsync("https://expired.badssl.com").GetAwaiter().GetResult();
-                // Request succeeded, certificate is valid (not expired).
                 return false;
             }
             catch (System.Net.Http.HttpRequestException)
             {
-                // Certificate validation failed - expired or other cert issue.
                 return true;
             }
             catch
             {
-                // Network error or other exception - assume unavailable.
                 return false;
             }
         }
