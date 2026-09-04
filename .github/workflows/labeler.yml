@@ -1,4 +1,4 @@
-name: "Pull Request Labeler"
+name: "Trusted Pull Request Labeler"
 on:
   - pull_request
 
