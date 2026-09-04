@@ -149,7 +149,7 @@ namespace NzbDrone.Common.Test.Http
         [TestCase(CertificateValidationType.DisabledForLocalAddresses)]
         public void bad_ssl_should_fail_when_remote_validation_enabled(CertificateValidationType validationType)
         {
-            Skip("Environment-dependent test: requires expired.badssl.com to serve an expired certificate. See issue #114.");
+            Assert.Inconclusive("Environment-dependent test: requires expired.badssl.com to serve an expired certificate. See issue #114.");
             Mocker.GetMock<IConfigService>().SetupGet(x => x.CertificateValidation).Returns(validationType);
             var request = new HttpRequest($"https://expired.badssl.com");
 
@@ -160,7 +160,7 @@ namespace NzbDrone.Common.Test.Http
         [Test]
         public async Task bad_ssl_should_pass_if_remote_validation_disabled()
         {
-            Skip("Environment-dependent test: requires expired.badssl.com to be reachable. See issue #114.");
+            Assert.Inconclusive("Environment-dependent test: requires expired.badssl.com to be reachable. See issue #114.");
             Mocker.GetMock<IConfigService>().SetupGet(x => x.CertificateValidation).Returns(CertificateValidationType.Disabled);
 
             var request = new HttpRequest($"https://expired.badssl.com");
