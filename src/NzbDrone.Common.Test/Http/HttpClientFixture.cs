@@ -57,6 +57,27 @@ namespace NzbDrone.Common.Test.Http
             _httpBinSleep = 10;
         }
 
+        private static bool IsExpiredBadSslAvailable()
+        {
+            try
+            {
+                using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                client.GetAsync("https://expired.badssl.com").GetAwaiter().GetResult();
+                // Request succeeded, certificate is valid (not expired).
+                return false;
+            }
+            catch (System.Net.Http.HttpRequestException)
+            {
+                // Certificate validation failed - expired or other cert issue.
+                return true;
+            }
+            catch
+            {
+                // Network error or other exception - assume unavailable.
+                return false;
+            }
+        }
+
         private bool IsTestSiteAvailable(string site)
         {
             try
@@ -149,6 +170,16 @@ namespace NzbDrone.Common.Test.Http
         [TestCase(CertificateValidationType.DisabledForLocalAddresses)]
         public void bad_ssl_should_fail_when_remote_validation_enabled(CertificateValidationType validationType)
         {
+            // Skip if the external test service is not providing an expired certificate.
+            // This test depends on expired.badssl.com which can change its certificate
+            // status at any time. If the certificate is valid, the assertion below
+            // would fail because no exception would be thrown.
+            if (!IsExpiredBadSslAvailable())
+            {
+                Assert.Inconclusive("expired.badssl.com is not serving an expired certificate; skipping environment-dependent test.");
+                return;
+            }
+
             Mocker.GetMock<IConfigService>().SetupGet(x => x.CertificateValidation).Returns(validationType);
             var request = new HttpRequest($"https://expired.badssl.com");
 
@@ -159,6 +190,15 @@ namespace NzbDrone.Common.Test.Http
         [Test]
         public async Task bad_ssl_should_pass_if_remote_validation_disabled()
         {
+            // Skip if the external test service is not reachable.
+            // This test depends on expired.badssl.com which can change its
+            // certificate status at any time.
+            if (!IsExpiredBadSslAvailable())
+            {
+                Assert.Inconclusive("expired.badssl.com is not reachable or not serving an expired certificate; skipping environment-dependent test.");
+                return;
+            }
+
             Mocker.GetMock<IConfigService>().SetupGet(x => x.CertificateValidation).Returns(CertificateValidationType.Disabled);
 
             var request = new HttpRequest($"https://expired.badssl.com");
