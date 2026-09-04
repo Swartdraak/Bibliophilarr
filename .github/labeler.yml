@@ -65,6 +65,7 @@
 #   - docs/** + **.md          (no existing docs-area label)
 #   - .github/{agents,prompts,skills,instructions} + AGENTS.md  (no governance label)
 #   - .github/workflows/** + build.sh/test.sh/Dockerfile etc. -> REMAPPED to `backend` (build/CI infra is backend)
+#   - scripts/**/* -> REMAPPED to `backend` (repository automation lives with backend/build infra)
 #   - tests/** + src/**/*Test* (no existing testing-area label)
 #   These are recorded as a follow-up governance task, per the no-new-label-taxonomy
 #   directive for this repair.
