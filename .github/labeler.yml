@@ -52,23 +52,13 @@
           - 'yarn.lock'
 
 # --- CI / build-infrastructure path coverage ---
-# Mapped to the EXISTING `backend` label (build/CI infra is backend). No new
-# labels are created in this repair PR: every top-level key below must already
-# exist in the repository, otherwise actions/labeler (pull-requests:write,
-# no label-creation) cannot apply it.
+# Mapped to the EXISTING `backend` label (build/CI infra is backend). The labeler
+# loads this file from the trusted base state and emits the `label-policy` check.
 #
-# NOTE: The following path classes were intentionally OMITTED from this repair
-# because NO semantically-correct EXISTING label targets them, and creating new
-# labels (`Area: Docs`, `Area: Governance`, `Area: CI`, `Area: Scripts`,
-# `Area: Tests`) is a separate repository-governance improvement, not part of
-# the broken-baseline repair:
-#   - docs/** + **.md          (no existing docs-area label)
-#   - .github/{agents,prompts,skills,instructions} + AGENTS.md  (no governance label)
-#   - .github/workflows/** + build.sh/test.sh/Dockerfile etc. -> REMAPPED to `backend` (build/CI infra is backend)
-#   - scripts/**/* -> REMAPPED to `backend` (repository automation lives with backend/build infra)
-#   - tests/** + src/**/*Test* (no existing testing-area label)
-#   These are recorded as a follow-up governance task, per the no-new-label-taxonomy
-#   directive for this repair.
+# docs/**, .github/{agents,prompts,skills,instructions}, AGENTS.md, and
+# tests/** are intentionally not remapped to `backend`; they have no existing
+# semantically-correct label yet. Create dedicated area labels first if broader
+# label coverage is desired.
 
 'backend':
   - changed-files:

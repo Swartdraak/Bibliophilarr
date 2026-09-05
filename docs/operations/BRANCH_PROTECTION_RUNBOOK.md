@@ -15,7 +15,7 @@ Apply and verify consistent branch protection on protected lanes using a determi
 - Required status checks:
   - build-test
   - Markdown lint
-  - triage
+  - label-policy
   - Staging Smoke Metadata Telemetry / smoke-metadata-telemetry
 - Required approving reviews: 0
 - Strict status checks enabled
