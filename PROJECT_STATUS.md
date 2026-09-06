@@ -1,8 +1,8 @@
 # Project Status Summary
 
-**Last Updated**: May 24, 2026 (Sprint 7 start: full codebase audit, production issue escalation, Dependabot triage kick-off)
+**Last Updated**: September 5, 2026 (repository lifecycle normalization; labeler trust model and branch protection aligned)
 **Project**: Bibliophilarr  
-**Current Phase**: Phase 5 consolidation with Phase 6 hardening active — Sprint 7 in progress
+**Current Phase**: Phase 5 consolidation with Phase 6 hardening active
 
 ## Active escalations (May 24, 2026)
 
@@ -38,14 +38,18 @@ Bibliophilarr is a community-driven continuation focused on replacing fragile or
 
 ## Current operational state
 
-- Protected branches `develop`, `staging`, and `main` now use the same required contexts:
+- Protected branches `develop`, `staging`, and `main` require the following contexts:
   - `build-test`
   - `Markdown lint`
-  - `triage`
+  - `label-policy`
   - `Staging Smoke Metadata Telemetry / smoke-metadata-telemetry`
-- Required approving review count is `0` across those protected branches.
-- Release-readiness and branch-policy audit automation are available for scheduled and manual execution.
-- Release entry is not yet clear for promotion: the committed dated evidence set is stale, the latest committed series persistence snapshot is failing, and local `develop` is ahead of the remote promotion branches.
+- Required approving review count is `0` across protected branches.
+- The labeler workflow uses a trusted base-state checkout under a `pull_request`
+  trigger and emits the `label-policy` required check.
+- Release-readiness and branch-policy audit automation are available for scheduled
+  and manual execution.
+- The repository is in a normalized three-lane state (`develop`, `staging`, `main`)
+  with stale archive/migration/governance branches removed.
 
 ## Open dependency upgrade tasks (April 24, 2026)
 

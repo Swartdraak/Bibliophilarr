@@ -17,9 +17,9 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 
 | Branch | Purpose | Required outcomes |
 |---|---|---|
-| `develop` | Active integration lane for metadata migration and operational hardening slices | `build-test`, `Markdown lint`, `triage`, smoke telemetry |
+| `develop` | Active integration lane for metadata migration and operational hardening slices | `build-test`, `Markdown lint`, `label-policy`, smoke telemetry |
 | `staging` | Pre-release validation lane mirroring `develop` with tighter release-readiness scrutiny | same required contexts as `develop`, plus current readiness/drift report evidence |
-| `main` | Default branch for releases, operator runbooks, readiness reporting, and branch-policy auditing | `build-test`, `Markdown lint`, `triage`, smoke telemetry, successful readiness and branch-policy report runs |
+| `main` | Default branch for releases, operator runbooks, readiness reporting, and branch-policy auditing | `build-test`, `Markdown lint`, `label-policy`, smoke telemetry, successful readiness and branch-policy report runs |
 
 ## Phase summary
 
