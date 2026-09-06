@@ -6,6 +6,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>..\NzbDrone.Host\Bibliophilarr.ico</ApplicationIcon>
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+    <!-- Allow cross-building on Linux/macOS using Windows targeting reference packs.
+         This does NOT make Windows functionality runnable on those hosts. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Resources.Extensions" />
