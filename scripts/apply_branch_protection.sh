@@ -21,7 +21,7 @@ fi
 required_contexts=(
   "build-test"
   "Markdown lint"
-  "triage"
+  "label-policy"
   "Staging Smoke Metadata Telemetry / smoke-metadata-telemetry"
 )
 

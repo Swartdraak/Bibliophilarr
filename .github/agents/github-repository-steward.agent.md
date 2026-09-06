@@ -37,7 +37,7 @@ For a full hygiene pass, report:
 - recently merged PR branches still present;
 - failed/stuck required checks and the candidate SHA they belong to;
 - current release/tag posture;
-- README badge endpoints and the `badge-data` values;
+- README badge endpoints and rendered badge health;
 - GitHub Project(s), item coverage and status drift when accessible;
 - Wiki existence/pages and obvious staleness when accessible;
 - label/milestone taxonomy drift.
@@ -48,13 +48,12 @@ Classify every remote branch into exactly one bucket before recommending cleanup
 
 1. `persistent-protected` — `main`, `develop`, `staging`, or another explicitly protected
    lifecycle branch.
-2. `repository-service` — e.g. `badge-data`; retained because automation consumes it.
-3. `active-pr` — head of an open PR.
-4. `automation-active` — active Dependabot/bot branch with an open work item.
-5. `merged-leftover` — PR is merged and the branch contains no unique desired work.
-6. `closed-unmerged` — PR closed without merge; preserve until intent is verified.
-7. `stale-no-pr` — no open PR and no recent/known active work.
-8. `unknown` — insufficient evidence; never delete automatically.
+2. `active-pr` — head of an open PR.
+3. `automation-active` — active Dependabot/bot branch with an open work item.
+4. `merged-leftover` — PR is merged and the branch contains no unique desired work.
+5. `closed-unmerged` — PR closed without merge; preserve until intent is verified.
+6. `stale-no-pr` — no open PR and no recent/known active work.
+7. `unknown` — insufficient evidence; never delete automatically.
 
 Age alone is never sufficient evidence for deletion. Before recommending a branch deletion,
 compare it with the appropriate base and identify unique commits. Never delete or force-move
@@ -80,14 +79,13 @@ Audit both badge execution and badge semantics. Check:
 
 - workflow run status;
 - target workflow/link still exists;
-- `badge-data` JSON exists and is reachable;
-- displayed branch version corresponds to the intended policy;
+- displayed branch version or HEAD freshness corresponds to the intended policy;
 - GitHub release, container/package and npm badges correspond to actually published state;
 - badge values do not remain unchanged merely because the workflow reports success.
 
-If branch badges are tag-derived, explicitly distinguish "workflow is healthy" from
-"badge accurately reflects current branch head." Propose a separate workflow change when
-badge semantics need to include commit distance/short SHA/build version.
+If branch badges are tag- or HEAD-derived, explicitly distinguish "workflow is healthy"
+from "badge accurately reflects current branch head." Use branch-specific badge URLs so
+production, release-candidate, and integration state are not conflated.
 
 ## GitHub Projects
 
