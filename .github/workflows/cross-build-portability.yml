@@ -215,7 +215,17 @@ jobs:
           check_pair() {
             local src="$1"
             local dst="$2"
-            if ! grep -q "ProcessArchitecture)'' == '${src}'" "$props"; then
+            # The MSBuild Choose block is of the form:
+            #   <When Condition="'$([...RuntimeInformation]::ProcessArchitecture)' == 'X64'">
+            #       <PropertyGroup>
+            #         <Architecture>x64</Architecture>
+            #       </PropertyGroup>
+            #   </When>
+            # We match the source marker with a permissive character class
+            # around the closing parenthesis + quote so the check is robust
+            # to any minor whitespace variation. The destination element is
+            # matched literally.
+            if ! grep -qE "ProcessArchitecture\)\)?'\s*==\s*'?${src}('|\")?'" "$props"; then
               echo "MISSING RID mapping source marker: ${src} in $props"
               exit 1
             fi
