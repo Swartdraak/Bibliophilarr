@@ -163,7 +163,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd src
           probe_out=$(dotnet msbuild -v:quiet -nologo -getProperty:Architecture NzbDrone.Console/Bibliophilarr.Console.csproj -p:Platform=Posix 2>/dev/null || true)
           echo "MSBuild-evaluated Architecture: $probe_out"
           case "$probe_out" in
