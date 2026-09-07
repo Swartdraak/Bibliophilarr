@@ -4,68 +4,62 @@
 # The `changed-files` matcher applies when at least one changed file matches one
 # of the listed globs. This is the valid v6 structure.
 
-'Area: API':
+'area:api':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/Bibliophilarr.Api.V1/**/*'
 
-'Area: Db-migration':
+'area:database':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/NzbDrone.Core/Datastore/Migration/*'
 
-'Area: Download Clients':
+'area:download-clients':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/NzbDrone.Core/Download/Clients/**/*'
 
-'Area: Import Lists':
+'area:import-lists':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/NzbDrone.Core/ImportLists/**/*'
 
-'Area: Indexer':
+'area:indexer':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/NzbDrone.Core/Indexers/**/*'
 
-'Area: Notifications':
+'area:notifications':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/NzbDrone.Core/Notifications/**/*'
 
-'Area: Organizer':
+'area:organizer':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/NzbDrone.Core/Organizer/**/*'
 
-'Area: Parser':
+'area:parser':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/NzbDrone.Core/Parser/**/*'
 
-'Area: UI':
+'area:frontend':
   - changed-files:
       - any-glob-to-any-file:
           - 'frontend/**/*'
           - 'package.json'
           - 'yarn.lock'
 
-# --- CI / build-infrastructure path coverage ---
-# Mapped to the EXISTING `backend` label (build/CI infra is backend). The labeler
-# loads this file from the trusted base state and emits the `label-policy` check.
-#
-# docs/**, .github/{agents,prompts,skills,instructions}, AGENTS.md, and
-# tests/** are intentionally not remapped to `backend`; they have no existing
-# semantically-correct label yet. Create dedicated area labels first if broader
-# label coverage is desired.
-
-'backend':
+'area:backend':
   - changed-files:
       - any-glob-to-any-file:
           - 'src/**/*'
+
+'area:ci':
+  - changed-files:
+      - any-glob-to-any-file:
           - '.github/workflows/**/*'
-          - '.github/labeler.yml'
           - '.github/dependabot.yml'
           - 'build.sh'
           - 'test.sh'
@@ -73,7 +67,31 @@
           - 'Dockerfile'
           - 'scripts/**/*'
 
-'dependencies':
+'area:documentation':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '*.md'
+          - 'docs/**/*'
+          - 'wiki/**/*'
+          - '.github/PULL_REQUEST_TEMPLATE.md'
+          - '.github/ISSUE_TEMPLATE/**/*'
+          - '.github/copilot-instructions.md'
+          - '.github/agents/**/*'
+          - '.github/prompts/**/*'
+          - '.github/skills/**/*'
+
+'area:governance':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/labeler.yml'
+          - '.github/label-actions.yml'
+          - '.github/workflows/labeler.yml'
+          - '.github/workflows/label-actions.yml'
+          - 'BRANCHING.md'
+          - 'README-GOVERNANCE-PACK.md'
+          - '.github/copilot-instructions.md'
+
+'area:dependencies':
   - changed-files:
       - any-glob-to-any-file:
           - 'global.json'

@@ -62,6 +62,14 @@
     <PackageVersion Include="System.Security.Principal.Windows" Version="5.0.0" />
     <PackageVersion Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
+    <!-- System.Drawing.Common is intentionally pinned to 9.0.0 to prevent
+         transitive dependency chains (e.g. from legacy .NET Framework-era packages
+         such as PdfPig / MonoTorrent / TagLibSharp-Lidarr) from resolving
+         4.7.0, which is flagged as critical by NuGet.org (GHSA-rxg9-xrhp-64gj).
+         9.0.0 is the latest LTS-compatible line and aligns with the repository's
+         .NET 10 target framework. It is NOT referenced directly as a PackageReference
+         because on net10.0-windows / WindowsDesktop it is resolved from the
+         reference pack, and an explicit reference triggers NU1510 (TreatWarningsAsErrors). -->
     <PackageVersion Include="System.Text.Encoding.CodePages" Version="6.0.0" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
     <PackageVersion Include="System.ValueTuple" Version="4.6.1" />

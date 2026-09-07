@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`.github/workflows/` contains GitHub Actions workflows for CI, validation, automation, badges, security, release preparation, and publication.
+`.github/workflows/` contains GitHub Actions workflows for CI, validation, automation, security, release preparation, and publication.
 
 ## Principles
 

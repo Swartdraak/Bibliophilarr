@@ -10,9 +10,9 @@
          This does NOT make Windows functionality runnable on those hosts. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="System.Resources.Extensions" />
-  </ItemGroup>
+  <!-- System.Resources.Extensions is part of the WindowsDesktop reference pack on
+       net10.0-windows and is resolved automatically. An explicit reference triggers
+       NU1510 (TreatWarningsAsErrors). The WinForms project model loads cleanly without it. -->
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Host\Bibliophilarr.Host.csproj" />
     <ProjectReference Include="..\NzbDrone.Windows\Bibliophilarr.Windows.csproj" />
