@@ -1,11 +1,5 @@
 # Bibliophilarr
 
-[![Backend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml)
-[![Backend CI staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml)
-[![Backend CI develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml)
-[![Frontend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml)
-[![Docs Validation](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml)
-[![Workflow lint](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=release)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-bibliophilarr-blue?logo=docker)](https://github.com/Swartdraak/Bibliophilarr/pkgs/container/bibliophilarr)
 [![npm](https://img.shields.io/npm/v/bibliophilarr?logo=npm&label=npm)](https://www.npmjs.com/package/bibliophilarr)
@@ -41,7 +35,7 @@ Use the core docs as the authoritative set:
 | `staging`| Release candidate     | [build-test](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?branch=staging) | [frontend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?branch=staging) | [docs](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?branch=staging) | [workflow lint](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?branch=staging) |
 | `develop`| Integration           | [build-test](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?branch=develop) | [frontend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?branch=develop) | [docs](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?branch=develop) | [workflow lint](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?branch=develop) |
 
-Branch badges point at workflow runs on the matching branch. See
+Branch-health links point at workflow runs on the matching branch. See
 [BRANCHING.md](BRANCHING.md) for the three-lane promotion lifecycle.
 
 ## What the project does
