@@ -1,6 +1,6 @@
 name: Feature Request
 description: 'Suggest an idea for Bibliophilarr'
-labels: ['enhancement']
+labels: ['type:feature']
 body:
 - type: checkboxes
   attributes:
