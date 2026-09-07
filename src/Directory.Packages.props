@@ -9,7 +9,7 @@
     <PackageVersion Include="DryIoc.Microsoft.DependencyInjection" Version="6.2.0" />
     <PackageVersion Include="Equ" Version="2.3.0" />
     <PackageVersion Include="FluentAssertions" Version="8.9.0" />
-    <PackageVersion Include="IPAddressRange" Version="6.1.0" />
+    <PackageVersion Include="IPAddressRange" Version="6.3.0" />
     <PackageVersion Include="Polly" Version="8.5.2" />
     <PackageVersion Include="FluentMigrator.Runner" Version="3.3.2" />
     <PackageVersion Include="FluentMigrator.Runner.SQLite" Version="3.3.2" />
