@@ -1,6 +1,6 @@
 name: Feature Request
 description: 'Suggest an idea for Bibliophilarr'
-labels: ['Type: Feature Request', 'Status: Needs Triage']
+labels: ['enhancement']
 body:
 - type: checkboxes
   attributes:
@@ -27,6 +27,39 @@ body:
     description: A clear and concise description of any alternative solutions or features you've considered.
   validations:
     required: true
+- type: dropdown
+  attributes:
+    label: Which area would this change affect?
+    description: Maintainers will translate this into the durable `area:*` tracking labels.
+    options:
+      - Metadata/providers
+      - API/backend
+      - Frontend/UI
+      - Import/download/file handling
+      - Build/CI/tooling
+      - Documentation
+      - Release/packaging
+      - Unknown / needs maintainer triage
+  validations:
+    required: true
+- type: dropdown
+  attributes:
+    label: Expected delivery importance
+    description: Helps maintainers choose the final priority and risk labels.
+    options:
+      - Critical / release-blocking follow-up
+      - High-value near-term work
+      - Normal planned improvement
+      - Nice-to-have
+  validations:
+    required: true
+- type: input
+  attributes:
+    label: Related issue or epic (if known)
+    description: 'Example: #96 or #99'
+    placeholder: '#123'
+  validations:
+    required: false
 - type: textarea
   attributes:
     label: Anything else?

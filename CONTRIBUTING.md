@@ -239,7 +239,21 @@ Every PR must identify:
 12. issue links;
 13. unresolved risks/follow-ups.
 
+PR metadata is incomplete until all of the following are populated and
+verified:
+
+- at least one `type:*` label
+- at least one `area:*` label
+- one priority label (`priority:*`)
+- one risk label (`risk:*`)
+- at least one assignee
+- current candidate SHA
+- rollback/revert path
+
 PRs must use the repository PR template where applicable.
+
+The `label-policy` required check enforces the PR metadata contract for
+protected branches. Do not request merge/readiness while the check is red.
 
 ### Target-branch validation
 
@@ -257,6 +271,20 @@ A `release-fix/*` PR targets `staging` and must be reconciled into `develop`.
 A `hotfix/* -> main` PR is an emergency exception requiring explicit human authorization and mandatory reconciliation into downstream development lines.
 
 A PR is not ready merely because GitHub reports it as mergeable.
+
+## Issue metadata contract
+
+Before an issue is treated as ready or used as the owning tracker for a pull
+request, maintainers must verify:
+
+1. the title and body describe real current-state work;
+2. an assignee is set;
+3. labels include the work type, at least one area, priority, and risk when
+   meaningful;
+4. parent/epic linkage is present when the work belongs to a larger migration
+   or recovery train;
+5. milestone or Project placement is used only when there is a real current
+   destination.
 
 ## CI and review failures
 

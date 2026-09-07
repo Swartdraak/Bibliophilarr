@@ -158,7 +158,18 @@ A later green rerun does not erase an unexplained failure.
 
 Every orchestrated PR must include source and target branch, base/candidate SHA, scope/non-scope, risk, validation evidence, independent validator results, rollback, and unresolved risks.
 
+PR creation/readiness is incomplete until the PR has an assignee and labels for
+type, area, priority, and risk, and the candidate SHA in the body matches the
+exact current branch head.
+
 Verify that the target follows `BRANCHING.md` before opening the PR.
+
+## Issues and tracking metadata
+
+Before treating an issue as ready or using it as the owning tracker for a PR,
+verify that it has a truthful current-state title/body, an assignee, useful
+labels (type, area, priority, and risk when meaningful), and parent/epic
+linkage when the work belongs to a larger migration or recovery train.
 
 ## Documentation
 

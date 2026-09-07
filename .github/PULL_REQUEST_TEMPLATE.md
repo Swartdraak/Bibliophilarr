@@ -1,3 +1,5 @@
+# Pull request template
+
 ## Summary
 
 Describe the problem this pull request solves and why it should land now.
@@ -16,6 +18,14 @@ Describe the problem this pull request solves and why it should land now.
 
 - Included changes:
 - Intentionally excluded changes:
+
+## Metadata contract
+
+- Assignee:
+- Labels (type / area / priority / risk):
+- Base branch:
+- Base SHA:
+- Candidate SHA:
 
 ## Validation
 
@@ -47,6 +57,13 @@ State the main behavioral, migration, or operational risk and the rollback path.
 
 - Fixes #
 - Relates to #
+
+## Readiness checklist
+
+- [ ] Assignee is set
+- [ ] Labels include `type:*`, `area:*`, `priority:*`, and `risk:*`
+- [ ] Candidate SHA is current for the exact branch head
+- [ ] Rollback path is specific and actionable
 
 ## UI evidence
 
