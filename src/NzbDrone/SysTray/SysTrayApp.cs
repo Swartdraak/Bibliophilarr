@@ -54,10 +54,18 @@ namespace NzbDrone.SysTray
             return Task.CompletedTask;
         }
 
+        // CS0672: In .NET 10, WinForms' `Form.OnClosing` is marked [Obsolete].
+        // This form is a tray shell with no user-facing close UI; we still need
+        // to dispose the tray icon when the form is destroyed. The `using`
+        // directive scopes the suppression and does not weaken the repository's
+        // TreatWarningsAsErrors policy for any other file.
+#pragma warning disable WFDEV004, CS0672 // Form.OnClosing is obsolete in .NET 10 WinForms; the replacement OnFormClosing will be adopted after the full .NET 10 WinForms surface is available (tracked by #96 NET10-04/#105). This tray shell has no user-facing close UI; OnClosing is preserved for tray-icon disposal only.
         protected override void OnClosing(CancelEventArgs e)
         {
             DisposeTrayIcon();
+            base.OnClosing(e);
         }
+#pragma warning restore WFDEV004, CS0672
 
         protected override void OnLoad(EventArgs e)
         {

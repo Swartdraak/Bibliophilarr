@@ -84,7 +84,7 @@ Key rules:
 
 Protect `develop`, `staging`, and `main` with PR requirements, applicable required checks, resolved conversations, blocked force pushes/deletions, and restricted bypasses.
 
-Keep `badge-data` automation-owned if the badge workflow depends on it.
+Branch version identity is never advertised via badges. Release identity comes from stable tags on `main` and GitHub Releases only.
 
 ## First orchestrator run
 

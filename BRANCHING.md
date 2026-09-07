@@ -267,7 +267,7 @@ Recommended: require PRs and production release gates, block force push/deletion
 
 After a task PR is merged, the task branch should normally be deleted after confirming the PR is merged, no active worktree/session depends on it, no follow-up PR uses it, and it is not automation-owned.
 
-Do not delete `main`, `develop`, `staging`, automation-owned `badge-data` while required, active Dependabot branches with open PRs, active task branches, or branches with unique unreviewed commits.
+Do not delete `main`, `develop`, `staging`, active Dependabot branches with open PRs, active task branches, or branches with unique unreviewed commits.
 
 Branch age alone is not a deletion criterion.
 

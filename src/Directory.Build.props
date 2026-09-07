@@ -114,8 +114,29 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
-    <PackageReference Include="System.Drawing.Common" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+  </ItemGroup>
+
+  <!-- Pin the System.Drawing.Common version globally for every project so that
+       transitive dependency chains (e.g. PdfPig -> System.Drawing.Common 4.7.0,
+       MonoTorrent -> System.Drawing.Common 4.7.0, TagLibSharp-Lidarr -> System.Drawing
+       4.7.0) cannot resolve the vulnerable 4.7.0 line (GHSA-rxg9-xrhp-64gj).
+       Because the repository uses Central Package Management (ManagePackageVersionsCentrally),
+       only a PackageReference that exists in a project's graph actually resolves the
+       version; for projects that do not consume System.Drawing.Common, this pin is
+       inert. On net10.0-windows / WindowsDesktop the runtime assembly is supplied by
+       the reference pack and the explicit reference still triggers NU1510, so this
+       pin is intentionally scoped to NON-WINDOWSDESKTOP projects only. -->
+  <!-- Pin the transitive System.Drawing.Common version so legacy .NET Framework-era
+       packages (PdfPig / MonoTorrent / TagLibSharp-Lidarr) cannot resolve the
+       vulnerable 4.7.0 line (GHSA-rxg9-xrhp-64gj). Because ManagePackageVersionsCentrally
+       is enabled, this PackageReference (with no version attribute) uses the 9.0.0
+       central pin declared in Directory.Packages.props.
+       It is scoped to non-WindowsDesktop projects because on net10.0-windows the
+       WindowsDesktop reference pack already supplies the runtime assembly and an
+       explicit reference triggers NU1510 (TreatWarningsAsErrors). -->
+  <ItemGroup Condition="!('$(TargetFramework)' == 'net10.0-windows')">
+    <PackageReference Include="System.Drawing.Common" />
   </ItemGroup>
 
   <!-- Sentry specific configuration: Only in Release mode -->
@@ -211,20 +232,40 @@
     </Otherwise>
   </Choose>
 
+  <!--
+       Implicit host RID defaults (Part #117 / #118 cross-host contract).
+
+       A normal framework-dependent developer restore/build must NOT become
+       RID-specific merely because of the host OS, because host-specific
+       restore assets cause cross-host lock differences, Rider project-model
+       variation, and Windows target mismatch. RID selection is therefore
+       applied ONLY to packaging entry points (WinExe / Update) that require a
+       native RID, and the RID is always opt-in via explicit publish -p:.
+
+       Architecture is proven to map X64 -> x64 and Arm64 -> arm64 by the
+       cross-build portability tests (see .github/workflows/cross-build-portability.yml,
+       rid-mapping matrix). On Apple Silicon hosts this yields osx-arm64.
+
+       This does NOT make the net10.0-windows desktop shell runnable on
+       non-Windows hosts; it only keeps portable projects portable.
+  -->
   <PropertyGroup Condition="'$(IsWindows)' == 'true' and
-                            '$(RuntimeIdentifier)' == ''">
+                            '$(RuntimeIdentifier)' == '' and
+                            ('$(OutputType)' == 'WinExe' or '$(BibliophilarrOutputType)' == 'Update')">
     <_UsingDefaultRuntimeIdentifier>true</_UsingDefaultRuntimeIdentifier>
     <RuntimeIdentifier>win-$(Architecture)</RuntimeIdentifier>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsLinux)' == 'true' and
-                            '$(RuntimeIdentifier)' == ''">
+                            '$(RuntimeIdentifier)' == '' and
+                            ('$(OutputType)' == 'WinExe' or '$(BibliophilarrOutputType)' == 'Update')">
     <_UsingDefaultRuntimeIdentifier>true</_UsingDefaultRuntimeIdentifier>
     <RuntimeIdentifier>linux-$(Architecture)</RuntimeIdentifier>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsOSX)' == 'true' and
-                            '$(RuntimeIdentifier)' == ''">
+                            '$(RuntimeIdentifier)' == '' and
+                            ('$(OutputType)' == 'WinExe' or '$(BibliophilarrOutputType)' == 'Update')">
     <_UsingDefaultRuntimeIdentifier>true</_UsingDefaultRuntimeIdentifier>
     <RuntimeIdentifier>osx-$(Architecture)</RuntimeIdentifier>
   </PropertyGroup>

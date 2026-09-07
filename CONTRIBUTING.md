@@ -172,6 +172,55 @@ Review every changed file and reject unexplained scratch output, temporary logs,
 
 Before PR creation, inspect `git fetch origin` and `git diff --name-status origin/develop...HEAD` and ensure every file is intentionally associated with the work.
 
+## Cross-host development contract
+
+Bibliophilarr supports Windows, Linux, and macOS (Intel and Apple Silicon) as
+first-class development hosts. The contract below is the minimum a contributor
+must respect when touching build, RID, or platform-specific code.
+
+### Supported developer hosts
+
+| Host                    | Solution configuration | Runnable entry point                          |
+|-------------------------|------------------------|-----------------------------------------------|
+| Windows                 | `-p:Platform=Windows`  | Portable console host + Windows desktop shell |
+| Linux                   | `-p:Platform=Posix`    | Portable console host only                    |
+| macOS (Intel)           | `-p:Platform=Posix`    | Portable console host only (`osx-x64`)        |
+| macOS (Apple Silicon)   | `-p:Platform=Posix`    | Portable console host only (`osx-arm64`)      |
+
+### Canonical build/test commands
+
+- Portable core (all hosts): `dotnet build src/Bibliophilarr.sln -p:Platform=Posix`
+- Full solution (Windows only): `dotnet build src/Bibliophilarr.sln -p:Platform=Windows`
+- Portable unit tests: `dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj -p:Platform=Posix`
+
+### Windows desktop shell
+
+- The shell remains `net10.0-windows` (WinExe, WinForms).
+- `EnableWindowsTargeting` is scoped to `src/NzbDrone/Bibliophilarr.csproj`
+  only so the project model can be loaded on non-Windows hosts. It does NOT
+  make the shell runnable on Linux/macOS.
+- Portable projects do NOT reference the Windows desktop shell and must not
+  transitively require it to initialize.
+
+### RID policy
+
+- Default RID selection in `src/Directory.Build.props` is restricted to
+  packaging entry points (`WinExe` / Update) so developer restore/builds remain
+  portable and not host-specific.
+- Architecture mapping `X64 -> x64`, `Arm64 -> arm64` is validated by
+  `cross-build-portability.yml`; do not break the mapping without updating that
+  gate.
+- Publishing to a specific RID is an explicit opt-in via `-p:RuntimeIdentifier=`
+  or `dotnet publish -r`; the host OS does not imply a publish RID.
+
+### Required regression protection
+
+- Cross-host changes must be covered by `.github/workflows/cross-build-portability.yml`
+  (Linux + Windows + macOS lanes, including the direct Windows-desktop project
+  restore/model gate).
+- Do not add `continue-on-error: true` to the portability gate.
+- Platform-specific exclusions must be explicit and documented in the workflow.
+
 ## Pull request requirements
 
 Every PR must identify:

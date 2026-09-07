@@ -15,13 +15,72 @@ Start in this order:
 
 ## Prerequisites
 
-- .NET 10 SDK
+- .NET SDK: the exact version pinned in [global.json](global.json)
+  (currently `10.0.400`, feature band `10.0.x`, rollForward `latestFeature`).
+  The repository fails to build if the required SDK is absent. Use
+  `dotnet --list-sdks` to verify the installed SDK and the
+  `dotnet --version` to confirm the selected SDK matches the pin.
 - Node.js 22.x
 - Yarn 1.22.x
 - Git
 
 The repository currently builds from the root. Frontend assets are bundled via
 the root `package.json`, not from a separate npm launcher package.
+
+If a shared devcontainer / cloud workspace ships an older or different .NET
+SDK (for example, a Coder image that predates the repository pin), install the
+pinned SDK locally first. Do NOT lower `global.json` to accommodate an
+outdated environment.
+
+## Cross-host development (Windows, Linux, macOS)
+
+Bibliophilarr is developed on three host platforms with one shared contract
+(see [CONTRIBUTING.md](CONTRIBUTING.md) for the full portable contract):
+
+| Host                  | Solution configuration | Notes                                        |
+|-----------------------|------------------------|----------------------------------------------|
+| Windows               | `-p:Platform=Windows`  | Builds the portable core AND the Windows desktop shell. |
+| Linux (incl. Coder)   | `-p:Platform=Posix`    | Builds the portable core. The Windows desktop shell is buildable (project model evaluates) but not runnable. |
+| macOS (Intel or Apple Silicon) | `-p:Platform=Posix` | Builds the portable core and selects `osx-x64` or `osx-arm64` based on the host architecture. |
+
+### Entry points
+
+- **Portable**: `src/NzbDrone.Console/` — framework-dependent console/web host.
+  This is the canonical runnable entry point on every supported host.
+- **Windows desktop shell**: `src/NzbDrone/` (`net10.0-windows`, WinForms).
+  Only runnable on Windows. On Linux/macOS the project model resolves via
+  `EnableWindowsTargeting` (scoped to that project only) so Rider and `dotnet` CLI
+  can load it; it does NOT make the Windows shell runnable on those hosts.
+
+### Canonical commands
+
+```bash
+# All hosts: portable core
+yarn install --frozen-lockfile
+dotnet restore src/Bibliophilarr.sln -p:Platform=Posix
+dotnet build   src/Bibliophilarr.sln -p:Platform=Posix
+dotnet test    src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj -p:Platform=Posix
+
+# Windows hosts only: full solution including the desktop shell
+dotnet restore src/Bibliophilarr.sln -p:Platform=Windows
+dotnet build   src/Bibliophilarr.sln -p:Platform=Windows
+```
+
+### RID and Apple Silicon
+
+The repository derives the default RID from the host OS + architecture only for
+packaging entry points (`WinExe` / `Update`); normal framework-dependent
+developer restore/builds remain portable across hosts. On macOS, `arm64`
+hosts yield `osx-arm64` and `x64` hosts yield `osx-x64`. The cross-build
+portability gate (`.github/workflows/cross-build-portability.yml`) validates
+this mapping on every pull request.
+
+Publishing to a specific RID is an explicit opt-in and is NOT implied by the
+host OS:
+
+```bash
+dotnet publish src/NzbDrone.Console/Bibliophilarr.Console.csproj -c Release -r osx-arm64
+```
 
 ## Clone and install
 
