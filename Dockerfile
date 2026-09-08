@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:b2fbc92fd05f5238358b3c38a33b8dbb44522446db85aa3b5f68bf69368be410 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:0e53453ccfc8ff2d51319fe80c678971c6d0f8008dff3565fa88e15840b69854 AS build
 WORKDIR /src
 
 COPY . .
@@ -13,11 +13,11 @@ RUN apt-get update \
 
 RUN npm install -g yarn@1.22.19
 
-RUN ./build.sh --backend -r linux-x64 -f net8.0
+RUN ./build.sh --backend -r linux-x64 -f net10.0
 RUN ./build.sh --frontend
-RUN ./build.sh --packages -r linux-x64 -f net8.0
+RUN ./build.sh --packages -r linux-x64 -f net10.0
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:d0f61936dbf46d6ba1520a2e4e1ac4cca44617e66ba139f344831c046ee99512 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS runtime
 
 LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.description="Ebook and audiobook library manager" \
@@ -36,7 +36,7 @@ WORKDIR /app
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
     ASPNETCORE_URLS=http://+:8787
 
-COPY --from=build --chown=bibliophilarr:bibliophilarr /src/_artifacts/linux-x64/net8.0/Bibliophilarr/ /app/
+COPY --from=build --chown=bibliophilarr:bibliophilarr /src/_artifacts/linux-x64/net10.0/Bibliophilarr/ /app/
 
 USER bibliophilarr
 

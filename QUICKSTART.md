@@ -15,13 +15,72 @@ Start in this order:
 
 ## Prerequisites
 
-- .NET 8 SDK
+- .NET SDK: the exact version pinned in [global.json](global.json)
+  (currently `10.0.400`, feature band `10.0.x`, rollForward `latestFeature`).
+  The repository fails to build if the required SDK is absent. Use
+  `dotnet --list-sdks` to verify the installed SDK and the
+  `dotnet --version` to confirm the selected SDK matches the pin.
 - Node.js 22.x
 - Yarn 1.22.x
 - Git
 
 The repository currently builds from the root. Frontend assets are bundled via
 the root `package.json`, not from a separate npm launcher package.
+
+If a shared devcontainer / cloud workspace ships an older or different .NET
+SDK (for example, a Coder image that predates the repository pin), install the
+pinned SDK locally first. Do NOT lower `global.json` to accommodate an
+outdated environment.
+
+## Cross-host development (Windows, Linux, macOS)
+
+Bibliophilarr is developed on three host platforms with one shared contract
+(see [CONTRIBUTING.md](CONTRIBUTING.md) for the full portable contract):
+
+| Host                  | Solution configuration | Notes                                        |
+|-----------------------|------------------------|----------------------------------------------|
+| Windows               | `-p:Platform=Windows`  | Builds the portable core AND the Windows desktop shell. |
+| Linux (incl. Coder)   | `-p:Platform=Posix`    | Builds the portable core. The Windows desktop shell is buildable (project model evaluates) but not runnable. |
+| macOS (Intel or Apple Silicon) | `-p:Platform=Posix` | Builds the portable core and selects `osx-x64` or `osx-arm64` based on the host architecture. |
+
+### Entry points
+
+- **Portable**: `src/NzbDrone.Console/` — framework-dependent console/web host.
+  This is the canonical runnable entry point on every supported host.
+- **Windows desktop shell**: `src/NzbDrone/` (`net10.0-windows`, WinForms).
+  Only runnable on Windows. On Linux/macOS the project model resolves via
+  `EnableWindowsTargeting` (scoped to that project only) so Rider and `dotnet` CLI
+  can load it; it does NOT make the Windows shell runnable on those hosts.
+
+### Canonical commands
+
+```bash
+# All hosts: portable core
+yarn install --frozen-lockfile
+dotnet restore src/Bibliophilarr.sln -p:Platform=Posix
+dotnet build   src/Bibliophilarr.sln -p:Platform=Posix
+dotnet test    src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj -p:Platform=Posix
+
+# Windows hosts only: full solution including the desktop shell
+dotnet restore src/Bibliophilarr.sln -p:Platform=Windows
+dotnet build   src/Bibliophilarr.sln -p:Platform=Windows
+```
+
+### RID and Apple Silicon
+
+The repository derives the default RID from the host OS + architecture only for
+packaging entry points (`WinExe` / `Update`); normal framework-dependent
+developer restore/builds remain portable across hosts. On macOS, `arm64`
+hosts yield `osx-arm64` and `x64` hosts yield `osx-x64`. The cross-build
+portability gate (`.github/workflows/cross-build-portability.yml`) validates
+this mapping on every pull request.
+
+Publishing to a specific RID is an explicit opt-in and is NOT implied by the
+host OS:
+
+```bash
+dotnet publish src/NzbDrone.Console/Bibliophilarr.Console.csproj -c Release -r osx-arm64
+```
 
 ## Clone and install
 
@@ -62,19 +121,19 @@ The repository produces three different artifact trees. Treat them differently:
 For a local binary smoke using `_output`:
 
 ```bash
-rm -rf _output/net8.0 _tests/net8.0 _artifacts/linux-x64
+rm -rf _output/net10.0 _tests/net10.0 _artifacts/linux-x64
 
-./build.sh --backend --frontend --packages --lint --framework net8.0 --runtime linux-x64
-cp -r _output/UI _output/net8.0/linux-x64/UI
+./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
+cp -r _output/UI _output/net10.0/linux-x64/UI
 
-./_output/net8.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
+./_output/net10.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
 curl http://127.0.0.1:8787/ping
 ```
 
 For a package smoke using the packaged runtime tree:
 
 ```bash
-./_artifacts/linux-x64/net8.0/Bibliophilarr/Bibliophilarr \
+./_artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr \
   /data=/tmp/bibliophilarr-package \
   /nobrowser /nosingleinstancecheck
 
@@ -85,7 +144,7 @@ Expected outcome:
 
 - `/ping` returns `200`.
 - The packaged runtime starts without any manual UI copy step.
-- `_tests/net8.0/linux-x64` is reserved for test execution only.
+- `_tests/net10.0/linux-x64` is reserved for test execution only.
 
 Optional runtime cloud-services endpoint:
 
@@ -143,7 +202,7 @@ Example:
 
 ```bash
 export BIBLIOPHILARR_HARDCOVER_API_TOKEN='Bearer <your-hardcover-token>'
-./_output/net8.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
+./_output/net10.0/linux-x64/Bibliophilarr /data=/tmp/bibliophilarr-local /nobrowser /nosingleinstancecheck
 python3 scripts/provider_metadata_pull_test.py --media-root /media --sample-size 25 --log-level DEBUG
 python3 scripts/live_provider_enrich_missing_metadata.py --root /media/books --log-level INFO
 ```
@@ -165,8 +224,8 @@ yarn build
 ```
 
 For RID-sensitive local reruns that depend on the packaged Linux runtime layout,
-use the runtime identifier explicitly so test resolution matches `_output/net8.0/linux-x64`
-and `_tests/net8.0/linux-x64`:
+use the runtime identifier explicitly so test resolution matches `_output/net10.0/linux-x64`
+and `_tests/net10.0/linux-x64`:
 
 ```bash
 dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj \
@@ -187,19 +246,19 @@ Metadata extraction and import-identification verification (targeted):
 ```bash
 dotnet build src/Bibliophilarr.sln -c Debug -p:Platform=Posix
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "should_extract_isbn_from_filename_during_fallback"
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "should_extract_asin_from_filename_during_fallback"
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "DistanceCalculatorFixture"
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "ImportDecisionMakerFixture"
 
-dotnet test _tests/net8.0/Bibliophilarr.Core.Test.dll \
+dotnet test _tests/net10.0/Bibliophilarr.Core.Test.dll \
   --filter "CandidateServiceFixture"
 ```
 

@@ -189,6 +189,22 @@ Validation status for this slice:
 - Core targeted tests: pass for `MetadataProviderOrchestratorFixture` and `ImportListSyncServiceFixture`
 - Import-list edge-case handling updated to avoid adding unresolved external-ID books
 
+### September 2026 — recovery program and active migration tracking
+
+The repository previously closed or deferred dependency migration work without durable successor engineering. The recovery program now keeps the work visible through live GitHub issues and implementation branches rather than a separate status ledger.
+
+Active migration coverage:
+
+- Recovery epic: [#93](https://github.com/Swartdraak/Bibliophilarr/issues/93)
+- Ical.Net migration: [#95](https://github.com/Swartdraak/Bibliophilarr/issues/95)
+- .NET 10 migration: [#96](https://github.com/Swartdraak/Bibliophilarr/issues/96)
+- Workflow modernization: [#97](https://github.com/Swartdraak/Bibliophilarr/issues/97)
+- FluentMigrator train: [#98](https://github.com/Swartdraak/Bibliophilarr/issues/98)
+- Frontend modernization: [#99](https://github.com/Swartdraak/Bibliophilarr/issues/99)
+- .NET 10 compatibility inventory: [#100](https://github.com/Swartdraak/Bibliophilarr/issues/100)
+
+The active Ical.Net migration is a bounded compatibility slice for the calendar feed. The dependency is pinned to 5.2.3 in [src/Directory.Packages.props](src/Directory.Packages.props), the feed uses the 5.x `CalDateTime` constructor semantics, and the generated ICS is validated through a round-trip parse test in the API suite.
+
 ### March 17, 2026 — Open Library provider implementation
 
 Completed in code on branch `feature/open-library-provider-2026-03-17`:

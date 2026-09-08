@@ -123,6 +123,18 @@ read-only analysis or validation agent may run concurrently when useful. A GitHu
 coding/cloud-agent session counts as a write-capable agent. Do not have a local write agent
 and Copilot edit the same PR branch concurrently.
 
+### IDE/Coder Workspace Confinement
+
+When operating inside an IDE or Coder checkout (the authoritative workspace):
+
+- Use the current Git worktree as the single authoritative repository; do not clone the repo again.
+- Do not create additional Git worktrees or copy the repository tree unless a human explicitly requests one.
+- Inspect other branches with Git object commands (git show, git diff, git log, git cat-file) where possible; switch branches in place when writes are required.
+- All subagents must inherit the orchestrator's REPO_ROOT and operate against the same checkout; subagents must not create worktrees, clones, or persist analysis reports in the repo.
+- Preserve unknown user data; do not delete or force-clean uncommitted changes. Stash or coordinate with the user when a clean workspace is required.
+
+This enforces single-worktree governance for automated and human operations.
+
 ## Lifecycle
 
 Lifecycle states and transitions are defined solely by `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`; this agent does not restate the state machine.
@@ -204,6 +216,20 @@ Before implementation, state:
 - external services/cloud-agent use permitted;
 - GitHub metadata mutations permitted, if any;
 - rollback path.
+
+## Repository hygiene and merge policy
+
+Before creating or modifying a persistent repository file:
+
+1. read root `AGENTS.md`;
+2. read the nearest applicable nested `AGENTS.md`;
+3. identify the directory owner/contract;
+4. confirm the file belongs in that maintained area;
+5. confirm no canonical document already owns the information.
+
+Subagents return findings; they do not persist analysis reports, validation summaries, scratch notes, query files, logs, debug dumps or temporary scripts inside maintained repo directories. Temporary artifacts belong in `$env:TEMP`, `/tmp`, or repository-local ignored disposable locations when the tooling requires them.
+
+`AUTONOMOUS DEVELOP MERGE AUTHORITY` means ordinary GitHub PR merge after all required gates. It never means `--admin`, force merge, branch-protection bypass, ruleset bypass, or direct `develop` push. A rejected normal merge requires repair of the actual blocker. "Try admin" is never an authorized fallback.
 
 ## Independent validation
 

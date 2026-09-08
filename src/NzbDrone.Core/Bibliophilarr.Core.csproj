@@ -1,15 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks>net10.0</TargetFrameworks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Dapper" />
     <PackageReference Include="Diacritical.Net" />
     <PackageReference Include="LazyCache" />
     <PackageReference Include="Polly" />
-    <PackageReference Include="System.Text.Json" />
-    <PackageReference Include="System.Text.Encoding.CodePages" />
-    <PackageReference Include="System.Memory" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
@@ -47,3 +44,4 @@
     <EmbeddedResource Include="Books\Calibre\Languages\name_map.json" />
   </ItemGroup>
 </Project>
+

@@ -11,6 +11,19 @@ REPO="${GITHUB_REPO_OVERRIDE:-Bibliophilarr}"
 BASE_BRANCH_FOR_CREATE="${BASE_BRANCH_FOR_CREATE:-develop}"
 REQUIRED_REVIEW_COUNT="${REQUIRED_REVIEW_COUNT:-0}"
 ALLOW_CREATE_MISSING_BRANCHES="${ALLOW_CREATE_MISSING_BRANCHES:-true}"
+ENFORCE_ADMINS="${ENFORCE_ADMINS:-true}"
+
+default_required_contexts=(
+  "build-test"
+  "Markdown lint"
+  "label-policy"
+  "actionlint"
+  "Staging Smoke Metadata Telemetry / smoke-metadata-telemetry"
+  "Linux (restore, Posix build, portable tests, Windows-desktop project model)"
+  "Windows (restore, Windows build, portable tests)"
+  "macOS (restore, Posix build, portable tests, RID validation)"
+  "RID mapping (pure property evaluation, host-independent)"
+)
 
 if [[ $# -eq 0 ]]; then
   BRANCHES=(develop staging main)
@@ -18,12 +31,12 @@ else
   BRANCHES=("$@")
 fi
 
-required_contexts=(
-  "build-test"
-  "Markdown lint"
-  "triage"
-  "Staging Smoke Metadata Telemetry / smoke-metadata-telemetry"
-)
+required_contexts=()
+if [[ -n "${REQUIRED_CONTEXTS_CSV:-}" ]]; then
+  IFS=',' read -r -a required_contexts <<< "${REQUIRED_CONTEXTS_CSV}"
+else
+  required_contexts=("${default_required_contexts[@]}")
+fi
 
 ensure_branch_exists() {
   local branch="$1"
@@ -48,20 +61,20 @@ apply_protection() {
   local branch="$1"
   local payload
   payload="$(mktemp)"
+  local contexts_json
+  contexts_json="$(printf '%s\n' "${required_contexts[@]}" | jq -R . | jq -s .)"
 
   jq -n \
     --argjson strict true \
     --argjson review_count "$REQUIRED_REVIEW_COUNT" \
-    --arg c1 "${required_contexts[0]}" \
-    --arg c2 "${required_contexts[1]}" \
-    --arg c3 "${required_contexts[2]}" \
-    --arg c4 "${required_contexts[3]}" \
+    --argjson contexts "$contexts_json" \
+    --argjson enforce_admins "$([ "$ENFORCE_ADMINS" = "true" ] && echo true || echo false)" \
     '{
       required_status_checks: {
         strict: $strict,
-        contexts: [$c1, $c2, $c3, $c4]
+        contexts: $contexts
       },
-      enforce_admins: false,
+      enforce_admins: $enforce_admins,
       required_pull_request_reviews: {
         dismiss_stale_reviews: false,
         require_code_owner_reviews: false,
@@ -73,7 +86,7 @@ apply_protection() {
       allow_force_pushes: false,
       allow_deletions: false,
       block_creations: false,
-      required_conversation_resolution: false,
+      required_conversation_resolution: true,
       lock_branch: false,
       allow_fork_syncing: false
     }' > "$payload"

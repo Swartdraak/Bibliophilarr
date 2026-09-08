@@ -17,3 +17,12 @@ Use for any task that may change repository content.
 Treat metadata/search/canonical identity, dual-format behavior, disk/import/file tracking, download completion, migrations, auth/security and release/build behavior as high risk.
 
 Completion must report objective, branch/base SHA, files changed, intentional behavior changes/preservations, tests, commands/results, unresolved risks, rollback and required validators. Do not say done if required validation has not run.
+
+## IDE/Coder Workspace Confinement
+
+When working from an IDE/Coder checkout, treat the open worktree as authoritative:
+
+- Do not clone or create additional repository checkouts for the task.
+- Do not create new Git worktrees; inspect branches with Git commands and switch branches in place for writes.
+- Subagents must not create worktrees, clones, or persist analysis artifacts in the repository; they inherit the orchestrator's REPO_ROOT.
+- Preserve any unknown user data; stash or coordinate with the user before requiring a clean workspace.

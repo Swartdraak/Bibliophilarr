@@ -135,6 +135,21 @@ fix/* -> staging
 
 An agent finding such a PR must flag it for retargeting/recreation or explicit human exception review.
 
+## Autonomous develop merge authority
+
+`AUTONOMOUS DEVELOP MERGE AUTHORITY` means the ordinary GitHub PR merge flow after all required gates have passed.
+
+It does not authorize:
+
+- `--admin`;
+- force merge;
+- ruleset or branch-protection bypass;
+- direct `develop` push;
+- local merge-and-push without the PR route;
+- bypassing required checks or review constraints.
+
+When a normal merge is rejected, the required action is to inspect the failing checks, branch-policy state, review requirements, and candidate governance to repair the actual blocker and retry the normal path. A rejected normal merge is never authorization to escalate via admin bypass.
+
 ## `develop` promotion to `staging`
 
 Promotion is deliberate, not automatic.
@@ -252,7 +267,7 @@ Recommended: require PRs and production release gates, block force push/deletion
 
 After a task PR is merged, the task branch should normally be deleted after confirming the PR is merged, no active worktree/session depends on it, no follow-up PR uses it, and it is not automation-owned.
 
-Do not delete `main`, `develop`, `staging`, automation-owned `badge-data` while required, active Dependabot branches with open PRs, active task branches, or branches with unique unreviewed commits.
+Do not delete `main`, `develop`, `staging`, active Dependabot branches with open PRs, active task branches, or branches with unique unreviewed commits.
 
 Branch age alone is not a deletion criterion.
 

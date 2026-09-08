@@ -82,6 +82,26 @@ For defects, reproduce before repair when possible.
 
 Do not perform unrelated refactors, formatting, modernization, or dependency updates.
 
+## Persistent-file ownership and artifact hygiene
+
+Before creating or modifying a persistent repository file:
+
+1. read root `AGENTS.md`;
+2. read the nearest applicable nested `AGENTS.md`;
+3. identify the directory owner/contract;
+4. confirm the file belongs in that maintained area;
+5. confirm no canonical document already owns the information.
+
+Maintained source and docs directories are never scratch space.
+
+Subagents normally return findings and must not persist analysis reports, scratch notes, validation summaries, query files, raw logs, debug dumps, or temporary scripts inside maintained repository directories. Temporary artifacts belong in `$env:TEMP`, `/tmp`, or ignored disposable repository-local locations such as `.test-env/`, `_tests/`, `_artifacts/`, `_temp*/`, and `TestResults/` when the tooling needs them.
+
+## Normal merge policy
+
+`AUTONOMOUS DEVELOP MERGE AUTHORITY` means the ordinary GitHub PR merge flow after required gates pass. It does not authorize `--admin`, force merges, ruleset bypass, branch-protection bypass, or direct pushes to `develop`.
+
+A normal merge rejection is a policy/requirements problem to diagnose and repair, not a signal to escalate with administrative bypass.
+
 ## Live GitHub state
 
 For orchestration, use live repository information.
@@ -116,6 +136,18 @@ Use specialists for implementation and independent QA agents for validation.
 
 Implementation agents cannot self-certify readiness.
 
+### IDE/Coder Workspace Confinement
+
+When operating inside an IDE/Coder checkout (the authoritative workspace):
+
+- Use the current Git worktree as the authoritative repository; do not clone the repo again.
+- Do not create additional Git worktrees or copy the application tree unless a human explicitly requests one.
+- Inspect other branches using Git object commands (git show, git diff, git log, git cat-file) where possible; switch branches in place when writes are required.
+- All subagents must inherit the orchestrator's REPO_ROOT and operate against the same checkout; subagents must not create worktrees, clones, or persistent analysis artifacts in the repo.
+- Preserve any unknown user data; do not delete or forcibly clean uncommitted work. Stash or coordinate with the user when a clean workspace is required.
+
+This rule prevents duplicate checkouts and enforces a single authoritative workspace for automated agents and human developers.
+
 ## Testing
 
 Prefer targeted unit/component tests, impacted build/lint, broader suite, then disposable running-app validation for high risk.
@@ -138,7 +170,18 @@ A later green rerun does not erase an unexplained failure.
 
 Every orchestrated PR must include source and target branch, base/candidate SHA, scope/non-scope, risk, validation evidence, independent validator results, rollback, and unresolved risks.
 
+PR creation/readiness is incomplete until the PR has an assignee and labels for
+type, area, priority, and risk, and the candidate SHA in the body matches the
+exact current branch head.
+
 Verify that the target follows `BRANCHING.md` before opening the PR.
+
+## Issues and tracking metadata
+
+Before treating an issue as ready or using it as the owning tracker for a PR,
+verify that it has a truthful current-state title/body, an assignee, useful
+labels (type, area, priority, and risk when meaningful), and parent/epic
+linkage when the work belongs to a larger migration or recovery train.
 
 ## Documentation
 
