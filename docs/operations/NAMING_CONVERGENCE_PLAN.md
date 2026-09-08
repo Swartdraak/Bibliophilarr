@@ -36,6 +36,11 @@ This plan tracks gradual convergence from legacy `NzbDrone.*` path naming to Bib
 2. Shared utility folders with minimal external path coupling.
 3. Core/runtime project directories only after dependency and tooling references are stabilized.
 
+## Scope boundaries
+
+- This plan covers naming/path convergence only.
+- It does not authorize behavior-changing refactors or cross-cutting dependency upgrades.
+
 ## Rollback strategy
 
 - Use scoped PRs with one logical path migration slice per PR.
