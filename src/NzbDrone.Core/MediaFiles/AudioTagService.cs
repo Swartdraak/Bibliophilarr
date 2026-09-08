@@ -121,10 +121,53 @@ namespace NzbDrone.Core.MediaFiles
 
         public AudioTag GetTrackMetadata(BookFile trackfile)
         {
-            var edition = trackfile.Edition.Value;
-            var book = edition.Book.Value;
-            var author = book.Author.Value;
-            var partCount = edition.BookFiles.Value.Count;
+            var edition = trackfile.Edition?.Value;
+            if (edition == null)
+            {
+                _logger.Warn("Cannot write tags for book file '{0}': Edition is not loaded (EditionId {1}). Skipping tag write.",
+                    trackfile.Path,
+                    trackfile.EditionId);
+                return null;
+            }
+
+            var book = edition.Book?.Value;
+            if (book == null)
+            {
+                _logger.Warn("Cannot write tags for book file '{0}': Book is not loaded for edition '{1}' (BookId {2}). Skipping tag write.",
+                    trackfile.Path,
+                    edition.ForeignEditionId,
+                    edition.BookId);
+                return null;
+            }
+
+            var author = book.Author?.Value;
+            if (author == null)
+            {
+                // The lazy-loaded Author may not have been populated. Fall back to the
+                // BookFile's own Author reference (populated in the import path), then to
+                // the author service by id, before giving up.
+                author = trackfile.Author?.Value;
+
+                if (author == null)
+                {
+                    var authorId = book.AuthorId;
+                    if (authorId > 0)
+                    {
+                        author = _authorService.GetAuthor(authorId);
+                    }
+                }
+            }
+
+            if (author == null)
+            {
+                _logger.Warn("Cannot write tags for book file '{0}': Author is not loaded for book '{1}' (BookId {2}). Skipping tag write.",
+                    trackfile.Path,
+                    book.ForeignBookId,
+                    book.Id);
+                return null;
+            }
+
+            var partCount = edition.BookFiles?.Value?.Count ?? 0;
 
             var fileTags = ReadAudioTag(trackfile.Path);
 
@@ -244,6 +287,14 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             var newTags = GetTrackMetadata(trackfile);
+            if (newTags == null)
+            {
+                // GetTrackMetadata already logged why it could not build tags (missing
+                // Edition/Book/Author). Skip the tag write gracefully so the import is not
+                // dropped by a secondary NRE (see issue #210).
+                return;
+            }
+
             var path = trackfile.Path;
 
             var diff = ReadAudioTag(path).Diff(newTags);
