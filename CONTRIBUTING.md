@@ -314,7 +314,7 @@ Recommended tag lanes:
 - `staging`: optional `vX.Y.Z-rc.N`
 - `main`: stable `vX.Y.Z`
 
-All stable releases—patch, minor, and major—are represented on `main`.
+All stable releases-patch, minor, and major-are represented on `main`.
 
 Stable release artifacts must correspond to the exact stable tag on `main`.
 
@@ -327,6 +327,26 @@ Repository health is part of contribution quality.
 Maintain branch lifecycle, labels/milestones, badges, Projects, Wiki consistency, issue/PR state, CI/runners, and release/tag consistency.
 
 Do not delete branches based only on age.
+
+### Local artifact policy
+
+Machine-local agent/runtime folders must not be committed. Current policy ignores:
+
+- `.junie/`
+- `.codex/`
+- `.cursor/`
+
+If a new local automation tool introduces persistent workspace artifacts, add its path to `.gitignore` in the same change set that introduces or adopts the tool.
+
+### Naming convergence policy
+
+Folder-level legacy `NzbDrone.*` naming remains in active code paths for compatibility. Convergence to Bibliophilarr naming must be staged and non-breaking:
+
+1. documentation and contributor guidance updates;
+2. tooling/path alias updates where no runtime behavior changes;
+3. opt-in path migrations in small slices with CI and rollback notes.
+
+Do not perform broad rename sweeps across runtime projects in one PR.
 
 ## Production readiness
 
