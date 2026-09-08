@@ -314,7 +314,7 @@ Recommended tag lanes:
 - `staging`: optional `vX.Y.Z-rc.N`
 - `main`: stable `vX.Y.Z`
 
-All stable releases-patch, minor, and major-are represented on `main`.
+All stable releases (patch, minor, and major) are represented on `main`.
 
 Stable release artifacts must correspond to the exact stable tag on `main`.
 
