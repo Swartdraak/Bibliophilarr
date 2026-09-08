@@ -1,8 +1,13 @@
 # Bibliophilarr
 
-[![GitHub Release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=release)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
+[![Main SemVer](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=main%20semver&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
+[![Staging SemVer](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?include_prereleases&logo=github&label=staging%20semver&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases)
+[![Develop Tracking](https://img.shields.io/badge/develop-tracks%20next%20promotion-6f42c1)](https://github.com/Swartdraak/Bibliophilarr/tree/develop)
+[![GitHub Release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=github%20release)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
+[![GitHub Downloads](https://img.shields.io/github/downloads/Swartdraak/Bibliophilarr/total?logo=github&label=github%20downloads)](https://github.com/Swartdraak/Bibliophilarr/releases)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-bibliophilarr-blue?logo=docker)](https://github.com/Swartdraak/Bibliophilarr/pkgs/container/bibliophilarr)
 [![npm](https://img.shields.io/npm/v/bibliophilarr?logo=npm&label=npm)](https://www.npmjs.com/package/bibliophilarr)
+[![npm Downloads](https://img.shields.io/npm/dm/bibliophilarr?logo=npm&label=npm%20downloads%2Fmonth)](https://www.npmjs.com/package/bibliophilarr)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.md)
 
 Bibliophilarr is a community-maintained fork of Readarr focused on replacing
@@ -27,16 +32,27 @@ Use the core docs as the authoritative set:
 - [SECURITY.md](SECURITY.md) for vulnerability handling
 - [CHANGELOG.md](CHANGELOG.md) for notable documentation and release history
 
-## Branch health
+## Branch CI health
 
-| Branch   | Purpose               | Backend                        | Frontend                       | Docs                                   | Security / CI                                  |
-|----------|-----------------------|--------------------------------|--------------------------------|----------------------------------------|------------------------------------------------|
-| `main`   | Production            | [build-test](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?branch=main) | [frontend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?branch=main) | [docs](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?branch=main) | [workflow lint](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?branch=main) |
-| `staging`| Release candidate     | [build-test](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?branch=staging) | [frontend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?branch=staging) | [docs](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?branch=staging) | [workflow lint](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?branch=staging) |
-| `develop`| Integration           | [build-test](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?branch=develop) | [frontend CI](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?branch=develop) | [docs](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?branch=develop) | [workflow lint](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?branch=develop) |
+| Branch | SemVer signal | Backend CI | Frontend CI | Docs CI | Workflow lint |
+|---|---|---|---|---|---|
+| `main` | [![main](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?label=main&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases/latest) | [![backend-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Amain) | [![frontend-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Amain) | [![docs-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Amain) | [![lint-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Amain) |
+| `staging` | [![staging](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?include_prereleases&label=staging&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases) | [![backend-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Astaging) | [![frontend-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Astaging) | [![docs-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Astaging) | [![lint-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Astaging) |
+| `develop` | [![develop](https://img.shields.io/badge/develop-integration%20lane-6f42c1)](https://github.com/Swartdraak/Bibliophilarr/tree/develop) | [![backend-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Adevelop) | [![frontend-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Adevelop) | [![docs-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Adevelop) | [![lint-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Adevelop) |
 
-Branch-health links point at workflow runs on the matching branch. See
-[BRANCHING.md](BRANCHING.md) for the three-lane promotion lifecycle.
+SemVer is injected during CI/release via `BIBLIOPHILARRVERSION` (see `Directory.Build.props`), so release-derived badges are authoritative for `main` and `staging`, while `develop` remains an integration-lane signal until promotion/tagging.
+
+## Publish pipeline health
+
+| Channel | Workflow status |
+|---|---|
+| GitHub release | [![release-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/release.yml?query=branch%3Amain) |
+| Docker (GHCR) | [![docker-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docker-image.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docker-image.yml?query=branch%3Amain) |
+| npm publish | [![npm-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/npm-publish.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/npm-publish.yml?query=branch%3Amain) |
+
+Branch health badges are scoped per branch, and this layout stays consistent as
+you promote `develop -> staging -> main`. See [BRANCHING.md](BRANCHING.md) for
+the three-lane promotion lifecycle.
 
 ## What the project does
 
