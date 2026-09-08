@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Api.V1.Metadata;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.MetadataSource;
-using Readarr.Api.V1.Metadata;
 
 namespace NzbDrone.Api.Test.Metadata
 {
