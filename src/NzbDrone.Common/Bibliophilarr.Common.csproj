@@ -9,6 +9,7 @@
     <PackageReference Include="IPAddressRange" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
 	<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+	<PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="NLog.Extensions.Logging" />
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="NLog" />
