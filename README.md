@@ -50,7 +50,7 @@ SemVer is injected during CI/release via `BIBLIOPHILARRVERSION` (see `Directory.
 | Docker (GHCR) | [![docker-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docker-image.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docker-image.yml?query=branch%3Amain) |
 | npm publish | [![npm-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/npm-publish.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/npm-publish.yml?query=branch%3Amain) |
 
-Branch-health badges are scoped per branch, and this layout stays consistent as
+Branch health badges are scoped per branch, and this layout stays consistent as
 you promote `develop -> staging -> main`. See [BRANCHING.md](BRANCHING.md) for
 the three-lane promotion lifecycle.
 
