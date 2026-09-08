@@ -41,7 +41,7 @@ The migration program remains open and intentionally tracked through these activ
 ## Release and CI posture
 
 - Backend/frontend/docs/workflow lint validations remain branch-protected required contexts.
-- CodeQL and cross-platform build checks are active and required for merge readiness in protected lanes.
+- CodeQL and cross-platform build checks are active in current PR validation runs.
 
 ## Notes on historical content
 
