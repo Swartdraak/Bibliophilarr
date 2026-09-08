@@ -1,6 +1,6 @@
 name: Bug Report
 description: 'Report a new bug, if you are not 100% certain this is a bug please go to our Discord first'
-labels: ['Type: Bug', 'Status: Needs Triage']
+labels: ['type:bug', 'area:backend', 'priority:medium', 'risk:medium']
 body:
 - type: checkboxes
   attributes:
@@ -30,6 +30,34 @@ body:
       2. With this config...
       3. Run '...'
       4. See error...
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Scope
+    description: What is explicitly in scope for this issue?
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Out of scope
+    description: What is explicitly out of scope for this issue?
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Acceptance criteria
+    description: List objective criteria that define this issue as resolved.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Dependencies and parent linkage
+    description: Related issues/PRs, blockers, and parent epic/program issue (if applicable).
+    placeholder: |
+      Related: #...
+      Depends on: #...
+      Parent epic/program: #...
   validations:
     required: false
 - type: textarea

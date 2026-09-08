@@ -1,6 +1,6 @@
 name: Feature Request
 description: 'Suggest an idea for Bibliophilarr'
-labels: ['Type: Feature Request', 'Status: Needs Triage']
+labels: ['type:feature', 'area:backend', 'priority:medium', 'risk:medium']
 body:
 - type: checkboxes
   attributes:
@@ -27,6 +27,40 @@ body:
     description: A clear and concise description of any alternative solutions or features you've considered.
   validations:
     required: true
+- type: textarea
+  attributes:
+    label: Current baseline
+    description: What is the current behavior or limitation in the present production/integration baseline?
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Scope
+    description: List what is explicitly in scope for this request.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Out of scope
+    description: List what should not be included in this request.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Acceptance criteria
+    description: Define clear, testable completion criteria.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Dependencies and parent linkage
+    description: Note related issues/PRs, blockers, and parent epic/program issue (if applicable).
+    placeholder: |
+      Related: #...
+      Depends on: #...
+      Parent epic/program: #...
+  validations:
+    required: false
 - type: textarea
   attributes:
     label: Anything else?

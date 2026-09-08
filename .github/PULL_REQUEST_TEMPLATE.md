@@ -17,6 +17,13 @@ Describe the problem this pull request solves and why it should land now.
 - Included changes:
 - Intentionally excluded changes:
 
+## Metadata contract
+
+- [ ] Owning issue or epic linkage is present (`Fixes #...` or `Relates to #...`)
+- [ ] GitHub labels are applied: `type:*`, `area:*`, `priority:*`, `risk:*`
+- [ ] PR has an assignee
+- [ ] Candidate SHA is recorded in this PR body
+
 ## Validation
 
 - [ ] Targeted tests or checks run and passing
@@ -47,6 +54,10 @@ State the main behavioral, migration, or operational risk and the rollback path.
 
 - Fixes #
 - Relates to #
+
+## Candidate SHA
+
+`<paste current HEAD SHA>`
 
 ## UI evidence
 
