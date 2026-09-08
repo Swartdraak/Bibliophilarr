@@ -104,6 +104,18 @@ namespace NzbDrone.Core.Books
                              book.Title,
                              book.ForeignBookId);
             }
+            catch (MetadataProviderUnavailableException ex)
+            {
+                // A transient network/transport outage is NOT a signal that the provider
+                // removed this book. Keep the book with its existing metadata and never
+                // delete it (see issue #204 / #209).
+                _logger.Warn(ex,
+                    "Metadata provider unreachable for book '{0}' (id: {1}). " +
+                    "The book will be kept with existing metadata. " +
+                    "This is a transient network condition, not a removal.",
+                    book.Title,
+                    book.ForeignBookId);
+            }
 
             return null;
         }
