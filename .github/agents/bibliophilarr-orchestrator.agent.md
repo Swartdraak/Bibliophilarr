@@ -123,6 +123,18 @@ read-only analysis or validation agent may run concurrently when useful. A GitHu
 coding/cloud-agent session counts as a write-capable agent. Do not have a local write agent
 and Copilot edit the same PR branch concurrently.
 
+### IDE/Coder Workspace Confinement
+
+When operating inside an IDE or Coder checkout (the authoritative workspace):
+
+- Use the current Git worktree as the single authoritative repository; do not clone the repo again.
+- Do not create additional Git worktrees or copy the repository tree unless a human explicitly requests one.
+- Inspect other branches with Git object commands (git show, git diff, git log, git cat-file) where possible; switch branches in place when writes are required.
+- All subagents must inherit the orchestrator's REPO_ROOT and operate against the same checkout; subagents must not create worktrees, clones, or persist analysis reports in the repo.
+- Preserve unknown user data; do not delete or force-clean uncommitted changes. Stash or coordinate with the user when a clean workspace is required.
+
+This enforces single-worktree governance for automated and human operations.
+
 ## Lifecycle
 
 Lifecycle states and transitions are defined solely by `.github/skills/bibliophilarr-pr-lifecycle/SKILL.md`; this agent does not restate the state machine.

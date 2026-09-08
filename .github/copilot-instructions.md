@@ -136,6 +136,18 @@ Use specialists for implementation and independent QA agents for validation.
 
 Implementation agents cannot self-certify readiness.
 
+### IDE/Coder Workspace Confinement
+
+When operating inside an IDE/Coder checkout (the authoritative workspace):
+
+- Use the current Git worktree as the authoritative repository; do not clone the repo again.
+- Do not create additional Git worktrees or copy the application tree unless a human explicitly requests one.
+- Inspect other branches using Git object commands (git show, git diff, git log, git cat-file) where possible; switch branches in place when writes are required.
+- All subagents must inherit the orchestrator's REPO_ROOT and operate against the same checkout; subagents must not create worktrees, clones, or persistent analysis artifacts in the repo.
+- Preserve any unknown user data; do not delete or forcibly clean uncommitted work. Stash or coordinate with the user when a clean workspace is required.
+
+This rule prevents duplicate checkouts and enforces a single authoritative workspace for automated agents and human developers.
+
 ## Testing
 
 Prefer targeted unit/component tests, impacted build/lint, broader suite, then disposable running-app validation for high risk.
