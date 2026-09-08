@@ -39,7 +39,7 @@
     "classnames": "2.5.1",
     "clipboard": "2.0.11",
     "connected-react-router": "6.9.3",
-    "date-fns": "^4.1.0",
+    "date-fns": "^4.4.0",
     "filesize": "10.1.6",
     "fuse.js": "6.6.2",
     "history": "4.10.1",
