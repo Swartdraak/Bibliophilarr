@@ -330,7 +330,7 @@ Do not delete branches based only on age.
 
 ### Local artifact policy
 
-Machine-local agent/runtime folders must not be committed. Current policy ignores:
+Machine-local agent/runtime folders must not be committed. Current policy ignores these directories at repository root and at any nested depth (for example `src/.junie/`):
 
 - `.junie/`
 - `.codex/`
