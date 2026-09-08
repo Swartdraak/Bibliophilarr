@@ -2,7 +2,9 @@
 
 ## Purpose
 
-This plan tracks gradual convergence from legacy `NzbDrone.*` path naming to Bibliophilarr-aligned naming while preserving runtime stability and migration safety.
+This document is an execution companion to `docs/operations/ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md`, which remains the canonical owner for full legacy-brand/path migration strategy.
+
+This plan tracks near-term, low-risk convergence slices from legacy `NzbDrone.*` path naming to Bibliophilarr-aligned naming while preserving runtime stability and migration safety.
 
 ## Current constraints
 
@@ -40,6 +42,7 @@ This plan tracks gradual convergence from legacy `NzbDrone.*` path naming to Bib
 
 - This plan covers naming/path convergence only.
 - It does not authorize behavior-changing refactors or cross-cutting dependency upgrades.
+- When guidance conflicts, `docs/operations/ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md` is authoritative.
 
 ## Rollback strategy
 
