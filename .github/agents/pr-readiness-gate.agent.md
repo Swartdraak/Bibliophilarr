@@ -36,6 +36,9 @@ reserved for staging -> main and production release readiness.
 - known pre-existing baseline defects and their recorded evidence;
 - candidate-SHA identity: the validated SHA(s) must be exactly compared to the
   current PR HEAD SHA.
+- repository-root confinement evidence: work performed in the authoritative
+  checkout, no unexpected new worktrees, and no copied sibling repository trees
+  introduced by the task.
 
 ## Verification rules
 
@@ -49,6 +52,9 @@ reserved for staging -> main and production release readiness.
 - It MUST `FAIL` when repository hygiene or merge-policy rules are violated,
   including any implicit or explicit attempt to bypass the normal merge flow via
   admin/ruleset protections.
+- It MUST `FAIL` when task evidence shows writes from outside the authoritative
+  checkout or unexplained workspace proliferation (new clone/worktree/repo copy)
+  that was not explicitly requested by a human.
 - Possible verdicts: `PASS — HUMAN-REVIEW-READY`, `FAIL`, `INCONCLUSIVE`,
   `BLOCKED`.
 

@@ -18,6 +18,18 @@ A nested `AGENTS.md` may add stricter local requirements. It must not weaken pro
 
 If instructions conflict, stop and report the conflict instead of choosing the least restrictive interpretation.
 
+## IDE/Coder workspace confinement
+
+When operating inside an IDE/Coder checkout:
+
+- Use the current Git worktree as the authoritative repository root.
+- Do not clone this repository again.
+- Do not create additional Git worktrees unless a human explicitly requests one.
+- Do not copy the application tree for validation.
+- Inspect other branches with Git object commands where possible.
+- Switch branches in place when writes are required.
+- All subagents must share the orchestrator's `REPO_ROOT`.
+
 ## Required primary repository documents
 
 Before substantial work, use these as the repository operating map:

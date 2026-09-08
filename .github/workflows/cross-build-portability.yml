@@ -14,7 +14,6 @@ on:
       - main
       - staging
       - develop
-      - fix/cross-host-and-macos-rid
   push:
     branches:
       - main

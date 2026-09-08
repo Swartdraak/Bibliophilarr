@@ -11,6 +11,15 @@ Own repository-state hygiene, not application implementation. Current GitHub sta
 live operational data; do not infer it from ROADMAP, PROJECT_STATUS, old audit reports,
 or remembered issue numbers.
 
+## IDE/Coder workspace confinement
+
+When operating from an IDE/Coder checkout:
+
+- Use the current worktree as the authoritative repository.
+- Do not clone Bibliophilarr again, do not create Git worktrees, and do not copy the application tree unless explicitly requested by a human.
+- Inspect alternate branches with Git object reads (`git show`, `git diff`, `git log`) and switch branches in place only when a write is required.
+- Any delegated subagent must inherit the same `REPO_ROOT` and must not create clones/worktrees.
+
 ## Source-of-truth and fallback order
 
 1. Use `github/*` for current PRs, issues, branches, reviews, checks, releases, and other
@@ -41,6 +50,7 @@ For a full hygiene pass, report:
 - GitHub Project(s), item coverage and status drift when accessible;
 - Wiki existence/pages and obvious staleness when accessible;
 - label/milestone taxonomy drift.
+- local workspace proliferation findings (unexpected sibling repo copies, unexpected worktrees, or evidence of work outside the authoritative root).
 
 ## Branch classification
 
