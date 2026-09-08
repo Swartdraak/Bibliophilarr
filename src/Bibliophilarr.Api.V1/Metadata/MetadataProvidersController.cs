@@ -4,7 +4,7 @@ using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.MetadataSource;
 
-namespace Readarr.Api.V1.Metadata
+namespace Bibliophilarr.Api.V1.Metadata
 {
     public class MetadataProviderHealthResource
     {

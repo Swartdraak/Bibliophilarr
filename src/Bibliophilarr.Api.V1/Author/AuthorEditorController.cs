@@ -110,8 +110,8 @@ namespace Bibliophilarr.Api.V1.Author
                     authorsToUpdate.Count,
                     resource.EbookQualityProfileId,
                     resource.AudiobookQualityProfileId,
-                    resource.EbookRootFolderPath,
-                    resource.AudiobookRootFolderPath);
+                    SanitizeForLog(resource.EbookRootFolderPath),
+                    SanitizeForLog(resource.AudiobookRootFolderPath));
 
                 foreach (var author in authorsToUpdate)
                 {
@@ -137,8 +137,8 @@ namespace Bibliophilarr.Api.V1.Author
                                 author.Name,
                                 author.Id,
                                 ebookProfile.QualityProfileId,
-                                ebookProfile.RootFolderPath,
-                                ebookProfile.Path);
+                                SanitizeForLog(ebookProfile.RootFolderPath),
+                                SanitizeForLog(ebookProfile.Path));
                         }
                     }
 
@@ -164,8 +164,8 @@ namespace Bibliophilarr.Api.V1.Author
                                 author.Name,
                                 author.Id,
                                 audiobookProfile.QualityProfileId,
-                                audiobookProfile.RootFolderPath,
-                                audiobookProfile.Path);
+                                SanitizeForLog(audiobookProfile.RootFolderPath),
+                                SanitizeForLog(audiobookProfile.Path));
                         }
                     }
                 }
@@ -192,5 +192,12 @@ namespace Bibliophilarr.Api.V1.Author
 
             return new { };
         }
+
+        // Sanitize user-provided values before including them in log messages
+        // to prevent CWE-117 (Log Injection / cs/log-forging).
+        private static string SanitizeForLog(string value) =>
+            value?.Replace("\r", "\\r", global::System.StringComparison.Ordinal)
+                  .Replace("\n", "\\n", global::System.StringComparison.Ordinal)
+            ?? string.Empty;
     }
 }
