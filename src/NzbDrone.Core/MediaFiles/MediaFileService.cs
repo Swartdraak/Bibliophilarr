@@ -75,6 +75,13 @@ namespace NzbDrone.Core.MediaFiles
 
             var newFiles = bookFiles.Where(x => !existingPaths.Contains(x.Path)).ToList();
 
+            // De-duplicate the input list by Path so that duplicate entries in the
+            // caller's list do not cause a UNIQUE constraint violation on insert.
+            newFiles = newFiles
+                .GroupBy(x => x.Path, PathEqualityComparer.Instance)
+                .Select(g => g.First())
+                .ToList();
+
             if (newFiles.Count < bookFiles.Count)
             {
                 _logger.Debug("Skipping {0} book file(s) already present in the database during AddMany", bookFiles.Count - newFiles.Count);
