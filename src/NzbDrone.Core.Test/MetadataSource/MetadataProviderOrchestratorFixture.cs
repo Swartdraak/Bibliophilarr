@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MetadataSource;
@@ -370,6 +372,59 @@ namespace NzbDrone.Core.Test.MetadataSource
             result.Should().NotBeNull();
             result.Item2.ForeignBookId.Should().Be("openlibrary:work:OL45883W");
             incompatible.CallCount.Should().Be(0);
+        }
+
+        [Test]
+        public void should_log_diagnostic_when_scoped_id_provider_is_disabled()
+        {
+            // Only a "Hardcover" provider is enabled; the id is "openlibrary:work:*",
+            // so the only compatible provider (OpenLibrary) is disabled.
+            var hardcoverOnly = new HardcoverBookInfoProvider();
+
+            var registry = new TestRegistry(new IMetadataProvider[] { hardcoverOnly });
+
+            var telemetry = new MetadataProviderTelemetryService();
+
+            // Capture the warning via a MemoryTarget.
+            var memoryTarget = new MemoryTarget("scoped-id-diagnostic") { Layout = "${level}|${message}" };
+            var originalConfiguration = LogManager.Configuration;
+            var configuration = new LoggingConfiguration();
+            configuration.AddTarget(memoryTarget);
+            configuration.LoggingRules.Add(new LoggingRule("*", LogLevel.Warn, memoryTarget));
+            LogManager.Configuration = configuration;
+
+            try
+            {
+                var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+                // The lookup fails (no compatible provider) and a diagnostic is logged.
+                var act = () => orchestrator.GetBookInfo("openlibrary:work:OL45883W");
+
+                act.Should().Throw<NzbDrone.Core.Exceptions.BookNotFoundException>();
+                memoryTarget.Logs.Should().Contain(log => log.Contains("No enabled metadata provider is compatible"));
+            }
+            finally
+            {
+                LogManager.Configuration = originalConfiguration;
+            }
+        }
+
+        private class HardcoverBookInfoProvider : IMetadataProvider, IProvideBookInfo
+        {
+            public string ProviderName => "Hardcover";
+            public int Priority => 1;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => false;
+            public bool SupportsBookSearch => true;
+            public bool SupportsIsbnLookup => true;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => true;
+
+            public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
+            {
+                // Hardcover cannot resolve an openlibrary:work: id.
+                return null;
+            }
         }
 
         private class FailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
