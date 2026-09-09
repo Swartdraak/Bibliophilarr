@@ -31,7 +31,7 @@ namespace NzbDrone.Core.Books
                     "SELECT COUNT(*) FROM \"Books\"");
 
                 stats.BooksWithOpenLibraryWorkId = conn.QueryFirstOrDefault<int>(
-                    "SELECT COUNT(*) FROM \"Books\" WHERE \"OpenLibraryWorkId\" IS NOT NULL AND \"OpenLibraryWorkId\" <> ''");
+                    "SELECT COUNT(*) FROM \"Books\" WHERE \"OpenLibraryWorkId\" IS NOT NULL AND TRIM(\"OpenLibraryWorkId\") <> ''");
 
                 stats.BooksMissingOpenLibraryWorkId = stats.TotalBooks - stats.BooksWithOpenLibraryWorkId;
 

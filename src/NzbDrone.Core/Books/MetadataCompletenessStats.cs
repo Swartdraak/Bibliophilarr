@@ -2,7 +2,8 @@ namespace NzbDrone.Core.Books
 {
     /// <summary>
     /// Aggregate metadata-completeness KPIs for the library (issue #207).
-    /// Computed in a single pass over the Books / Series / SeriesBookLink / Editions / BookFiles tables.
+    /// Computed via a small set of aggregate queries over the Books / Series /
+    /// SeriesBookLink / Editions / BookFiles / Authors tables.
     /// </summary>
     public class MetadataCompletenessStats
     {
