@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Sockets;
 using FluentAssertions;
 using NLog;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
 
 namespace NzbDrone.Core.Test.MetadataSource
@@ -372,6 +375,77 @@ namespace NzbDrone.Core.Test.MetadataSource
             incompatible.CallCount.Should().Be(0);
         }
 
+        [Test]
+        public void should_throw_metadata_provider_unavailable_when_all_providers_fail_with_transport_error()
+        {
+            var registry = new TestRegistry(new IMetadataProvider[]
+            {
+                new TransportFailingAuthorInfoProvider()
+            });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+            var act = () => orchestrator.GetAuthorInfo("hardcover:author:171873", true);
+
+            act.Should().Throw<MetadataProviderUnavailableException>()
+                .WithMessage("*get-author-info*");
+        }
+
+        [Test]
+        public void should_throw_metadata_provider_unavailable_when_all_providers_fail_with_nested_socket_error()
+        {
+            var registry = new TestRegistry(new IMetadataProvider[]
+            {
+                new NestedSocketFailingAuthorInfoProvider()
+            });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+            var act = () => orchestrator.GetAuthorInfo("hardcover:author:171873", true);
+
+            act.Should().Throw<MetadataProviderUnavailableException>();
+        }
+
+        [Test]
+        public void should_not_throw_unavailable_when_provider_fails_with_non_transport_error()
+        {
+            // A genuine provider error (not a network/transport failure) must still be
+            // treated as a not-found, NOT as an unavailable provider.
+            var registry = new TestRegistry(new IMetadataProvider[]
+            {
+                new NonTransportFailingAuthorInfoProvider()
+            });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+            var act = () => orchestrator.GetAuthorInfo("hardcover:author:171873", true);
+
+            act.Should().Throw<AuthorNotFoundException>();
+        }
+
+        [Test]
+        public void should_fallback_to_secondary_provider_when_primary_fails_with_transport_error()
+        {
+            // A transport failure on the primary must still fall through to the secondary
+            // provider; only when ALL providers fail on transport do we throw unavailable.
+            var registry = new TestRegistry(new IMetadataProvider[]
+            {
+                new TransportFailingAuthorInfoProvider(),
+                new SuccessfulGetAuthorInfoProvider()
+            });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+
+            var result = orchestrator.GetAuthorInfo("openlibrary:author:OL23919A", true);
+
+            result.Should().NotBeNull();
+            result.Metadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL23919A");
+        }
+
         private class FailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
         {
             public string ProviderName => "FailingAuthorInfo";
@@ -665,6 +739,72 @@ namespace NzbDrone.Core.Test.MetadataSource
             public List<Book> SearchByExternalId(string idType, string id)
             {
                 return null;
+            }
+        }
+
+        private class TransportFailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
+        {
+            public string ProviderName => "Hardcover";
+            public int Priority => 1;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => false;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => false;
+
+            public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
+            {
+                throw new HttpRequestException("Simulated network failure");
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                return new HashSet<string>();
+            }
+        }
+
+        private class NestedSocketFailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
+        {
+            public string ProviderName => "Hardcover";
+            public int Priority => 1;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => false;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => false;
+
+            public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
+            {
+                throw new HttpRequestException("Simulated connection reset", new SocketException(104));
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                return new HashSet<string>();
+            }
+        }
+
+        private class NonTransportFailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
+        {
+            public string ProviderName => "Hardcover";
+            public int Priority => 1;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => true;
+            public bool SupportsBookSearch => false;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => false;
+
+            public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
+            {
+                throw new InvalidOperationException("Simulated non-transport failure");
+            }
+
+            public HashSet<string> GetChangedAuthors(DateTime startTime)
+            {
+                return new HashSet<string>();
             }
         }
     }
