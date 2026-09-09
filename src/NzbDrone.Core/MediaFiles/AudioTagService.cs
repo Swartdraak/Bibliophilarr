@@ -167,6 +167,14 @@ namespace NzbDrone.Core.MediaFiles
                 return null;
             }
 
+            // Populate trackfile.Author with the resolved author so that
+            // WriteTags can safely reference trackfile.Author.Value when
+            // publishing the BookFileRetaggedEvent (see issue #210).
+            if (trackfile.Author?.Value == null)
+            {
+                trackfile.Author = author;
+            }
+
             var partCount = edition.BookFiles?.Value?.Count ?? 0;
 
             var fileTags = ReadAudioTag(trackfile.Path);
@@ -393,6 +401,13 @@ namespace NzbDrone.Core.MediaFiles
 
                 var oldTags = ReadAudioTag(f.Path);
                 var newTags = GetTrackMetadata(f);
+                if (newTags == null)
+                {
+                    // GetTrackMetadata returned null (missing Edition/Book/Author).
+                    // Skip this file in the preview rather than throwing an NRE.
+                    continue;
+                }
+
                 var diff = oldTags.Diff(newTags);
 
                 if (diff.Any())
