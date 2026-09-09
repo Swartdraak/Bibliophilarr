@@ -132,6 +132,11 @@ namespace NzbDrone.Core.Books
                 // the book's editions). Guard against that so we never throw here.
                 if (allEditions.Any(x => x.Id == edition.Id))
                 {
+                    // Use the stored edition's IsEbook (not the imported edition's) so the
+                    // fallback does not unmonitor the other format when the imported IsEbook
+                    // is misclassified.
+                    var storedEdition = allEditions.First(x => x.Id == edition.Id);
+                    edition.IsEbook = storedEdition.IsEbook;
                     return SetMonitored(edition);
                 }
 
@@ -140,7 +145,9 @@ namespace NzbDrone.Core.Books
                     edition.Id,
                     edition.BookId);
 
-                return allEditions;
+                // Re-query from DB to return a consistent snapshot (the in-memory
+                // allEditions list was mutated by sameFormat.ForEach above).
+                return FindByBook(new[] { edition.BookId });
             }
 
             UpdateMany(sameFormat);
