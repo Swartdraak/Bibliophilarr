@@ -155,7 +155,7 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             Exception lastError = null;
-            var allFailuresWereTransport = false;
+            var allFailuresWereTransport = true;
             var anyFailure = false;
 
             for (var i = 0; i < providers.Count; i++)
@@ -184,14 +184,12 @@ namespace NzbDrone.Core.MetadataSource
                     lastError = ex;
 
                     anyFailure = true;
-                    if (IsTransportError(ex))
-                    {
-                        allFailuresWereTransport = true;
-                    }
-                    else
+                    if (!IsTransportError(ex))
                     {
                         // A non-transport failure (e.g. a genuine provider error) means we
                         // cannot conclude the whole operation was blocked by the network.
+                        // Once a non-transport failure occurs, allFailuresWereTransport
+                        // must stay false for the remainder of the loop.
                         allFailuresWereTransport = false;
                     }
                 }
