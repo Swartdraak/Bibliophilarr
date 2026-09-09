@@ -59,8 +59,34 @@ namespace NzbDrone.Core.MediaFiles
 
         public void AddMany(List<BookFile> bookFiles)
         {
-            _mediaFileRepository.InsertMany(bookFiles);
-            foreach (var addedFile in bookFiles)
+            if (bookFiles == null || bookFiles.Count == 0)
+            {
+                return;
+            }
+
+            // Idempotency guard: skip any file whose Path is already present in the DB.
+            // A re-scan (RescanFolders) of a folder that already has imported files would
+            // otherwise attempt to re-insert the same Path and abort the whole scan with
+            // "UNIQUE constraint failed: BookFiles.Path" (issue #206).
+            var existingFiles = _mediaFileRepository.GetFileWithPath(bookFiles.Select(x => x.Path).ToList()) ?? new List<BookFile>();
+            var existingPaths = existingFiles
+                .Select(x => x.Path)
+                .ToHashSet(PathEqualityComparer.Instance);
+
+            var newFiles = bookFiles.Where(x => !existingPaths.Contains(x.Path)).ToList();
+
+            if (newFiles.Count < bookFiles.Count)
+            {
+                _logger.Debug("Skipping {0} book file(s) already present in the database during AddMany", bookFiles.Count - newFiles.Count);
+            }
+
+            if (newFiles.Count == 0)
+            {
+                return;
+            }
+
+            _mediaFileRepository.InsertMany(newFiles);
+            foreach (var addedFile in newFiles)
             {
                 _eventAggregator.PublishEvent(new BookFileAddedEvent(addedFile));
             }
