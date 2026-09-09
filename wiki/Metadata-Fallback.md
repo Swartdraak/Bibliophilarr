@@ -78,7 +78,7 @@ Until the #209 fix is merged:
 
 1. **Do not run author refreshes during a known network outage.** A transient
    `No route to host` / `Connection reset` can delete authors.
-2. **Check provider health first:** `GET /api/v1/metadata/providers/health`.
+2. **Check provider health first:** `GET /api/v1/metadata/providers/health/basic`.
 3. **If authors are deleted unexpectedly**, check the logs for
    `Metadata provider 'X' failed during get-author-info` immediately before the
    deletion. If the failure was a transport error (not a 404), the deletion was a

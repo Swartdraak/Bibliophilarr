@@ -139,7 +139,7 @@ extension for format, not a stale queue `formatType`.
 ## 5. Bibliography hydration gaps
 
 **Symptom:** Books missing `OpenLibraryWorkId` (100% in the field test), series with
-no linked books (73.7%), sparse covers.
+no linked books (74.6%), sparse covers.
 
 **Root cause (issue #207):**
 

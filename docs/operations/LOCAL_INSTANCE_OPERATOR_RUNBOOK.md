@@ -135,7 +135,7 @@ curl -sS "${HDR[@]}" http://localhost:8787/api/v1/health
 curl -sS "${HDR[@]}" http://localhost:8787/api/v1/system/status
 
 # Provider health
-curl -sS "${HDR[@]}" http://localhost:8787/api/v1/metadata/providers/health
+curl -sS "${HDR[@]}" http://localhost:8787/api/v1/metadata/providers/health/basic
 
 # Queue
 curl -sS "${HDR[@]}" "http://localhost:8787/api/v1/queue?page=1&pageSize=100"

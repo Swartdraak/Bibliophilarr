@@ -18,7 +18,7 @@ A book can have **multiple editions** — one ebook edition and one audiobook ed
 The `Edition.IsEbook` boolean is the primary discriminator. When a metadata provider
 does not set `IsEbook` correctly, the API falls back to deriving the format from the
 actual file quality (e.g. EPUB → Ebook, M4B → Audiobook) — see
-`Bibliophilarr.Api.V1/Books/BookResource.cs`.
+`src/Bibliophilarr.Api.V1/Books/BookResource.cs`.
 
 ## Root folders
 
