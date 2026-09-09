@@ -375,10 +375,10 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
-        public void should_log_diagnostic_when_scoped_id_provider_is_disabled()
+        public void should_log_diagnostic_when_no_enabled_provider_is_compatible_with_scoped_id()
         {
             // Only a "Hardcover" provider is enabled; the id is "openlibrary:work:*",
-            // so the only compatible provider (OpenLibrary) is disabled.
+            // so no enabled provider is compatible with the scoped id.
             var hardcoverOnly = new HardcoverBookInfoProvider();
 
             var registry = new TestRegistry(new IMetadataProvider[] { hardcoverOnly });
