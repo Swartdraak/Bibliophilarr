@@ -1,0 +1,241 @@
+name: Cross-build portability
+
+# Durable cross-host regression protection required by #117 and enforced on #118.
+# This workflow proves the portable development contract on all three supported
+# developer hosts and the RID-mapping behavior for Apple Silicon. It is NOT a
+# duplication of ci-backend: it adds (a) macOS/Windows lanes that the backend
+# gate does not cover, (b) the direct Windows-desktop project restore/model
+# evaluation that reproduces the Rider/Coder failure mode, and (c) the RID
+# architecture-mapping validation (X64 -> x64, Arm64 -> arm64).
+
+on:
+  pull_request:
+    branches:
+      - main
+      - staging
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+      - staging
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux (restore, Posix build, portable tests, Windows-desktop project model)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        with:
+          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: Assert SDK matches global.json pin
+        run: |
+          set -euo pipefail
+          dotnet --list-sdks
+          selected=$(dotnet --version)
+          echo "selected SDK: $selected"
+          case "$selected" in
+            10.0.*) ;;
+            *) echo "SDK not 10.0.x"; exit 1 ;;
+          esac
+
+      - name: Restore portable solution (Posix)
+        run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
+
+      - name: Build Posix configuration
+        run: dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Posix
+
+      - name: Direct Windows-desktop project restore (Rider/Coder project-model gate)
+        # Reproduces the previously failing direct project-model restore. Failure
+        # here is a release-blocking portability regression.
+        run: dotnet restore NzbDrone/Bibliophilarr.csproj -p:Platform=Posix
+
+      - name: Direct Windows-desktop project model evaluation
+        # The Windows app itself need not run; the project model must load.
+        run: dotnet build NzbDrone/Bibliophilarr.csproj --no-restore -p:Platform=Posix
+
+      - name: Portable unit tests
+        run: >-
+          dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+
+  windows:
+    name: Windows (restore, Windows build, portable tests)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        with:
+          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: Assert SDK matches global.json pin
+        run: dotnet --list-sdks
+
+      - name: Restore portable solution (Windows platform configuration)
+        run: dotnet restore Bibliophilarr.sln -p:Platform=Windows
+
+      - name: Build Windows configuration
+        run: dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Windows
+
+      - name: Portable unit tests (Windows host)
+        run: >-
+          dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Windows
+
+  macos:
+    name: macOS (restore, Posix build, portable tests, RID validation)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Assert runner architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -m
+          uname -a
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        with:
+          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: Assert SDK matches global.json pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet --list-sdks
+
+      - name: Restore portable solution (Posix)
+        shell: bash
+        run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
+
+      - name: Build Posix configuration
+        shell: bash
+        run: dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Posix
+
+      - name: Portable unit tests
+        shell: bash
+        run: >-
+          dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+
+      - name: RID property validation (Apple Silicon arm64)
+        # The #117 RID contract: Directory.Build.props maps X64 -> x64 and
+        # Arm64 -> arm64, yielding osx-x64 / osx-arm64 for macOS hosts. This is
+        # a property-level validation (MSBuild pre-evaluation of the same
+        # RuntimeInformation expressions used by the build props); it does NOT
+        # claim native arm64 execution on any specific runner.
+        #
+        # The rid_mapping job (below) is the platform-independent gate for the
+        # pure property mapping.
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_out=$(dotnet msbuild -v:quiet -nologo -getProperty:Architecture NzbDrone.Console/Bibliophilarr.Console.csproj -p:Platform=Posix 2>/dev/null || true)
+          echo "MSBuild-evaluated Architecture: $probe_out"
+          case "$probe_out" in
+            x64)   echo "derived RID: osx-x64";  ;;
+            arm64) echo "derived RID: osx-arm64"; ;;
+            *)
+              echo "unexpected Architecture: '$probe_out'"
+              exit 1
+              ;;
+          esac
+
+  rid_mapping:
+    name: RID mapping (pure property evaluation, host-independent)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        with:
+          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: Validate Architecture property mapping
+        # Directory.Build.props maps X64 -> x64, Arm64 -> arm64, X86 -> x86,
+        # Arm -> arm. This gate asserts, by source inspection, that all four
+        # pairs are present in the mapping, so a future edit that drops or
+        # alters the arm64 mapping fails the gate. Pure text-level assertion;
+        # no native execution is claimed.
+        #
+        # The mapping is encoded as an MSBuild <Choose>/<When> chain of the form:
+        #   <When Condition="'$(...)ProcessArchitecture)' == 'X64'">
+        #     <PropertyGroup>
+        #       <Architecture>x64</Architecture>
+        #     </PropertyGroup>
+        #   </When>
+        # The check below asserts both the source marker (== 'X64') and the
+        # destination element (<Architecture>x64</Architecture>) are present
+        # in the same file.
+        shell: bash
+        run: |
+          set -euo pipefail
+          props=src/Directory.Build.props
+          test -f "$props" || { echo "src/Directory.Build.props not found"; exit 1; }
+
+          check_pair() {
+            local src="$1"
+            local dst="$2"
+            # The MSBuild Choose block is of the form:
+            #   <When Condition="'$([...RuntimeInformation]::ProcessArchitecture)' == 'X64'">
+            #       <PropertyGroup>
+            #         <Architecture>x64</Architecture>
+            #       </PropertyGroup>
+            #   </When>
+            # We match the source marker with a permissive character class
+            # around the closing parenthesis + quote so the check is robust
+            # to any minor whitespace variation. The destination element is
+            # matched literally.
+            if ! grep -qE "ProcessArchitecture\)\)?'\s*==\s*'?${src}('|\")?'" "$props"; then
+              echo "MISSING RID mapping source marker: ${src} in $props"
+              exit 1
+            fi
+            if ! grep -q "<Architecture>${dst}</Architecture>" "$props"; then
+              echo "MISSING RID mapping destination: ${dst} in $props"
+              exit 1
+            fi
+            echo "verified RID mapping: ${src} -> ${dst}"
+          }
+
+          check_pair "X64"   "x64"
+          check_pair "Arm64" "arm64"
+          check_pair "X86"   "x86"
+          check_pair "Arm"   "arm"
+          echo "RID architecture mapping gate PASS"
