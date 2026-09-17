@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFrameworks>net8.0-windows</TargetFrameworks>
     <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>..\NzbDrone.Host\Bibliophilarr.ico</ApplicationIcon>
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
