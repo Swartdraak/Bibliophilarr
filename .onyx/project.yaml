@@ -66,7 +66,7 @@ commands:
     - name: full-build
       command: ./build.sh --backend --frontend --packages --lint --framework net8.0 --runtime linux-x64
       cwd: .
-      note: full pipeline (backend publish, test package, yarn install, lint, webpack UI, package). Includes full `dotnet test` across all test projects.
+      note: full pipeline (backend publish, test-asset packaging, yarn install, eslint+stylelint, webpack UI, package). Does NOT execute the dotnet test suite -- test gating is via CI or the explicit test commands above.
   test:
     - name: common-tests
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix
@@ -75,11 +75,11 @@ commands:
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
-      note: verified as part of ./build.sh full test run
+      note: "PRE-EXISTING FAILURES: 2765 total -> 2603 passed, 103 failed, 59 skipped in isolated env 2026-09-17. Deterministic in isolation (subset re-run also fails). Concentrated in DownloadClient tests (QBittorrent/NzbVortex/Sabnzbd/Nzbget/Hadouken/RTorrent/Transmission/DownloadStation) plus Books/MediaFiles/Profiles. See baseline.json + logs/test-core.log. NOT caused by onboarding."
     - name: frontend-tests
       command: yarn test:frontend
       cwd: .
-      note: jest, --runInBand; verified as part of ./build.sh full run
+      note: "jest, --runInBand. PASS: 47 tests / 13 suites, 0 failures (2026-09-17). see logs/test-frontend.log"
   runtime:
     start: |
       ./build.sh --backend --frontend --packages --lint --framework net8.0 --runtime linux-x64
@@ -138,6 +138,27 @@ skipped_integrations:
     reason: live provider calls (Hardcover, OpenLibrary, Inventaire) require network/credentials; unit fixtures only, per CI design.
 
 pre_existing_faults:
+  - name: core-test-suite-failures
+    severity: medium
+    description: >
+      Bibliophilarr.Core.Test has 103 deterministic pre-existing failures out of
+      2765 (2603 passed, 59 skipped) in the isolated audit environment
+      (2026-09-17, base b1f36b0ee). A filtered subset (QualityProfileService,
+      MetadataProfileService, BookServiceBooksWithoutFilesFormat) re-run in
+      isolation also fails (6/21), confirming this is real test/code divergence,
+      not a test-ordering or environment artifact. Failures concentrate in
+      DownloadClient fixtures (QBittorrent 59, NzbVortex 12, Sabnzbd 8, Hadouken
+      5, Nzbget 3, RTorrent 2, Transmission, DownloadStation) and in
+      Books/MediaFiles/Profiles fixtures. Error classes:
+      "Sequence contains more than one element" (68),
+      "Expected boolean to be True, but found False" (14),
+      "Sequence contains no elements" (7), NullReferenceException (4),
+      Moq.MockException unmet expectations (e.g. BooksWithoutFiles never
+      invoked), and InUse exceptions not thrown. This is a pre-existing
+      condition of the fork's test suite, NOT introduced by onboarding; the
+      repo's own CI (ci-backend.yml) runs targeted fixture filters rather than
+      the full Core suite. Recorded for transparency; out of scope to fix here.
+      Evidence: logs/test-core.log, logs/test-core-subset.log.
   - name: pinned-nuget-feed-401
     severity: low
     description: >
