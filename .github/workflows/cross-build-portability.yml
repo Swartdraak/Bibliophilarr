@@ -75,10 +75,17 @@ jobs:
         # The Windows app itself need not run; the project model must load.
         run: dotnet build NzbDrone/Bibliophilarr.csproj --no-restore -p:Platform=Posix
 
-      - name: Portable unit tests
+      - name: Portable unit tests (POSIX-safe subset)
+        # Runs the same POSIX-safe fixture subset main's own
+        # "RID Core/Common Targeted" lane uses. The full Common suite is
+        # not portable: ProcessProviderFixture starts a dummy .NET app
+        # (requires a native SDK on the runner) and is excluded from
+        # main's RID lane for the same reason.
         run: >-
           dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~HttpClientFixture|FullyQualifiedName~RateLimitServiceFixture'
 
   windows:
     name: Windows (restore, Windows build, portable tests)
@@ -151,11 +158,18 @@ jobs:
         shell: bash
         run: dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Posix
 
-      - name: Portable unit tests
+      - name: Portable unit tests (POSIX-safe subset)
+        # Runs the same POSIX-safe fixture subset main's own
+        # "RID Core/Common Targeted" lane uses. The full Common suite is
+        # not portable: ProcessProviderFixture starts a dummy .NET app
+        # (requires a native SDK on the runner) and is excluded from
+        # main's RID lane for the same reason.
         shell: bash
         run: >-
           dotnet test NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~HttpClientFixture|FullyQualifiedName~RateLimitServiceFixture'
 
       - name: RID property validation (Apple Silicon arm64)
         # The #117 RID contract: Directory.Build.props maps X64 -> x64 and
