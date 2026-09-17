@@ -7,6 +7,13 @@ name: Cross-build portability
 # gate does not cover, (b) the direct Windows-desktop project restore/model
 # evaluation that reproduces the Rider/Coder failure mode, and (c) the RID
 # architecture-mapping validation (X64 -> x64, Arm64 -> arm64).
+#
+# main adaptation (vs develop, cde6d4132): main currently targets net8.0 with
+# SDK 8.0.x (develop moved to net10.0/10.0.x via #201). Until the .NET 10
+# framework migration lands on main, this portability gate runs on the
+# net8.0/SDK 8.0.x band so it is actually satisfiable on main heads. The RID
+# mapping property gate is band-independent (pure property inspection) and is
+# unchanged.
 
 on:
   pull_request:
@@ -39,7 +46,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '8.0.x'
           global-json-file: global.json
 
       - name: Assert SDK matches global.json pin
@@ -49,8 +56,8 @@ jobs:
           selected=$(dotnet --version)
           echo "selected SDK: $selected"
           case "$selected" in
-            10.0.*) ;;
-            *) echo "SDK not 10.0.x"; exit 1 ;;
+            8.0.*) ;;
+            *) echo "SDK not 8.0.x" >&2; exit 1 ;;
           esac
 
       - name: Restore portable solution (Posix)
@@ -88,7 +95,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '8.0.x'
           global-json-file: global.json
 
       - name: Assert SDK matches global.json pin
@@ -127,7 +134,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '8.0.x'
           global-json-file: global.json
 
       - name: Assert SDK matches global.json pin
@@ -165,10 +172,10 @@ jobs:
           probe_out=$(dotnet msbuild -v:quiet -nologo -getProperty:Architecture NzbDrone.Console/Bibliophilarr.Console.csproj -p:Platform=Posix 2>/dev/null || true)
           echo "MSBuild-evaluated Architecture: $probe_out"
           case "$probe_out" in
-            x64)   echo "derived RID: osx-x64";  ;;
-            arm64) echo "derived RID: osx-arm64"; ;;
+            x64)   echo "derived RID: osx-x64" ;;
+            arm64) echo "derived RID: osx-arm64" ;;
             *)
-              echo "unexpected Architecture: '$probe_out'"
+              echo "unexpected Architecture: '$probe_out'" >&2
               exit 1
               ;;
           esac
@@ -185,7 +192,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '8.0.x'
           global-json-file: global.json
 
       - name: Validate Architecture property mapping
@@ -196,7 +203,7 @@ jobs:
         # no native execution is claimed.
         #
         # The mapping is encoded as an MSBuild <Choose>/<When> chain of the form:
-        #   <When Condition="'$(...)ProcessArchitecture)' == 'X64'">
+        #   <When Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">
         #     <PropertyGroup>
         #       <Architecture>x64</Architecture>
         #     </PropertyGroup>
@@ -208,13 +215,13 @@ jobs:
         run: |
           set -euo pipefail
           props=src/Directory.Build.props
-          test -f "$props" || { echo "src/Directory.Build.props not found"; exit 1; }
+          test -f "$props" || { echo "src/Directory.Build.props not found" >&2; exit 1; }
 
           check_pair() {
             local src="$1"
             local dst="$2"
             # The MSBuild Choose block is of the form:
-            #   <When Condition="'$([...RuntimeInformation]::ProcessArchitecture)' == 'X64'">
+            #   <When Condition="'$([...]::ProcessArchitecture)' == 'X64'">
             #       <PropertyGroup>
             #         <Architecture>x64</Architecture>
             #       </PropertyGroup>
@@ -224,11 +231,11 @@ jobs:
             # to any minor whitespace variation. The destination element is
             # matched literally.
             if ! grep -qE "ProcessArchitecture\)\)?'\s*==\s*'?${src}('|\")?'" "$props"; then
-              echo "MISSING RID mapping source marker: ${src} in $props"
+              echo "MISSING RID mapping source marker: ${src} in $props" >&2
               exit 1
             fi
             if ! grep -q "<Architecture>${dst}</Architecture>" "$props"; then
-              echo "MISSING RID mapping destination: ${dst} in $props"
+              echo "MISSING RID mapping destination: ${dst} in $props" >&2
               exit 1
             fi
             echo "verified RID mapping: ${src} -> ${dst}"
