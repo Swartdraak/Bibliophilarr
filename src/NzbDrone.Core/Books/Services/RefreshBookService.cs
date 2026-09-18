@@ -104,6 +104,20 @@ namespace NzbDrone.Core.Books
                              book.Title,
                              book.ForeignBookId);
             }
+            catch (MetadataProviderUnavailableException ex)
+            {
+                // A transient network/transport outage is NOT a signal that the provider
+                // removed this book. Re-throw so the caller skips the refresh entirely
+                // instead of interpreting null as "not found" (which would trigger
+                // destructive deletion when ShouldDelete is true — see issue #204 / #209).
+                _logger.Warn(ex,
+                    "Metadata provider unreachable for book '{0}' (id: {1}). " +
+                    "The book will be kept with existing metadata. " +
+                    "This is a transient network condition, not a removal.",
+                    book.Title,
+                    book.ForeignBookId);
+                throw;
+            }
 
             return null;
         }
@@ -116,7 +130,23 @@ namespace NzbDrone.Core.Books
 
             if (book == null)
             {
-                data = GetSkyhookData(local);
+                try
+                {
+                    data = GetSkyhookData(local);
+                }
+                catch (MetadataProviderUnavailableException ex)
+                {
+                    // Transient outage: return the local book as "found" so
+                    // RefreshEntityInfo does not interpret this as a not-found
+                    // and potentially delete the book (see #204 / #209).
+                    _logger.Warn(ex,
+                        "Metadata provider unreachable for book '{0}' (id: {1}). " +
+                        "Keeping existing metadata.",
+                        local.Title,
+                        local.ForeignBookId);
+                    result.Entity = local;
+                    return result;
+                }
 
                 if (data?.Books?.Value == null)
                 {
