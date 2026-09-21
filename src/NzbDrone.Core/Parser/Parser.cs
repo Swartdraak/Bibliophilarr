@@ -276,6 +276,11 @@ namespace NzbDrone.Core.Parser
         // Numbered prefix: "276. " or "01 " at start of title
         private static readonly Regex NumberedPrefixRegex = new Regex(@"^\d{1,4}\.?\s+", RegexOptions.Compiled);
 
+        // Duplicate suffix appended by the OS/file system when a file with the same name already
+        // exists: "Book (1).m4b", "Book (2).m4b". Must only match a trailing numeric group —
+        // "(Deluxe Edition)" or "(2016 Remastered)" are legitimate title content and are preserved.
+        private static readonly Regex DuplicateSuffixRegex = new Regex(@"\s*\(\d+\)\s*$", RegexOptions.Compiled);
+
         /// <summary>
         /// Normalizes ebook-style filenames for better parsing.
         /// Handles scene names (dots to spaces), underscores, mangled apostrophes,
@@ -317,10 +322,31 @@ namespace NzbDrone.Core.Parser
             // Strip ebook noise tokens
             result = EbookNoiseTokensRegex.Replace(result, " ");
 
+            // Strip trailing duplicate suffix "(N)" that the file system appends when a file with
+            // the same name already exists (e.g. "The Primal Hunter 2 (1).m4b" -> "The Primal Hunter 2")
+            result = StripDuplicateSuffix(result);
+
             // Clean up multiple spaces
             result = DuplicateSpacesRegex.Replace(result.Trim(), " ");
 
             return result;
+        }
+
+        /// <summary>
+        /// Removes the trailing duplicate suffix "(N)" that the operating system or a file manager
+        /// appends when saving a file whose name already exists (e.g. "Zogarth - The Primal Hunter 2 (1)"
+        /// becomes "Zogarth - The Primal Hunter 2"). Only a purely numeric trailing group is removed,
+        /// so genuine parenthesized title content such as "(Deluxe Edition)" or "(2016 Remastered)"
+        /// is preserved.
+        /// </summary>
+        public static string StripDuplicateSuffix(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+
+            return DuplicateSuffixRegex.Replace(title, " ").TrimEnd();
         }
 
         public static ParsedTrackInfo ParseMusicPath(string path)
