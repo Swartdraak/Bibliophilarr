@@ -1,0 +1,226 @@
+# Onyx project contract — Swartdraak/Bibliophilarr
+# Authoritative executable contract for autonomous work on this repository.
+# Commands below were verified in an isolated Docker audit environment
+# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19) on
+# 2026-09-18 at base SHA d21d1361c6e66017babde67895be9eb84a4ede7b (branch
+# develop, net10.0 SDK band). See baseline.json (workspace root) for
+# per-command evidence and logs/ for raw output.
+# Do not store credentials or secrets here.
+
+version: 1
+name: bibliophilarr
+canonical_repo: https://github.com/Swartdraak/Bibliophilarr
+immutable_repo_id: 1159029625
+default_branch: main
+integration_branch: develop
+promotion_path: [develop, staging, main]
+human_gates: [stable-release, hotfix]
+license: GPL-3.0
+runtime_port: 8787
+
+components:
+  backend:
+    path: src
+    language: csharp
+    solution: src/Bibliophilarr.sln
+    framework: net10.0
+    build_platform: Posix          # -p:Platform=Posix required on Linux/macOS
+    nuget_config: src/NuGet.config # nuget.org only; pinned Servarr feed is 401 and NOT used
+  frontend:
+    path: frontend
+    language: typescript
+    bundler: webpack
+    test_runner: jest
+    package_manager: yarn@1.22.19
+  host_app:
+    path: src/NzbDrone.Console
+    output: _output/net10.0/linux-x64/Bibliophilarr
+    packaged: _artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr
+  windows_desktop:
+    path: src/NzbDrone
+    framework: net10.0-windows
+    note: WinForms shell; runnable on Windows only. On Linux/macOS the project model must still restore/build (EnableWindowsTargeting) — this is the Rider/Coder portability gate.
+
+toolchain:
+  dotnet: "10.0.x (verified 10.0.401; global.json pins 10.0.100, rollForward latestFeature)"
+  node: "22.x per repo docs (verified locally on v20.20.2 — frontend gates pass on both)"
+  yarn: "1.22.19"
+
+commands:
+  bootstrap:
+    - name: yarn-install
+      command: yarn install --frozen-lockfile
+      cwd: .
+    - name: dotnet-restore
+      command: dotnet restore src/Bibliophilarr.sln -p:Platform=Posix
+      cwd: .
+  lint:
+    - name: eslint
+      command: yarn lint
+      cwd: .
+      note: 7 pre-existing warnings, 0 errors (no-negated-condition in frontend/src)
+    - name: stylelint
+      command: yarn stylelint-linux
+      cwd: .
+    - name: http-binding-check
+      command: ./scripts/ops/check_http_binding.sh
+      cwd: .
+      note: governance check — all complex mutation payloads use explicit source binding
+  build:
+    - name: backend-release
+      command: dotnet build src/Bibliophilarr.sln --configuration Release -p:Platform=Posix
+      cwd: .
+      note: 0 warnings, 0 errors (~1m)
+    - name: windows-desktop-project-model
+      command: dotnet build src/NzbDrone/Bibliophilarr.csproj -p:Platform=Posix
+      cwd: .
+      note: cross-build portability gate — the net10.0-windows WinForms project model must restore/build on POSIX hosts (Rider/Coder failure mode regression check)
+    - name: full-build
+      command: ./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
+      cwd: .
+      note: full pipeline (backend publish, test-asset packaging, yarn install, eslint+stylelint, webpack UI, linux-x64 package). Does NOT execute the dotnet test suite — test gating is via CI or the explicit test commands below.
+  test:
+    - name: common-tests
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix
+      cwd: .
+      note: "656 tests: 621 passed, 35 skipped, 0 failed (2026-09-18). ProcessProviderFixture requires DOTNET_ROOT exported (or .NET on PATH) so the dummy helper app can start."
+    - name: rid-common-targeted
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture"
+      cwd: .
+      note: "CI parity (ci-backend.yml rid-core-common-targeted): 18 tests: 16 passed, 2 skipped, 0 failed. RID-sensitive process/rate-limit fixtures only; HttpClientFixture deliberately excluded (covered by build-test lane)."
+    - name: rid-core-targeted
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture"
+      cwd: .
+      note: "CI parity (ci-backend.yml rid-core-common-targeted): 20 tests, 20 passed, 0 failed. OpenLibrarySearchProxyFixture replaced the stale OpenLibraryIsbnAsinLookupFixture reference from the main band."
+    - name: metadata-core-fixtures
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture"
+      cwd: .
+      note: "CI parity (ci-backend.yml metadata-provider-fixtures): 27 tests, 27 passed, 0 failed."
+    - name: metadata-api-fixtures
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture"
+      cwd: .
+      note: "CI parity (ci-backend.yml metadata-provider-fixtures): 4 tests, 4 passed, 0 failed."
+    - name: core-tests
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
+      cwd: .
+      note: "PRE-EXISTING FAILURES: 2767 total -> 2600 passed, 108 failed, 59 skipped in isolated env 2026-09-18 (net10.0 band). Deterministic. Concentrated in DownloadClient fixtures (93 of 108) plus MediaFiles/Profiles/Books/Datastore. CI does NOT run the full Core suite — it runs the targeted filters above (all green). NOT caused by onboarding. See baseline.json + logs/develop-15-core-full.log."
+    - name: frontend-tests
+      command: yarn test:frontend
+      cwd: .
+      note: "jest --runInBand: 47 tests / 13 suites, 0 failures (2026-09-18)."
+  runtime:
+    start: |
+      ./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
+      cp -r _output/UI _output/net10.0/linux-x64/UI
+      ./_output/net10.0/linux-x64/Bibliophilarr /data=<data-dir> /nobrowser /nosingleinstancecheck
+    package_start: |
+      ./_artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr /data=<data-dir> /nobrowser /nosingleinstancecheck
+    health:
+      - command: curl -sS http://127.0.0.1:8787/ping
+        expect: "200 { \"status\": \"OK\" }"
+      - command: curl -sS "http://127.0.0.1:8787/api/v1/system/status?apikey=<ApiKey>"
+        expect: "200 JSON (apiKey read from <data-dir>/config.xml; API requires the key)"
+    note: >
+      Data dir must be a fresh writable path. The app generates ApiKey and
+      config.xml on first start. /ping is unauthenticated; /api/v1/* requires
+      the apikey query param. BIBLIOPHILARR_SERVICES_URL and
+      BIBLIOPHILARR_HARDCOVER_API_TOKEN are optional env overrides.
+      Verified on the _output tree (app 10.0.0.15583) and on the packaged
+      _artifacts tree (no manual UI copy needed).
+  deployment:
+    isolation: testing-only
+    docker_image: "ghcr.io/swartdraak/bibliophilarr (release images; local build: docker build -t bibliophilarr:local .)"
+    production_deployment: PROHIBITED for autonomous work — isolated testing / semi-production validation only, with synthetic data, scoped access, and cleanup.
+
+governance:
+  documentation:
+    canonical:
+      - README.md
+      - AGENTS.md            # develop-only: repository-wide agent operating contract
+      - ARCHITECTURE.md
+      - BRANCHING.md         # authoritative branch lifecycle (develop/staging/main)
+      - PROJECT_STATUS.md
+      - ROADMAP.md
+      - MIGRATION_PLAN.md
+      - QUICKSTART.md        # net10.0 canonical commands
+      - CONTRIBUTING.md      # PR metadata + contribution flow
+      - SECURITY.md
+      - CHANGELOG.md
+    operations_runbooks: docs/operations/
+  branching:
+    lanes: [develop, staging, main]
+    integration: develop
+    patterns: [feat/*, feature/*, fix/*, docs/*, chore/*, refactor/*, security/*, perf/*, test/*, release-fix/*, hotfix/*]
+    human_gates: [stable-release, hotfix]
+    docs: [BRANCHING.md, docs/operations/BRANCH_STRATEGY.md, docs/operations/BRANCH_PROTECTION_RUNBOOK.md]
+  ci:
+    backend: .github/workflows/ci-backend.yml          # build-test, rid-core-common-targeted, metadata-provider-fixtures, metadata-diagnostics-integration
+    frontend: .github/workflows/ci-frontend.yml        # yarn install/test/lint/build
+    cross_build_portability: .github/workflows/cross-build-portability.yml  # Linux/Windows/macOS lanes + rid_mapping (X64->x64, Arm64->arm64), functional since PR #234 (main) and present on develop
+    other: [docs-validation.yml, lint-workflows.yml (actionlint), release.yml, docker-image.yml, npm-publish.yml, required-check-emission-smoke.yml, staging-smoke-metadata-telemetry.yml, validate-release-version.yml, branch-policy-audit.yml, operational-drift-check.yml]
+
+baseline_evidence:
+  file: ../baseline.json
+  logs: ../logs/
+  verified_at: 2026-09-18
+  base_sha: d21d1361c6e66017babde67895be9eb84a4ede7b
+  lane: develop (net10.0 band)
+
+skipped_integrations:
+  - name: docker-image-build
+    reason: Docker daemon not available in the audit container; image build/release pipeline (Dockerfile, docker-image.yml, docker-compose.*) verified by inspection only.
+  - name: rid-core-diagnostics-integration
+    reason: metadata-diagnostics-integration job (NzbDrone.Integration.Test, Debug config, 5 fixtures) not re-run locally beyond the metadata fixture filters above; CI on GitHub Actions remains the authority.
+  - name: postgres-integration
+    reason: postgres.runsettings present; no Postgres server available in audit environment.
+  - name: browser-e2e
+    reason: no browser/E2E harness in repo; UI verified via webpack build + HTTP runtime smoke only.
+  - name: external-metadata-providers
+    reason: live provider calls (Hardcover, OpenLibrary, Inventaire) require network/credentials; unit fixtures only, per CI design.
+  - name: windows-macos-host-lanes
+    reason: cross-build-portability.yml Windows/macOS runner lanes cannot execute in a Linux audit container; the POSIX parity surface they encode (Posix restore/build, Windows-desktop project model, RID property mapping) was verified locally instead.
+
+pre_existing_faults:
+  - name: core-test-suite-failures
+    severity: medium
+    description: >
+      Bibliophilarr.Core.Test has 108 deterministic pre-existing failures out of
+      2767 (2600 passed, 59 skipped) in the isolated audit environment
+      (2026-09-18, develop d21d1361c, net10.0 band; the main band showed 103/2765
+      on 2026-09-17, same failure classes). Error classes: InvalidOperationException
+      (75), FluentAssertions "Expected boolean" (16), NullReferenceException (4),
+      Moq.MockException unmet expectations (3), NotSupportedException (3),
+      DownloadClientException (2), ImportException (1), other (4). Failures
+      concentrate in DownloadClient fixtures (93/108: QBittorrent/Nzbget/Sabnzbd/
+      NzbVortex/RTorrent/Transmission/DownloadStation/Hadouken/CompletedDownloadService),
+      plus MediaFiles (4), Profiles (3), BooksTests (2), Datastore (2), MusicTests (2),
+      BookTests (1), Housekeeping (1). This is a pre-existing condition of the
+      fork's test suite, NOT introduced by onboarding; the repo's own CI
+      (ci-backend.yml) runs targeted fixture filters rather than the full Core
+      suite, and all targeted filters verified in this audit are green.
+      Evidence: logs/develop-15-core-full.log.
+  - name: pinned-nuget-feed-401
+    severity: low
+    description: >
+      QUICKSTART.md states src/NuGet.config "includes the Servarr package feeds
+      required for FluentMigrator, SQLite, Mono.Posix", but the checked-in
+      NuGet.config (develop blob 296a5db4) contains only
+      nuget.org. The pinned Azure DevOps feed (pkgs.dev.azure.com/Servarr/v3)
+      returns 401 anonymously, so restore actually resolves everything from
+      nuget.org. Documentation drift, not a build break — restore and build
+      succeed — but the docs overstate the feed dependency.
+  - name: eslint-negated-condition-warnings
+    severity: low
+    description: >
+      yarn lint reports 7 pre-existing no-negated-condition warnings
+      (frontend/src). 0 errors; lint gate passes.
+  - name: processprovider-needs-dotnet-root
+    severity: low
+    description: >
+      ProcessProviderFixture tests spawn the Bibliophilarr.Test.Dummy app host,
+      which requires .NET to be discoverable (DOTNET_ROOT or PATH).
+      In CI (actions/setup-dotnet) this is satisfied; in isolated containers
+      with a non-standard dotnet install they fail with
+      "Failed to resolve libhostfxr.so" unless DOTNET_ROOT is exported.
+      Environment setup gap, not a code fault: with DOTNET_ROOT set,
+      the full Common suite passes (621/621 non-skipped).
