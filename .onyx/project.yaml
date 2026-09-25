@@ -162,9 +162,10 @@ governance:
 baseline_evidence:
   file: ../baseline.json
   logs: ../logs/
-  verified_at: 2026-09-18
-  base_sha: d21d1361c6e66017babde67895be9eb84a4ede7b
+  verified_at: 2026-09-24
+  base_sha: 3954ed9b110583815d86941a2c46c3df64e19898
   lane: develop (net10.0 band)
+  note: pointers superseded per run — current baseline.json is the issue #237 development record (t_065bf035); raw logs at ../logs/develop-237-baseline/ and ../logs/develop-237-after/
 
 skipped_integrations:
   - name: docker-image-build
