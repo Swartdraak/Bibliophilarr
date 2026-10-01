@@ -144,7 +144,8 @@
     "worker-loader": "3.0.8"
   },
   "resolutions": {
-    "**/serialize-javascript": "7.0.3"
+    "**/serialize-javascript": "7.0.3",
+    "immutable@^3.8.1 || ^4.0.0": "4.3.9"
   },
   "volta": {
     "node": "22.22.2",
