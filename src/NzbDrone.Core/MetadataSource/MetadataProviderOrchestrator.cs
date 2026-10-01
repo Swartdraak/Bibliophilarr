@@ -144,6 +144,14 @@ namespace NzbDrone.Core.MetadataSource
                 {
                     providers = compatible;
                 }
+                else if (providers.Any())
+                {
+                    // The id is provider-scoped (e.g. "hardcover:work:123" or "openlibrary:work:OL1W")
+                    // but no enabled provider is compatible with it. The compatible provider may be
+                    // disabled, unregistered, or mismatched by name. Log a clear diagnostic so
+                    // operators understand the observed condition (issue #214 / #215).
+                    _logger.Warn("No enabled metadata provider is compatible with the provider-scoped id for operation '{0}'. The lookup will fail with a not-found. Verify the expected provider is enabled and registered, or re-resolve the entity via an enabled provider.", operationName);
+                }
             }
 
             Exception lastError = null;
