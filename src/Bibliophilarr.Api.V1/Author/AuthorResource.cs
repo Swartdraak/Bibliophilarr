@@ -69,43 +69,51 @@ namespace Bibliophilarr.Api.V1.Author
                 return null;
             }
 
+            // Issue #248: Author.Metadata is a LazyLoaded<AuthorMetadata> whose
+            // _value can be null when the metadata was never loaded (e.g. search
+            // fan-out results from a provider that did not populate the author's
+            // metadata row).  Dereferencing Metadata.Value.X previously threw
+            // NullReferenceException (via Author.get_Name() -> Metadata.Value.Name).
+            // Capture the value once and guard every dereference.
+            var metadata = model.Metadata?.Value;
+
             return new AuthorResource
             {
                 Id = model.Id,
                 AuthorMetadataId = model.AuthorMetadataId,
 
-                AuthorName = model.Name,
-                AuthorNameLastFirst = model.Metadata.Value.NameLastFirst,
+                AuthorName = metadata?.Name,
+                AuthorNameLastFirst = metadata?.NameLastFirst,
 
                 //AlternateTitles
-                SortName = model.Metadata.Value.SortName,
-                SortNameLastFirst = model.Metadata.Value.SortNameLastFirst,
+                SortName = metadata?.SortName,
+                SortNameLastFirst = metadata?.SortNameLastFirst,
 
-                Status = model.Metadata.Value.Status,
-                Overview = model.Metadata.Value.Overview,
-                Disambiguation = model.Metadata.Value.Disambiguation,
+                Status = metadata?.Status ?? AuthorStatusType.Continuing,
+                Overview = metadata?.Overview,
+                Disambiguation = metadata?.Disambiguation,
 
-                Images = model.Metadata.Value.Images.JsonClone(),
+                Images = metadata?.Images.JsonClone() ?? new List<MediaCover>(),
 
                 Path = model.Path,
                 QualityProfileId = model.QualityProfileId,
                 MetadataProfileId = model.MetadataProfileId,
-                Links = model.Metadata.Value.Links,
+                Links = metadata?.Links,
 
                 Monitored = model.Monitored,
                 MonitorNewItems = model.MonitorNewItems,
 
                 CleanName = model.CleanName,
-                ForeignAuthorId = model.Metadata.Value.ForeignAuthorId,
-                TitleSlug = model.Metadata.Value.TitleSlug,
+                ForeignAuthorId = metadata?.ForeignAuthorId,
+                TitleSlug = metadata?.TitleSlug,
 
                 // Root folder path is now calculated from the author path
                 // RootFolderPath = model.RootFolderPath,
-                Genres = model.Metadata.Value.Genres,
+                Genres = metadata?.Genres,
                 Tags = model.Tags,
                 Added = model.Added,
                 AddOptions = model.AddOptions,
-                Ratings = model.Metadata.Value.Ratings,
+                Ratings = metadata?.Ratings,
 
                 Statistics = new AuthorStatisticsResource()
             };
