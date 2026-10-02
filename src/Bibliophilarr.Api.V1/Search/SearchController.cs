@@ -81,7 +81,12 @@ namespace Bibliophilarr.Api.V1.Search
                         resource.Book.Images = selectedEdition.Images;
                     }
 
-                    resource.Book.Author = book.Author?.Value?.ToResource();
+                    // Issue #248: book.Author is a LazyLoaded<Author> whose Value can be
+                    // null (provider did not resolve the author).  The ?.Value?.ToResource()
+                    // chain already null-guards this, but capture the Author explicitly so
+                    // the folder mapping below does not dereference a null LazyLoaded.
+                    var bookAuthor = book.Author?.Value;
+                    resource.Book.Author = bookAuthor?.ToResource();
                     resource.Book.Editions = editions.ToResource();
                     resource.ForeignId = book.ForeignBookId;
 
@@ -94,9 +99,9 @@ namespace Bibliophilarr.Api.V1.Search
                         resource.Book.RemoteCover = cover.RemoteUrl;
                     }
 
-                    if (resource.Book.Author != null)
+                    if (bookAuthor != null)
                     {
-                        resource.Book.Author.Folder = _fileNameBuilder.GetAuthorFolder(book.Author);
+                        resource.Book.Author.Folder = _fileNameBuilder.GetAuthorFolder(bookAuthor);
                     }
                 }
                 else
