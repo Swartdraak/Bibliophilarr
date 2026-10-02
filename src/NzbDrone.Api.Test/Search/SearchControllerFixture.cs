@@ -11,6 +11,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
 
@@ -271,6 +272,236 @@ namespace NzbDrone.Api.Test.Search
             resource.Author.AuthorName.Should().Be("Anne Shirley");
             resource.Author.SortNameLastFirst.Should().Be("Shirley, Anne");
             resource.ForeignId.Should().Be("OL123A");
+        }
+
+        // ── Issue #250 regression: book-branch nested LazyLoaded nulls ─────────
+        //
+        // PR #249 hardened the AUTHOR branch (AuthorResourceMapper.ToResource) and
+        // the book-author folder mapping in SearchController.MapToResource, but
+        // BookResource.ToResource still dereferenced nested LazyLoaded values that
+        // a provider partial result can leave null:
+        //   (a) Editions.Value null list            (LazyLoaded<List<Edition>>(null))
+        //   (b) Author.Metadata.Value null          (Author resolved, metadata row absent)
+        //   (c) SeriesBookLink.Series.Value null    (series row unresolved)
+        //   (d) Edition.BookFiles.Value null list   (edition files unresolved)
+        //
+        // These shapes made GET /api/v1/search return 500 NRE at
+        // SearchController.MapToResource+MoveNext (SearchController.cs:48) for any
+        // term whose provider fan-out returned book results.  The #249 fixture
+        // tests above cover shapes 2/3 from that run but NOT these nested book
+        // shapes — which is why CI was green while the runtime 500 was live.
+        //
+        // Each test asserts the non-throwing List<SearchResource> result with the
+        // expected mapping (null entities skipped/mapped safely, not dropped with
+        // a 500).
+        [Test]
+        public void should_not_throw_when_book_editions_value_is_null_list()
+        {
+            // Shape (a): Editions LazyLoaded set but its Value is a null list.
+            var author = new Author
+            {
+                Metadata = new AuthorMetadata
+                {
+                    Name = "J.R.R. Tolkien",
+                    SortNameLastFirst = "Tolkien, J.R.R.",
+                    Images = new List<MediaCover>()
+                }
+            };
+
+            var book = new Book
+            {
+                Title = "The Hobbit",
+                ForeignBookId = "OL250A",
+                Author = new LazyLoaded<Author>(author),
+                Editions = new LazyLoaded<List<Edition>>(null) // _value == null
+            };
+
+            var resources = SearchWithResults(book);
+
+            resources.Should().HaveCount(1);
+            var resource = resources[0];
+            resource.Book.Should().NotBeNull();
+            resource.Book.Title.Should().Be("The Hobbit");
+            resource.Book.Editions.Should().BeEmpty();
+            resource.Book.Author.Should().NotBeNull();
+        }
+
+        [Test]
+        public void should_not_throw_when_book_author_metadata_unresolved_and_editions_present()
+        {
+            // Shape (b): Author resolved (non-null) but its Metadata LazyLoaded is
+            // unset (the SAME pattern #249 fixed for AuthorResource but not for the
+            // book branch).  Exercises BookResource.ToResource's authorTitle path
+            // where the book's own Author deref previously threw before the
+            // controller's own bookAuthor?.ToResource() override could run.
+            var author = new Author
+            {
+                Metadata = new LazyLoaded<AuthorMetadata>() // unset
+            };
+
+            var book = new Book
+            {
+                Title = "The Hobbit",
+                ForeignBookId = "OL250B",
+                Author = new LazyLoaded<Author>(author),
+                Editions = new LazyLoaded<List<Edition>>(new List<Edition>
+                {
+                    new Edition
+                    {
+                        Title = "The Hobbit",
+                        Overview = "A quest.",
+                        Images = new List<MediaCover>(),
+                        Monitored = false
+                    }
+                })
+            };
+
+            var resources = SearchWithResults(book);
+
+            resources.Should().HaveCount(1);
+            var resource = resources[0];
+            resource.Book.Should().NotBeNull();
+            resource.Book.Title.Should().Be("The Hobbit");
+
+            // AuthorResource must still be produced (controller overrides it),
+            // mapped safely without the metadata row.
+            resource.Book.Author.Should().NotBeNull();
+            resource.Book.Author.AuthorName.Should().BeNull();
+        }
+
+        [Test]
+        public void should_not_throw_when_book_series_link_series_is_unresolved()
+        {
+            // Shape (c): SeriesLinks set with a non-empty list, but each
+            // SeriesBookLink's Series LazyLoaded Value is null (series row
+            // unresolved by the provider fan-out).
+            var book = new Book
+            {
+                Title = "The Hobbit",
+                ForeignBookId = "OL250C",
+                Author = null,
+                Editions = null,
+                SeriesLinks = new LazyLoaded<List<SeriesBookLink>>(new List<SeriesBookLink>
+                {
+                    new SeriesBookLink
+                    {
+                        SeriesId = 1,
+                        SeriesPosition = 1,
+                        Position = "1",
+                        Series = new LazyLoaded<Series>() // _value == null
+                    }
+                })
+            };
+
+            var resources = SearchWithResults(book);
+
+            resources.Should().HaveCount(1);
+            var resource = resources[0];
+            resource.Book.Should().NotBeNull();
+            resource.Book.Title.Should().Be("The Hobbit");
+
+            // Unresolved series title maps safely to empty; the position suffix is
+            // preserved (existing behavior for a present Position string) — not a 500.
+            resource.Book.SeriesTitle.Should().NotBeNull();
+            resource.Book.SeriesTitle.Should().NotStartWith("null");
+            resource.Book.SeriesTitle.Should().Contain("#1");
+        }
+
+        [Test]
+        public void should_not_throw_when_edition_bookfiles_value_is_null_list()
+        {
+            // Shape (d): Edition.BookFiles LazyLoaded set but Value is a null list
+            // (format-status derivation must skip it without throwing).
+            var book = new Book
+            {
+                Title = "The Hobbit",
+                ForeignBookId = "OL250D",
+                Author = null,
+                Editions = new LazyLoaded<List<Edition>>(new List<Edition>
+                {
+                    new Edition
+                    {
+                        Title = "The Hobbit",
+                        Overview = "A quest.",
+                        Images = new List<MediaCover>(),
+                        BookFiles = new LazyLoaded<List<BookFile>>(null), // _value == null
+                        IsEbook = true,
+                        Monitored = true
+                    }
+                })
+            };
+
+            var resources = SearchWithResults(book);
+
+            resources.Should().HaveCount(1);
+            var resource = resources[0];
+            resource.Book.Should().NotBeNull();
+            resource.Book.Title.Should().Be("The Hobbit");
+
+            // Edition-level classification still drives format statuses.
+            resource.Book.FormatStatuses.Should().Contain(fs => fs.FormatType == FormatType.Ebook && fs.Monitored);
+        }
+
+        [Test]
+        public void should_map_book_with_all_nested_lazy_values_null()
+        {
+            // Combined shape: every nested LazyLoaded on the book branch is null —
+            // the maximal provider partial result.  Must map to a valid (if empty)
+            // resource instead of 500.
+            var book = new Book
+            {
+                Title = "The Hobbit",
+                ForeignBookId = "OL250E",
+                Author = new LazyLoaded<Author>(new Author
+                {
+                    Metadata = new LazyLoaded<AuthorMetadata>() // unset
+                }),
+                Editions = new LazyLoaded<List<Edition>>(null),
+                SeriesLinks = new LazyLoaded<List<SeriesBookLink>>(new List<SeriesBookLink>
+                {
+                    new SeriesBookLink
+                    {
+                        Series = new LazyLoaded<Series>() // _value == null
+                    }
+                })
+            };
+
+            var resources = SearchWithResults(book);
+
+            resources.Should().HaveCount(1);
+            var resource = resources[0];
+            resource.Book.Should().NotBeNull();
+            resource.Book.Title.Should().Be("The Hobbit");
+            resource.Book.ForeignBookId.Should().Be("OL250E");
+            resource.Book.Editions.Should().BeEmpty();
+            resource.Book.Author.Should().NotBeNull();
+        }
+
+        [Test]
+        public void should_return_empty_list_when_search_proxy_returns_null()
+        {
+            // Issue #250 root cause: MetadataProviderOrchestrator.ExecuteFirst returns
+            // null when no provider yields a result (every provider failed/returned
+            // null, or none supported the search). The original controller enumerated
+            // the null result directly, throwing an NRE at the foreach — the live 500
+            // on /api/v1/search. It must degrade to an empty list instead.
+            var searchProxy = new Mock<IMetadataProviderOrchestrator>();
+            searchProxy.Setup(v => v.SearchForNewEntity(It.IsAny<string>()))
+                .Returns((List<object>)null);
+
+            var fileNameBuilder = new Mock<IBuildFileNames>();
+            var coverMapper = new Mock<IMapCoversToLocal>();
+
+            var controller = new SearchController(
+                searchProxy.Object,
+                fileNameBuilder.Object,
+                coverMapper.Object,
+                new SearchTelemetryService());
+
+            var result = controller.Search("hobbit");
+
+            result.Should().BeOfType<List<SearchResource>>();
+            ((List<SearchResource>)result).Should().BeEmpty();
         }
 
         // Helper: build a SearchController wired with a stub provider that returns
