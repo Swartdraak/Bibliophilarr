@@ -59,6 +59,15 @@ commands:
       command: yarn lint
       cwd: .
       note: 7 pre-existing warnings, 0 errors (no-negated-condition in frontend/src)
+    - name: ui-build-mode-guard
+      command: ./scripts/ops/check_ui_build_mode.sh
+      cwd: .
+      note: >
+        Issue #252 regression guard (added in fix/issue-252-release-ui-eval-bundle):
+        asserts the 'yarn build' script pins BIBLIOPHILARR_WEBPACK_PRODUCTION=1,
+        that webpack.config.js honors it, and that a pinned production build emits
+        an eval-free entry bundle (no eval-source-map devtool, no eval() calls).
+        Also wired into .github/workflows/ci-frontend.yml.
     - name: stylelint
       command: yarn stylelint-linux
       cwd: .
@@ -162,10 +171,10 @@ governance:
 baseline_evidence:
   file: ../baseline.json
   logs: ../logs/
-  verified_at: 2026-09-24
-  base_sha: 3954ed9b110583815d86941a2c46c3df64e19898
+  verified_at: 2026-10-03
+  base_sha: 6332741e57fcceaedd27e0d7a72914a6b35c88d8
   lane: develop (net10.0 band)
-  note: pointers superseded per run — current baseline.json is the issue #237 development record (t_065bf035); raw logs at ../logs/develop-237-baseline/ and ../logs/develop-237-after/
+  note: pointers superseded per run — current baseline.json is the issue #252 development record (t_7610a402); raw logs at ../.scratch-t_7610a402/logs/
 
 skipped_integrations:
   - name: docker-image-build
@@ -215,6 +224,19 @@ pre_existing_faults:
     description: >
       yarn lint reports 7 pre-existing no-negated-condition warnings
       (frontend/src). 0 errors; lint gate passes.
+  - name: openapi-json-test-path-resolution
+    severity: low
+    description: >
+      OpenApiIdentifierContractFixture.openapi_should_not_expose_legacy_goodreads_identifier_contracts
+      fails in isolated worktrees with 'Unable to resolve src/Bibliophilarr.Api.V1/openapi.json
+      from test directory' (verified pre-existing at develop 6332741e on a pristine
+      worktree, 2026-10-03, issue #252 run). The test walks UP from the test output
+      directory looking for <ancestor>/src/Bibliophilarr.Api.V1/openapi.json; with the
+      per-task output overrides used in the audit container (BibliophilarrRootDir
+      relocation) the test directory no longer sits under a tree that contains
+      src/Bibliophilarr.Api.V1, so resolution fails. In-repo/CI checkouts resolve
+      fine. Environment-dependent test-path fault, not a code regression; GitHub
+      CI remains the authority for this fixture.
   - name: processprovider-needs-dotnet-root
     severity: low
     description: >

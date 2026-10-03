@@ -48,3 +48,6 @@ jobs:
 
       - name: Build
         run: yarn build
+
+      - name: UI build-mode regression guard (issue #252)
+        run: ./scripts/ops/check_ui_build_mode.sh
