@@ -44,6 +44,18 @@ namespace Bibliophilarr.Api.V1.Search
 
         private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term)
         {
+            // Issue #250: MetadataProviderOrchestrator.ExecuteFirst returns null when no
+            // provider returns a result (every provider failed or returned null, or no
+            // provider supported the search). The original code enumerated `results`
+            // directly, so a null return from _searchProxy.SearchForNewEntity threw a
+            // NullReferenceException at the foreach — the live 500 on
+            // /api/v1/search?term=<any term with provider fan-out>. Guard the null so a
+            // no-result search degrades to an empty list instead of a 500.
+            if (results == null)
+            {
+                yield break;
+            }
+
             var id = 1;
             foreach (var result in results)
             {
