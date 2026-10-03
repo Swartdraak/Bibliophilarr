@@ -12,7 +12,12 @@ module.exports = (env) => {
   const uiFolder = 'UI';
   const frontendFolder = path.join(__dirname, '..');
   const srcFolder = path.join(frontendFolder, 'src');
-  const isProduction = !!env.production;
+  // Production is explicit: either a `--env production` CLI flag or the
+  // BIBLIOPHILARR_WEBPACK_PRODUCTION env var (set by the `yarn build` script).
+  // A plain watch/dev invocation (no flag, no env var) stays a development
+  // bundle with eval-source-map devtool, which is only served by Debug builds
+  // that keep the CSP 'unsafe-eval' allowance.
+  const isProduction = !!(env && (env.production || process.env.BIBLIOPHILARR_WEBPACK_PRODUCTION));
   const isProfiling = isProduction && !!env.profile;
   const inlineWebWorkers = 'no-fallback';
 
