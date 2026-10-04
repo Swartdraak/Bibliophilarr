@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Bibliophilarr - Community-maintained book and audiobook automation with FOSS metadata providers",
   "scripts": {
-    "build": "webpack --config ./frontend/build/webpack.config.js",
+    "build": "cross-env BIBLIOPHILARR_WEBPACK_PRODUCTION=1 webpack --config ./frontend/build/webpack.config.js",
     "prebuild": "yarn clean",
     "clean": "rimraf ./_output/UI && rimraf --glob \"**/*.js.map\"",
     "start": "webpack --watch --config ./frontend/build/webpack.config.js",
@@ -104,6 +104,7 @@
     "babel-plugin-inline-classnames": "2.0.1",
     "babel-plugin-transform-react-remove-prop-types": "0.4.24",
     "core-js": "3.49.0",
+    "cross-env": "^7.0.3",
     "css-loader": "6.11.0",
     "css-modules-typescript-loader": "4.0.1",
     "eslint": "8.57.1",
