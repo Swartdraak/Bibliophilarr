@@ -97,6 +97,19 @@ namespace NzbDrone.Core.Books
                              "This may occur when a provider removes an author entry.",
                              foreignId);
             }
+            catch (MetadataProviderUnavailableException ex)
+            {
+                // A transient network/transport outage is NOT a signal that the provider
+                // removed this author. Re-throw so the caller skips the refresh entirely
+                // instead of interpreting null as "not found" (which would trigger
+                // destructive deletion when ShouldDelete is true — see issue #204 / #209).
+                _logger.Warn(ex,
+                    "Metadata provider unreachable for author id '{0}'. " +
+                    "The author will be kept with existing metadata. " +
+                    "This is a transient network condition, not a removal.",
+                    foreignId);
+                throw;
+            }
 
             return null;
         }
