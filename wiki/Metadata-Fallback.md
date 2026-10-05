@@ -66,24 +66,31 @@ Warn|RefreshAuthorService|Author [hardcover:author:171873][Frank Herbert] not fo
 
 A brief connectivity outage during an author refresh can therefore delete authors.
 
-> **Fix in progress (issue #209, PR #211):** the orchestrator will propagate a distinct
-> `MetadataProviderUnavailableException` for transport errors, and
-> `RefreshAuthorService` will **not** delete an author when the failure is a
-> transport/unavailable error. Only an explicit provider 404/not-found will trigger
-> deletion (and only when the author has no files).
+> **Fixed in PR #211 (issue #209, merged):** the orchestrator now raises a distinct
+> `MetadataProviderUnavailableException` when **every** provider fails with a
+> transport/network error (host unreachable, DNS failure, timeout, connection reset,
+> TLS handshake failure), and `RefreshAuthorService`/`RefreshBookService` catch it and
+> **keep** the local entity with its existing metadata instead of deleting. Only an
+> explicit provider 404/not-found (an `AuthorNotFoundException`) triggers deletion,
+> and only when the author has no files.
+>
+> Older unpatched builds (before PR #211) still exhibited this data-loss risk: on
+> such builds a transient `No route to host` / `Connection reset` during an author
+> refresh can delete authors. If you are running an unpatched build, **do not run
+> author refreshes during a known network outage**.
 
 ## Operator guidance
 
-Until the #209 fix is merged:
+On current builds (with PR #211 merged), a transient network outage during a refresh
+no longer deletes authors or books — the refresh is skipped and local metadata is
+kept. Remaining guidance:
 
-1. **Do not run author refreshes during a known network outage.** A transient
-   `No route to host` / `Connection reset` can delete authors.
-2. **Check provider health first:** `GET /api/v1/metadata/providers/health/basic`.
-3. **If authors are deleted unexpectedly**, check the logs for
+1. **Check provider health first:** `GET /api/v1/metadata/providers/health`.
+2. **If authors are deleted unexpectedly**, check the logs for
    `Metadata provider 'X' failed during get-author-info` immediately before the
-   deletion. If the failure was a transport error (not a 404), the deletion was a
-   false positive.
-4. **Restore deleted authors** by re-adding them (the provider still has the data).
+   deletion. On current builds a deletion following a transport error should not
+   occur; if you see one, verify the build includes PR #211.
+3. **Restore deleted authors** by re-adding them (the provider still has the data).
 
 ## References
 

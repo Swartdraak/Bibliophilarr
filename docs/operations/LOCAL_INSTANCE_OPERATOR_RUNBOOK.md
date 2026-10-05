@@ -135,22 +135,11 @@ curl -sS "${HDR[@]}" http://localhost:8787/api/v1/health
 curl -sS "${HDR[@]}" http://localhost:8787/api/v1/system/status
 
 # Provider health
-curl -sS "${HDR[@]}" http://localhost:8787/api/v1/metadata/providers/health/basic
+curl -sS "${HDR[@]}" http://localhost:8787/api/v1/metadata/providers/health
 
 # Queue
 curl -sS "${HDR[@]}" "http://localhost:8787/api/v1/queue?page=1&pageSize=100"
 ```
-
-A non-destructive forensic bundle collector is available at
-`scripts/collect_local_forensics.sh`:
-
-```bash
-BIBLIOPHILARR_API_KEY="$BIBLIOPHILARR_API_KEY" ./scripts/collect_local_forensics.sh
-```
-
-It writes a timestamped bundle to `/tmp/bibliophilarr-forensics/<timestamp>/` containing
-runtime context, API snapshots, DB sanity queries, and the on-disk library inventory.
-It is **read-only** against the live instance and never prints the API key.
 
 ## API key rotation
 

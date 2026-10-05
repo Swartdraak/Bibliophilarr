@@ -191,18 +191,31 @@ transient network errors) and returns `null`. `RefreshAuthorService` treats `nul
 "author removed from metadata" and deletes the author if it has no files. A transient
 outage is therefore indistinguishable from a genuine 404.
 
-**Fix status:** ⏳ In progress (issue #209, PR #211). The orchestrator will propagate a
-distinct `MetadataProviderUnavailableException` for transport errors, and
-`RefreshAuthorService` will not delete an author on a transport/unavailable error.
+**Fix status:** ✅ Fixed in PR #211 (issue #209, merged). The orchestrator now raises
+a distinct `MetadataProviderUnavailableException` when **every** provider fails with a
+transport/network error, and `RefreshAuthorService`/`RefreshBookService` catch it and
+**keep** the local entity instead of deleting. Only an explicit provider
+404/not-found triggers deletion, and only when the author has no files.
 
-**Triage (until the fix is merged):**
+> Older unpatched builds (before PR #211) still exhibited this data-loss risk; the
+> "older unpatched builds" triage below applies to them.
 
-1. **Do not run author refreshes during a known network outage.**
+**Triage (current builds):**
+
+1. A transient network outage no longer deletes authors or books — the refresh is
+   skipped and local metadata is kept. If you still see a deletion, verify the build
+   includes PR #211.
 2. Check the logs for `Metadata provider 'X' failed during get-author-info` immediately
-   before the deletion. If the failure was a transport error (not a 404), the deletion
-   was a false positive.
+   before the deletion.
 3. Restore deleted authors by re-adding them (the provider still has the data).
 4. Check provider health: `GET /api/v1/metadata/providers/health`.
+
+**Triage (older unpatched builds):**
+
+1. **Do not run author refreshes during a known network outage.**
+2. If an author was deleted following a transport error (not a 404), the deletion
+   was a false positive.
+3. Restore deleted authors by re-adding them (the provider still has the data).
 
 ---
 
