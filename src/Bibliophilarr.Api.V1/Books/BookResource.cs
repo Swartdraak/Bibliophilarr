@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Qualities;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -55,38 +56,55 @@ namespace Bibliophilarr.Api.V1.Books
                 return null;
             }
 
-            var selectedEdition = model.Editions?.Value.Where(x => x.Monitored).FirstOrDefault()
-                                  ?? model.Editions?.Value.FirstOrDefault();
+            // Issue #250: complete the #249 null-safe mapping repair for the BOOK
+            // branch.  Every nested LazyLoaded here can hold a null Value when a
+            // metadata provider returns a partial result (e.g. the Editions list
+            // exists but is empty/null, the Author row was resolved but its
+            // AuthorMetadata row was not, or a SeriesBookLink points at an
+            // unresolved Series).  Capture each nested value exactly once and
+            // guard every dereference, mirroring the AuthorResource fix from #249
+            // (AuthorResourceMapper.ToResource).
+            var editionsValue = model.Editions?.Value;
+            var selectedEdition = editionsValue?.Where(x => x.Monitored).FirstOrDefault()
+                                  ?? editionsValue?.FirstOrDefault();
 
             var title = selectedEdition?.Title ?? model.Title;
-            var authorTitle = $"{model.Author?.Value?.Metadata?.Value?.SortNameLastFirst} {title}";
+            var bookAuthor = model.Author?.Value;
+            var authorTitle = $"{bookAuthor?.Metadata?.Value?.SortNameLastFirst ?? string.Empty} {title}";
 
             var seriesLinks = model.SeriesLinks?.Value?.OrderBy(x => x.SeriesPosition);
-            var seriesTitle = seriesLinks?.Select(x => x?.Series?.Value?.Title + (x?.Position.IsNotNullOrWhiteSpace() ?? false ? $" #{x.Position}" : string.Empty)).ConcatToString("; ");
+            var seriesTitle = seriesLinks?
+                .Select(x =>
+                {
+                    var series = x?.Series?.Value;
+                    return series?.Title + (x?.Position.IsNotNullOrWhiteSpace() ?? false ? $" #{x.Position}" : string.Empty);
+                })
+                .ConcatToString("; ");
 
             var formatStatuses = new List<BookFormatStatusResource>();
-            var editions = model.Editions?.Value;
-            if (editions != null)
+            if (editionsValue != null)
             {
                 // Collect all book files across all editions and group by derived format type.
                 // This ensures format is determined from actual file quality (e.g. EPUB → Ebook,
                 // M4B → Audiobook) rather than relying solely on Edition.IsEbook, which may not
                 // be set correctly by all metadata providers.
-                var allFiles = editions
+                // Issue #250: Edition.BookFiles.Value can be a null list (provider partial
+                // result) — guard the second dereference too.
+                var allFiles = editionsValue
                     .Where(e => e.BookFiles?.Value != null)
-                    .SelectMany(e => e.BookFiles.Value)
+                    .SelectMany(e => e.BookFiles.Value ?? new List<BookFile>())
                     .ToList();
 
                 var ebookFiles = allFiles.Where(f => Quality.GetFormatType(f.Quality.Quality) == FormatType.Ebook).ToList();
                 var audiobookFiles = allFiles.Where(f => Quality.GetFormatType(f.Quality.Quality) == FormatType.Audiobook).ToList();
 
                 // Also check edition-level classification for books without files
-                var hasEbookEdition = editions.Any(e => e.IsEbook);
-                var hasAudiobookEdition = editions.Any(e => !e.IsEbook);
+                var hasEbookEdition = editionsValue.Any(e => e.IsEbook);
+                var hasAudiobookEdition = editionsValue.Any(e => !e.IsEbook);
 
                 // Determine monitored status from editions
-                var monitoredEbookEdition = editions.Where(e => e.IsEbook).FirstOrDefault(e => e.Monitored);
-                var monitoredAudiobookEdition = editions.Where(e => !e.IsEbook).FirstOrDefault(e => e.Monitored);
+                var monitoredEbookEdition = editionsValue.Where(e => e.IsEbook).FirstOrDefault(e => e.Monitored);
+                var monitoredAudiobookEdition = editionsValue.Where(e => !e.IsEbook).FirstOrDefault(e => e.Monitored);
 
                 // Emit ebook status if we have ebook files OR a classified ebook edition
                 if (ebookFiles.Any() || hasEbookEdition)
@@ -134,7 +152,7 @@ namespace Bibliophilarr.Api.V1.Books
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,
                 LastSearchTime = model.LastSearchTime,
-                Editions = editions?.Select(e => e.ToResource()).ToList() ?? new List<EditionResource>(),
+                Editions = editionsValue?.Select(e => e.ToResource()).ToList() ?? new List<EditionResource>(),
                 FormatStatuses = formatStatuses
             };
         }
