@@ -2,7 +2,7 @@
 
 ## High-level Stack
 
-- **Backend:** .NET 8 / C# — REST API via ASP.NET Core, SignalR for real-time push.
+- **Backend:** .NET 10 / C# — REST API via ASP.NET Core, SignalR for real-time push.
 - **Frontend:** React 17 + TypeScript/JavaScript — Redux state management, Webpack bundling.
 - **Database:** SQLite (default) or PostgreSQL — EF-style migrations via FluentMigrator.
 - **Domain focus:** Book/audiobook metadata ingestion, search, library management, and download automation.
@@ -28,10 +28,12 @@
 ## Metadata architecture (current state)
 
 - **Provider abstraction layer** — `IMetadataProvider` interface with multiple implementations.
-- **Fallback chain:** Hardcover (primary) → OpenLibrary → Inventaire → Google Books.
-- **`BookSearchFallbackExecutionService`** — orchestrates provider failover with rate-limit dampening.
+- **Primary fallback chain (by priority):** Hardcover (1) → OpenLibrary (2) → Google Books (3).
+- **Search fallback:** Inventaire (`IBookSearchFallbackProvider`) for title/author search, separate from the primary chain.
+- **`MetadataProviderOrchestrator`** — routes requests by id scope and orchestrates provider failover.
 - **`MetadataAggregator`** — merges results across providers with quality scoring.
 - **Identifier mapping** — ISBN, OLID, Hardcover ID, ASIN normalized through `IdentifierService`.
+- **Dual-format tracking** — each book can have ebook and audiobook editions (`Edition.IsEbook`); see [Dual-Format Tracking](Dual-Format-Tracking.md).
 
 ## Key technical concerns
 

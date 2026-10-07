@@ -17,6 +17,10 @@ process.
 - **README badge hygiene**: Removed check-run-based pseudo-version badges (`img.shields.io/github/check-runs/<repo>/<branch>`) and the custom `badge-data` branch refresh workflow. Release identity now comes from GitHub Releases only.
 - **SysTray / .NET 10 WinForms**: Suppressed WFDEV004/CS0672 in `SysTrayApp.OnClosing` with a scoped `#pragma` and tracking comment (tracked by the NET10 WinForms surface adoption work). This is the minimum change required to keep `TreatWarningsAsErrors` green on the .NET 10 WindowsDesktop reference pack; the obsolete `Form.OnClosing` API is still the only available override for this tray shell today.
 
+### Security
+
+- **Direct frontend dependency bumps** (Issue #237): `lodash` `4.17.23 -> 4.18.1` closes GHSA-r5fr-rjxr-66jc (code injection via `_.template` imports, high) and GHSA-f23m-r3pf-42rh (prototype pollution via array path bypass in `_.unset`/`_.omit`, moderate). `qs` `6.15.0 -> 6.16.0` closes GHSA-q8mj-m7cp-5q26 (remotely triggerable `qs.stringify` DoS, moderate), GHSA-x5fp-wj9c-mxmx (array-limit bypass via bracket-key comma parsing, moderate) and GHSA-4mjr-xmp4-gh2g (DoS via attacker-controlled `isBuffer`, moderate). `yarn.lock` regenerated to match; the remaining direct `qs` advisory paths come from the transitive `qs@6.14.2` (via `^6.4.0`) which is out of scope for this minimal direct-dep bump.
+
 ### Operations
 
 - Full codebase audit completed May 24, 2026. Report at `docs/operations/AUDIT-2026-05-24.md`. Critical finding: stuck download loop (Issue #72). High finding: Dependabot PR #70 targets wrong .NET runtime (Issue #73). Sprint 7 plan at `docs/sprint-7/plan.md`.
