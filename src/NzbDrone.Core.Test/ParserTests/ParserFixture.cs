@@ -67,6 +67,38 @@ namespace NzbDrone.Core.Test.ParserTests
             result.Should().Be(correct);
         }
 
+        // Duplicate suffixes appended by the file system ("(1)", "(2)", ...) must be stripped so a
+        // re-downloaded file with a colliding name still matches its work. Genuine parenthesized
+        // title content ("(Deluxe Edition)") must be preserved by CleanBookTitle.
+        [TestCase("The Primal Hunter 2 (1)", "The Primal Hunter 2")]
+        [TestCase("The Primal Hunter 2 (2)", "The Primal Hunter 2")]
+        [TestCase("Zogarth - The Primal Hunter 2 (1)", "Zogarth - The Primal Hunter 2")]
+        public void should_strip_duplicate_suffix_from_book_title(string title, string correct)
+        {
+            var result = Parser.Parser.NormalizeEbookTitle(title);
+            result.Should().Be(correct);
+        }
+
+        [TestCase("Zogarth - The Primal Hunter 2 (1)", "Zogarth - The Primal Hunter 2")]
+        [TestCase("Zogarth - The Primal Hunter 2 (12)", "Zogarth - The Primal Hunter 2")]
+        [TestCase("Books That Are (1)", "Books That Are")]
+        public void should_strip_duplicate_suffix_publicly(string title, string correct)
+        {
+            var result = Parser.Parser.StripDuplicateSuffix(title);
+            result.Should().Be(correct);
+        }
+
+        // Parenthesized groups that are not a trailing numeric duplicate are legitimate title
+        // content and must survive duplicate-suffix stripping.
+        [TestCase("Songs of Experience (Deluxe Edition)")]
+        [TestCase("Hello, I Must Be Going (2016 Remastered)")]
+        [TestCase("My Book (1st Edition)")]
+        public void should_preserve_non_numeric_parenthesized_content(string title)
+        {
+            var result = Parser.Parser.StripDuplicateSuffix(title);
+            result.Should().Be(title);
+        }
+
         [TestCase("Songs of Experience (Deluxe Edition)", "Songs of Experience")]
         [TestCase("Mr. Bad Guy [Special Edition]", "Mr. Bad Guy")]
         [TestCase("Smooth Criminal (single)", "Smooth Criminal")]

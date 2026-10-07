@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Extensions;
@@ -86,7 +88,9 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.GetBookInfo(id),
                 "get-book-info",
                 p => p.SupportsBookSearch || p.SupportsIsbnLookup,
-                p => IsProviderCompatibleWithIdScope(p, id));
+                p => IsProviderCompatibleWithIdScope(p, id),
+                entityId: id,
+                throwOnTransportFailure: true);
 
             if (result == null)
             {
@@ -105,7 +109,9 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.GetAuthorInfo(id, useCache),
                 "get-author-info",
                 p => p.SupportsAuthorSearch,
-                p => IsProviderCompatibleWithIdScope(p, id));
+                p => IsProviderCompatibleWithIdScope(p, id),
+                entityId: id,
+                throwOnTransportFailure: true);
 
             if (result == null)
             {
@@ -126,7 +132,9 @@ namespace NzbDrone.Core.MetadataSource
         private T ExecuteFirst<TContract, T>(Func<TContract, T> operation,
                                              string operationName,
                                              Func<IMetadataProvider, bool> supports,
-                                             Func<IMetadataProvider, bool> compatibility = null)
+                                             Func<IMetadataProvider, bool> compatibility = null,
+                                             string entityId = null,
+                                             bool throwOnTransportFailure = false)
             where TContract : class
             where T : class
         {
@@ -144,9 +152,19 @@ namespace NzbDrone.Core.MetadataSource
                 {
                     providers = compatible;
                 }
+                else if (providers.Any())
+                {
+                    // The id is provider-scoped (e.g. "hardcover:work:123" or "openlibrary:work:OL1W")
+                    // but no enabled provider is compatible with it. The compatible provider may be
+                    // disabled, unregistered, or mismatched by name. Log a clear diagnostic so
+                    // operators understand the observed condition (issue #214 / #215).
+                    _logger.Warn("No enabled metadata provider is compatible with the provider-scoped id for operation '{0}'. The lookup will fail with a not-found. Verify the expected provider is enabled and registered, or re-resolve the entity via an enabled provider.", operationName);
+                }
             }
 
             Exception lastError = null;
+            var allFailuresWereTransport = true;
+            var anyFailure = false;
 
             for (var i = 0; i < providers.Count; i++)
             {
@@ -172,6 +190,16 @@ namespace NzbDrone.Core.MetadataSource
                     _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, false, false);
                     _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operationName);
                     lastError = ex;
+
+                    anyFailure = true;
+                    if (!IsTransportError(ex))
+                    {
+                        // A non-transport failure (e.g. a genuine provider error) means we
+                        // cannot conclude the whole operation was blocked by the network.
+                        // Once a non-transport failure occurs, allFailuresWereTransport
+                        // must stay false for the remainder of the loop.
+                        allFailuresWereTransport = false;
+                    }
                 }
             }
 
@@ -180,7 +208,38 @@ namespace NzbDrone.Core.MetadataSource
                 _logger.Warn(lastError, "All providers failed for operation {0}", operationName);
             }
 
+            if (throwOnTransportFailure && anyFailure && allFailuresWereTransport)
+            {
+                // Every provider failed with a transport/network error. This is a transient
+                // outage, NOT a "provider removed this entity" signal. Surface it distinctly
+                // so callers never interpret it as a genuine not-found (which would lead to
+                // destructive deletion of local data — see issue #204 / #209).
+                throw new MetadataProviderUnavailableException(operationName, entityId, lastError);
+            }
+
             return null;
+        }
+
+        /// <summary>
+        /// Determines whether an exception represents a transient transport/network failure
+        /// (host unreachable, DNS failure, timeout, connection reset, TLS handshake failure)
+        /// as opposed to a definitive provider-level error such as a 404.
+        /// </summary>
+        private static bool IsTransportError(Exception ex)
+        {
+            for (var current = ex; current != null; current = current.InnerException)
+            {
+                if (current is HttpRequestException ||
+                    current is System.Net.Sockets.SocketException ||
+                    current is WebException ||
+                    current is TimeoutException ||
+                    current is System.Security.Authentication.AuthenticationException)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsProviderCompatibleWithIdScope(IMetadataProvider provider, string providerScopedId)
