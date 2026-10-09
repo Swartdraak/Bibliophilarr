@@ -43,6 +43,18 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
+  <!-- ImageSharp 4.x build-time license enforcement.
+       The SixLabors.ImageSharp.targets file (ValidateLicenseTask, BeforeTargets=CoreCompile)
+       reads the MSBuild property $(SixLaborsLicenseFile). MSBuild does NOT automatically
+       propagate arbitrary environment variables into properties, so we explicitly map the
+       SIXLABORS_LICENSE_FILE env var (exported by CI workflows) to the MSBuild property.
+       This is the same mechanism MSBuild uses for all env-var-to-property resolution:
+       $(ENV_VAR_NAME) in property syntax resolves to the environment variable value.
+       The condition ensures an explicit -p:SixLaborsLicenseFile= always wins. -->
+  <PropertyGroup Condition="'$(SixLaborsLicenseFile)' == '' and '$(SIXLABORS_LICENSE_FILE)' != ''">
+    <SixLaborsLicenseFile>$(SIXLABORS_LICENSE_FILE)</SixLaborsLicenseFile>
+  </PropertyGroup>
+
   <PropertyGroup>
     <Configuration Condition="'$(Configuration)'==''">Release</Configuration>
     <!-- Centralize intermediate and default outputs -->
