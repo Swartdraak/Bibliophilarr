@@ -107,14 +107,34 @@ jobs:
           SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         shell: pwsh
         run: |
-          Set-Content -Path "$env:RUNNER_TEMP/sixlabors.lic" -Value $env:SIXLABORS_LICENSE_KEY -NoNewline
-          Write-Host "SIXLABORS_LICENSE_FILE=$env:RUNNER_TEMP/sixlabors.lic" | Out-File -Append $env:GITHUB_ENV
+          $licPath = Join-Path $env:RUNNER_TEMP 'sixlabors.lic'
+          Set-Content -Path $licPath -Value $env:SIXLABORS_LICENSE_KEY -NoNewline
+          Write-Host "license file provisioned at: $licPath (exists=$([System.IO.File]::Exists($licPath)))"
+          # Keep the file on a path both PowerShell and the MSBuild process can
+          # resolve without any env-var propagation between steps.
+          Write-Host "SIXLABORS_LICENSE_FILE=$licPath" | Out-File -Append $env:GITHUB_ENV
+          Add-Content -Value "$licPath" -Path $env:GITHUB_PATH
 
       - name: Restore portable solution (Windows platform configuration)
         run: dotnet restore Bibliophilarr.sln -p:Platform=Windows
 
       - name: Build Windows configuration
-        run: dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Windows -p:SixLaborsLicenseFile="$env:SIXLABORS_LICENSE_FILE"
+        # Windows lane: pass the literal license path as an MSBuild property.
+        # $env:RUNNER_TEMP is a runner-builtin (D:\a\_temp) that pwsh resolves
+        # inside this step; the same literal path is visible to MSBuild, so the
+        # property survives the native-shell -> MSBuild hop with no reliance on
+        # GITHUB_ENV cross-step propagation (which is not in the step's
+        # environment on this runner image). The Directory.Build.props
+        # SIXLABORS_LICENSE_FILE env-var mapping remains as the fallback for
+        # steps that DO receive the env var; explicit -p: always wins.
+        shell: pwsh
+        run: |
+          $lic = Join-Path $env:RUNNER_TEMP 'sixlabors.lic'
+          if (-not [System.IO.File]::Exists($lic)) {
+            throw "Six Labors license file missing at $lic - the provision step did not run"
+          }
+          Write-Host "license file exists at: $lic"
+          dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Windows "-p:SixLaborsLicenseFile=$lic"
 
       - name: Portable unit tests (Windows host)
         run: >-
