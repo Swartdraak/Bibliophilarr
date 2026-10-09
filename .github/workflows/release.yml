@@ -141,7 +141,12 @@ jobs:
         shell: bash
         env:
           BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
-        run: ./build.sh --backend -r ${{ matrix.rid }} -f net10.0
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          export SIXLABORS_LICENSE_FILE="$RUNNER_TEMP/sixlabors.lic"
+          ./build.sh --backend -r ${{ matrix.rid }} -f net10.0
 
       - name: Build frontend
         shell: bash
@@ -149,7 +154,13 @@ jobs:
 
       - name: Build package
         shell: bash
-        run: ./build.sh --packages -r ${{ matrix.rid }} -f net10.0
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          export SIXLABORS_LICENSE_FILE="$RUNNER_TEMP/sixlabors.lic"
+          ./build.sh --packages -r ${{ matrix.rid }} -f net10.0
 
       - name: Archive package (unix)
         if: runner.os != 'Windows'
@@ -178,7 +189,11 @@ jobs:
           MAJORVERSION: ${{ steps.ver.outputs.version }}
           MINORVERSION: '0'
           BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          export SIXLABORS_LICENSE_FILE="$RUNNER_TEMP/sixlabors.lic"
           ./build.sh --installer -r win-x64 -f net10.0
           cp distribution/windows/setup/output/*.exe release/ || true
 
