@@ -114,7 +114,7 @@ jobs:
         run: dotnet restore Bibliophilarr.sln -p:Platform=Windows
 
       - name: Build Windows configuration
-        run: dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Windows
+        run: dotnet build Bibliophilarr.sln --configuration Release --no-restore -p:Platform=Windows -p:SixLaborsLicenseFile="$env:SIXLABORS_LICENSE_FILE"
 
       - name: Portable unit tests (Windows host)
         run: >-
