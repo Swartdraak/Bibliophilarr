@@ -33,7 +33,13 @@ jobs:
           global-json-file: global.json
 
       - name: Restore and build
+        shell: bash
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          export SIXLABORS_LICENSE_FILE="$RUNNER_TEMP/sixlabors.lic"
           ./build.sh --backend -r linux-x64 -f net10.0
 
       - name: Prepare isolated appdata

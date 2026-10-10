@@ -33,6 +33,14 @@ jobs:
           dotnet-version: '10.0.x'
           global-json-file: global.json
 
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
+
       - name: Restore
         run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
 
@@ -61,6 +69,14 @@ jobs:
         with:
           dotnet-version: '10.0.x'
           global-json-file: global.json
+
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
 
       - name: Build backend runtime for RID test resolution
         run: |
@@ -111,6 +127,14 @@ jobs:
           dotnet-version: '10.0.x'
           global-json-file: global.json
 
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
+
       - name: Restore
         run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
 
@@ -145,6 +169,14 @@ jobs:
         with:
           dotnet-version: '10.0.x'
           global-json-file: global.json
+
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
 
       - name: Build backend runtime for integration harness
         run: |
