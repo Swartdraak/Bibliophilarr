@@ -1,10 +1,13 @@
 # Onyx project contract — Swartdraak/Bibliophilarr
 # Authoritative executable contract for autonomous work on this repository.
-# Commands below were verified in an isolated Docker audit environment
-# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19) on
-# 2026-09-18 at base SHA d21d1361c6e66017babde67895be9eb84a4ede7b (branch
-# develop, net10.0 SDK band). See baseline.json (workspace root) for
-# per-command evidence and logs/ for raw output.
+# Commands below were re-verified in an isolated Docker audit environment
+# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22) on
+# 2026-10-12 at PR #218 head 8e381ed8c60340b6d7cd7a259cb16966888fbe83
+# (branch dependabot/github_actions/develop/actions/download-artifact-8.0.1,
+# base develop 24d42b65c8b9b073b50f6fea7ccbe1c422677326, net10.0 SDK band).
+# See baseline.json (workspace root) for per-command evidence and
+# scratch-t_1ee5deb1/logs/ for raw output. Original 2026-09-18 verification at
+# d21d1361c6 remains the first audit baseline.
 # Do not store credentials or secrets here.
 
 version: 1
@@ -100,11 +103,11 @@ commands:
     - name: rid-core-targeted
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture"
       cwd: .
-      note: "CI parity (ci-backend.yml rid-core-common-targeted): 20 tests, 20 passed, 0 failed. OpenLibrarySearchProxyFixture replaced the stale OpenLibraryIsbnAsinLookupFixture reference from the main band."
+      note: "CI parity (ci-backend.yml rid-core-common-targeted): re-verified 2026-10-12 at 8e381ed8c6 - 25 tests, 25 passed, 0 failed (fixture count grown since the 2026-09-18 note of 20). OpenLibrarySearchProxyFixture replaced the stale OpenLibraryIsbnAsinLookupFixture reference from the main band."
     - name: metadata-core-fixtures
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture"
       cwd: .
-      note: "CI parity (ci-backend.yml metadata-provider-fixtures): 27 tests, 27 passed, 0 failed."
+      note: "CI parity (ci-backend.yml metadata-provider-fixtures): re-verified 2026-10-12 at 8e381ed8c6 - 32 tests, 32 passed, 0 failed (fixture count grown since the 2026-09-18 note of 27)."
     - name: metadata-api-fixtures
       command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture"
       cwd: .
@@ -170,11 +173,12 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../logs/
-  verified_at: 2026-10-03
-  base_sha: 6332741e57fcceaedd27e0d7a72914a6b35c88d8
-  lane: develop (net10.0 band)
-  note: pointers superseded per run — current baseline.json is the issue #252 development record (t_7610a402); raw logs at ../.scratch-t_7610a402/logs/
+  logs: ../scratch-t_1ee5deb1/logs/
+  verified_at: 2026-10-12
+  base_sha: 24d42b65c8b9b073b50f6fea7ccbe1c422677326
+  head_sha: 8e381ed8c60340b6d7cd7a259cb16966888fbe83
+  lane: develop (net10.0 band) — re-verified at existing PR #218 head
+  note: pointers superseded per run — current baseline.json is the existing-PR #218 audit record (t_1ee5deb1, run 1279); raw logs at ../scratch-t_1ee5deb1/logs/
 
 skipped_integrations:
   - name: docker-image-build

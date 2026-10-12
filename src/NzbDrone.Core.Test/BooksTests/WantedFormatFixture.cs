@@ -27,8 +27,8 @@ namespace NzbDrone.Core.Test.BooksTests
             };
 
             Mocker.GetMock<IBookRepository>()
-                .Setup(s => s.BooksWithoutFiles(It.IsAny<PagingSpec<Book>>(), It.IsAny<FormatType?>()))
-                .Returns<PagingSpec<Book>, FormatType?>((spec, _) =>
+                .Setup(s => s.BooksWithoutFiles(It.IsAny<PagingSpec<Book>>(), It.IsAny<FormatType?>(), It.IsAny<bool>()))
+                .Returns<PagingSpec<Book>, FormatType?, bool>((spec, _, __) =>
                 {
                     spec.Records = new List<Book>();
                     spec.TotalRecords = 0;
@@ -42,7 +42,7 @@ namespace NzbDrone.Core.Test.BooksTests
             Subject.BooksWithoutFiles(_pagingSpec);
 
             Mocker.GetMock<IBookRepository>()
-                .Verify(r => r.BooksWithoutFiles(_pagingSpec, null), Times.Once());
+                .Verify(r => r.BooksWithoutFiles(_pagingSpec, null, false), Times.Once());
         }
 
         [Test]
@@ -51,7 +51,7 @@ namespace NzbDrone.Core.Test.BooksTests
             Subject.BooksWithoutFiles(_pagingSpec, FormatType.Ebook);
 
             Mocker.GetMock<IBookRepository>()
-                .Verify(r => r.BooksWithoutFiles(_pagingSpec, FormatType.Ebook), Times.Once());
+                .Verify(r => r.BooksWithoutFiles(_pagingSpec, FormatType.Ebook, false), Times.Once());
         }
 
         [Test]
@@ -60,7 +60,7 @@ namespace NzbDrone.Core.Test.BooksTests
             Subject.BooksWithoutFiles(_pagingSpec, FormatType.Audiobook);
 
             Mocker.GetMock<IBookRepository>()
-                .Verify(r => r.BooksWithoutFiles(_pagingSpec, FormatType.Audiobook), Times.Once());
+                .Verify(r => r.BooksWithoutFiles(_pagingSpec, FormatType.Audiobook, false), Times.Once());
         }
     }
 

@@ -110,64 +110,73 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 var decisionList = bookDecision.ToList();
 
-                var author = EnsureAuthorAdded(decisionList, addedAuthors);
-
-                if (author == null)
+                try
                 {
-                    // failed to add the author, carry on with next book
-                    continue;
-                }
+                    var author = EnsureAuthorAdded(decisionList, addedAuthors);
 
-                var book = EnsureBookAdded(decisionList, addedBooks);
-
-                if (book == null)
-                {
-                    // failed to add the book, carry on with next one
-                    continue;
-                }
-
-                var edition = EnsureEditionAdded(decisionList);
-
-                if (edition == null)
-                {
-                    // failed to add the edition, carry on with next one
-                    continue;
-                }
-
-                // if (replaceExisting)
-                // {
-                //     RemoveExistingTrackFiles(author, book);
-                // }
-
-                // Make sure part numbers are populated for audiobooks
-                // If all audio files and all part numbers are zero, set them by filename order
-                if (decisionList.All(b => MediaFileExtensions.AudioExtensions.Contains(Path.GetExtension(b.Item.Path)) && b.Item.Part == 0))
-                {
-                    var part = 1;
-                    foreach (var d in decisionList.OrderBy(x => PadNumbers.Replace(x.Item.Path)))
+                    if (author == null)
                     {
-                        d.Item.Part = part++;
+                        // failed to add the author, carry on with next book
+                        continue;
                     }
+
+                    var book = EnsureBookAdded(decisionList, addedBooks);
+
+                    if (book == null)
+                    {
+                        // failed to add the book, carry on with next one
+                        continue;
+                    }
+
+                    var edition = EnsureEditionAdded(decisionList);
+
+                    if (edition == null)
+                    {
+                        // failed to add the edition, carry on with next one
+                        continue;
+                    }
+
+                    // if (replaceExisting)
+                    // {
+                    //     RemoveExistingTrackFiles(author, book);
+                    // }
+
+                    // Make sure part numbers are populated for audiobooks
+                    // If all audio files and all part numbers are zero, set them by filename order
+                    if (decisionList.All(b => MediaFileExtensions.AudioExtensions.Contains(Path.GetExtension(b.Item.Path)) && b.Item.Part == 0))
+                    {
+                        var part = 1;
+                        foreach (var d in decisionList.OrderBy(x => PadNumbers.Replace(x.Item.Path)))
+                        {
+                            d.Item.Part = part++;
+                        }
+                    }
+
+                    // set the correct release to be monitored before importing the new files
+                    var newRelease = bookDecision.First().Item.Edition;
+                    _logger.Debug("Updating release to {0}", newRelease);
+
+                    if (_configService.EnableDualFormatTracking)
+                    {
+                        // Only un-monitor editions of the same format type, preserving
+                        // monitoring of the other format's editions.
+                        book.Editions = _editionService.SetMonitoredByFormat(newRelease);
+                    }
+                    else
+                    {
+                        book.Editions = _editionService.SetMonitored(newRelease);
+                    }
+
+                    // Publish book edited event.
+                    // Deliberately don't put in the old book since we don't want to trigger an AuthorScan.
+                    _eventAggregator.PublishEvent(new BookEditedEvent(book, book));
                 }
-
-                // set the correct release to be monitored before importing the new files
-                var newRelease = bookDecision.First().Item.Edition;
-                _logger.Debug("Updating release to {0}", newRelease);
-
-                if (_configService.EnableDualFormatTracking)
+                catch (Exception ex)
                 {
-                    // Only un-monitor editions of the same format type, preserving
-                    // monitoring of the other format's editions.
-                    book.Editions = _editionService.SetMonitoredByFormat(newRelease);
+                    // Isolate per-book failures so a single bad book does not abort the
+                    // entire RescanFolders batch (see issue #203).
+                    _logger.Error(ex, "Failed to import book {0}; continuing with remaining books", bookDecision.First().Item.Book);
                 }
-                else
-                {
-                    book.Editions = _editionService.SetMonitored(newRelease);
-                }
-
-                // Publish book edited event.
-                // Deliberately don't put in the old book since we don't want to trigger an AuthorScan.
-                _eventAggregator.PublishEvent(new BookEditedEvent(book, book));
             }
 
             var qualifiedImports = decisions.Where(c => c.Approved)

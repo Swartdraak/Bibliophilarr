@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using NLog;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
@@ -21,6 +22,8 @@ namespace NzbDrone.Core.Books
 
     public class EditionRepository : BasicRepository<Edition>, IEditionRepository
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         public EditionRepository(IMainDatabase database, IEventAggregator eventAggregator)
             : base(database, eventAggregator)
         {
@@ -109,7 +112,43 @@ namespace NzbDrone.Core.Books
             var sameFormat = allEditions.Where(e => e.IsEbook == edition.IsEbook).ToList();
 
             sameFormat.ForEach(r => r.Monitored = r.Id == edition.Id);
-            Ensure.That(sameFormat.Count(x => x.Monitored) == 1).IsTrue();
+
+            // Defensive: if no same-format edition ended up monitored (the imported edition's
+            // IsEbook does not match the stored editions, or its id is not present in the book's
+            // editions), do NOT throw. Throwing here aborts the entire RescanFolders batch and
+            // leaves every remaining file un-imported (see issue #203). Log a diagnostic and
+            // fall back to the format-agnostic monitored update.
+            if (sameFormat.Count(x => x.Monitored) != 1)
+            {
+                Logger.Warn(
+                    "SetMonitoredByFormat: no same-format edition matched for book {0} (edition {1}, IsEbook {2}); " +
+                    "found {3} same-format edition(s). Falling back to SetMonitored.",
+                    edition.BookId,
+                    edition.Id,
+                    edition.IsEbook,
+                    sameFormat.Count);
+
+                // The format-agnostic fallback can also fail to match (edition id not present in
+                // the book's editions). Guard against that so we never throw here.
+                if (allEditions.Any(x => x.Id == edition.Id))
+                {
+                    // Use the stored edition's IsEbook (not the imported edition's) so the
+                    // fallback does not unmonitor the other format when the imported IsEbook
+                    // is misclassified.
+                    var storedEdition = allEditions.First(x => x.Id == edition.Id);
+                    edition.IsEbook = storedEdition.IsEbook;
+                    return SetMonitored(edition);
+                }
+
+                Logger.Warn(
+                    "SetMonitoredByFormat: edition {0} is not present in book {1}; no monitored update applied.",
+                    edition.Id,
+                    edition.BookId);
+
+                // Re-query from DB to return a consistent snapshot (the in-memory
+                // allEditions list was mutated by sameFormat.ForEach above).
+                return FindByBook(new[] { edition.BookId });
+            }
 
             UpdateMany(sameFormat);
             return allEditions;
