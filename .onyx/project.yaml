@@ -2,12 +2,13 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22) on
-# 2026-10-12 at PR #218 head 8e381ed8c60340b6d7cd7a259cb16966888fbe83
-# (branch dependabot/github_actions/develop/actions/download-artifact-8.0.1,
-# base develop 24d42b65c8b9b073b50f6fea7ccbe1c422677326, net10.0 SDK band).
-# See baseline.json (workspace root) for per-command evidence and
-# scratch-t_1ee5deb1/logs/ for raw output. Original 2026-09-18 verification at
-# d21d1361c6 remains the first audit baseline.
+# 2026-10-12 at existing PR #225 merged head 1f371192808e31b530435a3b8229d2da27c24ef7
+# (branch dependabot/npm_and_yarn/develop/fortawesome/fontawesome-free-7.3.1 =
+#  PR head 5198815750 + develop 4ed21f7f7d catch-up merge, base develop 4ed21f7f7d,
+# net10.0 SDK band). See baseline.json (workspace root) for per-command evidence
+# and scratch-t_efb34b16/logs/ for raw output. Prior verification at PR #218 head
+# 8e381ed8c6 (t_1ee5deb1) and the original 2026-09-18 baseline at d21d1361c6 remain
+# the historical audit record.
 # Do not store credentials or secrets here.
 
 version: 1
@@ -173,12 +174,17 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_1ee5deb1/logs/
+  logs: ../scratch-t_efb34b16/logs/
   verified_at: 2026-10-12
-  base_sha: 24d42b65c8b9b073b50f6fea7ccbe1c422677326
-  head_sha: 8e381ed8c60340b6d7cd7a259cb16966888fbe83
-  lane: develop (net10.0 band) — re-verified at existing PR #218 head
-  note: pointers superseded per run — current baseline.json is the existing-PR #218 audit record (t_1ee5deb1, run 1279); raw logs at ../scratch-t_1ee5deb1/logs/
+  base_sha: 4ed21f7f7db7b163db20266cacabb083620a85d4
+  head_sha: 1f371192808e31b530435a3b8229d2da27c24ef7
+  lane: develop (net10.0 band) — re-verified at existing PR #225 merged head
+  note: >
+    Pointers superseded per run — current baseline.json is the existing-PR #225
+    audit record (t_efb34b16, run 1364); raw logs at ../scratch-t_efb34b16/logs/.
+    The audited head 1f37119280 is a NORMAL MERGE of develop 4ed21f7f7d into the
+    registered PR #225 head 5198815750 (catch-up; the PR branch was 10 commits
+    behind develop). All commands re-verified green at 1f37119280.
 
 skipped_integrations:
   - name: docker-image-build
