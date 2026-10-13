@@ -1,14 +1,13 @@
 # Onyx project contract — Swartdraak/Bibliophilarr
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
-# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22) on
-# 2026-10-12 at existing PR #225 merged head 1f371192808e31b530435a3b8229d2da27c24ef7
-# (branch dependabot/npm_and_yarn/develop/fortawesome/fontawesome-free-7.3.1 =
-#  PR head 5198815750 + develop 4ed21f7f7d catch-up merge, base develop 4ed21f7f7d,
-# net10.0 SDK band). See baseline.json (workspace root) for per-command evidence
-# and scratch-t_efb34b16/logs/ for raw output. Prior verification at PR #218 head
-# 8e381ed8c6 (t_1ee5deb1) and the original 2026-09-18 baseline at d21d1361c6 remain
-# the historical audit record.
+# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22).
+# Issue #256 development run (2026-10-13) at develop 75c21186 (base), work branch
+# fix/issue-256-unknown-new-item-monitor-type: added the issue-256-regression-* test
+# commands and re-verified the contract. See baseline.json (workspace root) and
+# scratch-t_5daa7896/logs/ for this run's per-command evidence. Historical verification
+# at existing PR #225 head 1f37119280 (2026-10-12, t_efb34b16) and the original
+# 2026-09-18 baseline at d21d1361c remain the record.
 # Do not store credentials or secrets here.
 
 version: 1
@@ -97,6 +96,18 @@ commands:
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
       note: "656 tests: 621 passed, 35 skipped, 0 failed (2026-09-18). ProcessProviderFixture requires DOTNET_ROOT exported (or .NET on PATH) so the dummy helper app can start."
+    - name: issue-256-regression-monitor-failsafe
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~MonitorNewBookServiceFixture"
+      cwd: .
+      note: "Issue #256 regression: MonitorNewBookService must not throw NotImplementedException for out-of-range NewItemMonitorTypes values (3, -1, 99); it logs a Warning and returns the safe no-monitor default. 6 tests (3 pre-existing + 3 new), 0 failed at head 75c21186."
+    - name: issue-256-regression-import-no-silent-drop
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~ImportApprovedBooksFormatFixture"
+      cwd: .
+      note: "Issue #256 regression: import must not silently drop a book when the author's MonitorNewItems is out of range; the pipeline completes without throwing. 5 tests (4 pre-existing + 1 new), 0 failed at head 75c21186."
+    - name: issue-256-regression-migration-048-clamp
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~clamp_monitor_new_items_to_valid_rangeFixture"
+      cwd: .
+      note: "Issue #256 data repair: migration 048 clamps out-of-range MonitorNewItems (AuthorFormatProfiles/Authors) to 0 and preserves valid values. 3 tests, 0 failed at head 75c21186."
     - name: rid-common-targeted
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture"
       cwd: .
@@ -174,17 +185,17 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_efb34b16/logs/
-  verified_at: 2026-10-12
-  base_sha: 4ed21f7f7db7b163db20266cacabb083620a85d4
-  head_sha: 1f371192808e31b530435a3b8229d2da27c24ef7
-  lane: develop (net10.0 band) — re-verified at existing PR #225 merged head
+  logs: ../scratch-t_5daa7896/logs/
+  verified_at: 2026-10-13
+  base_sha: 75c21186c29f1c821485ea59574d9eb65e2f28f0
+  head_sha: develop @ 75c21186 (work branch fix/issue-256-unknown-new-item-monitor-type)
+  lane: develop (net10.0 band)
   note: >
-    Pointers superseded per run — current baseline.json is the existing-PR #225
-    audit record (t_efb34b16, run 1364); raw logs at ../scratch-t_efb34b16/logs/.
-    The audited head 1f37119280 is a NORMAL MERGE of develop 4ed21f7f7d into the
-    registered PR #225 head 5198815750 (catch-up; the PR branch was 10 commits
-    behind develop). All commands re-verified green at 1f37119280.
+    Issue #256 development run (t_5daa7896). The issue-cited repro head 5f84e1b is an
+    ancestor of this base; the work branch originates from live develop 75c21186 per the
+    checkout-stage handoff. New regression commands (issue-256-regression-*) added and
+    re-verified in this run; the historical 2026-10-12 verification at PR #225 head
+    1f37119280 (t_efb34b16) and the 2026-09-18 baseline at d21d1361c remain the record.
 
 skipped_integrations:
   - name: docker-image-build

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,15 @@ namespace Bibliophilarr.Api.V1.Bookshelf
         [HttpPost]
         public IActionResult UpdateAll([FromBody] BookshelfResource request)
         {
+            //Reject out-of-range monitor values before persisting (issue #256). The REST
+            //validation pipeline does not wrap this plain controller, so guard explicitly.
+            if (request.MonitorNewItems.HasValue &&
+                !Enum.IsDefined(typeof(NewItemMonitorTypes), (int)request.MonitorNewItems.Value))
+            {
+                throw new NzbDrone.Core.Datastore.BadRequestException(
+                    $"MonitorNewItems must be a valid NewItemMonitorTypes value (All=0, None=1, New=2); {(int)request.MonitorNewItems.Value} is not allowed.");
+            }
+
             //Read from request
             var authorToUpdate = _authorService.GetAuthors(request.Authors.Select(s => s.Id));
 
