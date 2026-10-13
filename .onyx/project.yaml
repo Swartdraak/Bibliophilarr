@@ -189,6 +189,13 @@ baseline_evidence:
   verified_at: 2026-10-13
   base_sha: 75c21186c29f1c821485ea59574d9eb65e2f28f0
   head_sha: develop @ 75c21186 (work branch fix/issue-256-unknown-new-item-monitor-type)
+  # Publication repair (t_be568a65, 2026-10-13): PR #271 first push (8d9665f56e) failed
+  # hosted CI build with two PR-introduced C# errors (unqualified IsInEnum extension
+  # resolving to the wrong RuleBuilderExtensions; wrong BadRequestException namespace).
+  # Repaired in 405ac27bb5 (fully-qualified calls + correct namespace + StyleCop brace
+  # reformat; no logic change). Verified in-container: Roslyn semantic compile of the
+  # full Api.V1 project surface at the exact head -> 0 CS errors; issue-256 regression
+  # fixtures 16/16 passed. Hosted exact-head CI at 405ac27bb5 is the merge gate.
   lane: develop (net10.0 band)
   note: >
     Issue #256 development run (t_5daa7896). The issue-cited repro head 5f84e1b is an
