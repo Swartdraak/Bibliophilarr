@@ -26,7 +26,7 @@ namespace Bibliophilarr.Api.V1.Bookshelf
             if (request.MonitorNewItems.HasValue &&
                 !Enum.IsDefined(typeof(NewItemMonitorTypes), (int)request.MonitorNewItems.Value))
             {
-                throw new NzbDrone.Core.Datastore.BadRequestException(
+                throw new NzbDrone.Core.Exceptions.BadRequestException(
                     $"MonitorNewItems must be a valid NewItemMonitorTypes value (All=0, None=1, New=2); {(int)request.MonitorNewItems.Value} is not allowed.");
             }
 

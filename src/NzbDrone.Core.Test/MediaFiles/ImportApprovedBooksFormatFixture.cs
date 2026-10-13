@@ -215,7 +215,13 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .Returns(new List<Book>());
             Mocker.GetMock<IBookService>()
                 .Setup(s => s.InsertMany(It.IsAny<List<Book>>()))
-                .Callback<List<Book>>(b => { if (b != null && b.Count > 0) b[0].Id = 1000; });
+                .Callback<List<Book>>(b =>
+                {
+                    if (b != null && b.Count > 0)
+                    {
+                        b[0].Id = 1000;
+                    }
+                });
 
             GivenEbookImport();
 
