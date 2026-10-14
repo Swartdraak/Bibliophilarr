@@ -18,6 +18,9 @@ namespace Bibliophilarr.Api.V1.Author
 
             Http.Validation.RuleBuilderExtensions.ValidId(SharedValidator.RuleFor(s => s.AuthorId));
             Http.Validation.RuleBuilderExtensions.ValidId(SharedValidator.RuleFor(s => s.QualityProfileId));
+            Http.Validation.RuleBuilderExtensions.IsInEnum(
+                SharedValidator.RuleFor(s => s.MonitorNewItems),
+                typeof(NzbDrone.Core.Books.NewItemMonitorTypes));
         }
 
         protected override AuthorFormatProfileResource GetResourceById(int id)
