@@ -123,10 +123,18 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" />
   </ItemGroup>
 
+  <!-- Pkcs security pin: see the matching central version pin in Directory.Packages.props.
+       The explicit reference (version supplied by the central pin) forces the transitive
+       9.0.x line (from Microsoft.Data.SqlClient 7.0.2) up to the patched 10.0.x line in
+       every project's graph. A central-only pin does NOT affect transitive resolution;
+       the explicit reference is required. This is a version bump only: Pkcs is a
+       standard .NET BCL package, no new functionality is referenced, and the reference
+       is PrivateAssets-all-free (default) like every other repo package reference. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
 
   <!-- Pin the System.Drawing.Common version globally for every project so that
