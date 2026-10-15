@@ -2,6 +2,13 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22).
+# Existing PR #243 audit run (2026-10-14, task t_e4ea7a87) at merged head 949a43a160
+# (dependabot/npm_and_yarn/develop/babel/preset-react-7.29.7 @ 1d101b0eda + normal
+# catch-up merge of develop fe85b50d; base develop 75c21186, zero conflicts):
+# re-verified yarn-install (frozen-lockfile @ @babel/preset-react 7.29.7), eslint
+# (7 pre-existing warnings), jest (47/47), the two ops guards, and the
+# rid-core-targeted dotnet filter (25/25) in-container. See baseline.json
+# (workspace root) and scratch-t_e4ea7a87/logs/ for per-command evidence.
 # Issue #256 development run (2026-10-13) at develop 75c21186 (base), work branch
 # fix/issue-256-unknown-new-item-monitor-type: added the issue-256-regression-* test
 # commands and re-verified the contract. See baseline.json (workspace root) and

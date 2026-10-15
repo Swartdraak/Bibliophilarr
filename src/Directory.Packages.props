@@ -58,6 +58,27 @@
     <PackageVersion Include="System.Memory" Version="4.6.2" />
     <PackageVersion Include="System.Reflection.TypeExtensions" Version="4.7.0" />
     <PackageVersion Include="System.Resources.Extensions" Version="6.0.0" />
+    <!-- Security prerequisite: live NuGet audit advisories (NuGetAudit, ON by default;
+         repo escalates warnings to errors via TreatWarningsAsErrors in Directory.Build.props)
+         block every restore while System.Security.Cryptography.Pkcs resolves to a
+         vulnerable line:
+           - GHSA-2fmv-rv2c-59x7 (medium, CVE-2026-70162, .NET DoS)
+           - GHSA-846f-f764-76mx (high,   CVE-2026-84008, .NET DoS)
+         both published 2026-10-13 and live on 2026-10-14; affected ranges per the
+         GitHub advisory DB: 9.0.0..9.0.20 (first patched 9.0.21) and 10.0.0..10.0.12
+         (first patched 10.0.13; latest published 10.0.x).
+         The repo consumes Pkcs only transitively (no project references it directly):
+           - 9.0.x line via Microsoft.Data.SqlClient 7.0.2 (every non-test project,
+             src/Directory.Build.props ItemGroup)
+           - 10.0.x line via the IdentityModel 8.22.0 chain in the Core graph
+         The central CPM pin forces both flows to the latest supported 10.0.x patch
+         line (10.0.13, verified published on nuget.org 2026-10-14). 10.0.x is
+         compatible with the net8/net9/net10 TFMs in this repo: the 9.0 line (and its
+         earlier 8.0-era assemblies) is what the 9.0/10.0 SDK lines already consume,
+         and NuGet treats a CPM central pin as a minimum, so any graph still resolving
+         9.0.13 is bumped up to 10.0.13. This is a transitive-only pin: it adds no
+         new PackageReference to any project and changes no direct dependency. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageVersion Include="System.Runtime.Loader" Version="4.3.0" />
     <PackageVersion Include="System.Security.Principal.Windows" Version="5.0.0" />
     <PackageVersion Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
