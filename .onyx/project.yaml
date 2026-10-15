@@ -131,6 +131,10 @@ commands:
       command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture"
       cwd: .
       note: "CI parity (ci-backend.yml metadata-provider-fixtures): 4 tests, 4 passed, 0 failed."
+    - name: issue-279-regression-add-book-null-addoptions
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~Issue279"
+      cwd: .
+      note: "Issue #279 regression: BookResourceMapper.ToModel must substitute a fresh AddBookOptions when the client omits the optional addOptions field, so AddBookService.AddBook's 'book.AddOptions.AddType = Manual' (AddBookService.cs:63) never throws NullReferenceException (500 instead of 201). 3 tests (null-addOptions -> non-null default; omitted-addOptions+editions payload maps cleanly; client-provided addOptions preserved), 0 failed at head 8d2281e4c5 (work branch fix/issue-279-add-book-500-null-addoptions, run t_f1ae9028). Pinned by BookResourceMapperIssue279Fixture."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
@@ -192,26 +196,33 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_f388e7ec/logs/
-  verified_at: 2026-10-14
-  base_sha: 75c21186c29f1c821485ea59574d9eb65e2f28f0
-  head_sha: develop @ 75c21186 (work branch fix/issue-256-unknown-new-item-monitor-type, repaired head 916970ec37)
-  # IDE0005 analyzer-build repair (t_f388e7ec, 2026-10-14): head 405ac27bb5 was REJECTED
-  # (t_978c5b45) because the full-sln build still failed with a hard IDE0005 error
-  # (unused 'using System.Linq;' in ImportApprovedBooksFormatFixture.cs:3, .editorconfig:46
-  #  promotes IDE0005 to error) — which blocked the Core.Test assembly + 16 regression tests
-  #  from compiling. Repaired in 916970ec37 (one-line logic-neutral removal of the unused
-  #  using; no .editorconfig/analyzer/test changes). Verified in-container at 916970ec37:
-  #  full `dotnet build Bibliophilarr.sln` -> 0 warnings, 0 errors (Core.Test.dll now
-  #  emitted); 16/16 issue-256 regression fixtures passed from a clean build. Hosted
-  #  exact-head CI at 916970ec37 is the merge gate.
+  logs: ../scratch-t_f1ae9028/logs/
+  verified_at: 2026-10-15
+  base_sha: 8d2281e4c544e002038937d67ad1688a75e26019
+  head_sha: develop @ 8d2281e4c5 (work branch fix/issue-279-add-book-500-null-addoptions, run t_f1ae9028)
+  # Issue #279 development run (t_f1ae9028, 2026-10-15): the work branch originates
+  # from live develop 8d2281e4c5 (the #276 fix, PR #278). Implemented option A of the
+  # issue's suggested fixes — BookResourceMapper.ToModel now substitutes
+  # "resource.AddOptions ?? new AddBookOptions()" so the service layer never sees a
+  # null AddOptions — and added the BookResourceMapperIssue279Fixture regression
+  # command (issue-279-regression-add-book-null-addoptions). Verified in-container at
+  # 8d2281e4c5 + fix commit: Api.Test dependency graph restore+build (Release, Posix)
+  # -> 0 warnings, 0 errors; issue-279 fixtures 3/3 pass; issue-276 no-regression
+  # fixtures 7/7 pass; full Books API fixture set 20/20 pass. The historical
+  # 2026-10-14 verification at PR #243 head 949a43a160 (t_e4ea7a87), the
+  # issue #256 run (t_5daa7896) at 75c21186, the 2026-10-12 verification at PR #225
+  # head 1f37119280 (t_efb34b16) and the 2026-09-18 baseline at d21d1361c remain
+  # the record. Hosted exact-head CI at the fix commit is the merge gate.
   lane: develop (net10.0 band)
   note: >
-    Issue #256 development run (t_5daa7896). The issue-cited repro head 5f84e1b is an
-    ancestor of this base; the work branch originates from live develop 75c21186 per the
-    checkout-stage handoff. New regression commands (issue-256-regression-*) added and
-    re-verified in this run; the historical 2026-10-12 verification at PR #225 head
-    1f37119280 (t_efb34b16) and the 2026-09-18 baseline at d21d1361c remain the record.
+    Issue #279 development run (t_f1ae9028). The issue-cited defect head 8d2281e4c5
+    (the #276 fix, PR #278) is this base; the work branch
+    fix/issue-279-add-book-500-null-addoptions originates from it per the
+    checkout-stage handoff (scratch-t_34eb3ad1). New regression command
+    (issue-279-regression-add-book-null-addoptions) added and re-verified in this
+    run. Prior verified runs remain the record: 2026-10-14 PR #243 @ 949a43a160
+    (t_e4ea7a87), issue #256 @ 75c21186 (t_5daa7896), 2026-10-12 PR #225 @
+    1f37119280 (t_efb34b16), and the 2026-09-18 baseline @ d21d1361c.
 
 skipped_integrations:
   - name: docker-image-build
