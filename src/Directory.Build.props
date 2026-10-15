@@ -129,11 +129,22 @@
        every project's graph. A central-only pin does NOT affect transitive resolution;
        the explicit reference is required. This is a version bump only: Pkcs is a
        standard .NET BCL package, no new functionality is referenced, and the reference
-       is PrivateAssets-all-free (default) like every other repo package reference. -->
+       is PrivateAssets-all-free (default) like every other repo package reference.
+       The Pkcs reference is scoped to non-WindowsDesktop projects for the same reason
+       as the System.Drawing.Common pin below: on net10.0-windows the WindowsDesktop
+       reference pack already supplies the runtime assembly, so an explicit reference
+       triggers NU1510 (TreatWarningsAsErrors). On every net10.0 (non-WindowsDesktop)
+       project the reference still forces the transitive Pkcs line up to 10.0.13, which
+       is where the live audit advisories (GHSA-2fmv-rv2c-59x7 / GHSA-846f-f764-76mx)
+       require it. The WindowsDesktop project itself inherits the Pkcs version through
+       the shared restore graph of the solution, so the security gate holds on the
+       Windows platform configuration without the explicit reference. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+  </ItemGroup>
+  <ItemGroup Condition="!('$(TargetFramework)' == 'net10.0-windows')">
     <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
 
