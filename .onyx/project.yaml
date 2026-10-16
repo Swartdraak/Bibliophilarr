@@ -135,6 +135,10 @@ commands:
       command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~Issue279"
       cwd: .
       note: "Issue #279 regression: BookResourceMapper.ToModel must substitute a fresh AddBookOptions when the client omits the optional addOptions field, so AddBookService.AddBook's 'book.AddOptions.AddType = Manual' (AddBookService.cs:63) never throws NullReferenceException (500 instead of 201). 3 tests (null-addOptions -> non-null default; omitted-addOptions+editions payload maps cleanly; client-provided addOptions preserved), 0 failed at head 8d2281e4c5 (work branch fix/issue-279-add-book-500-null-addoptions, run t_f1ae9028). Pinned by BookResourceMapperIssue279Fixture."
+    - name: issue-275-regression-manualimport-null-edition-mapping
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~ImportDecisionMaker"
+      cwd: .
+      note: "Issue #275 regression: the manual-import scan path (GET /api/v1/manualimport) must not leave the discovered item's book/edition mapping NULL -> permanent 'Couldn't find similar book' rejection (ImportDecisionMaker.GetDecision null-Edition branch). When identification leaves a release without a catalogue Edition, ImportDecisionMaker now performs a bounded direct catalogue lookup (IMetadataProviderOrchestrator.SearchForNewBook) from the file's own book/author metadata and adopts the best candidate edition; genuinely-unresolvable items keep the original permanent rejection. Pinned by ImportDecisionMakerIssue275Fixture (5 tests: match-on-null-edition; keep-rejection-no-metadata; keep-rejection-lookup-empty; keep-rejection-lookup-throws; no-throw-no-metadata) plus the 14 pre-existing ImportDecisionMakerFixture tests. RE-VERIFIED 2026-10-16 on a FRESH linux-x64 RID build at the repaired head (work branch fix/issue-275-manualimport-null-edition-mapping, run t_7bdf990f): this filter yields 19 total (14 pre-existing + 5 new), 19 passed / 0 failed / 0 skipped. PITFALL: the linux-x64 RID test assembly only rebuilds with '-r linux-x64'; a stale RID DLL that predates the new fixture makes this filter silently report only the 14 pre-existing tests (a false '14/14'), so ALWAYS rebuild the RID assembly fresh at the exact head and confirm the fixture is present in the DLL (strings | grep -c ImportDecisionMakerIssue275Fixture == 1) before trusting the count."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
@@ -196,32 +200,52 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_f1ae9028/logs/
-  verified_at: 2026-10-15
-  base_sha: 8d2281e4c544e002038937d67ad1688a75e26019
-  head_sha: develop @ 8d2281e4c5 (work branch fix/issue-279-add-book-500-null-addoptions, run t_f1ae9028)
-  # Issue #279 development run (t_f1ae9028, 2026-10-15): the work branch originates
-  # from live develop 8d2281e4c5 (the #276 fix, PR #278). Implemented option A of the
-  # issue's suggested fixes — BookResourceMapper.ToModel now substitutes
-  # "resource.AddOptions ?? new AddBookOptions()" so the service layer never sees a
-  # null AddOptions — and added the BookResourceMapperIssue279Fixture regression
-  # command (issue-279-regression-add-book-null-addoptions). Verified in-container at
-  # 8d2281e4c5 + fix commit: Api.Test dependency graph restore+build (Release, Posix)
-  # -> 0 warnings, 0 errors; issue-279 fixtures 3/3 pass; issue-276 no-regression
-  # fixtures 7/7 pass; full Books API fixture set 20/20 pass. The historical
-  # 2026-10-14 verification at PR #243 head 949a43a160 (t_e4ea7a87), the
-  # issue #256 run (t_5daa7896) at 75c21186, the 2026-10-12 verification at PR #225
-  # head 1f37119280 (t_efb34b16) and the 2026-09-18 baseline at d21d1361c remain
-  # the record. Hosted exact-head CI at the fix commit is the merge gate.
+  logs: ../scratch-t_7bdf990f/logs/
+  verified_at: 2026-10-16
+  base_sha: de38d9c5c4434f165056f7e13ed3b07930e877bf
+  head_sha: repair head (work branch fix/issue-275-manualimport-null-edition-mapping; see baseline.json head_sha; run t_7bdf990f)
+  # Issue #275 REPAIR run (t_7bdf990f, 2026-10-16): the prior development run's
+  # regression evidence was a false positive — a STALE linux-x64 RID test assembly that
+  # did not contain ImportDecisionMakerIssue275Fixture made 'dotnet test -r linux-x64
+  # --filter ~ImportDecisionMaker' silently report only the 14 pre-existing tests
+  # ('14/14'). A fresh RID build exposed that all 5 new regression fixtures FAILED:
+  # (1) the matched release's import-decision specs were unregistered AutoMoq proxies
+  # that returned null from IsSatisfiedBy, NREing in EvaluateSpec; (2-4) the three
+  # 'keep permanent rejection' fixtures asserted the wrong Reason text (the fixture
+  # hard-coded the full file path, but the reason is LocalEdition.ToString() =>
+  # "[" + Path.GetDirectoryName(file) + "]"); (5) the 'no metadata' fixture fed a null
+  # ParsedTrackInfo from ReadTags, which NREs in GetLocalTracks (a pre-existing
+  # production path; a real untagged file yields an empty ParsedTrackInfo, not null).
+  # The repair corrected the FIVE REGRESSION FIXTURES to assert the REAL, correct
+  # behavior of the (unchanged, sound) production fix and re-verified on a FRESH RID
+  # build at the repaired head: ImportDecisionMakerIssue275Fixture 5/5 pass,
+  # ImportDecisionMaker 19/19 pass (14 pre-existing + 5 new), ScanFixture 20/20,
+  # DownloadedTracksImportServiceFixture 15/15, IdentificationService 3/3 — all on a
+  # 0-warning / 0-error fresh RID build. The production fix (IdentifyReleaseFallback)
+  # was verified sound by the independent review and is UNCHANGED by this repair.
+  # History: the Issue #275 development run (t_115763e3, 2026-10-16) implemented the
+  # bounded direct catalogue lookup (work branch from live develop de38d9c5). The
+  # historical 2026-10-15 verification (issue #279, t_f1ae9028 @ 8d2281e4c5),
+  # the 2026-10-14 PR #243 head 949a43a160 (t_e4ea7a87), the issue #256 run
+  # (t_5daa7896) at 75c21186, the 2026-10-12 verification at PR #225 head 1f37119280
+  # (t_efb34b16) and the 2026-09-18 baseline at d21d1361c remain the record.
+  # Hosted exact-head CI at the fix commit is the merge gate.
   lane: develop (net10.0 band)
   note: >
-    Issue #279 development run (t_f1ae9028). The issue-cited defect head 8d2281e4c5
-    (the #276 fix, PR #278) is this base; the work branch
-    fix/issue-279-add-book-500-null-addoptions originates from it per the
-    checkout-stage handoff (scratch-t_34eb3ad1). New regression command
-    (issue-279-regression-add-book-null-addoptions) added and re-verified in this
-    run. Prior verified runs remain the record: 2026-10-14 PR #243 @ 949a43a160
-    (t_e4ea7a87), issue #256 @ 75c21186 (t_5daa7896), 2026-10-12 PR #225 @
+    Issue #275 REPAIR run (t_7bdf990f), following the development run (t_115763e3).
+    The development run's "14/14" regression evidence was a false positive from a STALE
+    linux-x64 RID test assembly that did not contain the new
+    ImportDecisionMakerIssue275Fixture; a fresh RID build showed all 5 new regression
+    fixtures failing. This repair corrected the FIVE regression fixtures to assert the
+    real, correct behavior of the (unchanged, sound) production fix and re-verified on a
+    fresh RID build at the repaired head: ImportDecisionMakerIssue275Fixture 5/5,
+    ImportDecisionMaker 19/19 (14 pre-existing + 5 new), ScanFixture 20/20,
+    DownloadedTracksImportServiceFixture 15/15, IdentificationService 3/3 — all on a
+    0-warning / 0-error fresh RID build. The issue-cited defect head fe85b50d remains an
+    ancestor of the base de38d9c5; the work branch
+    fix/issue-275-manualimport-null-edition-mapping originates from it. Prior verified
+    runs remain the record: issue #279 @ 8d2281e4c5 (t_f1ae9028), 2026-10-14 PR #243 @
+    949a43a160 (t_e4ea7a87), issue #256 @ 75c21186 (t_5daa7896), 2026-10-12 PR #225 @
     1f37119280 (t_efb34b16), and the 2026-09-18 baseline @ d21d1361c.
 
 skipped_integrations:
