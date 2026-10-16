@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
@@ -8,6 +9,8 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
@@ -82,6 +85,21 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
                 .Setup(s => s.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
                 .Returns((List<LocalBook> tracks, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary summary) =>
                     new List<LocalEdition> { new LocalEdition(tracks) });
+
+            // A resolvable release must clear the import-decision specs to be Approved.
+            // The container's dynamic-registration fallback would otherwise hand the
+            // ImportDecisionMaker AutoMoq proxy specs that return null from IsSatisfiedBy
+            // (which NREs inside EvaluateSpec). Register explicit accepting mocks for the
+            // concrete spec interfaces — the same GetMock-based approach the existing
+            // ImportDecisionMakerFixture uses (it overrides the container's per-type mock,
+            // so IEnumerable<spec> resolution picks up the accepting one).
+            Mocker.GetMock<IImportDecisionEngineSpecification<LocalEdition>>()
+                .Setup(c => c.IsSatisfiedBy(It.IsAny<LocalEdition>(), It.IsAny<DownloadClientItem>()))
+                .Returns(Decision.Accept());
+
+            Mocker.GetMock<IImportDecisionEngineSpecification<LocalBook>>()
+                .Setup(c => c.IsSatisfiedBy(It.IsAny<LocalBook>(), It.IsAny<DownloadClientItem>()))
+                .Returns(Decision.Accept());
         }
 
         private ImportDecision<LocalBook> GetSingleDecision()
@@ -162,8 +180,9 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             var decision = GetSingleDecision();
 
             // Genuinely unresolvable: original permanent rejection, unchanged.
+            // The reason text is LocalEdition.ToString() => "[" + Path.GetDirectoryName(file) + "]".
             decision.Rejections.Should().ContainSingle()
-                .Which.Reason.Should().Be("Couldn't find similar book for [" + _filePath + "]");
+                .Which.Reason.Should().Be($"Couldn't find similar book for [{Path.GetDirectoryName(_filePath)}]");
             decision.Approved.Should().BeFalse();
             decision.Item.Book.Should().BeNull();
 
@@ -182,8 +201,9 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
 
             var decision = GetSingleDecision();
 
+            // The reason text is LocalEdition.ToString() => "[" + Path.GetDirectoryName(file) + "]".
             decision.Rejections.Should().ContainSingle()
-                .Which.Reason.Should().Be("Couldn't find similar book for [" + _filePath + "]");
+                .Which.Reason.Should().Be($"Couldn't find similar book for [{Path.GetDirectoryName(_filePath)}]");
             decision.Approved.Should().BeFalse();
 
             orchestratorMock.Verify(
@@ -200,8 +220,9 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
 
             var decision = GetSingleDecision();
 
+            // The reason text is LocalEdition.ToString() => "[" + Path.GetDirectoryName(file) + "]".
             decision.Rejections.Should().ContainSingle()
-                .Which.Reason.Should().Be("Couldn't find similar book for [" + _filePath + "]");
+                .Which.Reason.Should().Be($"Couldn't find similar book for [{Path.GetDirectoryName(_filePath)}]");
             decision.Approved.Should().BeFalse();
         }
 
@@ -211,9 +232,16 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             // Even with identification returning a null-edition release and the file
             // carrying no usable book/author metadata, the pipeline must not throw and
             // the item is rejected (not imported).
+            //
+            // NOTE (pre-existing production path, unchanged by issue #275): the real
+            // IMetadataTagService.ReadTags never returns null — a file with no tags
+            // yields a ParsedTrackInfo() with empty Authors/TrackNumbers. A literal null
+            // would throw in ImportDecisionMaker.GetLocalTracks (fileTrackInfo.TrackNumbers
+            // deref) before it could reach the rejection path, so this fixture models the
+            // realistic untagged-file input (empty ParsedTrackInfo) instead.
             Mocker.GetMock<IMetadataTagService>()
                 .Setup(s => s.ReadTags(It.IsAny<IFileInfo>()))
-                .Returns(null as ParsedTrackInfo);
+                .Returns(new ParsedTrackInfo());
 
             var decision = GetSingleDecision();
 
