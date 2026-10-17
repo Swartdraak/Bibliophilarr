@@ -218,6 +218,88 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_not_delete_newly_created_local_author_when_foreign_id_unresolvable_and_no_files()
+        {
+            // Issue #272: a locally created author (synthetic/unmapped foreign id, e.g.
+            // "recovery:author:RTA-001") is persisted by POST /api/v1/author and its
+            // AuthorMetadataId is 0 (never provider-resolved). The post-create
+            // RefreshAuthorCommand must not treat the expected not-found as a removal
+            // signal and delete the row before the 201 response resolves.
+            _author.AuthorMetadataId = 0;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id, true));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_not_delete_local_author_on_bulk_refresh_when_foreign_id_unresolvable_and_no_files()
+        {
+            // Issue #272 companion: bulk refresh (queued via AuthorsImportedEvent) hits
+            // the same ShouldDelete path — the local-author guard must hold there too.
+            _author.AuthorMetadataId = 0;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new BulkRefreshAuthorCommand
+            {
+                AuthorIds = new List<int> { _author.Id },
+                AreNewAuthors = true,
+                Trigger = CommandTrigger.Manual
+            });
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_still_delete_provider_sourced_author_when_remote_removed_and_no_files()
+        {
+            // Issue #272 no-regression guard: provider-sourced authors (resolved at add
+            // time, AuthorMetadataId > 0) keep the documented provider-removed
+            // deletion behavior (#204/#209) — a genuine not-found with no local files
+            // still deletes.
+            _author.AuthorMetadataId = 1;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Once());
+        }
+
+        [Test]
         public void should_update_if_musicbrainz_id_changed_and_no_clash()
         {
             var newAuthorInfo = _author.JsonClone();
