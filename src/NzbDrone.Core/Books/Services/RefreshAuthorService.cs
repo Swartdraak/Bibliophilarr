@@ -129,6 +129,20 @@ namespace NzbDrone.Core.Books
 
         protected override bool ShouldDelete(Author local)
         {
+            // A genuine not-found (foreign id no metadata provider can resolve) is only
+            // a safe deletion signal for provider-sourced authors: providers own those
+            // identifiers, so a genuine not-found is the documented provider-removed
+            // condition (#204/#209). Locally created authors (synthetic/unmapped
+            // foreign ids, e.g. a locally created author added via POST /api/v1/author)
+            // carry AuthorMetadataId == 0 and were never provider-resolvable, so a
+            // not-found is expected, not a removal signal — deleting them destroys
+            // API-created data (issue #272: the post-create background refresh deleted
+            // the row before the 201 Created redirect could resolve it, producing a 404).
+            if (local.AuthorMetadataId <= 0)
+            {
+                return false;
+            }
+
             return !_mediaFileService.GetFilesByAuthor(local.Id).Any();
         }
 
