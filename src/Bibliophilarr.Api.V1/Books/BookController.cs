@@ -68,10 +68,20 @@ namespace Bibliophilarr.Api.V1.Books
             _addBookService = addBookService;
 
             PostValidator.RuleFor(s => s.ForeignBookId).NotEmpty();
-            PostValidator.RuleFor(s => s.Author.QualityProfileId).SetValidator(qualityProfileExistsValidator);
-            PostValidator.RuleFor(s => s.Author.MetadataProfileId).SetValidator(metadataProfileExistsValidator);
-            PostValidator.RuleFor(s => s.Author.RootFolderPath).IsValidPath().When(s => s.Author.Path.IsNullOrWhiteSpace());
-            PostValidator.RuleFor(s => s.Author.ForeignAuthorId).NotEmpty();
+
+            // Issue #276: the Author-scoped rules below dereference s.Author, which is
+            // null for a payload that omits the nested Author object (the simple
+            // title+author add-book flow). FluentValidation evaluates the member
+            // expression for every instance, so an unguarded RuleFor threw
+            // NullReferenceException inside validation — surfacing as a 500 instead of
+            // a 400 with validation details. Guarding each rule on s.Author != null
+            // degrades a null Author to validation failures (ForeignAuthorId/
+            // RootFolderPath/ForeignBookId not-empty), which the pipeline maps to 400.
+            // When Author is present the rules keep their exact previous behavior.
+            PostValidator.RuleFor(s => s.Author.QualityProfileId).SetValidator(qualityProfileExistsValidator).When(s => s.Author != null);
+            PostValidator.RuleFor(s => s.Author.MetadataProfileId).SetValidator(metadataProfileExistsValidator).When(s => s.Author != null);
+            PostValidator.RuleFor(s => s.Author.RootFolderPath).IsValidPath().When(s => s.Author != null && s.Author.Path.IsNullOrWhiteSpace());
+            PostValidator.RuleFor(s => s.Author.ForeignAuthorId).NotEmpty().When(s => s.Author != null);
         }
 
         [HttpGet]

@@ -68,6 +68,10 @@ namespace Bibliophilarr.Api.V1.RootFolders
                 .ValidId()
                 .SetValidator(qualityProfileExistsValidator);
 
+            Http.Validation.RuleBuilderExtensions.IsInEnum(
+                SharedValidator.RuleFor(c => c.DefaultNewItemMonitorOption),
+                typeof(NzbDrone.Core.Books.NewItemMonitorTypes));
+
             SharedValidator.RuleFor(c => c.Host).ValidHost().When(x => x.IsCalibreLibrary);
             SharedValidator.RuleFor(c => c.Port).InclusiveBetween(1, 65535).When(x => x.IsCalibreLibrary);
             SharedValidator.RuleFor(c => c.UrlBase).ValidUrlBase().When(c => c.UrlBase.IsNotNullOrWhiteSpace());
