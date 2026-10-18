@@ -13,6 +13,7 @@ using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.RootFolders;
@@ -59,6 +60,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IConfigService _configService;
         private readonly IRootFolderService _rootFolderService;
         private readonly IQualityProfileService _qualityProfileService;
+        private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
         private readonly Logger _logger;
 
         public ImportDecisionMaker(IEnumerable<IImportDecisionEngineSpecification<LocalBook>> trackSpecifications,
@@ -71,6 +73,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IConfigService configService,
                                    IRootFolderService rootFolderService,
                                    IQualityProfileService qualityProfileService,
+                                   IMetadataProviderOrchestrator metadataOrchestrator,
                                    Logger logger)
         {
             _trackSpecifications = trackSpecifications;
@@ -83,6 +86,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _configService = configService;
             _rootFolderService = rootFolderService;
             _qualityProfileService = qualityProfileService;
+            _metadataOrchestrator = metadataOrchestrator;
             _logger = logger;
         }
 
@@ -198,6 +202,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 // make sure the appropriate quality profile is set for the release author
                 // in case it's a new author
                 EnsureData(release);
+
+                // Issue #275: when the identification step left a release without a
+                // catalogue edition (no usable identity in the file tags for the
+                // candidate service to match on), attempt a bounded direct remote
+                // lookup from the file's own book/author metadata so the item is not
+                // permanently rejected with "Couldn't find similar book".
+                if (release.Edition == null)
+                {
+                    IdentifyReleaseFallback(release, config);
+                }
+
                 release.NewDownload = config.NewDownload;
 
                 var releaseDecision = GetDecision(release, itemInfo.DownloadClientItem);
@@ -249,6 +264,76 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 author.QualityProfileId = qualityProfile.Id;
                 author.QualityProfile = qualityProfile;
+            }
+        }
+
+        // Issue #275: bounded fallback for releases whose identification left the
+        // catalogue Edition null. The regular candidate path (local DB candidates +
+        // CandidateService remote search) requires a usable identity in the file tags
+        // (author/book tags, or an ISBN/ASIN/OpenLibrary id) to build candidates; when
+        // none is present it finds nothing and the item would be permanently rejected
+        // with "Couldn't find similar book". If the file metadata still carries a book
+        // title and an author, look the catalogue up directly and adopt the best
+        // candidate edition so the scan/import can proceed. Genuinely unresolvable
+        // items (no title, no author, or no remote hit) keep the original rejection.
+        private void IdentifyReleaseFallback(LocalEdition release, ImportDecisionMakerConfig config)
+        {
+            try
+            {
+                var bookTitle = release.LocalBooks
+                    .Select(x => x.FileTrackInfo?.BookTitle)
+                    .Where(x => x != null && x.Trim().Length > 0)
+                    .OrderByDescending(x => x.Trim().Length)
+                    .FirstOrDefault();
+                var authorName = release.LocalBooks
+                    .SelectMany(x => x.FileTrackInfo?.Authors ?? new List<string>())
+                    .Where(x => x != null && x.Trim().Length > 0)
+                    .OrderByDescending(x => x.Trim().Length)
+                    .FirstOrDefault();
+
+                if (bookTitle == null || authorName == null)
+                {
+                    return;
+                }
+
+                _logger.Debug("Issue #275: identification left no edition for {0}; attempting direct catalogue lookup for '{1}' by '{2}'",
+                    release,
+                    bookTitle,
+                    authorName);
+
+                var books = _metadataOrchestrator.SearchForNewBook(bookTitle, authorName, true);
+
+                var bestEdition = books
+                    .Where(b => b?.Editions?.Value != null && b.Editions.Value.Any())
+                    .SelectMany(b => b.Editions.Value)
+                    .Where(e => e != null && e.ForeignEditionId.IsNotNullOrWhiteSpace())
+                    .FirstOrDefault();
+
+                if (bestEdition == null)
+                {
+                    return;
+                }
+
+                if (bestEdition.Book == null || !bestEdition.Book.IsLoaded)
+                {
+                    var matchedBook = books.FirstOrDefault(b => b.Editions.Value.Contains(bestEdition));
+                    if (matchedBook == null)
+                    {
+                        return;
+                    }
+
+                    bestEdition.Book = matchedBook;
+                }
+
+                release.Edition = bestEdition;
+                release.ExistingTracks = new List<LocalBook>();
+                release.PopulateMatch(config.KeepAllEditions);
+
+                _logger.Debug("Issue #275: direct catalogue lookup matched edition {0} for {1}", bestEdition, release);
+            }
+            catch (Exception e)
+            {
+                _logger.Warn(e, "Issue #275: direct catalogue lookup failed for {0}", release);
             }
         }
 

@@ -166,6 +166,14 @@ namespace Bibliophilarr.Api.V1.Books
 
             var author = resource.Author?.ToModel() ?? new NzbDrone.Core.Books.Author();
 
+            // Issue #279: resource.AddOptions is null when the client omits the
+            // optional addOptions field (it is not required by the API schema).
+            // Copying null here overwrote the Book constructor's
+            // "AddOptions = new AddBookOptions()" initialization, and
+            // AddBookService.AddBook then threw NullReferenceException on
+            // "book.AddOptions.AddType = BookAddType.Manual;" (AddBookService.cs:63),
+            // surfacing as a 500 instead of 201. Substitute a fresh AddBookOptions
+            // so the service layer never sees a null AddOptions.
             return new Book
             {
                 Id = resource.Id,
@@ -176,7 +184,7 @@ namespace Bibliophilarr.Api.V1.Books
                 Monitored = resource.Monitored,
                 AnyEditionOk = resource.AnyEditionOk,
                 Editions = resource.Editions.ToModel(),
-                AddOptions = resource.AddOptions,
+                AddOptions = resource.AddOptions ?? new AddBookOptions(),
                 Author = author,
                 AuthorMetadata = author.Metadata.Value
             };

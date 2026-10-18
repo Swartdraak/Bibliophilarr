@@ -22,6 +22,9 @@ namespace Bibliophilarr.Api.V1.ImportLists
             SharedValidator.RuleFor(c => c.RootFolderPath).IsValidPath();
             SharedValidator.RuleFor(c => c.QualityProfileId).SetValidator(qualityProfileExistsValidator);
             SharedValidator.RuleFor(c => c.MetadataProfileId).SetValidator(metadataProfileExistsValidator);
+            Http.Validation.RuleBuilderExtensions.IsInEnum(
+                SharedValidator.RuleFor(c => c.MonitorNewItems),
+                typeof(NzbDrone.Core.Books.NewItemMonitorTypes));
         }
     }
 }

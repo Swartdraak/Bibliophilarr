@@ -1,13 +1,26 @@
 # Onyx project contract — Swartdraak/Bibliophilarr
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
-# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22) on
-# 2026-10-12 at PR #218 head 8e381ed8c60340b6d7cd7a259cb16966888fbe83
-# (branch dependabot/github_actions/develop/actions/download-artifact-8.0.1,
-# base develop 24d42b65c8b9b073b50f6fea7ccbe1c422677326, net10.0 SDK band).
-# See baseline.json (workspace root) for per-command evidence and
-# scratch-t_1ee5deb1/logs/ for raw output. Original 2026-09-18 verification at
-# d21d1361c6 remains the first audit baseline.
+# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22).
+# Existing PR #243 audit run (2026-10-14, task t_e4ea7a87) at merged head 949a43a160
+# (dependabot/npm_and_yarn/develop/babel/preset-react-7.29.7 @ 1d101b0eda + normal
+# catch-up merge of develop fe85b50d; base develop 75c21186, zero conflicts):
+# re-verified yarn-install (frozen-lockfile @ @babel/preset-react 7.29.7), eslint
+# (7 pre-existing warnings), jest (47/47), the two ops guards, and the
+# rid-core-targeted dotnet filter (25/25) in-container. See baseline.json
+# (workspace root) and scratch-t_e4ea7a87/logs/ for per-command evidence.
+# Issue #256 development run (2026-10-13) at develop 75c21186 (base), work branch
+# fix/issue-256-unknown-new-item-monitor-type: added the issue-256-regression-* test
+# commands and re-verified the contract. See baseline.json (workspace root) and
+# scratch-t_5daa7896/logs/ for this run's per-command evidence. Historical verification
+# at existing PR #225 head 1f37119280 (2026-10-12, t_efb34b16) and the original
+# 2026-09-18 baseline at d21d1361c remain the record.
+# Issue #272 development run (2026-10-17) at develop d0f6b0e0 (base), work branch
+# fix/issue-272-author-refresh-delete: added the issue-272-regression-author-refresh-
+# delete-local test command and re-verified the contract (rid-core-targeted 25/25,
+# metadata-core-fixtures 32/32, issue-272 regression 3/3 new pass + 11 pre-existing
+# pass, 2 pre-existing not-found tests failing on NLog async-delivery timing — see
+# baseline.json). Head 42d0de9e. See logs-t_60662025/ for per-command evidence.
 # Do not store credentials or secrets here.
 
 version: 1
@@ -96,6 +109,18 @@ commands:
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
       note: "656 tests: 621 passed, 35 skipped, 0 failed (2026-09-18). ProcessProviderFixture requires DOTNET_ROOT exported (or .NET on PATH) so the dummy helper app can start."
+    - name: issue-256-regression-monitor-failsafe
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~MonitorNewBookServiceFixture"
+      cwd: .
+      note: "Issue #256 regression: MonitorNewBookService must not throw NotImplementedException for out-of-range NewItemMonitorTypes values (3, -1, 99); it logs a Warning and returns the safe no-monitor default. 6 tests (3 pre-existing + 3 new), 0 failed at head 75c21186."
+    - name: issue-256-regression-import-no-silent-drop
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~ImportApprovedBooksFormatFixture"
+      cwd: .
+      note: "Issue #256 regression: import must not silently drop a book when the author's MonitorNewItems is out of range; the pipeline completes without throwing. 5 tests (4 pre-existing + 1 new), 0 failed at head 75c21186."
+    - name: issue-256-regression-migration-048-clamp
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~clamp_monitor_new_items_to_valid_rangeFixture"
+      cwd: .
+      note: "Issue #256 data repair: migration 048 clamps out-of-range MonitorNewItems (AuthorFormatProfiles/Authors) to 0 and preserves valid values. 3 tests, 0 failed at head 75c21186."
     - name: rid-common-targeted
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture"
       cwd: .
@@ -112,6 +137,18 @@ commands:
       command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture"
       cwd: .
       note: "CI parity (ci-backend.yml metadata-provider-fixtures): 4 tests, 4 passed, 0 failed."
+    - name: issue-279-regression-add-book-null-addoptions
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~Issue279"
+      cwd: .
+      note: "Issue #279 regression: BookResourceMapper.ToModel must substitute a fresh AddBookOptions when the client omits the optional addOptions field, so AddBookService.AddBook's 'book.AddOptions.AddType = Manual' (AddBookService.cs:63) never throws NullReferenceException (500 instead of 201). 3 tests (null-addOptions -> non-null default; omitted-addOptions+editions payload maps cleanly; client-provided addOptions preserved), 0 failed at head 8d2281e4c5 (work branch fix/issue-279-add-book-500-null-addoptions, run t_f1ae9028). Pinned by BookResourceMapperIssue279Fixture."
+    - name: issue-275-regression-manualimport-null-edition-mapping
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~ImportDecisionMaker"
+      cwd: .
+      note: "Issue #275 regression: the manual-import scan path (GET /api/v1/manualimport) must not leave the discovered item's book/edition mapping NULL -> permanent 'Couldn't find similar book' rejection (ImportDecisionMaker.GetDecision null-Edition branch). When identification leaves a release without a catalogue Edition, ImportDecisionMaker now performs a bounded direct catalogue lookup (IMetadataProviderOrchestrator.SearchForNewBook) from the file's own book/author metadata and adopts the best candidate edition; genuinely-unresolvable items keep the original permanent rejection. Pinned by ImportDecisionMakerIssue275Fixture (5 tests: match-on-null-edition; keep-rejection-no-metadata; keep-rejection-lookup-empty; keep-rejection-lookup-throws; no-throw-no-metadata) plus the 14 pre-existing ImportDecisionMakerFixture tests. RE-VERIFIED 2026-10-16 on a FRESH linux-x64 RID build at the repaired head (work branch fix/issue-275-manualimport-null-edition-mapping, run t_7bdf990f): this filter yields 19 total (14 pre-existing + 5 new), 19 passed / 0 failed / 0 skipped. PITFALL: the linux-x64 RID test assembly only rebuilds with '-r linux-x64'; a stale RID DLL that predates the new fixture makes this filter silently report only the 14 pre-existing tests (a false '14/14'), so ALWAYS rebuild the RID assembly fresh at the exact head and confirm the fixture is present in the DLL (strings | grep -c ImportDecisionMakerIssue275Fixture == 1) before trusting the count."
+    - name: issue-272-regression-author-refresh-delete-local
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~RefreshAuthorServiceFixture"
+      cwd: .
+      note: "Issue #272 regression: a locally created author (synthetic/unmapped foreign id, AuthorMetadataId == 0) persisted via POST /api/v1/author must survive the post-create background refresh — RefreshAuthorService.ShouldDelete returns false for AuthorMetadataId <= 0 so the expected not-found is not treated as a provider-removal signal; provider-sourced authors (AuthorMetadataId > 0) keep the documented provider-removed deletion behavior (#204/#209). Pinned by three new tests in RefreshAuthorServiceFixture: should_not_delete_newly_created_local_author_when_foreign_id_unresolvable_and_no_files (single RefreshAuthorCommand), should_not_delete_local_author_on_bulk_refresh_when_foreign_id_unresolvable_and_no_files (BulkRefreshAuthorCommand), and should_still_delete_provider_sourced_author_when_remote_removed_and_no_files (no-regression guard). RE-VERIFIED 2026-10-17 at head 42d0de9e (work branch fix/issue-272-author-refresh-delete, run t_60662025): 16 total (13 pre-existing + 3 new); the 3 new + 11 pre-existing pass. PRE-EXISTING: 2 pre-existing not-found tests (should_log_error_and_delete_if_musicbrainz_id_not_found_and_author_has_no_files, should_log_error_but_not_delete_if_musicbrainz_id_not_found_and_author_has_files) fail in this isolated environment due to NLog async-delivery timing of the ExceptionVerification target (the fixture's ExpectedErrors/ExpectedWarns counts race with log delivery) — they fail identically on the BASE head d0f6b0e0 (see baseline.json) and are NOT caused by this change; RefreshAuthorServiceFixture is not a CI-required lane (ci-backend.yml runs targeted filters only), so these pre-existing failures do not block the PR."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
@@ -173,12 +210,49 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_1ee5deb1/logs/
-  verified_at: 2026-10-12
-  base_sha: 24d42b65c8b9b073b50f6fea7ccbe1c422677326
-  head_sha: 8e381ed8c60340b6d7cd7a259cb16966888fbe83
-  lane: develop (net10.0 band) — re-verified at existing PR #218 head
-  note: pointers superseded per run — current baseline.json is the existing-PR #218 audit record (t_1ee5deb1, run 1279); raw logs at ../scratch-t_1ee5deb1/logs/
+  logs: ../logs-t_60662025/
+  verified_at: 2026-10-17
+  base_sha: d0f6b0e04dd83339a9bdc175b3550820c5b9316c
+  head_sha: 42d0de9e33fe2786fb48f6d52224446f1f286105
+  # Issue #272 development run (t_60662025, 2026-10-17): work branch
+  # fix/issue-272-author-refresh-delete from live develop d0f6b0e0. Implemented the
+  # ShouldDelete local-author guard in RefreshAuthorService (AuthorMetadataId <= 0
+  # never deletes) so a locally created author (unresolvable/synthetic foreign id,
+  # AuthorMetadataId == 0) survives the post-create background refresh instead of
+  # being deleted before the 201 Created redirect resolves (issue #272). Provider-
+  # sourced authors (AuthorMetadataId > 0) keep the documented provider-removed
+  # deletion behavior (#204/#209). Three regression tests added to
+  # RefreshAuthorServiceFixture. Verified at head 42d0de9e: rid-core-targeted 25/25,
+  # metadata-core-fixtures 32/32 (CI parity), issue-272 regression 3 new tests pass.
+  # PRE-EXISTING: 2 not-found tests in RefreshAuthorServiceFixture fail in this
+  # isolated env on NLog async-delivery timing (fail identically on base d0f6b0e0;
+  # not a CI-required lane). The issue-cited defect head fe85b50d is an ancestor of
+  # the base d0f6b0e0 (fe85b50d = #271, present in develop history). Prior verified
+  # run remain the record: issue #275 repair (t_7bdf990f, head d5ebd70c local), issue
+  # #279 @ 8d2281e4c5 (t_f1ae9028), 2026-10-14 PR #243 @ 949a43a160 (t_e4ea7a87), issue
+  # #256 @ 75c21186 (t_5daa7896), 2026-10-12 PR #225 @ 1f37119280 (t_efb34b16), and
+  # the 2026-09-18 baseline @ d21d1361c. Hosted exact-head CI is the merge gate.
+  lane: develop (net10.0 band)
+  note: >
+    Issue #272 development run (t_60662025). The defect: a locally created author
+    (synthetic/unmapped foreign id) persisted via POST /api/v1/author carries
+    AuthorMetadataId == 0; the post-create background refresh treated the expected
+    not-found as a provider-removal signal and deleted the row before the 201 Created
+    redirect resolved, so clients observed 404 "Author with ID 1 does not exist".
+    The fix makes ShouldDelete return false for AuthorMetadataId <= 0 (local authors
+    were never provider-resolvable, so not-found is expected, not a removal), while
+    provider-sourced authors (AuthorMetadataId > 0) retain the documented
+    provider-removed deletion behavior (#204/#209 — the re-throw guard for transient
+    outages at RefreshAuthorService.cs:100-111 is unchanged). Three regression tests
+    pin the new-author, bulk-refresh, and no-regression-provider-sourced paths.
+    Verified at head 42d0de9e (work branch fix/issue-272-author-refresh-delete from
+    base develop d0f6b0e0). The 2 pre-existing not-found tests in
+    RefreshAuthorServiceFixture fail in this isolated environment due to NLog
+    async-delivery timing of the ExceptionVerification target (ExpectedErrors/
+    ExpectedWarns counts race with log delivery); they fail identically on the base
+    head and are not a CI-required lane. CI (ci-backend.yml) runs targeted fixture
+    filters only (rid-core-targeted 25/25, metadata-core-fixtures 32/32, both green
+    at this head); hosted exact-head CI is the merge gate.
 
 skipped_integrations:
   - name: docker-image-build

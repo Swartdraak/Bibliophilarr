@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using FizzWare.NBuilder;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
@@ -185,9 +186,49 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Mocker.GetMock<IEditionService>()
                 .Verify(v => v.SetMonitored(_ebookEdition), Times.Once());
-
             Mocker.GetMock<IEditionService>()
                 .Verify(v => v.SetMonitoredByFormat(It.IsAny<Edition>()), Times.Never());
+        }
+
+        [Test]
+        public void should_not_silently_drop_a_book_when_author_monitor_new_items_is_out_of_range()
+        {
+            Mocker.GetMock<IConfigService>()
+                .Setup(s => s.EnableDualFormatTracking).Returns(false);
+
+            // Regression (issue #256): a corrupted AuthorFormatProfiles/Authors
+            // MonitorNewItems value (e.g. 3) used to make MonitorNewBookService throw
+            // NotImplementedException. ImportApprovedBooks.EnsureBookAdded caught and logged
+            // that exception and rejected the book, so the import reported 100% match rate
+            // yet persisted no books. The service now falls back to a safe default, so the
+            // import must complete without throwing and without rejecting the book.
+            _author.MonitorNewItems = (NewItemMonitorTypes)3;
+            _book.Id = 0;
+            _book.ForeignBookId = "test-foreign-book-id";
+
+            Mocker.GetMock<IBookService>()
+                .Setup(s => s.FindById(It.IsAny<string>()))
+                .Returns((Book)null);
+            Mocker.GetMock<IBookService>()
+                .Setup(s => s.GetBooksByAuthor(It.IsAny<int>()))
+                .Returns(new List<Book>());
+            Mocker.GetMock<IBookService>()
+                .Setup(s => s.InsertMany(It.IsAny<List<Book>>()))
+                .Callback<List<Book>>(b =>
+                {
+                    if (b != null && b.Count > 0)
+                    {
+                        b[0].Id = 1000;
+                    }
+                });
+
+            GivenEbookImport();
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().NotBeNull();
+            Mocker.GetMock<IMonitorNewBookService>()
+                .Verify(v => v.ShouldMonitorNewBook(It.IsAny<Book>(), It.IsAny<List<Book>>(), (NewItemMonitorTypes)3), Times.Once());
         }
     }
 }
