@@ -2,6 +2,18 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22).
+# Existing PR #220 audit run (2026-10-18, task t_43f927cc) at merged head 848ba72b
+# (dependabot/github_actions/develop/actions/setup-python-7.0.0 @ 23d8bdeb + normal
+# catch-up merge of develop e7b73817; base develop e7b73817, zero conflicts):
+# re-verified yarn-install (frozen-lockfile), eslint (7 pre-existing warnings, 0
+# errors), both ops guards, jest (47/47 / 13 suites), dotnet restore, backend
+# Release build (0 warn/0 err), rid-core-targeted (25/25), rid-common-targeted
+# (16/18, 2 pre-existing skips), issue-279 regression (3/3) in-container.
+# NOTE: .NET build/test lanes require the operator-provisioned SixLabors
+# ImageSharp community license via -p:SixLaborsLicenseFile=<sixlabors.lic>
+# (mirrors ci-backend.yml's SIXLABORS_LICENSE_FILE mechanism); without it the
+# CoreCompile stage fails with "No Six Labors license found". See baseline.json
+# (workspace root) and audit-t_43f927cc/logs/ for per-command evidence.
 # Existing PR #243 audit run (2026-10-14, task t_e4ea7a87) at merged head 949a43a160
 # (dependabot/npm_and_yarn/develop/babel/preset-react-7.29.7 @ 1d101b0eda + normal
 # catch-up merge of develop fe85b50d; base develop 75c21186, zero conflicts):
