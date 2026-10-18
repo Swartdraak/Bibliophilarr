@@ -33,6 +33,13 @@
 # metadata-core-fixtures 32/32, issue-272 regression 3/3 new pass + 11 pre-existing
 # pass, 2 pre-existing not-found tests failing on NLog async-delivery timing — see
 # baseline.json). Head 42d0de9e. See logs-t_60662025/ for per-command evidence.
+# Issue #296 development run (2026-10-18, task t_56e08eff) at develop 5eac4ee3 (base),
+# work branch fix/issue-296-command-unknown-name-4xx, head 816bd8d3e8: added the
+# issue-296-regression-command-unknown-name test command and re-verified the contract
+# in-container (issue-296 fixture 5/5 — RED 4-fail at base / GREEN 5-pass post-fix; full
+# NzbDrone.Api.Test suite 80/80; full solution Release build 0 warn/0 err). See
+# baseline.json (workspace root) and t_56e08eff-logs/ for this run's per-command
+# evidence.
 # Do not store credentials or secrets here.
 
 version: 1
@@ -161,6 +168,10 @@ commands:
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~RefreshAuthorServiceFixture"
       cwd: .
       note: "Issue #272 regression: a locally created author (synthetic/unmapped foreign id, AuthorMetadataId == 0) persisted via POST /api/v1/author must survive the post-create background refresh — RefreshAuthorService.ShouldDelete returns false for AuthorMetadataId <= 0 so the expected not-found is not treated as a provider-removal signal; provider-sourced authors (AuthorMetadataId > 0) keep the documented provider-removed deletion behavior (#204/#209). Pinned by three new tests in RefreshAuthorServiceFixture: should_not_delete_newly_created_local_author_when_foreign_id_unresolvable_and_no_files (single RefreshAuthorCommand), should_not_delete_local_author_on_bulk_refresh_when_foreign_id_unresolvable_and_no_files (BulkRefreshAuthorCommand), and should_still_delete_provider_sourced_author_when_remote_removed_and_no_files (no-regression guard). RE-VERIFIED 2026-10-17 at head 42d0de9e (work branch fix/issue-272-author-refresh-delete, run t_60662025): 16 total (13 pre-existing + 3 new); the 3 new + 11 pre-existing pass. PRE-EXISTING: 2 pre-existing not-found tests (should_log_error_and_delete_if_musicbrainz_id_not_found_and_author_has_no_files, should_log_error_but_not_delete_if_musicbrainz_id_not_found_and_author_has_files) fail in this isolated environment due to NLog async-delivery timing of the ExceptionVerification target (the fixture's ExpectedErrors/ExpectedWarns counts race with log delivery) — they fail identically on the BASE head d0f6b0e0 (see baseline.json) and are NOT caused by this change; RefreshAuthorServiceFixture is not a CI-required lane (ci-backend.yml runs targeted filters only), so these pre-existing failures do not block the PR."
+    - name: issue-296-regression-command-unknown-name
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~CommandControllerUnknownNameIssue296Fixture"
+      cwd: .
+      note: "Issue #296 regression: POST /api/v1/command with a command name matching no registered Command implementation must return 400 (BadRequest), never 500. Before the fix, CommandController.StartCommand used Enumerable.Single, which throws InvalidOperationException when zero implementations match; BibliophilarrErrorPipeline maps that to HttpStatusCode.InternalServerError and logs it at Fatal, producing a 500 for a benign client-input condition. The endpoint now resolves the type with FirstOrDefault and throws a 400 BadRequestException when the name is unknown, and reads the raw request body up front (no behavior change for the error path). Pinned by CommandControllerUnknownNameIssue296Fixture (5 tests: 3 unknown-name cases -> 400 ApiException not 500/InvalidOperationException; ApplicationUpdateCommand guard preserved -> 400 with disabled message; resolvable name not rejected by the guard -> 201 CreatedAtActionResult). RE-VERIFIED 2026-10-18 at head 816bd8d3e8 (work branch fix/issue-296-command-unknown-name-4xx, run t_56e08eff): RED 4-failed at base (3 unknown-name -> InvalidOperationException @ CommandController.cs:55; 1 resolvable blocked at Request.Body) / GREEN 5-passed post-fix; full NzbDrone.Api.Test suite 80/80; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (unknown-name -> 4xx over the wire) is exercised in the application-test stage; the existing NzbDrone.Integration.Test CommandFixture is [Ignore]d and requires Postgres, so this unit-level fixture is the CI-parity guard."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .

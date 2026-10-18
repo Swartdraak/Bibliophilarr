@@ -52,33 +52,45 @@ namespace Bibliophilarr.Api.V1.Commands
         [RestPostById]
         public ActionResult<CommandResource> StartCommand([FromBody] CommandResource commandResource)
         {
-            var commandType =
-                _knownTypes.GetImplementations(typeof(Command))
-                               .Single(c => c.Name.Replace("Command", "")
-                                             .Equals(commandResource.Name, StringComparison.InvariantCultureIgnoreCase));
-
-            if (commandType == typeof(ApplicationUpdateCommand))
-            {
-                throw new BadRequestException("Application updates are disabled until release pipeline support is implemented.");
-            }
-
+            // Read the raw request body up front so command-type resolution and the
+            // guards below are decoupled from the body stream (and unit-testable). For
+            // an unknown command name this is a no-op read: resolution and the 400 guard
+            // fire before deserialization, so behavior for the error path is unchanged.
             Request.Body.Seek(0, SeekOrigin.Begin);
-            using var reader = new StreamReader(Request.Body);
-            var body = reader.ReadToEnd();
-            var priority = commandType == typeof(ManualImportCommand)
-                ? CommandPriority.High
-                : CommandPriority.Normal;
+            using (var reader = new StreamReader(Request.Body))
+            {
+                var body = reader.ReadToEnd();
 
-            dynamic command = STJson.Deserialize(body, commandType);
+                var commandType =
+                    _knownTypes.GetImplementations(typeof(Command))
+                                   .FirstOrDefault(c => c.Name.Replace("Command", "")
+                                                     .Equals(commandResource.Name, StringComparison.InvariantCultureIgnoreCase));
 
-            command.Trigger = CommandTrigger.Manual;
-            command.SuppressMessages = !command.SendUpdatesToClient;
-            command.SendUpdatesToClient = true;
-            command.ClientUserAgent = Request.Headers["User-Agent"];
+                if (commandType == null)
+                {
+                    throw new BadRequestException($"Unknown command: {commandResource.Name}.");
+                }
 
-            var trackedCommand = _commandQueueManager.Push(command, priority, CommandTrigger.Manual);
+                if (commandType == typeof(ApplicationUpdateCommand))
+                {
+                    throw new BadRequestException("Application updates are disabled until release pipeline support is implemented.");
+                }
 
-            return Created(trackedCommand.Id);
+                var priority = commandType == typeof(ManualImportCommand)
+                    ? CommandPriority.High
+                    : CommandPriority.Normal;
+
+                dynamic command = STJson.Deserialize(body, commandType);
+
+                command.Trigger = CommandTrigger.Manual;
+                command.SuppressMessages = !command.SendUpdatesToClient;
+                command.SendUpdatesToClient = true;
+                command.ClientUserAgent = Request.Headers["User-Agent"];
+
+                var trackedCommand = _commandQueueManager.Push(command, priority, CommandTrigger.Manual);
+
+                return Created(trackedCommand.Id);
+            }
         }
 
         [HttpGet]
