@@ -281,6 +281,27 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     item.Rejections = decision.Rejections;
                     item.Size = decision.Item.Size;
 
+                    // Issue #295: when neither the client-provided mapping nor the
+                    // import decision could resolve a catalogue book, attach a
+                    // permanent rejection so the client sees the item was not
+                    // importable (instead of a silent no-op that persists
+                    // BookFile.EditionId=0).
+                    if (item.Book == null && decision.Item.Book == null)
+                    {
+                        var rejectReason = "Cannot import: no catalogue book/edition mapping. " +
+                            "The scan could not resolve a matching book for this file. " +
+                            "Add the book to your library first, then retry.";
+                        if (item.Rejections == null)
+                        {
+                            item.Rejections = new List<Rejection> { new Rejection(rejectReason) };
+                        }
+                        else
+                        {
+                            item.Rejections = item.Rejections.Append(new Rejection(rejectReason)).ToList();
+                        }
+                        _logger.Warn("Manual import item {0} has no catalogue book mapping and was not importable.", item.Path);
+                    }
+
                     result.Add(item);
                 }
 
@@ -403,7 +424,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     var book = _bookService.GetBook(file.BookId);
 
                     var edition = _editionService.GetEditionByForeignEditionId(file.ForeignEditionId);
-                    if (edition == null)
+                    if (edition == null && file.ForeignEditionId != null)
                     {
                         var tuple = _metadataOrchestrator.GetBookInfo(book.ForeignBookId);
                         edition = tuple.Item2.Editions.Value.SingleOrDefault(x => x.ForeignEditionId == file.ForeignEditionId);
@@ -434,6 +455,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     {
                         _logger.Warn($"Destination author folder {author.Path} not in a Root Folder, skipping import");
                         importDecision.Reject(new Rejection($"Destination author folder {author.Path} is not in a Root Folder"));
+                    }
+
+                    // Issue #295: when a book mapping was provided but no edition
+                    // could be resolved, the import would persist a BookFile with
+                    // EditionId=0 (unmapped) while reporting 202 success.  Reject
+                    // the decision explicitly so the caller is not told a no-op
+                    // import succeeded.
+                    if (importDecision.Item.Book != null && importDecision.Item.Edition == null &&
+                        !importDecision.Rejections.Any())
+                    {
+                        _logger.Warn(
+                            "Manual import of {0}: book {1} mapped but no resolvable edition (ForeignEditionId={2}). " +
+                            "Importing would leave the file unmapped (EditionId=0); rejecting to avoid a silent no-op.",
+                            file.Path, book.ForeignBookId, file.ForeignEditionId ?? "<null>");
+                        importDecision.Reject(new Rejection(
+                            $"Cannot import: book {book.ForeignBookId} has no resolvable edition for this file " +
+                            "(ForeignEditionId=" + (file.ForeignEditionId ?? "null") + "). " +
+                            "The file would be left unmapped (EditionId=0)."));
                     }
 
                     bookImportDecisions.Add(importDecision);
