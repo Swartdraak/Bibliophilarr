@@ -299,6 +299,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                         {
                             item.Rejections = item.Rejections.Append(new Rejection(rejectReason)).ToList();
                         }
+
                         _logger.Warn("Manual import item {0} has no catalogue book mapping and was not importable.", item.Path);
                     }
 
@@ -468,7 +469,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                         _logger.Warn(
                             "Manual import of {0}: book {1} mapped but no resolvable edition (ForeignEditionId={2}). " +
                             "Importing would leave the file unmapped (EditionId=0); rejecting to avoid a silent no-op.",
-                            file.Path, book.ForeignBookId, file.ForeignEditionId ?? "<null>");
+                            file.Path,
+                            book.ForeignBookId,
+                            file.ForeignEditionId ?? "<null>");
                         importDecision.Reject(new Rejection(
                             $"Cannot import: book {book.ForeignBookId} has no resolvable edition for this file " +
                             "(ForeignEditionId=" + (file.ForeignEditionId ?? "null") + "). " +

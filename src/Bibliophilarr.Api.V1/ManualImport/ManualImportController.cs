@@ -59,7 +59,7 @@ namespace Bibliophilarr.Api.V1.ManualImport
                     "Manual import update rejected: all {0} submitted item(s) lack a usable catalogue BookId/ForeignEditionId — nothing to import. {1}",
                     resource.Count,
                     string.Join(" ", resource
-                        .Select(r => $"{System.IO.Path.GetFileName(r.Path)}: " +
+                        .Select(r => $"{Path.GetFileName(r.Path)}: " +
                             (r.AuthorId == null ? "AuthorId not set" : "AuthorId=" + r.AuthorId.Value) +
                             (r.BookId == null ? ", BookId not set" : ", BookId=" + r.BookId.Value) +
                             (r.ForeignEditionId == null ? ", ForeignEditionId not set" : ""))));

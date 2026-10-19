@@ -4,11 +4,10 @@ using Bibliophilarr.Api.V1.ManualImport;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
-using NLog;
+using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
-using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Api.Test.ManualImport
 {
@@ -47,7 +46,7 @@ namespace NzbDrone.Api.Test.ManualImport
                 _bookService.Object,
                 _formatProfileService.Object,
                 _configService.Object,
-                new Logger("Test"));
+                NzbDrone.Common.Instrumentation.NzbDroneLogger.GetLogger("TestLogger"));
         }
 
         [Test]

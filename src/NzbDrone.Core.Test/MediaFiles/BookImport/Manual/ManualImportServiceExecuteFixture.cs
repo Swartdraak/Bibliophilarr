@@ -1,12 +1,15 @@
 using System.Collections.Generic;
-using System.IO;
+using System.IO.Abstractions;
 using System.Linq;
-using FluentAssertions;
+using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Disk;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser.Model;
-using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Test.Common;
 
@@ -62,7 +65,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
 
             Mocker.GetMock<IDiskProvider>()
                 .Setup(d => d.GetFileInfo(_filePath))
-                .Returns(new Mock<IFileInfo>());
+                .Returns(Mock.Of<IFileInfo>(f => f.FullName == _filePath, Moq.MockBehavior.Loose));
 
             Mocker.GetMock<IDiskProvider>()
                 .Setup(d => d.GetFileSize(_filePath))
@@ -70,11 +73,11 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
 
             Mocker.GetMock<IRootFolderService>()
                 .Setup(r => r.GetBestRootFolder(_filePath))
-                .Returns("/root");
+                .Returns(new RootFolder { Path = "/root" });
 
             Mocker.GetMock<IRootFolderService>()
                 .Setup(r => r.GetBestRootFolder("/root/Test Author"))
-                .Returns("/root");
+                .Returns(new RootFolder { Path = "/root" });
 
             Mocker.GetMock<IMetadataTagService>()
                 .Setup(m => m.ReadTags(It.IsAny<IFileInfo>()))
@@ -127,14 +130,15 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                 .Setup(e => e.GetEditionByForeignEditionId("OL321M"))
                 .Returns((Edition)null);
 
+            var providerBook = new Book
+            {
+                ForeignBookId = "OL123W",
+                Title = "Test Book",
+                Editions = new List<Edition>()
+            };
             Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(o => o.GetBookInfo("OL123W"))
-                .Returns((NzbDrone.Core.MetadataSource.BookMetadata)new NzbDrone.Core.MetadataSource.BookMetadata
-                {
-                    ForeignBookId = "OL123W",
-                    Title = "Test Book",
-                    Editions = new List<Edition>()
-                });
+                .Returns(new System.Tuple<string, Book, List<AuthorMetadata>>("openlibrary", providerBook, new List<AuthorMetadata>()));
 
             var file = new ManualImportFile
             {
