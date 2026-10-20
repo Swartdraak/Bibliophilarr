@@ -64,13 +64,18 @@ namespace Bibliophilarr.Api.V1.ManualImport
                             (r.BookId == null ? ", BookId not set" : ", BookId=" + r.BookId.Value) +
                             (r.ForeignEditionId == null ? ", ForeignEditionId not set" : ""))));
 
-                return BadRequest(resource.Select(r => new
+                var rejections = resource.Select(r => new
                 {
                     path = r.Path,
-                    rejections = new[] { new Rejection(
-                        "Cannot import: no catalogue book/edition mapping (BookId and ForeignEditionId both missing). " +
-                        "Run the manual-import scan first to resolve the catalogue match, then retry.") }
-                }));
+                    rejections = new[]
+                    {
+                        new Rejection(
+                            "Cannot import: no catalogue book/edition mapping (BookId and ForeignEditionId both missing). " +
+                            "Run the manual-import scan first to resolve the catalogue match, then retry.")
+                    }
+                });
+
+                return BadRequest(rejections);
             }
 
             return Accepted(UpdateImportItems(resource));

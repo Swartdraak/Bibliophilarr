@@ -5,6 +5,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
@@ -82,6 +83,12 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
             Mocker.GetMock<IMetadataTagService>()
                 .Setup(m => m.ReadTags(It.IsAny<IFileInfo>()))
                 .Returns(new ParsedTrackInfo());
+
+            // IImportApprovedBooks.Import must return a list (the service calls
+            // imported.AddRange(result)); the default null mock return would throw.
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(i => i.Import(It.IsAny<List<ImportDecision<LocalBook>>>(), It.IsAny<bool>(), It.IsAny<DownloadClientItem>(), It.IsAny<ImportMode>()))
+                .Returns(new List<ImportResult>());
         }
 
         [Test]
