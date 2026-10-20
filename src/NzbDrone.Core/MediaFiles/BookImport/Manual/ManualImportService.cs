@@ -431,6 +431,27 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                         edition = tuple.Item2.Editions.Value.SingleOrDefault(x => x.ForeignEditionId == file.ForeignEditionId);
                     }
 
+                    // Issue #307: when the client omits the edition (ForeignEditionId
+                    // is null) or names an edition that cannot be resolved, a book that
+                    // has a monitored edition must not be stranded unmapped.  Default to
+                    // the book's monitored edition (mirroring the event-path fallback in
+                    // ImportApprovedBooks) so the file is persisted mapped (EditionId>0)
+                    // instead of persisting an unmapped BookFile (EditionId=0).
+                    if (edition == null)
+                    {
+                        var monitoredEdition = book.Editions?.Value?.FirstOrDefault(x => x.Monitored);
+                        if (monitoredEdition != null)
+                        {
+                            _logger.ProgressInfo(
+                                "Manual import of {0}: no resolvable edition (ForeignEditionId={1}), defaulting to the book's monitored edition {2} (book {3}).",
+                                file.Path,
+                                file.ForeignEditionId ?? "<null>",
+                                monitoredEdition.ForeignEditionId ?? monitoredEdition.Id.ToString(),
+                                book.ForeignBookId);
+                            edition = monitoredEdition;
+                        }
+                    }
+
                     var fileRootFolder = _rootFolderService.GetBestRootFolder(file.Path);
                     var fileInfo = _diskProvider.GetFileInfo(file.Path);
                     var fileTrackInfo = _metadataTagService.ReadTags(fileInfo) ?? new ParsedTrackInfo();
@@ -459,10 +480,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     }
 
                     // Issue #295: when a book mapping was provided but no edition
-                    // could be resolved, the import would persist a BookFile with
-                    // EditionId=0 (unmapped) while reporting 202 success.  Reject
-                    // the decision explicitly so the caller is not told a no-op
-                    // import succeeded.
+                    // could be resolved (including the #307 case where the book has
+                    // no monitored edition to default to), the import would persist
+                    // a BookFile with EditionId=0 (unmapped) while reporting 202
+                    // success.  Reject the decision explicitly so the caller is not
+                    // told a no-op import succeeded.  (Issue #307: when the book
+                    // DOES have a monitored edition, the code above defaults to it,
+                    // so this guard only fires for genuinely unresolvable imports.)
                     if (importDecision.Item.Book != null && importDecision.Item.Edition == null &&
                         !importDecision.Rejections.Any())
                     {
