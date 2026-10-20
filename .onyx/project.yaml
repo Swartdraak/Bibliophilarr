@@ -40,6 +40,14 @@
 # NzbDrone.Api.Test suite 80/80; full solution Release build 0 warn/0 err). See
 # baseline.json (workspace root) and t_56e08eff-logs/ for this run's per-command
 # evidence.
+# Issue #307 development run (2026-10-20, task t_d604af7f) at develop 1f158eede (base),
+# work branch fix/issue-307-manualimport-default-monitored-edition: added the
+# issue-307-regression-manualimport-null-edition test command and re-verified the
+# contract in-container (ManualImportServiceExecute* fixtures 5/5 — the #307
+# default-to-monitored-edition test RED-fails at base / GREEN post-fix; rid-core-targeted
+# 25/25, issue-275 19/19, issue-256 16/16, full solution Release build 0 warn/0 err).
+# See baseline.json (workspace root) and logs-t_d604af7f/ for this run's per-command
+# evidence.
 # Do not store credentials or secrets here.
 
 version: 1
@@ -172,6 +180,10 @@ commands:
       command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~CommandControllerUnknownNameIssue296Fixture"
       cwd: .
       note: "Issue #296 regression: POST /api/v1/command with a command name matching no registered Command implementation must return 400 (BadRequest), never 500. Before the fix, CommandController.StartCommand used Enumerable.Single, which throws InvalidOperationException when zero implementations match; BibliophilarrErrorPipeline maps that to HttpStatusCode.InternalServerError and logs it at Fatal, producing a 500 for a benign client-input condition. The endpoint now resolves the type with FirstOrDefault and throws a 400 BadRequestException when the name is unknown, and reads the raw request body up front (no behavior change for the error path). Pinned by CommandControllerUnknownNameIssue296Fixture (5 tests: 3 unknown-name cases -> 400 ApiException not 500/InvalidOperationException; ApplicationUpdateCommand guard preserved -> 400 with disabled message; resolvable name not rejected by the guard -> 201 CreatedAtActionResult). RE-VERIFIED 2026-10-18 at head 816bd8d3e8 (work branch fix/issue-296-command-unknown-name-4xx, run t_56e08eff): RED 4-failed at base (3 unknown-name -> InvalidOperationException @ CommandController.cs:55; 1 resolvable blocked at Request.Body) / GREEN 5-passed post-fix; full NzbDrone.Api.Test suite 80/80; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (unknown-name -> 4xx over the wire) is exercised in the application-test stage; the existing NzbDrone.Integration.Test CommandFixture is [Ignore]d and requires Postgres, so this unit-level fixture is the CI-parity guard."
+    - name: issue-307-regression-manualimport-null-edition
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~ManualImportServiceExecute"
+      cwd: .
+      note: "Issue #307 regression (complement of the #295 fix at 1f158eede): POST /api/v1/manualimport (update) with a valid BookId and null ForeignEditionId must NOT strand the imported file unmapped (BookFile.EditionId=0). ManualImportService.Execute now defaults the edition to the book's MONITORED edition (mirroring the event-path fallback at ImportApprovedBooks.cs:359) BEFORE the #295 rejection guard, so the file is persisted mapped (EditionId>0); a book with NO monitored edition is still explicitly rejected (honest failure, #295 semantics preserved). Pinned by ManualImportServiceExecuteIssue307Fixture (3 tests: null-foreignEditionId + monitored edition -> decision APPROVED with Edition.Id>0; null-foreignEditionId + no monitored edition -> decision REJECTED; unresolvable named edition + no monitored edition -> decision REJECTED) plus the 2 pre-existing ManualImportServiceExecuteFixture (#295) tests. RE-VERIFIED 2026-10-20 at develop 1f158eede (base) with work branch fix/issue-307-manualimport-default-monitored-edition (run t_d604af7f): the default-to-monitored-edition test RED-fails at base (decision rejected instead of approved) / GREEN post-fix; full ManualImportServiceExecute* filter 5/5 post-fix; rid-core-targeted 25/25, issue-275 19/19, issue-256 16/16; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (mapped BookFile row + per-book view) is exercised in the application-test stage; this unit-level fixture is the CI-parity guard. Secondary defect noted in issue #307 (zero-byte/corrupt media persisting BookFile rows, AC4) is a distinct defect with no media-integrity validation layer in this repo and is NOT fixed by this change; it is reported as a follow-up issue."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
@@ -233,49 +245,56 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../logs-t_60662025/
-  verified_at: 2026-10-17
-  base_sha: d0f6b0e04dd83339a9bdc175b3550820c5b9316c
-  head_sha: 42d0de9e33fe2786fb48f6d52224446f1f286105
-  # Issue #272 development run (t_60662025, 2026-10-17): work branch
-  # fix/issue-272-author-refresh-delete from live develop d0f6b0e0. Implemented the
-  # ShouldDelete local-author guard in RefreshAuthorService (AuthorMetadataId <= 0
-  # never deletes) so a locally created author (unresolvable/synthetic foreign id,
-  # AuthorMetadataId == 0) survives the post-create background refresh instead of
-  # being deleted before the 201 Created redirect resolves (issue #272). Provider-
-  # sourced authors (AuthorMetadataId > 0) keep the documented provider-removed
-  # deletion behavior (#204/#209). Three regression tests added to
-  # RefreshAuthorServiceFixture. Verified at head 42d0de9e: rid-core-targeted 25/25,
-  # metadata-core-fixtures 32/32 (CI parity), issue-272 regression 3 new tests pass.
-  # PRE-EXISTING: 2 not-found tests in RefreshAuthorServiceFixture fail in this
-  # isolated env on NLog async-delivery timing (fail identically on base d0f6b0e0;
-  # not a CI-required lane). The issue-cited defect head fe85b50d is an ancestor of
-  # the base d0f6b0e0 (fe85b50d = #271, present in develop history). Prior verified
-  # run remain the record: issue #275 repair (t_7bdf990f, head d5ebd70c local), issue
-  # #279 @ 8d2281e4c5 (t_f1ae9028), 2026-10-14 PR #243 @ 949a43a160 (t_e4ea7a87), issue
-  # #256 @ 75c21186 (t_5daa7896), 2026-10-12 PR #225 @ 1f37119280 (t_efb34b16), and
-  # the 2026-09-18 baseline @ d21d1361c. Hosted exact-head CI is the merge gate.
+  logs: ../logs-t_d604af7f/
+  verified_at: 2026-10-20
+  base_sha: 1f158eedefb245c4d2bd260a042a90d1e108ebb2
+  head_sha: 9013f8fdc049c732884e34625a9b2645df9c437d
+  # Issue #307 development run (t_d604af7f, 2026-10-20): work branch
+  # fix/issue-307-manualimport-default-monitored-edition from live develop
+  # 1f158eede (merge of PR #306, the #295 fix). Implemented the
+  # default-to-monitored-edition fallback in ManualImportService.Execute so a
+  # manual-import update with a valid BookId and null ForeignEditionId persists
+  # the BookFile mapped to the book's monitored edition (EditionId > 0) instead
+  # of being rejected by the #295 guard (which had made the issue-#307 shape
+  # fail honestly but still not satisfy the issue's acceptance criteria) or
+  # (at older heads) persisted unmapped at EditionId=0. Three regression tests
+  # added to ManualImportServiceExecuteIssue307Fixture; the #295 semantics are
+  # pinned (no monitored edition -> still rejected). Verified at the fixed head:
+  # ManualImportServiceExecute* 5/5 (RED 1-fail at base for the new default test),
+  # rid-core-targeted 25/25, issue-275 19/19, issue-256 16/16, full solution
+  # Release build 0 warn/0 err. PRE-EXISTING: 108 deterministic Core-suite
+  # failures in the isolated env (unchanged; CI runs targeted filters only).
+  # The issue-#307 secondary defect (AC4: zero-byte/corrupt media persisting
+  # BookFile rows) is NOT fixed here — it has no validation layer in this repo
+  # and is a distinct defect; reported as a follow-up issue. Prior verified runs
+  # remain the record: issue #296 @ 816bd8d3e8 (t_56e08eff), issue #272 @
+  # 42d0de9e (t_60662025), issue #275 repair (t_7bdf990f), issue #279 @
+  # 8d2281e4c5 (t_f1ae9028), issue #256 @ 75c21186 (t_5daa7896), PR #243 @
+  # 949a43a160 (t_e4ea787), PR #225 @ 1f37119280 (t_efb34b16), 2026-09-18
+  # baseline @ d21d1361c. Hosted exact-head CI is the merge gate.
   lane: develop (net10.0 band)
   note: >
-    Issue #272 development run (t_60662025). The defect: a locally created author
-    (synthetic/unmapped foreign id) persisted via POST /api/v1/author carries
-    AuthorMetadataId == 0; the post-create background refresh treated the expected
-    not-found as a provider-removal signal and deleted the row before the 201 Created
-    redirect resolved, so clients observed 404 "Author with ID 1 does not exist".
-    The fix makes ShouldDelete return false for AuthorMetadataId <= 0 (local authors
-    were never provider-resolvable, so not-found is expected, not a removal), while
-    provider-sourced authors (AuthorMetadataId > 0) retain the documented
-    provider-removed deletion behavior (#204/#209 — the re-throw guard for transient
-    outages at RefreshAuthorService.cs:100-111 is unchanged). Three regression tests
-    pin the new-author, bulk-refresh, and no-regression-provider-sourced paths.
-    Verified at head 42d0de9e (work branch fix/issue-272-author-refresh-delete from
-    base develop d0f6b0e0). The 2 pre-existing not-found tests in
-    RefreshAuthorServiceFixture fail in this isolated environment due to NLog
-    async-delivery timing of the ExceptionVerification target (ExpectedErrors/
-    ExpectedWarns counts race with log delivery); they fail identically on the base
-    head and are not a CI-required lane. CI (ci-backend.yml) runs targeted fixture
-    filters only (rid-core-targeted 25/25, metadata-core-fixtures 32/32, both green
-    at this head); hosted exact-head CI is the merge gate.
+    Issue #307 development run (t_d604af7f, 2026-10-20). The defect (regression of
+    the #295 fix at 1f158eede): POST /api/v1/manualimport (update) with a valid
+    BookId and null ForeignEditionId left the import decision with Edition == null,
+    so the #295 guard (ManualImportService.cs) rejected it and the file was never
+    persisted mapped — while at older heads the same shape persisted an unmapped
+    BookFile at EditionId=0. The fix defaults the edition to the book's monitored
+    edition (book.Editions.Value.First(x => x.Monitored), mirroring the event-path
+    fallback at ImportApprovedBooks.cs:359) BEFORE the #295 guard, so the BookFile
+    is persisted mapped (EditionId > 0); when the book has no monitored edition the
+    import is still explicitly rejected (honest failure, #295 semantics preserved).
+    Three regression tests added to ManualImportServiceExecuteIssue307Fixture
+    (default-to-monitored-edition approved; no-monitored-edition rejected;
+    unresolvable-named-edition rejected). Verified at the fixed head:
+    ManualImportServiceExecute* 5/5 (the default test RED-fails at base),
+    rid-core-targeted 25/25, issue-275 19/19, issue-256 16/16, full solution
+    Release build 0 warn/0 err. PRE-EXISTING: 108 deterministic Core-suite
+    failures in the isolated env (unchanged; CI runs targeted filters only).
+    The issue-#307 secondary defect (AC4: zero-byte/corrupt media persisting
+    BookFile rows) is NOT fixed here — no media-integrity validation layer exists
+    in this repo and it is a distinct defect; reported as a follow-up issue.
+    Hosted exact-head CI is the merge gate.
 
 skipped_integrations:
   - name: docker-image-build
