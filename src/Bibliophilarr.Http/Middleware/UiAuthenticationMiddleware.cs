@@ -47,18 +47,25 @@ namespace Bibliophilarr.Http.Middleware
             // NOT shadow:
             //   - API endpoints (the API scheme produces its own 401 via the fallback policy),
             //   - [AllowAnonymous] routes (login GET+POST, /content/*, the one-time POST
-            //     /bootstrap first-user provisioning), and
+            //     /bootstrap first-user provisioning, the /ping liveness endpoint), and
             //   - non-GET UI methods (POST/PUT/etc are API/controller traffic).
             // A Forms challenge here yields 401 for an anonymous browser UI request, which is
             // exactly what issue #313 A1/A2 assert. Authenticated users and the
             // DisabledForLocalAddresses local-IP/CGNAT bypass are left to the UI policy in
             // UseAuthorization so its property precedence is preserved unchanged.
+            //
+            // Issue #316: /ping is a [AllowAnonymous] JSON liveness endpoint (PingController).
+            // It must pass through so the controller's 200 + JSON {"Status":"OK"} is served,
+            // not a Forms challenge that falls through to the SPA shell (index.html). The
+            // exclusion is for the EXACT path /ping only: /ping/extra is still a UI-shell GET
+            // (SPA catch-all) and is governed normally.
             var isUiShellGet =
                 HttpMethodCompare(method, "GET") &&
                 !string.IsNullOrEmpty(path) &&
                 !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
                 !path.StartsWith("/login", StringComparison.OrdinalIgnoreCase) &&
-                !path.StartsWith("/content/", StringComparison.OrdinalIgnoreCase);
+                !path.StartsWith("/content/", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(path, "/ping", StringComparison.OrdinalIgnoreCase);
 
             if (isUiShellGet)
             {
