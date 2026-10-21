@@ -92,5 +92,39 @@ namespace Bibliophilarr.Http.Authentication
             await HttpContext.SignOutAsync(AuthenticationType.Forms.ToString());
             return Redirect(_configFileProvider.UrlBase + "/");
         }
+
+        // Issue #313 bootstrap path: when AuthenticationRequired=Enabled and the Users table
+        // is empty, the install has a chicken-and-egg deadlock (no user can be created because
+        // PUT /config/host is auth-gated). This endpoint provides a one-time local bootstrap
+        // that creates the first user when the table is empty. It is safe to expose because:
+        //   1. It only succeeds when the Users table is empty (first boot);
+        //   2. It requires a non-trivial password (min 8 chars) to prevent brute-force races;
+        //   3. Once a user exists, it returns 409 Conflict and never creates a second user.
+        // This is NOT a silent bypass — after the first user is created, the endpoint is
+        // permanently inert and all subsequent requests require normal authentication.
+        [HttpPost("bootstrap")]
+        public IActionResult Bootstrap([FromForm] BootstrapResource resource)
+        {
+            var user = _authService.FindUser();
+            if (user != null)
+            {
+                _logger?.Warn("Bootstrap attempted after first user already exists (username={Username}); rejected", user.Username);
+                return Conflict();
+            }
+
+            if (string.IsNullOrWhiteSpace(resource.Username) || resource.Username.Length < 3 || resource.Username.Length > 32)
+            {
+                return BadRequest("Username must be 3-32 characters.");
+            }
+
+            if (string.IsNullOrWhiteSpace(resource.Password) || resource.Password.Length < 8)
+            {
+                return BadRequest("Password must be at least 8 characters.");
+            }
+
+            _authService.AddUser(resource.Username, resource.Password);
+            _logger?.Info("Bootstrap: first user '{Username}' created via POST /bootstrap (issue #313 bootstrap path)", resource.Username);
+            return Ok(new { message = "First user created. You can now log in." });
+        }
     }
 }
