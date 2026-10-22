@@ -250,6 +250,7 @@ namespace NzbDrone.Core.Organizer
             {
                 name = author?.CleanName;
             }
+
             if (name == null)
             {
                 name = string.Empty;
