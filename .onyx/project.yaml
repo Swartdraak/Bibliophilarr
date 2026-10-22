@@ -77,6 +77,26 @@
 # re-verifies the contract; see baseline.json (workspace root) and
 # logs-t_bdadaf92/ for per-command evidence. No product-code change was required.
 # Do not store credentials or secrets here.
+# Existing PR #262 audit run (2026-10-22, task t_e1b456d9, run 2302) at work-branch head
+# f6ea6959f2 (dependabot/github_actions/develop/actions/setup-node-7.1.0 @ e0263985
+# + normal catch-up merge of develop a104fc72, merge commit f6ea6959; base develop
+# a104fc72, zero conflicts; merge preserved contributor commit e0263985 as an
+# ancestor):
+# re-verified the full contract in-container (Debian 13, .NET SDK 10.0.401,
+# Node + Yarn preinstalled): yarn-install (frozen-lockfile), eslint (7
+# pre-existing warnings, 0 errors), both ops guards, jest (47/47 / 13 suites),
+# dotnet restore (0 NU19xx at this run window), backend Release build
+# (0 warn/0 err), rid-core-targeted (25/25), rid-common-targeted (16/18, 2
+# pre-existing skips). .NET build/test lanes use the operator-provisioned
+# SixLabors license file via -p:SixLaborsLicenseFile=<sixlabors.lic>
+# (mirrors ci-backend.yml's SIXLABORS_LICENSE_FILE mechanism). No product-code
+# change was required or made for this PR: the 3-file pinned-SHA bump
+# (actions/setup-node 6.3.0 v53b83947 -> 7.1.0 v949feb24, node-version
+# 22.22.2, cache: yarn) was independently assessed as low-risk - see
+# PR_DESCRIPTION.md (workspace root) and baseline.json for per-command
+# evidence. The PR's label-policy check failures are metadata-surface
+# (labels/assignee/body contract), not code defects, and are out of scope for
+# this audit stage.
 
 version: 1
 name: bibliophilarr
