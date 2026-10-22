@@ -217,6 +217,14 @@ namespace NzbDrone.Core.Test.MusicTests
         [Test]
         public void should_log_error_but_not_delete_if_musicbrainz_id_not_found_and_author_has_files()
         {
+            // Pre-existing test (base a104fc72), aligned with the #272/#325 provider-
+            // scope gate: the fixture author carries the builder default foreign id
+            // ("ForeignAuthorId1"), a synthetic/unmapped id. A not-found for a
+            // synthetic id is NOT a provider-removal signal, so the not-found branch
+            // logs exactly one error ("was not found, it may have been removed from
+            // Metadata sources") and no deletion occurs (files present anyway). The
+            // original ExpectedErrors(2) counted a pre-#272 second error that the
+            // provider-scope gate no longer emits for synthetic ids.
             GivenAuthorFiles();
             GivenBooksForRefresh(new List<Book>());
 
@@ -228,7 +236,8 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(2);
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -298,11 +307,15 @@ namespace NzbDrone.Core.Test.MusicTests
         [Test]
         public void should_still_delete_provider_sourced_author_when_remote_removed_and_no_files()
         {
-            // Issue #272 no-regression guard: provider-sourced authors (resolved at add
-            // time, AuthorMetadataId > 0) keep the documented provider-removed
-            // deletion behavior (#204/#209) — a genuine not-found with no local files
-            // still deletes.
+            // Issue #272 no-regression guard: provider-sourced authors keep the
+            // documented provider-removed deletion behavior (#204/#209) — a genuine
+            // not-found with no local files still deletes. The foreign id is set to a
+            // provider-scoped id (openlibrary:author:...): under the #272/#325
+            // provider-scope gate the deletion signal keys on the id scope, and this
+            // is the canonical provider-removed scenario (resolved at add time,
+            // AuthorMetadataId > 0, provider later removes the entry).
             _author.AuthorMetadataId = 1;
+            _author.ForeignAuthorId = "openlibrary:author:OL87654A";
 
             Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
                   .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
