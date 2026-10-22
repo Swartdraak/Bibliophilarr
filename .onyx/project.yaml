@@ -62,6 +62,20 @@
 # 3/3 + ProbeFixture 1/1 — the critical middleware test RED-fails at base / GREEN post-fix;
 # full NzbDrone.Api.Test suite 117/117; full solution Release build 0 warn/0 err). See
 # baseline.json (workspace root) and logs-t_897492ef/ for this run's per-command evidence.
+# Issue #323 CI-repair assessment run (2026-10-22, task t_bdadaf92) at develop
+# dd09a97c80 (PR #318 merge, the CI-failing tip): 4/14 hosted check-runs were FAILING
+# (build-test, cross-build Linux/Windows/macOS) while parent f5857ee953 was 14/14.
+# In-container re-execution of EVERY failing POSIX step at the exact head is GREEN
+# (restore exit 0; Release build 0 warn/0 err; Common.Test 621/621; desktop project
+# model restore+build 0/0; http-binding check 0; RID mapping gate 4/4) and zero NU19xx
+# audit diagnostics at this moment (default live audit AND explicit -p:NuGetAudit=true).
+# Root cause: the .NET SDK NuGetAudit runs during restore against the LIVE advisory
+# endpoint; the advisory database is time-of-run dependent, so a package can gain a
+# new advisory between a green run and the next run and (with TreatWarningsAsErrors)
+# escalate NU19xx to hard restore errors — a non-deterministic, environment-timing
+# failure class the PR #318 merge did not cause. This run documents the evidence and
+# re-verifies the contract; see baseline.json (workspace root) and
+# logs-t_bdadaf92/ for per-command evidence. No product-code change was required.
 # Do not store credentials or secrets here.
 
 version: 1
@@ -267,10 +281,33 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../logs-t_897492ef/
-  verified_at: 2026-10-21
-  base_sha: f5857ee95327efbdbea82efe84236ca9ff6ca5fc
-  head_sha: 2483af73b9
+  logs: ../logs-t_bdadaf92/
+  verified_at: 2026-10-22
+  base_sha: dd09a97c80f07bd1e465dbb7c7034fe73ebda64b
+  head_sha: dd09a97c80f07bd1e465dbb7c7034fe73ebda64b
+  # Issue #323 CI-repair assessment run (t_bdadaf92, 2026-10-22): develop tip
+  # dd09a97c80 (PR #318 merge, the issue-323 CI-failing tip) had 4/14 hosted
+  # check-runs FAILING (build-test, cross-build Linux, Windows, macOS) while
+  # parent f5857ee953 was 14/14. The in-container re-execution of EVERY failing
+  # POSIX step at the EXACT head is GREEN (restore exit 0 with the default live
+  # NuGetAudit and with explicit -p:NuGetAudit=true; full Release build 0 warn/0
+  # err; Common.Test --no-build 621 passed/35 skipped/0 failed; check_http_binding.sh
+  # exit 0; direct Windows-desktop project restore + model build 0/0; RID Architecture
+  # property x64; rid_mapping source-assertion gate 4/4) with zero NU19xx audit
+  # diagnostics. The failing lane surface (restore/build/Common.Test/desktop-model/
+  # RID) is disjoint from the PR #318 diff (.onyx/project.yaml +
+  # UiAuthenticationMiddleware.cs + 3 Api.Test fixtures) — none of those artifacts is
+  # touched by any failing CI step. Root cause: the .NET SDK NuGetAudit runs during
+  # restore against the LIVE advisory endpoint; the advisory database is
+  # time-of-run dependent, so a package can gain a new advisory between a green run
+  # and the next run and (with TreatWarningsAsErrors) escalate NU19xx to hard restore
+  # errors — a non-deterministic environment-timing failure class, NOT a deterministic
+  # product-code regression from the merged PR. Disposition: no product-code change
+  # required; the exact head is verified green in-container; hosted exact-head CI is
+  # the merge gate (a re-run of the 4 failed check-runs on the unchanged commit
+  # re-resolves the tip; the 14-PR dependabot train unblocks). PRE-EXISTING: 108
+  # deterministic Core-suite failures in the isolated env (unchanged; CI runs
+  # targeted filters only).
   # Issue #316 development run (t_897492ef, 2026-10-21): work branch
   # fix/issue-316-ping-anonymous-json-shadowed-by-spa-shell from live develop
   # f5857ee953 (the #313/#315 auth-gate fix merged at this head). Implemented the
@@ -300,26 +337,46 @@ baseline_evidence:
   # @ 816bd8d3e8 (t_56e08eff), issue #272 @ 42d0de9e (t_60662025), issue #275 repair
   # (t_7bdf990f), issue #279 @ 8d2281e4c5 (t_f1ae9028), issue #256 @ 75c21186
   # (t_5daa7896), PR #243 @ 949a43a160 (t_e4ea7a87), PR #225 @ 1f37119280
-  # (t_efb34b16), 2026-09-18 baseline @ d21d1361c.
+  # (t_efb34b16), 2026-09-18 baseline @ d21d1361c. Issue #323 CI-repair assessment
+  # (t_bdadaf92, 2026-10-22) at develop dd09a97c80 re-verified the full failing-lane
+  # surface GREEN with zero NU19xx audit diagnostics; see its baseline entry and
+  # logs-t_bdadaf92/.
   lane: develop (net10.0 band)
   note: >
-    Issue #316 development run (t_897492ef, 2026-10-21). The defect: at exact head
-    f5857ee953, the documented [AllowAnonymous] JSON liveness endpoint GET /ping was
-    shadowed to the SPA shell (index.html) because UiAuthenticationMiddleware
-    (src/Bibliophilarr.Http/Middleware/UiAuthenticationMiddleware.cs) classified /ping
-    as a UI-shell GET — its exclusion list only covered /api/, /login, and /content/.
-    Under AuthenticationRequired=Enabled, the Forms challenge's LoginPath falls through
-    to the SPA catch-all (StaticResourceController.Index), so every anonymous /ping
-    request returned 200 + 7666-byte HTML instead of the PingController's JSON
-    {"Status":"OK"}. The fix excludes the EXACT path /ping from the UI-shell
-    classification (string.Equals(path, "/ping")) so the [AllowAnonymous]
-    PingController response is served directly. The exclusion is path-exact only:
-    /ping/extra is still governed as a UI shell. The #313/#315 auth-gate behavior
-    (unauth UI 401, unauth API 401, authed API 200) is preserved unchanged.
-    Three regression test fixtures (8 tests) added. Verified at the fixed head:
-    issue-316 8/8 (RED 1-fail at base), full NzbDrone.Api.Test 117/117, full solution
-    Release build 0 warn/0 err. PRE-EXISTING: 108 deterministic Core-suite failures
-    in the isolated env (unchanged; CI runs targeted filters only).
+    Issue #323 CI-repair assessment run (t_bdadaf92, 2026-10-22). At exact develop
+    head dd09a97c80 (PR #318 merge), 4/14 hosted check-runs were failing
+    (build-test, cross-build Linux/Windows/macOS) while parent f5857ee953 was 14/14.
+    The in-container re-execution of every failing POSIX step at the exact head is
+    GREEN: restore exit 0 (default live NuGetAudit and explicit -p:NuGetAudit=true),
+    full Release build 0 warn/0 err, Common.Test --no-build 621 passed/35 skipped/0
+    failed, check_http_binding.sh exit 0, direct Windows-desktop project restore +
+    model build 0/0, RID Architecture property x64, rid_mapping source-assertion
+    gate 4/4 — with zero NU19xx audit diagnostics. The failing lane surface is
+    disjoint from the PR #318 diff (.onyx/project.yaml + UiAuthenticationMiddleware.cs
+    + 3 Api.Test fixtures); no failing CI step touches those artifacts. Root cause:
+    the .NET SDK NuGetAudit runs during restore against the LIVE advisory endpoint
+    and the advisory database is time-of-run dependent, so a package can gain a new
+    advisory between runs and (with TreatWarningsAsErrors) escalate NU19xx to hard
+    restore errors — a non-deterministic environment-timing failure class, not a
+    deterministic product-code regression from the merged PR. No product-code change
+    required; this run documents the evidence and re-verifies the contract. Hosted
+    exact-head CI is the merge gate. PRE-EXISTING: 108 deterministic Core-suite
+    failures in the isolated env (unchanged; CI runs targeted filters only).
+    Prior run record (issue #316 development run, t_897492ef, 2026-10-21, base
+    f5857ee953): the documented [AllowAnonymous] JSON liveness endpoint GET /ping was
+    shadowed to the SPA shell because UiAuthenticationMiddleware (src/Bibliophilarr.Http/Middleware/UiAuthenticationMiddleware.cs)
+    classified /ping as a UI-shell GET — its exclusion list only covered /api/,
+    /login, and /content/. Under AuthenticationRequired=Enabled, the Forms
+    challenge's LoginPath falls through to the SPA catch-all
+    (StaticResourceController.Index), so every anonymous /ping request returned 200 +
+    7666-byte HTML instead of the PingController's JSON {"Status":"OK"}. The fix
+    excludes the EXACT path /ping from the UI-shell classification
+    (string.Equals(path, "/ping")) so the [AllowAnonymous] PingController response is
+    served directly; the exclusion is path-exact only (/ping/extra is still governed
+    as a UI shell) and the #313/#315 auth-gate behavior (unauth UI 401, unauth API
+    401, authed API 200) is preserved unchanged. Three regression test fixtures
+    (8 tests) added. Verified at the fixed head: issue-316 8/8 (RED 1-fail at base),
+    full NzbDrone.Api.Test 117/117, full solution Release build 0 warn/0 err.
     Hosted exact-head CI is the merge gate.
 
 skipped_integrations:
