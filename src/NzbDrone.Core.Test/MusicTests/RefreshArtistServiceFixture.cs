@@ -300,6 +300,126 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_not_delete_local_author_with_positive_metadata_id_when_foreign_id_unresolvable()
+        {
+            // Issue #325 (DEFECT-RECOVERY-LOCAL-AUTHOR-DELETED-AFTER-CREATE): at the
+            // exact head, AddAuthorService upserts an AuthorMetadata row for every
+            // added author (including locally created ones with synthetic/unmapped
+            // foreign ids) and assigns the resulting POSITIVE id to
+            // Author.AuthorMetadataId. The old "AuthorMetadataId <= 0" guard
+            // therefore no longer identifies locally created authors, and the
+            // post-create RefreshAuthorCommand deleted the persisted row ~3s after
+            // the 201 Created — destroying API-created data (R3
+            // metadata/file-lifecycle invariant, regression of issue #272's intent).
+            // The guard must key on the provider id scope, not on AuthorMetadataId:
+            // a synthetic/unmapped id (e.g. "recovery:author:RTA-001") can never be
+            // provider-resolvable, so its not-found is expected, never a removal
+            // signal — even when the author DID get a metadata row.
+            _author.AuthorMetadataId = 42;
+            _author.ForeignAuthorId = "recovery:author:RTA-001";
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id, true));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_not_delete_local_author_with_positive_metadata_id_on_bulk_refresh()
+        {
+            // Issue #325 companion: the bulk-refresh path (queued via
+            // AuthorsImportedEvent) hits the same ShouldDelete — the
+            // provider-scope guard must hold there too for a locally created
+            // author that DID get an AuthorMetadata row.
+            _author.AuthorMetadataId = 42;
+            _author.ForeignAuthorId = "recovery:author:RTA-001";
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new BulkRefreshAuthorCommand
+            {
+                AuthorIds = new List<int> { _author.Id },
+                AreNewAuthors = true,
+                Trigger = CommandTrigger.Manual
+            });
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [TestCase("openlibrary:author:OL87654A")]
+        [TestCase("OL87654A")]
+        [TestCase("hardcover:author:12345")]
+        public void should_still_delete_provider_sourced_author_by_provider_id_scope_when_remote_removed_and_no_files(string foreignId)
+        {
+            // Issue #325 no-regression guard: the deletion gate now keys on the
+            // provider id scope (openlibrary:author:... / bare OLxxxxA / hardcover:),
+            // so provider-sourced authors keep the documented provider-removed
+            // deletion behavior (#204/#209) even though every added author now
+            // carries a positive AuthorMetadataId.
+            _author.AuthorMetadataId = 1;
+            _author.ForeignAuthorId = foreignId;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Once());
+        }
+
+        [Test]
+        public void should_not_delete_provider_sourced_author_when_remote_removed_but_files_exist()
+        {
+            // Pre-existing #272 no-regression guard (now also exercised through the
+            // provider-scope path): files present -> no deletion even on not-found.
+            _author.AuthorMetadataId = 1;
+            _author.ForeignAuthorId = "openlibrary:author:OL87654A";
+            GivenAuthorFiles();
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
         public void should_update_if_musicbrainz_id_changed_and_no_clash()
         {
             var newAuthorInfo = _author.JsonClone();
