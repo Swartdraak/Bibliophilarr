@@ -77,6 +77,24 @@
 # re-verifies the contract; see baseline.json (workspace root) and
 # logs-t_bdadaf92/ for per-command evidence. No product-code change was required.
 # Do not store credentials or secrets here.
+# Existing PR #326 audit run (2026-10-23, task t_4906a68c) at work-branch head
+# 8def6a3855 (registered existing PR head 9970dccf29 + normal catch-up merge of
+# develop c2513d5e, merge commit 8def6a38; base develop c2513d5e, zero conflicts;
+# merge preserved all 4 contributor/agent commits a104fc72..9970dccf as ancestors):
+# re-verified the full contract in-container (Debian 13, .NET SDK 10.0.401,
+# Node v20.20.2 + Yarn 1.22.19): yarn-install (frozen-lockfile, 0.9s), eslint
+# (7 pre-existing warnings, 0 errors), jest (47/47 / 13 suites), both ops guards,
+# dotnet restore (0 NU19xx at this run window), backend Release build
+# (0 warn/0 err), Common.Test full (621 passed / 35 skipped / 0 failed),
+# rid-common-targeted (16/18, 2 pre-existing skips), rid-core-targeted (25/25),
+# metadata-core-fixtures (32/32), issue-325 regression filter (30/30:
+# RefreshAuthorServiceFixture incl. 4 new #325 tests + GetAuthorFolderFixture
+# incl. 2 new null-name tests). Added the issue-325-regression-author-add-nre-
+# and-no-delete test command. .NET build/test lanes use the operator-provisioned
+# SixLabors license file via -p:SixLaborsLicenseFile=<sixlabors.lic> (mirrors
+# ci-backend.yml's SIXLABORS_LICENSE_FILE mechanism). NO product-code change was
+# made by this audit stage (validation/publication-only selection); see
+# PR_DESCRIPTION.md (workspace root) and baseline.json for per-command evidence.
 # Existing PR #262 audit run (2026-10-22, task t_e1b456d9, run 2302) at work-branch head
 # f6ea6959f2 (dependabot/github_actions/develop/actions/setup-node-7.1.0 @ e0263985
 # + normal catch-up merge of develop a104fc72, merge commit f6ea6959; base develop
@@ -240,6 +258,10 @@ commands:
       command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~Issue316"
       cwd: .
       note: "Issue #316 regression (anonymous /ping JSON liveness contract): the documented [AllowAnonymous] JSON liveness endpoint GET /ping was shadowed to the SPA shell because UiAuthenticationMiddleware classified /ping as a UI-shell GET (its exclusion list only covered /api/, /login, /content/). Under AuthenticationRequired=Enabled the Forms challenge's LoginPath falls through to the SPA catch-all, so anonymous GET /ping returned 200 + index.html instead of the PingController's JSON {\"Status\":\"OK\"}. Fix: exclude the EXACT path /ping from the UiAuthenticationMiddleware UI-shell classification (string.Equals(path, \"/ping\")) so the [AllowAnonymous] PingController response is served directly; the #313/#315 auth-gate behavior (unauth UI 401, unauth API 401, authed API 200) is preserved for real UI-shell paths. Pinned by UiAuthenticationMiddlewareIssue316Fixture (5 tests: anonymous /ping passes through unchallenged — RED at base; disabled-mode /ping passes through; authed /ping passes through; UI-shell paths still challenge with Forms; /ping/extra is not exempted) plus PingControllerIssue316Fixture (3 tests: 200 + Status=OK JSON contract; 500 + Status=Error when config repo unavailable; route attributes declare [AllowAnonymous] + [HttpGet/HttpHead \"/ping\"]) plus ProbeFixture (1 sanity test). RE-VERIFIED 2026-10-21 at develop f5857ee953 (base) with work branch fix/issue-316-ping-anonymous-json-shadowed-by-spa-shell (run t_897492ef): RED 1-failed/7-passed at base (the critical middleware test) / GREEN 8/8 post-fix; full NzbDrone.Api.Test suite 117/117; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (anonymous /ping = 200 JSON over the wire) is exercised in the application-test stage; this unit-level fixture is the CI-parity guard."
+    - name: issue-325-regression-author-add-nre-and-no-delete
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~GetAuthorFolderFixture"
+      cwd: .
+      note: "Issue #325 regression (POST /api/v1/author 500 NRE + post-create refresh deleting the freshly created local author), pinned by existing PR #326 (4 commits, 4 files: RefreshAuthorService.cs, FileNameBuilder.cs, RefreshArtistServiceFixture.cs, GetAuthorFolderFixture.cs). DEFECT 1 — folder-name NRE: FileNameBuilder.AddAuthorTokens now null-guards author.Name/CleanName/Metadata so a freshly constructed local author (metadata value not yet provider-resolved) can no longer throw 'Object reference not set' and 500 the add. DEFECT 2 — post-create delete: AddAuthorService upserts an AuthorMetadata row for every added author and assigns the resulting POSITIVE id to Author.AuthorMetadataId, so the old 'AuthorMetadataId <= 0' no-delete guard (issue #272) no longer identified locally created authors; the post-create RefreshAuthorCommand then deleted the persisted row ~3s after the 201. ShouldDelete now keys on the PROVIDER ID SCOPE (ProviderOwnedForeignId: openlibrary:author:... / bare OLxxxxA via OpenLibraryIdNormalizer, hardcover:...): only provider-scoped ids can be provider-removed, so synthetic/unmapped ids (e.g. recovery:author:RTA-001) are retained regardless of AuthorMetadataId; provider-sourced authors keep the documented #204/#209 provider-removed deletion. RE-VERIFIED 2026-10-23 in-container at work-branch head 8def6a38 (registered PR head 9970dccf + catch-up merge of develop c2513d5e, zero conflicts; task t_4906a68c): filter GREEN 30/30 — RefreshAuthorServiceFixture (21 tests incl. 4 new #325 tests: positive-metadata-id + synthetic-id no-delete single/bulk, provider-scope deletion 3-case matrix, files-present no-delete) + GetAuthorFolderFixture (9 tests incl. 2 new null-name NRE-guard tests). Companion RefreshArtistServiceFixture (MusicTests namespace, same file path) aligns the 2 pre-existing synthetic-id not-found tests to the provider-scope gate (no-delete for synthetic ids; the documented provider-removed deletion is now exercised via provider-scoped ids) — verified by build (0 warn/0 err) + full Common.Test 621/0-fail. The durable end-to-end HTTP acceptance (local-author add -> 201 + row survives the post-create refresh) is exercised in the application-test stage; this unit-level fixture set is the CI-parity guard."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
