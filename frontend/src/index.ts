@@ -58,14 +58,14 @@ export const moduleReady = (async () => {
   }
 
   /* eslint-disable no-undef */
-  // @ts-expect-error __webpack_public_path__ is a webpack runtime global, not
-  // declared in the project tsconfig (TS2304) — guarded at runtime: the
-  // assignment is skipped where the global does not exist (e.g. jest/CJS).
+  // __webpack_public_path__ is the webpack 5 runtime public-path variable; it is
+  // typed in frontend/typings/Globals.d.ts (declare var) so this write type-checks
+  // with no @ts-expect-error. Runtime guard: the assignment is skipped where the
+  // global does not exist (e.g. jest/CJS, where typeof yields 'undefined').
   if (
     typeof window !== 'undefined' &&
     typeof __webpack_public_path__ !== 'undefined'
   ) {
-    // eslint-disable-next-line no-undef
     __webpack_public_path__ = `${
       (window.Bibliophilarr && window.Bibliophilarr.urlBase) || ''
     }/`;
