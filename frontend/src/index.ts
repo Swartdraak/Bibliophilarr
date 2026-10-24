@@ -39,8 +39,11 @@ export const moduleReady = (async () => {
   // index.html (and the repo's jest.setup.js) pre-populate window.Bibliophilarr with
   // the server-rendered config — including urlBase and the boot API key. In production
   // the browser always has urlBase; read it with a fallback so a missing value never
-  // crashes the boot chain.
-  const existingConfig = window.Bibliophilarr || {};
+  // crashes the boot chain. The Partial<> annotation is deliberate: the `|| {}` fallback
+  // makes the inferred type `{ urlBase: string; ... } | {}` (which tsc narrows to `{}`
+  // on property access — the TS2339 this repair fixes), while Partial<> is the honest
+  // "config may be absent" type the guarded fetch below is written for.
+  const existingConfig: Partial<Window['Bibliophilarr']> = window.Bibliophilarr || {};
 
   const bootstrapConfig = await loadInitializeConfig(existingConfig.urlBase || '');
 
