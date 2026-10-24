@@ -77,6 +77,22 @@
 # re-verifies the contract; see baseline.json (workspace root) and
 # logs-t_bdadaf92/ for per-command evidence. No product-code change was required.
 # Do not store credentials or secrets here.
+# Issue #329 development run (2026-10-24, task t_1445b5f4, run 2406) at develop tip
+# c19a261c538246b69957eb1d1b2e1c3fa912edcc (base), work branch
+# fix/issue-329-authed-spa-routes-blank-shell: implemented D1/D2/D3 (per-request
+# InitializeJsonController config reads; UiAuthenticationMiddleware /initialize.json
+# exact-path exclusion; Startup FallbackPolicy API+Forms; index.ts boot hardening via
+# loadInitializeConfig + exported moduleReady) + 5-test jest regression
+# (frontend/src/index.test.js) + InitializeJsonIssue329Fixture (2 integration tests).
+# Verified in-container: jest RED 5/5 on original index.ts -> GREEN 5/5 on fixed; full
+# solution Release build 0 warn/0 err; InitializeJsonIssue329Fixture GREEN 2/2;
+# CI-parity integration filter 13/16 with 3 pre-existing HostConfigAuthorizationFixture
+# failures (identical at BASE per hostcfg-base-r2421.log — adjacent host-config authz
+# defect, not a #329 regression). Added the issue-329-regression-authed-spa-blank-shell
+# test command. .NET build/test lanes use the operator-provisioned SixLabors license
+# via -p:SixLaborsLicenseFile=<sixlabors.lic> (mirrors ci-backend.yml's
+# SIXLABORS_LICENSE_FILE mechanism). See baseline.json (workspace root) and
+# logs-t_1445b5f4/ for per-command evidence.
 # Existing PR #326 audit run (2026-10-23, task t_4906a68c) at work-branch head
 # 8def6a3855 (registered existing PR head 9970dccf29 + normal catch-up merge of
 # develop c2513d5e, merge commit 8def6a38; base develop c2513d5e, zero conflicts;
@@ -270,6 +286,10 @@ commands:
       command: yarn test:frontend
       cwd: .
       note: "jest --runInBand: 47 tests / 13 suites, 0 failures (2026-09-18)."
+    - name: issue-329-regression-authed-spa-blank-shell
+      command: yarn test:frontend --testPathPattern frontend/src/index.test.js
+      cwd: .
+      note: "Issue #329 regression (authed SPA routes render blank app shell under Forms auth): pins the frontend boot contract in index.ts. Before the fix, index.ts fetched /initialize.json via a top-level await with no error handling; a 401 (UiAuthenticationMiddleware Forms-challenged /initialize.json as a UI-shell GET) or any failure threw an unhandled rejection before React mounted, leaving every authed route (/library, /search, /settings) as a byte-identical blank app shell. The fix extracts loadInitializeConfig() with a response.ok gate + try/catch, wraps bootstrap() in try/catch with a visible error on #root, and exports the moduleReady promise. 5 tests: (1) boots end-to-end on 200+JSON — window.Bibliophilarr populated, app mounted; (2) does NOT blank-shell on the #329 signature 401+empty body; (3) does NOT blank-shell when the boot fetch throws (network failure); (4) does NOT blank-shell on a non-JSON body; (5) pins the guarded-fetch integration contract in index.ts (static source checks: response.ok gate before response.json()). RED 5/5 on original index.ts (top-level await SyntaxError under jest CJS transform + missing response.ok gate) / GREEN 5/5 post-fix. RE-VERIFIED 2026-10-24 in-container (task t_1445b5f4, run 2406): logs-t_1445b5f4/jest-issue329-redgreen-r2421.log. Companion backend regression: InitializeJsonIssue329Fixture (2 integration tests) via the ci-backend.yml metadata-diagnostics-integration filter (Debug): anonymous GET /initialize.json -> 200 + persisted apiKey + urlBase, no Location challenge; apiKey matches persisted key per request. GREEN 2/2 post-fix (logs-t_1445b5f4/integration-issue329-r2421.log). PRE-EXISTING (not a #329 regression): 3 HostConfigAuthorizationFixture failures in the same CI-parity filter (malformed-Basic-auth expected 401 got 200; malformed-PUT expected 401 got RequestUriTooLong; anon-GET expected 401 got 200) — fail identically at BASE c19a261c (logs-t_1445b5f4/hostcfg-base-r2421.log, BASE_HOSTCFG_EXIT=1, 3 failed/2 passed); adjacent host-config authz defect routed through the existing deduplicated issue process, not fixed in this PR."
   runtime:
     start: |
       ./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
@@ -323,10 +343,27 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../logs-t_bdadaf92/
-  verified_at: 2026-10-22
-  base_sha: dd09a97c80f07bd1e465dbb7c7034fe73ebda64b
-  head_sha: dd09a97c80f07bd1e465dbb7c7034fe73ebda64b
+  logs: ../logs-t_1445b5f4/
+  verified_at: 2026-10-24
+  base_sha: c19a261c538246b69957eb1d1b2e1c3fa912edcc
+  head_sha: c19a261c538246b69957eb1d1b2e1c3fa912edcc
+  # Issue #329 development run (t_1445b5f4, 2026-10-24): work branch
+  # fix/issue-329-authed-spa-routes-blank-shell from develop tip c19a261c.
+  # Three compounding defects caused every authed SPA route to render a blank
+  # app shell under Forms auth: (1) UiAuthenticationMiddleware classified
+  # /initialize.json as a UI-shell GET and Forms-challenged it before
+  # [AllowAnonymous] routing; (2) InitializeJsonController cached
+  # ApiKey/UrlBase in static fields set at construction (issue #309 pattern);
+  # (3) index.ts had no error handling on the initialize.json fetch. The fix
+  # excludes /initialize.json from the UI-shell classification (exact-path,
+  # like /ping), reads config per request, widens FallbackPolicy to
+  # API+Forms, and hardens the SPA boot (loadInitializeConfig + try/catch +
+  # moduleReady export). 5-test jest regression (frontend/src/index.test.js)
+  # RED 5/5 on original / GREEN 5/5 post-fix; InitializeJsonIssue329Fixture
+  # 2/2 GREEN; full solution Release build 0 warn/0 err. PRE-EXISTING: 3
+  # HostConfigAuthorizationFixture failures in the CI-parity integration
+  # filter (identical at BASE; adjacent host-config authz defect, not a
+  # #329 regression). Hosted exact-head CI is the merge gate.
   # Issue #323 CI-repair assessment run (t_bdadaf92, 2026-10-22): develop tip
   # dd09a97c80 (PR #318 merge, the issue-323 CI-failing tip) had 4/14 hosted
   # check-runs FAILING (build-test, cross-build Linux, Windows, macOS) while
