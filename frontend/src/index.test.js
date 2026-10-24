@@ -69,9 +69,9 @@ jest.mock('./bootstrap', () => ({
   // whose name starts with `mock` — never `window`/`document`. The recorder reads
   // the jsdom globals through `globalThis` inside the CALLER of the factory,
   // where they are resolved at call time (not at hoist time).
-  bootstrap: async () => {
-    mockBootstrapCalls.push({ url: globalThis.window.location && globalThis.window.location.href });
-  },
+  bootstrap: async() => {
+    mockBootstrapCalls.push({ url: global.window.location && global.window.location.href });
+  }
 }));
 
 function resetGlobalState() {
@@ -81,7 +81,9 @@ function resetGlobalState() {
   window.Bibliophilarr = { apiRoot: '/api', version: 'test', branch: 'test', urlBase: '' };
   document.body.innerHTML = '<div id="root" class="root"></div>';
   // __webpack_public_path__ is a webpack runtime global (see index.ts).
+  /* eslint-disable no-underscore-dangle */
   window.__webpack_public_path__ = '/';
+  /* eslint-enable no-underscore-dangle */
   // jsdom does not implement matchMedia (the real browser does); the app's theme
   // selector needs it during bootstrap in a real browser.
   if (!window.matchMedia) {
@@ -101,8 +103,9 @@ describe('SPA boot (index.ts) — issue #329', () => {
     resetGlobalState();
     global.fetch = fetchMock;
     jest.spyOn(console, 'error').mockImplementation(() => {});
-    let mod;
+    let mod = null;
     jest.isolateModules(() => {
+      // eslint-disable-next-line global-require
       mod = require('./index.ts');
     });
     return mod;
@@ -112,23 +115,25 @@ describe('SPA boot (index.ts) — issue #329', () => {
     jest.restoreAllMocks();
     jest.resetModules();
     delete global.fetch;
+    /* eslint-disable no-underscore-dangle */
     delete window.__webpack_public_path__;
+    /* eslint-enable no-underscore-dangle */
   });
 
-  it('boots end-to-end on 200 + JSON: window.Bibliophilarr populated, app mounted', async () => {
+  it('boots end-to-end on 200 + JSON: window.Bibliophilarr populated, app mounted', async() => {
     // The boot key value must not collide with the repository's secret-scanner
     // token pattern; build it at runtime (concatenated parts, no single 25-char
     // literal) so the shipped regression test does not get mangled by tooling.
     const bootKey = ['test', 'key', '1234567890', 'abcdef'].join('');
     const indexModule = bootModule(
-      jest.fn(async () => ({
+      jest.fn(async() => ({
         ok: true,
         status: 200,
-        json: async () => ({
+        json: async() => ({
           apiRoot: '/api/v1',
-          ['api' + 'Key']: bootKey,
-          urlBase: '',
-        }),
+          apiKey: bootKey,
+          urlBase: ''
+        })
       }))
     );
 
@@ -150,17 +155,17 @@ describe('SPA boot (index.ts) — issue #329', () => {
     expect(console.error).not.toHaveBeenCalled();
   });
 
-  it('does NOT blank-shell on the #329 signature: 401 + empty body (prior impl threw here)', async () => {
+  it('does NOT blank-shell on the #329 signature: 401 + empty body (prior impl threw here)', async() => {
     // The exact #329 signature: Forms 401 challenge, empty body. Pre-fix the boot
     // chain rejected here (blank shell); the fixed module settles, preserves the
     // index.html-provided Bibliophilarr, logs, and still attempts mount.
     const indexModule = bootModule(
-      jest.fn(async () => ({
+      jest.fn(async() => ({
         ok: false,
         status: 401,
-        json: async () => {
+        json: async() => {
           throw new SyntaxError('Unexpected end of JSON input');
-        },
+        }
       }))
     );
 
@@ -175,9 +180,9 @@ describe('SPA boot (index.ts) — issue #329', () => {
     expect(mockBootstrapCalls.length).toBe(1);
   });
 
-  it('does NOT blank-shell when the boot fetch throws (network failure)', async () => {
+  it('does NOT blank-shell when the boot fetch throws (network failure)', async() => {
     const indexModule = bootModule(
-      jest.fn(async () => {
+      jest.fn(async() => {
         throw new TypeError('Failed to fetch');
       })
     );
@@ -190,14 +195,14 @@ describe('SPA boot (index.ts) — issue #329', () => {
     expect(mockBootstrapCalls.length).toBe(1);
   });
 
-  it('does NOT blank-shell when the boot fetch returns a non-JSON body', async () => {
+  it('does NOT blank-shell when the boot fetch returns a non-JSON body', async() => {
     const indexModule = bootModule(
-      jest.fn(async () => ({
+      jest.fn(async() => ({
         ok: true,
         status: 200,
-        json: async () => {
+        json: async() => {
           throw new SyntaxError('Unexpected token < in JSON');
-        },
+        }
       }))
     );
 

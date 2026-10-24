@@ -24,7 +24,10 @@ export async function loadInitializeConfig(urlBase) {
 
     return await response.json();
   } catch (error) {
-    console.error('Bibliophilarr: /initialize.json request failed; the UI may not work correctly.', error);
+    console.error(
+      'Bibliophilarr: /initialize.json request failed; the UI may not work correctly.',
+      error
+    );
 
     return null;
   }
@@ -43,18 +46,31 @@ export const moduleReady = (async () => {
   // makes the inferred type `{ urlBase: string; ... } | {}` (which tsc narrows to `{}`
   // on property access — the TS2339 this repair fixes), while Partial<> is the honest
   // "config may be absent" type the guarded fetch below is written for.
-  const existingConfig: Partial<Window['Bibliophilarr']> = window.Bibliophilarr || {};
+  const existingConfig: Partial<Window['Bibliophilarr']> =
+    window.Bibliophilarr || {};
 
-  const bootstrapConfig = await loadInitializeConfig(existingConfig.urlBase || '');
+  const bootstrapConfig = await loadInitializeConfig(
+    existingConfig.urlBase || ''
+  );
 
   if (bootstrapConfig) {
     window.Bibliophilarr = { ...existingConfig, ...bootstrapConfig };
   }
 
-  /* eslint-disable no-undef, @typescript-eslint/ban-ts-comment */
-  // @ts-ignore 2304
-  __webpack_public_path__ = `${(window.Bibliophilarr && window.Bibliophilarr.urlBase) || ''}/`;
-  /* eslint-enable no-undef, @typescript-eslint/ban-ts-ignore */
+  /* eslint-disable no-undef */
+  // @ts-expect-error __webpack_public_path__ is a webpack runtime global, not
+  // declared in the project tsconfig (TS2304) — guarded at runtime: the
+  // assignment is skipped where the global does not exist (e.g. jest/CJS).
+  if (
+    typeof window !== 'undefined' &&
+    typeof __webpack_public_path__ !== 'undefined'
+  ) {
+    // eslint-disable-next-line no-undef
+    __webpack_public_path__ = `${
+      (window.Bibliophilarr && window.Bibliophilarr.urlBase) || ''
+    }/`;
+  }
+  /* eslint-enable no-undef */
 
   const { bootstrap } = await import('./bootstrap');
 
@@ -64,7 +80,8 @@ export const moduleReady = (async () => {
     console.error('Bibliophilarr: application bootstrap failed.', error);
     const root = document.getElementById('root');
     if (root) {
-      root.textContent = 'Bibliophilarr failed to start. Check the browser console for details.';
+      root.textContent =
+        'Bibliophilarr failed to start. Check the browser console for details.';
     }
   }
 })();
