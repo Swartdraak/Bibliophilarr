@@ -2,6 +2,28 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22).
+# Existing PR #263 audit run (2026-10-25, task t_a0ef0b74) at exact registered
+# head 061bddbdd3a3e05dc29f5c16f11d084831bace11 (dependabot: bump
+# docker/build-push-action 7.0.0 -> 7.4.0 in .github/workflows/docker-image.yml,
+# 1 file / +2 -2, contributor commit preserved; base develop 9b9f9648c3658663d07b5122379523f41ee9fd79
+# = CURRENT develop tip and an ancestor of the head, so no catch-up merge was
+# needed; work branch = registered head_ref
+# dependabot/github_actions/develop/docker/build-push-action-7.4.0):
+# re-verified the full contract in-container: yarn-install (frozen-lockfile,
+# up-to-date), eslint (8 pre-existing warnings, 0 errors, 0 new), both ops
+# guards (ui-build-mode + http-binding), stylelint-linux, jest (60/60 / 15
+# suites), dotnet restore (exit 0, zero NU19xx), backend Release build
+# (0 warn/0 err), rid-core-targeted (25/25), rid-common-targeted (16/18,
+# 2 pre-existing skips), metadata-core-fixtures (32/32),
+# metadata-api-fixtures (4/4), issue-325 regression filter (30/30,
+# license-gated via SIXLABORS_LICENSE_FILE). Live exact-head CI re-probed
+# green: 16 check-runs (15 success + 1 neutral CodeQL, 0 failure, 0 pending)
+# at 061bdd; PR mergeable=true / mergeable_state=clean onto develop tip
+# 9b9f9648c3. NO code edits (validation/publication-only). No JS/TS runtime
+# files under src/frontend/lib/app changed, so no production_coverage
+# binding is required. SixLabors community license required for the .NET
+# build/test lanes (see note above). See baseline.json (workspace root) and
+# tmp/t_a0ef0b74/pr263-logs/ for per-command evidence.
 # Existing PR #220 audit run (2026-10-18, task t_43f927cc) at merged head 848ba72b
 # (dependabot/github_actions/develop/actions/setup-python-7.0.0 @ 23d8bdeb + normal
 # catch-up merge of develop e7b73817; base develop e7b73817, zero conflicts):
@@ -347,10 +369,28 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../logs-t_1445b5f4/
-  verified_at: 2026-10-24
-  base_sha: c19a261c538246b69957eb1d1b2e1c3fa912edcc
-  head_sha: c19a261c538246b69957eb1d1b2e1c3fa912edcc
+  logs: ../tmp/t_a0ef0b74/pr263-logs/
+  verified_at: 2026-10-25
+  base_sha: 9b9f9648c3658663d07b5122379523f41ee9fd79
+  head_sha: 061bddbdd3a3e05dc29f5c16f11d084831bace11
+  # Existing PR #263 audit run (t_a0ef0b74, 2026-10-25): work branch
+  # dependabot/github_actions/develop/docker/build-push-action-7.4.0 at the
+  # exact registered head 061bdd (dependabot: docker/build-push-action
+  # 7.0.0 -> 7.4.0, 1 file / +2 -2 in .github/workflows/docker-image.yml,
+  # both 'uses:' pins at c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0).
+  # Base develop 9b9f9648c3 is the CURRENT tip and an ancestor of the head —
+  # no catch-up merge. Contributor commit preserved; no rebase/force-push.
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites), backend restore exit 0 (zero NU19xx),
+  # Release build 0 warn/0 err, rid-core 25/25, rid-common 16/18 (2
+  # pre-existing skips), metadata-core 32/32, metadata-api 4/4, issue-325
+  # filter 30/30 (SIXLABORS_LICENSE_FILE). Live exact-head CI: 16 check-runs
+  # (15 success + 1 neutral CodeQL, 0 failure, 0 pending) at 061bdd;
+  # mergeable=true / mergeable_state=clean onto develop 9b9f9648c3. NO code
+  # edits. No src/frontend/lib/app runtime files changed (no
+  # production_coverage binding). Hosted exact-head CI is the merge gate.
   # Issue #329 development run (t_1445b5f4, 2026-10-24): work branch
   # fix/issue-329-authed-spa-routes-blank-shell from develop tip c19a261c.
   # Three compounding defects caused every authed SPA route to render a blank
