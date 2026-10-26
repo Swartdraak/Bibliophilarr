@@ -2,6 +2,96 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing PR #267 audit run (2026-10-26, task t_43e9cf71, run 2773) at exact
+# registered head 86b0f036e378b44cca53d1b242a7ba5479df6dbc (dependabot: bump
+# FluentAssertions 8.9.0 -> 8.11.0 in src/Directory.Packages.props, 1 file /
+# +1 -1; FluentAssertions is the Xceed test-assertion library referenced only
+# by test projects via the central package version, a MINOR-line bump on the
+# 8.x line with no production-code or workflow change; work branch =
+# registered head_ref dependabot/nuget/src/develop/FluentAssertions-8.11.0):
+# base develop 58101938e18bd865456fbaf977baa409d080e87b = CURRENT develop tip
+# (== the #266 Dapper merge commit, merged 2026-10-26T15:26:34Z) and IS an
+# ancestor of the PR head (dependabot rebased after the #266 merge;
+# merge-base == develop tip; git merge-base --is-ancestor returned true this
+# run) - NO catch-up merge required. Re-verified the backend contract
+# in-container at the exact head against the ci-backend.yml lanes: http-binding
+# guard (passed), dotnet restore (exit 0, zero NU19xx; FluentAssertions 8.11.0
+# resolved into the package cache), backend Release build of
+# Bibliophilarr.Common/Bibliophilarr.Http/Bibliophilarr.Api.V1/NzbDrone.SignalR
+# + all test projects (0 errors; the FullLab solution build fails only at the
+# SixLabors.ImageSharp 4.1.2 ValidateLicenseTask, which requires the
+# operator-provisioned SIXLABORS_LICENSE_KEY — identical at base, not a #267
+# regression; the licensed Core/Api assembly build + test lane is host-gated),
+# Common.Test full (621 passed / 35 skipped / 0 failed, 2x: plain + coverlet
+# coverage collection, which also produced a raw coverage.cobertura.xml for
+# this run), metadata-core-fixtures (32/32), metadata-api-fixtures (4/4).
+# NO code edits (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of the
+# contributor head). No JS/TS runtime files under src/frontend/lib/app changed
+# (the diff is src/Directory.Packages.props only), so no production_coverage
+# binding is required. Hosted exact-head CI on 86b0f036: 18 success + 1 neutral
+# CodeQL, 0 failures, label-policy GREEN (LIVE-REVERIFIED by route run 2766 /
+# t_f46fa284; labels [type:dependency, area:dependencies, priority:medium,
+# risk:low, area:backend]). See baseline.json (workspace root) and
+# scratch-t_43e9cf71/ for per-command evidence.
+# Existing PR #266 audit run (2026-10-26, task t_12360743, run 2747) at exact
+# registered head dc07676acb02a47864ee3e072346008657e2a7f9 (dependabot: bump
+# Dapper 2.1.86 -> 2.1.89 in src/Directory.Packages.props + adds
+# <PackageReference Include="Dapper" /> to
+# src/NzbDrone.SignalR/Bibliophilarr.SignalR.csproj, 2 files / +2 -1;
+# Dapper is the database-access library now referenced by the SignalR service;
+# 2.1.86->2.1.89 is a PATCH-line maintenance bump, 2.1.x line, no breaking
+# changes expected; work branch = registered head_ref
+# dependabot/nuget/src/develop/Dapper-2.1.89):
+# base develop fa42ab679731b220cfd84b92dca2393818f4c0f7 = CURRENT develop tip
+# (== the #265 coverlet.collector merge commit, merged 2026-10-26T10:53:37Z)
+# and IS an ancestor of the PR head (dependabot rebased after the #265 merge;
+# merge-base == develop tip; git merge-base --is-ancestor returned true) - NO
+# catch-up merge required. Re-verified the full contract in-container at the
+# exact head: yarn-install (frozen-lockfile, up-to-date), eslint (8
+# pre-existing warnings, 0 errors, 0 new), both ops guards (ui-build-mode +
+# http-binding), stylelint-linux, jest (60/60 / 15 suites), dotnet restore
+# (exit 0, zero NU19xx), backend Release build (0 warn/0 err), NzbDrone
+# default-config build (0/0), rid-core-targeted (25/25), rid-common-targeted
+# (16/18, 2 pre-existing skips), metadata-core-fixtures (32/32),
+# metadata-api-fixtures (4/4), issue-325 regression filter (30/30,
+# license-gated via SIXLABORS_LICENSE_FILE). NO code edits
+# (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of the
+# contributor head). No JS/TS runtime files under src/frontend/lib/app changed,
+# so no production_coverage binding is required. Hosted exact-head CI on
+# dc07676a: 12 success + 1 neutral CodeQL, 0 failures, label-policy GREEN
+# (LIVE-VERIFIED by the checkout stage t_06417dc5 via the check-runs API).
+# See baseline.json (workspace root) and tmp/t_12360743/pr266-logs/ for
+# per-command evidence.
+# Existing PR #305 audit run (2026-10-26, task t_32bfd631, run 2693) at the
+# post-catch-up head 4cee868df9eefb206f12ae8e742dd0332680743b (dependabot: bump
+# Microsoft.AspNetCore.SignalR.Client 10.0.12 -> 10.0.13 in
+# src/Directory.Packages.props, 1 file / +1 -1, semver-patch; SECURITY lane
+# CVE-2026-70159 / GHSA-334f-vvp4-7g6p — SignalR stateful reconnect DoS; work
+# branch = registered head_ref
+# dependabot/nuget/src/develop/Microsoft.AspNetCore.SignalR.Client-10.0.13):
+# the PR head 82da398705e8c58039240b9553d37010674c was BEHIND the live develop
+# tip (merge-base 520d5d2a, pre-#333), so this audit performed a NORMAL
+# catch-up merge of develop tip 418a581cb9ee6eeb8b12b17dff49c0519136454 onto
+# the PR branch (zero conflicts, 45 files all from develop since base;
+# contributor 82da3987 preserved as ancestor; no rebase/force-push). Re-verified
+# the full contract in-container at the post-catch-up head: yarn-install
+# (frozen-lockfile, up-to-date), eslint (8 pre-existing warnings, 0 errors, 0
+# new), both ops guards (ui-build-mode + http-binding), stylelint-linux, jest
+# (60/60 / 15 suites, incl. issue-329 regression 5/5 via
+# --testPathPatterns), dotnet restore (exit 0, zero NU19xx), backend Release
+# build (0 warn/0 err), NzbDrone default-config build (0/0), rid-core-targeted
+# (25/25), rid-common-targeted (16/18, 2 pre-existing skips),
+# metadata-core-fixtures (32/32), metadata-api-fixtures (4/4), issue-325
+# regression filter (30/30, license-gated via SIXLABORS_LICENSE_FILE). NO code
+# edits (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of the
+# catch-up merge). No JS/TS runtime files under src/frontend/lib/app changed,
+# so no production_coverage binding is required. The 10.0.12 -> 10.0.13 bump
+# is a Microsoft servicing patch-level release (no API/behavior change
+# expected); all lanes green at the post-catch-up head. See baseline.json
+# (workspace root) and tmp/t_32bfd631/pr305-logs/ for per-command evidence.
 # Existing PR #264 audit run (2026-10-25, task t_8240540f, run 2663) at exact
 # registered head 17eb4ee05b174b938d47838c896fba9698783224 (dependabot: bump
 # docker/setup-qemu-action 3.7.0 -> 4.4.0 in .github/workflows/docker-image.yml,
@@ -393,10 +483,83 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../tmp/t_8240540f/pr264-logs/
-  verified_at: 2026-10-25
-  base_sha: af01d5c4635bd17a40005d9fe6fab0caa84dbdf0
-  head_sha: 17eb4ee05b174b938d47838c896fba9698783224
+  logs: ../scratch-t_43e9cf71/
+  verified_at: 2026-10-26
+  base_sha: 58101938e18bd865456fbaf977baa409d080e87b
+  head_sha: 86b0f036e378b44cca53d1b242a7ba5479df6dbc
+  # Existing PR #267 audit run (t_43e9cf71, run 2773, 2026-10-26): work branch
+  # dependabot/nuget/src/develop/FluentAssertions-8.11.0 at the EXACT registered
+  # head 86b0f036 (contributor head == live PR head; dependabot force-pushed the
+  # rebase onto the current develop tip at 2026-10-26T15:33:51Z; base develop
+  # 58101938 = CURRENT develop tip (== the #266 Dapper merge commit) and IS an
+  # ancestor of the head — NO catch-up merge required; git merge-base
+  # --is-ancestor returned true this run). dependabot: bump FluentAssertions
+  # 8.9.0 -> 8.11.0 (src/Directory.Packages.props, 1 file / +1 -1; MINOR-line
+  # test-assertion library bump, no production code, no workflow lines).
+  # Backend contract re-verified in-container (see header note +
+  # baseline.json commands[]): http-binding guard passed; dotnet restore exit 0
+  # (zero NU19xx; FluentAssertions 8.11.0 resolved); Common + Http +
+  # Api.V1 + SignalR + all test projects built Release (the FullLab solution
+  # build stops only at the SixLabors.ImageSharp 4.1.2 ValidateLicenseTask,
+  # which needs the operator-provisioned SIXLABORS_LICENSE_KEY — identical at
+  # base, host-gated, not a #267 regression); Common.Test full 621 passed /
+  # 35 skipped / 0 failed (plain + coverlet collection, raw
+  # coverage.cobertura.xml produced); metadata-core-fixtures 32/32;
+  # metadata-api-fixtures 4/4. NO code edits (validation/publication-only).
+  # No src/frontend/lib/app runtime files changed (no production_coverage
+  # binding). Hosted exact-head CI on 86b0f036: 18 success + 1 neutral CodeQL,
+  # 0 failures, label-policy GREEN (LIVE-REVERIFIED by route run 2766).
+  # Publication stage owns fast-forward push to the SAME PR #267 +
+  # onyx-onboard guarded merge after real exact-head CI/governance passes.
+  # Existing PR #266 audit run (t_12360743, run 2747, 2026-10-26): work branch
+  # dependabot/nuget/src/develop/Dapper-2.1.89 at the EXACT registered head
+  # dc07676a (contributor head dc07676a == live PR head; base develop
+  # fa42ab67 = CURRENT develop tip (== the #265 coverlet.collector merge
+  # commit) and IS an ancestor of the head — NO catch-up merge required;
+  # dependabot rebased after the #265 merge; merge-base == develop tip;
+  # git merge-base --is-ancestor returned true). dependabot: bump Dapper
+  # 2.1.86 -> 2.1.89 (src/Directory.Packages.props, 1 line) + adds
+  # <PackageReference Include="Dapper" /> to
+  # src/NzbDrone.SignalR/Bibliophilarr.SignalR.csproj (2 files / +2 -1;
+  # Dapper is the database-access library now referenced by the SignalR
+  # service; PATCH-line maintenance bump, 2.1.x, no breaking changes).
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites), backend restore exit 0 (zero NU19xx),
+  # Release build 0 warn/0 err, NzbDrone default-config build 0/0, rid-core
+  # 25/25, rid-common 16/18 (2 pre-existing skips), metadata-core 32/32,
+  # metadata-api 4/4, issue-325 filter 30/30 (SIXLABORS_LICENSE_FILE).
+  # NO code edits (validation/publication-only). No src/frontend/lib/app
+  # runtime files changed (no production_coverage binding). Hosted
+  # exact-head CI on dc07676a: 12 success + 1 neutral CodeQL, 0 failures,
+  # label-policy GREEN (LIVE-VERIFIED by checkout stage t_12606417dc5 via
+  # check-runs API). Publication stage owns fast-forward push to the SAME PR
+  # #266 + onyx-onboard guarded merge after real exact-head CI/governance
+  # passes.
+  # Existing PR #305 audit run (t_32bfd631, run 2693, 2026-10-26): work branch
+  # dependabot/nuget/src/develop/Microsoft.AspNetCore.SignalR.Client-10.0.13 at
+  # the POST-CATCH-UP head 4cee868d (contributor head
+  # 82da398705e8c58039240b955c3cdaca00a0674c + NORMAL merge of develop tip
+  # 418a581cb9ee6eeb5db08147dff49c0519136454; zero conflicts, contributor
+  # 82da3987 preserved as ancestor, no rebase/force-push). dependabot: bump
+  # Microsoft.AspNetCore.SignalR.Client 10.0.12 -> 10.0.13 (1 file / +1 -1 in
+  # src/Directory.Packages.props, semver-patch; SECURITY lane CVE-2026-70159 /
+  # GHSA-334f-vvp4-7g6p — SignalR stateful reconnect DoS). Base develop
+  # 418a581c = live integration tip at audit time. The PR head 82da3987 was
+  # BEHIND the tip (merge-base 520d5d2a, pre-#333 label-policy fix), so a
+  # normal catch-up merge onto the tip was REQUIRED before re-validation.
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites; issue-329 filter 5/5), backend restore
+  # exit 0 (zero NU19xx), Release build 0 warn/0 err, NzbDrone default-config
+  # build 0/0, rid-core 25/25, rid-common 16/18 (2 pre-existing skips),
+  # metadata-core 32/32, metadata-api 4/4, issue-325 filter 30/30
+  # (SIXLABORS_LICENSE_FILE). NO code edits (validation/publication-only). No
+  # src/frontend/lib/app runtime files changed (no production_coverage
+  # binding). Publication stage owns fast-forward push to the SAME PR #305 +
+  # onyx-onboard guarded merge after real exact-head CI/governance passes.
   # Existing PR #264 audit run (t_8240540f, 2026-10-25): work branch
   # dependabot/github_actions/develop/docker/setup-qemu-action-4.4.0 at the
   # exact registered head 17eb4ee0 (dependabot: docker/setup-qemu-action
