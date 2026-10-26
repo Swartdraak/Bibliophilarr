@@ -1,7 +1,31 @@
 # Onyx project contract — Swartdraak/Bibliophilarr
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
-# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22).
+# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing PR #264 audit run (2026-10-25, task t_8240540f, run 2663) at exact
+# registered head 17eb4ee05b174b938d47838c896fba9698783224 (dependabot: bump
+# docker/setup-qemu-action 3.7.0 -> 4.4.0 in .github/workflows/docker-image.yml,
+# 1 file / +1 -1 pinned SHA 99012661954931238ded8c8b007157a8430204e1 # v4.4.0;
+# base develop af01d5c4635bd17a40005d9fe6fab0caa84dbdf0 = CURRENT develop tip
+# and an ancestor of the head, so no catch-up merge was needed; work branch =
+# registered head_ref dependabot/github_actions/develop/docker/setup-qemu-action-4.4.0):
+# re-verified the full contract in-container: yarn-install (frozen-lockfile,
+# up-to-date), eslint (8 pre-existing warnings, 0 errors, 0 new), both ops
+# guards (ui-build-mode + http-binding), stylelint-linux, jest (60/60 / 15
+# suites, incl. issue-329 regression 5/5), dotnet restore (exit 0, zero NU19xx),
+# backend Release build (0 warn/0 err), NzbDrone default-config build (0/0),
+# rid-core-targeted (25/25), rid-common-targeted (16/18, 2 pre-existing skips),
+# metadata-core-fixtures (32/32), metadata-api-fixtures (4/4), issue-325
+# regression filter (30/30, license-gated via SIXLABORS_LICENSE_FILE). NO code
+# edits (validation/publication-only). No JS/TS runtime files under
+# src/frontend/lib/app changed, so no production_coverage binding is required.
+# Hosted exact-head CI on the unchanged commit shows the inherited #270
+# platform-execution CI-capability gap (build-test 'Test' step + Linux and
+# macOS cross-build lanes red on the develop tip as well); the in-container
+# re-execution of every failing POSIX step at the exact head is GREEN
+# (restore exit 0; Release build 0 warn/0 err; NzbDrone model build 0/0;
+# RID/POSIX test filters all green). See baseline.json (workspace root) and
+# tmp/t_8240540f/pr264-logs/ for per-command evidence.
 # Existing PR #263 audit run (2026-10-25, task t_a0ef0b74) at exact registered
 # head 061bddbdd3a3e05dc29f5c16f11d084831bace11 (dependabot: bump
 # docker/build-push-action 7.0.0 -> 7.4.0 in .github/workflows/docker-image.yml,
@@ -369,10 +393,30 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../tmp/t_a0ef0b74/pr263-logs/
+  logs: ../tmp/t_8240540f/pr264-logs/
   verified_at: 2026-10-25
-  base_sha: 9b9f9648c3658663d07b5122379523f41ee9fd79
-  head_sha: 061bddbdd3a3e05dc29f5c16f11d084831bace11
+  base_sha: af01d5c4635bd17a40005d9fe6fab0caa84dbdf0
+  head_sha: 17eb4ee05b174b938d47838c896fba9698783224
+  # Existing PR #264 audit run (t_8240540f, 2026-10-25): work branch
+  # dependabot/github_actions/develop/docker/setup-qemu-action-4.4.0 at the
+  # exact registered head 17eb4ee0 (dependabot: docker/setup-qemu-action
+  # 3.7.0 -> 4.4.0, 1 file / +1 -1 in .github/workflows/docker-image.yml,
+  # pinned SHA 99012661954931238ded8c8b007157a8430204e1 # v4.4.0).
+  # Base develop af01d5c4 is the CURRENT tip and an ancestor of the head —
+  # no catch-up merge. Contributor commit preserved; no rebase/force-push.
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites; issue-329 filter 5/5), backend restore
+  # exit 0 (zero NU19xx), Release build 0 warn/0 err, NzbDrone default-config
+  # build 0/0, rid-core 25/25, rid-common 16/18 (2 pre-existing skips),
+  # metadata-core 32/32, metadata-api 4/4, issue-325 filter 30/30
+  # (SIXLABORS_LICENSE_FILE). Hosted exact-head CI on the unchanged commit
+  # shows the inherited #270 platform-execution CI-capability gap (build-test
+  # 'Test' step + Linux/macOS cross-build lanes); the in-container
+  # re-execution of every failing POSIX step at the exact head is GREEN. NO
+  # code edits. No src/frontend/lib/app runtime files changed (no
+  # production_coverage binding). Publication stage owns push + merge.
   # Existing PR #263 audit run (t_a0ef0b74, 2026-10-25): work branch
   # dependabot/github_actions/develop/docker/build-push-action-7.4.0 at the
   # exact registered head 061bdd (dependabot: docker/build-push-action
