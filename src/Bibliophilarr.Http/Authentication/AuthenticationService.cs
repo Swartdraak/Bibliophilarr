@@ -12,6 +12,8 @@ namespace Bibliophilarr.Http.Authentication
         void LogUnauthorized(HttpRequest context);
         User Login(HttpRequest request, string username, string password);
         void Logout(HttpContext context);
+        User FindUser();
+        User AddUser(string username, string password);
     }
 
     public class AuthenticationService : IAuthenticationService
@@ -64,6 +66,16 @@ namespace Bibliophilarr.Http.Authentication
         public void LogUnauthorized(HttpRequest context)
         {
             _authLogger.Info("Auth-Unauthorized ip {0} url '{1}'", context.GetRemoteIP(), LogSanitizer.Sanitize(context.Path));
+        }
+
+        public User FindUser()
+        {
+            return _userService.FindUser();
+        }
+
+        public User AddUser(string username, string password)
+        {
+            return _userService.Add(username, password);
         }
 
         private void LogInvalidated(HttpRequest context)

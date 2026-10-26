@@ -1,7 +1,53 @@
 # Onyx project contract — Swartdraak/Bibliophilarr
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
-# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.22).
+# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing PR #264 audit run (2026-10-25, task t_8240540f, run 2663) at exact
+# registered head 17eb4ee05b174b938d47838c896fba9698783224 (dependabot: bump
+# docker/setup-qemu-action 3.7.0 -> 4.4.0 in .github/workflows/docker-image.yml,
+# 1 file / +1 -1 pinned SHA 99012661954931238ded8c8b007157a8430204e1 # v4.4.0;
+# base develop af01d5c4635bd17a40005d9fe6fab0caa84dbdf0 = CURRENT develop tip
+# and an ancestor of the head, so no catch-up merge was needed; work branch =
+# registered head_ref dependabot/github_actions/develop/docker/setup-qemu-action-4.4.0):
+# re-verified the full contract in-container: yarn-install (frozen-lockfile,
+# up-to-date), eslint (8 pre-existing warnings, 0 errors, 0 new), both ops
+# guards (ui-build-mode + http-binding), stylelint-linux, jest (60/60 / 15
+# suites, incl. issue-329 regression 5/5), dotnet restore (exit 0, zero NU19xx),
+# backend Release build (0 warn/0 err), NzbDrone default-config build (0/0),
+# rid-core-targeted (25/25), rid-common-targeted (16/18, 2 pre-existing skips),
+# metadata-core-fixtures (32/32), metadata-api-fixtures (4/4), issue-325
+# regression filter (30/30, license-gated via SIXLABORS_LICENSE_FILE). NO code
+# edits (validation/publication-only). No JS/TS runtime files under
+# src/frontend/lib/app changed, so no production_coverage binding is required.
+# Hosted exact-head CI on the unchanged commit shows the inherited #270
+# platform-execution CI-capability gap (build-test 'Test' step + Linux and
+# macOS cross-build lanes red on the develop tip as well); the in-container
+# re-execution of every failing POSIX step at the exact head is GREEN
+# (restore exit 0; Release build 0 warn/0 err; NzbDrone model build 0/0;
+# RID/POSIX test filters all green). See baseline.json (workspace root) and
+# tmp/t_8240540f/pr264-logs/ for per-command evidence.
+# Existing PR #263 audit run (2026-10-25, task t_a0ef0b74) at exact registered
+# head 061bddbdd3a3e05dc29f5c16f11d084831bace11 (dependabot: bump
+# docker/build-push-action 7.0.0 -> 7.4.0 in .github/workflows/docker-image.yml,
+# 1 file / +2 -2, contributor commit preserved; base develop 9b9f9648c3658663d07b5122379523f41ee9fd79
+# = CURRENT develop tip and an ancestor of the head, so no catch-up merge was
+# needed; work branch = registered head_ref
+# dependabot/github_actions/develop/docker/build-push-action-7.4.0):
+# re-verified the full contract in-container: yarn-install (frozen-lockfile,
+# up-to-date), eslint (8 pre-existing warnings, 0 errors, 0 new), both ops
+# guards (ui-build-mode + http-binding), stylelint-linux, jest (60/60 / 15
+# suites), dotnet restore (exit 0, zero NU19xx), backend Release build
+# (0 warn/0 err), rid-core-targeted (25/25), rid-common-targeted (16/18,
+# 2 pre-existing skips), metadata-core-fixtures (32/32),
+# metadata-api-fixtures (4/4), issue-325 regression filter (30/30,
+# license-gated via SIXLABORS_LICENSE_FILE). Live exact-head CI re-probed
+# green: 16 check-runs (15 success + 1 neutral CodeQL, 0 failure, 0 pending)
+# at 061bdd; PR mergeable=true / mergeable_state=clean onto develop tip
+# 9b9f9648c3. NO code edits (validation/publication-only). No JS/TS runtime
+# files under src/frontend/lib/app changed, so no production_coverage
+# binding is required. SixLabors community license required for the .NET
+# build/test lanes (see note above). See baseline.json (workspace root) and
+# tmp/t_a0ef0b74/pr263-logs/ for per-command evidence.
 # Existing PR #220 audit run (2026-10-18, task t_43f927cc) at merged head 848ba72b
 # (dependabot/github_actions/develop/actions/setup-python-7.0.0 @ 23d8bdeb + normal
 # catch-up merge of develop e7b73817; base develop e7b73817, zero conflicts):
@@ -40,7 +86,97 @@
 # NzbDrone.Api.Test suite 80/80; full solution Release build 0 warn/0 err). See
 # baseline.json (workspace root) and t_56e08eff-logs/ for this run's per-command
 # evidence.
+# Issue #307 development run (2026-10-20, task t_d604af7f) at develop 1f158eede (base),
+# work branch fix/issue-307-manualimport-default-monitored-edition: added the
+# issue-307-regression-manualimport-null-edition test command and re-verified the
+# contract in-container (ManualImportServiceExecute* fixtures 5/5 — the #307
+# default-to-monitored-edition test RED-fails at base / GREEN post-fix; rid-core-targeted
+# 25/25, issue-275 19/19, issue-256 16/16, full solution Release build 0 warn/0 err).
+# See baseline.json (workspace root) and logs-t_d604af7f/ for this run's per-command
+# evidence.
+# Issue #309 development run (2026-10-20, task t_00c99e08) at develop 3374451bd (base),
+# work branch fix/issue-309-coldboot-apikey-stale-cache: added the
+# issue-309-regression-coldboot-apikey-stale-cache test command and re-verified the
+# contract in-container (ApiKeyAuthenticationHandlerFixture 5/5 — the cold-boot
+# persisted-key test RED-fails at base / GREEN post-fix; full NzbDrone.Api.Test suite
+# 89/89; full solution Release build 0 warn/0 err). See baseline.json (workspace root)
+# and logs-t_00c99e08/ for this run's per-command evidence.
+# Issue #316 development run (2026-10-21, task t_897492ef) at develop f5857ee953 (base),
+# work branch fix/issue-316-ping-anonymous-json-shadowed-by-spa-shell: added the
+# issue-316-regression-ping-anonymous-json test command and re-verified the contract
+# in-container (UiAuthenticationMiddlewareIssue316Fixture 5/5 + PingControllerIssue316Fixture
+# 3/3 + ProbeFixture 1/1 — the critical middleware test RED-fails at base / GREEN post-fix;
+# full NzbDrone.Api.Test suite 117/117; full solution Release build 0 warn/0 err). See
+# baseline.json (workspace root) and logs-t_897492ef/ for this run's per-command evidence.
+# Issue #323 CI-repair assessment run (2026-10-22, task t_bdadaf92) at develop
+# dd09a97c80 (PR #318 merge, the CI-failing tip): 4/14 hosted check-runs were FAILING
+# (build-test, cross-build Linux/Windows/macOS) while parent f5857ee953 was 14/14.
+# In-container re-execution of EVERY failing POSIX step at the exact head is GREEN
+# (restore exit 0; Release build 0 warn/0 err; Common.Test 621/621; desktop project
+# model restore+build 0/0; http-binding check 0; RID mapping gate 4/4) and zero NU19xx
+# audit diagnostics at this moment (default live audit AND explicit -p:NuGetAudit=true).
+# Root cause: the .NET SDK NuGetAudit runs during restore against the LIVE advisory
+# endpoint; the advisory database is time-of-run dependent, so a package can gain a
+# new advisory between a green run and the next run and (with TreatWarningsAsErrors)
+# escalate NU19xx to hard restore errors — a non-deterministic, environment-timing
+# failure class the PR #318 merge did not cause. This run documents the evidence and
+# re-verifies the contract; see baseline.json (workspace root) and
+# logs-t_bdadaf92/ for per-command evidence. No product-code change was required.
 # Do not store credentials or secrets here.
+# Issue #329 development run (2026-10-24, task t_1445b5f4, run 2406) at develop tip
+# c19a261c538246b69957eb1d1b2e1c3fa912edcc (base), work branch
+# fix/issue-329-authed-spa-routes-blank-shell: implemented D1/D2/D3 (per-request
+# InitializeJsonController config reads; UiAuthenticationMiddleware /initialize.json
+# exact-path exclusion; Startup FallbackPolicy API+Forms; index.ts boot hardening via
+# loadInitializeConfig + exported moduleReady) + 5-test jest regression
+# (frontend/src/index.test.js) + InitializeJsonIssue329Fixture (2 integration tests).
+# Verified in-container: jest RED 5/5 on original index.ts -> GREEN 5/5 on fixed; full
+# solution Release build 0 warn/0 err; InitializeJsonIssue329Fixture GREEN 2/2;
+# CI-parity integration filter 13/16 with 3 pre-existing HostConfigAuthorizationFixture
+# failures (identical at BASE per hostcfg-base-r2421.log — adjacent host-config authz
+# defect, not a #329 regression). Added the issue-329-regression-authed-spa-blank-shell
+# test command. .NET build/test lanes use the operator-provisioned SixLabors license
+# via -p:SixLaborsLicenseFile=<sixlabors.lic> (mirrors ci-backend.yml's
+# SIXLABORS_LICENSE_FILE mechanism). See baseline.json (workspace root) and
+# logs-t_1445b5f4/ for per-command evidence.
+# Existing PR #326 audit run (2026-10-23, task t_4906a68c) at work-branch head
+# 8def6a3855 (registered existing PR head 9970dccf29 + normal catch-up merge of
+# develop c2513d5e, merge commit 8def6a38; base develop c2513d5e, zero conflicts;
+# merge preserved all 4 contributor/agent commits a104fc72..9970dccf as ancestors):
+# re-verified the full contract in-container (Debian 13, .NET SDK 10.0.401,
+# Node v20.20.2 + Yarn 1.22.19): yarn-install (frozen-lockfile, 0.9s), eslint
+# (7 pre-existing warnings, 0 errors), jest (47/47 / 13 suites), both ops guards,
+# dotnet restore (0 NU19xx at this run window), backend Release build
+# (0 warn/0 err), Common.Test full (621 passed / 35 skipped / 0 failed),
+# rid-common-targeted (16/18, 2 pre-existing skips), rid-core-targeted (25/25),
+# metadata-core-fixtures (32/32), issue-325 regression filter (30/30:
+# RefreshAuthorServiceFixture incl. 4 new #325 tests + GetAuthorFolderFixture
+# incl. 2 new null-name tests). Added the issue-325-regression-author-add-nre-
+# and-no-delete test command. .NET build/test lanes use the operator-provisioned
+# SixLabors license file via -p:SixLaborsLicenseFile=<sixlabors.lic> (mirrors
+# ci-backend.yml's SIXLABORS_LICENSE_FILE mechanism). NO product-code change was
+# made by this audit stage (validation/publication-only selection); see
+# PR_DESCRIPTION.md (workspace root) and baseline.json for per-command evidence.
+# Existing PR #262 audit run (2026-10-22, task t_e1b456d9, run 2302) at work-branch head
+# f6ea6959f2 (dependabot/github_actions/develop/actions/setup-node-7.1.0 @ e0263985
+# + normal catch-up merge of develop a104fc72, merge commit f6ea6959; base develop
+# a104fc72, zero conflicts; merge preserved contributor commit e0263985 as an
+# ancestor):
+# re-verified the full contract in-container (Debian 13, .NET SDK 10.0.401,
+# Node + Yarn preinstalled): yarn-install (frozen-lockfile), eslint (7
+# pre-existing warnings, 0 errors), both ops guards, jest (47/47 / 13 suites),
+# dotnet restore (0 NU19xx at this run window), backend Release build
+# (0 warn/0 err), rid-core-targeted (25/25), rid-common-targeted (16/18, 2
+# pre-existing skips). .NET build/test lanes use the operator-provisioned
+# SixLabors license file via -p:SixLaborsLicenseFile=<sixlabors.lic>
+# (mirrors ci-backend.yml's SIXLABORS_LICENSE_FILE mechanism). No product-code
+# change was required or made for this PR: the 3-file pinned-SHA bump
+# (actions/setup-node 6.3.0 v53b83947 -> 7.1.0 v949feb24, node-version
+# 22.22.2, cache: yarn) was independently assessed as low-risk - see
+# PR_DESCRIPTION.md (workspace root) and baseline.json for per-command
+# evidence. The PR's label-policy check failures are metadata-surface
+# (labels/assignee/body contract), not code defects, and are out of scope for
+# this audit stage.
 
 version: 1
 name: bibliophilarr
@@ -172,6 +308,22 @@ commands:
       command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~CommandControllerUnknownNameIssue296Fixture"
       cwd: .
       note: "Issue #296 regression: POST /api/v1/command with a command name matching no registered Command implementation must return 400 (BadRequest), never 500. Before the fix, CommandController.StartCommand used Enumerable.Single, which throws InvalidOperationException when zero implementations match; BibliophilarrErrorPipeline maps that to HttpStatusCode.InternalServerError and logs it at Fatal, producing a 500 for a benign client-input condition. The endpoint now resolves the type with FirstOrDefault and throws a 400 BadRequestException when the name is unknown, and reads the raw request body up front (no behavior change for the error path). Pinned by CommandControllerUnknownNameIssue296Fixture (5 tests: 3 unknown-name cases -> 400 ApiException not 500/InvalidOperationException; ApplicationUpdateCommand guard preserved -> 400 with disabled message; resolvable name not rejected by the guard -> 201 CreatedAtActionResult). RE-VERIFIED 2026-10-18 at head 816bd8d3e8 (work branch fix/issue-296-command-unknown-name-4xx, run t_56e08eff): RED 4-failed at base (3 unknown-name -> InvalidOperationException @ CommandController.cs:55; 1 resolvable blocked at Request.Body) / GREEN 5-passed post-fix; full NzbDrone.Api.Test suite 80/80; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (unknown-name -> 4xx over the wire) is exercised in the application-test stage; the existing NzbDrone.Integration.Test CommandFixture is [Ignore]d and requires Postgres, so this unit-level fixture is the CI-parity guard."
+    - name: issue-307-regression-manualimport-null-edition
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~ManualImportServiceExecute"
+      cwd: .
+      note: "Issue #307 regression (complement of the #295 fix at 1f158eede): POST /api/v1/manualimport (update) with a valid BookId and null ForeignEditionId must NOT strand the imported file unmapped (BookFile.EditionId=0). ManualImportService.Execute now defaults the edition to the book's MONITORED edition (mirroring the event-path fallback at ImportApprovedBooks.cs:359) BEFORE the #295 rejection guard, so the file is persisted mapped (EditionId>0); a book with NO monitored edition is still explicitly rejected (honest failure, #295 semantics preserved). Pinned by ManualImportServiceExecuteIssue307Fixture (3 tests: null-foreignEditionId + monitored edition -> decision APPROVED with Edition.Id>0; null-foreignEditionId + no monitored edition -> decision REJECTED; unresolvable named edition + no monitored edition -> decision REJECTED) plus the 2 pre-existing ManualImportServiceExecuteFixture (#295) tests. RE-VERIFIED 2026-10-20 at develop 1f158eede (base) with work branch fix/issue-307-manualimport-default-monitored-edition (run t_d604af7f): the default-to-monitored-edition test RED-fails at base (decision rejected instead of approved) / GREEN post-fix; full ManualImportServiceExecute* filter 5/5 post-fix; rid-core-targeted 25/25, issue-275 19/19, issue-256 16/16; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (mapped BookFile row + per-book view) is exercised in the application-test stage; this unit-level fixture is the CI-parity guard. Secondary defect noted in issue #307 (zero-byte/corrupt media persisting BookFile rows, AC4) is a distinct defect with no media-integrity validation layer in this repo and is NOT fixed by this change; it is reported as a follow-up issue."
+    - name: issue-309-regression-coldboot-apikey-stale-cache
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~ApiKeyAuthenticationHandlerFixture"
+      cwd: .
+      note: "Issue #309 regression (cold-boot API-key authentication): a freshly-booted instance whose config.xml holds a persisted 32-char ApiKey must accept X-Api-Key=<that key> with 200 during the readiness window. Root cause: ApiKeyAuthenticationHandler (src/Bibliophilarr.Http/Authentication/ApiKeyAuthenticationHandler.cs) captured config.ApiKey exactly once in its constructor (private readonly string _apiKey = config.ApiKey) and compared every request against that stale value. On a cold boot the value captured at construction can be a pre-finalization key that differs from the key ultimately persisted to config.xml during startup (ConfigFileProvider.ApiKey generates/persists on first access); because the cache was never invalidated, the persisted key 401'd for the entire boot until a restart. Fix: the handler now reads _config.ApiKey per request in HandleAuthenticateAsync (no construction-time cache) and treats a blank configured key as non-authenticating. Pinned by ApiKeyAuthenticationHandlerFixture (5 tests: persisted key authenticates after cold-boot finalization — RED at base; wrong key rejected; missing key rejected; blank configured key rejects all; Bearer Authorization header still authenticates). RE-VERIFIED 2026-10-20 at develop 3374451bd (base) with work branch fix/issue-309-coldboot-apikey-stale-cache (run t_00c99e08): RED 1-failed/4-passed at base (cold-boot test) / GREEN 5/5 post-fix; full NzbDrone.Api.Test suite 89/89; full solution Release build 0 warn/0 err (CI parity, analyzers ON). The durable end-to-end cold-boot HTTP acceptance (persisted key 200 over the wire on a fresh data dir) is exercised in the application-test stage; this unit-level fixture is the CI-parity guard."
+    - name: issue-316-regression-ping-anonymous-json
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~Issue316"
+      cwd: .
+      note: "Issue #316 regression (anonymous /ping JSON liveness contract): the documented [AllowAnonymous] JSON liveness endpoint GET /ping was shadowed to the SPA shell because UiAuthenticationMiddleware classified /ping as a UI-shell GET (its exclusion list only covered /api/, /login, /content/). Under AuthenticationRequired=Enabled the Forms challenge's LoginPath falls through to the SPA catch-all, so anonymous GET /ping returned 200 + index.html instead of the PingController's JSON {\"Status\":\"OK\"}. Fix: exclude the EXACT path /ping from the UiAuthenticationMiddleware UI-shell classification (string.Equals(path, \"/ping\")) so the [AllowAnonymous] PingController response is served directly; the #313/#315 auth-gate behavior (unauth UI 401, unauth API 401, authed API 200) is preserved for real UI-shell paths. Pinned by UiAuthenticationMiddlewareIssue316Fixture (5 tests: anonymous /ping passes through unchallenged — RED at base; disabled-mode /ping passes through; authed /ping passes through; UI-shell paths still challenge with Forms; /ping/extra is not exempted) plus PingControllerIssue316Fixture (3 tests: 200 + Status=OK JSON contract; 500 + Status=Error when config repo unavailable; route attributes declare [AllowAnonymous] + [HttpGet/HttpHead \"/ping\"]) plus ProbeFixture (1 sanity test). RE-VERIFIED 2026-10-21 at develop f5857ee953 (base) with work branch fix/issue-316-ping-anonymous-json-shadowed-by-spa-shell (run t_897492ef): RED 1-failed/7-passed at base (the critical middleware test) / GREEN 8/8 post-fix; full NzbDrone.Api.Test suite 117/117; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (anonymous /ping = 200 JSON over the wire) is exercised in the application-test stage; this unit-level fixture is the CI-parity guard."
+    - name: issue-325-regression-author-add-nre-and-no-delete
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~GetAuthorFolderFixture"
+      cwd: .
+      note: "Issue #325 regression (POST /api/v1/author 500 NRE + post-create refresh deleting the freshly created local author), pinned by existing PR #326 (4 commits, 4 files: RefreshAuthorService.cs, FileNameBuilder.cs, RefreshArtistServiceFixture.cs, GetAuthorFolderFixture.cs). DEFECT 1 — folder-name NRE: FileNameBuilder.AddAuthorTokens now null-guards author.Name/CleanName/Metadata so a freshly constructed local author (metadata value not yet provider-resolved) can no longer throw 'Object reference not set' and 500 the add. DEFECT 2 — post-create delete: AddAuthorService upserts an AuthorMetadata row for every added author and assigns the resulting POSITIVE id to Author.AuthorMetadataId, so the old 'AuthorMetadataId <= 0' no-delete guard (issue #272) no longer identified locally created authors; the post-create RefreshAuthorCommand then deleted the persisted row ~3s after the 201. ShouldDelete now keys on the PROVIDER ID SCOPE (ProviderOwnedForeignId: openlibrary:author:... / bare OLxxxxA via OpenLibraryIdNormalizer, hardcover:...): only provider-scoped ids can be provider-removed, so synthetic/unmapped ids (e.g. recovery:author:RTA-001) are retained regardless of AuthorMetadataId; provider-sourced authors keep the documented #204/#209 provider-removed deletion. RE-VERIFIED 2026-10-23 in-container at work-branch head 8def6a38 (registered PR head 9970dccf + catch-up merge of develop c2513d5e, zero conflicts; task t_4906a68c): filter GREEN 30/30 — RefreshAuthorServiceFixture (21 tests incl. 4 new #325 tests: positive-metadata-id + synthetic-id no-delete single/bulk, provider-scope deletion 3-case matrix, files-present no-delete) + GetAuthorFolderFixture (9 tests incl. 2 new null-name NRE-guard tests). Companion RefreshArtistServiceFixture (MusicTests namespace, same file path) aligns the 2 pre-existing synthetic-id not-found tests to the provider-scope gate (no-delete for synthetic ids; the documented provider-removed deletion is now exercised via provider-scoped ids) — verified by build (0 warn/0 err) + full Common.Test 621/0-fail. The durable end-to-end HTTP acceptance (local-author add -> 201 + row survives the post-create refresh) is exercised in the application-test stage; this unit-level fixture set is the CI-parity guard."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
@@ -179,7 +331,15 @@ commands:
     - name: frontend-tests
       command: yarn test:frontend
       cwd: .
-      note: "jest --runInBand: 47 tests / 13 suites, 0 failures (2026-09-18)."
+      note: "jest --runInBand: 60 tests / 15 suites, 0 failures (re-verified 2026-10-25 at develop a6cd30f4 base; 52 tests / 14 suites at 2026-09-18, grown by the issue-329 index.test.js suite and the issue-327 label-policy automated-actor-exception suite)."
+    - name: issue-329-regression-authed-spa-blank-shell
+      command: yarn test:frontend --testPathPattern frontend/src/index.test.js
+      cwd: .
+      note: "Issue #329 regression (authed SPA routes render blank app shell under Forms auth): pins the frontend boot contract in index.ts. Before the fix, index.ts fetched /initialize.json via a top-level await with no error handling; a 401 (UiAuthenticationMiddleware Forms-challenged /initialize.json as a UI-shell GET) or any failure threw an unhandled rejection before React mounted, leaving every authed route (/library, /search, /settings) as a byte-identical blank app shell. The fix extracts loadInitializeConfig() with a response.ok gate + try/catch, wraps bootstrap() in try/catch with a visible error on #root, and exports the moduleReady promise. 5 tests: (1) boots end-to-end on 200+JSON — window.Bibliophilarr populated, app mounted; (2) does NOT blank-shell on the #329 signature 401+empty body; (3) does NOT blank-shell when the boot fetch throws (network failure); (4) does NOT blank-shell on a non-JSON body; (5) pins the guarded-fetch integration contract in index.ts (static source checks: response.ok gate before response.json()). RED 5/5 on original index.ts (top-level await SyntaxError under jest CJS transform + missing response.ok gate) / GREEN 5/5 post-fix. RE-VERIFIED 2026-10-24 in-container (task t_1445b5f4, run 2406): logs-t_1445b5f4/jest-issue329-redgreen-r2421.log. Companion backend regression: InitializeJsonIssue329Fixture (2 integration tests) via the ci-backend.yml metadata-diagnostics-integration filter (Debug): anonymous GET /initialize.json -> 200 + persisted apiKey + urlBase, no Location challenge; apiKey matches persisted key per request. GREEN 2/2 post-fix (logs-t_1445b5f4/integration-issue329-r2421.log). PRE-EXISTING (not a #329 regression): 3 HostConfigAuthorizationFixture failures in the same CI-parity filter (malformed-Basic-auth expected 401 got 200; malformed-PUT expected 401 got RequestUriTooLong; anon-GET expected 401 got 200) — fail identically at BASE c19a261c (logs-t_1445b5f4/hostcfg-base-r2421.log, BASE_HOSTCFG_EXIT=1, 3 failed/2 passed); adjacent host-config authz defect routed through the existing deduplicated issue process, not fixed in this PR."
+    - name: issue-327-regression-label-policy-automated-actor-exception
+      command: yarn test:frontend --testPathPatterns frontend/src/Issue327/labelPolicyAutomatedActorException.test.js
+      cwd: .
+      note: "Issue #327 regression (systemic label-policy intake gap for automated PRs): pins the automated-actor exception in the 'Enforce PR metadata contract' gate (.github/workflows/labeler.yml). The gate's PR metadata contract (type:/area:/priority:/risk: labels, an assignee, the five body sections, Candidate SHA, linked-issue reference) is written for HUMAN PRs and systematically blocked every dependabot/agent PR (13 open PRs as of develop a6cd30f4, all by dependabot[bot]). The fix adds a NARROW exception: when the PR's authenticated author (pr.user.login, from the REST read, not the PR-controlled event payload) is in TRUSTED_AUTOMATION_ACTORS (dependabot[bot], onyx-devops[bot]), the gate logs a core.info and returns BEFORE any contract check, so a dependabot PR passes label-policy WITHOUT a manual per-PR metadata repair (AC1/AC3). For every human-authored PR the full contract is enforced unchanged (AC2). 8 tests: (1) the exception allow-list contains dependabot[bot]+onyx-devops[bot]; (2) the exception keys on pr.user.login; (3) the bot path short-circuits before the first contract check; (4) the exception sits AFTER the authenticated REST fetch so a bot PR whose fetch fails still fails loudly; (5-7) the full human contract (4 label prefixes, assignee, 5 body sections + Candidate SHA + linked-issue ref) is still present and unchanged; (8) the file-scoped build/test gates (ci-frontend.yml/ci-backend.yml) are untouched and do not contain the exception. No production runtime code changed, so the raw Istanbul coverage-final.json is byte-identical to the develop base. RE-VERIFIED 2026-10-25 in-container (task t_309778c3): GREEN 8/8 post-fix; full frontend suite 60/60 (15 suites); yarn lint 0 errors (8 pre-existing warnings, 0 new); all 19 .github/workflows/*.yml parse as valid YAML. The durable exact-head end-to-end acceptance (label-policy job green on a live dependabot PR + a human PR at the merged head) is exercised by the review/publication stage; this unit-level source-contract test is the CI-parity guard."
   runtime:
     start: |
       ./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
@@ -233,49 +393,158 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../logs-t_60662025/
-  verified_at: 2026-10-17
-  base_sha: d0f6b0e04dd83339a9bdc175b3550820c5b9316c
-  head_sha: 42d0de9e33fe2786fb48f6d52224446f1f286105
-  # Issue #272 development run (t_60662025, 2026-10-17): work branch
-  # fix/issue-272-author-refresh-delete from live develop d0f6b0e0. Implemented the
-  # ShouldDelete local-author guard in RefreshAuthorService (AuthorMetadataId <= 0
-  # never deletes) so a locally created author (unresolvable/synthetic foreign id,
-  # AuthorMetadataId == 0) survives the post-create background refresh instead of
-  # being deleted before the 201 Created redirect resolves (issue #272). Provider-
-  # sourced authors (AuthorMetadataId > 0) keep the documented provider-removed
-  # deletion behavior (#204/#209). Three regression tests added to
-  # RefreshAuthorServiceFixture. Verified at head 42d0de9e: rid-core-targeted 25/25,
-  # metadata-core-fixtures 32/32 (CI parity), issue-272 regression 3 new tests pass.
-  # PRE-EXISTING: 2 not-found tests in RefreshAuthorServiceFixture fail in this
-  # isolated env on NLog async-delivery timing (fail identically on base d0f6b0e0;
-  # not a CI-required lane). The issue-cited defect head fe85b50d is an ancestor of
-  # the base d0f6b0e0 (fe85b50d = #271, present in develop history). Prior verified
-  # run remain the record: issue #275 repair (t_7bdf990f, head d5ebd70c local), issue
-  # #279 @ 8d2281e4c5 (t_f1ae9028), 2026-10-14 PR #243 @ 949a43a160 (t_e4ea7a87), issue
-  # #256 @ 75c21186 (t_5daa7896), 2026-10-12 PR #225 @ 1f37119280 (t_efb34b16), and
-  # the 2026-09-18 baseline @ d21d1361c. Hosted exact-head CI is the merge gate.
+  logs: ../tmp/t_8240540f/pr264-logs/
+  verified_at: 2026-10-25
+  base_sha: af01d5c4635bd17a40005d9fe6fab0caa84dbdf0
+  head_sha: 17eb4ee05b174b938d47838c896fba9698783224
+  # Existing PR #264 audit run (t_8240540f, 2026-10-25): work branch
+  # dependabot/github_actions/develop/docker/setup-qemu-action-4.4.0 at the
+  # exact registered head 17eb4ee0 (dependabot: docker/setup-qemu-action
+  # 3.7.0 -> 4.4.0, 1 file / +1 -1 in .github/workflows/docker-image.yml,
+  # pinned SHA 99012661954931238ded8c8b007157a8430204e1 # v4.4.0).
+  # Base develop af01d5c4 is the CURRENT tip and an ancestor of the head —
+  # no catch-up merge. Contributor commit preserved; no rebase/force-push.
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites; issue-329 filter 5/5), backend restore
+  # exit 0 (zero NU19xx), Release build 0 warn/0 err, NzbDrone default-config
+  # build 0/0, rid-core 25/25, rid-common 16/18 (2 pre-existing skips),
+  # metadata-core 32/32, metadata-api 4/4, issue-325 filter 30/30
+  # (SIXLABORS_LICENSE_FILE). Hosted exact-head CI on the unchanged commit
+  # shows the inherited #270 platform-execution CI-capability gap (build-test
+  # 'Test' step + Linux/macOS cross-build lanes); the in-container
+  # re-execution of every failing POSIX step at the exact head is GREEN. NO
+  # code edits. No src/frontend/lib/app runtime files changed (no
+  # production_coverage binding). Publication stage owns push + merge.
+  # Existing PR #263 audit run (t_a0ef0b74, 2026-10-25): work branch
+  # dependabot/github_actions/develop/docker/build-push-action-7.4.0 at the
+  # exact registered head 061bdd (dependabot: docker/build-push-action
+  # 7.0.0 -> 7.4.0, 1 file / +2 -2 in .github/workflows/docker-image.yml,
+  # both 'uses:' pins at c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0).
+  # Base develop 9b9f9648c3 is the CURRENT tip and an ancestor of the head —
+  # no catch-up merge. Contributor commit preserved; no rebase/force-push.
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites), backend restore exit 0 (zero NU19xx),
+  # Release build 0 warn/0 err, rid-core 25/25, rid-common 16/18 (2
+  # pre-existing skips), metadata-core 32/32, metadata-api 4/4, issue-325
+  # filter 30/30 (SIXLABORS_LICENSE_FILE). Live exact-head CI: 16 check-runs
+  # (15 success + 1 neutral CodeQL, 0 failure, 0 pending) at 061bdd;
+  # mergeable=true / mergeable_state=clean onto develop 9b9f9648c3. NO code
+  # edits. No src/frontend/lib/app runtime files changed (no
+  # production_coverage binding). Hosted exact-head CI is the merge gate.
+  # Issue #329 development run (t_1445b5f4, 2026-10-24): work branch
+  # fix/issue-329-authed-spa-routes-blank-shell from develop tip c19a261c.
+  # Three compounding defects caused every authed SPA route to render a blank
+  # app shell under Forms auth: (1) UiAuthenticationMiddleware classified
+  # /initialize.json as a UI-shell GET and Forms-challenged it before
+  # [AllowAnonymous] routing; (2) InitializeJsonController cached
+  # ApiKey/UrlBase in static fields set at construction (issue #309 pattern);
+  # (3) index.ts had no error handling on the initialize.json fetch. The fix
+  # excludes /initialize.json from the UI-shell classification (exact-path,
+  # like /ping), reads config per request, widens FallbackPolicy to
+  # API+Forms, and hardens the SPA boot (loadInitializeConfig + try/catch +
+  # moduleReady export). 5-test jest regression (frontend/src/index.test.js)
+  # RED 5/5 on original / GREEN 5/5 post-fix; InitializeJsonIssue329Fixture
+  # 2/2 GREEN; full solution Release build 0 warn/0 err. PRE-EXISTING: 3
+  # HostConfigAuthorizationFixture failures in the CI-parity integration
+  # filter (identical at BASE; adjacent host-config authz defect, not a
+  # #329 regression). Hosted exact-head CI is the merge gate.
+  # Issue #323 CI-repair assessment run (t_bdadaf92, 2026-10-22): develop tip
+  # dd09a97c80 (PR #318 merge, the issue-323 CI-failing tip) had 4/14 hosted
+  # check-runs FAILING (build-test, cross-build Linux, Windows, macOS) while
+  # parent f5857ee953 was 14/14. The in-container re-execution of EVERY failing
+  # POSIX step at the EXACT head is GREEN (restore exit 0 with the default live
+  # NuGetAudit and with explicit -p:NuGetAudit=true; full Release build 0 warn/0
+  # err; Common.Test --no-build 621 passed/35 skipped/0 failed; check_http_binding.sh
+  # exit 0; direct Windows-desktop project restore + model build 0/0; RID Architecture
+  # property x64; rid_mapping source-assertion gate 4/4) with zero NU19xx audit
+  # diagnostics. The failing lane surface (restore/build/Common.Test/desktop-model/
+  # RID) is disjoint from the PR #318 diff (.onyx/project.yaml +
+  # UiAuthenticationMiddleware.cs + 3 Api.Test fixtures) — none of those artifacts is
+  # touched by any failing CI step. Root cause: the .NET SDK NuGetAudit runs during
+  # restore against the LIVE advisory endpoint; the advisory database is
+  # time-of-run dependent, so a package can gain a new advisory between a green run
+  # and the next run and (with TreatWarningsAsErrors) escalate NU19xx to hard restore
+  # errors — a non-deterministic environment-timing failure class, NOT a deterministic
+  # product-code regression from the merged PR. Disposition: no product-code change
+  # required; the exact head is verified green in-container; hosted exact-head CI is
+  # the merge gate (a re-run of the 4 failed check-runs on the unchanged commit
+  # re-resolves the tip; the 14-PR dependabot train unblocks). PRE-EXISTING: 108
+  # deterministic Core-suite failures in the isolated env (unchanged; CI runs
+  # targeted filters only).
+  # Issue #316 development run (t_897492ef, 2026-10-21): work branch
+  # fix/issue-316-ping-anonymous-json-shadowed-by-spa-shell from live develop
+  # f5857ee953 (the #313/#315 auth-gate fix merged at this head). Implemented the
+  # /ping exclusion in UiAuthenticationMiddleware so the documented [AllowAnonymous]
+  # JSON liveness endpoint GET /ping is no longer shadowed to the SPA shell by the
+  # UI auth middleware. The fix adds `!string.Equals(path, "/ping",
+  # StringComparison.OrdinalIgnoreCase)` to the isUiShellGet classification, so
+  # anonymous GET /ping passes through to the PingController and its 200 + JSON
+  # {"Status":"OK"} is served directly. The #313/#315 auth-gate behavior is
+  # unchanged: unauth UI pages still return 401 under AuthenticationRequired=Enabled,
+  # unauth v1 API still returns 401, authed v1 API still returns 200 JSON.
+  # Three regression test fixtures added (8 tests total):
+  #   - UiAuthenticationMiddlewareIssue316Fixture (5 tests): anonymous /ping passes
+  #     through unchallenged (RED at base); disabled-mode /ping passes through;
+  #     authed /ping passes through; UI-shell paths still challenge with Forms;
+  #     /ping/extra is not exempted (exact-path-only exclusion).
+  #   - PingControllerIssue316Fixture (3 tests): 200 + Status=OK JSON contract;
+  #     500 + Status=Error when config repo unavailable; route attributes declare
+  #     [AllowAnonymous] + [HttpGet/HttpHead "/ping"].
+  #   - ProbeFixture (1 test): sanity probe.
+  # Verified at the fixed head: issue-316 8/8 (RED 1-fail at base for the critical
+  # middleware test), full NzbDrone.Api.Test suite 117/117, full solution Release
+  # build 0 warn/0 err. PRE-EXISTING: 108 deterministic Core-suite failures in the
+  # isolated env (unchanged; CI runs targeted filters only).
+  # Hosted exact-head CI is the merge gate. Prior verified runs remain the record:
+  # issue #309 @ 9013f8fd (t_00c99e08), issue #307 @ 9013f8fd (t_d604af7f), issue #296
+  # @ 816bd8d3e8 (t_56e08eff), issue #272 @ 42d0de9e (t_60662025), issue #275 repair
+  # (t_7bdf990f), issue #279 @ 8d2281e4c5 (t_f1ae9028), issue #256 @ 75c21186
+  # (t_5daa7896), PR #243 @ 949a43a160 (t_e4ea7a87), PR #225 @ 1f37119280
+  # (t_efb34b16), 2026-09-18 baseline @ d21d1361c. Issue #323 CI-repair assessment
+  # (t_bdadaf92, 2026-10-22) at develop dd09a97c80 re-verified the full failing-lane
+  # surface GREEN with zero NU19xx audit diagnostics; see its baseline entry and
+  # logs-t_bdadaf92/.
   lane: develop (net10.0 band)
   note: >
-    Issue #272 development run (t_60662025). The defect: a locally created author
-    (synthetic/unmapped foreign id) persisted via POST /api/v1/author carries
-    AuthorMetadataId == 0; the post-create background refresh treated the expected
-    not-found as a provider-removal signal and deleted the row before the 201 Created
-    redirect resolved, so clients observed 404 "Author with ID 1 does not exist".
-    The fix makes ShouldDelete return false for AuthorMetadataId <= 0 (local authors
-    were never provider-resolvable, so not-found is expected, not a removal), while
-    provider-sourced authors (AuthorMetadataId > 0) retain the documented
-    provider-removed deletion behavior (#204/#209 — the re-throw guard for transient
-    outages at RefreshAuthorService.cs:100-111 is unchanged). Three regression tests
-    pin the new-author, bulk-refresh, and no-regression-provider-sourced paths.
-    Verified at head 42d0de9e (work branch fix/issue-272-author-refresh-delete from
-    base develop d0f6b0e0). The 2 pre-existing not-found tests in
-    RefreshAuthorServiceFixture fail in this isolated environment due to NLog
-    async-delivery timing of the ExceptionVerification target (ExpectedErrors/
-    ExpectedWarns counts race with log delivery); they fail identically on the base
-    head and are not a CI-required lane. CI (ci-backend.yml) runs targeted fixture
-    filters only (rid-core-targeted 25/25, metadata-core-fixtures 32/32, both green
-    at this head); hosted exact-head CI is the merge gate.
+    Issue #323 CI-repair assessment run (t_bdadaf92, 2026-10-22). At exact develop
+    head dd09a97c80 (PR #318 merge), 4/14 hosted check-runs were failing
+    (build-test, cross-build Linux/Windows/macOS) while parent f5857ee953 was 14/14.
+    The in-container re-execution of every failing POSIX step at the exact head is
+    GREEN: restore exit 0 (default live NuGetAudit and explicit -p:NuGetAudit=true),
+    full Release build 0 warn/0 err, Common.Test --no-build 621 passed/35 skipped/0
+    failed, check_http_binding.sh exit 0, direct Windows-desktop project restore +
+    model build 0/0, RID Architecture property x64, rid_mapping source-assertion
+    gate 4/4 — with zero NU19xx audit diagnostics. The failing lane surface is
+    disjoint from the PR #318 diff (.onyx/project.yaml + UiAuthenticationMiddleware.cs
+    + 3 Api.Test fixtures); no failing CI step touches those artifacts. Root cause:
+    the .NET SDK NuGetAudit runs during restore against the LIVE advisory endpoint
+    and the advisory database is time-of-run dependent, so a package can gain a new
+    advisory between runs and (with TreatWarningsAsErrors) escalate NU19xx to hard
+    restore errors — a non-deterministic environment-timing failure class, not a
+    deterministic product-code regression from the merged PR. No product-code change
+    required; this run documents the evidence and re-verifies the contract. Hosted
+    exact-head CI is the merge gate. PRE-EXISTING: 108 deterministic Core-suite
+    failures in the isolated env (unchanged; CI runs targeted filters only).
+    Prior run record (issue #316 development run, t_897492ef, 2026-10-21, base
+    f5857ee953): the documented [AllowAnonymous] JSON liveness endpoint GET /ping was
+    shadowed to the SPA shell because UiAuthenticationMiddleware (src/Bibliophilarr.Http/Middleware/UiAuthenticationMiddleware.cs)
+    classified /ping as a UI-shell GET — its exclusion list only covered /api/,
+    /login, and /content/. Under AuthenticationRequired=Enabled, the Forms
+    challenge's LoginPath falls through to the SPA catch-all
+    (StaticResourceController.Index), so every anonymous /ping request returned 200 +
+    7666-byte HTML instead of the PingController's JSON {"Status":"OK"}. The fix
+    excludes the EXACT path /ping from the UI-shell classification
+    (string.Equals(path, "/ping")) so the [AllowAnonymous] PingController response is
+    served directly; the exclusion is path-exact only (/ping/extra is still governed
+    as a UI shell) and the #313/#315 auth-gate behavior (unauth UI 401, unauth API
+    401, authed API 200) is preserved unchanged. Three regression test fixtures
+    (8 tests) added. Verified at the fixed head: issue-316 8/8 (RED 1-fail at base),
+    full NzbDrone.Api.Test 117/117, full solution Release build 0 warn/0 err.
+    Hosted exact-head CI is the merge gate.
 
 skipped_integrations:
   - name: docker-image-build

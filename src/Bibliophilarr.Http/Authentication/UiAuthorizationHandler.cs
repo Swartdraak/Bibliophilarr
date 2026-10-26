@@ -36,6 +36,16 @@ namespace NzbDrone.Http.Authentication
                     }
                 }
             }
+            else
+            {
+                // AuthenticationRequired == Enabled: deny anonymous users explicitly.
+                // Without this, the UI policy (BypassableDenyAnonymousAuthorizationRequirement)
+                // would fall through without calling Succeed or Fail, allowing the SPA shell
+                // to be served to unauthenticated users (issue #313 DEFECT-AUTH-POLICY-UNAUTH-200).
+                // DenyAnonymousAuthorizationRequirement (the base class) has no custom
+                // failure-reason plumbing, so we use the default reason.
+                context.Fail();
+            }
 
             return Task.CompletedTask;
         }

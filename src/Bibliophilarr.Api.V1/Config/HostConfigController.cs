@@ -5,6 +5,7 @@ using System.Security.Cryptography.X509Certificates;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.REST;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Authentication;
@@ -16,6 +17,17 @@ using NzbDrone.Http.REST.Attributes;
 
 namespace Bibliophilarr.Api.V1.Config
 {
+    // Issue #329 repair: /api/v1/config/host is a sensitive API endpoint (it can read and
+    // rewrite the instance's auth configuration: AuthenticationMethod/AuthenticationRequired,
+    // credentials, URL base, API key). Before #315 the app-wide fallback policy accepted any
+    // scheme; #315 pinned it to the "API" scheme, and the #329 implementation widened it to
+    // ["API", "Forms"] so a browser session (Forms cookie) can reach authed SPA routes. A
+    // browser Forms session must NOT satisfy the fallback policy for this resource, so pin
+    // its authorization to the "API" scheme explicitly (valid X-Api-Key/apikey, exactly as
+    // before #315). The scoped attribute does not touch the fallback policy, so the #329
+    // Forms-session behavior for UI routes is preserved. Anonymous or invalid credentials
+    // get a 401 from the API scheme's challenge (ApiKeyAuthenticationHandler).
+    [Authorize(Policy = "API")]
     [V1ApiController("config/host")]
     public class HostConfigController : RestController<HostConfigResource>
     {

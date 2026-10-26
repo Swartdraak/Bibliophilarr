@@ -64,6 +64,47 @@ jobs:
               );
               return;
             }
+
+            // Issue #327 — automated-actor exception.
+            //
+            // The PR metadata contract (labels, assignee, body sections,
+            // Candidate SHA, linked-issue reference) is written for HUMAN-
+            // authored PRs, where the author can fill the template. Automated
+            // PR openers (dependabot[bot], and the Onyx automation bot) emit
+            // boilerplate release-note bodies with none of the contract
+            // sections, so they systematically fail this gate and block the
+            // entire dependabot/agent train (issue #327, AC1-AC3).
+            //
+            // This exception is deliberately NARROW: it skips the contract
+            // checks ONLY when the PR's authenticated author is a known
+            // automation bot. For every human-authored PR the contract is
+            // enforced exactly as before (AC2: the fix must not weaken the
+            // metadata contract for human-authored PRs).
+            //
+            // Safety (no self-bypass loop): this workflow only runs when a PR
+            // is OPENED/SYNCHRONIZED/etc. A bot cannot open a PR whose
+            // workflow config disables its own gate — the labeler config is
+            // read from the trusted base SHA (actions/checkout above), and the
+            // author identity is read from the authenticated REST API, not the
+            // PR-controlled event payload. File-scoped build/test gates
+            // (ci-frontend.yml, ci-backend.yml) are untouched and still run
+            // for bot PRs, so the gate's protective intent for code changes is
+            // preserved.
+            const TRUSTED_AUTOMATION_ACTORS = [
+              'dependabot[bot]',
+              'onyx-devops[bot]',
+            ];
+            const author = ((pr.user && pr.user.login) || '').toLowerCase();
+            if (TRUSTED_AUTOMATION_ACTORS.includes(author)) {
+              core.info(
+                `PR metadata contract satisfied by automated-actor exception: ` +
+                  `author '${pr.user.login}' is a trusted automation actor. ` +
+                  `The full contract (labels, assignee, body sections, Candidate SHA, ` +
+                  `linked-issue reference) remains enforced for human-authored PRs (issue #327).`
+              );
+              return;
+            }
+
             const labels = (pr.labels || []).map((label) => label.name.toLowerCase());
             const assignees = pr.assignees || [];
             const body = pr.body || '';

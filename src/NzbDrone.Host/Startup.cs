@@ -197,8 +197,19 @@ namespace NzbDrone.Host
                     policy.RequireAuthenticatedUser();
                 });
 
-                // Require auth on everything except those marked [AllowAnonymous]
-                options.FallbackPolicy = new AuthorizationPolicyBuilder("API")
+                // Require auth on everything except those marked [AllowAnonymous].
+                //
+                // Issue #329: the fallback policy must accept EITHER a valid Forms session
+                // (browser users, authenticated via the cookie scheme after /login) OR a valid
+                // API key (programmatic clients). Before #315 the default policy (any scheme)
+                // did this implicitly; pinning the scheme to "API" alone meant a browser with a
+                // valid Forms cookie still failed the UI policy on every authed SPA route, so
+                // even a booting SPA had no data access (circular 401: the SPA needs
+                // /initialize.json for the API key, which it could not fetch without the shell
+                // being reachable). Accepting both schemes keeps #313 A1/A2 intact: an
+                // anonymous UI request still fails both schemes and is 401-challenged by
+                // UiAuthenticationMiddleware before this policy is ever evaluated.
+                options.FallbackPolicy = new AuthorizationPolicyBuilder(new[] { "API", "Forms" })
                 .RequireAuthenticatedUser()
                 .Build();
             });
@@ -267,6 +278,11 @@ namespace NzbDrone.Host
             app.UseRouting();
             app.UseCors();
             app.UseAuthentication();
+
+            // Issue #313 A1/A2: challenge anonymous UI requests with the Forms scheme so the
+            // denial is 401 (Unauthorized) rather than 403 (the cookie scheme's AccessDeniedPath
+            // would otherwise make ForbidAsync yield 403). API and [AllowAnonymous] routes pass through.
+            app.UseMiddleware<UiAuthenticationMiddleware>();
             app.UseAuthorization();
             app.UseResponseCompression();
             app.Properties["host.AppName"] = BuildInfo.AppName;

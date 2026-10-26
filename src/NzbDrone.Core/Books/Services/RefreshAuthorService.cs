@@ -16,6 +16,7 @@ using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.RootFolders;
 
@@ -134,16 +135,63 @@ namespace NzbDrone.Core.Books
             // identifiers, so a genuine not-found is the documented provider-removed
             // condition (#204/#209). Locally created authors (synthetic/unmapped
             // foreign ids, e.g. a locally created author added via POST /api/v1/author)
-            // carry AuthorMetadataId == 0 and were never provider-resolvable, so a
-            // not-found is expected, not a removal signal — deleting them destroys
-            // API-created data (issue #272: the post-create background refresh deleted
-            // the row before the 201 Created redirect could resolve it, producing a 404).
-            if (local.AuthorMetadataId <= 0)
+            // were never provider-resolvable, so a not-found is expected, not a removal
+            // signal — deleting them destroys API-created data (issue #272: the
+            // post-create background refresh deleted the row before the 201 Created
+            // redirect could resolve it, producing a 404; issue #325: the same
+            // post-create refresh deleted rows ~3s after the 201, because
+            // AddAuthorService upserts an AuthorMetadata row for every added author
+            // and assigns the resulting positive id to Author.AuthorMetadataId — so
+            // the old "AuthorMetadataId <= 0" guard no longer identifies locally
+            // created authors).
+            //
+            // The correct identification is the provider id scope itself: only a
+            // provider-scoped id ("openlibrary:author:...", the bare OpenLibrary
+            // "OLxxxxA" form, or a "hardcover:..." / numeric-Hardcover form) can ever
+            // be resolved by a metadata provider, and only then is a genuine
+            // not-found a documented provider-removal signal. Locally created authors
+            // carry synthetic/unmapped ids (e.g. "recovery:author:RTA-001") that no
+            // provider can resolve; their AuthorMetadata rows are intentionally
+            // persisted locally and are never deletion evidence.
+            if (!ProviderOwnedForeignId(local.ForeignAuthorId))
             {
                 return false;
             }
 
             return !_mediaFileService.GetFilesByAuthor(local.Id).Any();
+        }
+
+        /// <summary>
+        /// True when the foreign author id is owned by a known metadata provider
+        /// (i.e. the id came from a provider, not from a local/synthetic create).
+        /// Mirrors the id scopes the orchestrator routes to (IMetadataProviderOrchestrator
+        /// .IsProviderCompatibleWithIdScope): OpenLibrary-scoped ids
+        /// ("openlibrary:author:..." or the bare OpenLibrary "OLxxxxA" form that
+        /// OpenLibraryIdNormalizer recognizes) and Hardcover-scoped ids
+        /// ("hardcover:..." / "hardcover:author:..." numeric forms that
+        /// AuthorMetadataRepository.IsNumericHardcoverAuthorId recognizes).
+        /// </summary>
+        private static bool ProviderOwnedForeignId(string foreignAuthorId)
+        {
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            var id = foreignAuthorId.Trim();
+
+            if (id.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase))
+            {
+                return OpenLibraryIdNormalizer.NormalizeAuthorId(id) != null;
+            }
+
+            if (id.StartsWith("hardcover:", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Bare OpenLibrary author id form (e.g. "OL89131A"), not yet scoped.
+            return OpenLibraryIdNormalizer.NormalizeAuthorId(id) != null;
         }
 
         protected override void LogProgress(Author local)
