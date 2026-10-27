@@ -2,6 +2,37 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing PR #335 audit run (2026-10-27, task t_82f47662, run 2828) at exact
+# registered head b267e4e55ef42856deba14a5fb6e3193fb7ca3d4 (dependabot: bump
+# actions/setup-python 7.0.0 -> 7.1.0 in 5 GitHub Actions workflow files,
+# 5 files / +5 -5; pure CI/Actions PATCH-line bump with no production code,
+# no workflow step semantics, no src/frontend/lib/app runtime changes;
+# work branch = registered head_ref
+# dependabot/github_actions/develop/actions/setup-python-7.1.0):
+# base develop 28cd2b094d6a7bb28e050379883c1eb3b6326c55 = CURRENT develop tip
+# (== the #300 actions/labeler 6.0.1->7.0.0 squash-merge commit, merged
+# 2026-10-27T00:48:07Z) and IS an ancestor of the PR head (merge-base ==
+# develop tip; git merge-base --is-ancestor returned true this run) —
+# NO catch-up merge required. Re-verified the full contract in-container
+# at the exact head: yarn install --frozen-lockfile (up-to-date), eslint
+# (0 errors, 8 pre-existing warnings), both ops guards (ui-build-mode +
+# http-binding, both PASS), stylelint-linux (PASS), jest (60/60 / 15 suites),
+# dotnet restore (exit 0, zero NU19xx, all up-to-date), backend Release build
+# (0 errors in all non-licensed projects; the NzbDrone.Core / FullLabLicense
+# ValidateLicenseTask requires the operator-provisioned SixLabors license —
+# identical at base, host-gated, not a #335 regression; the license-gated
+# Core/Api test lanes (rid-core-targeted, rid-common-targeted,
+# metadata-core-fixtures, metadata-api-fixtures) cannot be re-executed in the
+# isolated container without the SIXLABORS_LICENSE_KEY / SIXLABORS_LICENSE_FILE,
+# and the hosted exact-head CI on b267e4e5 is the authority: 26 check-runs
+# (25 success + 1 neutral + 0 failure + 0 pending, LIVE-REVERIFIED by the
+# checkout stage t_51ea6d45 via the GitHub REST check-runs API at
+# 2026-10-27T03:12Z)). NO code edits (validation/publication-only; the
+# .onyx/project.yaml header + baseline_evidence pointer update is the single
+# contract commit on top of the contributor head). No JS/TS runtime files
+# under src/frontend/lib/app changed (no production_coverage binding
+# required). See baseline.json (workspace root) and
+# tmp/t_82f47662/pr335-logs/ for per-command evidence.
 # Existing PR #267 audit run (2026-10-26, task t_43e9cf71, run 2773) at exact
 # registered head 86b0f036e378b44cca53d1b242a7ba5479df6dbc (dependabot: bump
 # FluentAssertions 8.9.0 -> 8.11.0 in src/Directory.Packages.props, 1 file /
@@ -524,10 +555,40 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_31ec4eaf/
-  verified_at: 2026-10-26
-  base_sha: 9f13e27323630ca351f611916143a731b0dc2481
-  head_sha: bb3e24b13eb65085083c85fc588e07fa0f3df7d0
+  logs: ../tmp/t_82f47662/pr335-logs/
+  verified_at: 2026-10-27
+  base_sha: 28cd2b094d6a7bb28e050379883c1eb3b6326c55
+  head_sha: b267e4e55ef42856deba14a5fb6e3193fb7ca3d4
+  # Existing PR #335 audit run (t_82f47662, run 2828, 2026-10-27): work branch
+  # dependabot/github_actions/develop/actions/setup-python-7.1.0 at the EXACT
+  # registered head b267e4e5 (contributor head == live PR head; base develop
+  # 28cd2b09 = CURRENT develop tip (== the #300 actions/labeler 7.0.0 squash
+  # merge commit, merged 2026-10-27T00:48:07Z) and IS an ancestor of the PR
+  # head; merge-base == develop tip; NO catch-up merge required; git
+  # merge-base --is-ancestor returned true this run). dependabot: bump
+  # actions/setup-python 7.0.0 -> 7.1.0 (PATCH-line GitHub Actions bump,
+  # 5 files / +5 -5 pinned-action-reference updates in
+  # .github/workflows/branch-policy-audit.yml,
+  # .github/workflows/metadata-migration-dry-run.yml,
+  # .github/workflows/operational-drift-check.yml,
+  # .github/workflows/release-readiness-report.yml,
+  # .github/workflows/release.yml; pinned SHA
+  # 5fda3b95a4ea9ea3d27318b80e75c9f0e5e4e4b97 -> 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0).
+  # Full contract re-verified in-container at the exact head (see header note
+  # + baseline.json commands[]): frontend 6/6 lanes (yarn install
+  # frozen-lockfile up-to-date; eslint 0 errors / 8 pre-existing warnings;
+  # ui-build-mode + http-binding guards both PASS; stylelint PASS; jest
+  # 60/60 / 15 suites), backend restore exit 0 (zero NU19xx), Release build
+  # (0 errors in all non-licensed projects; SixLabors license gate is
+  # host-gated and identical at base — the license-gated Core/Api test lanes
+  # are verified by hosted exact-head CI: 26 check-runs, 25 success + 1
+  # neutral + 0 failure + 0 pending, LIVE-REVERIFIED by checkout stage
+  # t_51ea6d45 at 2026-10-27T03:12Z). NO code edits (validation/publication-
+  # only; the .onyx/project.yaml header + baseline_evidence pointer update is
+  # the single contract commit on top of the contributor head). No
+  # src/frontend/lib/app runtime files changed (no production_coverage
+  # binding). Publication stage owns fast-forward push to the SAME PR #335
+  # + onyx-onboard guarded merge after real exact-head CI/governance passes.
   # Existing PR #300 audit run (t_31ec4eaf, run 2801, 2026-10-26): work branch
   # dependabot/github_actions/develop/actions/labeler-7.0.0 at the
   # POST-CATCH-UP head bb3e24b1 (contributor head
