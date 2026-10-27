@@ -2,6 +2,40 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing PR #334 audit run (2026-10-27, task t_4354933b, run 2874) at exact
+# registered head ddf2b4e3cd6afba610510433148764d6270ec09b (dependabot: bump
+# docker/setup-buildx-action 4.0.0 -> 4.4.1 in .github/workflows/docker-image.yml,
+# 1 file / +1 -1; pinned-action SHA 4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
+# # v4.0.0 -> f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1 — a MINOR-line
+# bump on the 4.x line with no production code, no workflow step semantics,
+# no inputs/outputs, no src/frontend/lib/app runtime changes; work branch =
+# registered head_ref
+# dependabot/github_actions/develop/docker/setup-buildx-action-4.4.1):
+# base develop 47fd11b27b245e156fb3d80bebcd543c5b5244b7 = CURRENT develop tip
+# (== the #335 actions/setup-python 7.0.0->7.1.0 squash-merge commit, merged
+# 2026-10-27T04:41:42Z) and IS an ancestor of the PR head (merge-base ==
+# develop tip; git merge-base --is-ancestor returned rc=0 this run) —
+# NO catch-up merge required. Re-verified the full contract in-container
+# at the exact head: all 20 .github/workflows/*.yml parse as valid YAML
+# (js-yaml), yarn install --frozen-lockfile (up-to-date), eslint (0 errors,
+# 8 pre-existing warnings), both ops guards (ui-build-mode + http-binding,
+# both PASS), stylelint-linux (PASS), jest (60/60 / 15 suites), dotnet
+# restore (exit 0, zero NU19xx), backend Release build of the FULL solution
+# (0 warnings / 0 errors in 1m44s — with the operator-provisioned SixLabors
+# license file provisioned via SIXLABORS_LICENSE_FILE, the whole-solution
+# build now completes clean in this isolated container; the license VALUE is
+# never logged or committed). The 4 license-gated CI test lanes
+# (rid-core-targeted, rid-common-targeted, metadata-core-fixtures,
+# metadata-api-fixtures) are covered by the hosted exact-head CI on
+# ddf2b4e3: 16 check-runs (15 success + 1 neutral CodeQL + 0 failure + 0
+# pending, LIVE-REVERIFIED by the checkout stage t_85dfc766 via the GitHub
+# REST check-runs API at 2026-10-27T10:07Z). NO code edits
+# (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of
+# the contributor head ddf2b4e3, which is preserved as an ancestor of the
+# reviewed result). No JS/TS runtime files under src/frontend/lib/app
+# changed (no production_coverage binding required). See baseline.json
+# (workspace root) and tmp/t_4354933b/pr334-logs/ for per-command evidence.
 # Existing PR #335 audit run (2026-10-27, task t_82f47662, run 2828) at exact
 # registered head b267e4e55ef42856deba14a5fb6e3193fb7ca3d4 (dependabot: bump
 # actions/setup-python 7.0.0 -> 7.1.0 in 5 GitHub Actions workflow files,
@@ -555,10 +589,41 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../tmp/t_82f47662/pr335-logs/
+  logs: ../tmp/t_4354933b/pr334-logs/
   verified_at: 2026-10-27
-  base_sha: 28cd2b094d6a7bb28e050379883c1eb3b6326c55
-  head_sha: b267e4e55ef42856deba14a5fb6e3193fb7ca3d4
+  base_sha: 47fd11b27b245e156fb3d80bebcd543c5b5244b7
+  head_sha: ddf2b4e3cd6afba610510433148764d6270ec09b
+  # Existing PR #334 audit run (t_4354933b, run 2874, 2026-10-27): work branch
+  # dependabot/github_actions/develop/docker/setup-buildx-action-4.4.1 at the
+  # EXACT registered head ddf2b4e3 (contributor head == live PR head; base
+  # develop 47fd11b2 = CURRENT develop tip (== the #335 actions/setup-python
+  # 7.0.0->7.1.0 squash-merge commit, merged 2026-10-27T04:41:42Z) and IS an
+  # ancestor of the PR head; merge-base == develop tip; NO catch-up merge
+  # required; git merge-base --is-ancestor returned rc=0 this run). dependabot:
+  # bump docker/setup-buildx-action 4.0.0 -> 4.4.1 (MINOR-line GitHub Actions
+  # bump, 1 file / +1 -1 pinned-action-reference update in
+  # .github/workflows/docker-image.yml; pinned SHA
+  # 4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0 ->
+  # f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1).
+  # Full contract re-verified in-container at the exact head (see header note
+  # + baseline.json commands[]): all 20 .github/workflows/*.yml parse as valid
+  # YAML (js-yaml); frontend 6/6 lanes (yarn install frozen-lockfile
+  # up-to-date; eslint 0 errors / 8 pre-existing warnings; ui-build-mode +
+  # http-binding guards both PASS; stylelint PASS; jest 60/60 / 15 suites);
+  # backend restore exit 0 (zero NU19xx); Release build of the FULL solution
+  # 0 warnings / 0 errors in 1m44s (SixLabors license file provisioned via
+  # SIXLABORS_LICENSE_FILE from the operator-provisioned workspace copy; the
+  # license VALUE never logged or committed; the 4 license-gated CI test
+  # lanes are verified by hosted exact-head CI: 16 check-runs, 15 success +
+  # 1 neutral + 0 failure + 0 pending, LIVE-REVERIFIED by checkout stage
+  # t_85dfc766 at 2026-10-27T10:07Z). NO code edits (validation/publication-
+  # only; the .onyx/project.yaml header + baseline_evidence pointer update is
+  # the single contract commit on top of the contributor head ddf2b4e3, which
+  # is preserved as an ancestor of the reviewed result — no rebase, no
+  # force-push, no history rewrite, no duplicate branch). No
+  # src/frontend/lib/app runtime files changed (no production_coverage
+  # binding). Publication stage owns fast-forward push to the SAME PR #334
+  # + onyx-onboard guarded merge after real exact-head CI/governance passes.
   # Existing PR #335 audit run (t_82f47662, run 2828, 2026-10-27): work branch
   # dependabot/github_actions/develop/actions/setup-python-7.1.0 at the EXACT
   # registered head b267e4e5 (contributor head == live PR head; base develop
