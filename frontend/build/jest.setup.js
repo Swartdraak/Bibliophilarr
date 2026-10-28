@@ -17,34 +17,8 @@ if (!window.Bibliophilarr) {
 //     this.resize();
 //   }
 // jsdom (testEnvironment) does not implement ResizeObserver, so any test that
-// renders the shipped react-slider throws `ResizeObserver is not defined`. This
-// polyfill provides the API contract the component uses (observe/unobserve/
-// disconnect); it never fires callbacks because jsdom has no real layout, which
-// is correct for a unit test. Loaded here (shared test env) so the full suite AND
-// the project's CI (`yarn test:frontend`) can render react-slider >= 2.0.
-if (typeof globalThis.ResizeObserver === 'undefined') {
-  class ResizeObserverPolyfill {
-    constructor(callback) {
-      this._callback = typeof callback === 'function' ? callback : () => {};
-      this._observed = new Set();
-    }
-
-    observe(target) {
-      if (target) {
-        this._observed.add(target);
-      }
-    }
-
-    unobserve(target) {
-      if (target) {
-        this._observed.delete(target);
-      }
-    }
-
-    disconnect() {
-      this._observed.clear();
-    }
-  }
-
-  globalThis.ResizeObserver = ResizeObserverPolyfill;
-}
+// renders the shipped react-slider throws `ResizeObserver is not defined`.
+// The polyfill is in a separate module (resizeObserverPolyfill.js) so jest's
+// V8 coverage provider can instrument it. Loaded here (shared test env) so the
+// full suite AND the project's CI (`yarn test:frontend`) can render react-slider >= 2.0.
+require('./resizeObserverPolyfill.js');
