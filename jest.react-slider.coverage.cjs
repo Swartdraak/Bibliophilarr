@@ -20,10 +20,13 @@ module.exports = {
     '/node_modules/(?!(react-slider)/)'
   ],
   // Collect coverage from the shipped react-slider module AND the test-env
-  // ResizeObserver polyfill (resizeObserverPolyfill.js) added by this audit commit.
+  // ResizeObserver polyfill (resizeObserverPolyfill.js) and jest.setup.js.
+  // jest.setup.js is a setup file (not instrumented by V8 for its own code)
+  // but is included in collectCoverageFrom so it appears in the coverage report.
   collectCoverageFrom: [
     '**/node_modules/react-slider/dist/cjs/**/*.js',
-    'frontend/build/resizeObserverPolyfill.js'
+    'frontend/build/resizeObserverPolyfill.js',
+    'frontend/build/jest.setup.js'
   ],
   // Do NOT ignore node_modules react-slider when computing coverage.
   coveragePathIgnorePatterns: [
