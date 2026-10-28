@@ -1,10 +1,11 @@
 import React, { Component } from 'react';
 import { render, screen } from '@testing-library/react';
 import ReactSlider from 'react-slider';
-// Explicitly require the ResizeObserver polyfill module so jest's V8 coverage
-// provider instruments it (setup files are not instrumented by V8). The polyfill
-// is also loaded via jest.setup.js for the full suite, but this explicit require
-// in the test file ensures it appears in the V8 coverage report.
+// Require the ResizeObserver polyfill module so jest's V8 coverage provider
+// instruments it. react-slider 2.0.0's componentDidMount calls new
+// ResizeObserver(...) which jsdom does not implement; the polyfill provides the
+// API contract. Loaded here (not in jest.setup.js) so the module is instrumented
+// by the V8 coverage provider (setup files are not instrumented by V8).
 require('../../../../build/resizeObserverPolyfill.js');
 
 // This test drives the ACTUAL installed react-slider 2.0.6 from node_modules —
