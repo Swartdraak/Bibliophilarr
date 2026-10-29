@@ -2,6 +2,39 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing PR #304 audit run (2026-10-29, task t_530855e6, run 3092) at exact
+# registered head 515b637a541ab9ea22b9ddf74efe27ae41a80c39 (dependabot: bump
+# @typescript-eslint/parser 8.57.1 -> 8.72.0 in package.json/yarn.lock,
+# devDependency, lint toolchain; 2 files / +77 -19; NO production code, NO
+# workflow semantics, NO src/frontend/lib/app runtime changes; work branch =
+# registered head_ref
+# dependabot/npm_and_yarn/develop/typescript-eslint/parser-8.71.2):
+# base develop 9cbbaa03dfcdae2a1181e34961ac6b44aa83d94f = CURRENT develop tip
+# (== the #303 filesize 10.1.6->11.0.29 squash-merge commit, merged
+# 2026-10-29T05:10Z) and IS an ancestor of the PR head (merge-base == develop
+# tip; git merge-base --is-ancestor returned rc=0 this run) — NO catch-up merge
+# required (re-verified live this run: ls-remote develop == 9cbbaa03, refs/pull/304/head
+# == 515b637a == local HEAD; zero foreign writer drift). Re-verified in-container
+# at the exact head: yarn install --frozen-lockfile (EXIT 0; installed parser
+# @typescript-eslint/parser 8.72.0 confirmed in node_modules), full frontend
+# jest suite (yarn test:frontend): 17 suites / 68 tests PASS, full frontend
+# ESLint (yarn lint): 0 errors / 8 pre-existing warnings, stylelint-linux
+# (PASS), both ops guards (ui-build-mode + http-binding, both PASS), plus a
+# parser-load probe: ESLint 8.57.1 + @typescript-eslint/parser 8.72.0 parses a
+# .ts sample file with 0 errors (proves the bumped devDependency is
+# functional in the repo's own ESLint 8.x toolchain — the repo's frontend
+# config uses @babel/eslint-parser for JS sources and the plugin config
+# requires @typescript-eslint/parser as its paired parser). Lockfile delta
+# verified as a clean toolchain advance: parser 8.57.1->8.72.0 plus its
+# @typescript-eslint 8.72.x dependency closure (project-service,
+# tsconfig-utils, types, typescript-estree, visitor-keys, ts-api-utils 2.5.0,
+# eslint-visitor-keys ^5); NO src/** changes. NO code edits — validation/
+# publication-only; this .onyx/project.yaml header + frontend-tests note
+# update is the single contract commit on top of the contributor head 515b637a,
+# which is preserved as an ancestor of the reviewed result. No JS/TS runtime
+# files under src/frontend/lib/app changed (no production_coverage binding
+# required). See baseline.json (workspace root) and
+# scratch-t_530855e6/*.log for per-command evidence.
 # Existing PR #336 audit run (2026-10-27, task t_ddca77f1, run 2891) at exact
 # registered head cb6f6496eb1d471434812e05891e41128f832789 (dependabot: bump
 # docker/login-action 4.1.0 -> 4.7.0 in .github/workflows/docker-image.yml,
@@ -562,7 +595,7 @@ commands:
     - name: frontend-tests
       command: yarn test:frontend
       cwd: .
-      note: "jest --runInBand: 60 tests / 15 suites, 0 failures (re-verified 2026-10-25 at develop a6cd30f4 base; 52 tests / 14 suites at 2026-09-18, grown by the issue-329 index.test.js suite and the issue-327 label-policy automated-actor-exception suite)."
+      note: "jest --runInBand: 68 tests / 17 suites, 0 failures (re-verified 2026-10-29 at PR #304 head 515b637a, @typescript-eslint/parser 8.72.0 installed; 60 tests / 15 suites at develop a6cd30f4 base 2026-10-25, grown by the issue-329 index.test.js suite, the issue-327 label-policy automated-actor-exception suite, and the PR #302 react-slider regression suite)."
     - name: issue-329-regression-authed-spa-blank-shell
       command: yarn test:frontend --testPathPattern frontend/src/index.test.js
       cwd: .
