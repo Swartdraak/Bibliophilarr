@@ -387,6 +387,41 @@
 # the catch-up merge). No JS/TS runtime files under src/frontend/lib/app
 # changed, so no production_coverage binding is required. See baseline.json
 # (workspace root) and scratch-t_31ec4eaf/ for per-command evidence.
+# Issue #340 development run (2026-10-29, task t_61914698, run 3111) at
+# develop tip 5f21b32cd14720525622f8a25b42f8974fb3dc6a (base), work branch
+# fix/issue-340-manualimport-null-safety-no-provider. POST /api/v1/manualimport
+# (update path, ManualImportController.UpdateItems) accepted a payload carrying
+# an approved, seeded book fixture (202) but created no BookFile row: with NO
+# metadata provider configured (a legal configuration state),
+# MetadataProviderOrchestrator.SearchForNewBook returned null (ExecuteFirst
+# returns null when no enabled provider yields a result), and
+# CandidateService.SearchPrimary immediately invoked results.Any() on that
+# null, throwing an unhandled ArgumentNullException (Parameter 'source') that
+# escaped GetRemoteCandidates, aborted identification for the release, left
+# release.Edition == null, and GetDecision rejected it — so
+# ImportApprovedBooks imported 0 files while the endpoint still returned 202.
+# The #275 direct-catalogue fallback in ImportDecisionMaker.IdentifyReleaseFallback
+# had the same null hazard (books.Where on the null result), swallowed by its
+# catch but still leaving the release unrecoverable. Fix: null-coalesce the
+# orchestrator result to an empty List<Book> at every call site feeding
+# ToCandidates (SearchPrimary, the four GetRemoteCandidates paths, and the
+# ISBN contextual fallback) and null-guard books before .Where in
+# IdentifyReleaseFallback so the fallback degrades to the original permanent
+# rejection. Verified in-container: full solution Release build
+# 0 warn / 0 err (1m45s, SixLabors license provisioned via
+# SIXLABORS_LICENSE_FILE from the operator-provisioned workspace copy; the
+# license VALUE is never logged or committed); RED: CandidateServiceIssue340Fixture
+# 4/4 FAILED at base (NRE at ToCandidates line 943 via
+# GetRemoteCandidates line 312 — the unhandled ArgumentNullException path);
+# GREEN: CandidateServiceIssue340Fixture 4/4 PASSED +
+# ImportDecisionMakerIssue275Fixture 6/6 PASSED (including the new
+# #340-complement test should_keep_permanent_rejection_when_catalogue_lookup_returns_null_no_provider_configured);
+# targeted CI filters (MetadataProviderOrchestratorFixture, CandidateServiceFixture,
+# ManualImportServiceExecute, ImportDecisionMakerIssue275Fixture) 31/31 PASSED.
+# No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required). No code edits beyond the null-guards
+# and regression fixtures. See baseline.json (workspace root) and
+# scratch-t_61914698/logs/ for per-command evidence.
 # Issue #329 development run (2026-10-24, task t_1445b5f4, run 2406) at develop tip
 # c19a261c538246b69957eb1d1b2e1c3fa912edcc (base), work branch
 # fix/issue-329-authed-spa-routes-blank-shell: implemented D1/D2/D3 (per-request
@@ -937,6 +972,29 @@ baseline_evidence:
   # logs-t_bdadaf92/.
   lane: develop (net10.0 band)
   note: >
+    Issue #340 development run (t_61914698, run 3111, 2026-10-29, base
+    develop 5f21b32cd147, work branch
+    fix/issue-340-manualimport-null-safety-no-provider, head 8407bb9079).
+    POST /api/v1/manualimport (update path) accepted a payload with an
+    approved, seeded book fixture (202) but created no BookFile row: with
+    NO metadata provider configured (a legal state),
+    MetadataProviderOrchestrator.SearchForNewBook returned null and
+    CandidateService.SearchPrimary invoked results.Any() on it, throwing
+    an unhandled ArgumentNullException (Parameter 'source') that escaped
+    GetRemoteCandidates, left release.Edition == null, and
+    ImportApprovedBooks imported 0 files. The #275 fallback in
+    ImportDecisionMaker.IdentifyReleaseFallback had the same null hazard
+    (books.Where on null). Fix: null-coalesce the orchestrator result to
+    an empty List<Book> at all call sites feeding ToCandidates
+    (SearchPrimary, four GetRemoteCandidates paths, ISBN contextual
+    fallback) and null-guard books before .Where in
+    IdentifyReleaseFallback. RED: CandidateServiceIssue340Fixture 4/4
+    FAILED at base; GREEN: 4/4 + ImportDecisionMakerIssue275Fixture 6/6
+    (incl. new #340-complement test); targeted CI filters 31/31 PASSED;
+    full solution Release build 0 warn/0 err (SixLabors license
+    provisioned; value never logged/committed). No JS/TS runtime files
+    under src/frontend/lib/app changed (no production_coverage binding
+    required). Closes #340.
     Issue #323 CI-repair assessment run (t_bdadaf92, 2026-10-22). At exact develop
     head dd09a97c80 (PR #318 merge), 4/14 hosted check-runs were failing
     (build-test, cross-build Linux/Windows/macOS) while parent f5857ee953 was 14/14.
