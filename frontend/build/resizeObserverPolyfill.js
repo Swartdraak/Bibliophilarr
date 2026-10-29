@@ -15,6 +15,7 @@
 //
 // Exported as a module (not a setup file) so jest's V8 coverage provider can
 // instrument it. Required explicitly from tests that render react-slider >= 2.0.
+/* eslint-env es2020 */
 if (typeof globalThis.ResizeObserver === 'undefined') {
   class ResizeObserverPolyfill {
     constructor(callback) {

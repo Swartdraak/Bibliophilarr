@@ -1,5 +1,5 @@
-import React, { Component } from 'react';
 import { render, screen } from '@testing-library/react';
+import React, { Component } from 'react';
 import ReactSlider from 'react-slider';
 // Require the ResizeObserver polyfill module so jest's V8 coverage provider
 // instruments it. react-slider 2.0.0's componentDidMount calls new
