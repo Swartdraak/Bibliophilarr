@@ -249,5 +249,27 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Approved.Should().BeFalse();
             decision.Item.Book.Should().BeNull();
         }
+
+        // Issue #340 (complement of the #25 fix): with NO metadata provider configured
+        // the orchestrator returns null from SearchForNewBook. The #275 fallback must
+        // guard that null before books.Where(...) so the pipeline degrades to the
+        // original permanent rejection instead of crashing (and leaving the release
+        // with Edition=null so 0 files import while the endpoint still returns 202).
+        [Test]
+        public void should_keep_permanent_rejection_when_catalogue_lookup_returns_null_no_provider_configured()
+        {
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(o => o.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+                .Returns((List<Book>)null);
+
+            var decision = GetSingleDecision();
+
+            // No provider configured -> no candidate -> original permanent rejection,
+            // produced without any exception escaping the fallback.
+            decision.Rejections.Should().ContainSingle()
+                .Which.Reason.Should().Be($"Couldn't find similar book for [{Path.GetDirectoryName(_filePath)}]");
+            decision.Approved.Should().BeFalse();
+            decision.Item.Book.Should().BeNull();
+        }
     }
 }

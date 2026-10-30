@@ -309,6 +309,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     remoteBooks = new List<Book>();
                 }
 
+                // Issue #340: a no-provider-configured state is legal; the orchestrator
+                // returns null then (no enabled provider yields a result). Treat it as
+                // an empty result instead of NRE-ing in ToCandidates.
+                remoteBooks ??= new List<Book>();
+
                 foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
                 {
                     yield return candidate;
@@ -342,6 +347,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     remoteBooks = new List<Book>();
                 }
 
+                // Issue #340: no-provider-configured state -> orchestrator returns null.
+                remoteBooks ??= new List<Book>();
+
                 foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
                 {
                     yield return candidate;
@@ -362,6 +370,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     _logger.Info(e, "Skipping OpenLibrary ID search due to OpenLibrary Error");
                     remoteBooks = new List<Book>();
                 }
+
+                // Issue #340: no-provider-configured state -> orchestrator returns null.
+                remoteBooks ??= new List<Book>();
 
                 foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides))
                 {
@@ -624,6 +635,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                         remoteBooks = new List<Book>();
                     }
 
+                    // Issue #340: no-provider-configured state -> orchestrator returns null.
+                    remoteBooks ??= new List<Book>();
+
                     if (_isbnFallbackCache.Count >= IsbnFallbackCacheMaxSize)
                     {
                         _isbnFallbackCache.Clear();
@@ -662,6 +676,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             try
             {
                 var results = _metadataOrchestrator.SearchForNewBook(title, author);
+
+                // Issue #340: when NO metadata provider is configured (a legal
+                // configuration state) the orchestrator returns null instead of an
+                // empty list. Guard here so the null never reaches results.Any() /
+                // ToCandidates — this was the unhandled ArgumentNullException that
+                // crashed the import pipeline and left the release unresolvable.
+                results ??= new List<Book>();
 
                 if (!results.Any())
                 {

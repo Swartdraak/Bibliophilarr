@@ -303,6 +303,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 var books = _metadataOrchestrator.SearchForNewBook(bookTitle, authorName, true);
 
+                // Issue #340: when no metadata provider is configured the orchestrator
+                // returns null. Guard before books.Where(...) so the fallback degrades
+                // to "no match" (release keeps its original rejection) instead of
+                // crashing and leaving the release with Edition=null.
+                if (books == null)
+                {
+                    return;
+                }
+
                 var bestEdition = books
                     .Where(b => b?.Editions?.Value != null && b.Editions.Value.Any())
                     .SelectMany(b => b.Editions.Value)
