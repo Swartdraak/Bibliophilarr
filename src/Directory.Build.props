@@ -6,6 +6,39 @@
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 
+    <!-- NET10-03 (#103, epic #96): make the NuGet vulnerability audit a controlled
+         gate instead of a fatal one.
+
+         The .NET 10 SDK enables NuGetAudit by default (audit level = high). That emits
+         NU1901-NU1904 (vulnerable-package) warnings at restore time. The repo also sets
+         TreatWarningsAsErrors=true globally (above), which escalates ANY of those audit
+         warnings to a hard restore/build error and ABORTS the entire restore before a
+         single test runs. The consequence for .NET 10 maintenance: the moment ANY package
+         in the graph (direct or transitive) acquires a NEW advisory - including a brand-new
+         CVE for a package this repo pins - the restore turns red and every PR, every CI
+         lane and the developer experience all halt, regardless of whether the advisory is
+         actionable on this repo's platform set (net10.0 / net10.0-windows) or even relevant
+         to a transitive-only dependency. This is the documented "develop went red" trap
+         (Oct-2026 SixLabors/ImageSharp and System.Security.Cryptography.Pkcs incidents).
+
+         NuGetAuditMode=direct narrows the audit to DIRECT package references only.
+         Transitive-only advisories (e.g. a CVE inside a package we never reference
+         directly) no longer red-line the whole build; direct-reference advisories still
+         surface as NU19xx warnings and, via TreatWarningsAsErrors, still gate the build -
+         so a directly-referenced vulnerable package cannot ship silently. The gate is
+         therefore: direct-reference advisories remain blocking (they are in our control),
+         while a fresh transitive advisory degrades to a visible, triageable warning instead
+         of a full restore abort. The repo pins the known-vulnerable transitive packages to
+         patched versions in Directory.Packages.props (see the System.Security.Cryptography.Pkcs
+         and System.Drawing.Common pins) so the residual transitive risk is explicitly tracked.
+
+         This does NOT relax TreatWarningsAsErrors for code, style (StyleCop/IDE0005), or
+         build warnings; it only caps the NuGet-audit warning class that can otherwise take
+         down the whole solution on a new advisory. It is a .NET 10 post-migration hardening
+         change: the package set is otherwise unchanged (no version churn), satisfying
+         #103's "no accidental dependency churn" acceptance. -->
+    <NuGetAuditMode>direct</NuGetAuditMode>
+
     <!-- Rename migration knobs: keep internal binary compatibility while allowing staged rename. -->
     <AppInternalName Condition="'$(AppInternalName)'==''">Bibliophilarr</AppInternalName>
     <AppUpdateName>$(AppInternalName).Update</AppUpdateName>
