@@ -2,6 +2,34 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #97 development run (2026-10-31, task t_9bedcc72, run 3300) at candidate
+# head 4cc21022f3 (work branch chore/issue-97-workflow-action-modernization,
+# base develop 06fc7015feedaabd66f6cd3ca4bd4b5d4e43487d = CURRENT live develop
+# tip, live-verified by checkout stage t_226db8e0; single commit, 1 file / +1 -1):
+# workflow/action modernization train (issue #97) historical-item mapping at the
+# live tip: #68 label-actions DONE (dessant/label-actions v3 modernized and
+# enforced by labeler.yml), #64 markdownlint DONE (docs-validation.yml markdown
+# lint active), #65 upload-artifact SUPERSEDED (actions/upload-artifact v7.0.2
+# + download-artifact v8.0.2 pinned full-SHA across all 8 workflows; the
+# original deprecated v4 upload path no longer exists), #67 cosign-installer
+# REMAINING (the Docker signing step was still on the legacy cosign v2 line:
+# sigstore/cosign-installer 7e8b541e v3.10.1). This run completes the #67
+# slice: bumped the pinned action to 6f9f17788090df1f26f669e9d70d6ae9567deba6
+# (# v4.1.2, the cosign v3 line — v3.10.1 cannot install cosign v3) in
+# .github/workflows/docker-image.yml, preserving the repo's full-SHA pinning
+# convention. The release pipeline behavior is unchanged: same keyless cosign
+# sign --yes flow, same if-gates, same Trivy/SBOM steps; only the installer
+# action advance. NO application code, NO release-promotion, NO
+# src/frontend/lib/app runtime changes (no production_coverage binding
+# required). Verified in-container at the candidate head: actionlint 1.7.7
+# (the exact version lint-workflows.yml enforces) GREEN before AND after;
+# yarn install --frozen-lockfile PASS; eslint 0 errors / 8 pre-existing
+# warnings; stylelint-linux PASS; full frontend jest suite PASS; both ops
+# guards (ui-build-mode + http-binding) PASS; dotnet restore exit 0;
+# common-tests 624 passed / 35 skipped / 0 failed; rid-core-targeted 25/25;
+# issue-103 NuGet-audit gate regression 3/3 (license-provisioned lanes via
+# SIXLABORS_LICENSE_FILE, mirroring ci-backend.yml). See baseline.json
+# (workspace root) and scratch-t_9bedcc72/*.log for per-command evidence.
 # Existing PR #304 audit run (2026-10-29, task t_530855e6, run 3092) at exact
 # registered head 515b637a541ab9ea22b9ddf74efe27ae41a80c39 (dependabot: bump
 # @typescript-eslint/parser 8.57.1 -> 8.72.0 in package.json/yarn.lock,
@@ -696,10 +724,10 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_ddca77f1/logs/
-  verified_at: 2026-10-27
-  base_sha: 530531a0189e623b391a50f4310873ebaec17cad
-  head_sha: cb6f6496eb1d471434812e05891e41128f832789
+  logs: ../scratch-t_9bedcc72/
+  verified_at: 2026-10-31
+  base_sha: 06fc7015feedaabd66f6cd3ca4bd4b5d4e43487d
+  head_sha: 4cc21022f3
   # Existing PR #334 audit run (t_4354933b, run 2874, 2026-10-27): work branch
   # dependabot/github_actions/develop/docker/setup-buildx-action-4.4.1 at the
   # EXACT registered head ddf2b4e3 (contributor head == live PR head; base
