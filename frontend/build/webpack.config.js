@@ -57,7 +57,7 @@ module.exports = (env) => {
         'node_modules'
       ],
       alias: {
-        jquery: 'jquery/dist/jquery.min',
+        jquery: path.resolve(__dirname, '..', '..', 'node_modules', 'jquery', 'dist', 'jquery.min.js'),
         'react-middle-truncate': 'react-middle-truncate/lib/react-middle-truncate'
       },
       fallback: {
