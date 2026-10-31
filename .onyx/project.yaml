@@ -2,6 +2,54 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #98 development run (2026-10-31, task t_803e4ba6, run 3324) at
+# candidate head a30b83ac724 (work branch
+# fix/issue-98-fluentmigrator-coordinated-upgrade, base develop
+# a30b83ac724cf8a91fe1d0f7f22886680bbda289 = CURRENT live develop tip,
+# live-verified by checkout stage t_c96af33f; single commit, .onyx/project.yaml
+# only — documentation/audit run, NO application code, NO dependency bump,
+# NO src/frontend/lib/app runtime changes; no production_coverage binding
+# required):
+# Migration train (issue #98, epic #96): FluentMigrator coordinated upgrade
+# audit. Current posture verified in-container at the exact head:
+#   - FluentMigrator.Runner / Runner.SQLite / Runner.Postgres all pinned to
+#     3.3.2 in src/Directory.Packages.props (central CPM).
+#   - 63 migration files in src/NzbDrone.Core/Datastore/Migration/
+#     (migrations 001-048 + framework classes).
+#   - MigrationController uses AddFluentMigratorCore() + ConfigureRunner()
+#     with AddPostgres() + AddNzbDroneSQLite() + ScanIn(assembly).For.All()
+#     + TypeFilterOptions.Namespace = "NzbDrone.Core.Datastore.Migration".
+#   - NzbDroneMigrationBase extends FluentMigrator.Migration; uses
+#     MigrationContext.Current for per-type routing (Main/Log/Cache).
+#   - All 48 migrations apply cleanly in order on SQLite 3.46.1 (verified by
+#     the migration-test lane: 5/5 tests pass, full chain 001-048 applied
+#     in ~1s).
+#   - Compatible with .NET 10 (net10.0 TFM): restore exit 0, full solution
+#     Release build 0 warn / 0 err.
+# Compatibility risks (documented, assigned to follow-up):
+#   R1: FluentMigrator 3.3.2 was released 2021; the current 4.x line (if
+#     published) would be a MAJOR upgrade requiring migration-attribute
+#     review, processor/generator accessor re-validation, and a full
+#     migration-chain re-run on both SQLite and Postgres. Not actionable
+#     in this run; tracked as a follow-up under epic #96.
+#   R2: The NzbDroneSQLiteProcessor (custom processor in
+#     src/NzbDrone.Core/Datastore/Migration/Framework/NzbDroneSQLiteProcessor.cs)
+#     wraps the FluentMigrator SQLite processor; a FluentMigrator major bump
+#     would require re-validating this wrapper against the new processor
+#     interface.
+#   R3: Migration ordering is version-numeric (001-048); the
+#     TypeFilterOptions.Namespace filter scopes discovery to
+#     "NzbDrone.Core.Datastore.Migration" — a rename of that namespace
+#     would silently break migration discovery.
+#   R4: Postgres-specific migrations (023, 032) use raw SQL with
+#     timestamp-with-timezone semantics that are dialect-specific; any
+#     FluentMigrator processor change must preserve the raw-SQL escape
+#     hatch (ExecuteSqlSQL / PerformDBOperation).
+# No code edits — documentation/audit-only; this .onyx/project.yaml header +
+# migration-test command addition is the single contract commit on the work
+# branch. No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required). See baseline.json (workspace root)
+# and scratch-t_803e4ba6/ for per-command evidence.
 # Issue #97 development run (2026-10-31, task t_9bedcc72, run 3300) at candidate
 # head 4cc21022f3 (work branch chore/issue-97-workflow-action-modernization,
 # base develop 06fc7015feedaabd66f6cd3ca4bd4b5d4e43487d = CURRENT live develop
@@ -655,6 +703,10 @@ commands:
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~NuGetAuditModeIssue103"
       cwd: .
       note: "NET10-03 (#103, epic #96 .NET 8 -> .NET 10 LTS) NuGet compatibility review: the .NET 10 SDK enables NuGetAudit by default (audit level = high), emitting NU1901-NU1904 vulnerable-package warnings at restore. With TreatWarningsAsErrors=true (Directory.Build.props) ANY of those audit warnings escalates to a hard restore/build error that aborts the whole restore, so a single NEW advisory (direct OR transitive) red-lines the entire solution and stops every PR/CI lane (the documented Oct-2026 'develop went red' trap: SixLabors/ImageSharp 3.1.11, System.Security.Cryptography.Pkcs). Fix: src/Directory.Build.props now sets <NuGetAuditMode>direct</NuGetAuditMode> - the audit is narrowed to DIRECT package references; transitive-only advisories degrade to a visible, triageable warning while direct-reference advisories still surface as NU19xx and still gate the build (TreatWarningsAsErrors stays true). The repo keeps the known-vulnerable transitive pins (System.Security.Cryptography.Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2) in Directory.Packages.props so residual transitive risk is explicitly tracked. Pinned by NuGetAuditModeIssue103Fixture (3 tests: NuGetAuditMode=direct declared exactly once and not all/default; TreatWarningsAsErrors remains true; a single NuGetAuditMode occurrence so a later override cannot silently win in MSBuild). RE-VERIFIED 2026-10-31 at develop base 7b830538 (work branch fix/issue-103-nuget-audit-nonfatal-gate, run 3278): RED 2/3 failed when the gate line is removed (negative test proves the guard is not vacuous) / GREEN 3/3 post-fix; full-sln restore EXIT 0 + full Release build 0 warn/0 err with NuGetAuditMode=direct active (behaviorally inert at the current head, zero NU19xx, no dependency churn). No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Contributes to #103 and epic #96."
+    - name: issue-98-regression-fluentmigrator-migration-chain
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~MigrationTest|FullyQualifiedName~clamp_monitor_new_items"
+      cwd: .
+      note: "Issue #98 regression (FluentMigrator coordinated upgrade, migration train under epic #96): pins the FluentMigrator 3.3.2 migration-chain contract. Runs the migration-test lane which exercises the full 001-048 migration chain on SQLite via the custom NzbDroneSQLiteProcessor + MigrationController (AddFluentMigratorCore + ConfigureRunner + AddPostgres + AddNzbDroneSQLite + ScanIn + TypeFilterOptions). 5 tests (MigrationTest fixture: migration ordering, version tracking, rollback rejection; clamp_monitor_new_items fixture: 048 data-repair clamp). RE-VERIFIED 2026-10-31 at develop base a30b83ac (work branch fix/issue-98-fluentmigrator-coordinated-upgrade, run 3328): GREEN 5/5 post-audit; full migration chain 001-048 applied in ~1s on SQLite 3.46.1. No code edits — audit/documentation-only. Contributes to #98 and epic #96."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
@@ -724,10 +776,23 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_9bedcc72/
+  logs: ../scratch-t_803e4ba6/
   verified_at: 2026-10-31
-  base_sha: 06fc7015feedaabd66f6cd3ca4bd4b5d4e43487d
-  head_sha: 4cc21022f3
+  base_sha: a30b83ac724cf8a91fe1d0f7f22886680bbda289
+  head_sha: a30b83ac724
+  # Issue #98 development run (t_803e4ba6, run 3324, 2026-10-31): work branch
+  # fix/issue-98-fluentmigrator-coordinated-upgrade from live develop tip
+  # a30b83ac724 (the #97 cosign-installer v4.1.2 merge). Documentation/audit-
+  # only run: documents the current FluentMigrator 3.3.2 posture, enumerates
+  # compatibility risks (R1-R4), and adds the issue-98-regression-fluentmigrator-
+  # migration-chain test command to the contract. Full contract re-verified in-
+  # container at the exact head: dotnet restore exit 0 (zero NU19xx), backend
+  # Release build 0 warn / 0 err (SixLabors license), common-tests 624 passed /
+  # 35 skipped / 0 failed, migration-test 5/5 (full 001-048 chain on SQLite
+  # 3.46.1), frontend-tests 68/68 (17 suites). NO code edits; the .onyx/
+  # project.yaml header + migration-test command addition is the single
+  # contract commit. No src/frontend/lib/app runtime files changed (no
+  # production_coverage binding).
   # Existing PR #334 audit run (t_4354933b, run 2874, 2026-10-27): work branch
   # dependabot/github_actions/develop/docker/setup-buildx-action-4.4.1 at the
   # EXACT registered head ddf2b4e3 (contributor head == live PR head; base
