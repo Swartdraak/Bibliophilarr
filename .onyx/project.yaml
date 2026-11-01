@@ -678,7 +678,7 @@ commands:
     - name: common-tests
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
-      note: "656 tests: 621 passed, 35 skipped, 0 failed (2026-09-18). ProcessProviderFixture requires DOTNET_ROOT exported (or .NET on PATH) so the dummy helper app can start."
+      note: "659 tests: 624 passed, 35 skipped, 0 failed (re-verified 2026-11-01 at develop tip e95b0464 in-container, .NET 10.0.401, Release/Posix: seq-A fresh-A fresh-B all exit 0). ProcessProviderFixture requires DOTNET_ROOT exported (or .NET on PATH) so the dummy helper app can start."
     - name: issue-256-regression-monitor-failsafe
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~MonitorNewBookServiceFixture"
       cwd: .
