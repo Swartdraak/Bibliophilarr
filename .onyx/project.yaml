@@ -2,6 +2,58 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #103 development run (2026-11-01, task t_ca020c6d, run 3451) at
+# candidate head FINALSHA (work branch
+# fix/issue-103-nuget-compatibility-review, base develop
+# e36967ad9721aae53d30701e25a603bb090e2de6 = CURRENT live develop tip,
+# live-verified by checkout stage t_7e1f262b; single commit: one new test
+# file + this contract header/command update):
+# Migration train (issue #103, epic #96): POST-MIGRATION NuGet compatibility
+# review — full package-graph audit of all 24 solution projects (23 x net10.0
+# + 1 x net10.0-windows) at the .NET 10 baseline (global.json 10.0.100,
+# rollForward latestFeature; verified in-container on SDK 10.0.401).
+# Findings (evidence: baseline.json + scratch-t_ca020c6d/analysis.txt):
+#   - Central CPM pins (src/Directory.Packages.props, 66 pins): every direct
+#     PackageReference in every project resolves AT or ABOVE its central pin;
+#     ZERO resolved versions below a pin (no downgrade/downlevel), ZERO
+#     cross-project line-split (149 distinct package/version pairs, one line
+#     per package across the whole solution).
+#   - Full-sln restore EXIT 0 with NuGetAuditMode=direct active: zero NU19xx,
+#     zero NU15xx/NU16xx/NU17xx/NU18xx; full Release build 0 warn / 0 err
+#     (SixLabors license file from the scoped testing credential); windows-
+#     desktop project model cross-builds clean on POSIX.
+#   - Residual risk stays explicitly tracked (NOT churned): Pkcs 10.0.13
+#     (GHSA-2fmv-rv2c-59x7 / GHSA-846f-f764-76mx patched line), System.
+#     Drawing.Common 9.0.0 (blocks the 4.7.0 critical line, GHSA-rxg9-xrhp-
+#     64gj), SixLabors.ImageSharp 4.1.2 (Oct-2026 3.1.11 incident).
+#   - PRE-EXISTING DEFECT (documented, not fixed — out of #103 scope): the
+#     orphan project src/NzbDrone.Automation.Test/Bibliophilarr.Automation.
+#     Test.csproj is NOT in src/Bibliophilarr.sln and its two PackageReference
+#     items (Selenium.Support, Selenium.WebDriver.ChromeDriver) have no central
+#     PackageVersion entry, so a standalone restore fails NU1010. It is
+#     excluded from every CI lane (sln-based) and therefore benign for CI,
+#     but it fails any standalone 'dotnet restore/build' of that project.
+#     Routed as follow-up under epic #96 (add central pins OR remove the
+#     orphan project).
+# Blockers identified & assigned: the only actionable compatibility blocker is
+# the Automation.Test CPM defect above (follow-up issue under #96); no
+# .NET-10 package compatibility blocker remains in the solution graph — the
+# package set is STABLE under the .NET 10 baseline and no dependency churn is
+# introduced by this change (acceptance criteria 1-3 of #103).
+# Regression coverage added: NuGetCompatibilityIssue103Fixture (3 tests)
+# pins (a) all central pins are exact versions (no floating '*' / ranges),
+# (b) the three residual-risk pins remain at their audited lines, (c) CPM
+# stays enabled — complements the existing NuGetAuditModeIssue103Fixture
+# (3 tests). Pinned by the new issue-103-regression-nuget-compatibility-
+# review dotnet test command (6 tests total, both fixtures).
+# Verified in-container at the candidate head: issue-103 fixtures 6/6 PASS;
+# full Common.Test 662 total -> 627 passed, 35 skipped, 0 failed (659 baseline
+# + 3 new); full-sln Release build 0 warn / 0 err; yarn install (frozen-
+# lockfile) PASS; frontend jest 85/85; eslint 0 errors / 8 pre-existing
+# warnings; rid-common-targeted 18 (16 passed / 2 skipped); issue-256 lanes
+# 6+5+5 PASS; windows-desktop project model PASS. No JS/TS runtime files
+# under src/frontend/lib/app changed (no production_coverage binding
+# required). Contributes to #103 and epic #96.
 # Issue #99 development run (2026-10-31, task t_6f0386ae, run 3367) at
 # candidate head 70dede0d19 (work branch
 # chore/issue-99-frontend-toolchain-modernization, base develop
@@ -743,6 +795,10 @@ commands:
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~NuGetAuditModeIssue103"
       cwd: .
       note: "NET10-03 (#103, epic #96 .NET 8 -> .NET 10 LTS) NuGet compatibility review: the .NET 10 SDK enables NuGetAudit by default (audit level = high), emitting NU1901-NU1904 vulnerable-package warnings at restore. With TreatWarningsAsErrors=true (Directory.Build.props) ANY of those audit warnings escalates to a hard restore/build error that aborts the whole restore, so a single NEW advisory (direct OR transitive) red-lines the entire solution and stops every PR/CI lane (the documented Oct-2026 'develop went red' trap: SixLabors/ImageSharp 3.1.11, System.Security.Cryptography.Pkcs). Fix: src/Directory.Build.props now sets <NuGetAuditMode>direct</NuGetAuditMode> - the audit is narrowed to DIRECT package references; transitive-only advisories degrade to a visible, triageable warning while direct-reference advisories still surface as NU19xx and still gate the build (TreatWarningsAsErrors stays true). The repo keeps the known-vulnerable transitive pins (System.Security.Cryptography.Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2) in Directory.Packages.props so residual transitive risk is explicitly tracked. Pinned by NuGetAuditModeIssue103Fixture (3 tests: NuGetAuditMode=direct declared exactly once and not all/default; TreatWarningsAsErrors remains true; a single NuGetAuditMode occurrence so a later override cannot silently win in MSBuild). RE-VERIFIED 2026-10-31 at develop base 7b830538 (work branch fix/issue-103-nuget-audit-nonfatal-gate, run 3278): RED 2/3 failed when the gate line is removed (negative test proves the guard is not vacuous) / GREEN 3/3 post-fix; full-sln restore EXIT 0 + full Release build 0 warn/0 err with NuGetAuditMode=direct active (behaviorally inert at the current head, zero NU19xx, no dependency churn). No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Contributes to #103 and epic #96."
+    - name: issue-103-regression-nuget-compatibility-review
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~NuGetCompatibilityIssue103"
+      cwd: .
+      note: "NET10-03 (#103) post-migration NuGet compatibility review (2026-11-01, task t_ca020c6d, run 3451): pins the post-migration package-graph invariants established by the full 24-project graph audit at develop e36967ad. Pinned by NuGetCompatibilityIssue103Fixture (3 tests): (1) every central PackageVersion in src/Directory.Packages.props is an EXACT version - no floating '*' and no NuGet ranges (CPM pins are the graph minimum; a floating pin would silently drift restores, violating the 'no accidental dependency churn' acceptance); (2) the three residual-risk pins remain at their audited post-migration lines - System.Security.Cryptography.Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2 - so removing or re-pointing a documented vulnerability pin breaks the build; (3) ManagePackageVersionsCentrally stays true in src/Directory.Build.props (the whole pin analysis only holds under CPM). The audit itself (zero resolved-below-pin, zero cross-project line-split, zero NU19xx/NU15xx/NU16xx at restore, full-sln Release build 0 warn/0 err) is recorded in baseline.json + scratch-t_ca020c6d/analysis.txt; the pre-existing orphan-project CPM defect (NzbDrone.Automation.Test, NU1010 on standalone restore, not in the solution) is documented there and routed as an epic #96 follow-up. RE-VERIFIED 2026-11-01 in-container at the candidate head: GREEN 3/3; combined with the audit-gate fixture (6/6); full Common.Test 662 total -> 627 passed / 35 skipped / 0 failed; full-sln Release build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Contributes to #103 and epic #96."
     - name: issue-98-regression-fluentmigrator-migration-chain
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~MigrationTest|FullyQualifiedName~clamp_monitor_new_items"
       cwd: .
@@ -820,10 +876,10 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_6f0386ae/
-  verified_at: 2026-10-31
-  base_sha: 761424f2a6ad176504f5a6a3eca72090419cb1a5
-  head_sha: 70dede0d19
+  logs: ../scratch-t_ca020c6d/
+  verified_at: 2026-11-01
+  base_sha: e36967ad9721aae53d30701e25a603bb090e2de6
+  head_sha: edccfc6760cc82bbc14526d4bacc7d2691b7ae17
   # Issue #99 development run (t_6f0386ae, run 3367, 2026-10-31): work branch
   # chore/issue-99-frontend-toolchain-modernization from live develop tip
   # 761424f2 (the #98 FluentMigrator 3.3.2 audit merge, #348). Frontend
