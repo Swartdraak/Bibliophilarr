@@ -12,25 +12,27 @@ import General from 'typings/Settings/General';
 import UiSettings from 'typings/Settings/UiSettings';
 
 export interface DownloadClientAppState
-  extends AppSectionState<DownloadClient>,
+  extends
+    AppSectionState<DownloadClient>,
     AppSectionDeleteState,
     AppSectionSaveState {}
 
 export type GeneralAppState = AppSectionItemState<General>;
 
 export interface ImportListAppState
-  extends AppSectionState<ImportList>,
+  extends
+    AppSectionState<ImportList>,
     AppSectionDeleteState,
     AppSectionSaveState {}
 
 export interface IndexerAppState
-  extends AppSectionState<Indexer>,
+  extends
+    AppSectionState<Indexer>,
     AppSectionDeleteState,
     AppSectionSaveState {}
 
 export interface NotificationAppState
-  extends AppSectionState<Notification>,
-    AppSectionDeleteState {}
+  extends AppSectionState<Notification>, AppSectionDeleteState {}
 
 export type IndexerFlagSettingsAppState = AppSectionState<IndexerFlag>;
 export type UiSettingsAppState = AppSectionState<UiSettings>;

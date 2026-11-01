@@ -2,6 +2,46 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #99 development run (2026-10-31, task t_6f0386ae, run 3367) at
+# candidate head 70dede0d19 (work branch
+# chore/issue-99-frontend-toolchain-modernization, base develop
+# 761424f2a6ad176504f5a6a3eca72090419cb1a5 = CURRENT live develop tip,
+# live-verified by checkout stage t_eda6dda7; single commit: package.json +
+# yarn.lock + 2 reformatted .ts state files + 1 new jest regression file +
+# this contract header/baseline_evidence/test-command update):
+# Migration train (issue #99, epic #96): frontend toolchain modernization —
+# Prettier 2.x -> 3.x. The historical dependabot slice for this bump (PR #56,
+# "bump prettier from 2.8.8 to 3.8.3") was closed UNMERGED, so the repo kept
+# pinning prettier 2.8.8 while its ESLint toolchain was written against the
+# Prettier 2 API. A naive prettier-3 bump alone breaks the prettier/prettier
+# ESLint rule ("prettier.resolveConfig.sync is not a function" — Prettier 3
+# dropped the sync helper), so this is a COORDINATED modernization:
+#   - prettier                 2.8.8   -> 3.8.1
+#   - eslint-config-prettier   8.10.2  -> 9.1.0  (9.x line targets prettier 3)
+#   - eslint-plugin-prettier   4.2.5   -> 5.5.5  (5.x line built on the Prettier 3 API)
+#   - frontend/src/App/State/{AuthorsAppState,SettingsAppState}.ts reformatted to
+#     the Prettier 3 default (pure whitespace/line-break; no behavior change).
+# Pinned by the new issue-99-regression-prettier-toolchain-modernization jest
+# command (frontend/src/Issue99/prettierToolchainModernization.test.js, 6
+# tests): pins the devDependency lines AND exercises the REAL installed
+# prettier 3.x binary (node_modules/.bin/prettier) as a subprocess —
+# `--version` is 3.x, `--check` on the two reformatted files exits 0
+# (idempotent), and a TS snippet is re-emitted honoring the repo .prettierrc
+# singleQuote convention. The CLI is invoked (not imported in-proc) because
+# Prettier 3's CJS entry re-exports an ESM build via dynamic import(), which
+# jest 30's CJS transform cannot run without --experimental-vm-modules.
+# No production / runtime UI behavior is touched — a devDependency + lockfile
+# advance plus a whitespace-only reformat and a test. No src/frontend/lib/app
+# runtime file changed (no production_coverage binding required). Verified
+# in-container at the candidate head: yarn install (frozen-lockfile) PASS;
+# eslint 0 errors / 8 pre-existing warnings (the new test file is clean);
+# full frontend jest suite 74/74 / 18 suites PASS (68 baseline + 6 new);
+# both ops guards (ui-build-mode + http-binding) PASS; stylelint-linux PASS;
+# full production webpack build (yarn build) compiled successfully. Historical
+# #99 item mapping: #56 Prettier DONE (this run); #55 rimraf, #54 webpack-cli,
+# #53 postcss-mixins, #52 Font Awesome remain REMAINING (genuine future work,
+# not silently resolved). See baseline.json (workspace root) and
+# scratch-t_6f0386ae-*.sh for per-command evidence.
 # Issue #98 development run (2026-10-31, task t_803e4ba6, run 3324) at
 # candidate head a30b83ac724 (work branch
 # fix/issue-98-fluentmigrator-coordinated-upgrade, base develop
@@ -723,6 +763,10 @@ commands:
       command: yarn test:frontend --testPathPatterns frontend/src/Issue327/labelPolicyAutomatedActorException.test.js
       cwd: .
       note: "Issue #327 regression (systemic label-policy intake gap for automated PRs): pins the automated-actor exception in the 'Enforce PR metadata contract' gate (.github/workflows/labeler.yml). The gate's PR metadata contract (type:/area:/priority:/risk: labels, an assignee, the five body sections, Candidate SHA, linked-issue reference) is written for HUMAN PRs and systematically blocked every dependabot/agent PR (13 open PRs as of develop a6cd30f4, all by dependabot[bot]). The fix adds a NARROW exception: when the PR's authenticated author (pr.user.login, from the REST read, not the PR-controlled event payload) is in TRUSTED_AUTOMATION_ACTORS (dependabot[bot], onyx-devops[bot]), the gate logs a core.info and returns BEFORE any contract check, so a dependabot PR passes label-policy WITHOUT a manual per-PR metadata repair (AC1/AC3). For every human-authored PR the full contract is enforced unchanged (AC2). 8 tests: (1) the exception allow-list contains dependabot[bot]+onyx-devops[bot]; (2) the exception keys on pr.user.login; (3) the bot path short-circuits before the first contract check; (4) the exception sits AFTER the authenticated REST fetch so a bot PR whose fetch fails still fails loudly; (5-7) the full human contract (4 label prefixes, assignee, 5 body sections + Candidate SHA + linked-issue ref) is still present and unchanged; (8) the file-scoped build/test gates (ci-frontend.yml/ci-backend.yml) are untouched and do not contain the exception. No production runtime code changed, so the raw Istanbul coverage-final.json is byte-identical to the develop base. RE-VERIFIED 2026-10-25 in-container (task t_309778c3): GREEN 8/8 post-fix; full frontend suite 60/60 (15 suites); yarn lint 0 errors (8 pre-existing warnings, 0 new); all 19 .github/workflows/*.yml parse as valid YAML. The durable exact-head end-to-end acceptance (label-policy job green on a live dependabot PR + a human PR at the merged head) is exercised by the review/publication stage; this unit-level source-contract test is the CI-parity guard."
+    - name: issue-99-regression-prettier-toolchain-modernization
+      command: yarn test:frontend --testPathPatterns frontend/src/Issue99/prettierToolchainModernization.test.js
+      cwd: .
+      note: "Issue #99 regression (frontend toolchain modernization, Prettier 2.x -> 3.x, epic #96): pins the coordinated Prettier 3 bump. The historical dependabot slice (PR #56, prettier 2.8.8 -> 3.x) was closed UNMERGED, so the repo kept prettier 2.8.8 with a Prettier-2-era ESLint toolchain. This run bumps prettier 2.8.8 -> 3.8.1, eslint-config-prettier 8.10.2 -> 9.1.0, eslint-plugin-prettier 4.2.5 -> 5.5.5 (the plugin bump is REQUIRED: 4.x calls prettier.resolveConfig.sync, which Prettier 3 removed), and reformats frontend/src/App/State/{AuthorsAppState,SettingsAppState}.ts to the Prettier 3 default (whitespace-only). 6 tests (frontend/src/Issue99/prettierToolchainModernization.test.js): (1) package.json pins a 3.x prettier; (2) package.json pins the prettier-3-compatible eslint-config-prettier 9.x + eslint-plugin-prettier 5.x lines; (3) the actually-installed prettier package is 3.x; (4) the installed prettier binary (node_modules/.bin/prettier, invoked as a subprocess — the real toolchain, not a substitute) reports 3.x; (5) `prettier --check` on the two reformatted state files exits 0 (idempotent — the committed bytes ARE the Prettier 3 output); (6) the installed prettier re-emits a TS snippet honoring the repo .prettierrc singleQuote convention. The CLI is invoked (not `require('prettier')` in-proc) because Prettier 3's CJS entry re-exports an ESM build via dynamic import(), which jest 30's CJS transform cannot run without --experimental-vm-modules. RE-VERIFIED 2026-10-31 in-container (task t_6f0386ae, run 3367) at base develop 761424f2: GREEN 6/6; full frontend suite 74/74 / 18 suites (68 baseline + 6 new); yarn lint 0 errors / 8 pre-existing warnings; both ops guards PASS; stylelint PASS; full production webpack build compiled successfully. No src/frontend/lib/app runtime file changed (no production_coverage binding). Historical #99 mapping: #56 Prettier DONE (this run); #55 rimraf, #54 webpack-cli, #53 postcss-mixins, #52 Font Awesome REMAINING (genuine future work). Contributes to #99 and epic #96."
   runtime:
     start: |
       ./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
@@ -776,10 +820,32 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_803e4ba6/
+  logs: ../scratch-t_6f0386ae/
   verified_at: 2026-10-31
-  base_sha: a30b83ac724cf8a91fe1d0f7f22886680bbda289
-  head_sha: a30b83ac724
+  base_sha: 761424f2a6ad176504f5a6a3eca72090419cb1a5
+  head_sha: 70dede0d19
+  # Issue #99 development run (t_6f0386ae, run 3367, 2026-10-31): work branch
+  # chore/issue-99-frontend-toolchain-modernization from live develop tip
+  # 761424f2 (the #98 FluentMigrator 3.3.2 audit merge, #348). Frontend
+  # toolchain modernization (migration train, epic #96): coordinated Prettier
+  # 2.x -> 3.x bump — prettier 2.8.8 -> 3.8.1, eslint-config-prettier
+  # 8.10.2 -> 9.1.0, eslint-plugin-prettier 4.2.5 -> 5.5.5 (the plugin bump is
+  # required: 4.x calls the removed prettier.resolveConfig.sync), plus a
+  # whitespace-only Prettier-3 reformat of
+  # frontend/src/App/State/{AuthorsAppState,SettingsAppState}.ts. The historical
+  # dependabot slice (PR #56, prettier 2.8.8 -> 3.x) was closed UNMERGED; this
+  # completes it. Pinned by the new issue-99-regression-prettier-toolchain-
+  # modernization jest command (frontend/src/Issue99/prettierToolchainModernization.
+  # test.js, 6 tests) which exercises the installed Prettier 3.x binary as a
+  # subprocess. Full contract re-verified in-container at the exact head: yarn
+  # install (frozen-lockfile) PASS; eslint 0 errors / 8 pre-existing warnings;
+  # full frontend jest suite 74/74 / 18 suites (68 baseline + 6 new); both ops
+  # guards (ui-build-mode + http-binding) PASS; stylelint-linux PASS; full
+  # production webpack build (yarn build) compiled successfully. No
+  # src/frontend/lib/app runtime files changed (no production_coverage binding
+  # required). Historical #99 mapping: #56 Prettier DONE (this run); #55 rimraf,
+  # #54 webpack-cli, #53 postcss-mixins, #52 Font Awesome REMAINING (genuine
+  # future work, not silently resolved).
   # Issue #98 development run (t_803e4ba6, run 3324, 2026-10-31): work branch
   # fix/issue-98-fluentmigrator-coordinated-upgrade from live develop tip
   # a30b83ac724 (the #97 cosign-installer v4.1.2 merge). Documentation/audit-
