@@ -12,15 +12,18 @@
  * the component code (the actual shipped consumers) executes, reading state
  * through useSelector from the live store.
  */
-import React from 'react';
 import { render } from '@testing-library/react';
-import { Provider } from 'react-redux';
 import { createMemoryHistory } from 'history';
-import createAppStore from 'Store/createAppStore';
-import ManageImportListsModalContent from 'Settings/ImportLists/ImportLists/Manage/ManageImportListsModalContent';
+import React from 'react';
+import { Provider } from 'react-redux';
 import ManageDownloadClientsModalContent from 'Settings/DownloadClients/DownloadClients/Manage/ManageDownloadClientsModalContent';
+import ManageImportListsModalContent from 'Settings/ImportLists/ImportLists/Manage/ManageImportListsModalContent';
+import createAppStore from 'Store/createAppStore';
+// eslint-disable-next-line global-require
+const { set } = require('Store/Actions/baseActions');
 
 describe('issue 99: SettingsAppState through shipped production components (react-redux, instrumented)', () => {
+  // eslint-disable-next-line init-declarations
   let store;
 
   beforeEach(() => {
@@ -69,7 +72,6 @@ describe('issue 99: SettingsAppState through shipped production components (reac
     // Seed a settings section through the real shipped reducer, then re-mount
     // the shipped component: its useSelector reads must observe the seeded
     // live store state (proves the component reads the real store, not a copy).
-    const { set } = require('Store/Actions/baseActions');
     store.dispatch(set({ section: 'settings.indexers', items: [{ id: 7, enable: true }] }));
     render(
       <Provider store={store}>
