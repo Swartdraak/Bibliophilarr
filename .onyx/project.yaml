@@ -2,6 +2,63 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #359 audit run (2026-11-04, task t_d73e8c93, onyx-architect):
+# work branch dependabot/nuget/src/develop/Ical.Net-5.2.4 at the registered
+# contributor head a1da93b8106861da6e708b604664072794f675f6 (Bump Ical.Net
+# 5.2.3 -> 5.2.4, NuGet runtime dependency, src/Directory.Packages.props line
+# 18 only). This audit incorporated the current develop tip
+# 978aa058a215e3f3a15af2a4634a2c7d6067a983 (post-#357-merge) via a NORMAL
+# MERGE (no rebase/force-push of contributor history): merge commit
+# 0b7615e78799adba8f4af1d94860aa5d0bd2542c, parents [a1da93b8 contributor,
+# 978aa058 develop]; the registered initial head a1da93b8 remains a strict
+# ancestor of the reviewed result (governance existing-PR rule). The 6
+# intervening develop commits (3a6e5222 -> 978aa058: #366 migration-158 fix,
+# #353-#357 dependabot workflow/npm tooling bumps) touch files disjoint from
+# src/Directory.Packages.props - zero file overlap with #359's delta, so the
+# merge is content-clean and the one-line PR delta (Ical.Net 5.2.3 -> 5.2.4)
+# is intact at the merged head.
+# Validation at the exact merged head 0b7615e7 (evidence: workspace
+# scratch-t_d73e8c93/ + baseline.json commands[]):
+#   - dotnet restore src/Bibliophilarr.sln -p:Platform=Posix: EXIT 0, zero
+#     NU19xx (NuGetAuditMode=direct); Ical.Net 5.2.4 resolves in
+#     Bibliophilarr.Api.V1 (sole direct consumer) + all dependent test
+#     assemblies (nupkg sha256 02dd43536b9d6298199f7784df489806731d956f6c).
+#   - dotnet build src/Bibliophilarr.sln --configuration Release
+#     -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic>: 0 warn / 0
+#     err in 1m44s (Ical.Net 5.2.4 compiles into Api.V1 + downstream test
+#     assemblies; SixLabors license provisioned, value never logged/committed).
+#   - CalendarFeedControllerFixture (Ical.Net consumer, NzbDrone.Api.Test):
+#     2/2 PASS on 5.2.4 - no behavioral regression in the ICS calendar-feed
+#     path that #359's bump affects.
+#   - NuGetAuditModeIssue103 + NuGetCompatibilityIssue103 (Common.Test):
+#     6/6 PASS - the single-line central-pin bump preserves the exact-version
+#     (no floating '*' / ranges) + ManagePackageVersionsCentrally invariants;
+#     the three residual-risk pins remain at their audited lines
+#     (Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2).
+#   - common-tests (full Common.Test): 627 passed / 35 skipped / 0 failed
+#     (662 total); rid-common-targeted: 16 passed / 2 skipped / 0 failed (18).
+#   - yarn install --frozen-lockfile PASS (merged-in jest 30.5.2 + dev-tooling
+#     #353-#357 intact); yarn test:frontend jest 85/85 (20 suites) on jest
+#     30.5.2; yarn lint eslint 0 errors / 8 pre-existing warnings.
+#   - PRE-EXISTING (reported, NOT a #359 regression): NzbDrone.Integration.Test
+#     CalendarFixture is [Ignore]d until 2026-01-15 ("Waiting for metadata to
+#     be back again"); its 3 failures occur at IntegrationTestBase.EnsureAuthor
+#     line 262 doing a LIVE OpenLibrary lookup (external metadata) BEFORE any
+#     Ical.Net code path - environmental/pre-existing, not caused by #359;
+#     CI-parity calendar coverage is CalendarFeedControllerFixture (2/2).
+#     Additionally, the src/NzbDrone (Bibliophilarr) net10.0-windows project
+#     graph carries an Ical.Net/5.2.3 TRANSITIVE entry (0 direct Ical deps; it
+#     ProjectReferences Host + Windows) - unchanged pre-existing graph state
+#     (base central pin was 5.2.3); the direct consumer resolves 5.2.4.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed by
+# the PR delta (no production_coverage binding required). Dependency-only
+# maintenance work: no linked issue applies (the repository's
+# dependency-maintenance policy covers this class of change). Sibling open
+# NuGet PRs #360/#361/#362 (same file) + #363 touch distinct dependabot
+# branches; oldest-first sequential merge order makes #359 the first of the
+# set. No new test command is required: the existing Ical.Net-consumer +
+# central-pin lanes ARE the regression evidence for this patch-line runtime
+# dependency bump.
 # Existing-PR #357 audit run (2026-11-04, task t_6c152e90,
 # run 3816) at exact registered head c2532527ba48f4cb63039598da94a11bd5fae6f0
 # (work branch dependabot/npm_and_yarn/develop/jest-30.5.2, base develop
