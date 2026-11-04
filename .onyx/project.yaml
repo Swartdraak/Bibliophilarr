@@ -2,6 +2,42 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #356 audit run (2026-11-04, task t_17590efb, run 3765) at exact
+# registered head 66ed6f3349e3b814a49461029d1de3af5e40f891 (work branch
+# dependabot/npm_and_yarn/develop/postcss-loader-8.2.1, base develop
+# 9a95dd45952bb6efb33a1afded4930662c5944a4 = CURRENT live develop tip; the
+# head's single parent IS the tip — merge-base == tip, no catch-up merge
+# needed; live-verified by checkout stage t_8821b3e6, run 3762). Delta:
+# postcss-loader 7.3.4 -> 8.2.1 (devDependency, frontend webpack build
+# tooling only; package.json + yarn.lock, 2 files / +17 -22).
+# Re-verified in-container at the exact head (Node v20.20.2, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS (31.6s; installed postcss-loader =
+#     8.2.1 confirmed via node require of postcss-loader/package.json; CJS
+#     entry loads).
+#   - Frontend CI lane (ci-frontend.yml parity) ALL PASS: full jest suite
+#     85/85 (20 suites, yarn test:frontend), yarn lint (eslint) 0 errors / 8
+#     pre-existing warnings, yarn stylelint-linux PASS, both ops guards
+#     (ui-build-mode, http-binding) PASS, and the webpack 5.105.4 PRODUCTION
+#     build (yarn build) compiled successfully in 75069 ms with ZERO
+#     warnings and ZERO errors. The production build + the ui-build-mode
+#     guard (independent pinned production webpack run) both drive the
+#     postcss-loader 8.2.1 CSS-module chain end-to-end: every *.css file
+#     except globals.css/node_modules flows MiniCssExtractPlugin ->
+#     css-modules-typescript-loader -> css-loader -> postcss-loader with
+#     frontend/postcss.config.js plugins (postcss-mixins,
+#     postcss-simple-vars, @csstools/postcss-color-function, postcss-nested)
+#     — the loader's 8.x API (webpack 5 async loader contract,
+#     postcssOptions.config) is exercised on the real 100+ shipped CSS
+#     modules; a broken 8.x loader/option path would fail the build.
+#   - No behavioral change expected: postcss-loader is a devDependency build
+#     tool; no shipped runtime JS/TS, no backend, no CI workflow touched.
+# No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required). NO code edits — validation/
+# publication-only; this .onyx/project.yaml header update is the single
+# contract commit on top of the contributor head 66ed6f33, which is
+# preserved as an ancestor of the reviewed result (no rebase, no
+# force-push). See baseline.json (workspace root) and
+# scratch-t_17590efb/*.log for per-command evidence.
 # Existing-PR #355 audit run (2026-11-04, task t_8d5caba4, run 3748) at exact
 # head a99b1f36cfe587b400d933d20f1e54f60906e1d7 (work branch
 # dependabot/npm_and_yarn/develop/types/lodash-4.17.27, base develop
