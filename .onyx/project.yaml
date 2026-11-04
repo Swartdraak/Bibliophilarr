@@ -2,6 +2,36 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #355 audit run (2026-11-04, task t_8d5caba4, run 3748) at exact
+# head a99b1f36cfe587b400d933d20f1e54f60906e1d7 (work branch
+# dependabot/npm_and_yarn/develop/types/lodash-4.17.27, base develop
+# ef35cdcfc371c65e8de853a41e4970b5a15bc299 = CURRENT live develop tip; head is
+# a direct child of the tip, no catch-up merge needed). Delta: @types/lodash
+# 4.17.24 -> 4.17.27 (devDependency, types only; package.json + yarn.lock).
+# Re-verified in-container at the exact head (Node v22.x, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS; installed @types/lodash = 4.17.27.
+#   - Frontend CI lane (ci-frontend.yml parity): full jest suite 85/85 (20
+#     suites), yarn lint 0 errors / 8 pre-existing warnings, both ops guards
+#     (ui-build-mode, http-binding) PASS, stylelint-linux PASS.
+#   - Dev-type surface check: a probe file exercising the broad lodash API
+#     surface used across frontend/src (findIndex/pick/groupBy/debounce/
+#     throttle/isEqual/chain/merge/cloneDeep/sortBy/unionBy/uniqBy/startsWith/
+#     padStart/truncate/get/set/keyBy/flow/omitBy) typechecks CLEAN (tsc
+#     --noEmit, strict, TS 5.9.3) against the installed 4.17.27, and the same
+#     probe passes identically against 4.17.24 (isolated control dir) — the
+#     bump is type-compatible with the shipped frontend usage.
+#   - PRE-EXISTING (not introduced by this PR): a plain `tsc --noEmit` with
+#     the committed frontend/tsconfig.json fails with TS5103
+#     ("Invalid value for '--ignoreDeprecations'" — the file pins "6.0",
+#     which TS 5.9.3 does not accept); with the flag set to a valid value the
+#     full-project typecheck surfaces ~188 pre-existing errors concentrated in
+#     node_modules @types duplicates (react-redux's nested @types/react) and
+#     react-dnd-multi-backend typings. tsc is NOT a CI-required lane
+#     (ci-frontend.yml runs test:frontend + lint + build only; the build uses
+#     babel/ts-loader without project-wide tsc gating), so this pre-existing
+#     state does not block the PR and is out of scope for a dev-types bump.
+# No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required).
 # Issue #103 development run (2026-11-01, task t_ca020c6d, run 3451) at
 # candidate head FINALSHA (work branch
 # fix/issue-103-nuget-compatibility-review, base develop
@@ -814,7 +844,7 @@ commands:
     - name: frontend-tests
       command: yarn test:frontend
       cwd: .
-      note: "jest --runInBand: 68 tests / 17 suites, 0 failures (re-verified 2026-10-29 at PR #304 head 515b637a, @typescript-eslint/parser 8.72.0 installed; 60 tests / 15 suites at develop a6cd30f4 base 2026-10-25, grown by the issue-329 index.test.js suite, the issue-327 label-policy automated-actor-exception suite, and the PR #302 react-slider regression suite)."
+      note: "jest --runInBand: 85 tests / 20 suites, 0 failures (re-verified 2026-11-04 in isolated Docker at existing-PR #355 exact head a99b1f36, @types/lodash 4.17.27 installed; suite count grown from 68/17 (2026-10-29, PR #304) by later develop test additions — all green, no new failures)."
     - name: issue-329-regression-authed-spa-blank-shell
       command: yarn test:frontend --testPathPattern frontend/src/index.test.js
       cwd: .
@@ -880,11 +910,22 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_ca020c6d/
-  verified_at: 2026-11-01
-  base_sha: e36967ad9721aae53d30701e25a603bb090e2de6
-  head_sha: edccfc6760cc82bbc14526d4bacc7d2691b7ae17
-  # Issue #99 development run (t_6f0386ae, run 3367, 2026-10-31): work branch
+  logs: ../logs-8d5caba4/
+  verified_at: 2026-11-04
+  base_sha: ef35cdcfc371c65e8de853a41e4970b5a15bc299
+  head_sha: e21932873413679452962b2877a51361f5d08e0a
+  # Existing-PR #355 audit run (t_8d5caba4, run 3748, 2026-11-04): dependabot
+  # npm_and_yarn dev-types bump @types/lodash 4.17.24 -> 4.17.27
+  # (package.json + yarn.lock only). Re-verified in-container at the exact
+  # head: yarn install --frozen-lockfile PASS (installed 4.17.27); full
+  # frontend jest 85/85 (20 suites); eslint 0 errors / 8 pre-existing
+  # warnings; ops guards (ui-build-mode, http-binding) PASS; stylelint
+  # PASS; lodash API-surface tsc probe clean on 4.17.27 and on the 4.17.24
+  # control. Pre-existing: repo-wide tsc --noEmit fails on the committed
+  # tsconfig (invalid ignoreDeprecations value) and, with a valid flag,
+  # ~188 pre-existing node_modules typings errors — tsc is not a
+  # CI-required lane. No production runtime files changed.
+  # Issue #103 development run (t_ca020c6d, run 3451, 2026-11-01):
   # chore/issue-99-frontend-toolchain-modernization from live develop tip
   # 761424f2 (the #98 FluentMigrator 3.3.2 audit merge, #348). Frontend
   # toolchain modernization (migration train, epic #96): coordinated Prettier
