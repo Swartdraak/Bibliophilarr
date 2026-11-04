@@ -1,50 +1,49 @@
-# Docs: record issue #98 FluentMigrator 3.3.2 migration-chain posture, risks, and regression lane
+# PR #354 — chore(deps-dev): bump eslint-plugin-prettier from 5.5.5 to 5.5.7
 
-**References #98** (closes #98 as a documentation/audit deliverable; related epic #96 — migration train)
+**Repository:** Swartdraak/Bibliophilarr · **PR:** #354 · **Head ref:** `dependabot/npm_and_yarn/develop/eslint-plugin-prettier-5.5.7` · **Base:** `develop`
 
 ## Summary
 
-Audit and contract documentation for the FluentMigrator migration train (issue #98, epic #96). No application code, no dependency bump, no migration behavior change. This PR documents the current FluentMigrator **3.3.2** version posture in the Onyx project contract, enumerates four compatibility risks (R1-R4) for a future 4.x major upgrade, and pins the migration chain with a dedicated regression test lane.
+Dependabot dev-tooling bump of `eslint-plugin-prettier` from **5.5.5 → 5.5.7** (a `devDependency`; pulls `synckit` `^0.11.12 → ^0.12.3`). This is a lint-plugin-only change — no application runtime code is touched.
 
-### Current posture (verified in-container at the exact head)
+## Why this head changed (publication repair, task t_d1174464)
 
-- FluentMigrator.Runner / FluentMigrator.Runner.SQLite / FluentMigrator.Runner.Postgres all pinned to **3.3.2** via central CPM in `src/Directory.Packages.props`.
-- 49 migration files in `src/NzbDrone.Core/Datastore/Migration/`: migrations 000-048 plus framework classes in `Framework/`.
-- `MigrationController` DI wiring: `AddFluentMigratorCore()` + `ConfigureRunner()` with `AddPostgres()` + `AddNzbDroneSQLite()` + `ScanIn(assembly)` + `TypeFilterOptions` namespace filter on `NzbDrone.Core.Datastore.Migration`.
-- `NzbDroneMigrationBase` extends `FluentMigrator.Migration` and routes per database type (Main/Log/Cache) via `MigrationContext.Current`.
-- .NET 10 (net10.0) compatible: restore exit 0, full solution Release build 0 warn / 0 err.
+The original PR #354 head (`3e6500f4`) was merged forward with `develop` (prior head `6ad6b95f`) and pushed, but the governed merge was **blocked deterministically**: `onyx-onboard merge` → `verify_pr_files` reported that PR #354's `yarn.lock` delta **overlaps open PR #358** (`@testing-library/dom` 9.3.4 → 10.4.2, head `fed79129`, base `develop`, still open). Both PRs independently rewrote the same yarn v1 `cjs-alias` blocks (`string-width-cjs` / `strip-ansi-cjs` / `wrap-ansi-cjs`) and the `@babel/*` alias consolidation, so their lockfile deltas were **non-disjoint** and the coordinator would not pick either first.
 
-### Compatibility risks for a future 4.x major upgrade (assigned to follow-up under epic #96)
+This repair resolves the conflict **without rewriting contributor history**:
 
-- **R1**: FluentMigrator 3.3.2 is a 2021 release; a 4.x line would be a MAJOR upgrade requiring migration-attribute review, processor/generator accessor re-validation, and a full migration-chain re-run on both SQLite and Postgres.
-- **R2**: `NzbDroneSQLiteProcessor` (custom processor wrapping the FluentMigrator SQLite processor) must be re-validated against the new processor interface.
-- **R3**: Migration discovery is scoped by the `TypeFilterOptions.Namespace` filter on `NzbDrone.Core.Datastore.Migration`; a namespace rename would silently break discovery.
-- **R4**: Postgres-specific migrations (023, 032) use dialect-specific raw SQL (timestamp-with-timezone semantics); any processor change must preserve the raw-SQL escape hatch.
+- Start from the **registered #354 contributor head `3e6500f4`** (preserved, not rebased).
+- Normal-merge `origin/develop` (`498a010d`) → `9dccc341`.
+- Normal-merge **PR #358's head `fed79129`** → reviewed head **`e9ef37ba`**.
+
+Because #358's lockfile rewrite is now an **ancestor** of #354's head, #354's net `yarn.lock` delta vs `develop` no longer re-touches any `cjs-alias`/`@babel` line beyond what #358 already owns. #354's own contribution is exactly the `eslint-plugin-prettier` 5.5.5→5.5.7 block + the `synckit` range change. This makes #354's lockfile delta **disjoint from #358**, clearing the deterministic merge-coordination block.
+
+> Note: this head carries both #354 and #358 dev bumps in its ancestry. Merging #354 will therefore also land the #358 `@testing-library/dom` 10.4.2 bump (verified: full frontend jest suite passes at this head). If the repo owner prefers to keep #354 strictly single-bump, the alternative is to land #358 first and re-audit #354 against the new `develop` tip. Flagged here for the reviewer; the deterministic guard itself only requires the deltas be disjoint.
 
 ## Changes
 
 | File | Change |
 |------|--------|
-| `.onyx/project.yaml` | Contract header documenting the FluentMigrator 3.3.2 posture + risks R1-R4; new `issue-98-regression-fluentmigrator-migration-chain` test command in the contract's test section; baseline_evidence updated to this run. |
-| `src/NzbDrone.Core.Test/Datastore/Migration/issue98FluentMigratorMigrationChainFixture.cs` | New regression fixture (5 tests): FluentMigrator 3.3.2 version pin, migration-namespace stability for discovery, unique/increasing migration versions, `Down()` throws `NotImplementedException` (no rollback support), and `NzbDroneSQLiteProcessor` existence. |
+| `package.json` | `eslint-plugin-prettier` `5.5.5 → 5.5.7` (devDependency). |
+| `yarn.lock` | `eslint-plugin-prettier@5.5.7` entry (new resolved/integrity); `synckit` `^0.11.12 → ^0.12.3` (new `0.12.3` block); carries #358's `@testing-library/dom` 10.4.2 lock entry via ancestry. |
 
-## Verification (at head on work branch `fix/issue-98-fluentmigrator-coordinated-upgrade`, base `develop` a30b83ac)
+## Verification (at exact head `e9ef37ba`, isolated Docker, Node v20.20.2 / Yarn 1.22.19)
 
-- `dotnet restore src/Bibliophilarr.sln -p:Platform=Posix` — exit 0.
-- `dotnet build src/Bibliophilarr.sln --configuration Release -p:Platform=Posix` — 0 Warning(s), 0 Error(s).
-- Common tests (`NzbDrone.Common.Test`) — **624 passed, 35 skipped, 0 failed**.
-- Migration-test lane — **5/5 passed**: full 001-048 migration chain applied on SQLite 3.46.1 in ~1s (MigrationTest fixture + clamp_monitor_new_items fixture).
-- Issue-98 fixture (`issue98FluentMigratorMigrationChainFixture`) — **5/5 passed**.
-- Frontend (`yarn test:frontend`) — **68 passed, 0 failed** (17 suites).
-- No application code, no dependency bump, no JS/TS runtime files under `src/frontend/lib/app` changed (no `production_coverage` binding required).
-
-## Labels
-
-- `type:docs`
-- `area:documentation`
-- `priority:low`
-- `risk:low`
+- `git merge-base --is-ancestor 3e6500f4 e9ef37ba` → true (registered #354 contributor head preserved).
+- `git merge-base --is-ancestor fed79129 e9ef37ba` → true (#358 head in ancestry).
+- `git merge-base --is-ancestor 498a010d e9ef37ba` → true (develop tip in ancestry).
+- `yarn install --frozen-lockfile` → **EXIT 0** (resolves `eslint-plugin-prettier` 5.5.7 + `synckit` 0.12.3 + `@testing-library/dom` 10.4.2).
+- `yarn lint` → **EXIT 0**, 0 errors, 8 pre-existing warnings (identical set to prior develop tips); `prettier/prettier` rule active → proves 5.5.7 functions in the ESLint 8.57.1 toolchain.
+- `yarn test:frontend` → **EXIT 0**, 20/20 suites, 85/85 tests.
 
 ## Rollback
 
-Revert the single contract commit on the work branch (or squash-revert the PR). No data migration, config change, or API contract change — safe to revert at any time.
+Revert the single dev-tooling bump commit on the PR head branch (or squash-revert the PR). DevDependency only — no data, config, or API contract change; safe to revert at any time.
+
+## Labels
+
+- `type:chore`
+- `area:dependencies`
+- `area:frontend`
+- `priority:low`
+- `risk:low`

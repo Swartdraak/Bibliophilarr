@@ -2,6 +2,109 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #357 audit run (2026-11-04, task t_6c152e90,
+# run 3816) at exact registered head c2532527ba48f4cb63039598da94a11bd5fae6f0
+# (work branch dependabot/npm_and_yarn/develop/jest-30.5.2, base develop
+# cbc2824757de7ee238a3b3287070cc0b0092f405 = CURRENT live develop tip,
+# re-verified live 2026-11-04T16:00Z; the head's single parent IS the tip —
+# merge-base == tip, no catch-up merge needed; live-verified by checkout stage
+# t_1eacafa4, run 3808, and re-probed live at 15:58Z this run: PR #357
+# state=open, merged_at=null, mergeable_state=clean, head_sha=c2532527 ==
+# registered initial_head, NO writer surprise). Delta: jest 30.3.0 -> 30.5.2
+# (devDependency test framework only; package.json + yarn.lock, 2 files /
+# +699 -570 — the yarn.lock rewrite is the jest 30.3 -> 30.5 dependency-graph
+# shift of the test toolchain).
+# Re-verified in-container at the exact head (Node v20.20.2, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS (~16s warm; lockfile integrity
+#     verified; installed jest = 30.5.2 confirmed via node_modules/jest/package.json).
+#   - Frontend CI lane (ci-frontend.yml parity) ALL PASS: full jest 30.5.2
+#     suite 85/85 (20 suites, 39.4s, yarn test:frontend), yarn lint (eslint)
+#     0 errors / 8 pre-existing warnings, yarn stylelint-linux PASS, both
+#     ops guards (ui-build-mode, http-binding) PASS, and the webpack 5.105.4
+#     PRODUCTION build (yarn build) compiled successfully in 77906 ms with
+#     zero warnings/errors.
+#   - jest 30.5.2 semantics: jest.config.cjs is consumed the same way as
+#     30.3.0 (babel-jest transform, jsdom environment, and the
+#     setupFilesAfterEach polyfill in frontend/build/jest.setup.js —
+#     @testing-library/jest-dom matchers + the window.Bibliophilarr
+#     bootstrap — loaded via the 'setupFilesAfterEach' config key);
+#     the full 85-test suite passes unchanged — no test-helper rewrite
+#     was required.
+#   - No behavioral change expected: jest is a devDependency test tool; no
+#     shipped runtime JS/TS, no backend, no CI workflow touched.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# (no production_coverage binding required). NO code edits — validation/
+# publication-only; this .onyx/project.yaml header update is the single
+# contract commit on top of the contributor head c2532527, which is
+# preserved as an ancestor of the reviewed result (no rebase, no
+# force-push). See baseline.json (workspace root) and
+# scratch-t_6c152e90/*.log for per-command evidence.
+# Existing-PR #356 audit run (2026-11-04, task t_17590efb, run 3765) at exact
+# registered head 66ed6f3349e3b814a49461029d1de3af5e40f891 (work branch
+# dependabot/npm_and_yarn/develop/postcss-loader-8.2.1, base develop
+# 9a95dd45952bb6efb33a1afded4930662c5944a4 = CURRENT live develop tip; the
+# head's single parent IS the tip — merge-base == tip, no catch-up merge
+# needed; live-verified by checkout stage t_8821b3e6, run 3762). Delta:
+# postcss-loader 7.3.4 -> 8.2.1 (devDependency, frontend webpack build
+# tooling only; package.json + yarn.lock, 2 files / +17 -22).
+# Re-verified in-container at the exact head (Node v20.20.2, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS (31.6s; installed postcss-loader =
+#     8.2.1 confirmed via node require of postcss-loader/package.json; CJS
+#     entry loads).
+#   - Frontend CI lane (ci-frontend.yml parity) ALL PASS: full jest suite
+#     85/85 (20 suites, yarn test:frontend), yarn lint (eslint) 0 errors / 8
+#     pre-existing warnings, yarn stylelint-linux PASS, both ops guards
+#     (ui-build-mode, http-binding) PASS, and the webpack 5.105.4 PRODUCTION
+#     build (yarn build) compiled successfully in 75069 ms with ZERO
+#     warnings and ZERO errors. The production build + the ui-build-mode
+#     guard (independent pinned production webpack run) both drive the
+#     postcss-loader 8.2.1 CSS-module chain end-to-end: every *.css file
+#     except globals.css/node_modules flows MiniCssExtractPlugin ->
+#     css-modules-typescript-loader -> css-loader -> postcss-loader with
+#     frontend/postcss.config.js plugins (postcss-mixins,
+#     postcss-simple-vars, @csstools/postcss-color-function, postcss-nested)
+#     — the loader's 8.x API (webpack 5 async loader contract,
+#     postcssOptions.config) is exercised on the real 100+ shipped CSS
+#     modules; a broken 8.x loader/option path would fail the build.
+#   - No behavioral change expected: postcss-loader is a devDependency build
+#     tool; no shipped runtime JS/TS, no backend, no CI workflow touched.
+# No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required). NO code edits — validation/
+# publication-only; this .onyx/project.yaml header update is the single
+# contract commit on top of the contributor head 66ed6f33, which is
+# preserved as an ancestor of the reviewed result (no rebase, no
+# force-push). See baseline.json (workspace root) and
+# scratch-t_17590efb/*.log for per-command evidence.
+# Existing-PR #355 audit run (2026-11-04, task t_8d5caba4, run 3748) at exact
+# head a99b1f36cfe587b400d933d20f1e54f60906e1d7 (work branch
+# dependabot/npm_and_yarn/develop/types/lodash-4.17.27, base develop
+# ef35cdcfc371c65e8de853a41e4970b5a15bc299 = CURRENT live develop tip; head is
+# a direct child of the tip, no catch-up merge needed). Delta: @types/lodash
+# 4.17.24 -> 4.17.27 (devDependency, types only; package.json + yarn.lock).
+# Re-verified in-container at the exact head (Node v22.x, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS; installed @types/lodash = 4.17.27.
+#   - Frontend CI lane (ci-frontend.yml parity): full jest suite 85/85 (20
+#     suites), yarn lint 0 errors / 8 pre-existing warnings, both ops guards
+#     (ui-build-mode, http-binding) PASS, stylelint-linux PASS.
+#   - Dev-type surface check: a probe file exercising the broad lodash API
+#     surface used across frontend/src (findIndex/pick/groupBy/debounce/
+#     throttle/isEqual/chain/merge/cloneDeep/sortBy/unionBy/uniqBy/startsWith/
+#     padStart/truncate/get/set/keyBy/flow/omitBy) typechecks CLEAN (tsc
+#     --noEmit, strict, TS 5.9.3) against the installed 4.17.27, and the same
+#     probe passes identically against 4.17.24 (isolated control dir) — the
+#     bump is type-compatible with the shipped frontend usage.
+#   - PRE-EXISTING (not introduced by this PR): a plain `tsc --noEmit` with
+#     the committed frontend/tsconfig.json fails with TS5103
+#     ("Invalid value for '--ignoreDeprecations'" — the file pins "6.0",
+#     which TS 5.9.3 does not accept); with the flag set to a valid value the
+#     full-project typecheck surfaces ~188 pre-existing errors concentrated in
+#     node_modules @types duplicates (react-redux's nested @types/react) and
+#     react-dnd-multi-backend typings. tsc is NOT a CI-required lane
+#     (ci-frontend.yml runs test:frontend + lint + build only; the build uses
+#     babel/ts-loader without project-wide tsc gating), so this pre-existing
+#     state does not block the PR and is out of scope for a dev-types bump.
+# No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required).
 # Issue #103 development run (2026-11-01, task t_ca020c6d, run 3451) at
 # candidate head FINALSHA (work branch
 # fix/issue-103-nuget-compatibility-review, base develop
@@ -803,6 +906,10 @@ commands:
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~MigrationTest|FullyQualifiedName~clamp_monitor_new_items"
       cwd: .
       note: "Issue #98 regression (FluentMigrator coordinated upgrade, migration train under epic #96): pins the FluentMigrator 3.3.2 migration-chain contract. Runs the migration-test lane which exercises the full 001-048 migration chain on SQLite via the custom NzbDroneSQLiteProcessor + MigrationController (AddFluentMigratorCore + ConfigureRunner + AddPostgres + AddNzbDroneSQLite + ScanIn + TypeFilterOptions). 5 tests (MigrationTest fixture: migration ordering, version tracking, rollback rejection; clamp_monitor_new_items fixture: 048 data-repair clamp). RE-VERIFIED 2026-10-31 at develop base a30b83ac (work branch fix/issue-98-fluentmigrator-coordinated-upgrade, run 3328): GREEN 5/5 post-audit; full migration chain 001-048 applied in ~1s on SQLite 3.46.1. No code edits — audit/documentation-only. Contributes to #98 and epic #96."
+    - name: issue-344-regression-migration-158-idempotent
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~cdh_per_downloadclientFixture"
+      cwd: .
+      note: "Issue #344 regression (migration 158 034_cdh_per_downloadclient must be idempotent): a prior-schema (pre-158) DownloadClients table that ALREADY carries RemoveCompletedDownloads/RemoveFailedDownloads must migrate cleanly instead of aborting startup with 'SQL logic error: duplicate column name: RemoveCompletedDownloads'. Root cause: the bare Alter.Table(...).AddColumn(...) had no presence guard, and the fluent Schema.Table(...).Column(...).Exists() check is BLIND to columns added outside FluentMigrator (e.g. a prior partial run), so re-running MigrateUp re-issued the ALTER and crashed (reproduced in the FluentMigrator runner context: probe_mig.log PROBE344-MIG Exists(RCD)=False Exists(RFD)=False TableExists=True). Fix: migration 158 now runs a live 'PRAGMA table_info(DownloadClients)' on the runner's own connection (Execute.WithConnection, same transaction as the migration) and issues each ALTER only when the column is still absent; MoveRemoveSettings is unchanged and already idempotent (Config-key read + delete). Pinned by 4 tests in cdh_per_downloadclientFixture: 3 pre-existing behavior tests (columns absent -> added + MoveRemoveSettings semantics, unchanged) + 1 new should_migrate_idempotently_when_columns_already_present (raw-DDL pre-columnization + seeded Deluge row with RemoveCompletedDownloads=false, which DIFFERS from the column default true, so the test proves both the guard skipped the re-ALTER AND the data migration preserved the row value). RE-VERIFIED 2026-11-02 in isolated Docker (task t_1cd5c026, run 3542, .NET SDK 10.0.401): RED at base 3a6e5222 (the new test fails with 'duplicate column name' through DbFactory.CreateMain; 3/3 original pass), GREEN 4/4 post-fix, build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Resolves #344 (migration train under epic #96)."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
@@ -810,7 +917,7 @@ commands:
     - name: frontend-tests
       command: yarn test:frontend
       cwd: .
-      note: "jest --runInBand: 68 tests / 17 suites, 0 failures (re-verified 2026-10-29 at PR #304 head 515b637a, @typescript-eslint/parser 8.72.0 installed; 60 tests / 15 suites at develop a6cd30f4 base 2026-10-25, grown by the issue-329 index.test.js suite, the issue-327 label-policy automated-actor-exception suite, and the PR #302 react-slider regression suite)."
+      note: "jest --runInBand: 85 tests / 20 suites, 0 failures (re-verified 2026-11-04 in isolated Docker at existing-PR #355 exact head a99b1f36, @types/lodash 4.17.27 installed; suite count grown from 68/17 (2026-10-29, PR #304) by later develop test additions — all green, no new failures)."
     - name: issue-329-regression-authed-spa-blank-shell
       command: yarn test:frontend --testPathPattern frontend/src/index.test.js
       cwd: .
@@ -876,11 +983,22 @@ governance:
 
 baseline_evidence:
   file: ../baseline.json
-  logs: ../scratch-t_ca020c6d/
-  verified_at: 2026-11-01
-  base_sha: e36967ad9721aae53d30701e25a603bb090e2de6
-  head_sha: edccfc6760cc82bbc14526d4bacc7d2691b7ae17
-  # Issue #99 development run (t_6f0386ae, run 3367, 2026-10-31): work branch
+  logs: ../logs-8d5caba4/
+  verified_at: 2026-11-04
+  base_sha: ef35cdcfc371c65e8de853a41e4970b5a15bc299
+  head_sha: e21932873413679452962b2877a51361f5d08e0a
+  # Existing-PR #355 audit run (t_8d5caba4, run 3748, 2026-11-04): dependabot
+  # npm_and_yarn dev-types bump @types/lodash 4.17.24 -> 4.17.27
+  # (package.json + yarn.lock only). Re-verified in-container at the exact
+  # head: yarn install --frozen-lockfile PASS (installed 4.17.27); full
+  # frontend jest 85/85 (20 suites); eslint 0 errors / 8 pre-existing
+  # warnings; ops guards (ui-build-mode, http-binding) PASS; stylelint
+  # PASS; lodash API-surface tsc probe clean on 4.17.27 and on the 4.17.24
+  # control. Pre-existing: repo-wide tsc --noEmit fails on the committed
+  # tsconfig (invalid ignoreDeprecations value) and, with a valid flag,
+  # ~188 pre-existing node_modules typings errors — tsc is not a
+  # CI-required lane. No production runtime files changed.
+  # Issue #103 development run (t_ca020c6d, run 3451, 2026-11-01):
   # chore/issue-99-frontend-toolchain-modernization from live develop tip
   # 761424f2 (the #98 FluentMigrator 3.3.2 audit merge, #348). Frontend
   # toolchain modernization (migration train, epic #96): coordinated Prettier
