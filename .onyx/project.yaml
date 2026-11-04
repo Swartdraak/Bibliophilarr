@@ -2,6 +2,43 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #357 audit run (2026-11-04, task t_6c152e90,
+# run 3816) at exact registered head c2532527ba48f4cb63039598da94a11bd5fae6f0
+# (work branch dependabot/npm_and_yarn/develop/jest-30.5.2, base develop
+# cbc2824757de7ee238a3b3287070cc0b0092f405 = CURRENT live develop tip,
+# re-verified live 2026-11-04T16:00Z; the head's single parent IS the tip —
+# merge-base == tip, no catch-up merge needed; live-verified by checkout stage
+# t_1eacafa4, run 3808, and re-probed live at 15:58Z this run: PR #357
+# state=open, merged_at=null, mergeable_state=clean, head_sha=c2532527 ==
+# registered initial_head, NO writer surprise). Delta: jest 30.3.0 -> 30.5.2
+# (devDependency test framework only; package.json + yarn.lock, 2 files /
+# +699 -570 — the yarn.lock rewrite is the jest 30.3 -> 30.5 dependency-graph
+# shift of the test toolchain).
+# Re-verified in-container at the exact head (Node v20.20.2, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS (~16s warm; lockfile integrity
+#     verified; installed jest = 30.5.2 confirmed via node_modules/jest/package.json).
+#   - Frontend CI lane (ci-frontend.yml parity) ALL PASS: full jest 30.5.2
+#     suite 85/85 (20 suites, 39.4s, yarn test:frontend), yarn lint (eslint)
+#     0 errors / 8 pre-existing warnings, yarn stylelint-linux PASS, both
+#     ops guards (ui-build-mode, http-binding) PASS, and the webpack 5.105.4
+#     PRODUCTION build (yarn build) compiled successfully in 77906 ms with
+#     zero warnings/errors.
+#   - jest 30.5.2 semantics: jest.config.cjs is consumed the same way as
+#     30.3.0 (babel-jest transform, jsdom environment, and the
+#     setupFilesAfterEach polyfill in frontend/build/jest.setup.js —
+#     @testing-library/jest-dom matchers + the window.Bibliophilarr
+#     bootstrap — loaded via the 'setupFilesAfterEach' config key);
+#     the full 85-test suite passes unchanged — no test-helper rewrite
+#     was required.
+#   - No behavioral change expected: jest is a devDependency test tool; no
+#     shipped runtime JS/TS, no backend, no CI workflow touched.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# (no production_coverage binding required). NO code edits — validation/
+# publication-only; this .onyx/project.yaml header update is the single
+# contract commit on top of the contributor head c2532527, which is
+# preserved as an ancestor of the reviewed result (no rebase, no
+# force-push). See baseline.json (workspace root) and
+# scratch-t_6c152e90/*.log for per-command evidence.
 # Existing-PR #356 audit run (2026-11-04, task t_17590efb, run 3765) at exact
 # registered head 66ed6f3349e3b814a49461029d1de3af5e40f891 (work branch
 # dependabot/npm_and_yarn/develop/postcss-loader-8.2.1, base develop
