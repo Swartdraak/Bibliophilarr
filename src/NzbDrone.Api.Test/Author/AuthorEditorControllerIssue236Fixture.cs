@@ -8,7 +8,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Messaging.Commands;
 
-namespace NzbDrone.Api.Test.Author
+namespace NzbDrone.Api.Test.AuthorEditor
 {
     /// <summary>
     /// Issue #236 regression: CWE-117 (Log Injection / cs/log-forging) in
@@ -33,26 +33,22 @@ namespace NzbDrone.Api.Test.Author
 
         private MemoryTarget _logTarget;
         private Logger _logger;
-        private string _logOutput;
 
         [SetUp]
         public void SetUp()
         {
             _logTarget = new MemoryTarget("issue236");
             _logTarget.Layout = "${message}";
-            _logTarget.Layout.WithEndOfLine = true;
             var config = new NLog.Config.LoggingConfiguration();
             config.AddTarget(_logTarget);
             config.AddRule(LogLevel.Trace, LogLevel.Fatal, _logTarget, "Test");
             NLog.LogManager.Configuration = config;
             _logger = NLog.LogManager.GetLogger("Test");
-            _logOutput = null;
         }
 
         [TearDown]
         public void TearDown()
         {
-            _logOutput = _logTarget.Log;
             NLog.LogManager.Shutdown();
         }
 
@@ -76,12 +72,14 @@ namespace NzbDrone.Api.Test.Author
             var ebookProfile = new AuthorFormatProfile
             {
                 AuthorId = authorId,
+                FormatType = FormatType.Ebook,
                 QualityProfileId = 7,
                 RootFolderPath = "/data/ebooks"
             };
             var audiobookProfile = new AuthorFormatProfile
             {
                 AuthorId = authorId,
+                FormatType = FormatType.Audiobook,
                 QualityProfileId = 8,
                 RootFolderPath = "/data/audiobooks"
             };
@@ -118,20 +116,23 @@ namespace NzbDrone.Api.Test.Author
 
             var result = controller.SaveAll(resource);
 
-            // SaveAll must return Accepted (202) with the updated authors.
-            Assert.IsInstanceOf<Microsoft.AspNetCore.Mvc.OkObjectResult>(result)
-                .Or.IsInstanceOf<Microsoft.AspNetCore.Mvc.StatusCodeResult>(result);
+            // SaveAll returns Accepted(202) with the updated author resources.
+            Assert.That(result, Is.InstanceOf<Microsoft.AspNetCore.Mvc.AcceptedResult>());
 
             // The captured log must not contain a raw CR or LF originating from the
             // malicious author name. SanitizeForLog escapes them as \r and \n.
-            var log = _logTarget.Log ?? string.Empty;
+            // NLog 5.x MemoryTarget exposes the captured log events as Logs (a list
+            // of formatted strings).
+            var log = string.Join("", _logTarget.Logs);
             Assert.False(log.Contains("\r"),
                 "Log output contains a raw carriage return — CWE-117 log injection vector");
             Assert.False(log.Contains("\n"),
                 "Log output contains a raw newline — CWE-117 log injection vector");
 
             // The escaped form must be present, proving sanitization was applied.
-            Assert.Contains("\\r\\n", log,
+            StringAssert.Contains(
+                "\\r\\n",
+                log,
                 "CRLF in author name should be escaped as literal backslash-r backslash-n in log");
         }
 
@@ -155,12 +156,14 @@ namespace NzbDrone.Api.Test.Author
             var ebookProfile = new AuthorFormatProfile
             {
                 AuthorId = authorId,
+                FormatType = FormatType.Ebook,
                 QualityProfileId = 3,
                 RootFolderPath = maliciousEbookPath
             };
             var audiobookProfile = new AuthorFormatProfile
             {
                 AuthorId = authorId,
+                FormatType = FormatType.Audiobook,
                 QualityProfileId = 4,
                 RootFolderPath = maliciousAudiobookPath
             };
@@ -197,15 +200,15 @@ namespace NzbDrone.Api.Test.Author
 
             controller.SaveAll(resource);
 
-            var log = _logTarget.Log ?? string.Empty;
+            var log = string.Join("", _logTarget.Logs);
             Assert.False(log.Contains("\r"),
                 "Log output contains a raw carriage return — CWE-117 log injection vector");
             Assert.False(log.Contains("\n"),
                 "Log output contains a raw newline — CWE-117 log injection vector");
 
             // Both malicious paths must appear escaped.
-            Assert.Contains("\\r\\n", log, "CRLF in ebook root folder should be escaped in log");
-            Assert.Contains("\\n", log, "LF in audiobook root folder should be escaped in log");
+            StringAssert.Contains("\\r\\n", log, "CRLF in ebook root folder should be escaped in log");
+            StringAssert.Contains("\\n", log, "LF in audiobook root folder should be escaped in log");
         }
 
         [Test]
@@ -247,7 +250,7 @@ namespace NzbDrone.Api.Test.Author
         {
             var metadata = new AuthorMetadata { Name = name };
             var author = new Author { Id = id, CleanName = name.Replace(" ", "") };
-            author.Metadata = new LazyLoaded<AuthorMetadata>(() => metadata);
+            author.Metadata = metadata;
             return author;
         }
     }
