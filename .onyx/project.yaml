@@ -2,6 +2,61 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #361 audit run (2026-11-05, task t_a18c1366, onyx-architect,
+# run 3886): work branch dependabot/nuget/src/develop/Microsoft.AspNetCore.
+# SignalR.Client-10.0.14 at the registered contributor head
+# a0f67e7f95f37bcfa7e334f2c3004a277ad19096 (Bump
+# Microsoft.AspNetCore.SignalR.Client 10.0.13 -> 10.0.14, NuGet runtime
+# dependency, src/Directory.Packages.props line 21 only, 1 insertion /
+# 1 deletion). The PR head a0f67e7f IS the current develop tip beb789c3's
+# direct child (merge-base == develop tip beb789c3, post-#360 squash;
+# re-verified live 2026-11-05T04:44Z via git fetch + GitHub API:
+# origin/develop=beb789c3, origin/dependabot/nuget/src/develop/Microsoft.
+# AspNetCore.SignalR.Client-10.0.14=a0f67e7f, refs/pull/361/head=a0f67e7f,
+# all three channels agree - NO writer surprise; checkout stage t_da5256ee
+# run 3884 confirmed merge-base --is-ancestor develop PR-head = YES). NO
+# catch-up merge required - the PR is fully current with develop. The
+# registered initial head a0f67e7f IS the reviewed result (no additional
+# commits on this contract; the PR delta is the single contributor commit).
+# Validation at the exact head a0f67e7f (evidence: workspace
+# scratch-a18c1366-*.log + baseline.json commands[]):
+#   - dotnet restore src/Bibliophilarr.sln -p:Platform=Posix: EXIT 0, zero
+#     NU19xx (NuGetAuditMode=direct); SignalR.Client 10.0.14 resolves in
+#     Bibliophilarr.Integration.Test (sole direct consumer via
+#     IntegrationTestBase.cs) + all dependent test assemblies.
+#   - dotnet build src/Bibliophilarr.sln --configuration Release
+#     -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic>: 0 warn / 0
+#     err in 1m39s (SignalR.Client 10.0.14 compiles into Integration.Test
+#     + downstream test assemblies; SixLabors license provisioned, value
+#     never logged/committed).
+#   - Central-pin invariants (NuGetAuditModeIssue103 +
+#     NuGetCompatibilityIssue103, Common.Test): 6/6 PASS - the single-line
+#     central-pin bump preserves the exact-version (no floating '*' /
+#     ranges) + ManagePackageVersionsCentrally invariants; the three
+#     residual-risk pins remain at their audited lines (Pkcs 10.0.13,
+#     System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2).
+#   - common-tests (full Common.Test): 627 passed / 35 skipped / 0 failed
+#     (662 total).
+#   - rid-common-targeted: 16 passed / 2 skipped / 0 failed (18 total).
+#   - yarn install --frozen-lockfile PASS; yarn test:frontend jest 85/85
+#     (20 suites) on jest 30.5.2 - no frontend regression (no JS/TS changes
+#     in this PR; verified for completeness).
+#   - eslint (yarn lint): 0 errors / 8 pre-existing warnings.
+#   - PRE-EXISTING (reported, NOT a #361 regression): NzbDrone.Integration.
+#     Test CalendarFixture is [Ignore]d until 2026-01-15 ("Waiting for
+#     metadata to be back again"); its failures occur at
+#     IntegrationTestBase.EnsureAuthor line 262 doing a LIVE OpenLibrary
+#     lookup (external metadata) BEFORE any SignalR code path -
+#     environmental/pre-existing, not caused by #361.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# by the PR delta (no production_coverage binding required). Dependency-only
+# maintenance work: no linked issue applies (the repository's
+# dependency-maintenance policy covers this class of change). Sibling open
+# NuGet PR #362 (Data.SqlClient) touches the SAME file
+# src/Directory.Packages.props; oldest-first sequential merge order makes
+# #361 the first of the set. No new test command is required: the existing
+# central-pin + common-tests lanes ARE the regression evidence for this
+# patch-line runtime dependency bump.
 # Existing-PR #360 audit run (2026-11-05, task t_8823565d, onyx-architect,
 # run 3862): work branch dependabot/nuget/src/develop/MailKit-4.18.2 at the
 # registered contributor head 9a03378c3890be9356076f81cfed6dbcdbd0c5d1 (Bump
