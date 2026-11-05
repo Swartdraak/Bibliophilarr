@@ -134,7 +134,7 @@ namespace Bibliophilarr.Api.V1.Author
                             _formatProfileService.Update(ebookProfile);
                             _logger.Debug(
                                 "Updated ebook format profile for author '{0}' (id: {1}): QP={2}, RootFolder={3}, Path={4}",
-                                author.Name,
+                                SanitizeForLog(author.Name),
                                 author.Id,
                                 ebookProfile.QualityProfileId,
                                 SanitizeForLog(ebookProfile.RootFolderPath),
@@ -161,7 +161,7 @@ namespace Bibliophilarr.Api.V1.Author
                             _formatProfileService.Update(audiobookProfile);
                             _logger.Debug(
                                 "Updated audiobook format profile for author '{0}' (id: {1}): QP={2}, RootFolder={3}, Path={4}",
-                                author.Name,
+                                SanitizeForLog(author.Name),
                                 author.Id,
                                 audiobookProfile.QualityProfileId,
                                 SanitizeForLog(audiobookProfile.RootFolderPath),
