@@ -2,6 +2,60 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #362 audit run (2026-11-05, task t_5152b50f, onyx-architect,
+# run 3914): work branch dependabot/nuget/src/develop/Microsoft.Data.SqlClient-
+# 7.1.1. PR delta (contributor commit 0a5ec581): Bump Microsoft.Data.SqlClient
+# 7.0.2 -> 7.1.1, src/Directory.Packages.props line 27 only, +1/-1. develop tip
+# 885d1443864dac8b6055ea07b378755066390bec (post-#361 squash) is an ANCESTOR
+# of the PR head (merge-base == 885d1443; re-verified live 2026-11-05T10:28Z:
+# origin/develop=885d1443, PR #362 head=0a5ec581, no writer surprise; the only
+# open PR is #362). NO catch-up merge required.
+# EXACT-HEAD CI FAILURE CLASSIFICATION (8/13 lanes red at 0a5ec581, 15/15
+# green at develop tip 885d1443): DETERMINISTIC PACKAGE-GRAPH DEFECT - NOT a
+# runner flake, NOT check-state drift. Data.SqlClient 7.1.1's net9.0 TFM group
+# (nuspec fetched from nuget.org flat container, evidence
+# /workspace/tmp/audit362-nuspec.sh) requires Microsoft.Extensions.Caching.
+# Memory >= 9.0.18 and System.Configuration.ConfigurationManager >= 9.0.18,
+# while 7.0.2 required >= 9.0.13. The repo's central CPM pins at 9.0.13
+# (Directory.Packages.props lines 22/52) therefore forced a NuGet NU1605
+# package-downgrade error under TreatWarningsAsErrors=true (Directory.Build.
+# props line 4), failing `dotnet restore` in every platform lane (reproduced
+# locally at 0a5ec581: Bibliophilarr.Core -> Caching.Memory NU1605,
+# Bibliophilarr.Common -> ConfigurationManager NU1605; all other projects
+# restored OK). The 8 red CI lanes (Linux/Windows/macOS + build-test +
+# metadata lanes + RID lanes) all start from the same restore step, so the
+# single root cause explains the full failure set; develop tip 885d1443
+# (7.0.2) restores cleanly, explaining the green contrast.
+# SCOPED REPAIR COMMIT 39d0c4346f27b9bf0d1d962879ab4b8c47f8ce65 (on top of
+# the registered head 0a5ec581, which remains an ancestor of the reviewed
+# result per the existing-PR rule): bump the two central pins
+# Microsoft.Extensions.Caching.Memory 9.0.13 -> 9.0.18 (line 22) and
+# System.Configuration.ConfigurationManager 9.0.13 -> 9.0.18 (line 52).
+# Transitive-consumer-only pins (no direct PackageReference changes, no code
+# change); the Pkcs security pin (10.0.13) is untouched. No Caching.Memory
+# sibling PR was open on GitHub at audit time (verified live 10:21Z), so the
+# in-branch pin bump is the only repair that makes exact-head CI green
+# without waiting on a separate PR. Contributor dependabot history preserved
+# (normal commit on top; no rebase/force-push).
+# Validation at the exact head 39d0c4346f (evidence: /workspace/tmp/audit362-
+# restore-head39d.log, audit362-build-head39d.log, audit362-tests-head39d.log):
+#   - dotnet restore src/Bibliophilarr.sln -p:Platform=Posix: EXIT 0, zero
+#     NU19xx / warning NU (NU1605 downgrade resolved).
+#   - dotnet build src/Bibliophilarr.sln --configuration Release
+#     -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic>: 0 warn / 0
+#     err in 1m34s (license provisioned, value never logged/committed).
+#   - Central-pin invariants (NuGetAuditModeIssue103 +
+#     NuGetCompatibilityIssue103, Common.Test): 6/6 PASS.
+#   - common-tests (full Common.Test): 627 passed / 35 skipped / 0 failed
+#     (662 total).
+#   - rid-common-targeted: 16 passed / 2 skipped / 0 failed (18 total).
+#   - core-targeted (MonitorNewBookServiceFixture): 6/6 PASS.
+#   - sqlclient-surface (MetadataProviderOrchestratorFixture): 13/13 PASS -
+#     exercises the Core test graph that links Data.SqlClient 7.1.1.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# (no production_coverage binding required). Dependency-only maintenance work:
+# no linked issue applies (the repository's dependency-maintenance policy
+# covers this class of change).
 # Existing-PR #361 audit run (2026-11-05, task t_a18c1366, onyx-architect,
 # run 3886): work branch dependabot/nuget/src/develop/Microsoft.AspNetCore.
 # SignalR.Client-10.0.14 at the registered contributor head
