@@ -147,6 +147,7 @@
   },
   "resolutions": {
     "**/serialize-javascript": "7.0.3",
+    "**/websocket-driver": "0.7.5",
     "immutable@^3.8.1 || ^4.0.0": "4.3.9"
   },
   "volta": {
