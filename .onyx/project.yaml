@@ -2,6 +2,63 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #360 audit run (2026-11-05, task t_8823565d, onyx-architect,
+# run 3862): work branch dependabot/nuget/src/develop/MailKit-4.18.2 at the
+# registered contributor head 9a03378c3890be9356076f81cfed6dbcdbd0c5d1 (Bump
+# MailKit 4.16.0 -> 4.18.2, NuGet runtime dependency, src/Directory.Packages.
+# props line 20 + src/NzbDrone.SignalR/Bibliophilarr.SignalR.csproj
+# +PackageReference MailKit, 2 files / +2 -1). The PR head 9a03378c IS the
+# current develop tip 33281c80's direct child (merge-base == develop tip
+# 33281c80, post-#359-squash; re-verified live 2026-11-05T00:40Z via git
+# fetch: origin/develop=33281c80, origin/dependabot/nuget/src/develop/
+# MailKit-4.18.2=9a03378c, NO writer surprise; checkout stage t_66f502ea
+# run 3859 confirmed merge-base --is-ancestor develop PR-head = YES). NO
+# catch-up merge required - the PR is fully current with develop. The
+# registered initial head 9a03378c IS the reviewed result (no additional
+# commits on this contract; the PR delta is the single contributor commit).
+# Validation at the exact head 9a03378c (evidence: workspace
+# scratch-t_8823565d/ + baseline.json commands[]):
+#   - dotnet restore src/Bibliophilarr.sln -p:Platform=Posix: EXIT 0, zero
+#     NU19xx (NuGetAuditMode=Default); MailKit 4.18.2 resolves in
+#     Bibliophilarr.Core (Email notification consumer) +
+#     Bibliophilarr.SignalR (new PackageReference from this PR) + all
+#     dependent test assemblies (confirmed via dotnet list package).
+#   - dotnet build src/Bibliophilarr.sln --configuration Release
+#     -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic>: 0 warn / 0
+#     err in 1m40s (MailKit 4.18.2 compiles into Core + SignalR + downstream
+#     test assemblies; SixLabors license provisioned, value never
+#     logged/committed).
+#   - Email tests (MailKit consumer, NzbDrone.Core.Test):
+#     EmailSettingsValidatorFixture 11/11 PASS on MailKit 4.18.2 - no
+#     behavioral regression in the email notification path that #360's
+#     bump affects. (Email.cs uses MailKit.Net.Smtp + MimeKit for the SMTP
+#     send path; the validator tests exercise the settings validation
+#     layer that the SMTP client depends on.)
+#   - NuGetAuditModeIssue103 + NuGetCompatibilityIssue103 (Common.Test):
+#     6/6 PASS - the single-line central-pin bump preserves the exact-version
+#     (no floating '*' / ranges) + ManagePackageVersionsCentrally invariants;
+#     the three residual-risk pins remain at their audited lines
+#     (Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2).
+#   - common-tests (full Common.Test): 627 passed / 35 skipped / 0 failed
+#     (662 total).
+#   - yarn install --frozen-lockfile PASS; yarn test:frontend jest 85/85
+#     (20 suites) on jest 30.5.2 - no frontend regression (no JS/TS changes
+#     in this PR; verified for completeness).
+#   - PRE-EXISTING (reported, NOT a #360 regression): NzbDrone.Integration.
+#     Test CalendarFixture is [Ignore]d until 2026-01-15 ("Waiting for
+#     metadata to be back again"); its failures occur at
+#     IntegrationTestBase.EnsureAuthor line 262 doing a LIVE OpenLibrary
+#     lookup (external metadata) BEFORE any MailKit code path -
+#     environmental/pre-existing, not caused by #360.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# by the PR delta (no production_coverage binding required). Dependency-only
+# maintenance work: no linked issue applies (the repository's
+# dependency-maintenance policy covers this class of change). Sibling open
+# NuGet PRs #361 (SignalR.Client) and #362 (Data.SqlClient) touch the SAME
+# file src/Directory.Packages.props; oldest-first sequential merge order
+# makes #360 the first of the set. No new test command is required: the
+# existing MailKit-consumer + central-pin lanes ARE the regression evidence
+# for this patch-line runtime dependency bump.
 # Existing-PR #359 audit run (2026-11-04, task t_d73e8c93, onyx-architect):
 # work branch dependabot/nuget/src/develop/Ical.Net-5.2.4 at the registered
 # contributor head a1da93b8106861da6e708b604664072794f675f6 (Bump Ical.Net
