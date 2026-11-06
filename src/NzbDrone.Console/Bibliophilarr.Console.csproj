@@ -11,5 +11,22 @@
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Host\Bibliophilarr.Host.csproj" />
   </ItemGroup>
+  <!-- Issue #286: the name-based platform assembly load in
+       NzbDrone.Common.Composition.AssemblyLoader (OsInfo.IsWindows
+       ? "Bibliophilarr.Windows" : "Bibliophilarr.Mono") resolves
+       Bibliophilarr.Mono.dll from the app base directory on every
+       non-Windows host. Neither NzbDrone.Host nor NzbDrone.Common pulls
+       NzbDrone.Mono into the Console publish, so a single-project
+       linux-x64 (or osx / musl / arm) publish omitted
+       Bibliophilarr.Mono.dll and the app crashed at startup with
+       System.IO.FileNotFoundException before any service started.
+       Referencing NzbDrone.Mono here makes the RID-aware publish emit
+       Bibliophilarr.Mono.dll into the Console output for every non-Windows
+       RID. The Windows publish is unaffected: on win-* RIDs the
+       RuntimeIdentifier-scoped item group is inactive, so
+       Bibliophilarr.Windows.dll remains the platform assembly the loader
+       requests, exactly as before. No runtime loader behavior changes. -->
+  <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
+    <ProjectReference Include="..\NzbDrone.Mono\Bibliophilarr.Mono.csproj" />
+  </ItemGroup>
 </Project>
-
