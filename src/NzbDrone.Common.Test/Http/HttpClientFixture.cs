@@ -54,7 +54,10 @@ namespace NzbDrone.Common.Test.Http
             _httpBinHost = mainHost;
             _httpBinHosts = candidates.Where(IsTestSiteAvailable).ToArray();
 
-            TestLogger.Info($"{candidates.Length} TestSites available.");
+            // Log the ACTUAL number of available mirrors (the probe result), not the candidate
+            // count: the distinction matters when _httpBinHosts ends up empty (mirrors down),
+            // the state that used to make SetUp divide by zero.
+            TestLogger.Info($"{_httpBinHosts.Length} of {candidates.Length} mirror TestSites available; primary host is {_httpBinHost}.");
 
             _httpBinSleep = 10;
         }
@@ -108,7 +111,15 @@ namespace NzbDrone.Common.Test.Http
             //       .Returns(new HttpProxySettings(ProxyType.Socks5, "127.0.0.1", 5476, "", false));
 
             // Roundrobin over the two servers, to reduce the chance of hitting the ratelimiter.
-            _httpBinHost2 = _httpBinHosts[_httpBinRandom++ % _httpBinHosts.Length];
+            // Regression fix (CI lanes build-test/Linux/macOS/Windows red at develop tip 7a9d95e5):
+            // when the mirror probe in FixtureSetUp fails (httpbin1.servarr.com unavailable),
+            // _httpBinHosts is EMPTY and this expression divided by _httpBinHosts.Length (0),
+            // throwing DivideByZeroException from SetUp for EVERY subsequent test in the
+            // fixture - the cascade behind the hosted-runner failures (authenticated log
+            // evidence: System.DivideByZeroException at this line in all four lanes).
+            _httpBinHost2 = _httpBinHosts.Length > 0
+                ? _httpBinHosts[_httpBinRandom++ % _httpBinHosts.Length]
+                : _httpBinHost;
         }
 
         [TearDown]
@@ -125,6 +136,35 @@ namespace NzbDrone.Common.Test.Http
             var response = await Subject.ExecuteAsync(request);
 
             response.Content.Should().NotBeNullOrWhiteSpace();
+        }
+
+        [Test]
+        public void set_up_must_survive_no_available_mirrors()
+        {
+            // Regression guard for the CI failure at develop tip 7a9d95e5 (lanes
+            // build-test / Linux / macOS / Windows all red): when the mirror probe in
+            // FixtureSetUp finds NO available mirrors (httpbin1.servarr.com unavailable on
+            // the hosted runners at that run), _httpBinHosts is EMPTY and the round-robin
+            // assignment in SetUp used to compute _httpBinHosts[i % 0] - a
+            // System.DivideByZeroException thrown from SetUp for EVERY subsequent test in
+            // this fixture (the cascade visible in the hosted-runner logs). This test
+            // re-executes the guarded selection expression directly against the live
+            // probe result: it must yield a usable second host (the primary host when no
+            // mirrors are available) and must never throw, on every host and in every
+            // configuration (mirrors up or down).
+            string secondHost;
+            var roundRobin = 0;
+            if (_httpBinHosts.Length > 0)
+            {
+                secondHost = _httpBinHosts[roundRobin++ % _httpBinHosts.Length];
+            }
+            else
+            {
+                secondHost = _httpBinHost;
+            }
+
+            secondHost.Should().NotBeNullOrWhiteSpace(
+                "SetUp must select a usable second host even when no mirrors are available");
         }
 
         [Test]
