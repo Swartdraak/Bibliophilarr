@@ -19,19 +19,27 @@ namespace Bibliophilarr.Http.Authentication
     public class AuthenticationService : IAuthenticationService
     {
         private static readonly Logger _authLogger = LogManager.GetLogger("Auth");
+        private readonly IConfigFileProvider _configFileProvider;
         private readonly IUserService _userService;
-
-        private static AuthenticationType AUTH_METHOD;
 
         public AuthenticationService(IConfigFileProvider configFileProvider, IUserService userService)
         {
+            _configFileProvider = configFileProvider;
             _userService = userService;
-            AUTH_METHOD = configFileProvider.AuthenticationMethod;
         }
 
         public User Login(HttpRequest request, string username, string password)
         {
-            if (AUTH_METHOD == AuthenticationType.None)
+            // Issue #369: the auth method is read per call from the live config provider instead of
+            // a process-lifetime static cache. The old cache captured AuthenticationMethod at
+            // construction (first boot -> "None"), so after POST /bootstrap created the first user,
+            // POST /login was rejected with loginFailed=true and no cookie until a restart. The
+            // auth-method activation path (PUT /api/v1/config/host -> <AuthenticationMethod>Forms)
+            // persists to config.xml and IConfigFileProvider clears its value cache on save
+            // (ConfigFileProvider.SaveConfigDictionary -> _cache.Clear()), so a per-call read always
+            // observes the current method. This mirrors UiAuthorizationPolicyProvider, which already
+            // resolves the "UI" policy from the per-request AuthenticationMethod.
+            if (_configFileProvider.AuthenticationMethod == AuthenticationType.None)
             {
                 return null;
             }
@@ -52,7 +60,8 @@ namespace Bibliophilarr.Http.Authentication
 
         public void Logout(HttpContext context)
         {
-            if (AUTH_METHOD == AuthenticationType.None)
+            // Issue #369: read the live auth method per call (see Login) instead of the static cache.
+            if (_configFileProvider.AuthenticationMethod == AuthenticationType.None)
             {
                 return;
             }
