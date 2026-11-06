@@ -1140,7 +1140,7 @@ commands:
     - name: common-tests
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
-      note: "659 tests: 624 passed, 35 skipped, 0 failed (re-verified 2026-11-01 at develop tip e95b0464 in-container, .NET 10.0.401, Release/Posix: seq-A fresh-A fresh-B all exit 0). ProcessProviderFixture requires DOTNET_ROOT exported (or .NET on PATH) so the dummy helper app can start."
+      note: "665 tests: 630 passed, 35 skipped, 0 failed (RE-VERIFIED 2026-11-06 at develop tip 7a9d95e5 in isolated Docker, .NET 10.0.401, Release/Posix, exact CI build-test parity: full-sln REST build exit 0 0w/0e then dotnet test --configuration Release --no-build --verbosity minimal -p:Platform=Posix: 3 consecutive runs all exit 0, 630/0/35. logs-t_60287cb7/common-test-ci-exact.log, common-test-run2.log, common-test-run3.log). This command is the CI-parity guard for the 4 failed required lanes at tip 7a9d95e5 (ci-backend.yml build-test + cross-build-portability.yml Linux/macOS/Windows, all NzbDrone.Common.Test Release --no-build): the run-4083/4080 evidence and this run establish the suite is host-independent and GREEN in the Posix sandbox at the exact tip, so the hosted-runner failure requires Actions-log attribution (no token in the Docker profile). ProcessProviderFixture requires DOTNET_ROOT exported (or .NET on PATH) so the dummy helper app can start."
     - name: issue-256-regression-monitor-failsafe
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~MonitorNewBookServiceFixture"
       cwd: .
