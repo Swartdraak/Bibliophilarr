@@ -2,6 +2,46 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #286 development run (2026-11-06, task t_02ee5d55, run 3987, base
+# develop f52a69935c074723d7df6dcfe66e2e2d6f1054be = live develop tip, work
+# branch fix/issue-286-linux-x64-console-publish-mono-assembly):
+# [build-stage] Console linux-x64 publish omits Bibliophilarr.Mono.dll
+# (loaded by name on non-Windows hosts). Root cause (reproduced in-container
+# at the base head): NzbDrone.Common.Composition.AssemblyLoader.Load selects
+# the platform assembly BY NAME on every non-Windows host
+# (OsInfo.IsWindows ? "Bibliophilarr.Windows" : "Bibliophilarr.Mono") and
+# loads it BY NAME from the app base directory with no existence fallback.
+# Neither NzbDrone.Host nor NzbDrone.Common pulls NzbDrone.Mono into the
+# Console publish, so `dotnet publish
+# src/NzbDrone.Console/Bibliophilarr.Console.csproj -p:RuntimeIdentifier=linux-x64`
+# exited 0 but omitted Bibliophilarr.Mono.dll and the published app crashed
+# at startup with System.IO.FileNotFoundException before any service started
+# (reproduced: PUBLISH_EXIT=0, MONO_DLL=ABSENT, boot crash, FILENOTFOUNDCOUNT=3
+# in the base publish tree). Fix (build composition only, AC4 honored):
+# Bibliophilarr.Console.csproj gains a RuntimeIdentifier-scoped project
+# reference — <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
+#   <ProjectReference Include="..\NzbDrone.Mono\Bibliophilarr.Mono.csproj" />
+# </ItemGroup> — so a RID-aware non-Windows publish emits Bibliophilarr.Mono.dll
+# into the Console output for every non-Windows RID, while the win-* publish
+# is byte-for-byte unaffected (the scoped group is inactive; Bibliophilarr.Windows
+# remains the platform assembly the loader requests on Windows). Regression
+# test: ConsoleMonoPublishIssue286Fixture (3 tests, Common.Test) pins the
+# scoped reference contract + the unchanged runtime loader contract. Verified
+# in-container at the candidate head (baseline.json commands[]): BEFORE (base
+# f52a6993): linux-x64 publish exit 0 / Bibliophilarr.Mono.dll ABSENT / startup
+# crash (defect reproduced). AFTER (work-branch tree): linux-x64 publish emits
+# Bibliophilarr.Mono.dll (AC1); the published app boots on Linux, /ping returns
+# 200 {"status":"OK"} and a persisted-API-key /api/v1/book returns 200 while
+# the unauthenticated request is rejected (302 login challenge — the app's
+# Forms/auth surface, identical pre/post fix, so the auth behavior is unchanged;
+# AC2); win-x64 publish omits Bibliophilarr.Mono.dll and still emits
+# Bibliophilarr.Console.exe (AC3). Full-sln restore exit 0 (zero NU19xx) +
+# Release build 0 warn / 0 err at the work-branch tree state. RED 2/3 failed at
+# base in a detached worktree / GREEN 3/3 post-fix (the new fixture). No JS/TS
+# runtime files under src/frontend/lib/app or frontend/src changed (no
+# production_coverage binding required). Scope guard honored: no runtime loader
+# logic, configuration, or HTTP behavior changed — build composition only.
+# Closes #286.
 # Issue #371 development run (2026-11-05, task t_cb36776c, run 3979, base
 # develop b08c384ca5820fdc39550fc947f8f1c46500f4b0 = live develop tip, work
 # branch fix/issue-371-websocket-driver-075-residual-pins):
@@ -1177,6 +1217,10 @@ commands:
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~cdh_per_downloadclientFixture"
       cwd: .
       note: "Issue #344 regression (migration 158 034_cdh_per_downloadclient must be idempotent): a prior-schema (pre-158) DownloadClients table that ALREADY carries RemoveCompletedDownloads/RemoveFailedDownloads must migrate cleanly instead of aborting startup with 'SQL logic error: duplicate column name: RemoveCompletedDownloads'. Root cause: the bare Alter.Table(...).AddColumn(...) had no presence guard, and the fluent Schema.Table(...).Column(...).Exists() check is BLIND to columns added outside FluentMigrator (e.g. a prior partial run), so re-running MigrateUp re-issued the ALTER and crashed (reproduced in the FluentMigrator runner context: probe_mig.log PROBE344-MIG Exists(RCD)=False Exists(RFD)=False TableExists=True). Fix: migration 158 now runs a live 'PRAGMA table_info(DownloadClients)' on the runner's own connection (Execute.WithConnection, same transaction as the migration) and issues each ALTER only when the column is still absent; MoveRemoveSettings is unchanged and already idempotent (Config-key read + delete). Pinned by 4 tests in cdh_per_downloadclientFixture: 3 pre-existing behavior tests (columns absent -> added + MoveRemoveSettings semantics, unchanged) + 1 new should_migrate_idempotently_when_columns_already_present (raw-DDL pre-columnization + seeded Deluge row with RemoveCompletedDownloads=false, which DIFFERS from the column default true, so the test proves both the guard skipped the re-ALTER AND the data migration preserved the row value). RE-VERIFIED 2026-11-02 in isolated Docker (task t_1cd5c026, run 3542, .NET SDK 10.0.401): RED at base 3a6e5222 (the new test fails with 'duplicate column name' through DbFactory.CreateMain; 3/3 original pass), GREEN 4/4 post-fix, build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Resolves #344 (migration train under epic #96)."
+    - name: issue-286-regression-console-publish-mono-assembly
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~ConsoleMonoPublishIssue286Fixture"
+      cwd: .
+      note: "Issue #286 regression (Console linux-x64 single-project publish omitted Bibliophilarr.Mono.dll -> startup crash on non-Windows hosts): the name-based platform-assembly load in src/NzbDrone.Common/Composition/AssemblyLoader.cs (OsInfo.IsWindows ? 'Bibliophilarr.Windows' : 'Bibliophilarr.Mono', loaded by file name from the app base directory with no existence fallback) is only satisfied when the referenced assembly is present in the published output. Fix: src/NzbDrone.Console/Bibliophilarr.Console.csproj gains a RuntimeIdentifier-scoped project reference — <ItemGroup Condition=\"!$(RuntimeIdentifier.StartsWith('win'))\"><ProjectReference Include=..\\NzbDrone.Mono\\Bibliophilarr.Mono.csproj/></ItemGroup> — so a RID-aware non-Windows publish emits Bibliophilarr.Mono.dll while the win-* publish is byte-for-byte unaffected. Pinned by ConsoleMonoPublishIssue286Fixture (3 tests): (1) exactly one NzbDrone.Mono reference in the Console csproj, with no inline Condition on the reference line (scoping lives on the enclosing ItemGroup, matching the project's existing RID-scoped AssemblyName style); (2) the reference sits INSIDE the '!$(RuntimeIdentifier.StartsWith('win'))' ItemGroup and nowhere else (an unconditional reference would pollute the Windows publish); (3) the runtime loader contract is preserved — AssemblyLoader still selects 'Bibliophilarr.Mono' by name on non-Windows and still loads by path via LoadFromAssemblyPath (the fix is build-composition only, AC4). RE-VERIFIED 2026-11-06 in-container at work branch fix/issue-286-linux-x64-console-publish-mono-assembly (task t_02ee5d55, run 3987, base develop f52a6993): RED 2/3 failed at base in a detached worktree (tests 1+2 fail without the scoped reference; test 3 passes — the loader contract predates the fix), GREEN 3/3 post-fix; end-to-end acceptance at the candidate head: linux-x64 single-project publish emits Bibliophilarr.Mono.dll, the published app boots on Linux and serves /ping 200 {status:OK} with a persisted-API-key /api/v1/book 200 (unauthenticated /api/v1/book is rejected via the app's 302 login challenge, identical pre/post fix — the auth surface is unchanged), and the win-x64 publish omits Bibliophilarr.Mono.dll (AC1/AC2/AC3). Full-sln restore (zero NU19xx) + Release build 0 warn/0 err at the work-branch tree state. No JS/TS runtime files under src/frontend/lib/app or frontend/src changed (no production_coverage binding required). Closes #286."
     - name: core-tests
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
       cwd: .
