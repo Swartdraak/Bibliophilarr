@@ -15,6 +15,8 @@ namespace NzbDrone.Core.MetadataSource
         public long NullResults { get; set; }
         public long FallbackHits { get; set; }
         public long TotalLatencyMs { get; set; }
+        public long TotalResultCount { get; set; }
+        public double AverageResultCount => Calls == 0 ? 0 : (double)TotalResultCount / Calls;
         public double AverageLatencyMs => Calls == 0 ? 0 : (double)TotalLatencyMs / Calls;
         public double HitRate => Calls == 0 ? 0 : (double)Successes / Calls;
     }
@@ -28,14 +30,16 @@ namespace NzbDrone.Core.MetadataSource
         public long NullResults { get; set; }
         public long FallbackHits { get; set; }
         public long TotalLatencyMs { get; set; }
+        public long TotalResultCount { get; set; }
         public IReadOnlyList<MetadataProviderOperationTelemetrySnapshot> Operations { get; set; }
+        public double AverageResultCount => Calls == 0 ? 0 : (double)TotalResultCount / Calls;
         public double AverageLatencyMs => Calls == 0 ? 0 : (double)TotalLatencyMs / Calls;
         public double HitRate => Calls == 0 ? 0 : (double)Successes / Calls;
     }
 
     public interface IMetadataProviderTelemetryService
     {
-        void Record(string providerName, string operationName, long latencyMs, bool success, bool returnedNull, bool fallbackHit);
+        void Record(string providerName, string operationName, long latencyMs, bool success, bool returnedNull, bool fallbackHit, int resultCount = -1);
         IReadOnlyList<MetadataProviderTelemetrySnapshot> GetSnapshots();
         IReadOnlyList<MetadataProviderOperationTelemetrySnapshot> GetOperationSnapshots();
     }
@@ -52,18 +56,19 @@ namespace NzbDrone.Core.MetadataSource
             public long NullResults;
             public long FallbackHits;
             public long TotalLatencyMs;
+            public long TotalResultCount;
         }
 
         private readonly ConcurrentDictionary<string, ProviderStats> _stats = new ConcurrentDictionary<string, ProviderStats>(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, ProviderStats> _operationStats = new ConcurrentDictionary<string, ProviderStats>(StringComparer.OrdinalIgnoreCase);
 
-        public void Record(string providerName, string operationName, long latencyMs, bool success, bool returnedNull, bool fallbackHit)
+        public void Record(string providerName, string operationName, long latencyMs, bool success, bool returnedNull, bool fallbackHit, int resultCount = -1)
         {
             var normalizedProviderName = providerName ?? "unknown";
             var normalizedOperationName = operationName ?? "unknown";
 
             var aggregate = _stats.GetOrAdd(normalizedProviderName, name => new ProviderStats { ProviderName = name });
-            RecordStats(aggregate, latencyMs, success, returnedNull, fallbackHit);
+            RecordStats(aggregate, latencyMs, success, returnedNull, fallbackHit, resultCount);
 
             var operationKey = normalizedProviderName + "\u001f" + normalizedOperationName;
             var operation = _operationStats.GetOrAdd(operationKey, _ => new ProviderStats
@@ -71,7 +76,7 @@ namespace NzbDrone.Core.MetadataSource
                 ProviderName = normalizedProviderName,
                 OperationName = normalizedOperationName
             });
-            RecordStats(operation, latencyMs, success, returnedNull, fallbackHit);
+            RecordStats(operation, latencyMs, success, returnedNull, fallbackHit, resultCount);
         }
 
         public IReadOnlyList<MetadataProviderTelemetrySnapshot> GetSnapshots()
@@ -86,6 +91,7 @@ namespace NzbDrone.Core.MetadataSource
                     NullResults = x.NullResults,
                     FallbackHits = x.FallbackHits,
                     TotalLatencyMs = x.TotalLatencyMs,
+                    TotalResultCount = x.TotalResultCount,
                     Operations = _operationStats.Values
                         .Where(y => string.Equals(y.ProviderName, x.ProviderName, StringComparison.OrdinalIgnoreCase))
                         .OrderBy(y => y.OperationName)
@@ -98,7 +104,8 @@ namespace NzbDrone.Core.MetadataSource
                             Failures = y.Failures,
                             NullResults = y.NullResults,
                             FallbackHits = y.FallbackHits,
-                            TotalLatencyMs = y.TotalLatencyMs
+                            TotalLatencyMs = y.TotalLatencyMs,
+                            TotalResultCount = y.TotalResultCount
                         })
                         .ToList()
                 })
@@ -118,17 +125,27 @@ namespace NzbDrone.Core.MetadataSource
                     Failures = x.Failures,
                     NullResults = x.NullResults,
                     FallbackHits = x.FallbackHits,
-                    TotalLatencyMs = x.TotalLatencyMs
+                    TotalLatencyMs = x.TotalLatencyMs,
+                    TotalResultCount = x.TotalResultCount
                 })
                 .OrderBy(x => x.ProviderName)
                 .ThenBy(x => x.OperationName)
                 .ToList();
         }
 
-        private static void RecordStats(ProviderStats stat, long latencyMs, bool success, bool returnedNull, bool fallbackHit)
+        private static void RecordStats(ProviderStats stat, long latencyMs, bool success, bool returnedNull, bool fallbackHit, int resultCount)
         {
             System.Threading.Interlocked.Increment(ref stat.Calls);
             System.Threading.Interlocked.Add(ref stat.TotalLatencyMs, latencyMs);
+
+            // Issue #277: record the result count so "provider reachable, returned zero
+            // items" (HTTP-200 + empty) is distinguishable from a genuine failure in the
+            // snapshot. Only count non-failure results; -1 is the caller's "not provided"
+            // sentinel (pre-existing call sites) and is not counted.
+            if (success && !returnedNull && resultCount >= 0)
+            {
+                System.Threading.Interlocked.Add(ref stat.TotalResultCount, resultCount);
+            }
 
             if (success)
             {
