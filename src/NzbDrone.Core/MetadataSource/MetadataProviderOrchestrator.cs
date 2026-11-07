@@ -18,7 +18,7 @@ namespace NzbDrone.Core.MetadataSource
     /// (e.g. "hardcover:author:12345") to the correct provider, and falls back through
     /// enabled providers in priority order when the primary fails or returns null.
     /// </summary>
-    public class MetadataProviderOrchestrator : IMetadataProviderOrchestrator
+    public class MetadataProviderOrchestrator : IMetadataProviderOrchestrator, ISearchForNewBook, ISearchForNewAuthor
     {
         // Matches bare Open Library identifiers like OL123A (author), OL456W (work), OL789M (edition).
         private static readonly Regex BareOpenLibraryTokenRegex = new Regex("^OL\\d+[AWM]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -134,7 +134,8 @@ namespace NzbDrone.Core.MetadataSource
                                              Func<IMetadataProvider, bool> supports,
                                              Func<IMetadataProvider, bool> compatibility = null,
                                              string entityId = null,
-                                             bool throwOnTransportFailure = false)
+                                             bool throwOnTransportFailure = false,
+                                             bool treatEmptyListAsNoData = false)
             where TContract : class
             where T : class
         {
@@ -177,9 +178,40 @@ namespace NzbDrone.Core.MetadataSource
                     stopwatch.Stop();
 
                     var returnedNull = result == null;
-                    _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, !returnedNull, returnedNull, i > 0 && !returnedNull);
+                    var resultCount = CountResults(result);
 
-                    if (!returnedNull)
+                    // "No data" (continue to the next provider) is: a null result, or — for
+                    // search/lookup fan-outs only — an empty list. An empty list is the
+                    // HTTP-200-with-empty-body case (issue #277): the provider was reachable
+                    // but returned zero items, so it must not mask a later provider that has
+                    // data. Entity lookups (single-object results) only ever see null, so
+                    // treatEmptyListAsNoData is false there and behavior is unchanged.
+                    var noData = returnedNull || (treatEmptyListAsNoData && IsNoData(result));
+
+                    // Issue #277: record the result count so an HTTP-200-with-empty-body
+                    // (provider reachable, returned zero data) is distinguishable in telemetry
+                    // from a genuine failure or a provider that is down. A known-good provider
+                    // collapsing to an empty list must be diagnosable without an out-of-band
+                    // network probe.
+                    _telemetry.Record(
+                        provider.ProviderName,
+                        operationName,
+                        stopwatch.ElapsedMilliseconds,
+                        !returnedNull,
+                        returnedNull,
+                        i > 0 && !noData,
+                        resultCount);
+
+                    if (noData && resultCount == 0 && providers.Count > 1)
+                    {
+                        _logger.Warn(
+                            "Metadata provider '{0}' returned an EMPTY result set for {1} (operation '{2}') while at least one other enabled provider is configured. The lookup is continuing down the provider chain; if every provider returns empty, the endpoint will report 200 with zero results even though the providers are reachable. Inspect provider telemetry (provider, operation, resultCount, error) before treating this as a genuine no-data.",
+                            provider.ProviderName,
+                            entityId ?? "<search>",
+                            operationName);
+                    }
+
+                    if (!noData)
                     {
                         return result;
                     }
@@ -293,7 +325,31 @@ namespace NzbDrone.Core.MetadataSource
             where TContract : class
             where T : class
         {
-            return ExecuteFirst(operation, operationName, supports);
+            // Issue #277: a search/lookup fan-out must treat an EMPTY result as "no data" and
+            // continue down the provider chain (first NON-EMPTY result wins), not stop on the
+            // first non-null list. Before this change an empty list was indistinguishable from
+            // a real result (both non-null), so a provider returning an HTTP-200-with-empty-body
+            // masked every subsequent provider that actually had data — the root cause of the
+            // 0-result lookups reported in the issue. The empty-vs-null distinction only
+            // applies to search/lookup fan-out; entity lookups (GetBookInfo/GetAuthorInfo, where
+            // a result is a single object and an empty "result" is a null) keep using
+            // ExecuteFirst's stop-on-first-non-null.
+            return ExecuteFirst(operation, operationName, supports, treatEmptyListAsNoData: true);
+        }
+
+        /// <summary>
+        /// Returns true when a fan-out result should be treated as "no data" and the search
+        /// should continue to the next provider: a null result, or an empty list (the
+        /// HTTP-200-with-empty-body case from issue #277). A non-empty list is data.
+        /// </summary>
+        private static bool IsNoData(object result)
+        {
+            if (result == null)
+            {
+                return true;
+            }
+
+            return result is System.Collections.ICollection collection && collection.Count == 0;
         }
 
         /// <summary>
@@ -459,6 +515,47 @@ namespace NzbDrone.Core.MetadataSource
                     }
                 }
             }
+        }
+
+        // ── ISearchForNewBook / ISearchForNewAuthor (V1 fan-out surface) ────────────
+        // Issue #277: the /api/v1/book/lookup and /api/v1/author/lookup endpoints inject
+        // these raw provider contracts directly, which DryIoc (auto-concrete-type
+        // resolution, first concrete wins) binds to a single provider and bypasses this
+        // orchestrator entirely. As a result those endpoints got neither priority-ordered
+        // fan-out (Hardcover -> OpenLibrary fallback) nor the per-provider telemetry that
+        // /api/v1/search (via IMetadataProviderOrchestrator) records. Declaring the
+        // orchestrator as a concrete implementer of the V1 contracts means DryIoc resolves
+        // them to the orchestrator, so every lookup path goes through ExecuteFirst:
+        // enabled providers are tried in priority order, the first non-empty result wins,
+        // and every provider call is recorded (provider, operation, latency, success,
+        // null, fallback, result count) so an empty fan-out is diagnosable in telemetry.
+        //
+        // No new method bodies are needed: SearchForNewBook / SearchForNewAuthor /
+        // SearchByIsbn / SearchByAsin / SearchByExternalId are already implemented for
+        // IMetadataProviderOrchestrator (above), and those signatures satisfy the V1
+        // ISearchForNewBook / ISearchForNewAuthor contracts exactly. Declaring the V1
+        // interfaces on the class is therefore sufficient to make DryIoc resolve them to
+        // this orchestrator.
+
+        /// <summary>
+        /// Counts the results a provider operation returned, for telemetry. The orchestrator's
+        /// fan-out methods always return a non-null List when a provider was reached, so this
+        /// distinguishes "provider returned zero items" (empty list) from "provider returned
+        /// items" (non-empty list). A null result (provider threw / no provider) reports 0.
+        /// </summary>
+        private static int CountResults(object result)
+        {
+            if (result == null)
+            {
+                return 0;
+            }
+
+            if (result is System.Collections.ICollection collection)
+            {
+                return collection.Count;
+            }
+
+            return 1;
         }
     }
 }
