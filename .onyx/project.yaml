@@ -2,6 +2,23 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #364 development run (2026-11-08, task t_af0de60f, run 4388, base
+# develop a21ef55ae5f9cf405267bb4444a23fb5c6a82c93 = live develop tip, work
+# branch fix/issue-364-server-port-env-legacy-rejection):
+# [CONFIG/PORT][STARTUP] BIBLIOPHILARR_SERVER__PORT env var silently ignored.
+# RejectLegacyConfigurationKeys (Bootstrap.cs L283-302 at issue head 3a6e5222)
+# rejected ALL keys starting with 'Bibliophilarr:' — the SAME namespace the
+# code reads at L145-156 (Bibliophilarr:Server:Port, the target of the
+# documented BIBLIOPHILARR_SERVER__PORT env var via AddEnvironmentVariables).
+# The logical contradiction: the legacy-key guard rejected the active namespace
+# while the runtime read it. Root cause: commit 1e45e43ae (PR #118) renamed
+# the rejection prefix from 'Readarr:' to 'Bibliophilarr:' in the same commit
+# that added code reading 'Bibliophilarr:Server:Port'. Fix: the guard now
+# rejects only 'Readarr:*' (the pre-rebrand legacy namespace). BuildUrl and
+# RejectLegacyConfigurationKeys made internal (InternalsVisibleTo
+# Bibliophilarr.Host.Test) for direct test access. Regression:
+# BootstrapIssue364Fixture (5 tests) — RED 1/4 at base / GREEN 5/5 post-fix.
+# Closes #364.
 # Issue #286 development run (2026-11-06, task t_02ee5d55, run 3987, base
 # develop f52a69935c074723d7df6dcfe66e2e2d6f1054be = live develop tip, work
 # branch fix/issue-286-linux-x64-console-publish-mono-assembly):
@@ -1260,6 +1277,10 @@ commands:
       command: yarn test:frontend --testPathPatterns frontend/src/Issue327/labelPolicyAutomatedActorException.test.js
       cwd: .
       note: "Issue #327 regression (systemic label-policy intake gap for automated PRs): pins the automated-actor exception in the 'Enforce PR metadata contract' gate (.github/workflows/labeler.yml). The gate's PR metadata contract (type:/area:/priority:/risk: labels, an assignee, the five body sections, Candidate SHA, linked-issue reference) is written for HUMAN PRs and systematically blocked every dependabot/agent PR (13 open PRs as of develop a6cd30f4, all by dependabot[bot]). The fix adds a NARROW exception: when the PR's authenticated author (pr.user.login, from the REST read, not the PR-controlled event payload) is in TRUSTED_AUTOMATION_ACTORS (dependabot[bot], onyx-devops[bot]), the gate logs a core.info and returns BEFORE any contract check, so a dependabot PR passes label-policy WITHOUT a manual per-PR metadata repair (AC1/AC3). For every human-authored PR the full contract is enforced unchanged (AC2). 8 tests: (1) the exception allow-list contains dependabot[bot]+onyx-devops[bot]; (2) the exception keys on pr.user.login; (3) the bot path short-circuits before the first contract check; (4) the exception sits AFTER the authenticated REST fetch so a bot PR whose fetch fails still fails loudly; (5-7) the full human contract (4 label prefixes, assignee, 5 body sections + Candidate SHA + linked-issue ref) is still present and unchanged; (8) the file-scoped build/test gates (ci-frontend.yml/ci-backend.yml) are untouched and do not contain the exception. No production runtime code changed, so the raw Istanbul coverage-final.json is byte-identical to the develop base. RE-VERIFIED 2026-10-25 in-container (task t_309778c3): GREEN 8/8 post-fix; full frontend suite 60/60 (15 suites); yarn lint 0 errors (8 pre-existing warnings, 0 new); all 19 .github/workflows/*.yml parse as valid YAML. The durable exact-head end-to-end acceptance (label-policy job green on a live dependabot PR + a human PR at the merged head) is exercised by the review/publication stage; this unit-level source-contract test is the CI-parity guard."
+    - name: issue-364-regression-server-port-env-legacy-rejection
+      command: dotnet test src/NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~BootstrapIssue364"
+      cwd: .
+      note: "Issue #364 regression ([CONFIG/PORT][STARTUP] BIBLIOPHILARR_SERVER__PORT env var silently ignored): RejectLegacyConfigurationKeys in Bootstrap.cs rejected ALL keys starting with 'Bibliophilarr:' (the ACTIVE configuration namespace the code reads at L145-156 and via AddEnvironmentVariables), creating a logical contradiction — any env-var override (e.g. BIBLIOPHILARR_SERVER__PORT=8811 → Bibliophilarr:Server:Port) either threw BibliophilarrStartupException at startup or the key silently never resolved. Root cause: commit 1e45e43ae (PR #118) renamed the rejection prefix from 'Readarr:' to 'Bibliophilarr:' in the same commit that added code reading 'Bibliophilarr:Server:Port'. Fix: RejectLegacyConfigurationKeys now rejects only 'Readarr:*' (the pre-rebrand legacy namespace); BuildUrl and RejectLegacyConfigurationKeys made internal (InternalsVisibleTo Bibliophilarr.Host.Test) so the regression fixture can call them directly. Pinned by BootstrapIssue364Fixture (5 tests): (a) env-var port override is honored — Bibliophilarr:Server:Port=8811 resolves to 8811 and BuildUrl emits http://*:8811; (b) active Bibliophilarr:* keys (Server:Port, Server:SslPort, Server:BindAddress, Server:EnableSsl, Server:SslCertPath, Server:SslCertPassword, App:InstanceName, Log:LogLevel, Auth:AuthenticationMethod, Postgres:Host, Update:Branch) are NOT rejected — no exception; (c) legacy Readarr:Server:Port still throws BibliophilarrStartupException; (d) case-insensitive legacy rejection (readarr:server:port still throws); (e) blank legacy values are inert (no exception). RE-VERIFIED 2026-11-08 in isolated Docker (task t_af0de60f, run 4388, .NET SDK 10.0.401, SixLabors license) at base develop a21ef55a: RED 1 passed / 4 failed at base (tests b/c/d fail — the broken guard rejected Bibliophilarr:* not Readarr:*, so Readarr:* keys were NOT rejected and the env-var port key WAS rejected); GREEN 5/5 post-fix; full Host.Test suite 15 passed / 4 skipped (Windows) / 0 failed; full solution Release build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Closes #364."
     - name: issue-99-regression-prettier-toolchain-modernization
       command: yarn test:frontend --testPathPatterns frontend/src/Issue99/prettierToolchainModernization.test.js
       cwd: .
