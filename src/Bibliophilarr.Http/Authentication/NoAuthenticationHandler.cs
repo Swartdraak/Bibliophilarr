@@ -1,11 +1,8 @@
-using System.Collections.Generic;
-using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NzbDrone.Core.Authentication;
 
 namespace Bibliophilarr.Http.Authentication
 {
@@ -20,17 +17,19 @@ namespace Bibliophilarr.Http.Authentication
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            var claims = new List<Claim>
-            {
-                new Claim("user", "Anonymous"),
-                new Claim("AuthType", AuthenticationType.None.ToString())
-            };
-
-            var identity = new ClaimsIdentity(claims, "NoAuth", "user", "identifier");
-            var principal = new ClaimsPrincipal(identity);
-            var ticket = new AuthenticationTicket(principal, "NoAuth");
-
-            return Task.FromResult(AuthenticateResult.Success(ticket));
+            // Issue #287: the None scheme previously returned an anonymous Success, which was
+            // invisible to the FallbackPolicy [API, Forms] RequireAuthenticatedUser (the "None"
+            // scheme is not in the policy's scheme list, so its Success never reached
+            // authorization). The net effect was that with AuthenticationMethod=None, an
+            // empty/absent X-Api-Key request to GET /api/v1/book was served 200 instead of 401.
+            //
+            // Returning NoResult makes the None scheme invisible to the authentication
+            // middleware in the same way the API scheme is when no key is presented: the
+            // FallbackPolicy then sees NoResult from BOTH schemes and challenges with 401.
+            // This is the correct security posture: the API key is always generated and
+            // persisted by ConfigFileProvider, so no-key access should be denied regardless
+            // of the AuthenticationMethod configuration.
+            return Task.FromResult(AuthenticateResult.NoResult());
         }
     }
 }
