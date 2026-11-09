@@ -269,7 +269,7 @@ namespace NzbDrone.Host
             }
         }
 
-        private static string BuildUrl(string scheme, string bindAddress, int port)
+        internal static string BuildUrl(string scheme, string bindAddress, int port)
         {
             return $"{scheme}://{bindAddress}:{port}";
         }
@@ -280,10 +280,21 @@ namespace NzbDrone.Host
             services.Configure<T>(config.GetSection($"Bibliophilarr:{sectionName}"));
         }
 
-        private static void RejectLegacyConfigurationKeys(IConfiguration config)
+        // The pre-rebrand (Readarr) namespace is the only legacy configuration
+        // namespace. The active namespace is Bibliophilarr:* — every runtime
+        // reader in this file (CreateConsoleHostBuilder, ConfigureOptions) and
+        // the environment variable convention (BIBLIOPHILARR_SERVER__PORT maps
+        // to Bibliophilarr:Server:Port via AddEnvironmentVariables) resolve it.
+        // Rejecting Bibliophilarr:* keys here would contradict the active
+        // namespace and throw at startup on any env-var override (issue #364:
+        // the pre-rename changeover rejected Readarr:*; a later mechanical
+        // prefix rename flipped the guard onto the active namespace and broke
+        // the documented BIBLIOPHILARR_SERVER__PORT / BIBLIOPHILARR_* env-var
+        // surface).
+        internal static void RejectLegacyConfigurationKeys(IConfiguration config)
         {
             var legacyKeys = config.AsEnumerable()
-                .Where(kv => kv.Key.StartsWith("Bibliophilarr:", StringComparison.OrdinalIgnoreCase))
+                .Where(kv => kv.Key.StartsWith("Readarr:", StringComparison.OrdinalIgnoreCase))
                 .Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
                 .Select(kv => kv.Key)
                 .Distinct()
