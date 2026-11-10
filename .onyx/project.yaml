@@ -2,6 +2,34 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #404 development run (2026-11-10, task t_d78e651b, run 4530, base
+# develop 92c9c7e0e2613faecdc96ecc8d203e3eebd2659a = live develop tip = issue
+# #404 exact head, work branch
+# fix/issue-404-hardcover-nonnumeric-foreign-id-deletion):
+# [DATA-LOSS] RefreshAuthorService deletes a locally-created author whose foreign
+# id is in the hardcover: scope but is NOT the resolvable numeric author form.
+# RefreshAuthorService.ProviderOwnedForeignId (L174-195 at the issue head)
+# returned TRUE for ANY id starting "hardcover:" WITHOUT checking resolvability —
+# even though the code's own doc comment and
+# AuthorMetadataRepository.IsNumericHardcoverAuthorId (L183-200, int.TryParse of
+# the suffix, id > 0) scope Hardcover author ids to the numeric form. A synthetic
+# unresolvable id (e.g. hardcover:author:recoveryseed) was misclassified as
+# provider-owned, so the post-create synchronous refresh
+# (AddAuthorService -> AuthorsImportedEvent -> RefreshAuthorCommand) interpreted
+# the expected AuthorNotFoundException as a provider-removal signal and deleted
+# the API-created Authors row while the AuthorMetadata row persisted (orphaned) —
+# reproduced across two independent runs (r3 run 4476, r4 run 4479) on fresh data
+# dirs. Fix: the hardcover: branch now returns IsNumericHardcoverAuthorId(id)
+# (hardcover:author:<positive integer> only), so a non-numeric hardcover:-scoped
+# id is locally-created and NOT provider-owned; provider-sourced authors with
+# resolvable numeric hardcover:author:<n> ids retain the documented #204/#209
+# provider-removed deletion behavior. Regression: 6 new tests in
+# RefreshArtistServiceFixture.cs (RefreshAuthorServiceFixture, MusicTests
+# namespace) — positive no-delete for 4 non-numeric hardcover:author:<synthetic>
+# cases (recoveryseed/local-author-xyz/0/-7) + negative delete-guard for 2
+# numeric hardcover:author:<n> cases. RED 4 failed / 24 passed at base /
+# GREEN 28/28 post-fix (no JS/TS runtime files changed — no
+# production_coverage binding required). Closes #404.
 # Issue #364 development run (2026-11-08, task t_af0de60f, run 4388, base
 # develop a21ef55ae5f9cf405267bb4444a23fb5c6a82c93 = live develop tip, work
 # branch fix/issue-364-server-port-env-legacy-rejection):
@@ -1281,6 +1309,10 @@ commands:
       command: dotnet test src/NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~BootstrapIssue364"
       cwd: .
       note: "Issue #364 regression ([CONFIG/PORT][STARTUP] BIBLIOPHILARR_SERVER__PORT env var silently ignored): RejectLegacyConfigurationKeys in Bootstrap.cs rejected ALL keys starting with 'Bibliophilarr:' (the ACTIVE configuration namespace the code reads at L145-156 and via AddEnvironmentVariables), creating a logical contradiction — any env-var override (e.g. BIBLIOPHILARR_SERVER__PORT=8811 → Bibliophilarr:Server:Port) either threw BibliophilarrStartupException at startup or the key silently never resolved. Root cause: commit 1e45e43ae (PR #118) renamed the rejection prefix from 'Readarr:' to 'Bibliophilarr:' in the same commit that added code reading 'Bibliophilarr:Server:Port'. Fix: RejectLegacyConfigurationKeys now rejects only 'Readarr:*' (the pre-rebrand legacy namespace); BuildUrl and RejectLegacyConfigurationKeys made internal (InternalsVisibleTo Bibliophilarr.Host.Test) so the regression fixture can call them directly. Pinned by BootstrapIssue364Fixture (5 tests): (a) env-var port override is honored — Bibliophilarr:Server:Port=8811 resolves to 8811 and BuildUrl emits http://*:8811; (b) active Bibliophilarr:* keys (Server:Port, Server:SslPort, Server:BindAddress, Server:EnableSsl, Server:SslCertPath, Server:SslCertPassword, App:InstanceName, Log:LogLevel, Auth:AuthenticationMethod, Postgres:Host, Update:Branch) are NOT rejected — no exception; (c) legacy Readarr:Server:Port still throws BibliophilarrStartupException; (d) case-insensitive legacy rejection (readarr:server:port still throws); (e) blank legacy values are inert (no exception). RE-VERIFIED 2026-11-08 in isolated Docker (task t_af0de60f, run 4388, .NET SDK 10.0.401, SixLabors license) at base develop a21ef55a: RED 1 passed / 4 failed at base (tests b/c/d fail — the broken guard rejected Bibliophilarr:* not Readarr:*, so Readarr:* keys were NOT rejected and the env-var port key WAS rejected); GREEN 5/5 post-fix; full Host.Test suite 15 passed / 4 skipped (Windows) / 0 failed; full solution Release build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Closes #364."
+    - name: issue-404-regression-hardcover-nonnumeric-foreign-id-deletion
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~RefreshAuthorServiceFixture"
+      cwd: .
+      note: "Issue #404 regression ([DATA-LOSS] RefreshAuthorService deletes a locally-created author whose foreign id is in the hardcover: scope but is NOT the resolvable numeric author form): ProviderOwnedForeignId in RefreshAuthorService.cs returned TRUE for ANY id starting 'hardcover:' without checking resolvability, so a synthetic unresolvable id (e.g. hardcover:author:recoveryseed) was misclassified as provider-owned and the post-create synchronous refresh (RefreshAuthorCommand, triggered by AddAuthorService -> AuthorsImportedEvent) interpreted the expected AuthorNotFoundException as a provider-removal signal and deleted the API-created Authors row while the AuthorMetadata row persisted (orphaned). Root cause: the gate did not enforce the numeric scope that its own doc comment and AuthorMetadataRepository.IsNumericHardcoverAuthorId (int.TryParse of the suffix, id > 0) recognize. Fix: the hardcover: branch of ProviderOwnedForeignId now returns IsNumericHardcoverAuthorId(id) (hardcover:author:<positive integer> only), so a non-numeric hardcover:-scoped id is locally-created and is NOT provider-owned; provider-sourced authors with resolvable numeric hardcover:author:<n> ids retain the documented #204/#209 provider-removed deletion behavior. Pinned by 6 new tests in RefreshArtistServiceFixture (RefreshAuthorServiceFixture, MusicTests namespace): should_not_delete_local_author_with_non_numeric_hardcover_scoped_foreign_id_when_not_found_and_no_files (4 TestCases: hardcover:author:recoveryseed — the exact r4 repro id — / hardcover:author:local-author-xyz / hardcover:author:0 / hardcover:author:-7 — all AuthorMetadataId=42, DeleteAuthor Times.Never) and should_still_delete_provider_sourced_author_with_numeric_hardcover_author_id_when_remote_removed_and_no_files (2 TestCases: hardcover:author:4821 / hardcover:author:1 — DeleteAuthor Once, the #204/#209 regression guard). RE-VERIFIED 2026-11-10 in isolated Docker (task t_d78e651b, run 4530, .NET SDK 10.0.401, SixLabors license) at base develop 92c9c7e0 (= issue #404 exact head = live develop tip): RED 4 failed / 24 passed at base (the 4 non-numeric no-delete cases fail with Moq.MockException 'DeleteAuthor should never have been performed, but was 1 times' — the data-loss defect reproduced; the 2 numeric guard cases still pass, proving the deletion contract predates and survives the fix); GREEN 28/28 post-fix (22 pre-existing + 6 new, 0 failed). No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Distinct from #204 (transient network trigger), #272/#325 (AuthorMetadataId<=0 guard, fixed by the provider-scope gate — this issue proves that gate was insufficient for non-numeric hardcover: ids), #320 (foreign-id canonicalization), #290 (identity persistence after re-resolution). Closes #404."
     - name: issue-99-regression-prettier-toolchain-modernization
       command: yarn test:frontend --testPathPatterns frontend/src/Issue99/prettierToolchainModernization.test.js
       cwd: .

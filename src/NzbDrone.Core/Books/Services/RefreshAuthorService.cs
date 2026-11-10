@@ -167,9 +167,20 @@ namespace NzbDrone.Core.Books
         /// Mirrors the id scopes the orchestrator routes to (IMetadataProviderOrchestrator
         /// .IsProviderCompatibleWithIdScope): OpenLibrary-scoped ids
         /// ("openlibrary:author:..." or the bare OpenLibrary "OLxxxxA" form that
-        /// OpenLibraryIdNormalizer recognizes) and Hardcover-scoped ids
-        /// ("hardcover:..." / "hardcover:author:..." numeric forms that
-        /// AuthorMetadataRepository.IsNumericHardcoverAuthorId recognizes).
+        /// OpenLibraryIdNormalizer recognizes) and the resolvable numeric
+        /// Hardcover-author id form ("hardcover:author:&lt;positive integer&gt;") that
+        /// AuthorMetadataRepository.IsNumericHardcoverAuthorId recognizes.
+        ///
+        /// Issue #404: the previous gate returned true for ANY id starting
+        /// "hardcover:" — including non-numeric synthetic ids such as
+        /// "hardcover:author:recoveryseed". Those ids can never be resolved by any
+        /// provider (the live app log shows "Hardcover author search returned no
+        /// results" -> AuthorNotFoundException), so their not-found is expected,
+        /// never a provider-removal signal. Treating them as provider-owned made the
+        /// post-create refresh synchronously delete API-created authors (the Authors
+        /// row vanished while the AuthorMetadata row persisted). The gate now scopes
+        /// the hardcover: prefix to the numeric author form only — a non-numeric
+        /// hardcover:-scoped id is locally-created and is NOT provider-owned.
         /// </summary>
         private static bool ProviderOwnedForeignId(string foreignAuthorId)
         {
@@ -185,13 +196,44 @@ namespace NzbDrone.Core.Books
                 return OpenLibraryIdNormalizer.NormalizeAuthorId(id) != null;
             }
 
+            // Only the resolvable numeric Hardcover-author id form is provider-owned.
+            // A non-numeric hardcover:-scoped id (e.g. "hardcover:author:recoveryseed")
+            // is a synthetic locally-created id: no provider can resolve it, so its
+            // not-found must not be treated as a provider-removed signal (issue #404).
             if (id.StartsWith("hardcover:", StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                return IsNumericHardcoverAuthorId(id);
             }
 
             // Bare OpenLibrary author id form (e.g. "OL89131A"), not yet scoped.
             return OpenLibraryIdNormalizer.NormalizeAuthorId(id) != null;
+        }
+
+        /// <summary>
+        /// True when the foreign author id is the resolvable numeric Hardcover-author
+        /// form: "hardcover:author:&lt;positive integer&gt;". This mirrors
+        /// AuthorMetadataRepository.IsNumericHardcoverAuthorId, which is the scope the
+        /// Hardcover provider actually recognizes. Anything else in the "hardcover:"
+        /// namespace (non-numeric, zero/negative, or a different sub-scope) is a
+        /// synthetic/unmapped locally-created id (issue #404).
+        /// </summary>
+        private static bool IsNumericHardcoverAuthorId(string foreignAuthorId)
+        {
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            const string prefix = "hardcover:author:";
+            var raw = foreignAuthorId.Trim();
+
+            if (!raw.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var token = raw.Substring(prefix.Length);
+            return int.TryParse(token, out var id) && id > 0;
         }
 
         protected override void LogProgress(Author local)
