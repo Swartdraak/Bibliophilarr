@@ -416,10 +416,97 @@ namespace NzbDrone.Core.Test.MusicTests
         public void should_still_delete_provider_sourced_author_by_provider_id_scope_when_remote_removed_and_no_files(string foreignId)
         {
             // Issue #325 no-regression guard: the deletion gate now keys on the
-            // provider id scope (openlibrary:author:... / bare OLxxxxA / hardcover:),
-            // so provider-sourced authors keep the documented provider-removed
-            // deletion behavior (#204/#209) even though every added author now
-            // carries a positive AuthorMetadataId.
+            // provider id scope (openlibrary:author:... / bare OLxxxxA /
+            // hardcover:author:<positive-integer>), so provider-sourced authors keep
+            // the documented provider-removed deletion behavior (#204/#209) even
+            // though every added author now carries a positive AuthorMetadataId.
+            // Issue #404 narrows the hardcover: scope to the numeric author form only
+            // (the form the provider can actually resolve); "hardcover:author:12345"
+            // is that resolvable numeric form, so the deletion contract is preserved.
+            _author.AuthorMetadataId = 1;
+            _author.ForeignAuthorId = foreignId;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(2);
+        }
+
+        [TestCase("hardcover:author:recoveryseed")]
+        [TestCase("hardcover:author:local-author-xyz")]
+        [TestCase("hardcover:author:0")]
+        [TestCase("hardcover:author:-7")]
+        public void should_not_delete_local_author_with_non_numeric_hardcover_scoped_foreign_id_when_not_found_and_no_files(string foreignId)
+        {
+            // Issue #404 (DATA-LOSS regression): a locally-created author whose foreign
+            // id is in the "hardcover:" scope but is NOT the resolvable numeric author
+            // form (e.g. "hardcover:author:recoveryseed") can never be resolved by any
+            // provider (the live app log shows "Hardcover author search returned no
+            // results" -> AuthorNotFoundException). The previous gate treated ANY id
+            // starting "hardcover:" as provider-owned, so the post-create refresh
+            // interpreted the expected not-found as a provider-removal signal and
+            // synchronously deleted the API-created Authors row (orphaning the
+            // AuthorMetadata row). The gate now scopes the hardcover: prefix to the
+            // numeric author form only, so a non-numeric hardcover:-scoped id is
+            // locally-created and must NOT be deleted on a genuine not-found — even
+            // though the author carries a positive AuthorMetadataId (AddAuthorService
+            // upserts an AuthorMetadata row for every added author).
+            //
+            // Test case matrix:
+            //   "hardcover:author:recoveryseed"  — the exact r4 reproduction id
+            //   "hardcover:author:local-author-xyz" — a generic non-numeric synthetic id
+            //   "hardcover:author:0"            — zero is not a valid positive provider id
+            //   "hardcover:author:-7"           — negative is not a valid positive provider id
+            // All four are non-resolvable synthetic ids; none may be treated as
+            // provider-owned, so none may be deleted.
+            _author.AuthorMetadataId = 42;
+            _author.ForeignAuthorId = foreignId;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id, true));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedErrors(1);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase("hardcover:author:4821")]
+        [TestCase("hardcover:author:1")]
+        public void should_still_delete_provider_sourced_author_with_numeric_hardcover_author_id_when_remote_removed_and_no_files(string foreignId)
+        {
+            // Issue #404 negative (regression guard): a provider-sourced author with the
+            // resolvable numeric Hardcover-author id form ("hardcover:author:<n>")
+            // retains the documented #204/#209 provider-removed deletion behavior. When
+            // the provider genuinely no longer resolves that numeric id and the author
+            // has no local files, the post-create / periodic refresh must still delete
+            // the row. This pins the boundary the #404 fix draws: numeric hardcover
+            // author ids remain provider-owned; only non-numeric hardcover:-scoped ids
+            // are reclassified as locally-created (and protected).
             _author.AuthorMetadataId = 1;
             _author.ForeignAuthorId = foreignId;
 
