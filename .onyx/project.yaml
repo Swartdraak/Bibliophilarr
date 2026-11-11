@@ -2,6 +2,31 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #389 audit run (2026-11-10, task t_60bec14b, run 4652, base
+# develop 0fa8c3e192e861863eec95fa35ad79314a5c59c1 = live develop tip, work
+# branch dependabot/github_actions/develop/docker/login-action-4.8.0):
+# dependabot: bump docker/login-action 4.7.0 -> 4.8.0 (1 file / +1 -1 in
+# .github/workflows/docker-image.yml, pinned SHA 81c6f93 -> 8aa5831 # v4.8.0).
+# The changed step runs only on push events (if: github.event_name == 'push'
+# || github.event.inputs.push == 'true'), so it does not affect PR-merge CI
+# or any other lane. PR head c72869f6 sits directly on the live develop tip
+# 0fa8c3e1 (merge-base == develop tip, gap of zero — no catch-up merge
+# needed; no rebase/force-push). Contributor commit preserved. NO code,
+# test, lockfile, or runtime changes.
+# Validation at the exact head c72869f6 (evidence: /workspace/audit-t_60bec14b/
+# + baseline.json commands[]): actionlint clean on all 19 workflow files;
+# YAML validation 19/19 passed; dotnet restore exit 0 (zero NU19xx);
+# dotnet build Release 0 warn / 0 err in 1m04s (SixShield license
+# provisioned, value never logged/committed); Common.Test 634 passed /
+# 35 skipped / 0 failed (669 total); yarn install --frozen-lockfile PASS;
+# jest 155/155 (23 suites); eslint 0 errors / 7 pre-existing warnings.
+# Hosted exact-head CI on c72869f6: 15 success + 1 neutral CodeQL, 0
+# failures (re-verified this run via onyx_automation.api_for, task
+# t_89335365). No JS/TS runtime files under src/frontend/lib/app changed
+# (no production_coverage binding). Dependency-only maintenance work:
+# no linked issue applies. Publication stage owns fast-forward push to
+# the SAME PR #389 + onyx-onboard guarded merge after real exact-head
+# CI/governance passes.
 # Issue #404 development run (2026-11-10, task t_d78e651b, run 4530, base
 # develop 92c9c7e0e2613faecdc96ecc8d203e3eebd2659a = live develop tip = issue
 # #404 exact head, work branch
