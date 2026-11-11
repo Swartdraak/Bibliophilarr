@@ -2,6 +2,25 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #390 audit run (2026-11-11, task t_8938a0e1, run 4741, base
+# develop ddfbdfd6857026643aacb5185664fa4039c83367 = live develop tip, work
+# branch dependabot/github_actions/develop/actions/setup-dotnet-6.1.0):
+# dependabot: bump actions/setup-dotnet 5.2.0 -> 6.1.0 (4 workflow files, 10
+# pins: ci-backend.yml x4, cross-build-portability.yml x4, release.yml x1,
+# staging-smoke-metadata-telemetry.yml x1; pinned SHA c2fa09f4 v5.2.0 ->
+# 0f4a354dd5547a28c70b7853dbd95d5b67886e73 v6.1.0). Workflow-action pin only:
+# NO code, test, lockfile, or runtime changes. Exact-head hosted CI green at
+# contributor head 2c312665 (15 success + 1 neutral CodeQL, 0 failure, 0
+# pending; re-verified 2026-11-11 via /commits/2c312665/check-runs,
+# /workspace/scratch-t_8938a0e1/live-summary.json). All 19 workflow YAMLs
+# parse; no v5.2.0 pin remains in .github/workflows/. PR head 2c312665 sits
+# directly on the live develop tip ddfbdfd6 (merge-base == develop tip, gap
+# of zero — no catch-up merge needed; no rebase/force-push). Contributor
+# commit preserved. No JS/TS runtime files under src/frontend/lib/app
+# changed (no production_coverage binding). Dependency-only maintenance
+# work: no linked issue applies. Publication stage owns fast-forward push
+# to the SAME PR #390 + onyx-onboard guarded merge after real exact-head
+# CI/governance passes.
 # Existing-PR #389 audit run (2026-11-10, task t_60bec14b, run 4652, base
 # develop 0fa8c3e192e861863eec95fa35ad79314a5c59c1 = live develop tip, work
 # branch dependabot/github_actions/develop/docker/login-action-4.8.0):
