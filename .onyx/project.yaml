@@ -2,6 +2,40 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #402 audit run (2026-11-12, task t_96626bf8, run 4800, base
+# develop 07bd77cf68ea63be514d64038777ae8942cea642 = live develop tip, work
+# branch dependabot/nuget/src/develop/multi-b7e0246e06 at the registered
+# contributor head 17039ba72b01b4f563b53576290b6927ec5f1dd6):
+# dependabot: bump Microsoft.IdentityModel.JsonWebTokens and
+# System.IdentityModel.Tokens.Jwt 8.22.0 -> 8.23.0 (2 central-package pins in
+# src/Directory.Packages.props lines 28 and 85; +2/-2). Both are
+# transitive-consumer pins (no direct PackageReference in any csproj; they
+# resolve into Bibliophilarr.Core / Bibliophilarr.Api / Bibliophilarr.Http and
+# the test graph via Microsoft.AspNetCore.Identity / token-validation
+# dependency chains). MINOR-line NuGet central-package-management bump. NO
+# code, test, lockfile, or runtime changes. The registered contributor head
+# 17039ba7 IS the reviewed result (single contributor commit, parent
+# 07bd77cf68 == live PR base == current develop tip; merge-base == develop tip,
+# gap of zero -- no catch-up merge needed; no rebase/force-push). Contributor
+# commit preserved as ancestor. Exact-head hosted CI green at 17039ba7 (13
+# checks: 12 success + 1 neutral CodeQL, 0 failure, 0 pending; live-re-verified
+# by checkout stage t_8e9e3e7d run 4798 at 2026-11-12T05:41Z; develop tip
+# unchanged since). Validation at the exact head 17039ba7 (evidence:
+# /workspace/raw-logs-t_96626bf8/ + baseline.json commands[]): dotnet restore
+# exit 0 (zero NU19xx); JWT 8.23.0 resolved in 23 fresh _temp/obj assets; dotnet
+# build Release 0 warn / 0 err in 1m49s (SixLabors license provisioned, value
+# never logged/committed); full NzbDrone.Common.Test 633 passed / 35 skipped /
+# 0 failed (668 total, 50s -- skip count identical to the contributor head, all
+# platform-specific Windows service/forms tests); central-pin invariants
+# (NuGetAuditModeIssue103 + NuGetCompatibilityIssue103) 6/6 PASS; targeted Core
+# (RateLimitServiceFixture + ProcessProviderFixture) 0 failed; targeted Api
+# (MetadataProvidersControllerFixture + MetadataProviderConfigResourceMapperFixture)
+# 4/4 PASS; yarn install --frozen-lockfile PASS; jest 155/155 (23 suites);
+# eslint 0 errors / 7 pre-existing warnings. No JS/TS runtime files under
+# src/frontend/lib/app changed (no production_coverage binding). Dependency-only
+# maintenance work: no linked issue applies. Publication stage owns
+# fast-forward push to the SAME PR #402 + onyx-onboard guarded merge after real
+# exact-head CI/governance passes.
 # Existing-PR #390 audit run (2026-11-11, task t_8938a0e1, run 4741, base
 # develop ddfbdfd6857026643aacb5185664fa4039c83367 = live develop tip, work
 # branch dependabot/github_actions/develop/actions/setup-dotnet-6.1.0):
