@@ -20,14 +20,10 @@
  * imports (./createBooksClientSideCollectionSelector, etc.) resolve exactly
  * as they do in the shipped code.
  */
-import _ from 'lodash';
 import { defaultMemoize } from 'reselect';
-
-import createDeepEqualSelector from './createDeepEqualSelector';
-import createBookClientSideCollectionItemsSelector from './createBookClientSideCollectionItemsSelector';
 import createAuthorClientSideCollectionItemsSelector from './createAuthorClientSideCollectionItemsSelector';
-import createBooksClientSideCollectionSelector from './createBooksClientSideCollectionSelector';
-import createClientSideCollectionSelector from './createClientSideCollectionSelector';
+import createBookClientSideCollectionItemsSelector from './createBookClientSideCollectionItemsSelector';
+import createDeepEqualSelector from './createDeepEqualSelector';
 
 describe('reselect 5.x compatibility (issue #407, head 09a97fba)', () => {
   it('sanity: reselect 5.x has no defaultMemoize export (the removed API)', () => {
