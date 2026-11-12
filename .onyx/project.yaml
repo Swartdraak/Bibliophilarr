@@ -2,6 +2,78 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Existing-PR #390 audit run (2026-11-11, task t_8938a0e1, run 4741, base
+# develop ddfbdfd6857026643aacb5185664fa4039c83367 = live develop tip, work
+# branch dependabot/github_actions/develop/actions/setup-dotnet-6.1.0):
+# dependabot: bump actions/setup-dotnet 5.2.0 -> 6.1.0 (4 workflow files, 10
+# pins: ci-backend.yml x4, cross-build-portability.yml x4, release.yml x1,
+# staging-smoke-metadata-telemetry.yml x1; pinned SHA c2fa09f4 v5.2.0 ->
+# 0f4a354dd5547a28c70b7853dbd95d5b67886e73 v6.1.0). Workflow-action pin only:
+# NO code, test, lockfile, or runtime changes. Exact-head hosted CI green at
+# contributor head 2c312665 (15 success + 1 neutral CodeQL, 0 failure, 0
+# pending; re-verified 2026-11-11 via /commits/2c312665/check-runs,
+# /workspace/scratch-t_8938a0e1/live-summary.json). All 19 workflow YAMLs
+# parse; no v5.2.0 pin remains in .github/workflows/. PR head 2c312665 sits
+# directly on the live develop tip ddfbdfd6 (merge-base == develop tip, gap
+# of zero — no catch-up merge needed; no rebase/force-push). Contributor
+# commit preserved. No JS/TS runtime files under src/frontend/lib/app
+# changed (no production_coverage binding). Dependency-only maintenance
+# work: no linked issue applies. Publication stage owns fast-forward push
+# to the SAME PR #390 + onyx-onboard guarded merge after real exact-head
+# CI/governance passes.
+# Existing-PR #389 audit run (2026-11-10, task t_60bec14b, run 4652, base
+# develop 0fa8c3e192e861863eec95fa35ad79314a5c59c1 = live develop tip, work
+# branch dependabot/github_actions/develop/docker/login-action-4.8.0):
+# dependabot: bump docker/login-action 4.7.0 -> 4.8.0 (1 file / +1 -1 in
+# .github/workflows/docker-image.yml, pinned SHA 81c6f93 -> 8aa5831 # v4.8.0).
+# The changed step runs only on push events (if: github.event_name == 'push'
+# || github.event.inputs.push == 'true'), so it does not affect PR-merge CI
+# or any other lane. PR head c72869f6 sits directly on the live develop tip
+# 0fa8c3e1 (merge-base == develop tip, gap of zero — no catch-up merge
+# needed; no rebase/force-push). Contributor commit preserved. NO code,
+# test, lockfile, or runtime changes.
+# Validation at the exact head c72869f6 (evidence: /workspace/audit-t_60bec14b/
+# + baseline.json commands[]): actionlint clean on all 19 workflow files;
+# YAML validation 19/19 passed; dotnet restore exit 0 (zero NU19xx);
+# dotnet build Release 0 warn / 0 err in 1m04s (SixShield license
+# provisioned, value never logged/committed); Common.Test 634 passed /
+# 35 skipped / 0 failed (669 total); yarn install --frozen-lockfile PASS;
+# jest 155/155 (23 suites); eslint 0 errors / 7 pre-existing warnings.
+# Hosted exact-head CI on c72869f6: 15 success + 1 neutral CodeQL, 0
+# failures (re-verified this run via onyx_automation.api_for, task
+# t_89335365). No JS/TS runtime files under src/frontend/lib/app changed
+# (no production_coverage binding). Dependency-only maintenance work:
+# no linked issue applies. Publication stage owns fast-forward push to
+# the SAME PR #389 + onyx-onboard guarded merge after real exact-head
+# CI/governance passes.
+# Issue #404 development run (2026-11-10, task t_d78e651b, run 4530, base
+# develop 92c9c7e0e2613faecdc96ecc8d203e3eebd2659a = live develop tip = issue
+# #404 exact head, work branch
+# fix/issue-404-hardcover-nonnumeric-foreign-id-deletion):
+# [DATA-LOSS] RefreshAuthorService deletes a locally-created author whose foreign
+# id is in the hardcover: scope but is NOT the resolvable numeric author form.
+# RefreshAuthorService.ProviderOwnedForeignId (L174-195 at the issue head)
+# returned TRUE for ANY id starting "hardcover:" WITHOUT checking resolvability —
+# even though the code's own doc comment and
+# AuthorMetadataRepository.IsNumericHardcoverAuthorId (L183-200, int.TryParse of
+# the suffix, id > 0) scope Hardcover author ids to the numeric form. A synthetic
+# unresolvable id (e.g. hardcover:author:recoveryseed) was misclassified as
+# provider-owned, so the post-create synchronous refresh
+# (AddAuthorService -> AuthorsImportedEvent -> RefreshAuthorCommand) interpreted
+# the expected AuthorNotFoundException as a provider-removal signal and deleted
+# the API-created Authors row while the AuthorMetadata row persisted (orphaned) —
+# reproduced across two independent runs (r3 run 4476, r4 run 4479) on fresh data
+# dirs. Fix: the hardcover: branch now returns IsNumericHardcoverAuthorId(id)
+# (hardcover:author:<positive integer> only), so a non-numeric hardcover:-scoped
+# id is locally-created and NOT provider-owned; provider-sourced authors with
+# resolvable numeric hardcover:author:<n> ids retain the documented #204/#209
+# provider-removed deletion behavior. Regression: 6 new tests in
+# RefreshArtistServiceFixture.cs (RefreshAuthorServiceFixture, MusicTests
+# namespace) — positive no-delete for 4 non-numeric hardcover:author:<synthetic>
+# cases (recoveryseed/local-author-xyz/0/-7) + negative delete-guard for 2
+# numeric hardcover:author:<n> cases. RED 4 failed / 24 passed at base /
+# GREEN 28/28 post-fix (no JS/TS runtime files changed — no
+# production_coverage binding required). Closes #404.
 # Issue #364 development run (2026-11-08, task t_af0de60f, run 4388, base
 # develop a21ef55ae5f9cf405267bb4444a23fb5c6a82c93 = live develop tip, work
 # branch fix/issue-364-server-port-env-legacy-rejection):
@@ -1249,6 +1321,10 @@ commands:
       command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~ConsoleMonoPublishIssue286Fixture"
       cwd: .
       note: "Issue #286 regression (Console linux-x64 single-project publish omitted Bibliophilarr.Mono.dll -> startup crash on non-Windows hosts): the name-based platform-assembly load in src/NzbDrone.Common/Composition/AssemblyLoader.cs (OsInfo.IsWindows ? 'Bibliophilarr.Windows' : 'Bibliophilarr.Mono', loaded by file name from the app base directory with no existence fallback) is only satisfied when the referenced assembly is present in the published output. Fix: src/NzbDrone.Console/Bibliophilarr.Console.csproj gains a RuntimeIdentifier-scoped project reference — <ItemGroup Condition=\"!$(RuntimeIdentifier.StartsWith('win'))\"><ProjectReference Include=..\\NzbDrone.Mono\\Bibliophilarr.Mono.csproj/></ItemGroup> — so a RID-aware non-Windows publish emits Bibliophilarr.Mono.dll while the win-* publish is byte-for-byte unaffected. Pinned by ConsoleMonoPublishIssue286Fixture (3 tests): (1) exactly one NzbDrone.Mono reference in the Console csproj, with no inline Condition on the reference line (scoping lives on the enclosing ItemGroup, matching the project's existing RID-scoped AssemblyName style); (2) the reference sits INSIDE the '!$(RuntimeIdentifier.StartsWith('win'))' ItemGroup and nowhere else (an unconditional reference would pollute the Windows publish); (3) the runtime loader contract is preserved — AssemblyLoader still selects 'Bibliophilarr.Mono' by name on non-Windows and still loads by path via LoadFromAssemblyPath (the fix is build-composition only, AC4). RE-VERIFIED 2026-11-06 in-container at work branch fix/issue-286-linux-x64-console-publish-mono-assembly (task t_02ee5d55, run 3987, base develop f52a6993): RED 2/3 failed at base in a detached worktree (tests 1+2 fail without the scoped reference; test 3 passes — the loader contract predates the fix), GREEN 3/3 post-fix; end-to-end acceptance at the candidate head: linux-x64 single-project publish emits Bibliophilarr.Mono.dll, the published app boots on Linux and serves /ping 200 {status:OK} with a persisted-API-key /api/v1/book 200 (unauthenticated /api/v1/book is rejected via the app's 302 login challenge, identical pre/post fix — the auth surface is unchanged), and the win-x64 publish omits Bibliophilarr.Mono.dll (AC1/AC2/AC3). Full-sln restore (zero NU19xx) + Release build 0 warn/0 err at the work-branch tree state. No JS/TS runtime files under src/frontend/lib/app or frontend/src changed (no production_coverage binding required). Closes #286."
+    - name: issue-403-regression-anonymous-api-get-401-authz-contract
+      command: dotnet test src/NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj --configuration Debug -p:Platform=Posix --filter "FullyQualifiedName~ApiAuthzContractIssue403AnonymousApiGetFixture"
+      cwd: .
+      note: "Issue #403 regression ([AUTHZ/CONTRACT][INTEGRATIONS] anonymous GET /api/v1/search -> 3xx redirect, expected 401, under AuthenticationMethod=None + AuthenticationRequired=Enabled at head 92c9c7e0): the integrations-stage governed recovery handoff (case ab36355914, task t_87f353e1, source run 4462) recorded a 3xx for an anonymous /api/v1/search GET and asked for a reusable repository test fixture that pins the 401 contract. This fixture (ApiAuthzContractIssue403AnonymousApiGetFixture, 4 tests) boots the real host via the standard NzbDroneRunner integration harness (CI-parity with the existing metadata-diagnostics-integration lane, which already includes HostConfigAuthorizationFixture) and asserts: (1) anonymous GET /api/v1/search?term=probe -> 401/403, never 3xx and never 200 (the exact issue #403 endpoint shape — the 401 challenge fires in the authorization middleware before the controller action, so the orchestrator dependency is never touched); (2) the same NOT-3xx half of the contract against /api/v1/config/host (a second V1 endpoint — proves the 401/403 is a property of the /api/v1/* fallback-policy surface, not the search route); (3) positive control: an authorized X-Api-Key GET /api/v1/config/host succeeds (proves the challenge, not a broken route); (4) the recorded scenario explicitly: reads the live config, asserts AuthenticationMethod=None + AuthenticationRequired=Enabled (the harness defaults per ConfigFileProvider.cs L213-216 and the app's None default), then re-runs the anonymous GET. NO production authentication/authorization code was changed by this run: the committed source at base develop de65e3c9 already closes the fallback-policy chain (FallbackPolicy [API,Forms] RequireAuthenticatedUser in Startup.cs L212-214; ApiKeyAuthenticationHandler.HandleChallengeAsync=401 / HandleForbiddenAsync=403; UiAuthenticationMiddleware excludes every /api/* path from the Forms shell challenge; NoAuthenticationHandler.NoResult per the #287 fix PR #385 / commit a21ef55a merged 2026-11-08 — BEFORE the issue's recorded head 92c9c7e0, which post-dates that merge). The observed 3xx at 92c9c7e0 is not reproducible from the committed source: the 3xx mechanism (Forms default challenge scheme invoked for an API path) is not established by any committed source file at either head, and the issue's own trace (UiAuthenticationMiddleware L72-79 excludes /api/*; UrlBaseMiddleware inert without UrlBase) rules out the only committed 3xx emitters. RE-VERIFIED 2026-11-10 in isolated Docker (.NET SDK 10.0.401) at base develop de65e3c9 (task t_7d0e4152, work branch fix/issue-403-anonymous-api-get-401-authz-contract): GREEN 4/4 post-addition (the fixture passes against the committed source — it pins the contract and will fail loudly if a future head reintroduces a 3xx or 200 for an anonymous /api/v1 GET); full NzbDrone.Api.Test suite 131/131 (no regression to the #287/#313/#316/#329/#369 auth fixtures); full-sln Release build 0 warn / 0 err. If the live 3xx recurs at a future head, this fixture turns that observation into a failing repository test instead of a one-off harness receipt. No JS/TS runtime files under src/frontend/lib/app or frontend/src changed (no production_coverage binding required). Closes #403."
     - name: issue-369-regression-forms-auth-lifecycle
       command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~AuthenticationServiceIssue369Fixture"
       cwd: .
@@ -1281,6 +1357,10 @@ commands:
       command: dotnet test src/NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~BootstrapIssue364"
       cwd: .
       note: "Issue #364 regression ([CONFIG/PORT][STARTUP] BIBLIOPHILARR_SERVER__PORT env var silently ignored): RejectLegacyConfigurationKeys in Bootstrap.cs rejected ALL keys starting with 'Bibliophilarr:' (the ACTIVE configuration namespace the code reads at L145-156 and via AddEnvironmentVariables), creating a logical contradiction — any env-var override (e.g. BIBLIOPHILARR_SERVER__PORT=8811 → Bibliophilarr:Server:Port) either threw BibliophilarrStartupException at startup or the key silently never resolved. Root cause: commit 1e45e43ae (PR #118) renamed the rejection prefix from 'Readarr:' to 'Bibliophilarr:' in the same commit that added code reading 'Bibliophilarr:Server:Port'. Fix: RejectLegacyConfigurationKeys now rejects only 'Readarr:*' (the pre-rebrand legacy namespace); BuildUrl and RejectLegacyConfigurationKeys made internal (InternalsVisibleTo Bibliophilarr.Host.Test) so the regression fixture can call them directly. Pinned by BootstrapIssue364Fixture (5 tests): (a) env-var port override is honored — Bibliophilarr:Server:Port=8811 resolves to 8811 and BuildUrl emits http://*:8811; (b) active Bibliophilarr:* keys (Server:Port, Server:SslPort, Server:BindAddress, Server:EnableSsl, Server:SslCertPath, Server:SslCertPassword, App:InstanceName, Log:LogLevel, Auth:AuthenticationMethod, Postgres:Host, Update:Branch) are NOT rejected — no exception; (c) legacy Readarr:Server:Port still throws BibliophilarrStartupException; (d) case-insensitive legacy rejection (readarr:server:port still throws); (e) blank legacy values are inert (no exception). RE-VERIFIED 2026-11-08 in isolated Docker (task t_af0de60f, run 4388, .NET SDK 10.0.401, SixLabors license) at base develop a21ef55a: RED 1 passed / 4 failed at base (tests b/c/d fail — the broken guard rejected Bibliophilarr:* not Readarr:*, so Readarr:* keys were NOT rejected and the env-var port key WAS rejected); GREEN 5/5 post-fix; full Host.Test suite 15 passed / 4 skipped (Windows) / 0 failed; full solution Release build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Closes #364."
+    - name: issue-404-regression-hardcover-nonnumeric-foreign-id-deletion
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~RefreshAuthorServiceFixture"
+      cwd: .
+      note: "Issue #404 regression ([DATA-LOSS] RefreshAuthorService deletes a locally-created author whose foreign id is in the hardcover: scope but is NOT the resolvable numeric author form): ProviderOwnedForeignId in RefreshAuthorService.cs returned TRUE for ANY id starting 'hardcover:' without checking resolvability, so a synthetic unresolvable id (e.g. hardcover:author:recoveryseed) was misclassified as provider-owned and the post-create synchronous refresh (RefreshAuthorCommand, triggered by AddAuthorService -> AuthorsImportedEvent) interpreted the expected AuthorNotFoundException as a provider-removal signal and deleted the API-created Authors row while the AuthorMetadata row persisted (orphaned). Root cause: the gate did not enforce the numeric scope that its own doc comment and AuthorMetadataRepository.IsNumericHardcoverAuthorId (int.TryParse of the suffix, id > 0) recognize. Fix: the hardcover: branch of ProviderOwnedForeignId now returns IsNumericHardcoverAuthorId(id) (hardcover:author:<positive integer> only), so a non-numeric hardcover:-scoped id is locally-created and is NOT provider-owned; provider-sourced authors with resolvable numeric hardcover:author:<n> ids retain the documented #204/#209 provider-removed deletion behavior. Pinned by 6 new tests in RefreshArtistServiceFixture (RefreshAuthorServiceFixture, MusicTests namespace): should_not_delete_local_author_with_non_numeric_hardcover_scoped_foreign_id_when_not_found_and_no_files (4 TestCases: hardcover:author:recoveryseed — the exact r4 repro id — / hardcover:author:local-author-xyz / hardcover:author:0 / hardcover:author:-7 — all AuthorMetadataId=42, DeleteAuthor Times.Never) and should_still_delete_provider_sourced_author_with_numeric_hardcover_author_id_when_remote_removed_and_no_files (2 TestCases: hardcover:author:4821 / hardcover:author:1 — DeleteAuthor Once, the #204/#209 regression guard). RE-VERIFIED 2026-11-10 in isolated Docker (task t_d78e651b, run 4530, .NET SDK 10.0.401, SixLabors license) at base develop 92c9c7e0 (= issue #404 exact head = live develop tip): RED 4 failed / 24 passed at base (the 4 non-numeric no-delete cases fail with Moq.MockException 'DeleteAuthor should never have been performed, but was 1 times' — the data-loss defect reproduced; the 2 numeric guard cases still pass, proving the deletion contract predates and survives the fix); GREEN 28/28 post-fix (22 pre-existing + 6 new, 0 failed). No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Distinct from #204 (transient network trigger), #272/#325 (AuthorMetadataId<=0 guard, fixed by the provider-scope gate — this issue proves that gate was insufficient for non-numeric hardcover: ids), #320 (foreign-id canonicalization), #290 (identity persistence after re-resolution). Closes #404."
     - name: issue-99-regression-prettier-toolchain-modernization
       command: yarn test:frontend --testPathPatterns frontend/src/Issue99/prettierToolchainModernization.test.js
       cwd: .
