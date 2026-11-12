@@ -128,7 +128,7 @@
     "postcss": "8.5.18",
     "postcss-loader": "8.2.1",
     "postcss-mixins": "9.0.4",
-    "postcss-nested": "6.2.0",
+    "postcss-nested": "9.0.1",
     "postcss-simple-vars": "7.0.1",
     "prettier": "3.8.1",
     "require-nocache": "1.0.0",
