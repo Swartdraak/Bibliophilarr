@@ -62,7 +62,13 @@ function readLoginHtml() {
  */
 function extractInlineScripts(html) {
   const scripts = [];
-  const re = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+  // The closing tag tolerates whitespace before '>' (e.g. "</script >") because
+  // HTML end tags may legally carry trailing whitespace; the extractor must not
+  // miss that variant. This is what CodeQL's "Bad HTML filtering regexp" audit
+  // query requires: a filter whose end-tag match misses "</script >" could be
+  // bypassed. The 'i' flag (from the earlier /g -> /gi repair) already covers the
+  // case-insensitive open/close tags.
+  const re = /<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi;
   const srcRegex = /\bsrc\s*=/i;
   const moduleRegex = /\bmodule\b/i;
   let match = re.exec(html);
