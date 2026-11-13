@@ -238,7 +238,26 @@ namespace NzbDrone.Core.Books
 
         public List<Author> GetAuthors(IEnumerable<int> authorIds)
         {
-            return _authorRepository.Get(authorIds).ToList();
+            // Issue #383: tolerate author ids whose rows no longer exist (e.g. deleted by the
+            // post-create refresh, see #204/#325). Resolve each id individually and skip the
+            // missing ones instead of letting BasicRepository.Get throw
+            // "Expected query to return N rows but returned 0" and abort the entire scan.
+            var authors = new List<Author>();
+
+            foreach (var authorId in authorIds.Distinct())
+            {
+                var author = _authorRepository.Find(authorId);
+
+                if (author == null)
+                {
+                    _logger.Warn("Author {AuthorId} no longer exists in the database; skipping it instead of aborting the scan (issue #383)", authorId);
+                    continue;
+                }
+
+                authors.Add(author);
+            }
+
+            return authors;
         }
 
         public void RemoveAddOptions(Author author)
