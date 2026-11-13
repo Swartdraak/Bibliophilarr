@@ -2,6 +2,18 @@
 # Authoritative executable contract for autonomous work on this repository.
 # Commands below were re-verified in an isolated Docker audit environment
 # (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #383 dev run (2026-11-13, task t_29ddea0d, runs 4914+4916+4922, base
+# develop 0b92739ed1071c10b2da8efb293c052ebc2596f9 = live develop tip at
+# checkout t_40a6bead, work branch fix/issue-383-rescanfolders-missing-author
+# at 7bc59111bdb591f305dc5f8fdca7ddec8bf610a1): RescanFolders crash fix.
+# AuthorService.GetAuthors now resolves each author id via Find() and skips
+# missing rows with a warning log instead of letting BasicRepository.Get
+# throw ApplicationException "Expected query to return 1 rows but returned 0".
+# 2 regression tests in ScanFixture (missing-author + positive control).
+# RED at base: missing-author test failed via ApplicationException.
+# GREEN post-fix: 22/22 DiskScanServiceTests pass. No JS/TS runtime files
+# changed (no production_coverage binding). CHANGELOG Unreleased Fixed entry
+# added. Publication stage owns push + PR creation targeting develop.
 # Existing-PR #402 audit run (2026-11-12, task t_96626bf8, run 4800, base
 # develop 07bd77cf68ea63be514d64038777ae8942cea642 = live develop tip, work
 # branch dependabot/nuget/src/develop/multi-b7e0246e06 at the registered
