@@ -62,7 +62,7 @@ function readLoginHtml() {
  */
 function extractInlineScripts(html) {
   const scripts = [];
-  const re = /<script\b[^>]*>([\s\S]*?)<\/script>/g;
+  const re = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
   const srcRegex = /\bsrc\s*=/i;
   const moduleRegex = /\bmodule\b/i;
   let match = re.exec(html);
