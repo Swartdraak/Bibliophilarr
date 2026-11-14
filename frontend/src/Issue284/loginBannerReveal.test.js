@@ -59,29 +59,40 @@ function readLoginHtml() {
  * login.html ships exactly one inline <script type="text/javascript"> block; we return
  * every non-src, non-module <script> body so the guard stays valid if the page gains
  * more inline scripts.
+ *
+ * Implementation: a real HTML parser (jsdom's WHATWG-compliant HTML parser), NOT a
+ * regular expression. This test file has been through three CodeQL "Bad HTML
+ * filtering regexp" (js/bad-tag-filter) repair rounds, each closing one facet of the
+ * same defect class by widening the regex:
+ *   facet 1: missing 'i' flag            -> did not match <SCRIPT>
+ *   facet 2: </script> only              -> did not match </script >
+ *   facet 3: </script\s*>                -> did not match </script\t\n bar>
+ * A regex-based end-tag matcher is inherently facet-by-facet: the HTML spec allows
+ * arbitrary whitespace, attributes, and newlines inside an end tag, and browsers
+ * accept parser-error variants like `</script foo="bar">`. CodeQL's own test suite
+ * (github/codeql, BadTagFilter expected output) proves no practical regex passes all
+ * facets at once. The task's failure lineage therefore requires a structured
+ * representation instead of a wider pattern.
+ *
+ * jsdom is already a devDependency (jest-environment-jsdom 30.1.2 -> jsdom 26.1.0)
+ * and is already imported by this test for the execution assertions below, so this
+ * adds no new dependency and no lockfile change. The parser's semantics match what
+ * the test must preserve: it treats `<SCRIPT>`/`<script>` case-insensitively,
+ * tolerates whitespace and attributes in open AND end tags (including newlines and
+ * the browser-forgiving `</script ...>` parser-error variants), captures script
+ * bodies verbatim, and excludes external (src=) and module scripts.
  */
 function extractInlineScripts(html) {
+  const dom = new JSDOM(html, { url: 'http://localhost/login', runScripts: 'outside-only' });
   const scripts = [];
-  // The closing tag tolerates whitespace before '>' (e.g. "</script >") because
-  // HTML end tags may legally carry trailing whitespace; the extractor must not
-  // miss that variant. This is what CodeQL's "Bad HTML filtering regexp" audit
-  // query requires: a filter whose end-tag match misses "</script >" could be
-  // bypassed. The 'i' flag (from the earlier /g -> /gi repair) already covers the
-  // case-insensitive open/close tags.
-  const re = /<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi;
-  const srcRegex = /\bsrc\s*=/i;
-  const moduleRegex = /\bmodule\b/i;
-  let match = re.exec(html);
-  while (match !== null) {
-    const openTag = match[0].slice(0, match[0].indexOf('>') + 1);
-    const isExternal = srcRegex.test(openTag);
-    const isModule = moduleRegex.test(openTag);
-    // only inline classic scripts are relevant
-    if (!isExternal && !isModule) {
-      scripts.push(match[1]);
+  dom.window.document.querySelectorAll('script').forEach((el) => {
+    // Only inline classic scripts are relevant: exclude external (src) and
+    // module scripts. Structured DOM property checks — no regex over HTML.
+    if (!el.hasAttribute('src') && el.type !== 'module') {
+      scripts.push(el.textContent);
     }
-    match = re.exec(html);
-  }
+  });
+  dom.window.close();
   return scripts;
 }
 
