@@ -1468,6 +1468,7 @@ governance:
     backend: .github/workflows/ci-backend.yml          # build-test, rid-core-common-targeted, metadata-provider-fixtures, metadata-diagnostics-integration
     frontend: .github/workflows/ci-frontend.yml        # yarn install/test/lint/build
     cross_build_portability: .github/workflows/cross-build-portability.yml  # Linux/Windows/macOS lanes + rid_mapping (X64->x64, Arm64->arm64), functional since PR #234 (main) and present on develop
+    app_smoke_execution: .github/workflows/app-smoke-execution.yml  # Issue #270: windows-latest + macos-latest APPLICATION-EXECUTION coverage — boots the published portable app (win-x64 / osx-arm64|x64) against a disposable data dir, polls GET /ping (200 status=OK), runs a bounded config round-trip (GET -> mutate metadataProviderTimeoutSeconds -> PUT 202 -> re-GET assert), and a recovery check (stop stage-owned app, restart, GET-after-restart proves the config mutation persisted from actual persisted state). Emits a pass/fail receipt distinguishing "app started + workflow + recovery passed" from "build-only". Hermetic (no external provider needed).
     other: [docs-validation.yml, lint-workflows.yml (actionlint), release.yml, docker-image.yml, npm-publish.yml, required-check-emission-smoke.yml, staging-smoke-metadata-telemetry.yml, validate-release-version.yml, branch-policy-audit.yml, operational-drift-check.yml]
 
 baseline_evidence:

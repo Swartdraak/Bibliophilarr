@@ -1,0 +1,402 @@
+name: Application execution smoke (Windows + macOS)
+
+# Issue #270: CI-GAP — no GitHub Actions workflow boots the built Bibliophilarr
+# application on windows-latest or macos-latest. cross-build-portability.yml only
+# does build + portable unit tests on the three hosts; it never starts the app,
+# polls /ping, exercises a primary workflow, or performs a recovery check.
+#
+# This workflow closes the gap. On EACH of windows-latest and macos-latest it:
+#   1. Publishes the portable Bibliophilarr console app for the host RID
+#      (win-x64 / osx-arm64-or-x64) — the same cross-OS application that serves
+#      the HTTP host (the Windows WinForms desktop shell is a GUI wrapper around
+#      the same NzbDrone.Host; the portable console is the authoritative HTTP
+#      server entry point on every supported host).
+#   2. Starts the built app against a DISPOSABLE data directory.
+#   3. Polls the authoritative local-startup signal: GET /ping must return
+#      200 {"status":"OK"} (a listening port alone is not sufficient).
+#   4. Exercises one bounded primary workflow with an expected/observed
+#      assertion: a config round-trip
+#      GET /api/v1/config/metadataprovider -> mutate a bounded field
+#      (metadataProviderTimeoutSeconds, valid range 0-120) -> PUT (expect 202)
+#      -> re-GET and assert the mutated value.
+#   5. Performs one recovery check: stop the stage-owned app (graceful, then
+#      hard kill), restart it, and GET-after-restart to prove the config
+#      mutation persisted (storage contract from actual persisted state, read
+#      back through the API, not assumed filenames).
+#   6. Stops only the stage-owned process and leaves the runner clean.
+#
+# Each OS job emits a pass/fail receipt that distinguishes
+# "app started + workflow + recovery passed" from "build-only".
+#
+# This does NOT modify tracked product code, baseline.json, publication.json, or
+# root quality.json (per the issue's scope boundary). No mocking or
+# health-endpoint-only substitution: the job starts the real app and asserts
+# real persisted-state behavior. The 52.7 GB OpenLibrary dump import and
+# public-OpenLibrary-API testing remain out of scope.
+#
+# Provider API keys (existing license / metadata-provider CI secrets) are
+# provisioned for the build; the smoke itself needs no external provider — the
+# primary workflow is a local config round-trip against the app's own persisted
+# store, so the job is hermetic and does not burn external API quota or depend
+# on a third-party provider being reachable from the hosted runner.
+
+on:
+  pull_request:
+    branches:
+      - main
+      - staging
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+      - staging
+
+permissions:
+  contents: read
+
+jobs:
+  windows-app-smoke:
+    name: "Windows app execution (win-x64): start, ping, config round-trip, recovery"
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        shell: pwsh
+        run: |
+          $licPath = Join-Path $env:RUNNER_TEMP 'sixlabors.lic'
+          Set-Content -Path $licPath -Value $env:SIXLABORS_LICENSE_KEY -NoNewline
+          Write-Host "license file provisioned (exists=$([System.IO.File]::Exists($licPath)))"
+          Add-Content -Value "SIXLABORS_LICENSE_FILE=$licPath" -Path $env:GITHUB_ENV
+
+      - name: Publish portable app (win-x64)
+        shell: pwsh
+        run: |
+          $lic = $env:SIXLABORS_LICENSE_FILE
+          if (-not [System.IO.File]::Exists($lic)) { throw "Six Labors license missing at $lic" }
+          $out = Join-Path $env:RUNNER_TEMP 'pub-win-x64'
+          dotnet publish src/NzbDrone.Console/Bibliophilarr.Console.csproj `
+            --configuration Release --framework net10.0 `
+            -p:RuntimeIdentifier=win-x64 -p:UseAppHost=true `
+            "-p:SixLaborsLicenseFile=$lic" -o $out
+          if ($LASTEXITCODE -ne 0) { throw "win-x64 publish failed" }
+          Write-Host "published to $out"
+          Get-ChildItem $out -Filter 'Bibliophilarr*' | ForEach-Object { Write-Host ("  " + $_.Name) }
+          Add-Content -Value "PUB_DIR=$out" -Path $env:GITHUB_ENV
+
+      - name: Run application-execution smoke
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $pub = $env:PUB_DIR
+          $data = Join-Path $env:RUNNER_TEMP 'smoke-data-win'
+          $raw  = Join-Path $env:RUNNER_TEMP 'smoke-raw-win'
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+          New-Item -ItemType Directory -Force -Path $raw  | Out-Null
+
+          # The win-x64 portable console apphost (AssemblyName is Bibliophilarr.Console
+          # on win-* RIDs per Bibliophilarr.Console.csproj).
+          $appExe = Join-Path $pub 'Bibliophilarr.Console.exe'
+          if (-not [System.IO.File]::Exists($appExe)) { throw "win-x64 apphost $appExe not found" }
+
+          $base = 'http://127.0.0.1:8787'
+
+          function Start-App {
+            $proc = Start-Process -FilePath $appExe -ArgumentList @(
+              "-data=$data", '-nobrowser', '-nosingleinstancecheck'
+            ) -WorkingDirectory $pub -NoNewWindow -PassThru `
+              -RedirectStandardOutput (Join-Path $raw 'app-stdout.log') `
+              -RedirectStandardError  (Join-Path $raw 'app-stderr.log')
+            return $proc
+          }
+          function Wait-Ping {
+            for ($i = 0; $i -lt 90; $i++) {
+              try {
+                $r = Invoke-WebRequest -UseBasicParsing -Uri "$base/ping" -TimeoutSec 3
+                if ($r.StatusCode -eq 200 -and ($r.Content -match '"status"\s*:\s*"OK"')) {
+                  Write-Host "PING_OK (attempt $i) body=$($r.Content)"
+                  return $true
+                }
+              } catch { }
+              Start-Sleep -Seconds 1
+            }
+            throw "PING_TIMEOUT after 90s: app never returned 200 status=OK"
+          }
+          function Get-ApiKey {
+            # The app generates an ApiKey on first boot and persists it to
+            # config.xml under the data dir (storage contract: read actual
+            # persisted state, not an assumed filename).
+            $cfg = Get-ChildItem -Path $data -Filter 'config.xml' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $cfg) { throw "config.xml not found under $data after startup" }
+            $x = [xml](Get-Content $cfg.FullName -Raw)
+            $key = $x.Config.ApiKey
+            if ([string]::IsNullOrWhiteSpace($key)) { throw "config.xml ApiKey empty" }
+            Write-Host "APIKEY extracted (len=$($key.Length)) from $(Split-Path $cfg.FullName -Leaf)"
+            return $key
+          }
+          function Get-MetaTimeout {
+            param($key)
+            $r = Invoke-WebRequest -UseBasicParsing -Uri "$base/api/v1/config/metadataprovider" `
+              -Headers @{ 'X-Api-Key' = $key } -TimeoutSec 20
+            $obj = $r.Content | ConvertFrom-Json
+            return [int]$obj.metadataProviderTimeoutSeconds
+          }
+
+          $p1 = $null; $p2 = $null
+          $receipt = @{ os = 'windows-latest'; rid = 'win-x64';
+                        app_started = $false; ping_ok = $false;
+                        roundtrip_passed = $false; recovery_passed = $false;
+                        build_only = $false; errors = @() }
+
+          try {
+            Write-Host "=== STEP 1: start app (first boot) ==="
+            $p1 = Start-App
+            Wait-Ping
+            $receipt.app_started = $true
+            $receipt.ping_ok = $true
+            $key = Get-ApiKey
+
+            Write-Host "=== STEP 2: config round-trip (GET -> mutate -> PUT -> re-GET) ==="
+            $orig = Get-MetaTimeout -key $key
+            $new  = $orig + 7
+            if ($new -gt 120) { $new = 120 }   # stay within the 0-120 validation bound
+            $r = Invoke-WebRequest -UseBasicParsing -Uri "$base/api/v1/config/metadataprovider" `
+              -Headers @{ 'X-Api-Key' = $key } -TimeoutSec 20
+            $body = $r.Content | ConvertFrom-Json
+            $body.metadataProviderTimeoutSeconds = $new
+            $putJson = $body | ConvertTo-Json -Depth 10
+            $put = Invoke-WebRequest -UseBasicParsing -Method Put `
+              -Uri "$base/api/v1/config/metadataprovider" `
+              -Headers @{ 'X-Api-Key' = $key; 'Content-Type' = 'application/json' } `
+              -Body $putJson -TimeoutSec 30
+            Write-Host "PUT status=$($put.StatusCode) (expect 202)"
+            if ($put.StatusCode -ne 202) { throw "config PUT returned $($put.StatusCode), expected 202" }
+            Start-Sleep -Seconds 2
+            $reget = Get-MetaTimeout -key $key
+            Write-Host "round-trip: orig=$orig new=$new reget=$reget"
+            if ($reget -ne $new) { throw "round-trip FAILED: reget=$reget expected=$new" }
+            $receipt.roundtrip_passed = $true
+
+            Write-Host "=== STEP 3: recovery (graceful+hard stop, restart, verify persistence) ==="
+            if ($p1 -and -not $p1.HasExited) {
+              # TERM-equivalent: request graceful close, then hard-kill if it lingers.
+              $p1.RequestClose() 2>$null
+              if (-not $p1.WaitForExit(15000)) { $p1.Kill($true) }
+            }
+            for ($i = 0; $i -lt 20; $i++) {
+              try { Invoke-WebRequest -UseBasicParsing -Uri "$base/ping" -TimeoutSec 1 | Out-Null; Start-Sleep -Seconds 1 }
+              catch { break }
+            }
+            $p2 = Start-App
+            Wait-Ping
+            $after = Get-MetaTimeout -key $key
+            Write-Host "after-restart value: $after (expect $new persisted)"
+            if ($after -ne $new) { throw "recovery persistence FAILED: after=$after expected=$new" }
+            $receipt.recovery_passed = $true
+
+            if ($p2 -and -not $p2.HasExited) { $p2.Kill($true) }
+            Start-Sleep -Seconds 2
+            Write-Host "cleanup complete"
+          } catch {
+            $receipt.errors += $_.Exception.Message
+            try { if ($p1 -and -not $p1.HasExited) { $p1.Kill($true) } } catch {}
+            try { if ($p2 -and -not $p2.HasExited) { $p2.Kill($true) } } catch {}
+          }
+
+          $receipt.build_only = -not $receipt.app_started
+          $receipt.status =
+            if ($receipt.app_started -and $receipt.roundtrip_passed -and $receipt.recovery_passed) { 'PASS' }
+            elseif ($receipt.app_started) { 'PARTIAL' }
+            else { 'BUILD_ONLY' }
+          $out = Join-Path $raw 'receipt.json'
+          $receipt | ConvertTo-Json -Depth 5 | Set-Content -Path $out
+          Write-Host "=== RECEIPT ==="
+          $receipt | ConvertTo-Json -Depth 5
+          if ($receipt.status -ne 'PASS') {
+            throw "application-smoke did not fully pass: status=$($receipt.status) errors=$(($receipt.errors) -join '; ')"
+          }
+
+  macos-app-smoke:
+    name: "macOS app execution (osx arm64/x64): start, ping, config round-trip, recovery"
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Assert runner architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -m
+          uname -a
+          echo "ARCH=$(uname -m)" >> "$GITHUB_ENV"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: Provision Six Labors license
+        shell: bash
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
+
+      - name: Publish portable app (osx, host-arch RID)
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$ARCH" in
+            arm64) RID=osx-arm64 ;;
+            x86_64) RID=osx-x64 ;;
+            *) echo "unsupported mac arch: $ARCH"; exit 1 ;;
+          esac
+          echo "RID=$RID" >> "$GITHUB_ENV"
+          lic="$SIXLABORS_LICENSE_FILE"
+          [ -f "$lic" ] || { echo "Six Labors license missing at $lic"; exit 1; }
+          out="$RUNNER_TEMP/pub-osx"
+          dotnet publish src/NzbDrone.Console/Bibliophilarr.Console.csproj \
+            --configuration Release --framework net10.0 \
+            -p:RuntimeIdentifier="$RID" -p:UseAppHost=true \
+            "-p:SixLaborsLicenseFile=$lic" -o "$out"
+          echo "published to $out"
+          ls -1 "$out" | grep -i '^Bibliophilarr' || true
+          echo "PUB_DIR=$out" >> "$GITHUB_ENV"
+
+      - name: Run application-execution smoke
+        shell: bash
+        run: |
+          set -uo pipefail
+          pub="$PUB_DIR"
+          data="$RUNNER_TEMP/smoke-data-mac"
+          raw="$RUNNER_TEMP/smoke-raw-mac"
+          rm -rf "$data" "$raw"; mkdir -p "$data" "$raw"
+          base="http://127.0.0.1:8787"
+
+          # The osx portable console apphost (AssemblyName is 'Bibliophilarr'
+          # on non-win RIDs per Bibliophilarr.Console.csproj).
+          app="$pub/Bibliophilarr"
+          [ -x "$app" ] || { echo "osx apphost $app not found"; ls -1 "$pub" | grep -i bibliophilarr; exit 1; }
+
+          start_app() {
+            ( cd "$pub" && "$app" "-data=$data" -nobrowser -nosingleinstancecheck \
+                > "$raw/app-stdout.log" 2> "$raw/app-stderr.log" & echo $! > "$raw/app.pid" )
+          }
+          wait_ping() {
+            local i=0
+            while [ "$i" -lt 90 ]; do
+              code=$(curl -s -o "$raw/ping.json" -w '%{http_code}' "$base/ping" 2>/dev/null || true)
+              if [ "$code" = "200" ] && grep -qE '"status"[[:space:]]*:[[:space:]]*"OK"' "$raw/ping.json" 2>/dev/null; then
+                echo "PING_OK (attempt $i)"; return 0
+              fi
+              i=$((i+1)); sleep 1
+            done
+            echo "PING FAILED: no 200 status=OK after 90s"
+            return 1
+          }
+          get_apikey() {
+            cfg=$(find "$data" -name config.xml 2>/dev/null | head -1)
+            [ -n "$cfg" ] || { echo "config.xml not found under $data"; exit 1; }
+            key=$(grep -o '<ApiKey>[^<]*</ApiKey>' "$cfg" | head -1 | sed -E 's/<ApiKey>([^<]*)<\/ApiKey>/\1/')
+            [ -n "$key" ] || { echo "config.xml ApiKey empty"; exit 1; }
+            echo "APIKEY extracted (len=${#key})"
+            echo "$key"
+          }
+          get_meta_timeout() {
+            # $1 = api key
+            curl -s -H "X-Api-Key: $1" "$base/api/v1/config/metadataprovider" \
+              | tr 'A-Z' 'a-z' | grep -oE '"metadataprovidertimeoutseconds":[[:space:]]*[0-9]+' \
+              | grep -oE '[0-9]+$' | head -1
+          }
+          put_meta_timeout() {
+            # $1 = api key, $2 = new value. GET -> mutate -> PUT, print HTTP status.
+            key="$1"; val="$2"
+            body=$(curl -s -H "X-Api-Key: $key" "$base/api/v1/config/metadataprovider")
+            echo "$body" > "$raw/get.json"
+            python3 - "$raw/get.json" "$val" "$raw/put.json" <<'PY'
+            import json, sys
+            src, val, dst = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+            obj = json.load(open(src))
+            obj["metadataProviderTimeoutSeconds"] = val
+            open(dst, "w").write(json.dumps(obj))
+            PY
+            curl -s -o "$raw/put-resp.json" -w '%{http_code}' -X PUT \
+              -H "X-Api-Key: $key" -H "Content-Type: application/json" \
+              --data @"$raw/put.json" "$base/api/v1/config/metadataprovider"
+          }
+          stop_app() {
+            # Stop ONLY the stage-owned process (PID captured from start_app).
+            local pidfile="$raw/app.pid"
+            [ -f "$pidfile" ] || return 0
+            pid=$(cat "$pidfile")
+            kill -TERM "$pid" 2>/dev/null
+            for i in $(seq 1 15); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+            if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid" 2>/dev/null; sleep 1; fi
+          }
+
+          status="BUILD_ONLY"; err=""
+          roundtrip=0; recovery=0; started=0
+          set +e
+          if start_app && wait_ping; then
+            started=1
+            key=$(get_apikey)
+            echo "=== STEP 2: config round-trip ==="
+            orig=$(get_meta_timeout "$key")
+            new=$((orig + 7)); [ "$new" -gt 120 ] && new=120
+            http=$(put_meta_timeout "$key" "$new")
+            echo "PUT status=$http (expect 202)"
+            sleep 2
+            reget=$(get_meta_timeout "$key")
+            echo "round-trip: orig=$orig new=$new reget=$reget"
+            if [ "$reget" = "$new" ]; then roundtrip=1; fi
+            echo "=== STEP 3: recovery (TERM+KILL, restart, verify persistence) ==="
+            stop_app
+            if start_app && wait_ping; then
+              after=$(get_meta_timeout "$key")
+              echo "after-restart value: $after (expect $new persisted)"
+              if [ "$after" = "$new" ]; then recovery=1; fi
+            fi
+            stop_app
+          fi
+          set -e
+          [ "$started" = 1 ] && [ "$roundtrip" = 1 ] && [ "$recovery" = 1 ] && status="PASS"
+          { [ "$started" = 1 ] && [ "$roundtrip" = 1 ] && [ "$recovery" = 0 ]; } && status="PARTIAL"
+          { [ "$started" = 0 ]; } && status="BUILD_ONLY"
+          cat > "$raw/receipt.json" <<EOF
+          {
+            "os": "macos-latest",
+            "rid": "$RID",
+            "app_started": $([ "$started" = 1 ] && echo true || echo false),
+            "ping_ok": $([ "$started" = 1 ] && echo true || echo false),
+            "roundtrip_passed": $([ "$roundtrip" = 1 ] && echo true || echo false),
+            "recovery_passed": $([ "$recovery" = 1 ] && echo true || echo false),
+            "build_only": $([ "$started" = 0 ] && echo true || echo false),
+            "status": "$status"
+          }
+          EOF
+          echo "=== RECEIPT ==="
+          cat "$raw/receipt.json"
+          if [ "$status" != "PASS" ]; then
+            echo "application-smoke did not fully pass: status=$status"
+            exit 1
+          fi
