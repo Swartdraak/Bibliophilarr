@@ -213,6 +213,23 @@ jobs:
             Write-Host "cleanup complete"
           } catch {
             $receipt.errors += $_.Exception.Message
+            # Diagnostic: if the app never reached /ping (PING_TIMEOUT) or failed
+            # mid-smoke, capture the app's own stdout/stderr so the true
+            # first-boot error is visible in the receipt (the hosted CI log of
+            # these redirected files is not always downloadable). Bounded tail;
+            # this adds observability only — it does NOT change the PASS contract.
+            if (-not $receipt.ping_ok) {
+              $errTail = ''; $outTail = ''
+              $errFile = Join-Path $raw 'app-stderr.log'
+              $outFile = Join-Path $raw 'app-stdout.log'
+              if (Test-Path $errFile) { $errTail = (Get-Content $errFile -Tail 40 -ErrorAction SilentlyContinue) -join "`n" }
+              if (Test-Path $outFile) { $outTail = (Get-Content $outFile -Tail 40 -ErrorAction SilentlyContinue) -join "`n" }
+              if ($errTail) { $receipt.errors += "APP_STDERR(tail): $errTail" }
+              if ($outTail) { $receipt.errors += "APP_STDOUT(tail): $outTail" }
+              Write-Host "=== APP DIAGNOSTIC TAIL (app did not reach /ping) ==="
+              if ($errTail) { Write-Host "--- stderr ---"; Write-Host $errTail }
+              if ($outTail) { Write-Host "--- stdout ---"; Write-Host $outTail }
+            }
             try { if ($p1 -and -not $p1.HasExited) { $p1.Kill($true) } } catch {}
             try { if ($p2 -and -not $p2.HasExited) { $p2.Kill($true) } } catch {}
           }
@@ -280,7 +297,8 @@ jobs:
             -p:RuntimeIdentifier="$RID" -p:UseAppHost=true \
             "-p:SixLaborsLicenseFile=$lic" -o "$out"
           echo "published to $out"
-          ls -1 "$out" | grep -i '^Bibliophilarr' || true
+          # List the published apphost/dlls without `ls | grep` (shellcheck SC2010).
+          for f in "$out"/Bibliophilarr*; do [ -e "$f" ] && echo "  $(basename "$f")"; done
           echo "PUB_DIR=$out" >> "$GITHUB_ENV"
 
       - name: Run application-execution smoke
@@ -296,7 +314,7 @@ jobs:
           # The osx portable console apphost (AssemblyName is 'Bibliophilarr'
           # on non-win RIDs per Bibliophilarr.Console.csproj).
           app="$pub/Bibliophilarr"
-          [ -x "$app" ] || { echo "osx apphost $app not found"; ls -1 "$pub" | grep -i bibliophilarr; exit 1; }
+          [ -x "$app" ] || { echo "osx apphost $app not found"; for f in "$pub"/Bibliophilarr*; do [ -e "$f" ] && echo "  $(basename "$f")"; done; exit 1; }
 
           start_app() {
             ( cd "$pub" && "$app" "-data=$data" -nobrowser -nosingleinstancecheck \
@@ -324,22 +342,26 @@ jobs:
           }
           get_meta_timeout() {
             # $1 = api key
+            # grep -i makes the match case-insensitive (no `tr` range needed,
+            # which avoids shellcheck SC2018/SC2019); the pattern is already
+            # lowercase so -i also matches the camelCase JSON key.
             curl -s -H "X-Api-Key: $1" "$base/api/v1/config/metadataprovider" \
-              | tr 'A-Z' 'a-z' | grep -oE '"metadataprovidertimeoutseconds":[[:space:]]*[0-9]+' \
+              | grep -oiE '"metadataprovidertimeoutseconds":[[:space:]]*[0-9]+' \
               | grep -oE '[0-9]+$' | head -1
           }
           put_meta_timeout() {
             # $1 = api key, $2 = new value. GET -> mutate -> PUT, print HTTP status.
+            # The JSON mutation runs a tiny Python helper written via printf to a
+            # temp file (NO here-doc: an indented here-doc terminator is literal
+            # content to bash and breaks the script at parse time — the defect
+            # that failed this job on CI; and a python3 -c block whose first line
+            # is indented hits an IndentationError). printf keeps the helper's
+            # first line at column 0 of the file, exactly as Python requires.
             key="$1"; val="$2"
             body=$(curl -s -H "X-Api-Key: $key" "$base/api/v1/config/metadataprovider")
             echo "$body" > "$raw/get.json"
-            python3 - "$raw/get.json" "$val" "$raw/put.json" <<'PY'
-            import json, sys
-            src, val, dst = sys.argv[1], int(sys.argv[2]), sys.argv[3]
-            obj = json.load(open(src))
-            obj["metadataProviderTimeoutSeconds"] = val
-            open(dst, "w").write(json.dumps(obj))
-            PY
+            printf 'import json, sys\nsrc, dst, val = sys.argv[1], sys.argv[2], int(sys.argv[3])\nobj = json.load(open(src))\nobj["metadataProviderTimeoutSeconds"] = val\nopen(dst, "w").write(json.dumps(obj))\n' > "$raw/mutate.py"
+            python3 "$raw/mutate.py" "$raw/get.json" "$raw/put.json" "$val"
             curl -s -o "$raw/put-resp.json" -w '%{http_code}' -X PUT \
               -H "X-Api-Key: $key" -H "Content-Type: application/json" \
               --data @"$raw/put.json" "$base/api/v1/config/metadataprovider"
@@ -354,7 +376,7 @@ jobs:
             if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid" 2>/dev/null; sleep 1; fi
           }
 
-          status="BUILD_ONLY"; err=""
+          status="BUILD_ONLY"
           roundtrip=0; recovery=0; started=0
           set +e
           if start_app && wait_ping; then
@@ -382,18 +404,17 @@ jobs:
           [ "$started" = 1 ] && [ "$roundtrip" = 1 ] && [ "$recovery" = 1 ] && status="PASS"
           { [ "$started" = 1 ] && [ "$roundtrip" = 1 ] && [ "$recovery" = 0 ]; } && status="PARTIAL"
           { [ "$started" = 0 ]; } && status="BUILD_ONLY"
-          cat > "$raw/receipt.json" <<EOF
-          {
-            "os": "macos-latest",
-            "rid": "$RID",
-            "app_started": $([ "$started" = 1 ] && echo true || echo false),
-            "ping_ok": $([ "$started" = 1 ] && echo true || echo false),
-            "roundtrip_passed": $([ "$roundtrip" = 1 ] && echo true || echo false),
-            "recovery_passed": $([ "$recovery" = 1 ] && echo true || echo false),
-            "build_only": $([ "$started" = 0 ] && echo true || echo false),
-            "status": "$status"
-          }
-          EOF
+          # Build the receipt JSON with printf (NO here-doc): an indented
+          # here-doc terminator is literal content to bash, so the receipt
+          # here-doc never terminated and the whole script died at parse time
+          # (CI exit code 2). printf keeps every value on one line.
+          b_started=$([ "$started" = 1 ] && echo true || echo false)
+          b_roundtrip=$([ "$roundtrip" = 1 ] && echo true || echo false)
+          b_recovery=$([ "$recovery" = 1 ] && echo true || echo false)
+          b_buildonly=$([ "$started" = 0 ] && echo true || echo false)
+          printf '{\n  "os": "macos-latest",\n  "rid": "%s",\n  "app_started": %s,\n  "ping_ok": %s,\n  "roundtrip_passed": %s,\n  "recovery_passed": %s,\n  "build_only": %s,\n  "status": "%s"\n}\n' \
+            "$RID" "$b_started" "$b_started" "$b_roundtrip" "$b_recovery" "$b_buildonly" "$status" \
+            > "$raw/receipt.json"
           echo "=== RECEIPT ==="
           cat "$raw/receipt.json"
           if [ "$status" != "PASS" ]; then
