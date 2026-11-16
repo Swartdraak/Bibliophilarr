@@ -94,7 +94,7 @@
        <repo-root>/_output/net10.0). Pinned by
        ConsoleSqliteProviderPublishIssue270Fixture. -->
   <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
-    <CopyToPublishDirectory Include="_output/net10.0/System.Data.SQLite.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/System.Data.SQLite.dll">
       <Link>System.Data.SQLite.dll</Link>
     </CopyToPublishDirectory>
   </ItemGroup>
@@ -130,31 +130,31 @@
     <NonWinRidProviderProbe Condition="'$(RuntimeIdentifier)' != '' and !$(RuntimeIdentifier.StartsWith('win'))">true</NonWinRidProviderProbe>
   </PropertyGroup>
   <ItemGroup Condition="'$(NonWinRidProviderProbe)' == 'true'">
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.dll">
       <Link>FluentMigrator.dll</Link>
     </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Runner.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Runner.dll">
       <Link>FluentMigrator.Runner.dll</Link>
     </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Runner.Core.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Runner.Core.dll">
       <Link>FluentMigrator.Runner.Core.dll</Link>
     </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Runner.SQLite.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Runner.SQLite.dll">
       <Link>FluentMigrator.Runner.SQLite.dll</Link>
     </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Abstractions.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Abstractions.dll">
       <Link>FluentMigrator.Abstractions.dll</Link>
     </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Extensions.Oracle.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Extensions.Oracle.dll">
       <Link>FluentMigrator.Extensions.Oracle.dll</Link>
     </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Extensions.Postgres.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Extensions.Postgres.dll">
       <Link>FluentMigrator.Extensions.Postgres.dll</Link>
     </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Extensions.SqlAnywhere.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Extensions.SqlAnywhere.dll">
       <Link>FluentMigrator.Extensions.SqlAnywhere.dll</Link>
     </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Extensions.SqlServer.dll">
+    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Extensions.SqlServer.dll">
       <Link>FluentMigrator.Extensions.SqlServer.dll</Link>
     </CopyToPublishDirectory>
   </ItemGroup>

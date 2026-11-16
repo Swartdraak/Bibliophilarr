@@ -172,8 +172,8 @@ namespace NzbDrone.Core.Test.Datastore
             var text = ReadCsproj();
 
             text.Should().Contain(
-                "_output/net10.0/System.Data.SQLite.dll",
-                "the copy source must be the build output's System.Data.SQLite stub, not a new package");
+                "_output/net10.0/$(RuntimeIdentifier)/System.Data.SQLite.dll",
+                "the copy source must be the build output's System.Data.SQLite stub (RID-specific path), not a new package");
         }
 
         // ------------------------------------------------------------------
@@ -227,8 +227,8 @@ namespace NzbDrone.Core.Test.Datastore
             foreach (var asm in Repair5ProviderAssemblies)
             {
                 text.Should().Contain(
-                    $"_output/net10.0/{asm}",
-                    $"the repair-5 provider surface must copy {asm} from the shared _output/net10.0 build output");
+                    $"_output/net10.0/$(RuntimeIdentifier)/{asm}",
+                    $"the repair-5 provider surface must copy {asm} from the RID-specific shared _output/net10.0/$(RuntimeIdentifier) build output");
             }
         }
 
@@ -267,7 +267,7 @@ namespace NzbDrone.Core.Test.Datastore
                 {
                     foreach (var asm in Repair5ProviderAssemblies)
                     {
-                        if (line.Contains($"_output/net10.0/{asm}", StringComparison.Ordinal))
+                        if (line.Contains($"_output/net10.0/$(RuntimeIdentifier)/{asm}", StringComparison.Ordinal))
                         {
                             if (inNonWinGroup)
                             {
