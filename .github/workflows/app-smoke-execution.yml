@@ -191,11 +191,18 @@ jobs:
             if ($reget -ne $new) { throw "round-trip FAILED: reget=$reget expected=$new" }
             $receipt.roundtrip_passed = $true
 
-            Write-Host "=== STEP 3: recovery (graceful+hard stop, restart, verify persistence) ==="
+            Write-Host "=== STEP 3: recovery (hard stop, restart, verify persistence) ==="
             if ($p1 -and -not $p1.HasExited) {
-              # TERM-equivalent: request graceful close, then hard-kill if it lingers.
-              $p1.RequestClose() 2>$null
-              if (-not $p1.WaitForExit(15000)) { $p1.Kill($true) }
+              # Hard-stop the stage-owned process. System.Diagnostics.Process has NO
+              # 'RequestClose' method (the prior invalid call threw a terminating
+              # MethodNotFound exception here, so recovery never ran); Kill($true)
+              # is the valid stop primitive (it also terminates any child processes).
+              # The persisted config store (SQLite + config.xml) survives the stop,
+              # which is exactly what the restart assertion below verifies. No
+              # PASS-contract weakening: the recovery check still requires a clean
+              # restart, /ping 200 status=OK, and read-back of the mutated value.
+              $p1.Kill($true)
+              if (-not $p1.WaitForExit(15000)) { Write-Host "process did not exit within 15s after Kill" }
             }
             for ($i = 0; $i -lt 20; $i++) {
               try { Invoke-WebRequest -UseBasicParsing -Uri "$base/ping" -TimeoutSec 1 | Out-Null; Start-Sleep -Seconds 1 }
@@ -213,22 +220,27 @@ jobs:
             Write-Host "cleanup complete"
           } catch {
             $receipt.errors += $_.Exception.Message
-            # Diagnostic: if the app never reached /ping (PING_TIMEOUT) or failed
-            # mid-smoke, capture the app's own stdout/stderr so the true
-            # first-boot error is visible in the receipt (the hosted CI log of
-            # these redirected files is not always downloadable). Bounded tail;
-            # this adds observability only — it does NOT change the PASS contract.
-            if (-not $receipt.ping_ok) {
-              $errTail = ''; $outTail = ''
+            # Diagnostic: on ANY smoke failure (PING_TIMEOUT, round-trip, recovery or an
+            # unexpected exception), capture the app's own stdout/stderr AND the app's
+            # NLog file log (logs/bibliophilarr.txt under the data dir) so the true
+            # failure is visible in the receipt (the hosted CI log of these redirected
+            # files is not always downloadable). Bounded tail; observability only -
+            # this does NOT change the PASS/PARTIAL/BUILD_ONLY contract.
+            {
+              $errTail = ''; $outTail = ''; $appLogTail = ''
               $errFile = Join-Path $raw 'app-stderr.log'
               $outFile = Join-Path $raw 'app-stdout.log'
               if (Test-Path $errFile) { $errTail = (Get-Content $errFile -Tail 40 -ErrorAction SilentlyContinue) -join "`n" }
               if (Test-Path $outFile) { $outTail = (Get-Content $outFile -Tail 40 -ErrorAction SilentlyContinue) -join "`n" }
+              $logFile = Get-ChildItem -Path (Join-Path $data 'logs') -Filter 'bibliophilarr*.txt' -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($logFile) { $appLogTail = (Get-Content $logFile.FullName -Tail 60 -ErrorAction SilentlyContinue) -join "`n" }
               if ($errTail) { $receipt.errors += "APP_STDERR(tail): $errTail" }
               if ($outTail) { $receipt.errors += "APP_STDOUT(tail): $outTail" }
-              Write-Host "=== APP DIAGNOSTIC TAIL (app did not reach /ping) ==="
+              if ($appLogTail) { $receipt.errors += "APP_LOG(tail): $appLogTail" }
+              Write-Host "=== APP DIAGNOSTIC TAIL (smoke failed) ==="
               if ($errTail) { Write-Host "--- stderr ---"; Write-Host $errTail }
               if ($outTail) { Write-Host "--- stdout ---"; Write-Host $outTail }
+              if ($appLogTail) { Write-Host "--- app log ---"; Write-Host $appLogTail }
             }
             try { if ($p1 -and -not $p1.HasExited) { $p1.Kill($true) } } catch {}
             try { if ($p2 -and -not $p2.HasExited) { $p2.Kill($true) } } catch {}
@@ -333,19 +345,35 @@ jobs:
             return 1
           }
           get_apikey() {
-            cfg=$(find "$data" -name config.xml 2>/dev/null | head -1)
-            [ -n "$cfg" ] || { echo "config.xml not found under $data"; exit 1; }
+            # config.xml is written by the app during boot into the -data dir; poll for it
+            # (up to 20s) so the key read never races file creation.
+            cfg=""
+            local i=0
+            while [ "$i" -lt 20 ]; do
+              cfg=$(find "$data" -name config.xml 2>/dev/null | head -1)
+              [ -n "$cfg" ] && break
+              i=$((i+1)); sleep 1
+            done
+            [ -n "$cfg" ] || { echo "config.xml not found under $data after 20s"; exit 1; }
             key=$(grep -o '<ApiKey>[^<]*</ApiKey>' "$cfg" | head -1 | sed -E 's/<ApiKey>([^<]*)<\/ApiKey>/\1/')
             [ -n "$key" ] || { echo "config.xml ApiKey empty"; exit 1; }
-            echo "APIKEY extracted (len=${#key})"
+            # Diagnostic goes to stderr ONLY: this function's stdout is captured by
+            # `key=$(get_apikey)`, so any stdout line would be concatenated into the
+            # key variable and break the ?apikey= query (302 -> round-trip empty).
+            echo "APIKEY extracted (len=${#key})" >&2
             echo "$key"
           }
           get_meta_timeout() {
             # $1 = api key
-            # grep -i makes the match case-insensitive (no `tr` range needed,
-            # which avoids shellcheck SC2018/SC2019); the pattern is already
-            # lowercase so -i also matches the camelCase JSON key.
-            curl -s -H "X-Api-Key: $1" "$base/api/v1/config/metadataprovider" \
+            # The app's ApiKeyAuthenticationHandler.ParseApiKey() accepts the key via
+            # the ?apikey= query, the X-Api-Key header, OR the Authorization Bearer
+            # form. The ?apikey= query form is used here because it survives every
+            # HTTP client (header forms can be dropped on a redirect hop by some
+            # clients, and the query parameter travels with the redirect target).
+            # No assertion is weakened: the response must still carry
+            # metadataProviderTimeoutSeconds (grep) and a failed/unauthenticated GET
+            # yields empty and fails the round-trip.
+            curl -s "$base/api/v1/config/metadataprovider?apikey=$1" \
               | grep -oiE '"metadataprovidertimeoutseconds":[[:space:]]*[0-9]+' \
               | grep -oE '[0-9]+$' | head -1
           }
@@ -353,57 +381,98 @@ jobs:
             # $1 = api key, $2 = new value. GET -> mutate -> PUT, print HTTP status.
             # The JSON mutation runs a tiny Python helper written via printf to a
             # temp file (NO here-doc: an indented here-doc terminator is literal
-            # content to bash and breaks the script at parse time — the defect
+            # content to bash and breaks the script at parse time - the defect
             # that failed this job on CI; and a python3 -c block whose first line
             # is indented hits an IndentationError). printf keeps the helper's
             # first line at column 0 of the file, exactly as Python requires.
             key="$1"; val="$2"
-            body=$(curl -s -H "X-Api-Key: $key" "$base/api/v1/config/metadataprovider")
+            body=$(curl -s "$base/api/v1/config/metadataprovider?apikey=$key")
             echo "$body" > "$raw/get.json"
             printf 'import json, sys\nsrc, dst, val = sys.argv[1], sys.argv[2], int(sys.argv[3])\nobj = json.load(open(src))\nobj["metadataProviderTimeoutSeconds"] = val\nopen(dst, "w").write(json.dumps(obj))\n' > "$raw/mutate.py"
             python3 "$raw/mutate.py" "$raw/get.json" "$raw/put.json" "$val"
             curl -s -o "$raw/put-resp.json" -w '%{http_code}' -X PUT \
-              -H "X-Api-Key: $key" -H "Content-Type: application/json" \
-              --data @"$raw/put.json" "$base/api/v1/config/metadataprovider"
+              "$base/api/v1/config/metadataprovider?apikey=$key" -H "Content-Type: application/json" \
+              --data @"$raw/put.json"
           }
           stop_app() {
             # Stop ONLY the stage-owned process (PID captured from start_app).
+            # The app handles SIGTERM with a graceful shutdown (NzbDrone.Host.AppLifetime
+            # PosixSignalRegistration -> StopApplication), so TERM-then-KILL preserves
+            # the intended graceful-then-hard stop semantics on Posix hosts.
             local pidfile="$raw/app.pid"
             [ -f "$pidfile" ] || return 0
+            local pid
             pid=$(cat "$pidfile")
             kill -TERM "$pid" 2>/dev/null
             for i in $(seq 1 15); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
             if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid" 2>/dev/null; sleep 1; fi
           }
 
+          # Bounded observability: when a phase fails, surface the app's own stdout/stderr
+          # tails AND the app's NLog file log (logs/bibliophilarr.txt under the data dir)
+          # into the receipt errors, so the true failure is isolable from the receipt
+          # alone (the hosted CI log of the redirected files is not always downloadable).
+          # Observability only - it does NOT change the PASS/PARTIAL/BUILD_ONLY contract.
+          phase_errors=()
+          # $1 = phase, $2 = detail, $3 = expected value.
+          phase_error() {
+            local phase="$1" detail="${2:-}" expected="${3:-}"
+            local errTail="" outTail="" appLog=""
+            local errFile="$raw/app-stderr.log" outFile="$raw/app-stdout.log"
+            if [ -f "$errFile" ]; then errTail=$(tail -40 "$errFile" 2>/dev/null); fi
+            if [ -f "$outFile" ]; then outTail=$(tail -40 "$outFile" 2>/dev/null); fi
+            local logFile
+            logFile=$(find "$data/logs" -name 'bibliophilarr*.txt' 2>/dev/null | head -1)
+            if [ -n "$logFile" ] && [ -f "$logFile" ]; then appLog=$(tail -60 "$logFile" 2>/dev/null); fi
+            phase_errors+=("PHASE=$phase${detail:+ detail=$detail}${expected:+ expected=$expected} APP_STDERR(tail)=$errTail APP_STDOUT(tail)=$outTail APP_LOG(tail)=$appLog")
+            echo "=== APP DIAGNOSTIC TAIL (phase=$phase) ==="
+            [ -n "$errTail" ] && echo "--- stderr ---" && echo "$errTail"
+            [ -n "$outTail" ] && echo "--- stdout ---" && echo "$outTail"
+            [ -n "$appLog" ] && echo "--- app log ---" && echo "$appLog"
+          }
+
+          # The round-trip's mutated value, captured here so the recovery assertions
+          # never dereference a variable that only exists in a conditional branch.
+          new_expected=""
           status="BUILD_ONLY"
           roundtrip=0; recovery=0; started=0
           set +e
           if start_app && wait_ping; then
             started=1
-            key=$(get_apikey)
+            key=$(get_apikey) || { phase_error "get_apikey" "config.xml ApiKey read failed"; started=0; }
             echo "=== STEP 2: config round-trip ==="
             orig=$(get_meta_timeout "$key")
-            new=$((orig + 7)); [ "$new" -gt 120 ] && new=120
-            http=$(put_meta_timeout "$key" "$new")
-            echo "PUT status=$http (expect 202)"
-            sleep 2
-            reget=$(get_meta_timeout "$key")
-            echo "round-trip: orig=$orig new=$new reget=$reget"
-            if [ "$reget" = "$new" ]; then roundtrip=1; fi
+            if [ -z "$orig" ]; then
+              phase_error "roundtrip" "get_meta_timeout returned empty (API GET failed or key invalid)"
+            else
+              new=$((orig + 7)); [ "$new" -gt 120 ] && new=120
+              new_expected="$new"
+              http=$(put_meta_timeout "$key" "$new")
+              echo "PUT status=$http (expect 202)"
+              sleep 2
+              reget=$(get_meta_timeout "$key")
+              echo "round-trip: orig=$orig new=$new reget=$reget"
+              if [ "$reget" = "$new" ]; then roundtrip=1; fi
+              [ "$roundtrip" = 1 ] || phase_error "roundtrip" "PUT status=$http reget=$reget" "$new"
+            fi
             echo "=== STEP 3: recovery (TERM+KILL, restart, verify persistence) ==="
             stop_app
             if start_app && wait_ping; then
               after=$(get_meta_timeout "$key")
-              echo "after-restart value: $after (expect $new persisted)"
-              if [ "$after" = "$new" ]; then recovery=1; fi
+              echo "after-restart value: $after (expect $new_expected persisted)"
+              if [ -n "$new_expected" ] && [ "$after" = "$new_expected" ]; then recovery=1; fi
+              [ "$recovery" = 1 ] || phase_error "recovery" "after-restart=$after" "$new_expected"
+            else
+              phase_error "recovery" "app did not reach /ping after restart" "$new_expected"
             fi
             stop_app
+          else
+            phase_error "startup" "app did not reach /ping 200 status=OK within 90s"
           fi
           set -e
           [ "$started" = 1 ] && [ "$roundtrip" = 1 ] && [ "$recovery" = 1 ] && status="PASS"
-          { [ "$started" = 1 ] && [ "$roundtrip" = 1 ] && [ "$recovery" = 0 ]; } && status="PARTIAL"
-          { [ "$started" = 0 ]; } && status="BUILD_ONLY"
+          { [ "$started" = "1" ] && [ "$roundtrip" = "1" ] && [ "$recovery" = "0" ]; } && status="PARTIAL"
+          { [ "$started" = "0" ]; } && status="BUILD_ONLY"
           # Build the receipt JSON with printf (NO here-doc): an indented
           # here-doc terminator is literal content to bash, so the receipt
           # here-doc never terminated and the whole script died at parse time
@@ -412,8 +481,16 @@ jobs:
           b_roundtrip=$([ "$roundtrip" = 1 ] && echo true || echo false)
           b_recovery=$([ "$recovery" = 1 ] && echo true || echo false)
           b_buildonly=$([ "$started" = 0 ] && echo true || echo false)
-          printf '{\n  "os": "macos-latest",\n  "rid": "%s",\n  "app_started": %s,\n  "ping_ok": %s,\n  "roundtrip_passed": %s,\n  "recovery_passed": %s,\n  "build_only": %s,\n  "status": "%s"\n}\n' \
-            "$RID" "$b_started" "$b_started" "$b_roundtrip" "$b_recovery" "$b_buildonly" "$status" \
+          # Surface the bounded per-phase diagnostics into the receipt so a non-PASS
+          # receipt is self-explanatory (the hosted CI log of the redirected app files
+          # is not always downloadable). JSON-escape quotes; keep it on one line.
+          errjson=""
+          if [ "${#phase_errors[@]}" -gt 0 ]; then
+            errjson=$(printf '%s\n' "${phase_errors[@]}" | sed 's/"/\\"/g')
+            errjson="${errjson//$'\n'/ }"
+          fi
+          printf '{\n  "os": "macos-latest",\n  "rid": "%s",\n  "app_started": %s,\n  "ping_ok": %s,\n  "roundtrip_passed": %s,\n  "recovery_passed": %s,\n  "build_only": %s,\n  "status": "%s",\n  "errors": "%s"\n}\n' \
+            "$RID" "$b_started" "$b_started" "$b_roundtrip" "$b_recovery" "$b_buildonly" "$status" "$errjson" \
             > "$raw/receipt.json"
           echo "=== RECEIPT ==="
           cat "$raw/receipt.json"
