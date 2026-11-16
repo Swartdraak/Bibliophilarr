@@ -65,4 +65,36 @@
   <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win'))">
     <ProjectReference Include="..\NzbDrone.Windows\Bibliophilarr.Windows.csproj" />
   </ItemGroup>
+  <!-- Issue #270 (macos-latest app-smoke lane): the SQLite ADO provider
+       (System.Data.SQLite, the netstandard stub of System.Data.SQLite.Core)
+       must be present in the app base directory for every non-Windows
+       single-project Console publish. The app boots 158 SQLite migrations
+       through FluentMigrator 3.3.2 (ReflectionBasedDbFactory.CreateDatabase),
+       which materializes the provider assembly BY FILE PATH from the app base
+       directory (Assembly.LoadFile, no resolver fallback). The stub is a
+       project-local asset (Bibliophilarr.Core references System.Data.SQLite.Core
+       for its own Dapper/DbFactory usage), so a single-project
+       `dotnet publish Bibliophilarr.Console.csproj` does not copy it. On the
+       hosted osx runner the missing provider assembly made the app die at
+       first-boot migration before /ping was ever served (hosted check
+       133120267219, head c89b72f7: the runner image's ADO provider
+       materialization resolved by a name that file was absent for -
+       FileNotFoundException at ReflectionBasedDbFactory; receipt BUILD_ONLY).
+       This scoped copy puts the provider assembly in the publish output for
+       every non-Windows RID. The Windows publish is byte-for-byte unaffected
+       (the condition is the exact logical complement of the win-RID platform
+       group above). No product source, no runtime loader behavior, no
+       deps.json rewrite: the published app's startup composition is preserved,
+       and the by-path LoadFile can no longer fail on the provider assembly.
+       The copy source is the build output's System.Data.SQLite.dll (the same
+       stub the build emits); the path is relative to the Console project
+       directory (the project's OutputPath convention per
+       Directory.Build.props places the net10.0 build output at
+       <repo-root>/_output/net10.0). Pinned by
+       ConsoleSqliteProviderPublishIssue270Fixture. -->
+  <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
+    <CopyToPublishDirectory Include="_output/net10.0/System.Data.SQLite.dll">
+      <Link>System.Data.SQLite.dll</Link>
+    </CopyToPublishDirectory>
+  </ItemGroup>
 </Project>
