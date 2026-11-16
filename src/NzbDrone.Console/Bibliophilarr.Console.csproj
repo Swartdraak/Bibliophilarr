@@ -97,4 +97,64 @@
       <Link>System.Data.SQLite.dll</Link>
     </CopyToPublishDirectory>
   </ItemGroup>
+  <!-- Issue #270 (macos-latest app-smoke lane, repair 5): the managed SQLite
+       provider assemblies FluentMigrator 3.3.2 materializes BY FILE PATH from
+       the app base directory at first boot (ReflectionBasedDbFactory:
+       FluentMigrator.dll / Runner.dll / Runner.Core.dll / Runner.SQLite.dll /
+       Abstractions.dll / Extensions.*.dll; the ADO provider
+       System.Data.SQLite.dll itself is covered by the repair-4 group above)
+       must be present in EVERY non-Windows single-project Console publish.
+       The app boots 158 SQLite migrations through FluentMigrator 3.3.2; on the
+       hosted osx runner the first-boot by-path provider materialization
+       resolved provider files that the single-project publish does not emit
+       into the app base directory (hosted checks 133120267219 at c89b72f7 and
+       133259224161 at 466edee54f: FileNotFoundException at
+       ReflectionBasedDbFactory, receipt BUILD_ONLY), so /ping was never served.
+       This repair copies the provider assemblies from the shared
+       _output/net10.0 build output (the same directory the repair-4 group
+       sources System.Data.SQLite.dll from; the full-sln Release build emits
+       every referenced assembly there) into the publish output for every
+       non-Windows RID, under a RID gate evaluated at PUBLISH time (the
+       NonWinRidProviderProbe property: empty at restore/build time, so the
+       portable solution model is untouched; 'true' when the publish RID is
+       not win-* — the exact logical complement of the win-RID platform group
+       above, mirroring the issue-#286/#270 RID-scoped ItemGroup style). The
+       Windows publish is byte-for-byte unaffected. No product source, no
+       runtime loader behavior, no new package, no dependency-version change:
+       the published app's startup composition is preserved and the by-path
+       provider materialization can no longer fail on the provider surface.
+       Pinned by ConsoleSqliteProviderPublishIssue270Fixture (repair-5
+       assertions appended). -->
+  <PropertyGroup>
+    <NonWinRidProviderProbe Condition="'$(RuntimeIdentifier)' != '' and !$(RuntimeIdentifier.StartsWith('win'))">true</NonWinRidProviderProbe>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(NonWinRidProviderProbe)' == 'true'">
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.dll">
+      <Link>FluentMigrator.dll</Link>
+    </CopyToPublishDirectory>
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Runner.dll">
+      <Link>FluentMigrator.Runner.dll</Link>
+    </CopyToPublishDirectory>
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Runner.Core.dll">
+      <Link>FluentMigrator.Runner.Core.dll</Link>
+    </CopyToPublishDirectory>
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Runner.SQLite.dll">
+      <Link>FluentMigrator.Runner.SQLite.dll</Link>
+    </CopyToPublishDirectory>
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Abstractions.dll">
+      <Link>FluentMigrator.Abstractions.dll</Link>
+    </CopyToPublishDirectory>
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Extensions.Oracle.dll">
+      <Link>FluentMigrator.Extensions.Oracle.dll</Link>
+    </CopyToPublishDirectory>
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Extensions.Postgres.dll">
+      <Link>FluentMigrator.Extensions.Postgres.dll</Link>
+    </CopyToPublishDirectory>
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Extensions.SqlAnywhere.dll">
+      <Link>FluentMigrator.Extensions.SqlAnywhere.dll</Link>
+    </CopyToPublishDirectory>
+    <CopyToPublishDirectory Include="_output/net10.0/FluentMigrator.Extensions.SqlServer.dll">
+      <Link>FluentMigrator.Extensions.SqlServer.dll</Link>
+    </CopyToPublishDirectory>
+  </ItemGroup>
 </Project>

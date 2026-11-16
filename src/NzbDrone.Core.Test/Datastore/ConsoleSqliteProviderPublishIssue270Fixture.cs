@@ -172,5 +172,117 @@ namespace NzbDrone.Core.Test.Datastore
                 "<PackageReference Include=\"Microsoft.Data.Sqlite\"",
                 "the provider ADO assembly is the System.Data.SQLite stub; the managed Microsoft.Data.Sqlite package is a different provider and must not be introduced");
         }
+
+        // ------------------------------------------------------------------
+        // Repair 5 (task t_8a929d38): the hosted macos-latest lane STILL failed
+        // at 466edee54f with a by-path provider load inside FluentMigrator
+        // 3.3.2's ReflectionBasedDbFactory (hosted check 133259224161, receipt
+        // BUILD_ONLY). The repair-4 scoped copy of the ADO provider stub did
+        // not close the defect class: the by-path materialization surface is
+        // the FLUENTMIGRATOR 3.3.2 provider assemblies themselves
+        // (FluentMigrator.dll, Runner.dll, Runner.Core.dll, Runner.SQLite.dll,
+        // Abstractions.dll, Extensions.*.dll), which a single-project Console
+        // publish does not emit into the app base directory either. The repair
+        // copies them from the shared _output/net10.0 build output into every
+        // non-Windows publish, gated at publish time by the
+        // NonWinRidProviderProbe RID-gated property (the exact logical
+        // complement of the win-RID platform group, mirroring the
+        // issue-#286/#270 RID-scoped ItemGroup style; absent at restore/build
+        // time so the portable solution model is untouched). These assertions
+        // pin that gate so a future revert (removing the provider-surface copy,
+        // making it unconditional and polluting the Windows publish, or
+        // switching to a new package) is caught by CI.
+        // ------------------------------------------------------------------
+        private static readonly string[] Repair5ProviderAssemblies =
+        {
+            "FluentMigrator.dll",
+            "FluentMigrator.Runner.dll",
+            "FluentMigrator.Runner.Core.dll",
+            "FluentMigrator.Runner.SQLite.dll",
+            "FluentMigrator.Abstractions.dll",
+            "FluentMigrator.Extensions.Oracle.dll",
+            "FluentMigrator.Extensions.Postgres.dll",
+            "FluentMigrator.Extensions.SqlAnywhere.dll",
+            "FluentMigrator.Extensions.SqlServer.dll",
+        };
+
+        [Test]
+        public void repair5_provider_surface_copies_must_sit_in_a_rid_gated_non_win_group()
+        {
+            var text = ReadCsproj();
+
+            // The publish-time RID gate: a property that is 'true' exactly when
+            // the publish RID is not win-* (empty at restore/build time, where
+            // RuntimeIdentifier is unset, so the portable model is untouched).
+            text.Should().Contain(
+                "<NonWinRidProviderProbe Condition=\"'$(RuntimeIdentifier)' != '' and !$(RuntimeIdentifier.StartsWith('win'))\">true</NonWinRidProviderProbe>",
+                "the repair-5 provider-surface copy must be gated at publish time by the NonWinRidProviderProbe RID-gated property");
+
+            // Every repair-5 provider assembly must be copied from the shared
+            // _output/net10.0 build output (not a new package, not a RID-
+            // specific asset path).
+            foreach (var asm in Repair5ProviderAssemblies)
+            {
+                text.Should().Contain(
+                    $"_output/net10.0/{asm}",
+                    $"the repair-5 provider surface must copy {asm} from the shared _output/net10.0 build output");
+            }
+        }
+
+        [Test]
+        public void repair5_provider_copies_must_be_scoped_outside_any_win_rid_group()
+        {
+            var text = ReadCsproj();
+
+            // Walk the file: remember whether the current ItemGroup is
+            // RID-gated to non-Windows (either by the probe property or by the
+            // legacy !win condition). Every repair-5 copy must sit inside such
+            // a group and NOWHERE else.
+            var inNonWinGroup = false;
+            var copyInScoped = 0;
+            var copyElsewhere = 0;
+
+            foreach (var rawLine in text.Split('\n'))
+            {
+                var line = rawLine.Trim();
+
+                if (line.StartsWith("<ItemGroup", StringComparison.Ordinal))
+                {
+                    inNonWinGroup =
+                        line.Contains("'$(NonWinRidProviderProbe)' == 'true'", StringComparison.Ordinal) ||
+                        line.Contains("!$(RuntimeIdentifier.StartsWith('win'))", StringComparison.Ordinal);
+                    continue;
+                }
+
+                if (line.StartsWith("</ItemGroup>", StringComparison.Ordinal))
+                {
+                    inNonWinGroup = false;
+                    continue;
+                }
+
+                if (line.StartsWith("<CopyToPublishDirectory", StringComparison.Ordinal))
+                {
+                    foreach (var asm in Repair5ProviderAssemblies)
+                    {
+                        if (line.Contains($"_output/net10.0/{asm}", StringComparison.Ordinal))
+                        {
+                            if (inNonWinGroup)
+                            {
+                                copyInScoped++;
+                            }
+                            else
+                            {
+                                copyElsewhere++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            copyInScoped.Should().Be(Repair5ProviderAssemblies.Length,
+                "every repair-5 provider assembly copy must sit inside the non-Windows RID-gated ItemGroup");
+            copyElsewhere.Should().Be(0,
+                "no repair-5 provider copy may exist outside the non-Windows RID-gated ItemGroup (it would pollute the Windows publish)");
+        }
     }
 }
