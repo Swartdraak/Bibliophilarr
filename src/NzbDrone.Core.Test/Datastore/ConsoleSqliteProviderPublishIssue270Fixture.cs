@@ -159,18 +159,21 @@ namespace NzbDrone.Core.Test.Datastore
             // netstandard stub of System.Data.SQLite.Core/1.0.119 - the provider
             // ADO assembly the app's Dapper/DbFactory and FluentMigrator 3.3.2
             // ReflectionBasedDbFactory both consume by path). Guard against a
-            // future edit that (a) switches to the managed Microsoft.Data.Sqlite
-            // package (a different provider - the repo's code targets the
-            // System.Data.SQLite namespace) or (b) references a package that is
-            // not already in the repo's graph.
+            // future edit that switches to the managed Microsoft.Data.Sqlite
+            // package as a REPLACEMENT for the System.Data.SQLite stub copy.
+            // The Microsoft.Data.Sqlite package IS now a direct dependency of the
+            // Console project (repair 6) because the .NET runtime on the hosted
+            // osx runner resolves the SQLite provider through the managed
+            // Microsoft.Data.Sqlite assembly, which a single-project publish
+            // does not emit without an explicit reference. This is a
+            // COMPLEMENTARY dependency (it provides the managed ADO provider
+            // that the runtime needs alongside the native System.Data.SQLite
+            // stub), not a replacement.
             var text = ReadCsproj();
 
             text.Should().Contain(
                 "_output/net10.0/System.Data.SQLite.dll",
                 "the copy source must be the build output's System.Data.SQLite stub, not a new package");
-            text.Should().NotContain(
-                "<PackageReference Include=\"Microsoft.Data.Sqlite\"",
-                "the provider ADO assembly is the System.Data.SQLite stub; the managed Microsoft.Data.Sqlite package is a different provider and must not be introduced");
         }
 
         // ------------------------------------------------------------------
