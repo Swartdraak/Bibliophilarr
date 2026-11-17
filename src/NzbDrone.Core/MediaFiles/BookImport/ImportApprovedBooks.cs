@@ -208,6 +208,38 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     localTrack.Book.Author = localTrack.Author;
 
+                    if (!replaceExisting)
+                    {
+                        // #426: the exposed "do not replace existing files" setting must
+                        // prevent replacement of an already-imported record.  When a
+                        // record already backs the incoming path for the same
+                        // book+part (and edition when tracked), the duplicate import
+                        // short-circuits: the original record and file are preserved,
+                        // no upgrade/copy is issued, and the result reports the skip
+                        // instead of recycling the record (which would change its
+                        // identity despite identical bytes).
+                        var previousFile = _mediaFileService.GetFileWithPath(localTrack.Path.CleanFilePath());
+
+                        if (previousFile != null &&
+                            previousFile.Id > 0 &&
+                            previousFile.Part == localTrack.Part &&
+                            previousFile.EditionId == localTrack.Edition.Id)
+                        {
+                            var preservedId = previousFile.Id;
+                            _logger.ProgressInfo(
+                                "Skipping duplicate import of {0} for {1}: existing book file {2} is preserved (replaceExistingFiles=false)",
+                                localTrack.Path,
+                                localTrack.Book,
+                                preservedId);
+
+                            importResults.Add(new ImportResult(
+                                importDecision,
+                                $"Skipped: file already imported as book file {previousFile.Id} (original record preserved, replaceExistingFiles=false)"));
+
+                            continue;
+                        }
+                    }
+
                     var bookFile = new BookFile
                     {
                         Path = localTrack.Path.CleanFilePath(),
