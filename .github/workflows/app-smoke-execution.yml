@@ -430,6 +430,20 @@ jobs:
             [ -n "$outTail" ] && echo "--- stdout ---" && echo "$outTail"
             [ -n "$appLog" ] && echo "--- app log ---" && echo "$appLog"
           }
+          # OPERATOR-AUTHORIZED DIAGNOSTIC (issue #270, check 133487986627): the app's
+          # NLog file log is written under the app's DATA directory (AppFolderInfo
+          # resolves -data=... to AppDataFolder, and the NzbDroneLogger app-file targets
+          # land in <data>/logs/bibliophilarr*.txt). The first-boot DryIoc startup
+          # exception lands at the BEGINNING of the file, so this probe reads the FIRST
+          # 100 lines (the startup region) into the job log on any failure. Purely
+          # additive: every existing test line above is byte-for-byte unchanged; no
+          # PASS/FAIL semantics, no secrets, no generated config printed, no other
+          # file or assertion changed.
+          app_log_head() {
+            local f
+            f=$(find "$data/logs" -name 'bibliophilarr*.txt' 2>/dev/null | head -1)
+            if [ -n "$f" ] && [ -f "$f" ]; then head -100 "$f" 2>/dev/null; fi
+          }
 
           # The round-trip's mutated value, captured here so the recovery assertions
           # never dereference a variable that only exists in a conditional branch.
