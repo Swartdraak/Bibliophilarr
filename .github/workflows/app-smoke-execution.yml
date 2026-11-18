@@ -443,6 +443,26 @@ jobs:
             local f
             f=$(find "$data/logs" -name 'bibliophilarr*.txt' 2>/dev/null | head -1)
             if [ -n "$f" ] && [ -f "$f" ]; then head -100 "$f" 2>/dev/null; fi
+            # Publish-dir fallback: probe the content-dir hypothesis so the single
+            # authorized hosted attempt is decisive regardless of log location.
+            local f2
+            f2=$(find "$pub/logs" -name 'bibliophilarr*.txt' 2>/dev/null | head -1)
+            if [ -z "$f" ] && [ -n "$f2" ] && [ -f "$f2" ]; then head -100 "$f2" 2>/dev/null; fi
+          }
+          # OPERATOR-AUTHORIZED DIAGNOSTIC (repair 8, issue #270, check 133487986627):
+          # On any phase failure, append an independent phase_errors entry carrying
+          # APP_LOG_HEAD(start)=<first 100 lines of the app log>. Probes BOTH
+          # <data>/logs and <pub>/logs. This is purely additive: it does NOT modify
+          # the existing phase_error() function or any existing test line.
+          phase_error_diagnostic() {
+            local phase="$1" detail="${2:-}"
+            local appLogHead
+            appLogHead=$(app_log_head)
+            if [ -n "$appLogHead" ]; then
+              phase_errors+=("APP_LOG_HEAD(start) PHASE=$phase${detail:+ detail=$detail} $appLogHead")
+              echo "=== APP LOG BEGINNING (first 100 lines, first-exception region, phase=$phase) ==="
+              echo "$appLogHead"
+            fi
           }
 
           # The round-trip's mutated value, captured here so the recovery assertions
@@ -482,6 +502,12 @@ jobs:
             stop_app
           else
             phase_error "startup" "app did not reach /ping 200 status=OK within 90s"
+          fi
+          # OPERATOR-AUTHORIZED DIAGNOSTIC (repair 8): on any failure, append the
+          # first-exception region (beginning of the app log) to the receipt errors.
+          # Purely additive: does not modify any existing test line or assertion.
+          if [ "${#phase_errors[@]}" -gt 0 ]; then
+            phase_error_diagnostic "post-failure" "first-exception region"
           fi
           set -e
           [ "$started" = 1 ] && [ "$roundtrip" = 1 ] && [ "$recovery" = 1 ] && status="PASS"
