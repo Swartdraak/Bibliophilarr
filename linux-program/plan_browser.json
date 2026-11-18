@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "task_id": "@TASK@",
+  "head_sha": "@HEAD@",
+  "deadline_seconds": 600,
+  "setup": [
+    {
+      "name": "prepare_fresh_data",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/browser/prepare.sh"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 120,
+      "env": {
+        "CASE_DIR": "/workspace/@CASE@"
+      }
+    }
+  ],
+  "services": [
+    {
+      "name": "bibliophilarr-app",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/build/start_app.sh"
+      ],
+      "cwd": "repo",
+      "env": {
+        "DATA_DIR": "/workspace/@CASE@/app-data",
+        "APP_PORT": "8765"
+      },
+      "ready": {
+        "url": "http://127.0.0.1:8765/ping",
+        "status": 200,
+        "timeout_seconds": 120,
+        "files": [
+          {
+            "path": "@CASE@/app-data/config.xml",
+            "xml_nonempty": [
+              "ApiKey"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "state_directories": [
+    {
+      "path": "@CASE@/app-data",
+      "mode": "fresh",
+      "reason": "Browser/UI stage boots a first-instance app so the served frontend and its bootstrap contract are observed from a clean state"
+    }
+  ],
+  "steps": [
+    {
+      "name": "check_browser",
+      "argv": [
+        "python3",
+        "/workspace/linux-program/browser/check_browser.py"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 240,
+      "env": {
+        "APP_URL": "http://127.0.0.1:8765",
+        "CASE_DIR": "/workspace/@CASE@"
+      }
+    }
+  ]
+}
