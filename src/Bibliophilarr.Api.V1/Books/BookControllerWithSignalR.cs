@@ -65,7 +65,8 @@ namespace Bibliophilarr.Api.V1.Books
                 resource.Author = author.ToResource();
             }
 
-            EnrichFormatStatuses(resource);
+            var profiles = _formatProfileService.GetByAuthorId(resource.AuthorId);
+            EnrichFormatStatuses(book, resource, profiles, new Dictionary<int, string>());
             FetchAndLinkBookStatistics(resource);
             MapCoversToLocal(resource);
 
@@ -106,7 +107,15 @@ namespace Bibliophilarr.Api.V1.Books
                 }
             }
 
-            EnrichFormatStatuses(result);
+            var profilesByAuthor = result.Select(book => book.AuthorId).Distinct()
+                .ToDictionary(id => id, id => _formatProfileService.GetByAuthorId(id));
+            var profileNames = new Dictionary<int, string>();
+
+            for (var i = 0; i < books.Count; i++)
+            {
+                var resource = result[i];
+                EnrichFormatStatuses(books[i], resource, profilesByAuthor[resource.AuthorId], profileNames);
+            }
 
             var authorStats = _authorStatisticsService.AuthorStatistics();
             LinkAuthorStatistics(result, authorStats);
@@ -115,96 +124,29 @@ namespace Bibliophilarr.Api.V1.Books
             return result;
         }
 
-        private void EnrichFormatStatuses(BookResource resource)
+        private void EnrichFormatStatuses(Book book, BookResource resource, IEnumerable<AuthorFormatProfile> profiles, Dictionary<int, string> profileNames)
         {
-            if (resource == null)
+            foreach (var profile in profiles ?? Enumerable.Empty<AuthorFormatProfile>())
             {
-                return;
-            }
+                var status = resource.FormatStatuses.FirstOrDefault(format => format.FormatType == profile.FormatType);
 
-            var formatProfiles = _formatProfileService.GetByAuthorId(resource.AuthorId);
-            if (formatProfiles == null || !formatProfiles.Any())
-            {
-                return;
-            }
-
-            resource.FormatStatuses ??= new List<BookFormatStatusResource>();
-            var profileCache = new Dictionary<int, string>();
-
-            foreach (var fp in formatProfiles)
-            {
-                var fs = resource.FormatStatuses.FirstOrDefault(s => s.FormatType == fp.FormatType);
-                if (fs == null)
+                if (status == null)
                 {
-                    // Author has a format profile for this type but no status entry exists yet
-                    // (no files of this type and edition not classified). Add a placeholder entry.
-                    fs = new BookFormatStatusResource
-                    {
-                        FormatType = fp.FormatType,
-                        HasFile = false,
-                        FileCount = 0
-                    };
-                    resource.FormatStatuses.Add(fs);
+                    status = new BookFormatStatusResource { FormatType = profile.FormatType };
+                    resource.FormatStatuses.Add(status);
                 }
 
-                // The format preference only applies while the book and author are monitored.
-                fs.Monitored = resource.AllowsFormatMonitoring && fp.Monitored;
-                fs.QualityProfileId = fp.QualityProfileId;
-                if (!profileCache.TryGetValue(fp.QualityProfileId, out var name))
+                status.CanMonitor = resource.AllowsFormatMonitoring && profile.Monitored;
+                status.Monitored = status.CanMonitor && book.IsFormatMonitored(profile.FormatType);
+                status.QualityProfileId = profile.QualityProfileId;
+
+                if (!profileNames.TryGetValue(profile.QualityProfileId, out var name))
                 {
-                    name = _qualityProfileService.Get(fp.QualityProfileId)?.Name;
-                    profileCache[fp.QualityProfileId] = name;
+                    name = _qualityProfileService.Get(profile.QualityProfileId)?.Name;
+                    profileNames[profile.QualityProfileId] = name;
                 }
 
-                fs.QualityProfileName = name;
-            }
-        }
-
-        private void EnrichFormatStatuses(List<BookResource> resources)
-        {
-            if (resources == null || !resources.Any())
-            {
-                return;
-            }
-
-            var authorIds = resources.Select(r => r.AuthorId).Distinct().ToList();
-            var allProfiles = authorIds.SelectMany(id => _formatProfileService.GetByAuthorId(id)).ToList();
-            var profilesByAuthor = allProfiles.GroupBy(p => p.AuthorId).ToDictionary(g => g.Key, g => g.ToList());
-            var qpCache = new Dictionary<int, string>();
-
-            foreach (var resource in resources)
-            {
-                if (!profilesByAuthor.TryGetValue(resource.AuthorId, out var formatProfiles))
-                {
-                    continue;
-                }
-
-                resource.FormatStatuses ??= new List<BookFormatStatusResource>();
-
-                foreach (var fp in formatProfiles)
-                {
-                    var fs = resource.FormatStatuses.FirstOrDefault(s => s.FormatType == fp.FormatType);
-                    if (fs == null)
-                    {
-                        fs = new BookFormatStatusResource
-                        {
-                            FormatType = fp.FormatType,
-                            HasFile = false,
-                            FileCount = 0
-                        };
-                        resource.FormatStatuses.Add(fs);
-                    }
-
-                    fs.Monitored = resource.AllowsFormatMonitoring && fp.Monitored;
-                    fs.QualityProfileId = fp.QualityProfileId;
-                    if (!qpCache.TryGetValue(fp.QualityProfileId, out var name))
-                    {
-                        name = _qualityProfileService.Get(fp.QualityProfileId)?.Name;
-                        qpCache[fp.QualityProfileId] = name;
-                    }
-
-                    fs.QualityProfileName = name;
-                }
+                status.QualityProfileName = name;
             }
         }
 

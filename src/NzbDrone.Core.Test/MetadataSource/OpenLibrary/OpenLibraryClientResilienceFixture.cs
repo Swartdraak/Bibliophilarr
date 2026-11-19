@@ -4,6 +4,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -80,6 +81,23 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 : Subject.Search("author_key:OL1A", 100, 100);
 
             result.Should().BeNull();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void author_lookup_marks_only_an_explicit_404_as_confirmed_missing()
+        {
+            var request = new HttpRequest("https://openlibrary.org/authors/OL1A.json");
+            Mocker.GetMock<IHttpClient>()
+                .SetupSequence(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns(new HttpResponse(request, new HttpHeader(), "", System.Net.HttpStatusCode.OK))
+                .Returns(new HttpResponse(request, new HttpHeader(), "", System.Net.HttpStatusCode.ServiceUnavailable))
+                .Returns(new HttpResponse(request, new HttpHeader(), "", System.Net.HttpStatusCode.NotFound));
+
+            Subject.GetAuthor("OL1A", true).Should().BeNull();
+            Subject.GetAuthor("OL1A", true).Should().BeNull();
+            var lookup = () => Subject.GetAuthor("OL1A", true);
+            lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().BeTrue();
             ExceptionVerification.ExpectedWarns(1);
         }
 

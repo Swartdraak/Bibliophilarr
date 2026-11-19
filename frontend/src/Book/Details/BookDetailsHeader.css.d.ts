@@ -9,6 +9,7 @@ interface CssExports {
   'details': string;
   'detailsLabel': string;
   'duration': string;
+  'formatMonitorButton': string;
   'header': string;
   'headerContent': string;
   'info': string;

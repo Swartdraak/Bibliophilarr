@@ -10,6 +10,7 @@ import Table from 'Components/Table/Table';
 import TableBody from 'Components/Table/TableBody';
 import TableRow from 'Components/Table/TableRow';
 import { icons, kinds } from 'Helpers/Props';
+import getWikiHelpLink from 'Utilities/getWikiHelpLink';
 import titleCase from 'Utilities/String/titleCase';
 import translate from 'Utilities/String/translate';
 import styles from './Health.css';
@@ -196,7 +197,8 @@ class Health extends Component {
                         <TableRowCell>
                           <IconButton
                             name={icons.WIKI}
-                            to={item.wikiUrl}
+                            to={getWikiHelpLink(item.wikiUrl, 'system', 'system')}
+                            target="_blank"
                             title={translate('ReadTheWikiForMoreInformation')}
                           />
 

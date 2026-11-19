@@ -4,14 +4,37 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
+import * as commandNames from 'Commands/commandNames';
 import { toggleBooksMonitored } from 'Store/Actions/bookActions';
 import { executeCommand } from 'Store/Actions/commandActions';
 import { setSeriesSort, setSeriesTableOption } from 'Store/Actions/seriesActions';
 import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
-import createCommandsSelector from 'Store/Selectors/createCommandsSelector';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
+import createExecutingCommandsSelector from 'Store/Selectors/createExecutingCommandsSelector';
 import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
 import AuthorDetailsSeries from './AuthorDetailsSeries';
+
+export function getSeriesSearchBookIds(books, authorMonitored) {
+  if (!authorMonitored) {
+    return [];
+  }
+
+  return books.filter((book) => {
+    if (!book.monitored) {
+      return false;
+    }
+
+    const formats = book.formatStatuses ?? [];
+    return formats.length > 0 ?
+      formats.some((format) => format.monitored && !format.hasFile) :
+      !book.statistics?.bookFileCount;
+  }).map((book) => book.id);
+}
+
+export function compareSeriesBookPositions(left, right, direction) {
+  const order = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+  return direction === 'descending' ? -order : order;
+}
 
 function createMapStateToProps() {
   return createSelector(
@@ -19,10 +42,10 @@ function createMapStateToProps() {
     (state) => state.books,
     createAuthorSelector(),
     (state) => state.series,
-    createCommandsSelector(),
+    createExecutingCommandsSelector(),
     createDimensionsSelector(),
     createUISettingsSelector(),
-    (seriesId, books, author, series, commands, dimensions, uiSettings) => {
+    (seriesId, books, author, series, executingCommands, dimensions, uiSettings) => {
 
       const currentSeries = _.find(series.items, { id: seriesId });
 
@@ -45,7 +68,7 @@ function createMapStateToProps() {
         sortedBooks = booksInSeries.sort((a, b) => {
           const apos = positionMap[a.id] || '';
           const bpos = positionMap[b.id] || '';
-          return apos.localeCompare(bpos, undefined, { numeric: true, sensivity: 'base' });
+          return compareSeriesBookPositions(apos, bpos, series.sortDirection);
         });
       } else {
         sortedBooks = _.orderBy(booksInSeries, series.sortKey, sortDir);
@@ -60,6 +83,11 @@ function createMapStateToProps() {
         sortKey: series.sortKey,
         sortDirection: series.sortDirection,
         authorMonitored: author.monitored,
+        searchBookIds: getSeriesSearchBookIds(sortedBooks, author.monitored),
+        isSearching: executingCommands.some((command) => {
+          return command.name === commandNames.BOOK_SEARCH &&
+            command.body?.bookIds?.some((id) => bookIds.includes(id));
+        }),
         isSmallScreen: dimensions.isSmallScreen,
         uiSettings
       };
@@ -87,6 +115,13 @@ class AuthorDetailsSeasonConnector extends Component {
     this.props.dispatchSetSeriesSort({ sortKey });
   };
 
+  onSearchPress = (bookIds) => {
+    this.props.executeCommand({
+      name: commandNames.BOOK_SEARCH,
+      bookIds
+    });
+  };
+
   onMonitorBookPress = (bookIds, monitored) => {
     this.props.toggleBooksMonitored({
       bookIds,
@@ -104,6 +139,7 @@ class AuthorDetailsSeasonConnector extends Component {
         onSortPress={this.onSortPress}
         onTableOptionChange={this.onTableOptionChange}
         onMonitorBookPress={this.onMonitorBookPress}
+        onSearchPress={this.onSearchPress}
       />
     );
   }

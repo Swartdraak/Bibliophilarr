@@ -1,7 +1,5 @@
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Configuration;
 using NUnit.Framework;
 using NzbDrone.Common.Exceptions;
@@ -9,65 +7,44 @@ using NzbDrone.Host;
 
 namespace NzbDrone.App.Test
 {
-    // Issue #364 regression: RejectLegacyConfigurationKeys must reject only the
-    // pre-rebrand (Readarr) namespace. The active namespace is Bibliophilarr:*:
-    // Bootstrap.CreateConsoleHostBuilder reads Bibliophilarr:Server:Port (the
-    // target of the documented BIBLIOPHILARR_SERVER__PORT env var, mapped via
-    // AddEnvironmentVariables) and ConfigureOptions binds Bibliophilarr:{App,
-    // Server, Auth, Log, Postgres, Update}. While the guard rejected the active
-    // namespace itself, any env-var override (e.g. BIBLIOPHILARR_SERVER__PORT)
-    // made the app throw BibliophilarrStartupException at startup, or silently
-    // fall through to defaults when the key never resolved.
     [TestFixture]
     public class BootstrapIssue364Fixture
     {
         private static IConfiguration BuildConfig(params KeyValuePair<string, string>[] pairs)
         {
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(pairs.ToList())
-                .Build();
-
-            // Private static method in production; invoked through reflection so
-            // the regression fixture compiles against the base (unfixed) tree as
-            // well as the fixed tree.
-            var method = typeof(Bootstrap).GetMethod("RejectLegacyConfigurationKeys", BindingFlags.Static | BindingFlags.NonPublic);
-
-            try
-            {
-                method.Invoke(null, new object[] { config });
-            }
-            catch (TargetInvocationException ex) when (ex.InnerException != null)
-            {
-                // Re-throw the wrapped exception so Assert.Throws sees the real
-                // BibliophilarrStartupException, not the reflection wrapper.
-                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
-            }
-
+            var config = new ConfigurationBuilder().AddInMemoryCollection(pairs).Build();
+            Bootstrap.RejectLegacyConfigurationKeys(config);
             return config;
         }
 
-        private static string BuildUrl(string scheme, string bindAddress, int port)
+        [TestCase(null, "8811", 8811)]
+        [TestCase("8811", null, 8811)]
+        [TestCase("8811", "8812", 8811)]
+        [TestCase(null, null, 8787)]
+        [NonParallelizable]
+        public void should_resolve_the_server_port_from_environment(string canonical, string historical, int expected)
         {
-            // Bootstrap.BuildUrl's exact contract (string interpolation), kept
-            // local so the fixture compiles against the base tree where the
-            // helper is private.
-            return $"{scheme}://{bindAddress}:{port}";
-        }
+            const string canonicalName = "BIBLIOPHILARR__SERVER__PORT";
+            const string historicalName = "BIBLIOPHILARR_SERVER__PORT";
+            var previousCanonical = Environment.GetEnvironmentVariable(canonicalName);
+            var previousHistorical = Environment.GetEnvironmentVariable(historicalName);
 
-        [Test]
-        public void should_honor_env_var_port_override_for_server_binding()
-        {
-            // Mirrors the documented BIBLIOPHILARR_SERVER__PORT=8811 env-var
-            // surface: AddEnvironmentVariables maps it to the active
-            // Bibliophilarr:Server:Port key that CreateConsoleHostBuilder reads
-            // for the Kestrel bind port.
-            var port = BuildConfig(new KeyValuePair<string, string>("Bibliophilarr:Server:Port", "8811"))
-                .GetValue("Bibliophilarr:Server:Port", 8787);
-            Assert.Multiple(() =>
+            try
             {
-                Assert.That(port, Is.EqualTo(8811), "env-var override must win over the 8787 default");
-                Assert.That(BuildUrl("http", "*", port), Is.EqualTo("http://*:8811"), "bind URL must carry the env-var port");
-            });
+                Environment.SetEnvironmentVariable(canonicalName, canonical);
+                Environment.SetEnvironmentVariable(historicalName, historical);
+                var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+
+                var port = Bootstrap.GetServerPort(config);
+
+                Assert.That(port, Is.EqualTo(expected));
+                Assert.That(Bootstrap.BuildUrl("http", "*", port), Is.EqualTo($"http://*:{expected}"));
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(canonicalName, previousCanonical);
+                Environment.SetEnvironmentVariable(historicalName, previousHistorical);
+            }
         }
 
         [Test]

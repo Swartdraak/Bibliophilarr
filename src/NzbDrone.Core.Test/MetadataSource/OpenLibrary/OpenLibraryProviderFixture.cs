@@ -70,7 +70,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         public void search_with_author_prefix_should_route_to_author_lookup()
         {
             _clientMock
-                .Setup(c => c.GetAuthor("OL26320A"))
+                .Setup(c => c.GetAuthor("OL26320A", true))
                 .Returns(BuildAuthor());
 
             _clientMock
@@ -80,7 +80,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var results = Subject.SearchForNewBook("author:OL26320A", null);
 
             results.Should().BeEmpty();
-            _clientMock.Verify(c => c.GetAuthor("OL26320A"), Times.Once);
+            _clientMock.Verify(c => c.GetAuthor("OL26320A", true), Times.Once);
         }
 
         [Test]
@@ -136,7 +136,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         public void get_author_info_should_normalize_prefixed_open_library_author_ids()
         {
             _clientMock
-                .Setup(c => c.GetAuthor("OL26320A"))
+                .Setup(c => c.GetAuthor("OL26320A", true))
                 .Returns(BuildAuthor());
 
             _clientMock
@@ -149,7 +149,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             result.Metadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL26320A");
             result.Metadata.Value.OpenLibraryAuthorId.Should().Be("OL26320A");
 
-            _clientMock.Verify(c => c.GetAuthor("OL26320A"), Times.Once);
+            _clientMock.Verify(c => c.GetAuthor("OL26320A", true), Times.Once);
             _clientMock.Verify(c => c.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()), Times.Once);
         }
 
@@ -157,7 +157,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         public void get_author_info_should_page_author_bibliography_results()
         {
             _clientMock
-                .Setup(c => c.GetAuthor("OL26320A"))
+                .Setup(c => c.GetAuthor("OL26320A", true))
                 .Returns(BuildAuthor());
 
             var firstPage = new List<OlSearchDoc>();
@@ -205,7 +205,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         [Test]
         public void get_author_info_should_continue_after_short_search_pages_and_stop_on_clean_eof()
         {
-            _clientMock.Setup(client => client.GetAuthor("OL26320A")).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
 
             _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 0))
                 .Returns(new OlSearchResponse { NumFound = 10000, NumFoundExact = false, Docs = BuildSearchDocs(100, 0) });
@@ -225,7 +225,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         public void get_author_info_should_continue_beyond_1000_results(bool useWorksEndpoint)
         {
             const int total = 1021;
-            _clientMock.Setup(client => client.GetAuthor("OL26320A")).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
 
             if (useWorksEndpoint)
             {
@@ -267,7 +267,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         [TestCase("unexpected empty")]
         public void get_author_info_should_reject_incomplete_bibliography_pages(string failure)
         {
-            _clientMock.Setup(client => client.GetAuthor("OL26320A")).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
             if (failure == "works failed")
             {
                 _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 0))
@@ -296,7 +296,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         public void get_author_info_should_enrich_series_from_search_docs_and_expose_author_series_links()
         {
             _clientMock
-                .Setup(c => c.GetAuthor("OL26320A"))
+                .Setup(c => c.GetAuthor("OL26320A", true))
                 .Returns(BuildAuthor());
 
             _clientMock
@@ -349,7 +349,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         public void get_author_info_should_use_works_as_identity_source_when_search_docs_do_not_match_work_keys()
         {
             _clientMock
-                .Setup(c => c.GetAuthor("OL26320A"))
+                .Setup(c => c.GetAuthor("OL26320A", true))
                 .Returns(BuildAuthor());
 
             _clientMock

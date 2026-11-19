@@ -16,6 +16,37 @@ namespace NzbDrone.Windows.Test.DiskProviderTests
             WindowsOnly();
         }
 
+        [Test]
+        public void ensure_private_folder_should_create_with_protected_access_rules()
+        {
+            var path = GetTempFilePath();
+
+            Subject.EnsurePrivateFolder(path);
+
+            var security = new DirectoryInfo(path).GetAccessControl(AccessControlSections.Access);
+            Assert.That(security.AreAccessRulesProtected, Is.True);
+        }
+
+        [Test]
+        public void ensure_private_folder_should_preserve_existing_service_permissions()
+        {
+            var directory = Directory.CreateDirectory(GetTempFilePath());
+            var security = directory.GetAccessControl();
+            var serviceAccount = new SecurityIdentifier(WellKnownSidType.LocalServiceSid, null);
+            var everyone = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
+            const InheritanceFlags inheritance = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+
+            security.AddAccessRule(new FileSystemAccessRule(serviceAccount, FileSystemRights.Modify, inheritance, PropagationFlags.None, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(everyone, FileSystemRights.Modify, inheritance, PropagationFlags.InheritOnly, AccessControlType.Allow));
+            directory.SetAccessControl(security);
+            var before = directory.GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.Access);
+
+            Subject.EnsurePrivateFolder(directory.FullName);
+
+            var after = directory.GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.Access);
+            Assert.That(after, Is.EqualTo(before));
+        }
+
         protected override void SetWritePermissions(string path, bool writable)
         {
             // Remove Write permissions, we're owner and have Delete permissions, so we can still clean it up.

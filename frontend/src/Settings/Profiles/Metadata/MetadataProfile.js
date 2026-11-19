@@ -76,6 +76,7 @@ class MetadataProfile extends Component {
       <Card
         className={styles.metadataProfile}
         overlayContent={true}
+        ariaLabel={translate('EditNamedItem', { name })}
         onPress={this.onEditMetadataProfilePress}
       >
         <div className={styles.nameContainer}>

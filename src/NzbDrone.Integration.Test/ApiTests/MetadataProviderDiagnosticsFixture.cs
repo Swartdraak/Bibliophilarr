@@ -1,5 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
 using Bibliophilarr.Api.V1.Config;
 using Bibliophilarr.Http.REST;
 using FluentAssertions;
@@ -69,6 +72,33 @@ namespace NzbDrone.Integration.Test.ApiTests
                     // don't fail diagnostics assertions because cleanup couldn't persist.
                 }
             }
+        }
+
+        [TestCase("book/lookup")]
+        [TestCase("author/lookup")]
+        public void lookup_should_return_empty_json_array_when_all_providers_are_disabled(string route)
+        {
+            var config = _metadataConfig.GetSingle();
+            config.EnableOpenLibraryProvider = false;
+            config.EnableGoogleBooksProvider = false;
+            config.EnableInventaireProvider = false;
+            config.EnableGoogleBooksFallback = false;
+            config.EnableInventaireFallback = false;
+            config.EnableHardcoverFallback = false;
+            config.HardcoverApiToken = string.Empty;
+
+            var save = new SimpleRestRequest($"config/metadataprovider/{config.Id}", HttpMethod.Put);
+            save.AddJsonBody(config);
+            ExecuteRequest(save).StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+            var lookup = new SimpleRestRequest(route);
+            lookup.AddQueryParameter("term", "disabled lookup fixture");
+            var response = ExecuteRequest(lookup);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            using var result = JsonDocument.Parse(response.Content);
+            result.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+            result.RootElement.GetArrayLength().Should().Be(0);
         }
 
         [Test]

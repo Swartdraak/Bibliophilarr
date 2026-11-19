@@ -1047,7 +1047,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 authorIdResult = idsArray.First.Value<int>();
                 _logger.Debug("Hardcover author search found ID {0} for '{1}'.", authorIdResult, authorName);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!MetadataProviderOrchestrator.IsTransportError(ex))
             {
                 _logger.Debug(ex, "Hardcover author search failed for '{0}'.", authorName);
                 return new List<Book>();

@@ -68,18 +68,6 @@ class CheckInput extends Component {
     this._checkbox = ref;
   };
 
-  onClick = (event) => {
-    if (this.props.isDisabled) {
-      return;
-    }
-
-    const shiftKey = event.nativeEvent.shiftKey;
-    const checked = !this._checkbox.checked;
-
-    event.preventDefault();
-    this.toggleChecked(checked, shiftKey);
-  };
-
   onChange = (event) => {
     const checked = event.target.checked;
     const shiftKey = event.nativeEvent.shiftKey;
@@ -111,10 +99,7 @@ class CheckInput extends Component {
 
     return (
       <div className={containerClassName}>
-        <label
-          className={styles.label}
-          onClick={this.onClick}
-        >
+        <label className={styles.label}>
           <input
             ref={this.setRef}
             id={name}

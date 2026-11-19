@@ -139,13 +139,18 @@ namespace NzbDrone.Host
 
         public static IHostBuilder CreateConsoleHostBuilder(string[] args, StartupContext context)
         {
+            if (OperatingSystem.IsWindows() && !context.Args.ContainsKey(StartupContext.APPDATA))
+            {
+                // Also cover direct host callers before Startup.ConfigureServices creates the key store.
+                AppFolderFactory.EnsurePrivateWindowsFolder(new AppFolderInfo(context).AppDataFolder);
+            }
+
             var config = GetConfiguration(context);
             RejectLegacyConfigurationKeys(config);
 
             var bindAddress = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.BindAddress)}")
                               ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
-            var port = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.Port)}")
-                       ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
+            var port = GetServerPort(config);
             var sslPort = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.SslPort)}")
                           ?? config.GetValue(nameof(ConfigFileProvider.SslPort), 6868);
             var enableSsl = config.GetValue<bool?>($"Bibliophilarr:Server:{nameof(ServerOptions.EnableSsl)}")
@@ -274,23 +279,20 @@ namespace NzbDrone.Host
             return $"{scheme}://{bindAddress}:{port}";
         }
 
+        internal static int GetServerPort(IConfiguration config)
+        {
+            return config.GetValue<int?>("Bibliophilarr:Server:Port")
+                   ?? config.GetValue<int?>("Bibliophilarr_Server:Port")
+                   ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
+        }
+
         private static void ConfigureOptions<T>(IServiceCollection services, IConfiguration config, string sectionName)
             where T : class
         {
             services.Configure<T>(config.GetSection($"Bibliophilarr:{sectionName}"));
         }
 
-        // The pre-rebrand (Readarr) namespace is the only legacy configuration
-        // namespace. The active namespace is Bibliophilarr:* — every runtime
-        // reader in this file (CreateConsoleHostBuilder, ConfigureOptions) and
-        // the environment variable convention (BIBLIOPHILARR_SERVER__PORT maps
-        // to Bibliophilarr:Server:Port via AddEnvironmentVariables) resolve it.
-        // Rejecting Bibliophilarr:* keys here would contradict the active
-        // namespace and throw at startup on any env-var override (issue #364:
-        // the pre-rename changeover rejected Readarr:*; a later mechanical
-        // prefix rename flipped the guard onto the active namespace and broke
-        // the documented BIBLIOPHILARR_SERVER__PORT / BIBLIOPHILARR_* env-var
-        // surface).
+        // Reject the pre-rebrand namespace while preserving active configuration keys.
         internal static void RejectLegacyConfigurationKeys(IConfiguration config)
         {
             var legacyKeys = config.AsEnumerable()

@@ -100,8 +100,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var addedAuthors = new List<Author>();
             var addedBooks = new List<Book>();
 
-            var bookDecisions = decisions.Where(e => e.Item.Book != null && e.Approved)
-                .GroupBy(e => e.Item.Book.ForeignBookId).ToList();
+            foreach (var decision in decisions.Where(d => d.Approved && (d.Item.Author == null || d.Item.Book == null || d.Item.Edition == null)))
+            {
+                decision.Reject(new Rejection("Missing author, book, or edition for import", RejectionType.Temporary));
+            }
+
+            RejectIncompatibleFormats(decisions);
+
+            var bookDecisions = decisions.Where(e => e.Approved)
+                .GroupBy(e => new
+                {
+                    ForeignBookId = e.Item.Book.ForeignBookId,
+                    ForeignEditionId = e.Item.Edition.ForeignEditionId,
+                    LocalBookId = e.Item.Book.ForeignBookId.IsNullOrWhiteSpace() ? e.Item.Book.Id : 0,
+                    LocalEditionId = e.Item.Edition.ForeignEditionId.IsNullOrWhiteSpace() ? e.Item.Edition.Id : 0
+                })
+                .ToList();
 
             var iDecision = 1;
             foreach (var bookDecision in bookDecisions)
@@ -114,25 +128,19 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 {
                     var author = EnsureAuthorAdded(decisionList, addedAuthors);
 
-                    if (author == null)
-                    {
-                        // failed to add the author, carry on with next book
-                        continue;
-                    }
-
-                    var book = EnsureBookAdded(decisionList, addedBooks);
-
-                    if (book == null)
-                    {
-                        // failed to add the book, carry on with next one
-                        continue;
-                    }
-
-                    var edition = EnsureEditionAdded(decisionList);
+                    var book = author == null ? null : EnsureBookAdded(decisionList, addedBooks);
+                    var edition = book == null ? null : EnsureEditionAdded(decisionList);
 
                     if (edition == null)
                     {
-                        // failed to add the edition, carry on with next one
+                        RejectBook(decisionList);
+                        continue;
+                    }
+
+                    RejectIncompatibleFormats(decisionList);
+                    decisionList = decisionList.Where(d => d.Approved).ToList();
+                    if (decisionList.Count == 0)
+                    {
                         continue;
                     }
 
@@ -153,7 +161,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
 
                     // set the correct release to be monitored before importing the new files
-                    var newRelease = bookDecision.First().Item.Edition;
+                    var newRelease = decisionList[0].Item.Edition;
                     _logger.Debug("Updating release to {0}", newRelease);
 
                     if (_configService.EnableDualFormatTracking)
@@ -173,9 +181,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
                 catch (Exception ex)
                 {
-                    // Isolate per-book failures so a single bad book does not abort the
-                    // entire RescanFolders batch (see issue #203).
-                    _logger.Error(ex, "Failed to import book {0}; continuing with remaining books", bookDecision.First().Item.Book);
+                    _logger.Error(ex, "Failed to prepare book {0} for import; continuing with remaining books", bookDecision.First().Item.Book);
+                    RejectBook(decisionList);
                 }
             }
 
@@ -387,29 +394,19 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 _eventAggregator.PublishEvent(trackImportedEvent);
             }
 
-            var bookImports = importResults.Where(e => e.ImportDecision.Item.Book != null)
-                .GroupBy(e => e.ImportDecision.Item.Book.Id).ToList();
+            var bookImports = importResults.Where(e => e.Result == ImportResultType.Imported)
+                .GroupBy(e => (e.ImportDecision.Item.Book.Id, e.ImportDecision.Item.Edition.Id));
 
             foreach (var bookImport in bookImports)
             {
-                var book = bookImport.First().ImportDecision.Item.Book;
-                var importedEdition = bookImport.First().ImportDecision.Item.Edition;
-
-                // When dual-format tracking is on, multiple editions may be monitored
-                // (one per format). Use the edition that was actually imported.
-                var edition = importedEdition ?? book.Editions.Value.Single(x => x.Monitored);
-                var author = bookImport.First().ImportDecision.Item.Author;
-
-                if (bookImport.Where(e => e.Errors.Count == 0).ToList().Count > 0 && author != null && book != null)
-                {
-                    _eventAggregator.PublishEvent(new BookImportedEvent(
-                        author,
-                        book,
-                        allImportedTrackFiles.Where(s => s.EditionId == edition.Id).ToList(),
-                        allOldTrackFiles.Where(s => s.EditionId == edition.Id).ToList(),
-                        replaceExisting,
-                        downloadClientItem));
-                }
+                var imported = bookImport.First().ImportDecision.Item;
+                _eventAggregator.PublishEvent(new BookImportedEvent(
+                    imported.Author,
+                    imported.Book,
+                    allImportedTrackFiles.Where(s => s.EditionId == imported.Edition.Id).ToList(),
+                    allOldTrackFiles.Where(s => s.EditionId == imported.Edition.Id).ToList(),
+                    replaceExisting,
+                    downloadClientItem));
             }
 
             //Adding all the rejected decisions
@@ -433,6 +430,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             return importResults;
+        }
+
+        private static void RejectIncompatibleFormats(IEnumerable<ImportDecision<LocalBook>> decisions)
+        {
+            foreach (var decision in decisions.Where(d => d.Approved && !ImportFormat.IsCompatible(d.Item.Path, d.Item.Edition)))
+            {
+                decision.Reject(new Rejection("File format does not match the selected edition", RejectionType.Permanent));
+            }
         }
 
         private Author EnsureAuthorAdded(List<ImportDecision<LocalBook>> decisions, List<Author> addedAuthors)
@@ -630,18 +635,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
                 }
 
-                var edition = dbBook.Editions.Value.ExclusiveOrDefault(x => x.ForeignEditionId == decisions.First().Item.Edition.ForeignEditionId);
-                if (edition == null)
+                var selectedEdition = decisions[0].Item.Edition;
+                var edition = dbBook.Editions.Value.ExclusiveOrDefault(x =>
+                    selectedEdition.ForeignEditionId.IsNotNullOrWhiteSpace()
+                        ? x.ForeignEditionId == selectedEdition.ForeignEditionId
+                        : selectedEdition.Id > 0 && x.Id == selectedEdition.Id);
+
+                if (edition == null && selectedEdition.ForeignEditionId.IsNullOrWhiteSpace())
                 {
                     RejectBook(decisions);
                     return null;
                 }
 
-                // Populate the new DB book
+                // Another format can be prepared first. Defer a missing selected
+                // edition to EnsureEditionAdded on the same persisted work.
                 foreach (var decision in decisions)
                 {
                     decision.Item.Book = dbBook;
-                    decision.Item.Edition = edition;
+                    decision.Item.Edition = edition ?? selectedEdition;
                 }
 
                 book = dbBook;
@@ -679,15 +690,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                         return null;
                     }
-
-                    // Populate the new DB book
-                    foreach (var decision in decisions)
-                    {
-                        decision.Item.Edition = dbEdition;
-                    }
-
-                    edition = dbEdition;
                 }
+
+                edition = dbEdition;
+            }
+
+            foreach (var decision in decisions)
+            {
+                decision.Item.Edition = edition;
             }
 
             return edition;
@@ -747,9 +757,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
         private void RejectBook(List<ImportDecision<LocalBook>> decisions)
         {
-            foreach (var decision in decisions)
+            foreach (var decision in decisions.Where(decision => decision.Approved))
             {
-                decision.Reject(new Rejection("Failed to add missing book", RejectionType.Temporary));
+                decision.Reject(new Rejection("Failed to prepare book for import", RejectionType.Temporary));
             }
         }
 

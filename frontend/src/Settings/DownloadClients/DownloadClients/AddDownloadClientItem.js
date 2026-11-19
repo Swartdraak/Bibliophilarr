@@ -5,6 +5,7 @@ import Link from 'Components/Link/Link';
 import Menu from 'Components/Menu/Menu';
 import MenuContent from 'Components/Menu/MenuContent';
 import { sizes } from 'Helpers/Props';
+import getWikiHelpLink from 'Utilities/getWikiHelpLink';
 import AddDownloadClientPresetMenuItem from './AddDownloadClientPresetMenuItem';
 import styles from './AddDownloadClientItem.css';
 
@@ -87,7 +88,8 @@ class AddDownloadClientItem extends Component {
             }
 
             <Button
-              to={infoLink}
+              to={getWikiHelpLink(infoLink, 'supported', 'download-clients')}
+              target="_blank"
               size={sizes.SMALL}
             >
               More info

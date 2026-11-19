@@ -40,7 +40,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 .Concat(new[] { "Kindle Edition", "Nook", "ebook" }),
             StringComparer.OrdinalIgnoreCase);
 
-        private static readonly List<string> AudiobookFormats = new List<string> { "Audiobook", "Audio CD", "Audio Cassette", "Audible Audio", "CD-ROM", "MP3 CD" };
+        private static readonly HashSet<string> AudiobookFormats = new HashSet<string>(
+            MediaFileExtensions.AudioExtensions.Select(extension => extension.TrimStart('.'))
+                .Concat(new[] { "Audiobook", "Audio CD", "Audio Cassette", "Audible Audio", "CD-ROM", "MP3 CD" }),
+            StringComparer.OrdinalIgnoreCase);
 
         public static Distance BookDistance(List<LocalBook> localTracks, Edition edition)
         {
@@ -224,12 +227,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     dist.AddBool("ebook_format", !EbookFormats.Contains(editionFormat));
 
                     // text books should not match audio entries
-                    dist.AddBool("wrong_format", AudiobookFormats.Contains(editionFormat, StringComparer.OrdinalIgnoreCase));
+                    dist.AddBool("wrong_format", AudiobookFormats.Contains(editionFormat));
                 }
                 else
                 {
                     // audio books should prefer audio formats
-                    dist.AddBool("audio_format", !AudiobookFormats.Contains(editionFormat, StringComparer.OrdinalIgnoreCase));
+                    dist.AddBool("audio_format", !AudiobookFormats.Contains(editionFormat));
                 }
             }
 

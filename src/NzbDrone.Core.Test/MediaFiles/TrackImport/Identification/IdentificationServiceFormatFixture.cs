@@ -195,24 +195,72 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             result.Edition.IsEbook.Should().BeTrue();
         }
 
-        [Test]
-        public void should_still_select_best_match_when_flag_off()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_try_remote_when_only_local_candidate_is_the_wrong_format(bool dualFormatTracking)
         {
             Mocker.GetMock<IConfigService>()
-                .Setup(s => s.EnableDualFormatTracking).Returns(false);
+                .Setup(s => s.EnableDualFormatTracking).Returns(dualFormatTracking);
             Mocker.GetMock<IConfigService>()
                 .Setup(s => s.IdentificationWorkerCount).Returns(1);
 
-            GivenBothEditionsAsCandidates();
+            _ebookEdition.Title = "Test Book";
+            _ebookEdition.Format = "EPUB";
+            _audiobookEdition.Format = "Audio Book";
+            _config.KeepAllEditions = true;
 
             var localBooks = CreateAudiobookLocalBooks();
+            localBooks.Single().FileTrackInfo.BookTitle = "Test Book";
+            localBooks.Single().FileTrackInfo.Authors = new List<string> { "Test Author" };
+            Mocker.GetMock<ICandidateService>()
+                .Setup(s => s.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _ebookEdition, ExistingFiles = new List<BookFile>() } });
+            Mocker.GetMock<ICandidateService>()
+                .Setup(s => s.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+
             var results = Subject.Identify(localBooks, _overrides, _config);
 
-            results.Should().HaveCount(1);
+            results.Single().Edition.Should().BeSameAs(_audiobookEdition);
+            localBooks.Single().Edition.Should().BeSameAs(_audiobookEdition);
+        }
 
-            // With flag off, no format preference applied — result may be either edition
-            // depending on distance calculation. The key assertion is that identification
-            // completes without error.
+        [Test]
+        public void should_leave_ebook_unmapped_when_an_incompatible_edition_is_explicitly_selected()
+        {
+            _audiobookEdition.Format = "M4B";
+            _overrides.Edition = _audiobookEdition;
+            var tracks = CreateEbookLocalBooks();
+
+            Subject.Identify(tracks, _overrides, _config).Single().Edition.Should().BeNull();
+            tracks.Single().Edition.Should().BeNull();
+        }
+
+        [Test]
+        public void should_exclude_existing_tracks_from_the_other_format()
+        {
+            Mocker.GetMock<IConfigService>().Setup(s => s.EnableDualFormatTracking).Returns(true);
+            _config.IncludeExisting = true;
+            _config.KeepAllEditions = true;
+            var tracks = CreateAudiobookLocalBooks();
+            var existingEbook = new BookFile { Path = CreateEbookLocalBooks().Single().Path, EditionId = _ebookEdition.Id };
+            Mocker.GetMock<ICandidateService>()
+                .Setup(s => s.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), true))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile> { existingEbook } } });
+
+            var release = Subject.Identify(tracks, _overrides, _config).Single();
+
+            release.Edition.Should().BeSameAs(_audiobookEdition);
+            release.LocalBooks.Should().ContainSingle().Which.Should().BeSameAs(tracks.Single());
+        }
+
+        [Test]
+        public void should_group_both_media_formats_separately_in_single_release_mode()
+        {
+            var localBooks = CreateAudiobookLocalBooks().Concat(CreateEbookLocalBooks()).ToList();
+
+            Subject.GetLocalBookReleases(localBooks, true).Select(x => x.LocalBooks.Single())
+                .Should().Equal(localBooks);
         }
     }
 }

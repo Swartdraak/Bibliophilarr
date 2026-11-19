@@ -76,10 +76,6 @@ namespace NzbDrone.Mono.Disk
         {
         }
 
-        public override void SetEveryonePermissions(string filename)
-        {
-        }
-
         public override void SetFilePermissions(string path, string mask, string group)
         {
             var permissions = NativeConvert.FromOctalPermissionString(mask);

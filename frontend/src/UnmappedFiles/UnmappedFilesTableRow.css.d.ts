@@ -4,6 +4,9 @@ interface CssExports {
   'actions': string;
   'checkInput': string;
   'dateAdded': string;
+  'fileName': string;
+  'folder': string;
+  'format': string;
   'path': string;
   'quality': string;
   'size': string;

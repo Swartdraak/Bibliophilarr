@@ -7,8 +7,28 @@ process.
 
 ## [Unreleased]
 
+### Added
+
+- Filter Unmapped Files by path or media format and review matching and selected
+  counts. A bulk action targets selected files in the current results.
+
 ### Fixed
 
+- Book and author lookups respect the enabled metadata providers and their
+  configured order. They return an empty list when no provider returns a match.
+- Google Books author refresh keeps existing catalogue entries when overlapping
+  pages or a shrinking result count leave the bibliography incomplete.
+- Name, URL, credentials, and tags in connection forms have associated labels.
+- Connection and health help links open the maintained WebUI guides.
+- A malformed book or edition no longer interrupts the rest of a library
+  import batch. Rejected files report why preparation failed, and inconsistent
+  edition monitoring updates preserve the existing selections for both formats.
+- Keep existing authors and their catalogues when a provider lookup fails or
+  reports the author missing. Retry transport failures within a shared request
+  budget, surface provider outages in System Health, and report incomplete
+  refresh requests as unsuccessful while continuing the rest of the batch.
+- Honor the historical server port environment variable. The canonical
+  `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
   requested. Distinct provider work IDs retain separate catalogue records.
@@ -19,6 +39,25 @@ process.
   The Add Author and Add Book forms select quality profiles by media format.
 - Store provider author biographies separately from book synopses. Hardcover
   uses confirmed format data and keeps ambiguous editions unclassified.
+- Persist independent ebook and audiobook monitoring and allow interactive
+  release searches by format. Series positions sort in both directions, and
+  a series search can target monitored library members with missing files.
+- Recognize native audio format labels during automatic matching. Keep a single
+  audiobook for review when its filename and embedded metadata identify
+  different known works by the same author.
+- Reject known ebook and audiobook format mismatches while identifying and
+  importing files. Keep both editions when a batch contains both formats of
+  the same work (#477).
+- Interactive Import accepts an ebook and audiobook of the same work in one
+  selection. It still blocks competing editions within a format (#478).
+- Refresh ebook and audiobook file counts as soon as an import finishes.
+  Multiple files for one work no longer inflate the library completion
+  percentage (#479).
+- Save a new book's provider-verified author without a second synchronous
+  author lookup. Expose stored work identifiers and source labels in the API
+  for catalogue health checks.
+- Repair the historical PostgreSQL migrations for download settings and author
+  format profiles. Validate independent format preferences on PostgreSQL and SQLite.
 - Import batches track duplicates by work, edition, part, and format after a
   successful import, so later valid candidates are still considered.
 - Disabled metadata fallbacks skip request pacing and dispatch during imports.

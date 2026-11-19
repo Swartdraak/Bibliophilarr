@@ -35,7 +35,6 @@ namespace Bibliophilarr.Api.V1.Books
         IHandle<BookUpdatedEvent>,
         IHandle<BookDeletedEvent>,
         IHandle<BookImportedEvent>,
-        IHandle<TrackImportedEvent>,
         IHandle<BookFileDeletedEvent>
     {
         private const int DefaultPageSize = 100;
@@ -223,22 +222,12 @@ namespace Bibliophilarr.Api.V1.Books
         {
             if (resource.FormatType.HasValue)
             {
-                // Format-aware monitoring: toggle edition monitoring for specific format
-                foreach (var bookId in resource.BookIds)
+                if (resource.FormatType.Value != FormatType.Ebook && resource.FormatType.Value != FormatType.Audiobook)
                 {
-                    var editions = _editionService.GetEditionsByBook(bookId);
-                    var formatEditions = editions.Where(e => e.MatchesFormat(resource.FormatType.Value)).ToList();
-
-                    foreach (var edition in formatEditions)
-                    {
-                        edition.Monitored = resource.Monitored;
-                    }
-
-                    if (formatEditions.Any())
-                    {
-                        _editionService.UpdateMany(formatEditions);
-                    }
+                    return BadRequest("Unsupported book format.");
                 }
+
+                _bookService.SetFormatMonitored(resource.BookIds, resource.FormatType.Value, resource.Monitored);
 
                 return Accepted(MapToResource(_bookService.GetBooks(resource.BookIds), false));
             }
@@ -290,13 +279,10 @@ namespace Bibliophilarr.Api.V1.Books
         [NonAction]
         public void Handle(BookImportedEvent message)
         {
-            BroadcastResourceChange(ModelAction.Updated, MapToResource(message.Book, true));
-        }
-
-        [NonAction]
-        public void Handle(TrackImportedEvent message)
-        {
-            BroadcastResourceChange(ModelAction.Updated, message.BookInfo.Book.ToResource());
+            if (message?.Book?.Id is > 0)
+            {
+                BroadcastResourceChange(ModelAction.Updated, message.Book.Id);
+            }
         }
 
         [NonAction]

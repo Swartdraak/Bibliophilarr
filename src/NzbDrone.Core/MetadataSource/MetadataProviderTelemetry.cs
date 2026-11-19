@@ -2,6 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using NzbDrone.Common.Messaging;
+using NzbDrone.Core.Messaging.Events;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -37,15 +39,62 @@ namespace NzbDrone.Core.MetadataSource
         public double HitRate => Calls == 0 ? 0 : (double)Successes / Calls;
     }
 
+    public class MetadataProviderConnectivityChangedEvent : IEvent
+    {
+    }
+
     public interface IMetadataProviderTelemetryService
     {
         void Record(string providerName, string operationName, long latencyMs, bool success, bool returnedNull, bool fallbackHit, int resultCount = -1);
+        void RecordTransportOutage(string operationName, bool unavailable);
+        bool HasRecentTransportOutage();
         IReadOnlyList<MetadataProviderTelemetrySnapshot> GetSnapshots();
         IReadOnlyList<MetadataProviderOperationTelemetrySnapshot> GetOperationSnapshots();
     }
 
     public class MetadataProviderTelemetryService : IMetadataProviderTelemetryService
     {
+        private static readonly TimeSpan OutageLifetime = TimeSpan.FromMinutes(30);
+        private readonly IEventAggregator _eventAggregator;
+        private readonly Dictionary<string, DateTime> _transportOutages = new Dictionary<string, DateTime>();
+
+        public MetadataProviderTelemetryService(IEventAggregator eventAggregator = null)
+        {
+            _eventAggregator = eventAggregator;
+        }
+
+        public void RecordTransportOutage(string operationName, bool unavailable)
+        {
+            var now = DateTime.UtcNow;
+            bool changed;
+            lock (_transportOutages)
+            {
+                if (unavailable)
+                {
+                    changed = !_transportOutages.TryGetValue(operationName, out var previous) || previous < now - OutageLifetime;
+                    _transportOutages[operationName] = now;
+                }
+                else
+                {
+                    changed = _transportOutages.Remove(operationName);
+                }
+            }
+
+            if (changed)
+            {
+                _eventAggregator?.PublishEvent(new MetadataProviderConnectivityChangedEvent());
+            }
+        }
+
+        public bool HasRecentTransportOutage()
+        {
+            var cutoff = DateTime.UtcNow - OutageLifetime;
+            lock (_transportOutages)
+            {
+                return _transportOutages.Values.Any(time => time >= cutoff);
+            }
+        }
+
         private class ProviderStats
         {
             public string ProviderName;

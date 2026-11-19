@@ -201,14 +201,27 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'
+          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~GoogleBooksFallbackSearchProviderFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'
+
+      - name: Run host composition fixtures
+        run: >-
+          dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj
+          --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~ContainerFixture'
+
+      - name: Run library import format fixtures
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture'
 
       - name: Run metadata, format monitoring and host configuration API fixtures
         run: >-
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~HostConfigCredentialValidationFixture'
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~HostConfigCredentialValidationFixture'
 
   metadata-diagnostics-integration:
     name: Metadata Diagnostics Integration

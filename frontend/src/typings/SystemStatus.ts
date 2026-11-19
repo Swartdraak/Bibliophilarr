@@ -20,6 +20,8 @@ interface SystemStatus {
   osVersion: string;
   packageUpdateMechanism: string;
   packageUpdateMechanismMessage: string;
+  publicReleaseDiscovery: boolean;
+  updatesEnabled: boolean;
   runtimeName: string;
   runtimeVersion: string;
   sqliteVersion: string;

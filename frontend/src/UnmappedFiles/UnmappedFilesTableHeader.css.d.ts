@@ -3,6 +3,7 @@
 interface CssExports {
   'actions': string;
   'dateAdded': string;
+  'format': string;
   'path': string;
   'quality': string;
   'size': string;

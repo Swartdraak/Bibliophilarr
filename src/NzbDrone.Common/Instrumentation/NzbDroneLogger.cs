@@ -32,6 +32,15 @@ namespace NzbDrone.Common.Instrumentation
             GlobalExceptionHandlers.Register();
 
             var appFolderInfo = new AppFolderInfo(startupContext);
+            var usesDefaultWindowsData = OperatingSystem.IsWindows() && !startupContext.Args.ContainsKey(StartupContext.APPDATA);
+            var runsUtility = startupContext.Help || startupContext.RegisterUrl || startupContext.InstallService || startupContext.UninstallService;
+            var skipAppFile = usesDefaultWindowsData && !updateApp && runsUtility && !Directory.Exists(appFolderInfo.AppDataFolder);
+
+            if (usesDefaultWindowsData && !skipAppFile)
+            {
+                // The first file log can create its parent directories before the web host starts.
+                AppFolderFactory.EnsurePrivateWindowsFolder(appFolderInfo.AppDataFolder);
+            }
 
             RegisterGlobalFilters();
 
@@ -51,7 +60,10 @@ namespace NzbDrone.Common.Instrumentation
                     RegisterConsole();
                 }
 
-                RegisterAppFile(appFolderInfo);
+                if (!skipAppFile)
+                {
+                    RegisterAppFile(appFolderInfo);
+                }
             }
 
             RegisterAuthLogger();

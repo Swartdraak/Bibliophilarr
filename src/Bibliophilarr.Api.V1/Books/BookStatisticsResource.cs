@@ -8,6 +8,7 @@ public class BookStatisticsResource
     public int BookCount { get; set; }
     public int TotalBookCount { get; set; }
     public long SizeOnDisk { get; set; }
+    internal int AvailableBookCount { get; set; }
 
     public decimal PercentOfBooks
     {
@@ -18,7 +19,7 @@ public class BookStatisticsResource
                 return 0;
             }
 
-            return BookFileCount / (decimal)BookCount * 100;
+            return AvailableBookCount / (decimal)BookCount * 100;
         }
     }
 }
@@ -36,6 +37,7 @@ public static class BookStatisticsResourceMapper
         {
             BookFileCount = model.BookFileCount,
             BookCount = model.BookCount,
+            AvailableBookCount = model.AvailableBookCount,
             SizeOnDisk = model.SizeOnDisk,
             TotalBookCount = model.TotalBookCount
         };

@@ -18,6 +18,7 @@ import { UpdateMechanism } from 'typings/Settings/General';
 import formatDate from 'Utilities/Date/formatDate';
 import formatDateTime from 'Utilities/Date/formatDateTime';
 import translate from 'Utilities/String/translate';
+import PublicReleaseCheck from './PublicReleaseCheck';
 import UpdateChanges from './UpdateChanges';
 import styles from './Updates.css';
 
@@ -45,9 +46,11 @@ function createUpdatesSelector() {
 
 function Updates() {
   const currentVersion = useSelector((state: AppState) => state.app.version);
-  const { packageUpdateMechanismMessage, updatesEnabled } = useSelector(
-    createSystemStatusSelector()
-  );
+  const {
+    packageUpdateMechanismMessage,
+    updatesEnabled,
+    publicReleaseDiscovery,
+  } = useSelector(createSystemStatusSelector());
   const { shortDateFormat, longDateFormat, timeFormat } = useSelector(
     createUISettingsSelector()
   );
@@ -92,14 +95,10 @@ function Updates() {
       <PageContentBody>
         {isPopulated || hasError ? null : <LoadingIndicator />}
 
-        {noUpdates && updatesEnabled === false ? (
-          <Alert kind={kinds.WARNING}>
-            Update checks are not configured. Set the{' '}
-            <code>BIBLIOPHILARR_SERVICES_URL</code> environment variable to
-            enable cloud-backed version checks. See the deployment runbook for
-            details.
-          </Alert>
-        ) : null}
+        <PublicReleaseCheck
+          enabled={publicReleaseDiscovery === true}
+          installedVersion={currentVersion}
+        />
 
         {noUpdates && updatesEnabled !== false ? (
           <Alert kind={kinds.INFO}>{translate('NoUpdatesAreAvailable')}</Alert>

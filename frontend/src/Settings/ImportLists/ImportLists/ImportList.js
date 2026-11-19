@@ -65,6 +65,7 @@ class ImportList extends Component {
       <Card
         className={styles.list}
         overlayContent={true}
+        ariaLabel={translate('EditNamedItem', { name })}
         onPress={this.onEditImportListPress}
       >
         <div className={styles.name}>

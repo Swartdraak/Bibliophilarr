@@ -62,7 +62,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             List<LocalEdition> releases;
             if (singleRelease)
             {
-                releases = new List<LocalEdition> { new LocalEdition(localTracks) };
+                releases = localTracks.GroupBy(x => ImportFormat.ForPath(x.Path))
+                    .Select(group => new LocalEdition(group.ToList()))
+                    .ToList();
             }
             else
             {
@@ -178,12 +180,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var usedRemote = false;
 
-            IEnumerable<CandidateEdition> candidateReleases = _candidateService.GetDbCandidatesFromTags(localBookRelease, idOverrides, config.IncludeExisting);
+            IEnumerable<CandidateEdition> candidateReleases = _candidateService.GetDbCandidatesFromTags(localBookRelease, idOverrides, config.IncludeExisting)
+                .Where(candidate => localBookRelease.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, candidate.Edition)))
+                .ToList();
 
-            // convert all the TrackFiles that represent extra files to List<LocalTrack>
-            // local candidates are actually a list so this is fine to enumerate
+            // Read companion tracks only for eligible editions.
             var allLocalTracks = ToLocalTrack(candidateReleases
-                .SelectMany(x => x.ExistingFiles)
+                .SelectMany(candidate => GetExistingFiles(candidate, localBookRelease))
                 .DistinctBy(x => x.Path), localBookRelease);
 
             _logger.Debug($"Retrieved {allLocalTracks.Count} possible tracks in {watch.ElapsedMilliseconds}ms");
@@ -213,7 +216,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // populate the overrides and return
                 foreach (var localTrack in localBookRelease.LocalBooks)
                 {
-                    localTrack.Edition = idOverrides.Edition;
+                    localTrack.Edition = ImportFormat.IsCompatible(localTrack.Path, idOverrides.Edition) ? idOverrides.Edition : null;
                     localTrack.Book = idOverrides.Book;
                     localTrack.Author = idOverrides.Author;
                 }
@@ -293,13 +296,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             foreach (var candidateRelease in candidateReleases)
             {
+                var release = candidateRelease.Edition;
+                if (localBookRelease.LocalBooks.Any(track => !ImportFormat.IsCompatible(track.Path, release)))
+                {
+                    continue;
+                }
+
                 seenCandidate = true;
 
-                var release = candidateRelease.Edition;
                 _logger.Debug($"Trying Release {release}");
                 var rwatch = System.Diagnostics.Stopwatch.StartNew();
 
-                var extraTrackPaths = candidateRelease.ExistingFiles.Select(x => x.Path).ToList();
+                var extraTrackPaths = GetExistingFiles(candidateRelease, localBookRelease).Select(x => x.Path).ToHashSet();
                 var extraTracks = extraTracksOnDisk.Where(x => extraTrackPaths.Contains(x.Path)).ToList();
                 var allLocalTracks = localBookRelease.LocalBooks.Concat(extraTracks).DistinctBy(x => x.Path).ToList();
 
@@ -340,6 +348,19 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             watch.Stop();
             _logger.Debug($"Best release: {localBookRelease.Edition} Distance {localBookRelease.Distance.NormalizedDistance()} found in {watch.ElapsedMilliseconds}ms");
+        }
+
+        private static IEnumerable<BookFile> GetExistingFiles(CandidateEdition candidate, LocalEdition localRelease)
+        {
+            var incomingFormat = ImportFormat.ForPath(localRelease.LocalBooks.First().Path);
+
+            return candidate.ExistingFiles.Where(file =>
+            {
+                var existingFormat = ImportFormat.ForPath(file.Path);
+                return file.EditionId == candidate.Edition.Id &&
+                    ImportFormat.IsCompatible(file.Path, candidate.Edition) &&
+                    (!incomingFormat.HasValue || !existingFormat.HasValue || incomingFormat == existingFormat);
+            });
         }
 
         private bool AuthorExistsLocally(Edition edition)

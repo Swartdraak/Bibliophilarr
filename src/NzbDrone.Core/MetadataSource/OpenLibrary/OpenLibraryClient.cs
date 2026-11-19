@@ -5,6 +5,7 @@ using System.Text.Json;
 using NLog;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
@@ -16,6 +17,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         OlWorkEditionsResponse GetWorkEditions(string olid, int limit = 20, int offset = 0);
         OlWorkResource GetWork(string olid);
         OlAuthorResource GetAuthor(string olid);
+        OlAuthorResource GetAuthor(string olid, bool confirmNotFound);
         OlEditionResource GetEditionByIsbn(string isbn);
         OlEditionResource GetEdition(string olid);
     }
@@ -131,6 +133,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public OlAuthorResource GetAuthor(string olid)
         {
+            return GetAuthor(olid, false);
+        }
+
+        public OlAuthorResource GetAuthor(string olid, bool confirmNotFound)
+        {
             _logger.Debug("OpenLibrary get author: {0}", olid);
 
             var cleanKey = StripKeyPrefix(olid);
@@ -141,7 +148,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
 
-            return ExecuteWithRateLimitRetry<OlAuthorResource>("openlibrary.author", request, GetRetryBudget(OperationClass.Work));
+            return ExecuteWithRateLimitRetry<OlAuthorResource>("openlibrary.author", request, GetRetryBudget(OperationClass.Work), confirmNotFound ? olid : null);
         }
 
         public OlEditionResource GetEditionByIsbn(string isbn)
@@ -173,7 +180,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return ExecuteWithRateLimitRetry<OlEditionResource>("openlibrary.edition", request, GetRetryBudget(OperationClass.Work));
         }
 
-        private T ExecuteWithRateLimitRetry<T>(string endpointKey, HttpRequest request, int maxRetries)
+        private T ExecuteWithRateLimitRetry<T>(string endpointKey, HttpRequest request, int maxRetries, string authorId = null)
             where T : class
         {
             maxRetries = Math.Max(0, maxRetries);
@@ -233,6 +240,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 if (response.StatusCode == HttpStatusCode.NotFound)
                 {
                     state.ConsecutiveFailures = 0;
+                    if (authorId != null)
+                    {
+                        throw new AuthorNotFoundException(authorId, isConfirmedMissing: true);
+                    }
+
                     return null;
                 }
 

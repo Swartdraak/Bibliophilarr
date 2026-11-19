@@ -91,6 +91,67 @@ namespace NzbDrone.Core.Test.MetadataSource
             lookup.Should().Throw<MetadataProviderUnavailableException>();
         }
 
+        [Test]
+        public void author_hydration_should_reject_a_total_that_shrinks_on_the_empty_page()
+        {
+            var offsets = new List<int>();
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var offset = GetOffset(request);
+                    offsets.Add(offset);
+                    return offset switch
+                    {
+                        0 => CreatePage(request, 4, 0, 2),
+                        2 => CreatePage(request, 4, 2, 1),
+                        _ => CreatePage(request, 3, 0, 0)
+                    };
+                });
+
+            var lookup = () => Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
+
+            lookup.Should().Throw<MetadataProviderUnavailableException>();
+            offsets.Should().Equal(0, 2, 3);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void author_hydration_should_require_all_distinct_volumes_when_pages_overlap(bool complete)
+        {
+            var offsets = new List<int>();
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var offset = GetOffset(request);
+                    offsets.Add(offset);
+                    return offset switch
+                    {
+                        0 => CreatePage(request, 4, new[] { 0, 1 }),
+                        2 => CreatePage(request, 4, new[] { 1, 2 }),
+                        4 when complete => CreatePage(request, 4, new[] { 3 }),
+                        _ => CreatePage(request, 4, 0, 0)
+                    };
+                });
+
+            if (complete)
+            {
+                var author = Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
+
+                author.Books.Value.Select(book => book.ForeignBookId)
+                    .Should().Equal("googlebooks:work:volume-0", "googlebooks:work:volume-1", "googlebooks:work:volume-2", "googlebooks:work:volume-3");
+                offsets.Should().Equal(0, 2, 4, 5);
+            }
+            else
+            {
+                var lookup = () => Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
+
+                lookup.Should().Throw<MetadataProviderUnavailableException>();
+                offsets.Should().Equal(0, 2, 4);
+            }
+        }
+
         private static int GetOffset(HttpRequest request)
         {
             return int.Parse(request.Url.Query.TrimStart('?').Split('&').Single(part => part.StartsWith("startIndex=", StringComparison.Ordinal)).Substring("startIndex=".Length));
@@ -99,10 +160,16 @@ namespace NzbDrone.Core.Test.MetadataSource
         private static HttpResponse<GoogleBooksSearchResponse> CreatePage(
             HttpRequest request, int total, int offset, int count, HttpStatusCode status = HttpStatusCode.OK)
         {
+            return CreatePage(request, total, Enumerable.Range(offset, count), status);
+        }
+
+        private static HttpResponse<GoogleBooksSearchResponse> CreatePage(
+            HttpRequest request, int total, IEnumerable<int> volumeIndices, HttpStatusCode status = HttpStatusCode.OK)
+        {
             var payload = JsonSerializer.Serialize(new
             {
                 totalItems = total,
-                items = Enumerable.Range(offset, count).Select(index => new
+                items = volumeIndices.Select(index => new
                 {
                     id = $"volume-{index}",
                     volumeInfo = new { title = $"Book {index}", authors = new[] { "Author Name" }, description = "Volume synopsis" }

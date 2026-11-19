@@ -50,7 +50,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var normalizedAuthorId = NormalizeAuthorId(foreignAuthorId);
 
             // foreignAuthorId may arrive as either "OL{n}A" or "openlibrary:author:OL{n}A"
-            var authorResource = _client.GetAuthor(normalizedAuthorId);
+            var authorResource = _client.GetAuthor(normalizedAuthorId, confirmNotFound: OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId) != null);
             if (authorResource == null)
             {
                 throw new NzbDrone.Core.Exceptions.AuthorNotFoundException(foreignAuthorId);
@@ -583,7 +583,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 return Search(query, getAllEditions);
             }
-            catch (OpenLibraryException ex)
+            catch (OpenLibraryException ex) when (!MetadataProviderOrchestrator.IsTransportError(ex))
             {
                 _logger.Warn(ex, "OpenLibrary search failed for '{0}'", title);
                 return new List<Book>();

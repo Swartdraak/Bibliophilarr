@@ -20,7 +20,11 @@ namespace NzbDrone.Core.Datastore.Migration
             // columns added outside FluentMigrator (e.g. by a prior partial run) and
             // would re-issue the ALTER and crash. MoveRemoveSettings below is unchanged
             // and is itself idempotent (Config-key read + delete).
-            Execute.WithConnection(AddColumnsWhenMissing);
+            IfDatabase("sqlite").Execute.WithConnection(AddColumnsWhenMissing);
+
+            IfDatabase("postgres").Execute.Sql(@"ALTER TABLE ""DownloadClients""
+                ADD COLUMN IF NOT EXISTS ""RemoveCompletedDownloads"" BOOLEAN NOT NULL DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS ""RemoveFailedDownloads"" BOOLEAN NOT NULL DEFAULT TRUE");
 
             Execute.WithConnection(MoveRemoveSettings);
         }
@@ -86,7 +90,7 @@ namespace NzbDrone.Core.Datastore.Migration
             var updateSql = $"UPDATE \"DownloadClients\" SET \"RemoveCompletedDownloads\" = (CASE WHEN \"Implementation\" IN ('RTorrent', 'Flood') THEN 'false' ELSE @RemoveCompletedDownloads END), \"RemoveFailedDownloads\" = @RemoveFailedDownloads";
             conn.Execute(updateSql, parameters, transaction: tran);
 
-            conn.Execute("DELETE FROM \"Config\" WHERE \"Key\" IN ('removecompleteddownloads', 'removefaileddownloads')");
+            conn.Execute("DELETE FROM \"Config\" WHERE \"Key\" IN ('removecompleteddownloads', 'removefaileddownloads')", transaction: tran);
         }
     }
 }
