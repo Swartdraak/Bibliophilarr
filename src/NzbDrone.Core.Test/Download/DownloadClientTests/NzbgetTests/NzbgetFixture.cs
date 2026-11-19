@@ -98,6 +98,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbgetTests
             _configItems = new Dictionary<string, string>();
             _configItems.Add("Category1.Name", "music");
             _configItems.Add("Category1.DestDir", @"/remote/mount/music");
+            _configItems.Add("Category2.Name", "audiobooks");
+            _configItems.Add("Category2.DestDir", @"/remote/mount/audiobooks");
 
             Mocker.GetMock<INzbgetProxy>()
                 .Setup(v => v.GetConfig(It.IsAny<NzbgetSettings>()))

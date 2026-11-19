@@ -418,6 +418,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.DownloadStationTests
         {
             GivenSerialNumber();
             GivenEbookCategory();
+            _settings.AudiobookCategory = string.Empty;
             GivenSharedFolder($"/somepath/{_category}");
 
             var status = Subject.GetStatus();

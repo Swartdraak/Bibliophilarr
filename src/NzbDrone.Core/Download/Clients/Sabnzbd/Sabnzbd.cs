@@ -461,6 +461,11 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
             var config = _proxy.GetConfig(Settings);
             var allCategories = Settings.GetAllCategories();
 
+            if (Settings.EbookCategory.IsNullOrWhiteSpace() && Settings.AudiobookCategory.IsNullOrWhiteSpace())
+            {
+                allCategories = allCategories.Append(string.Empty);
+            }
+
             foreach (var categoryName in allCategories)
             {
                 var category = GetCategories(config).FirstOrDefault((SabnzbdCategory v) => v.Name == categoryName);
@@ -488,9 +493,11 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
                     }
                 }
 
+                var sortingCategory = categoryName.IsNullOrWhiteSpace() ? "Default" : categoryName;
+
                 if (config.Misc.enable_tv_sorting && ContainsCategory(config.Misc.tv_categories, categoryName))
                 {
-                    return new NzbDroneValidationFailure("Category", $"Disable TV Sorting for category '{categoryName}'")
+                    return new NzbDroneValidationFailure("Category", $"Disable TV Sorting for category '{sortingCategory}'")
                     {
                         InfoLink = _proxy.GetBaseUrl(Settings, "config/sorting/"),
                         DetailedDescription = "You must disable Sabnzbd TV Sorting for the category Bibliophilarr uses to prevent import issues. Go to Sabnzbd to fix it."
@@ -499,7 +506,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
 
                 if (config.Misc.enable_movie_sorting && ContainsCategory(config.Misc.movie_categories, categoryName))
                 {
-                    return new NzbDroneValidationFailure("Category", $"Disable Movie Sorting for category '{categoryName}'")
+                    return new NzbDroneValidationFailure("Category", $"Disable Movie Sorting for category '{sortingCategory}'")
                     {
                         InfoLink = _proxy.GetBaseUrl(Settings, "config/sorting/"),
                         DetailedDescription = "You must disable Sabnzbd Movie Sorting for the category Bibliophilarr uses to prevent import issues. Go to Sabnzbd to fix it."
@@ -508,7 +515,7 @@ namespace NzbDrone.Core.Download.Clients.Sabnzbd
 
                 if (config.Misc.enable_date_sorting && ContainsCategory(config.Misc.date_categories, categoryName))
                 {
-                    return new NzbDroneValidationFailure("Category", $"Disable Date Sorting for category '{categoryName}'")
+                    return new NzbDroneValidationFailure("Category", $"Disable Date Sorting for category '{sortingCategory}'")
                     {
                         InfoLink = _proxy.GetBaseUrl(Settings, "config/sorting/"),
                         DetailedDescription = "You must disable Sabnzbd Date Sorting for the category Bibliophilarr uses to prevent import issues. Go to Sabnzbd to fix it."
