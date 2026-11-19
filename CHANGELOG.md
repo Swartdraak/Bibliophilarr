@@ -42,7 +42,7 @@ process.
 
 - Update the frontend dependency graph to patched qs, PostCSS and picomatch versions. Keep each selector-parser consumer on a compatible release.
 
-- **Direct frontend dependency bumps** (Issue #237): `lodash` `4.17.23 -> 4.18.1` closes GHSA-r5fr-rjxr-66jc (code injection via `_.template` imports, high) and GHSA-f23m-r3pf-42rh (prototype pollution via array path bypass in `_.unset`/`_.omit`, moderate). `qs` `6.15.0 -> 6.16.0` closes GHSA-q8mj-m7cp-5q26 (remotely triggerable `qs.stringify` DoS, moderate), GHSA-x5fp-wj9c-mxmx (array-limit bypass via bracket-key comma parsing, moderate) and GHSA-4mjr-xmp4-gh2g (DoS via attacker-controlled `isBuffer`, moderate). `yarn.lock` regenerated to match; the remaining direct `qs` advisory paths come from the transitive `qs@6.14.2` (via `^6.4.0`) which is out of scope for this minimal direct-dep bump.
+- **Direct frontend dependency bumps** (Issue #237): `lodash` `4.17.23 -> 4.18.1` closes GHSA-r5fr-rjxr-66jc (code injection via `_.template` imports, high) and GHSA-f23m-r3pf-42rh (prototype pollution via array path bypass in `_.unset`/`_.omit`, moderate). Direct and transitive `qs` now resolve to `6.17.1`, which closes GHSA-q8mj-m7cp-5q26 (remotely triggerable `qs.stringify` DoS, moderate), GHSA-x5fp-wj9c-mxmx (array-limit bypass via bracket-key comma parsing, moderate) and GHSA-4mjr-xmp4-gh2g (DoS via attacker-controlled `isBuffer`, moderate). The lockfile no longer contains the affected older versions.
 
 ### Operations
 
