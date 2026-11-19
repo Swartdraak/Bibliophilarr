@@ -227,8 +227,7 @@ namespace Bibliophilarr.Api.V1.Books
                 foreach (var bookId in resource.BookIds)
                 {
                     var editions = _editionService.GetEditionsByBook(bookId);
-                    var isEbook = resource.FormatType.Value == FormatType.Ebook;
-                    var formatEditions = editions.Where(e => e.IsEbook == isEbook).ToList();
+                    var formatEditions = editions.Where(e => e.MatchesFormat(resource.FormatType.Value)).ToList();
 
                     foreach (var edition in formatEditions)
                     {

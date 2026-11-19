@@ -132,7 +132,8 @@ namespace NzbDrone.Core.Books
             if (formatType.HasValue)
             {
                 var isEbook = formatType.Value == FormatType.Ebook;
-                builder = builder.Where<Edition>(e => e.IsEbook == isEbook);
+                builder = builder.Where<Edition>(e => e.IsEbook == isEbook &&
+                    (isEbook || e.Format == null || (e.Format != Edition.PrintFormat && e.Format != Edition.UnclassifiedFormat)));
             }
 
             return builder;
@@ -212,7 +213,8 @@ namespace NzbDrone.Core.Books
             if (formatType.HasValue)
             {
                 var isEbook = formatType.Value == FormatType.Ebook;
-                builder = builder.Where<Edition>(e => e.IsEbook == isEbook);
+                builder = builder.Where<Edition>(e => e.IsEbook == isEbook &&
+                    (isEbook || e.Format == null || (e.Format != Edition.PrintFormat && e.Format != Edition.UnclassifiedFormat)));
             }
 
             return builder;

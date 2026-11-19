@@ -14,13 +14,21 @@ function createMapStateToProps() {
     (state, { includeNoChange }) => includeNoChange,
     (state, { includeNoChangeDisabled }) => includeNoChangeDisabled,
     (state, { includeMixed }) => includeMixed,
-    (qualityProfiles, includeNoChange, includeNoChangeDisabled = true, includeMixed) => {
-      const values = _.map(qualityProfiles.items, (qualityProfile) => {
+    (state, { allowedProfileIds }) => allowedProfileIds,
+    (qualityProfiles, includeNoChange, includeNoChangeDisabled = true, includeMixed, allowedProfileIds) => {
+      const profiles = allowedProfileIds ?
+        qualityProfiles.items.filter(({ id }) => allowedProfileIds.includes(id)) :
+        qualityProfiles.items;
+      const values = _.map(profiles, (qualityProfile) => {
         return {
           key: qualityProfile.id,
           value: qualityProfile.name
         };
       });
+
+      if (allowedProfileIds && !values.length) {
+        values.push({ key: '', value: translate('None'), isDisabled: true });
+      }
 
       if (includeNoChange) {
         values.unshift({
@@ -54,10 +62,12 @@ class QualityProfileSelectInputConnector extends Component {
     const {
       name,
       value,
-      values
+      values,
+      allowedProfileIds
     } = this.props;
 
-    if (!value || !values.some((option) => option.key === value || parseInt(option.key) === value)) {
+    // Add forms derive their format-specific defaults from the current settings.
+    if (!allowedProfileIds && (!value || !values.some((option) => option.key === value || parseInt(option.key) === value))) {
       const firstValue = values.find((option) => !isNaN(parseInt(option.key)));
 
       if (firstValue) {
@@ -77,9 +87,12 @@ class QualityProfileSelectInputConnector extends Component {
   // Render
 
   render() {
+    const { allowedProfileIds, value, ...props } = this.props;
+
     return (
       <SelectInput
-        {...this.props}
+        {...props}
+        value={allowedProfileIds ? (value ?? '') : value}
         onChange={this.onChange}
       />
     );
@@ -91,6 +104,7 @@ QualityProfileSelectInputConnector.propTypes = {
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   values: PropTypes.arrayOf(PropTypes.object).isRequired,
   includeNoChange: PropTypes.bool.isRequired,
+  allowedProfileIds: PropTypes.arrayOf(PropTypes.number),
   onChange: PropTypes.func.isRequired
 };
 

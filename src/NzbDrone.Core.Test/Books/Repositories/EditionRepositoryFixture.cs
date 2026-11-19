@@ -9,12 +9,13 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
     [TestFixture]
     public class EditionRepositoryFixture : DbTest<EditionRepository, Edition>
     {
-        private Edition InsertEdition(int bookId, bool isEbook, bool monitored)
+        private Edition InsertEdition(int bookId, bool isEbook, bool monitored, string format = null)
         {
             var edition = new Edition
             {
                 BookId = bookId,
                 IsEbook = isEbook,
+                Format = format,
                 Monitored = monitored,
                 ForeignEditionId = $"edition-{bookId}-{isEbook}-{monitored}-{System.Guid.NewGuid():N}",
                 Title = "Test Edition",
@@ -42,6 +43,19 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
             // The other format (audiobook) is untouched and remains monitored
             // (dual-format tracking preserves monitoring of the other format).
             stored.Should().Contain(e => e.Id == audiobook.Id && e.Monitored);
+        }
+
+        [Test]
+        public void setting_the_audiobook_edition_should_preserve_print_monitoring()
+        {
+            var print = InsertEdition(bookId: 1, isEbook: false, monitored: true, format: "Print");
+            var audio = InsertEdition(bookId: 1, isEbook: false, monitored: false, format: "Audio CD");
+
+            Subject.SetMonitoredByFormat(audio);
+
+            var stored = Db.All<Edition>();
+            stored.Should().Contain(edition => edition.Id == print.Id && edition.Monitored);
+            stored.Should().Contain(edition => edition.Id == audio.Id && edition.Monitored);
         }
 
         [Test]
