@@ -213,7 +213,6 @@ class BookDetailsHeader extends Component {
                       type="button"
                       className={styles.formatMonitorButton}
                       disabled={!fs.canMonitor || isSaving}
-                      aria-label={formatLabel}
                       aria-pressed={fs.monitored}
                       title={actionLabel}
                       onClick={() => onFormatMonitorTogglePress?.(fs.formatType, !fs.monitored)}

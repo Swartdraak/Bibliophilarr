@@ -50,7 +50,7 @@ namespace NzbDrone.Core.IndexerSearch
 
         public Task<List<DownloadDecision>> BookSearch(int bookId, bool missingOnly, bool userInvokedSearch, bool interactiveSearch)
         {
-            return BookSearch(bookId, missingOnly, userInvokedSearch, interactiveSearch, _configService.EnableDualFormatTracking && !userInvokedSearch);
+            return BookSearch(bookId, missingOnly, userInvokedSearch, interactiveSearch, _configService.EnableDualFormatTracking && !interactiveSearch);
         }
 
         public async Task<List<DownloadDecision>> BookSearch(int bookId, bool missingOnly, bool userInvokedSearch, bool interactiveSearch, bool monitoredBooksOnly)

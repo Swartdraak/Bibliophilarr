@@ -47,6 +47,7 @@ namespace NzbDrone.Core.Books
                 {
                     // populate Id in remote data
                     meta.UseDbFieldsFrom(existing);
+                    meta.Overview = meta.Overview.IsNullOrWhiteSpace() ? existing.Overview : meta.Overview;
 
                     // responses vary, so try adding remote to what we have
                     if (!meta.Equals(existing))
@@ -99,6 +100,7 @@ namespace NzbDrone.Core.Books
                             meta.ForeignAuthorId);
 
                         meta.UseDbFieldsFrom(nameMatch);
+                        meta.Overview = meta.Overview.IsNullOrWhiteSpace() ? nameMatch.Overview : meta.Overview;
 
                         // Update the ForeignAuthorId to the new numeric format
                         updateMetadataList.Add(meta);
