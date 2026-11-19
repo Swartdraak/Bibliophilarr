@@ -28,6 +28,18 @@ describe('author series', () => {
     expect(getSeriesRepresentativeCover(books, links.slice(-1))).toBeUndefined();
   });
 
+  test('uses author-scoped artwork when the global library omits alternate-edition covers', () => {
+    const libraryBooks = [{ id: 2, title: 'Volume two', images: [] }];
+    const authorBooks = [{ id: 2, title: 'Volume two', images: [{ coverType: 'cover', url: '/alternate.png' }] }];
+    const links = [{ bookId: 2, position: '2' }];
+
+    expect(getSeriesRepresentativeCover(libraryBooks, links)).toBeUndefined();
+    expect(getSeriesRepresentativeCover(libraryBooks, links, authorBooks)).toEqual({
+      bookTitle: 'Volume two',
+      url: '/alternate.png'
+    });
+  });
+
   test('searches only monitored members missing a file in a monitored format', () => {
     const books = [
       { id: 1, monitored: true, statistics: { bookFileCount: 0 } },

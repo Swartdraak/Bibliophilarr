@@ -36,8 +36,8 @@ export function compareSeriesBookPositions(left, right, direction) {
   return direction === 'descending' ? -order : order;
 }
 
-export function getSeriesRepresentativeCover(books, links) {
-  const booksById = new Map(books.map((book) => [book.id, book]));
+export function getSeriesRepresentativeCover(books, links, artworkBooks = books) {
+  const booksById = new Map(artworkBooks.map((book) => [book.id, book]));
   const orderedLinks = [...links].sort((left, right) => {
     const leftPosition = left.position || String(left.seriesPosition || '');
     const rightPosition = right.position || String(right.seriesPosition || '');
@@ -60,13 +60,14 @@ export function getSeriesRepresentativeCover(books, links) {
 function createMapStateToProps() {
   return createSelector(
     (state, { seriesId }) => seriesId,
+    (state, { artworkBooks }) => artworkBooks,
     (state) => state.books,
     createAuthorSelector(),
     (state) => state.series,
     createExecutingCommandsSelector(),
     createDimensionsSelector(),
     createUISettingsSelector(),
-    (seriesId, books, author, series, executingCommands, dimensions, uiSettings) => {
+    (seriesId, artworkBooks, books, author, series, executingCommands, dimensions, uiSettings) => {
 
       const currentSeries = _.find(series.items, { id: seriesId });
 
@@ -98,7 +99,7 @@ function createMapStateToProps() {
       return {
         id: currentSeries.id,
         label: currentSeries.title,
-        representativeCover: getSeriesRepresentativeCover(booksInSeries, currentSeries.links),
+        representativeCover: getSeriesRepresentativeCover(booksInSeries, currentSeries.links, artworkBooks),
         items: sortedBooks,
         positionMap,
         columns: series.columns,

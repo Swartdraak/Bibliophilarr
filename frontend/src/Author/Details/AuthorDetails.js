@@ -230,6 +230,7 @@ class AuthorDetails extends Component {
       hasMonitoredBooks,
       hasSeries,
       series,
+      seriesArtworkBooks,
       hasBookFiles,
       previousAuthor,
       nextAuthor,
@@ -507,6 +508,7 @@ class AuthorDetails extends Component {
                                   key={item.id}
                                   seriesId={item.id}
                                   authorId={id}
+                                  artworkBooks={seriesArtworkBooks}
                                   isExpanded={expandedState[item.id]}
                                   onExpandPress={this.onExpandPress}
                                 />
@@ -630,6 +632,7 @@ AuthorDetails.propTypes = {
   hasMonitoredBooks: PropTypes.bool.isRequired,
   hasSeries: PropTypes.bool.isRequired,
   series: PropTypes.arrayOf(PropTypes.object).isRequired,
+  seriesArtworkBooks: PropTypes.arrayOf(PropTypes.object),
   hasBookFiles: PropTypes.bool.isRequired,
   previousAuthor: PropTypes.object.isRequired,
   nextAuthor: PropTypes.object.isRequired,

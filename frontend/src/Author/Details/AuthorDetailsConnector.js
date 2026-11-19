@@ -17,6 +17,7 @@ import createCommandsSelector from 'Store/Selectors/createCommandsSelector';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
 import createSortedSectionSelector from 'Store/Selectors/createSortedSectionSelector';
 import { findCommand, isCommandExecuting } from 'Utilities/Command';
+import createAjaxRequest from 'Utilities/createAjaxRequest';
 import { registerPagePopulator, unregisterPagePopulator } from 'Utilities/pagePopulator';
 import AuthorDetails from './AuthorDetails';
 
@@ -220,6 +221,8 @@ const mapDispatchToProps = {
 
 class AuthorDetailsConnector extends Component {
 
+  state = { seriesArtwork: null };
+
   //
   // Lifecycle
 
@@ -269,9 +272,30 @@ class AuthorDetailsConnector extends Component {
     this.props.fetchSeries({ authorId });
     this.props.fetchBookFiles({ authorId });
     this.props.fetchQueueDetails({ authorId });
+    this.populateSeriesArtwork(authorId);
+  };
+
+  populateSeriesArtwork = (authorId) => {
+    this.seriesArtworkRequest?.abortRequest();
+
+    const load = createAjaxRequest({ url: '/book', data: { authorId } });
+    this.seriesArtworkRequest = load;
+
+    load.request.done((books) => {
+      if (this.seriesArtworkRequest === load) {
+        this.setState({
+          seriesArtwork: {
+            authorId,
+            books: books.map(({ id, title, images }) => ({ id, title, images }))
+          }
+        });
+      }
+    });
   };
 
   unpopulate = () => {
+    this.seriesArtworkRequest?.abortRequest();
+    this.seriesArtworkRequest = null;
     this.props.cancelFetchReleases();
     this.props.clearSeries();
     this.props.clearBookFiles();
@@ -311,9 +335,11 @@ class AuthorDetailsConnector extends Component {
   // Render
 
   render() {
+    const { seriesArtwork } = this.state;
     return (
       <AuthorDetails
         {...this.props}
+        seriesArtworkBooks={seriesArtwork?.authorId === this.props.id ? seriesArtwork.books : undefined}
         onMonitorTogglePress={this.onMonitorTogglePress}
         onRefreshPress={this.onRefreshPress}
         onSearchPress={this.onSearchPress}

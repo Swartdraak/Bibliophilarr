@@ -6,6 +6,7 @@ import { toggleBookFormatMonitored, toggleBooksMonitored } from 'Store/Actions/b
 import createBookSelector from 'Store/Selectors/createBookSelector';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
 import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
+import createAjaxRequest from 'Utilities/createAjaxRequest';
 import BookDetailsHeader from './BookDetailsHeader';
 
 const selectOverview = createSelector(
@@ -39,7 +40,48 @@ const mapDispatchToProps = {
   toggleBookFormatMonitored
 };
 
-class BookDetailsHeaderConnector extends Component {
+function hasCover(images) {
+  return images.some((image) => image.coverType === 'cover' && image.url);
+}
+
+export class BookDetailsHeaderConnector extends Component {
+
+  state = { fallbackArtwork: null };
+
+  componentDidMount() {
+    this.fetchMissingCover();
+  }
+
+  componentDidUpdate(previousProps) {
+    if (previousProps.bookId !== this.props.bookId) {
+      this.fetchMissingCover();
+    }
+  }
+
+  componentWillUnmount() {
+    this.artworkRequest?.abortRequest();
+    this.artworkRequest = null;
+  }
+
+  fetchMissingCover = () => {
+    const { bookId, images } = this.props;
+    this.artworkRequest?.abortRequest();
+    this.artworkRequest = null;
+
+    if (!bookId || hasCover(images)) {
+      return;
+    }
+
+    // The catalogue list only loads monitored editions. The detail endpoint
+    // can select a cover from any edition of this work.
+    const artworkRequest = createAjaxRequest({ url: `/book/${bookId}` });
+    this.artworkRequest = artworkRequest;
+    artworkRequest.request.done((book) => {
+      if (this.artworkRequest === artworkRequest && book.id === bookId && hasCover(book.images ?? [])) {
+        this.setState({ fallbackArtwork: { bookId, images: book.images } });
+      }
+    });
+  };
 
   //
   // Listeners
@@ -63,9 +105,14 @@ class BookDetailsHeaderConnector extends Component {
   // Render
 
   render() {
+    const { bookId, images } = this.props;
+    const { fallbackArtwork } = this.state;
+    const visibleImages = !hasCover(images) && fallbackArtwork?.bookId === bookId ? fallbackArtwork.images : images;
+
     return (
       <BookDetailsHeader
         {...this.props}
+        images={visibleImages}
         onMonitorTogglePress={this.onMonitorTogglePress}
         onFormatMonitorTogglePress={this.onFormatMonitorTogglePress}
       />
@@ -75,6 +122,7 @@ class BookDetailsHeaderConnector extends Component {
 
 BookDetailsHeaderConnector.propTypes = {
   bookId: PropTypes.number,
+  images: PropTypes.arrayOf(PropTypes.object).isRequired,
   toggleBooksMonitored: PropTypes.func.isRequired,
   toggleBookFormatMonitored: PropTypes.func.isRequired,
   author: PropTypes.object
