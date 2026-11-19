@@ -34,7 +34,7 @@ RUN --mount=type=secret,id=sixlabors_license,required=true \
     ./build.sh --packages -r "$rid" -f net10.0; \
     mv "/src/_artifacts/$rid/net10.0/Bibliophilarr" /release
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:12b1135f5f8b3c0a214f2a680ff2033dff4f684f445d6c697d9524ceeb303586 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0@sha256:bc0d6653979efba491ab3d6f589d691f96c309c3c3ef81325efa6978e7b7f242 AS runtime
 
 LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.description="Ebook and audiobook library manager" \
