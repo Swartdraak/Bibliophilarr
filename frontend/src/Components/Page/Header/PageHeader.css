@@ -64,6 +64,7 @@
     &:hover,
     &:focus-visible {
       background-color: var(--headerControlColor);
+      color: var(--white);
     }
 
     &:focus-visible {
