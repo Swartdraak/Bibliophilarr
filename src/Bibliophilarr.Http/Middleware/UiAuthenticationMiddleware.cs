@@ -59,26 +59,16 @@ namespace Bibliophilarr.Http.Middleware
             // not a Forms challenge that falls through to the SPA shell (index.html). The
             // exclusion is for the EXACT path /ping only: /ping/extra is still a UI-shell GET
             // (SPA catch-all) and is governed normally.
-            //
-            // Issue #329: /initialize.json is the SPA's boot endpoint (InitializeJsonController,
-            // [AllowAnonymous]). The SPA's index bundle fetches it BEFORE React mounts; a Forms
-            // challenge here (401, empty body) makes that fetch fail and the entire SPA boots
-            // into a blank app shell on every route. Like /ping it must be excluded for the
-            // EXACT path only: /initialize.json/extra still resolves to the SPA catch-all and is
-            // governed normally. Excluding it does not weaken #313: anonymous UI pages (/,
-            // /library, ...) are still 401-challenged, and the [AllowAnonymous] controller
-            // serves the bootstrap payload (the pre-#315 intended behavior the UI bundle relies
-            // on; the UI shell never renders sensitive content without data).
             var isUiShellGet =
                 HttpMethodCompare(method, "GET") &&
                 !string.IsNullOrEmpty(path) &&
                 !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
                 !path.StartsWith("/login", StringComparison.OrdinalIgnoreCase) &&
                 !path.StartsWith("/content/", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(path, "/ping", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(path, "/initialize.json", StringComparison.OrdinalIgnoreCase);
+                !string.Equals(path, "/ping", StringComparison.OrdinalIgnoreCase);
 
-            if (isUiShellGet)
+            // The UI policy evaluates the Authorization header in Basic mode.
+            if (isUiShellGet && _configService.AuthenticationMethod != AuthenticationType.Basic)
             {
                 var user = context.User;
                 var isAuthenticated = user != null && user.Identity != null && user.Identity.IsAuthenticated;
