@@ -13,8 +13,8 @@
 #    PYTHONDONTWRITEBYTECODE and EROFS-aborted preflight).
 set -e
 fail() { echo "PREFLIGHT-BUILD-FAIL: $*" >&2; exit 1; }
-cd /workspace/repo
-HEAD=$(git rev-parse HEAD)
+REPO=$(git rev-parse --show-toplevel) || fail "run preflight from the candidate checkout"
+HEAD=$(git -C "$REPO" rev-parse HEAD)
 # Runner-owned expected head (set from the verified plan by the stage runner;
 # cannot be overridden from plan env). Fall back to a plan-provided binding if
 # the runner-owned variable is absent (definition-time checks); a missing
@@ -22,7 +22,8 @@ HEAD=$(git rev-parse HEAD)
 EXPECTED="${ONYX_STAGE_HEAD:-${EXPECTED_HEAD:-}}"
 [ -n "$EXPECTED" ] || fail "expected head unavailable: ONYX_STAGE_HEAD / EXPECTED_HEAD not set"
 [ "$HEAD" = "$EXPECTED" ] || fail "head mismatch: repo=$HEAD expected=$EXPECTED"
-[ -z "$(git status --porcelain)" ] || { git status --porcelain | head -5; fail "working tree not clean"; }
+status=$(git --no-optional-locks -C "$REPO" status --porcelain)
+[ -z "$status" ] || fail "working tree not clean"
 python3 - <<'PY'
 import socket
 s = socket.socket(); s.settimeout(1)
@@ -33,8 +34,8 @@ except OSError as e:
 finally:
     s.close()
 PY
-[ -s /run/onyx-test-secrets.json ] || fail "test-key projection file missing/empty"
-HP="/workspace/linux-program"
+[ -s "${ONYX_TEST_SECRETS_FILE:-/run/onyx-test-secrets.json}" ] || fail "test-key projection file missing/empty"
+HP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bash -n "$HP/build/build_backend.sh"
 bash -n "$HP/build/build_frontend.sh"
 bash -n "$HP/build/durabilize_output.sh"
