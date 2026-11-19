@@ -62,15 +62,11 @@ def latest_snapshot(directory: Path) -> Tuple[Optional[Path], Optional[date]]:
 
 
 def extract_verdict(contents: str, marker: str) -> Optional[str]:
-    marker_lower = marker.lower()
+    field = re.compile(rf"^\s*(?:[-*]\s+)?{re.escape(marker)}\s*:\s*(\S.*)$", re.IGNORECASE)
     for line in contents.splitlines():
-        if marker_lower not in line.lower():
-            continue
-
-        _, _, tail = line.partition(":")
-        value = tail.strip() if tail else line.strip()
-        if value:
-            return value
+        match = field.match(line)
+        if match:
+            return match.group(1).strip()
 
     return None
 
@@ -109,7 +105,8 @@ def evaluate_gate(
 
     today = datetime.now(timezone.utc).date()
     days_old = (today - snapshot_day).days
-    if days_old > max_age_days:
+    if days_old < 0 or days_old > max_age_days:
+        detail = "Snapshot date is in the future" if days_old < 0 else f"Snapshot is stale ({days_old} days old, max {max_age_days})"
         return GateResult(
             name=name,
             snapshot_path=str(snapshot),
@@ -117,11 +114,11 @@ def evaluate_gate(
             days_old=days_old,
             verdict=verdict,
             passed=False,
-            detail=f"Snapshot is stale ({days_old} days old, max {max_age_days})",
+            detail=detail,
         )
 
-    verdict_lower = verdict.lower()
-    passed = any(term.lower() in verdict_lower for term in accepted_terms)
+    verdict_state = re.match(r"^[a-z]+(?=$|[\s(:])", verdict, re.IGNORECASE)
+    passed = verdict_state is not None and verdict_state.group().lower() in {term.lower() for term in accepted_terms}
 
     return GateResult(
         name=name,
