@@ -70,6 +70,31 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_save_the_work_providers_author_without_refetching_the_bibliography()
+        {
+            var requested = new Author { RootFolderPath = @"C:\Test\Books", MetadataProfileId = 3 };
+            var metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = "OL12345A",
+                Name = "Provider Author",
+                Overview = "Provider biography"
+            };
+            GivenValidPath();
+
+            var author = Subject.AddAuthorWithMetadata(requested, metadata, false);
+
+            author.ForeignAuthorId.Should().Be("openlibrary:author:OL12345A");
+            author.Name.Should().Be("Provider Author");
+            author.Metadata.Value.Overview.Should().Be("Provider biography");
+            author.MetadataProfileId.Should().Be(3);
+            author.Path.Should().Be(Path.Combine(requested.RootFolderPath, metadata.Name));
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(provider => provider.GetAuthorInfo(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAuthorService>()
+                .Verify(service => service.AddAuthor(author, false), Times.Once());
+        }
+
+        [Test]
         public void should_have_proper_path()
         {
             var newAuthor = new Author

@@ -77,11 +77,9 @@ namespace NzbDrone.Core.Books
             var dbAuthor = _authorService.FindById(book.AuthorMetadata.Value.ForeignAuthorId);
             if (dbAuthor == null)
             {
-                var author = book.Author.Value;
-
-                author.Metadata.Value.ForeignAuthorId = book.AuthorMetadata.Value.ForeignAuthorId;
-
-                dbAuthor = _addAuthorService.AddAuthor(author, false);
+                // The work lookup already returned this author. The BookAdded
+                // handler can hydrate their bibliography after the book is saved.
+                dbAuthor = _addAuthorService.AddAuthorWithMetadata(book.Author.Value, book.AuthorMetadata.Value, false);
             }
 
             book.Author = dbAuthor;
