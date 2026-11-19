@@ -15,6 +15,12 @@ from xml.etree import ElementTree
 
 from playwright.sync_api import Error as PlaywrightError, expect, sync_playwright
 
+from catalogue_workflow import (
+    LIVE_PROVIDER_TOKEN_ENV,
+    exercise_catalogue,
+    verify_catalogue_after_restart,
+)
+
 
 def check_status(response, expected, label):
     print(f"{label}: HTTP {response.status}, expected {expected}", flush=True)
@@ -48,7 +54,7 @@ def free_port():
 
 
 @contextmanager
-def running_app(binary, app_data, log_path, port):
+def running_app(binary, app_data, log_path, port, evidence, credentials):
     app_data.mkdir(exist_ok=True)
     base = f"http://127.0.0.1:{port}"
     env = {
@@ -71,8 +77,13 @@ def running_app(binary, app_data, log_path, port):
             stdout=log,
             stderr=subprocess.STDOUT,
         )
+        failed = False
+        forced_stop = False
         try:
             yield process, base
+        except Exception:
+            failed = True
+            raise
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -81,7 +92,23 @@ def running_app(binary, app_data, log_path, port):
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-                    raise
+                    forced_stop = True
+            if failed or forced_stop:
+                log.flush()
+                safe_log = log_path.read_text(errors="replace")
+                secrets_to_remove = list(credentials.values()) + [
+                    "deliberately-wrong",
+                    os.environ.get(LIVE_PROVIDER_TOKEN_ENV, "").strip(),
+                ]
+                try:
+                    secrets_to_remove.append(ElementTree.parse(app_data / "config.xml").findtext("ApiKey"))
+                except (FileNotFoundError, ElementTree.ParseError):
+                    pass
+                for value in filter(None, secrets_to_remove):
+                    safe_log = safe_log.replace(value, "[redacted]")
+                (evidence / log_path.name).write_text(safe_log)
+            if forced_stop and not failed:
+                raise TimeoutError("application did not stop after SIGTERM")
 
 
 def login(page, username, password, *, rejected):
@@ -106,7 +133,7 @@ def login(page, username, password, *, rejected):
     assert any(item["name"] == "BibliophilarrAuth" for item in page.context.cookies()) != rejected
 
 
-def check_routes(page, base, evidence):
+def check_routes(page, base, api, evidence):
     main = page.get_by_role("main")
     nav = page.get_by_role("navigation", name="Primary navigation")
 
@@ -127,15 +154,41 @@ def check_routes(page, base, evidence):
     expect(main.get_by_role("heading", name="No books found", exact=True)).to_be_visible()
     expect(nav.get_by_role("link", name="Books", exact=True)).to_have_attribute("aria-current", "page")
 
-    print("Add/Search and Settings mount real controls", flush=True)
-    page.goto(base + "/add/search", wait_until="domcontentloaded")
+    print("Library and Search bookmarks mount distinct content", flush=True)
+    check_status(page.goto(base + "/library?view=table#authors"), 200, "Authenticated Library bookmark")
+    expect(page).to_have_url(base + "/authors?view=table#authors")
+    expect(main.get_by_role("heading", name="Authors", exact=True)).to_be_visible()
+    check_status(page.goto(base + "/search?source=bookmark#search"), 200, "Authenticated Search bookmark")
+    expect(page).to_have_url(base + "/add/search?source=bookmark#search")
     expect(main.locator('input[placeholder*="War and Peace"]')).to_be_visible()
+    page.screenshot(path=str(evidence / "desktop-search.png"))
+    assert (evidence / "desktop-authors.png").read_bytes() != (evidence / "desktop-search.png").read_bytes()
+
+    print("Settings mount real controls and save without re-entering the password", flush=True)
     page.goto(base + "/settings", wait_until="domcontentloaded")
     main.get_by_role("link", name="Media Management", exact=False).first.click()
     expect(page).to_have_url(base + "/settings/mediamanagement")
     expect(main.get_by_text("Root Folders", exact=True)).to_be_visible()
     page.goto(base + "/settings/general", wait_until="domcontentloaded")
     expect(main.get_by_text("Authentication", exact=True).first).to_be_visible()
+    page.get_by_text("Show Advanced", exact=True).click()
+    name = main.locator('input[name="instanceName"]')
+    original = name.input_value()
+    for value in ("Bibliophilarr Browser Fixture", original):
+        name.fill(value)
+        with page.expect_response(
+            lambda response: response.request.method == "PUT"
+            and urlsplit(response.url).path in {"/api/v1/config/host", "/api/v1/config/host/1"}
+        ) as saved:
+            main.get_by_role("button", name="Save Changes", exact=True).click()
+        check_status(saved.value, 202, "General settings save with existing credentials")
+        expect(main.get_by_role("button", name="No Changes", exact=True)).to_be_disabled()
+        host = check_status(api.get("/api/v1/config/host"), 200, "Read back instance name").json()
+        assert host["instanceName"] == value and host["password"] == ""
+    page.screenshot(
+        path=str(evidence / "desktop-general-settings.png"),
+        mask=[main.locator('input[name="apiKey"]')],
+    )
     nav.get_by_role("link", name="UI", exact=True).click()
     expect(page).to_have_url(base + "/settings/ui")
     main.get_by_role("button", name="Auto", exact=True).click()
@@ -163,7 +216,7 @@ def check_routes(page, base, evidence):
         expect(toggle).to_be_focused()
 
 
-def run(binary, evidence):
+def run(binary, evidence, *, live_provider=False):
     username = "browser-fixture"
     password = "Ci!" + secrets.token_urlsafe(16)
     credentials = {"username": username, "password": password}
@@ -171,7 +224,7 @@ def run(binary, evidence):
         work = Path(work)
         http = playwright.request.new_context()
         weak_data = work / "weak-password"
-        with running_app(binary, weak_data, work / "weak.log", free_port()) as (app, base):
+        with running_app(binary, weak_data, work / "weak.log", free_port(), evidence, credentials) as (app, base):
             wait_ready(app, http, base, weak_data)
             check_status(
                 http.post(base + "/bootstrap", form={"username": username, "password": "weak"}, max_redirects=0),
@@ -182,9 +235,10 @@ def run(binary, evidence):
         data = work / "main-app"
         log = work / "app.log"
         port = free_port()
-        with running_app(binary, data, log, port) as (app, base):
+        with running_app(binary, data, log, port, evidence, credentials) as (app, base):
             key = wait_ready(app, http, base, data)
             check_status(http.get(base + "/authors", max_redirects=0), 401, "Anonymous library")
+            check_status(http.get(base + "/api/v1/search?term=fixture", max_redirects=0), 401, "Anonymous API search")
             denied = check_status(http.get(base + "/initialize.json", max_redirects=0), 401, "Anonymous initializer")
             assert key.encode() not in denied.body()
             check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 200, "First user")
@@ -221,13 +275,16 @@ def run(binary, evidence):
             expect(page).to_have_url(re.compile(r"/login\?.*returnUrl="))
             login(page, username, "deliberately-wrong", rejected=True)
             login(page, username, password, rejected=False)
+            check_status(page.request.get(base + "/", max_redirects=0), 200, "New Forms session opens the root")
             initializer = check_status(page.request.get(base + "/initialize.json"), 200, "Forms initializer")
             assert initializer.json()["apiKey"] == key and "no-store" in initializer.headers["cache-control"]
-            check_routes(page, base, evidence)
+            check_routes(page, base, api, evidence)
+            catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
 
-        with running_app(binary, data, log, port) as (app, base):
+        with running_app(binary, data, log, port, evidence, credentials) as (app, base):
             assert wait_ready(app, http, base, data) == key
-            check_status(api.get("/api/v1/config/host"), 200, "Persisted API key")
+            host = check_status(api.get("/api/v1/config/host"), 200, "Persisted API key").json()
+            assert host["username"] == username and host["password"] == ""
             ui_settings = check_status(api.get("/api/v1/config/ui"), 200, "Persisted UI settings").json()
             assert ui_settings["theme"] == "dark"
             metadata = check_status(api.get(metadata_path), 200, "Persisted metadata settings").json()
@@ -237,11 +294,16 @@ def run(binary, evidence):
             page.set_viewport_size({"width": 1366, "height": 900})
             check_status(page.goto(base + "/authors"), 200, "Library after restart")
             expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
+            verify_catalogue_after_restart(page, api, base, catalogue)
             assert not errors, f"{len(errors)} uncaught browser page errors"
             page.get_by_role("button", name="Menu Button").click()
             page.get_by_role("link", name="Logout").click()
             expect(page.get_by_placeholder("Username")).to_be_visible()
             check_status(page.request.get(base + "/initialize.json"), 401, "Logged-out initializer")
+            page.goto(base + "/authors")
+            expect(page).to_have_url(re.compile(r"/login\?.*returnUrl="))
+            login(page, username, password, rejected=False)
+            check_status(page.request.get(base + "/", max_redirects=0), 200, "New Forms session after restart opens the root")
             browser.close()
 
     print("Browser smoke passed", flush=True)
@@ -251,12 +313,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--live-provider", action="store_true", help="Run live Hardcover checks with HARDCOVER_API_KEY")
     args = parser.parse_args()
     os.umask(0o077)
     args.evidence.mkdir(parents=True, exist_ok=True)
     try:
-        run(args.binary.resolve(strict=True), args.evidence)
+        run(args.binary.resolve(strict=True), args.evidence, live_provider=args.live_provider)
     except Exception as error:
         # Playwright exceptions can embed request values. Artifacts contain only safe status
-        # lines and screenshots of the empty catalogue. The disposable state is removed.
+        # lines, redacted process logs on failure, and screenshots of the disposable app.
         raise SystemExit(f"Browser smoke failed ({type(error).__name__}). See the last checkpoint.") from None

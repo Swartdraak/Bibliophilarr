@@ -83,6 +83,18 @@ function AppRoutes(props) {
         />
 
         <Route
+          exact={true}
+          path="/library"
+          render={({ location }) => <Redirect to={{ ...location, pathname: getPathWithUrlBase('/authors') }} />}
+        />
+
+        <Route
+          exact={true}
+          path="/search"
+          render={({ location }) => <Redirect to={{ ...location, pathname: getPathWithUrlBase('/add/search') }} />}
+        />
+
+        <Route
           path="/add/search"
           component={AddNewItemConnector}
         />
