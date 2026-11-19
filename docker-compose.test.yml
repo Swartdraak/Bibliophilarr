@@ -32,6 +32,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      secrets:
+        - sixlabors_license
     image: ${BIBLIOPHILARR_TEST_IMAGE:-bibliophilarr:test}
     command:
       - /data=/config
@@ -106,3 +108,7 @@ networks:
   bibliophilarr-test:
     driver: bridge
     internal: ${BIBLIOPHILARR_TEST_NETWORK_INTERNAL:-true}
+
+secrets:
+  sixlabors_license:
+    file: ${SIXLABORS_LICENSE_FILE:-./sixlabors.lic}

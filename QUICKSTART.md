@@ -110,6 +110,20 @@ For the repository build script:
 ./build.sh
 ```
 
+### Build a local container
+
+Use Docker BuildKit and pass the Six Labors build license from its local file.
+
+```bash
+docker build --secret id=sixlabors_license,src="$SIXLABORS_LICENSE_FILE" \
+  -t bibliophilarr:local .
+```
+
+Both repository Compose files read `SIXLABORS_LICENSE_FILE` when building the
+application image. The container stores its database and configuration in the
+volume mounted at `/config`. The application runs as UID and GID 1000.
+
+
 ## Artifact layout and startup paths
 
 The repository produces three different artifact trees. Treat them differently:
