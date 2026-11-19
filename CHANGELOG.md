@@ -14,6 +14,9 @@ process.
 
 ### Fixed
 
+- A fresh installation opens first-account setup in the browser when opened
+  directly on localhost. Create an account and sign in without a terminal command.
+
 - Book and author lookups respect the enabled metadata providers and their
   configured order. They return an empty list when no provider returns a match.
 - Google Books author refresh keeps existing catalogue entries when overlapping

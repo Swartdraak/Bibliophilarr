@@ -8,6 +8,8 @@ on:
       - '.github/workflows/package-*.yml'
       - '.github/workflows/release.yml'
       - 'build.sh'
+      - 'frontend/src/login.html'
+      - 'src/Bibliophilarr.Http/Authentication/**'
       - 'distribution/windows/setup/**'
       - 'scripts/ops/check_release_assets.py'
       - 'scripts/ops/create_release_manifest.py'

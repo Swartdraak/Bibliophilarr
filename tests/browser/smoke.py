@@ -232,6 +232,34 @@ def run(binary, evidence, *, live_provider=False):
                 "Fresh user with weak password",
             )
 
+        onboarding = work / "onboarding"
+        with running_app(binary, onboarding, work / "onboarding.log", free_port(), evidence, credentials) as (app, base):
+            wait_ready(app, http, base, onboarding)
+            check_status(http.post(base + "/bootstrap", form=credentials, headers={"X-Forwarded-For": "127.0.0.1"}, max_redirects=0),
+                         403, "Rejected forwarded first-account request")
+            check_status(http.post(base + "/bootstrap", form=credentials, headers={"Origin": "https://untrusted.invalid"}, max_redirects=0),
+                         403, "Rejected cross-origin terminal bootstrap")
+            check_status(http.post(base + "/login/setup", form=credentials, max_redirects=0),
+                         400, "First-account form without its request token")
+            with playwright.chromium.launch() as onboarding_browser:
+                page = onboarding_browser.new_page()
+                page.goto(base + "/")
+                expect(page.get_by_role("heading", name="Create your account")).to_be_visible(timeout=5000)
+                page.get_by_label("Username").fill(username)
+                page.get_by_label("Password", exact=True).fill(password)
+                page.get_by_label("Confirm password").fill("Deliberate-Mismatch-01")
+                page.get_by_role("button", name="Create account").click()
+                expect(page.get_by_role("alert")).to_contain_text("matching passwords")
+                page.get_by_label("Username").fill(username)
+                page.get_by_label("Password", exact=True).fill(password)
+                page.get_by_label("Confirm password").fill(password)
+                page.get_by_role("button", name="Create account").click()
+                expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
+                check_status(page.request.get(base + "/initialize.json"), 200, "First account can access the WebUI")
+                page.goto(base + "/logout")
+                expect(page.get_by_role("button", name="Login", exact=True)).to_be_visible()
+                expect(page.get_by_role("heading", name="Create your account")).to_have_count(0)
+
         data = work / "main-app"
         log = work / "app.log"
         port = free_port()

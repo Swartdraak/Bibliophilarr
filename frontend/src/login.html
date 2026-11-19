@@ -118,10 +118,9 @@
       }
 
       .form-input:focus {
-        outline: 0;
-        border-color: #66afe9;
-        box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
-          0 0 8px rgba(102, 175, 233, 0.6);
+        outline: 2px solid #2463a2;
+        outline-offset: 2px;
+        border-color: #2463a2;
       }
 
       .button {
@@ -132,7 +131,7 @@
         border: 1px solid;
         border-color: #1d563d;
         border-radius: 4px;
-        background-color: #0b8750;
+        background-color: #11643f;
         color: #fff;
         vertical-align: middle;
         text-align: center;
@@ -142,7 +141,7 @@
 
       .button:hover {
         border-color: #1D563D;
-        background-color: #097948;
+        background-color: #0b5133;
         color: #fff;
         text-decoration: none;
       }
@@ -165,24 +164,24 @@
 
       .forgot-password {
         margin-left: auto;
-        color: #909fa7;
+        color: #465864;
         text-decoration: none;
         font-size: 13px;
       }
 
       .forgot-password:focus,
       .forgot-password:hover {
-        color: #748690;
+        color: #374954;
         text-decoration: underline;
       }
 
       .forgot-password:visited {
-        color: #748690;
+        color: #465864;
       }
 
       .login-failed {
         margin-top: 20px;
-        color: #f05050;
+        color: #b42318;
         font-size: 14px;
       }
 
@@ -207,6 +206,31 @@
           </div>
 
           <div class="panel-body">
+            <div id="setup-form" hidden>
+              <h1 class="sign-in">Create your account</h1>
+              <form class="mb-lg" method="POST" action="__URL_BASE__/login/setup">
+                <input type="hidden" name="__RequestVerificationToken" value="__FIRST_ACCOUNT_TOKEN__" />
+                <div class="form-group">
+                  <label for="setup-username">Username</label>
+                  <input id="setup-username" class="form-input" name="username"
+                         autocomplete="username" autocapitalize="none" minlength="3" maxlength="32" required />
+                </div>
+                <div class="form-group">
+                  <label for="setup-password">Password</label>
+                  <input id="setup-password" class="form-input" type="password" name="password"
+                         autocomplete="new-password" minlength="8" required />
+                </div>
+                <div class="form-group">
+                  <label for="setup-confirmation">Confirm password</label>
+                  <input id="setup-confirmation" class="form-input" type="password" name="passwordConfirmation"
+                         autocomplete="new-password" minlength="8" required />
+                </div>
+                <p class="__FIRST_ACCOUNT_ERROR_CLASS__" role="alert">Use a username of 3 to 32 characters and matching passwords of at least 8 characters.</p>
+                <button type="submit" class="button">Create account</button>
+              </form>
+            </div>
+
+            <div id="login-form">
             <div class="sign-in">
               SIGN IN TO CONTINUE
             </div>
@@ -266,6 +290,7 @@
                 Incorrect Username or Password
               </div>
             </form>
+            </div>
           </div>
         </div>
 

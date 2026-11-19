@@ -64,6 +64,7 @@ namespace NzbDrone.Host
             });
 
             services.AddRouting(options => options.LowercaseUrls = true);
+            services.AddAntiforgery();
 
             services.AddResponseCompression(options => options.EnableForHttps = true);
 
@@ -255,6 +256,11 @@ namespace NzbDrone.Host
                 firewallAdapter.MakeAccessible();
             }
 
+            app.Use(next => context =>
+            {
+                FirstAccountSetup.CaptureRequest(context);
+                return next(context);
+            });
             app.UseForwardedHeaders();
             app.UseMiddleware<LoggingMiddleware>();
             app.UseMiddleware<SecurityHeadersMiddleware>();
