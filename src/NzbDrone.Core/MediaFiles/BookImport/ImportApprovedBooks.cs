@@ -210,20 +210,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     if (!replaceExisting)
                     {
-                        // #426: the exposed "do not replace existing files" setting must
-                        // prevent replacement of an already-imported record.  When a
-                        // record already backs the incoming path for the same
-                        // book+part (and edition when tracked), the duplicate import
-                        // short-circuits: the original record and file are preserved,
-                        // no upgrade/copy is issued, and the result reports the skip
-                        // instead of recycling the record (which would change its
-                        // identity despite identical bytes).
+                        // A move, reassignment, or hardlinked copy can change a tracked file.
                         var previousFile = _mediaFileService.GetFileWithPath(localTrack.Path.CleanFilePath());
 
-                        if (previousFile != null &&
-                            previousFile.Id > 0 &&
-                            previousFile.Part == localTrack.Part &&
-                            previousFile.EditionId == localTrack.Edition.Id)
+                        if (previousFile?.Id > 0)
                         {
                             var preservedId = previousFile.Id;
                             _logger.ProgressInfo(
@@ -310,6 +300,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                         if (previousFile != null)
                         {
+                            if (!replaceExisting)
+                            {
+                                importResults.Add(new ImportResult(importDecision, $"Skipped: existing book file {previousFile.Id} is preserved (replaceExistingFiles=false)"));
+                                continue;
+                            }
+
                             _mediaFileService.Delete(previousFile, DeleteMediaFileReason.ManualOverride);
 
                             if (bookFile.CalibreId == 0 && previousFile.CalibreId != 0)

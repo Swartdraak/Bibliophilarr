@@ -156,6 +156,25 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .Verify(m => m.Delete(_existing, DeleteMediaFileReason.ManualOverride), Times.Never);
         }
 
+        [TestCase(true, ImportMode.Copy)]
+        [TestCase(false, ImportMode.Move)]
+        public void should_preserve_a_tracked_path_when_in_place_or_moving_with_different_metadata(bool existingFile, ImportMode mode)
+        {
+            var decision = BuildDecision();
+            decision.Item.ExistingFile = existingFile;
+            decision.Item.Part = 2;
+
+            var results = Subject.Import(new List<ImportDecision<LocalBook>> { decision }, false, null, mode);
+
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(results[0].Result, Is.EqualTo(ImportResultType.Skipped));
+            Assert.That(results[0].Errors[0], Does.Contain("101"));
+            Mocker.GetMock<IUpgradeMediaFiles>()
+                .Verify(u => u.UpgradeBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(m => m.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never);
+        }
+
         [Test]
         public void should_report_the_preserved_destination_record_when_the_source_path_is_different()
         {

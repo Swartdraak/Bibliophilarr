@@ -77,10 +77,16 @@ namespace NzbDrone.Core.MediaFiles
                 existingFiles = allExistingFiles;
             }
 
-            if (!replaceExisting && existingFiles.Count > 0)
+            if (!replaceExisting)
             {
-                moveFileResult.PreservedFile = existingFiles[0];
-                return moveFileResult;
+                var conflictingFile = existingFiles.FirstOrDefault(file => file.EditionId == bookFile.EditionId && file.Part == bookFile.Part);
+                if (conflictingFile != null)
+                {
+                    moveFileResult.PreservedFile = conflictingFile;
+                    return moveFileResult;
+                }
+
+                existingFiles = new List<BookFile>();
             }
 
             var rootFolderPath = _diskProvider.GetParentFolder(localBook.Author.Path);
@@ -135,11 +141,15 @@ namespace NzbDrone.Core.MediaFiles
             {
                 if (copyOnly)
                 {
-                    moveFileResult.BookFile = _bookFileMover.CopyBookFile(bookFile, localBook);
+                    moveFileResult.BookFile = replaceExisting
+                        ? _bookFileMover.CopyBookFile(bookFile, localBook)
+                        : _bookFileMover.CopyBookFile(bookFile, localBook, false);
                 }
                 else
                 {
-                    moveFileResult.BookFile = _bookFileMover.MoveBookFile(bookFile, localBook);
+                    moveFileResult.BookFile = replaceExisting
+                        ? _bookFileMover.MoveBookFile(bookFile, localBook)
+                        : _bookFileMover.MoveBookFile(bookFile, localBook, false);
                 }
 
                 _metadataTagService.WriteTags(bookFile, true);
@@ -147,6 +157,12 @@ namespace NzbDrone.Core.MediaFiles
             else
             {
                 var source = bookFile.Path;
+
+                if (!replaceExisting)
+                {
+                    // Adding a format to an existing Calibre ID can overwrite that format.
+                    bookFile.CalibreId = 0;
+                }
 
                 moveFileResult.BookFile = _calibre.AddAndConvert(bookFile, settings);
 

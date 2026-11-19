@@ -74,7 +74,19 @@ namespace NzbDrone.Core.Test.MediaFiles
             GivenSingleTrackWithSingleTrackFile();
             var existing = _localTrack.Book.BookFiles.Value[0];
             existing.Quality = new QualityModel(Quality.EPUB);
+            existing.EditionId = 17;
+            existing.Part = 1;
             _trackFile.Quality = new QualityModel(Quality.EPUB);
+            _trackFile.EditionId = 17;
+            _trackFile.Part = 1;
+
+            _localTrack.Book.BookFiles.Value.Insert(0, new BookFile
+            {
+                Id = 2,
+                EditionId = 17,
+                Part = 2,
+                Quality = new QualityModel(Quality.EPUB)
+            });
             _trackFile.Path = Path.Combine(_rootPath, "incoming", "book.epub");
             _localTrack.Path = _trackFile.Path;
             Mocker.GetMock<IConfigService>().SetupGet(c => c.EnableDualFormatTracking).Returns(true);
@@ -100,8 +112,32 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             result.PreservedFile.Should().BeNull();
             result.OldFiles.Should().BeEmpty();
-            Mocker.GetMock<IMoveBookFiles>().Verify(v => v.CopyBookFile(_trackFile, _localTrack), Times.Once());
+            Mocker.GetMock<IMoveBookFiles>().Verify(v => v.CopyBookFile(_trackFile, _localTrack, false), Times.Once());
             Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+        }
+
+        [TestCase(17, 2)]
+        [TestCase(18, 1)]
+        public void should_copy_a_nonconflicting_part_or_edition_without_deleting_a_tracked_file(int editionId, int part)
+        {
+            GivenSingleTrackWithSingleTrackFile();
+            var existing = _localTrack.Book.BookFiles.Value[0];
+            existing.EditionId = 17;
+            existing.Part = 1;
+            existing.Quality = new QualityModel(Quality.MP3);
+            _trackFile.EditionId = editionId;
+            _trackFile.Part = part;
+            _trackFile.Quality = new QualityModel(Quality.MP3);
+            Mocker.GetMock<IConfigService>().SetupGet(c => c.EnableDualFormatTracking).Returns(true);
+            Mocker.GetMock<IMoveBookFiles>().Setup(v => v.CopyBookFile(_trackFile, _localTrack, false)).Returns(_trackFile);
+
+            var result = Subject.UpgradeBookFile(_trackFile, _localTrack, copyOnly: true, replaceExisting: false);
+
+            result.PreservedFile.Should().BeNull();
+            result.BookFile.Should().BeSameAs(_trackFile);
+            result.OldFiles.Should().BeEmpty();
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(v => v.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
         }
 
         [Test]
