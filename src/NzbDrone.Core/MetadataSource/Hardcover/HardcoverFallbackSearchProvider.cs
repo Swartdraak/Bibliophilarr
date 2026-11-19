@@ -1937,7 +1937,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
                 try
                 {
-                    resultsToken = JToken.Parse(raw);
+                    resultsToken = (JToken)Json.Deserialize(raw, typeof(JToken));
                 }
                 catch (Exception ex)
                 {
@@ -1950,7 +1950,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 resultsToken = payload.Results;
             }
 
-            var parsed = resultsToken.ToObject<HardcoverSearchResults>();
+            var parsed = resultsToken?.ToObject<HardcoverSearchResults>();
             var hits = parsed?.Hits ?? new List<HardcoverSearchHit>();
 
             return hits
@@ -2170,15 +2170,15 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         {
             if (rawDate.IsNotNullOrWhiteSpace())
             {
-                if (DateTime.TryParse(rawDate.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed))
+                if (DateTime.TryParse(rawDate.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
                 {
                     return parsed;
                 }
             }
 
-            if (releaseYear.HasValue && releaseYear.Value > 0)
+            if (releaseYear is > 0 and <= 9999)
             {
-                return new DateTime(releaseYear.Value, 1, 1);
+                return new DateTime(releaseYear.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             }
 
             return null;
