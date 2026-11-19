@@ -15,6 +15,7 @@ using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.Books
@@ -408,6 +409,15 @@ namespace NzbDrone.Core.Books
 
         protected override bool RefreshChildren(SortedChildren localChildren, List<Edition> remoteChildren, Author remoteData, bool forceChildRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
+            // A Hardcover refresh can return a different representative edition or fall back
+            // to a search result. Keep source editions that carry local files or manual edits.
+            var retainedEditions = localChildren.Deleted.Where(edition =>
+                edition.ForeignEditionId?.StartsWith(HardcoverFallbackSearchProvider.ProviderEditionIdPrefix, StringComparison.Ordinal) == true &&
+                (edition.ManualAdd || _mediaFileService.GetFilesByEdition(edition.Id).Any())).ToList();
+
+            localChildren.Deleted.RemoveAll(retainedEditions.Contains);
+            localChildren.UpToDate.AddRange(retainedEditions);
+
             // make sure only one of the releases ends up monitored
             MonitorSingleEdition(localChildren);
 

@@ -9,6 +9,21 @@ process.
 
 ### Fixed
 
+- Hardcover now reads every page of an author's bibliography before applying
+  the refresh, including later pages when the provider returns fewer rows than
+  requested. Distinct provider work IDs retain separate catalogue records.
+  Complete Bibliography is available as an unfiltered metadata profile.
+- Open Library and Google Books read all available author pages and preserve
+  the current catalogue when a later provider page fails.
+- Hardcover tracks representative ebook and audiobook editions where available.
+  The Add Author and Add Book forms select quality profiles by media format.
+- Store provider author biographies separately from book synopses. Hardcover
+  uses confirmed format data and keeps ambiguous editions unclassified.
+- Import batches track duplicates by work, edition, part, and format after a
+  successful import, so later valid candidates are still considered.
+- Disabled metadata fallbacks skip request pacing and dispatch during imports.
+- Ebook matching recognizes native ebook format labels and treats equivalent
+  checksum-valid ISBN-10 and ISBN-13 values as the same identifier.
 - General Settings saves unrelated changes for an already configured account
   without requiring the existing password. Credential changes still require
   password confirmation (#453).

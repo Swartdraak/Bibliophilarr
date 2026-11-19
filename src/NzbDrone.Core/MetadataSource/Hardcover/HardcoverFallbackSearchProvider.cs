@@ -35,12 +35,18 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         ISearchForNewAuthor,
         ISearchForNewEntity
     {
+        internal const string ProviderEditionIdPrefix = "hardcover:source-edition:";
+
+        private const string EbookFormat = "Ebook";
+        private const string AudiobookFormat = "Audiobook";
+
         private const string Endpoint = "https://api.hardcover.app/v1/graphql";
         private const string HardcoverApiTokenEnvironmentVariable = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
 
         // Hardcover API default page sizes — aligned with their typical result limits.
         private const int SearchPageSize = 20;
         private const int AuthorPageSize = 40;
+        private const int AuthorContributionsPageSize = 100;
 
         // After this many consecutive deterministic errors (e.g. 400 Bad Request from
         // malformed queries), suppress further searches for the cooldown period to avoid
@@ -67,6 +73,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         public int Priority => 1;
 
         public bool IsEnabled => _configService.EnableHardcoverFallback && HasConfiguredToken();
+
+        public bool IsFallbackEnabled => IsEnabled;
 
         public bool SupportsAuthorSearch => true;
 
@@ -220,12 +228,13 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             int hardcoverAuthorId;
             string authorSlug;
             string authorName;
+            string authorBiography;
 
             // If the ForeignAuthorId already contains a numeric Hardcover ID,
             // fetch directly by ID (skip the name search step).
             if (TryParseNumericHardcoverAuthorId(foreignAuthorId, out var parsedNumericId))
             {
-                books = FetchAuthorBooksById(parsedNumericId, out authorImageUrl, out authorSlug, out authorName);
+                books = FetchAuthorBooksById(parsedNumericId, out authorImageUrl, out authorSlug, out authorName, out authorBiography);
                 hardcoverAuthorId = parsedNumericId;
 
                 if (authorName.IsNullOrWhiteSpace())
@@ -242,7 +251,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
 
                 // Prefer author-specific search first (gets more books + author image)
-                books = FetchAuthorBooks(authorName, out authorImageUrl, out hardcoverAuthorId, out authorSlug);
+                books = FetchAuthorBooks(authorName, out authorImageUrl, out hardcoverAuthorId, out authorSlug, out authorBiography);
             }
 
             // Fallback to book search if author search returned nothing
@@ -263,7 +272,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 throw new AuthorNotFoundException(foreignAuthorId);
             }
 
-            var metadata = books.First().AuthorMetadata.Value;
+            var metadata = new AuthorMetadata { Overview = authorBiography };
 
             // Use numeric Hardcover author ID when available for stable identification
             metadata.ForeignAuthorId = hardcoverAuthorId > 0
@@ -918,9 +927,32 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             }
                         }
                         editions(limit: 5) {
+                            id
                             isbn_13
                             asin
                             reading_format_id
+                            edition_format
+                            physical_format
+                            language { language }
+                            pages
+                        }
+                        ebooks: editions(where: {reading_format_id: {_eq: 4}}, order_by: {id: asc}, limit: 5) {
+                            id
+                            isbn_13
+                            asin
+                            reading_format_id
+                            edition_format
+                            physical_format
+                            language { language }
+                            pages
+                        }
+                        audiobooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
+                            id
+                            isbn_13
+                            asin
+                            reading_format_id
+                            edition_format
+                            physical_format
                             language { language }
                             pages
                         }
@@ -956,11 +988,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
         }
 
-        private List<Book> FetchAuthorBooks(string authorName, out string authorImageUrl, out int authorIdResult, out string authorSlug)
+        private List<Book> FetchAuthorBooks(string authorName, out string authorImageUrl, out int authorIdResult, out string authorSlug, out string authorBiography)
         {
             authorImageUrl = null;
             authorIdResult = 0;
             authorSlug = null;
+            authorBiography = null;
 
             if (!_configService.EnableHardcoverFallback)
             {
@@ -1011,151 +1044,27 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     return new List<Book>();
                 }
 
-                var authorId = idsArray.First.Value<int>();
-                authorIdResult = authorId;
-                _logger.Debug("Hardcover author search found ID {0} for '{1}'.", authorId, authorName);
-
-                // Step 2: Fetch the author's contributions with book details
-                var booksRequest = new HttpRequest(Endpoint, HttpAccept.Json)
-                {
-                    Method = HttpMethod.Post,
-                    RateLimit = TimeSpan.FromSeconds(1),
-                    RateLimitKey = ProviderName
-                };
-
-                booksRequest.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
-                booksRequest.Headers.ContentType = "application/json; charset=utf-8";
-                booksRequest.Headers["authorization"] = $"Bearer {token}";
-                booksRequest.SetContent(new
-                {
-                    query = @"query GetAuthorBooks($id: Int!) {
-                        authors(where: {id: {_eq: $id}}) {
-                            id
-                            name
-                            slug
-                            image { url }
-                            contributions(limit: 500, where: {contributable_type: {_eq: ""Book""}}) {
-                                book {
-                                    id
-                                    title
-                                    slug
-                                    description
-                                    release_date
-                                    release_year
-                                    pages
-                                    cached_image
-                                    cached_contributors
-                                    rating
-                                    ratings_count
-                                    book_series {
-                                        position
-                                        series {
-                                            id
-                                            name
-                                            books_count
-                                            primary_books_count
-                                        }
-                                    }
-                                    editions(limit: 5) {
-                                        isbn_13
-                                        asin
-                                        reading_format_id
-                                        language { language }
-                                        pages
-                                    }
-                                }
-                            }
-                        }
-                    }",
-                    variables = new { id = authorId }
-                }.ToJson());
-
-                var booksResponse = _httpClient.Post<JObject>(booksRequest);
-                var authorsArray = booksResponse.Resource?.SelectToken("data.authors") as JArray;
-
-                if (authorsArray == null || !authorsArray.Any())
-                {
-                    _logger.Debug("Hardcover author lookup returned no results for ID {0}.", authorId);
-                    return new List<Book>();
-                }
-
-                var authorData = authorsArray.First;
-
-                // Extract author image URL and slug
-                authorImageUrl = authorData.SelectToken("image.url")?.Value<string>();
-                authorSlug = authorData.Value<string>("slug");
-
-                var contributions = authorData.SelectToken("contributions") as JArray;
-
-                if (contributions == null || !contributions.Any())
-                {
-                    _logger.Debug("Hardcover author {0} has no contributions.", authorId);
-                    return new List<Book>();
-                }
-
-                // Build the queried author's identity so co-authored books get
-                // attributed to this author, not to cached_contributors[0].
-                var queriedAuthorName = authorData.Value<string>("name")?.Trim();
-                var queriedAuthorId = authorData.Value<int?>("id");
-
-                var books = new List<Book>();
-                var seenIds = new HashSet<string>();
-                var seriesCount = 0;
-
-                foreach (var contribution in contributions)
-                {
-                    var bookData = contribution.SelectToken("book");
-                    if (bookData == null || bookData.Type == JTokenType.Null)
-                    {
-                        continue;
-                    }
-
-                    var book = MapDirectBookResult(bookData);
-                    if (book != null && seenIds.Add(book.ForeignBookId))
-                    {
-                        OverrideBookAuthor(book, queriedAuthorId, queriedAuthorName);
-                        books.Add(book);
-                        if (book.SeriesLinks?.Value?.Any() == true)
-                        {
-                            seriesCount++;
-                        }
-                    }
-                }
-
-                _logger.Debug("Hardcover author search for '{0}' returned {1} books via contributions ({2} with series).", authorName, books.Count, seriesCount);
-
-                var deduped = DeduplicateSimilarWorks(books);
-                if (deduped.Count < books.Count)
-                {
-                    _logger.Debug("Deduplicated {0} → {1} books for '{2}'.", books.Count, deduped.Count, authorName);
-                }
-
-                return deduped;
+                authorIdResult = idsArray.First.Value<int>();
+                _logger.Debug("Hardcover author search found ID {0} for '{1}'.", authorIdResult, authorName);
             }
             catch (Exception ex)
             {
                 _logger.Debug(ex, "Hardcover author search failed for '{0}'.", authorName);
                 return new List<Book>();
             }
+
+            // Keep a failed bibliography request out of the bounded text-search fallback.
+            return FetchAuthorBooksById(authorIdResult, out authorImageUrl, out authorSlug, out _, out authorBiography);
         }
 
-        /// <summary>
-        /// Fetches an author's books directly by numeric Hardcover author ID,
-        /// skipping the name-search step. Used when the ForeignAuthorId already
-        /// contains a resolved numeric ID (e.g. "hardcover:author:154441").
-        /// </summary>
-        private List<Book> FetchAuthorBooksById(int authorId, out string authorImageUrl, out string authorSlug, out string authorName)
+        private List<Book> FetchAuthorBooksById(int authorId, out string authorImageUrl, out string authorSlug, out string authorName, out string authorBiography)
         {
             authorImageUrl = null;
             authorSlug = null;
             authorName = null;
+            authorBiography = null;
 
-            if (!_configService.EnableHardcoverFallback)
-            {
-                return new List<Book>();
-            }
-
-            if (!TryResolveToken(out var token, out var tokenSource))
+            if (!_configService.EnableHardcoverFallback || !TryResolveToken(out var token, out var tokenSource))
             {
                 return new List<Book>();
             }
@@ -1164,132 +1073,160 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
             var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
-
-            var request = new HttpRequest(Endpoint, HttpAccept.Json)
-            {
-                Method = HttpMethod.Post,
-                RateLimit = TimeSpan.FromSeconds(1),
-                RateLimitKey = ProviderName
-            };
-
-            request.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
-            request.Headers.ContentType = "application/json; charset=utf-8";
-            request.Headers["authorization"] = $"Bearer {token}";
-            request.SetContent(new
-            {
-                query = @"query GetAuthorBooks($id: Int!) {
-                    authors(where: {id: {_eq: $id}}) {
-                        id
-                        name
-                        slug
-                        image { url }
-                        contributions(limit: 500, where: {contributable_type: {_eq: ""Book""}}) {
-                            book {
-                                id
-                                title
-                                slug
-                                description
-                                release_date
-                                release_year
-                                pages
-                                cached_image
-                                cached_contributors
-                                rating
-                                ratings_count
-                                book_series {
-                                    position
-                                    series {
-                                        id
-                                        name
-                                        books_count
-                                        primary_books_count
-                                    }
-                                }
-                                editions(limit: 5) {
-                                    isbn_13
-                                    asin
-                                    reading_format_id
-                                    language { language }
-                                    pages
-                                }
-                            }
-                        }
-                    }
-                }",
-                variables = new { id = authorId }
-            }.ToJson());
+            var timeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
+            var books = new List<Book>();
+            var seenBookIds = new HashSet<string>();
+            long lastContributionId = 0;
+            var offset = 0;
 
             try
             {
-                var response = _httpClient.Post<JObject>(request);
-                var authorsArray = response.Resource?.SelectToken("data.authors") as JArray;
-
-                if (authorsArray == null || !authorsArray.Any())
+                while (true)
                 {
-                    _logger.Debug("Hardcover direct author fetch returned no results for ID {0}.", authorId);
-                    return new List<Book>();
-                }
-
-                var authorData = authorsArray.First;
-
-                authorImageUrl = authorData.SelectToken("image.url")?.Value<string>();
-                authorSlug = authorData.Value<string>("slug");
-                authorName = authorData.Value<string>("name")?.Trim();
-
-                var contributions = authorData.SelectToken("contributions") as JArray;
-
-                if (contributions == null || !contributions.Any())
-                {
-                    _logger.Debug("Hardcover author {0} has no contributions.", authorId);
-                    return new List<Book>();
-                }
-
-                var queriedAuthorId = authorData.Value<int?>("id");
-
-                var books = new List<Book>();
-                var seenIds = new HashSet<string>();
-                var seriesCount = 0;
-
-                foreach (var contribution in contributions)
-                {
-                    var bookData = contribution.SelectToken("book");
-                    if (bookData == null || bookData.Type == JTokenType.Null)
+                    var request = new HttpRequest(Endpoint, HttpAccept.Json)
                     {
-                        continue;
+                        Method = HttpMethod.Post,
+                        RateLimit = TimeSpan.FromMilliseconds(1250),
+                        RateLimitKey = ProviderName,
+                        RequestTimeout = timeout
+                    };
+
+                    request.Headers.ContentType = "application/json; charset=utf-8";
+                    request.Headers["authorization"] = $"Bearer {token}";
+                    request.SetContent(new
+                    {
+                        query = @"query GetAuthorBooks($id: Int!, $limit: Int!, $offset: Int!) {
+                            authors(where: {id: {_eq: $id}}) {
+                                id
+                                name
+                                slug
+                                bio
+                                image { url }
+                                contributions(limit: $limit, offset: $offset, order_by: {id: asc}, where: {contributable_type: {_eq: ""Book""}}) {
+                                    id
+                                    book {
+                                        id
+                                        title
+                                        slug
+                                        description
+                                        release_date
+                                        release_year
+                                        pages
+                                        cached_image
+                                        cached_contributors
+                                        rating
+                                        ratings_count
+                                        book_series {
+                                            position
+                                            series {
+                                                id
+                                                name
+                                                books_count
+                                                primary_books_count
+                                            }
+                                        }
+                                        editions(limit: 5) {
+                                            id
+                                            isbn_13
+                                            asin
+                                            reading_format_id
+                                            edition_format
+                                            physical_format
+                                            language { language }
+                                            pages
+                                        }
+                                        ebooks: editions(where: {reading_format_id: {_eq: 4}}, order_by: {id: asc}, limit: 5) {
+                                            id
+                                            isbn_13
+                                            asin
+                                            reading_format_id
+                                            edition_format
+                                            physical_format
+                                            language { language }
+                                            pages
+                                        }
+                                        audiobooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
+                                            id
+                                            isbn_13
+                                            asin
+                                            reading_format_id
+                                            edition_format
+                                            physical_format
+                                            language { language }
+                                            pages
+                                        }
+                                    }
+                                }
+                            }
+                        }",
+                        variables = new { id = authorId, limit = AuthorContributionsPageSize, offset }
+                    }.ToJson());
+
+                    var data = _httpClient.Post<JObject>(request)?.Resource;
+                    if (data?["errors"]?.HasValues == true || data?.SelectToken("data.authors") is not JArray authors)
+                    {
+                        throw new InvalidOperationException("Hardcover did not return a complete author page.");
                     }
 
-                    var book = MapDirectBookResult(bookData);
-                    if (book != null && seenIds.Add(book.ForeignBookId))
+                    if (authors.Count == 0 && offset == 0)
                     {
-                        OverrideBookAuthor(book, queriedAuthorId, authorName);
-                        books.Add(book);
-                        if (book.SeriesLinks?.Value?.Any() == true)
+                        return books;
+                    }
+
+                    var author = authors.Count == 1 ? authors[0] : null;
+                    if (author?.Value<int?>("id") != authorId || author["contributions"] is not JArray contributions)
+                    {
+                        throw new InvalidOperationException("Hardcover did not return contributions for the requested author.");
+                    }
+
+                    if (offset == 0)
+                    {
+                        authorImageUrl = author.SelectToken("image.url")?.Value<string>();
+                        authorSlug = author.Value<string>("slug");
+                        authorName = author.Value<string>("name")?.Trim();
+                        authorBiography = author.Value<string>("bio")?.Trim();
+                    }
+
+                    if (contributions.Count == 0)
+                    {
+                        break;
+                    }
+
+                    foreach (var contribution in contributions)
+                    {
+                        var contributionId = contribution.Value<long?>("id");
+                        if (contributionId == null || contributionId <= lastContributionId)
                         {
-                            seriesCount++;
+                            throw new InvalidOperationException("Hardcover author pagination did not advance in contribution order.");
+                        }
+
+                        lastContributionId = contributionId.Value;
+                        var bookData = contribution["book"];
+                        if (bookData == null || bookData.Type == JTokenType.Null)
+                        {
+                            continue;
+                        }
+
+                        var book = MapDirectBookResult(bookData);
+                        if (book != null && seenBookIds.Add(book.ForeignBookId))
+                        {
+                            OverrideBookAuthor(book, authorId, authorName);
+                            books.Add(book);
                         }
                     }
+
+                    // Use the rows actually received in case the provider applies its own cap.
+                    offset += contributions.Count;
                 }
-
-                _logger.Debug(
-                    "Hardcover direct author fetch for ID {0} ('{1}') returned {2} books ({3} with series).",
-                    authorId,
-                    authorName ?? "?",
-                    books.Count,
-                    seriesCount);
-
-                var deduped = DeduplicateSimilarWorks(books);
-                if (deduped.Count < books.Count)
-                {
-                    _logger.Debug("Deduplicated {0} → {1} books for author ID {2}.", books.Count, deduped.Count, authorId);
-                }
-
-                return deduped;
             }
             catch (Exception ex)
             {
-                _logger.Debug(ex, "Hardcover direct author fetch failed for ID {0}.", authorId);
-                return new List<Book>();
+                _logger.Debug(ex, "Hardcover direct author fetch failed for ID {0} at offset {1}.", authorId, offset);
+                throw new MetadataProviderUnavailableException("get-author-info", BuildHardcoverAuthorId(authorId), ex);
             }
+
+            _logger.Debug("Hardcover returned {0} distinct work IDs for author ID {1}.", books.Count, authorId);
+            return books;
         }
 
         private List<Series> FetchAuthorSeries(int authorId)
@@ -1457,160 +1394,6 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             book.AuthorMetadata = metadata;
         }
 
-        /// <summary>
-        /// Removes duplicate Hardcover works that represent the same real-world book.
-        /// Hardcover sometimes has multiple work entries for the same title with slight
-        /// variations (e.g. "Lights Out" vs "Lights Out: Into Darkness, Book 1" vs
-        /// "Caught Up" vs "Caught Up: Into Darkness Trilogy").
-        ///
-        /// Groups books by a normalised base title (stripping series suffixes like
-        /// ": Series Name, Book N" and common subtitle patterns). When duplicates
-        /// are found, keeps the work with the most metadata (ISBN, ASIN, pages,
-        /// ratings).
-        /// </summary>
-        private static List<Book> DeduplicateSimilarWorks(List<Book> books)
-        {
-            if (books.Count <= 1)
-            {
-                return books;
-            }
-
-            var result = new List<Book>();
-            var consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            // Sort by data richness descending so the best candidate is first
-            var sorted = books.OrderByDescending(b => ScoreBookData(b)).ToList();
-
-            foreach (var book in sorted)
-            {
-                if (consumed.Contains(book.ForeignBookId))
-                {
-                    continue;
-                }
-
-                var baseTitle = NormalizeForDedup(book.Title);
-                if (baseTitle.IsNullOrWhiteSpace())
-                {
-                    result.Add(book);
-                    consumed.Add(book.ForeignBookId);
-                    continue;
-                }
-
-                // Find all other unconsumed books whose normalised title matches
-                var duplicates = sorted
-                    .Where(b => !consumed.Contains(b.ForeignBookId) &&
-                                b.ForeignBookId != book.ForeignBookId &&
-                                IsDuplicateTitle(baseTitle, NormalizeForDedup(b.Title)))
-                    .ToList();
-
-                result.Add(book);
-                consumed.Add(book.ForeignBookId);
-
-                foreach (var dup in duplicates)
-                {
-                    consumed.Add(dup.ForeignBookId);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Normalises a book title for dedup comparison by stripping common suffixes:
-        ///   - Series subtitles like ": Into Darkness, Book 1"
-        ///   - Parenthetical suffixes like "(Series Name #1)"
-        ///   - Leading "The " / trailing punctuation
-        /// </summary>
-        private static string NormalizeForDedup(string title)
-        {
-            if (title.IsNullOrWhiteSpace())
-            {
-                return string.Empty;
-            }
-
-            // Strip everything after the first colon (series subtitles)
-            var colonIdx = title.IndexOf(':');
-            if (colonIdx > 2)
-            {
-                title = title.Substring(0, colonIdx);
-            }
-
-            // Strip parenthetical suffixes
-            var parenIdx = title.IndexOf('(');
-            if (parenIdx > 2)
-            {
-                title = title.Substring(0, parenIdx);
-            }
-
-            return title.Trim().ToLowerInvariant();
-        }
-
-        /// <summary>
-        /// Checks if two normalised titles are duplicates. Returns true if they are
-        /// identical or if one is a substring of the other (to catch "Lights Out"
-        /// matching "Lights Out" from different works with different subtitles).
-        /// </summary>
-        private static bool IsDuplicateTitle(string a, string b)
-        {
-            if (a.IsNullOrWhiteSpace() || b.IsNullOrWhiteSpace())
-            {
-                return false;
-            }
-
-            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Scores a book by data richness for dedup winner selection.
-        /// Higher score = more complete metadata = preferred work.
-        /// </summary>
-        private static int ScoreBookData(Book book)
-        {
-            var score = 0;
-            var edition = book.Editions?.Value?.FirstOrDefault();
-
-            if (edition != null)
-            {
-                if (edition.Isbn13.IsNotNullOrWhiteSpace())
-                {
-                    score += 20;
-                }
-
-                if (edition.Asin.IsNotNullOrWhiteSpace())
-                {
-                    score += 20;
-                }
-
-                if (edition.PageCount > 0)
-                {
-                    score += 10;
-                }
-
-                if (edition.Language.IsNotNullOrWhiteSpace())
-                {
-                    score += 5;
-                }
-            }
-
-            if (book.Ratings.Votes > 0)
-            {
-                score += 10;
-            }
-
-            if (book.ReleaseDate.HasValue)
-            {
-                score += 5;
-            }
-
-            // Prefer shorter titles (less likely to be subtitle-duplicates)
-            if (book.Title != null && book.Title.Length < 50)
-            {
-                score += 3;
-            }
-
-            return score;
-        }
-
         private static Book MapDirectBookResult(JToken bookData)
         {
             if (bookData == null)
@@ -1639,18 +1422,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var authorId = bookData.SelectToken("cached_contributors[0].author.id")?.Value<int?>();
             var authorSlug = bookData.SelectToken("cached_contributors[0].author.slug")?.Value<string>();
 
-            // Select the best edition from up to 5 returned.  Prefer English (or
-            // null-language) editions with the most identifiers and page data.
-            var bestEdition = SelectBestEdition(bookData.SelectToken("editions") as JArray);
-            var isbn13 = bestEdition?.Value<string>("isbn_13");
-            var asin = bestEdition?.Value<string>("asin");
-            var editionLanguage = bestEdition?.SelectToken("language.language")?.Value<string>();
-            var editionPages = bestEdition?.Value<int?>("pages");
-
-            // Hardcover reading_format_id: 1=Physical, 2=Ebook, 3=Audiobook, 4=Audio CD
-            // Null when the field is not present in the schema or not populated.
-            var readingFormatId = bestEdition?.Value<int?>("reading_format_id");
-            var isEbook = readingFormatId == 2;
+            // Keep the legacy synthetic edition and its metadata selection stable on refresh.
+            var bestEdition = SelectBestEdition(bookData["editions"] as JArray);
 
             var publishedDate = ParseDate(releaseDate, releaseYear);
 
@@ -1666,13 +1439,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Name = authorName,
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
-                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant(),
-                Overview = description,
-                Ratings = new Ratings
-                {
-                    Votes = ratingsCount ?? 0,
-                    Value = (decimal)(rating ?? 0)
-                }
+                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant()
             };
 
             var author = new Author
@@ -1730,43 +1497,113 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
             }
 
-            var edition = new Edition
-            {
-                ForeignEditionId = $"hardcover:edition:{id}",
-                TitleSlug = $"hardcover:edition:{id}".ToUrlSlug(),
-                Title = title,
-                ReleaseDate = publishedDate,
-                Language = editionLanguage,
-                Isbn13 = isbn13,
-                Asin = asin,
-                IsEbook = isEbook,
-                Book = book,
-                PageCount = pages ?? editionPages ?? 0,
-                Overview = description,
-                Ratings = new Ratings
-                {
-                    Votes = ratingsCount ?? 0,
-                    Value = (decimal)(rating ?? 0)
-                }
-            };
-
-            if (coverUrl.IsNotNullOrWhiteSpace())
-            {
-                edition.Images.Add(new MediaCover.MediaCover
-                {
-                    Url = coverUrl,
-                    CoverType = MediaCoverTypes.Cover
-                });
-            }
-
-            book.Editions = new List<Edition> { edition };
-
             var bookSlug = slug.IsNotNullOrWhiteSpace() ? slug : id;
             var hardcoverBookUrl = $"https://hardcover.app/books/{bookSlug}";
             book.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
-            edition.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
+
+            Edition CreateEdition(JToken source, string foreignEditionId, int? pageCount)
+            {
+                var format = ResolveEditionFormat(source);
+                var edition = new Edition
+                {
+                    ForeignEditionId = foreignEditionId,
+                    TitleSlug = foreignEditionId.ToUrlSlug(),
+                    Title = title,
+                    ReleaseDate = publishedDate,
+                    Language = source?.SelectToken("language.language")?.Value<string>(),
+                    Isbn13 = source?.Value<string>("isbn_13"),
+                    Asin = source?.Value<string>("asin"),
+                    Format = format,
+                    IsEbook = format == EbookFormat,
+                    Book = book,
+                    PageCount = pageCount ?? 0,
+                    Overview = description,
+                    Ratings = new Ratings
+                    {
+                        Votes = ratingsCount ?? 0,
+                        Value = (decimal)(rating ?? 0)
+                    },
+                    Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } }
+                };
+
+                if (coverUrl.IsNotNullOrWhiteSpace())
+                {
+                    edition.Images.Add(new MediaCover.MediaCover
+                    {
+                        Url = coverUrl,
+                        CoverType = MediaCoverTypes.Cover
+                    });
+                }
+
+                return edition;
+            }
+
+            var editions = new List<Edition>
+            {
+                CreateEdition(bestEdition, $"hardcover:edition:{id}", pages ?? bestEdition?.Value<int?>("pages"))
+            };
+
+            var legacySourceId = bestEdition?.Value<long?>("id");
+            var ebookEdition = SelectBestSourceEdition(bookData["ebooks"] as JArray, EbookFormat);
+            var audiobookEdition = SelectBestSourceEdition(bookData["audiobooks"] as JArray, AudiobookFormat);
+
+            foreach (var source in new[] { ebookEdition, audiobookEdition }.Where(candidate => candidate != null))
+            {
+                var sourceId = source.Value<long>("id");
+                if (sourceId != legacySourceId)
+                {
+                    editions.Add(CreateEdition(source, $"{ProviderEditionIdPrefix}{sourceId}", source.Value<int?>("pages") ?? pages));
+                }
+            }
+
+            book.Editions = editions;
 
             return book;
+        }
+
+        private static JToken SelectBestSourceEdition(JArray editions, string format)
+        {
+            return SelectBestEdition(editions?.Where(edition => edition.Type == JTokenType.Object)
+                .Where(edition => edition.Value<long?>("id") > 0 && ResolveEditionFormat(edition) == format)
+                .ToList());
+        }
+
+        private static string ResolveEditionFormat(JToken edition)
+        {
+            var editionFormat = ClassifyEditionLabel(edition?.Value<string>("edition_format"));
+            var physicalFormat = ClassifyEditionLabel(edition?.Value<string>("physical_format"));
+            if (editionFormat != null && physicalFormat != null && editionFormat != physicalFormat)
+            {
+                return Edition.UnclassifiedFormat;
+            }
+
+            // Hardcover reading_formats: 1 = Read, 2 = Listened, 3 = Both, 4 = Ebook.
+            // Read and Both need edition-level evidence to establish a format.
+            var readingFormat = edition?.Value<int?>("reading_format_id") switch
+            {
+                2 => AudiobookFormat,
+                4 => EbookFormat,
+                _ => null
+            };
+
+            var labelFormat = editionFormat ?? physicalFormat;
+            if (readingFormat != null && labelFormat != null && readingFormat != labelFormat)
+            {
+                return Edition.UnclassifiedFormat;
+            }
+
+            return readingFormat ?? labelFormat ?? Edition.UnclassifiedFormat;
+        }
+
+        private static string ClassifyEditionLabel(string label)
+        {
+            return label?.Trim().ToLowerInvariant() switch
+            {
+                "ebook" or "e-book" or "kindle" or "kindle edition" or "epub" or "mobi" or "azw3" or "pdf" => EbookFormat,
+                "audiobook" or "audio book" or "audio cd" or "audio cassette" or "audible audio" or "mp3 cd" or "m4b" => AudiobookFormat,
+                "paperback" or "hardcover" or "hardback" or "mass market paperback" or "trade paperback" or "board book" or "library binding" or "print" => Edition.PrintFormat,
+                _ => null
+            };
         }
 
         /// <summary>
@@ -1775,7 +1612,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         /// and page data to avoid importing non-English metadata when an English
         /// edition is available.
         /// </summary>
-        private static JToken SelectBestEdition(JArray editions)
+        private static JToken SelectBestEdition(IList<JToken> editions)
         {
             if (editions == null || !editions.Any())
             {
@@ -2073,9 +1910,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Name = authorName,
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
-                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant(),
-                Overview = result.Description,
-                Ratings = new Ratings { Votes = 0, Value = 0 }
+                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant()
             };
 
             var author = new Author

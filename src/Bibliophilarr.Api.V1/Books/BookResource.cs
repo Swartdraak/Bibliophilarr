@@ -103,11 +103,11 @@ namespace Bibliophilarr.Api.V1.Books
 
                 // Also check edition-level classification for books without files
                 var hasEbookEdition = editionsValue.Any(e => e.IsEbook);
-                var hasAudiobookEdition = editionsValue.Any(e => !e.IsEbook);
+                var hasAudiobookEdition = editionsValue.Any(e => e.MatchesFormat(FormatType.Audiobook));
 
                 // Determine monitored status from editions
                 var monitoredEbookEdition = editionsValue.Where(e => e.IsEbook).FirstOrDefault(e => e.Monitored);
-                var monitoredAudiobookEdition = editionsValue.Where(e => !e.IsEbook).FirstOrDefault(e => e.Monitored);
+                var monitoredAudiobookEdition = editionsValue.FirstOrDefault(e => e.MatchesFormat(FormatType.Audiobook) && e.Monitored);
 
                 // Emit ebook status if we have ebook files OR a classified ebook edition
                 if (ebookFiles.Any() || hasEbookEdition)

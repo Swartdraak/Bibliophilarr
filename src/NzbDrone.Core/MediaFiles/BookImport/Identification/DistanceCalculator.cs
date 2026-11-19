@@ -35,7 +35,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             @"\b(?:\d+[\s-]*books?\s+collection|collection\s+set|box\s*set|boxed\s+set|omnibus\s+edition)\b",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        private static readonly List<string> EbookFormats = new List<string> { "Kindle Edition", "Nook", "ebook" };
+        private static readonly HashSet<string> EbookFormats = new HashSet<string>(
+            MediaFileExtensions.TextExtensions.Select(extension => extension.TrimStart('.'))
+                .Concat(new[] { "Kindle Edition", "Nook", "ebook" }),
+            StringComparer.OrdinalIgnoreCase);
 
         private static readonly List<string> AudiobookFormats = new List<string> { "Audiobook", "Audio CD", "Audio Cassette", "Audible Audio", "CD-ROM", "MP3 CD" };
 
@@ -143,7 +146,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var isbn = localTracks.MostCommon(x => x.FileTrackInfo.Isbn);
             if (isbn.IsNotNullOrWhiteSpace() && edition.Isbn13.IsNotNullOrWhiteSpace())
             {
-                dist.AddBool("isbn", isbn != edition.Isbn13);
+                var matches = isbn == edition.Isbn13 || Isbn.AreEquivalent(isbn, edition.Isbn13);
+                dist.AddBool("isbn", !matches);
                 Logger.Trace("isbn: '{0}' vs '{1}'; {2}", isbn, edition.Isbn13, dist.NormalizedDistance());
             }
             else if (isbn.IsNullOrWhiteSpace() != edition.Isbn13.IsNullOrWhiteSpace())
@@ -211,20 +215,21 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             // try to tilt it towards the correct "type" of release
             var isAudio = MediaFileExtensions.AudioExtensions.Contains(localTracks.First().Path.GetPathExtension());
 
-            if (edition.Format.IsNotNullOrWhiteSpace())
+            var editionFormat = edition.Format?.Trim();
+            if (editionFormat.IsNotNullOrWhiteSpace())
             {
                 if (!isAudio)
                 {
                     // text books should prefer ebook formats
-                    dist.AddBool("ebook_format", !EbookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
+                    dist.AddBool("ebook_format", !EbookFormats.Contains(editionFormat));
 
                     // text books should not match audio entries
-                    dist.AddBool("wrong_format", AudiobookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
+                    dist.AddBool("wrong_format", AudiobookFormats.Contains(editionFormat, StringComparer.OrdinalIgnoreCase));
                 }
                 else
                 {
                     // audio books should prefer audio formats
-                    dist.AddBool("audio_format", !AudiobookFormats.Contains(edition.Format, StringComparer.OrdinalIgnoreCase));
+                    dist.AddBool("audio_format", !AudiobookFormats.Contains(editionFormat, StringComparer.OrdinalIgnoreCase));
                 }
             }
 
