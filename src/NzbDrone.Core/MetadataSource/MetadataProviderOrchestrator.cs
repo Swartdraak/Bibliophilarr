@@ -205,9 +205,8 @@ namespace NzbDrone.Core.MetadataSource
                     if (noData && resultCount == 0 && providers.Count > 1)
                     {
                         _logger.Warn(
-                            "Metadata provider '{0}' returned an EMPTY result set for {1} (operation '{2}') while at least one other enabled provider is configured. The lookup is continuing down the provider chain; if every provider returns empty, the endpoint will report 200 with zero results even though the providers are reachable. Inspect provider telemetry (provider, operation, resultCount, error) before treating this as a genuine no-data.",
+                            "Metadata provider '{0}' returned an empty result for operation '{1}'. Trying the remaining providers. See provider telemetry for result counts and failures.",
                             provider.ProviderName,
-                            entityId ?? "<search>",
                             operationName);
                     }
 

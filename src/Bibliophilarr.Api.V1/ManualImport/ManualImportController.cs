@@ -55,14 +55,7 @@ namespace Bibliophilarr.Api.V1.ManualImport
 
             if (resource.Count > 0 && unmappable == resource.Count)
             {
-                _logger.Warn(
-                    "Manual import update rejected: all {0} submitted item(s) lack a usable catalogue BookId/ForeignEditionId — nothing to import. {1}",
-                    resource.Count,
-                    string.Join(" ", resource
-                        .Select(r => $"{Path.GetFileName(r.Path)}: " +
-                            (r.AuthorId == null ? "AuthorId not set" : "AuthorId=" + r.AuthorId.Value) +
-                            (r.BookId == null ? ", BookId not set" : ", BookId=" + r.BookId.Value) +
-                            (r.ForeignEditionId == null ? ", ForeignEditionId not set" : ""))));
+                _logger.Warn("Rejected manual import: none of the {0} submitted items maps to a catalogue book", resource.Count);
 
                 var rejections = resource.Select(r => new
                 {

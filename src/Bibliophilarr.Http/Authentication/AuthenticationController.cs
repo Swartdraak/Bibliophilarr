@@ -108,7 +108,7 @@ namespace Bibliophilarr.Http.Authentication
             var user = _authService.FindUser();
             if (user != null)
             {
-                _logger?.Warn("Bootstrap attempted after first user already exists (username={Username}); rejected", user.Username);
+                _logger?.Warn("Rejected initial setup because a user already exists");
                 return Conflict();
             }
 
@@ -123,7 +123,7 @@ namespace Bibliophilarr.Http.Authentication
             }
 
             _authService.AddUser(resource.Username, resource.Password);
-            _logger?.Info("Bootstrap: first user '{Username}' created via POST /bootstrap (issue #313 bootstrap path)", resource.Username);
+            _logger?.Info("Created the initial user through the setup endpoint");
             return Ok(new { message = "First user created. You can now log in." });
         }
     }
