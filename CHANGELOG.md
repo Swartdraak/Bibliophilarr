@@ -17,6 +17,8 @@ process.
   the current catalogue when a later provider page fails.
 - Hardcover tracks representative ebook and audiobook editions where available.
   The Add Author and Add Book forms select quality profiles by media format.
+- Store provider author biographies separately from book synopses. Hardcover
+  uses confirmed format data and keeps ambiguous editions unclassified.
 - Import batches track duplicates by work, edition, part, and format after a
   successful import, so later valid candidates are still considered.
 - Disabled metadata fallbacks skip request pacing and dispatch during imports.

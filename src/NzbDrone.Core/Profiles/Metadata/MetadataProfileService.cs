@@ -457,18 +457,19 @@ namespace NzbDrone.Core.Profiles.Metadata
             if (emptyProfile != null)
             {
                 // emptyProfile is not the correct empty profile - move it out of the way
-                _logger.Info($"Renaming non-empty metadata profile {emptyProfile.Name}");
+                _logger.Info("Renaming the existing non-empty None metadata profile");
 
-                var names = profiles.Select(x => x.Name).ToList();
+                var names = profiles.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 var i = 1;
-                emptyProfile.Name = $"{NONE_PROFILE_NAME}.{i}";
-
-                while (names.Contains(emptyProfile.Name))
+                string name;
+                do
                 {
-                    i++;
+                    name = $"{NONE_PROFILE_NAME}.{i++}";
                 }
+                while (names.Contains(name));
 
+                emptyProfile.Name = name;
                 _profileRepository.Update(emptyProfile);
             }
 

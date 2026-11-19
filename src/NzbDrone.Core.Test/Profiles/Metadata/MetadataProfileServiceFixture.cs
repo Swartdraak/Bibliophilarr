@@ -146,13 +146,15 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .Verify(v => v.Insert(It.Is<MetadataProfile>(x => x.Name == MetadataProfileService.OPEN_LIBRARY_PROFILE_NAME)), Times.Never());
         }
 
-        [Test]
-        public void init_should_move_existing_none_profile()
+        [TestCase("Other", "None.1")]
+        [TestCase("none.1", "None.2")]
+        public void init_should_move_existing_none_profile(string existingName, string renamed)
         {
             var profiles = Builder<MetadataProfile>.CreateListOfSize(2)
                 .TheFirst(1)
                 .With(x => x.Name = MetadataProfileService.NONE_PROFILE_NAME)
                 .BuildList();
+            profiles[1].Name = existingName;
 
             Mocker.GetMock<IMetadataProfileRepository>()
                 .Setup(s => s.All())
@@ -161,7 +163,7 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
             Subject.Handle(new ApplicationStartedEvent());
 
             Mocker.GetMock<IMetadataProfileRepository>()
-                .Verify(v => v.Update(It.Is<MetadataProfile>(x => x.Id == profiles.First().Id && x.Name == "None.1")), Times.Once());
+                .Verify(v => v.Update(It.Is<MetadataProfile>(x => x.Id == profiles.First().Id && x.Name == renamed)), Times.Once());
 
             Mocker.GetMock<IMetadataProfileRepository>()
                   .Verify(v => v.Insert(It.Is<MetadataProfile>(x => x.Name == "None")), Times.Once());
