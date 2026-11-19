@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
-import React, { Component } from 'react';
+import React, { Component, createRef } from 'react';
+import { createSelector } from 'reselect';
 import Alert from 'Components/Alert';
+import Button from 'Components/Link/Button';
 import LoadingIndicator from 'Components/Loading/LoadingIndicator';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
@@ -11,13 +13,24 @@ import TableOptionsModalWrapper from 'Components/Table/TableOptions/TableOptions
 import VirtualTable from 'Components/Table/VirtualTable';
 import VirtualTableRow from 'Components/Table/VirtualTableRow';
 import { align, icons, kinds, sortDirections } from 'Helpers/Props';
-import hasDifferentItemsOrOrder from 'Utilities/Object/hasDifferentItemsOrOrder';
 import translate from 'Utilities/String/translate';
-import getSelectedIds from 'Utilities/Table/getSelectedIds';
+import areAllSelected from 'Utilities/Table/areAllSelected';
 import selectAll from 'Utilities/Table/selectAll';
 import toggleSelected from 'Utilities/Table/toggleSelected';
 import UnmappedFilesTableHeader from './UnmappedFilesTableHeader';
+import filterUnmappedFiles from './filterUnmappedFiles';
 import UnmappedFilesTableRow from './UnmappedFilesTableRow';
+import styles from './UnmappedFilesTable.css';
+
+function buildSelectedState(items, existing = {}) {
+  const selectedState = Object.fromEntries(items.map(({ id }) => [id, !!existing[id]]));
+
+  return {
+    ...areAllSelected(selectedState),
+    lastToggled: null,
+    selectedState
+  };
+}
 
 class UnmappedFilesTable extends Component {
 
@@ -27,8 +40,12 @@ class UnmappedFilesTable extends Component {
   constructor(props, context) {
     super(props, context);
 
+    this.pathInput = createRef();
+
     this.state = {
       scroller: null,
+      pathQuery: '',
+      formatFilter: 'all',
       allSelected: false,
       allUnselected: false,
       lastToggled: null,
@@ -37,31 +54,18 @@ class UnmappedFilesTable extends Component {
   }
 
   componentDidMount() {
-    this.setSelectedState();
+    this.setState(buildSelectedState(this.getVisibleItems()));
   }
 
   componentDidUpdate(prevProps) {
-    const {
-      items,
-      sortKey,
-      sortDirection,
-      isDeleting,
-      deleteError
-    } = this.props;
+    const { items, isDeleting, deleteError } = this.props;
+    const hasFinishedDeleting = prevProps.isDeleting && !isDeleting && !deleteError;
 
-    if (sortKey !== prevProps.sortKey ||
-      sortDirection !== prevProps.sortDirection ||
-      hasDifferentItemsOrOrder(prevProps.items, items)
-    ) {
-      this.setSelectedState();
-    }
-
-    const hasFinishedDeleting = prevProps.isDeleting &&
-                                !isDeleting &&
-                                !deleteError;
-
-    if (hasFinishedDeleting) {
-      this.onSelectAllChange({ value: false });
+    if (hasFinishedDeleting || prevProps.items !== items) {
+      this.setState((state) => buildSelectedState(
+        this.getVisibleItems(),
+        hasFinishedDeleting ? {} : state.selectedState
+      ));
     }
   }
 
@@ -72,80 +76,74 @@ class UnmappedFilesTable extends Component {
     this.setState({ scroller: ref });
   };
 
-  getSelectedIds = () => {
-    if (this.state.allUnselected) {
-      return [];
-    }
-    return getSelectedIds(this.state.selectedState);
-  };
+  selectVisibleItems = createSelector(
+    (items) => items,
+    (items, pathQuery) => pathQuery,
+    (items, pathQuery, formatFilter) => formatFilter,
+    filterUnmappedFiles
+  );
 
-  setSelectedState() {
-    const {
-      items
-    } = this.props;
-
-    const {
-      selectedState
-    } = this.state;
-
-    const newSelectedState = {};
-
-    items.forEach((file) => {
-      const isItemSelected = selectedState[file.id];
-
-      if (isItemSelected) {
-        newSelectedState[file.id] = isItemSelected;
-      } else {
-        newSelectedState[file.id] = false;
-      }
-    });
-
-    const selectedCount = getSelectedIds(newSelectedState).length;
-    const newStateCount = Object.keys(newSelectedState).length;
-    let isAllSelected = false;
-    let isAllUnselected = false;
-
-    if (selectedCount === 0) {
-      isAllUnselected = true;
-    } else if (selectedCount === newStateCount) {
-      isAllSelected = true;
-    }
-
-    this.setState({ selectedState: newSelectedState, allSelected: isAllSelected, allUnselected: isAllUnselected });
+  getVisibleItems() {
+    const { pathQuery, formatFilter } = this.state;
+    return this.selectVisibleItems(this.props.items, pathQuery, formatFilter);
   }
 
-  onSelectAllChange = ({ value }) => {
-    this.setState(selectAll(this.state.selectedState, value));
+  getSelectedIds() {
+    return this.getVisibleItems().filter(({ id }) => this.state.selectedState[id]).map(({ id }) => id);
+  }
+
+  setFilters(pathQuery, formatFilter) {
+    this.setState({
+      pathQuery,
+      formatFilter,
+      ...buildSelectedState(this.selectVisibleItems(this.props.items, pathQuery, formatFilter))
+    });
+
+    const { scroller } = this.state;
+    if (scroller) {
+      scroller.scrollTop = 0;
+    }
+  }
+
+  onPathQueryChange = ({ target }) => {
+    this.setFilters(target.value, this.state.formatFilter);
   };
 
-  onSelectAllPress = () => {
-    this.onSelectAllChange({ value: !this.state.allSelected });
+  onFormatFilterChange = ({ target }) => {
+    this.setFilters(this.state.pathQuery, target.value);
+  };
+
+  onClearFiltersPress = () => {
+    this.setFilters('', 'all');
+    this.pathInput.current?.focus();
+  };
+
+  onSelectAllChange = ({ value }) => {
+    this.setState(selectAll(buildSelectedState(this.getVisibleItems()).selectedState, value));
   };
 
   onSelectedChange = ({ id, value, shiftKey = false }) => {
-    this.setState((state) => {
-      return toggleSelected(state, this.props.items, id, value, shiftKey);
-    });
+    const items = this.getVisibleItems();
+    this.setState((state) => items.some((item) => item.id === id) ?
+      toggleSelected(state, items, id, value, shiftKey) : null
+    );
   };
 
   onDeleteUnmappedFilesPress = () => {
     const selectedIds = this.getSelectedIds();
-
-    this.props.deleteUnmappedFiles(selectedIds);
+    if (selectedIds.length && this.props.isPopulated && !this.props.error && !this.props.isDeleting) {
+      this.props.deleteUnmappedFiles(selectedIds);
+    }
   };
 
   rowRenderer = ({ key, rowIndex, style }) => {
-    const {
-      items,
-      columns,
-      deleteUnmappedFile
-    } = this.props;
+    const { columns, deleteUnmappedFile } = this.props;
 
     const {
       selectedState
     } = this.state;
 
-    const item = items[rowIndex];
+    const item = this.getVisibleItems()[rowIndex];
 
     return (
       <VirtualTableRow
@@ -167,7 +165,6 @@ class UnmappedFilesTable extends Component {
   render() {
 
     const {
-      isFetching,
       isPopulated,
       isDeleting,
       error,
@@ -179,18 +176,22 @@ class UnmappedFilesTable extends Component {
       onSortPress,
       isScanningFolders,
       onAddMissingAuthorsPress,
-      deleteUnmappedFiles,
+      isSmallScreen,
       ...otherProps
     } = this.props;
 
     const {
       scroller,
+      pathQuery,
+      formatFilter,
       allSelected,
       allUnselected,
       selectedState
     } = this.state;
 
-    const selectedTrackFileIds = this.getSelectedIds();
+    const visibleItems = this.getVisibleItems();
+    const selectedCount = this.getSelectedIds().length;
+    const isFiltered = !!pathQuery || formatFilter !== 'all';
 
     return (
       <PageContent title={translate('UnmappedFiles')}>
@@ -206,7 +207,7 @@ class UnmappedFilesTable extends Component {
             <PageToolbarButton
               label={translate('DeleteSelected')}
               iconName={icons.DELETE}
-              isDisabled={selectedTrackFileIds.length === 0}
+              isDisabled={!isPopulated || !selectedCount || !!error}
               isSpinning={isDeleting}
               onPress={this.onDeleteUnmappedFilesPress}
             />
@@ -227,6 +228,55 @@ class UnmappedFilesTable extends Component {
           </PageToolbarSection>
         </PageToolbar>
 
+        {
+          isPopulated && !error && (items.length > 0 || isFiltered) &&
+            <div className={styles.filters}>
+              <div className={styles.search}>
+                <label className={styles.filterLabel} htmlFor="unmappedPathQuery">
+                  {translate('FilterUnmappedPaths')}
+                </label>
+                <input
+                  ref={this.pathInput}
+                  id="unmappedPathQuery"
+                  className={styles.searchInput}
+                  type="search"
+                  value={pathQuery}
+                  onChange={this.onPathQueryChange}
+                />
+              </div>
+
+              <div className={styles.format}>
+                <label className={styles.filterLabel} htmlFor="unmappedFormatFilter">
+                  {translate('SearchFormat')}
+                </label>
+                <select
+                  id="unmappedFormatFilter"
+                  className={styles.formatInput}
+                  value={formatFilter}
+                  onChange={this.onFormatFilterChange}
+                >
+                  <option value="all">{translate('AllFormats')}</option>
+                  <option value="ebook">{translate('Ebook')}</option>
+                  <option value="audiobook">{translate('Audiobook')}</option>
+                </select>
+              </div>
+
+              <Button isDisabled={!isFiltered} onPress={this.onClearFiltersPress}>
+                {translate('ClearFilters')}
+              </Button>
+
+              <div className={styles.counts} role="status">
+                <span>{translate('UnmappedFilesResultCount', { shown: visibleItems.length, total: items.length })}</span>
+                {
+                  selectedCount > 0 &&
+                    <span className={styles.selectionCount}>
+                      {translate('UnmappedFilesSelectedCount', { count: selectedCount })}
+                    </span>
+                }
+              </div>
+            </div>
+        }
+
         <PageContentBody
           registerScroller={this.setScrollerRef}
         >
@@ -238,17 +288,27 @@ class UnmappedFilesTable extends Component {
           {
             isPopulated && !error && !items.length &&
               <Alert kind={kinds.INFO}>
-                Success! My work is done, all files on disk are matched to known books.
+                {translate('NoUnmappedFiles')}
               </Alert>
           }
 
           {
-            isPopulated && !error && !!items.length && scroller &&
+            !!error &&
+              <Alert kind={kinds.DANGER}>{translate('UnableToLoadUnmappedFiles')}</Alert>
+          }
+
+          {
+            isPopulated && !error && !!items.length && !visibleItems.length &&
+              <Alert kind={kinds.INFO}>{translate('NoMatchingUnmappedFiles')}</Alert>
+          }
+
+          {
+            isPopulated && !error && !!visibleItems.length && scroller &&
               <VirtualTable
-                items={items}
+                items={visibleItems}
                 columns={columns}
                 scroller={scroller}
-                isSmallScreen={false}
+                isSmallScreen={isSmallScreen}
                 overscanRowCount={10}
                 rowRenderer={this.rowRenderer}
                 header={
@@ -275,7 +335,7 @@ class UnmappedFilesTable extends Component {
 }
 
 UnmappedFilesTable.propTypes = {
-  isFetching: PropTypes.bool.isRequired,
+  isSmallScreen: PropTypes.bool.isRequired,
   isPopulated: PropTypes.bool.isRequired,
   isDeleting: PropTypes.bool.isRequired,
   deleteError: PropTypes.object,

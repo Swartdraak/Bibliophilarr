@@ -6,6 +6,21 @@
   font-family: $monoSpaceFontFamily;
 }
 
+.fileName,
+.folder {
+  @add-mixin truncate;
+
+  line-height: 15px;
+}
+
+.fileName {
+  font-weight: 600;
+}
+
+.folder {
+  font-size: 11px;
+}
+
 .quality,
 .dateAdded,
 .size {
@@ -13,6 +28,12 @@
 
   flex: 0 0 120px;
   white-space: nowrap;
+}
+
+.format {
+  composes: cell from '~Components/Table/Cells/VirtualTableRowCell.css';
+
+  flex: 0 0 100px;
 }
 
 .actions {
@@ -25,4 +46,10 @@
   composes: input from '~Components/Form/CheckInput.css';
 
   margin-top: 0;
+}
+
+@media only screen and (max-width: $breakpointSmall) {
+  .path {
+    flex-basis: 285px;
+  }
 }
