@@ -149,9 +149,16 @@ jobs:
         shell: bash
         env:
           RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
         run: |
+          source_commit="$(git rev-parse 'HEAD^{commit}')"
           python3 scripts/ops/check_release_assets.py release-assets "$RELEASE_VERSION"
-          (cd release-assets && sha256sum --check SHA256SUMS.txt)
+          python3 scripts/ops/create_release_manifest.py release-assets "$RELEASE_VERSION" "$source_commit" "$SOURCE_REPOSITORY"
+          (
+            cd release-assets
+            sha256sum release-manifest.json >> SHA256SUMS.txt
+            sha256sum --check SHA256SUMS.txt
+          )
 
       - name: Upload verified release assets
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

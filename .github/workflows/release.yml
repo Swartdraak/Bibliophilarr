@@ -134,3 +134,4 @@ jobs:
             release-assets/*.zip
             release-assets/*.exe
             release-assets/SHA256SUMS.txt
+            release-assets/release-manifest.json

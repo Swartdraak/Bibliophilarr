@@ -114,7 +114,9 @@ Build()
     then
         dotnet msbuild "${msbuild_args[@]}" -t:PublishAllRids
     else
-        dotnet msbuild "${msbuild_args[@]}" -p:RuntimeIdentifiers=$RID -p:TargetFramework=$FRAMEWORK -t:PublishAllRids
+        # The Windows desktop project requires its own net10.0-windows framework.
+        # PublishAllRids selects the frameworks declared by each project.
+        dotnet msbuild "${msbuild_args[@]}" -p:RuntimeIdentifiers="$RID" -t:PublishAllRids
     fi
 
     ProgressEnd 'Build'

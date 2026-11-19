@@ -6,6 +6,24 @@ from pathlib import Path
 import re
 
 
+
+PACKAGE_VARIANTS = (
+    ("linux-x64.tar.gz", "linux-x64", "portable"),
+    ("linux-arm64.tar.gz", "linux-arm64", "portable"),
+    ("osx-x64.tar.gz", "osx-x64", "portable"),
+    ("osx-arm64.tar.gz", "osx-arm64", "portable"),
+    ("win-x64.zip", "win-x64", "portable"),
+    ("win-x64-setup.exe", "win-x64", "installer"),
+)
+
+
+def package_asset_names(version):
+    return {
+        f"bibliophilarr-{version}-{suffix}": (rid, kind)
+        for suffix, rid, kind in PACKAGE_VARIANTS
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
@@ -15,13 +33,7 @@ def main():
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9a-zA-Z]+(?:\.[0-9a-zA-Z]+)*)?", args.version):
         parser.error("Invalid package version")
 
-    prefix = f"bibliophilarr-{args.version}-"
-    expected = {
-        f"{prefix}{suffix}" for suffix in (
-            "linux-x64.tar.gz", "linux-arm64.tar.gz", "osx-x64.tar.gz",
-            "osx-arm64.tar.gz", "win-x64.zip", "win-x64-setup.exe",
-        )
-    }
+    expected = set(package_asset_names(args.version))
     manifest = args.directory / "SHA256SUMS.txt"
     if manifest.exists():
         manifest.unlink()
