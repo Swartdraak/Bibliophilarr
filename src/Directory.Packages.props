@@ -69,7 +69,7 @@
          GitHub advisory DB: 9.0.0..9.0.20 (first patched 9.0.21) and 10.0.0..10.0.12
          (first patched 10.0.13; latest published 10.0.x).
          The repo consumes Pkcs only transitively (no project references it directly):
-           - 9.0.x line via Microsoft.Data.SqlClient 7.0.2 (every non-test project,
+           - 9.0.x line via Microsoft.Data.SqlClient (every non-test project,
              src/Directory.Build.props ItemGroup)
            - 10.0.x line via the IdentityModel 8.22.0 chain in the Core graph
          The central CPM pin forces both flows to the latest supported 10.0.x patch
