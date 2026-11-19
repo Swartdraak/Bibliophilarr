@@ -189,6 +189,12 @@ namespace NzbDrone.Core.Test.MusicTests
             _remoteBooks.Clear();
             _remoteBooks.AddRange(_books.JsonClone());
             _remoteBooks.ForEach(book => book.Id = 0);
+            _remoteBooks.Add(new Book
+            {
+                ForeignBookId = "hardcover:work:300",
+                Title = _book1.Title,
+                ReleaseDate = _book1.ReleaseDate
+            });
             var newAuthorInfo = _author.JsonClone();
             newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
             newAuthorInfo.Books = _remoteBooks;
@@ -207,6 +213,7 @@ namespace NzbDrone.Core.Test.MusicTests
                 It.IsAny<bool>(),
                 It.IsAny<DateTime?>()), Times.Once());
             Mocker.GetMock<IBookService>().Verify(s => s.DeleteBook(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -273,6 +280,7 @@ namespace NzbDrone.Core.Test.MusicTests
             var newBook = Builder<Book>.CreateNew()
                 .With(x => x.Id = 0)
                 .With(x => x.ForeignBookId = "3")
+                .With(x => x.Title = "A distinct new work")
                 .Build();
             _remoteBooks.Add(newBook);
 

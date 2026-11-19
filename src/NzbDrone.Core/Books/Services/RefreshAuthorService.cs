@@ -267,7 +267,13 @@ namespace NzbDrone.Core.Books
                 var stored = BookWorkIdentity.FindUniqueMatch(candidate, existing, out var ambiguous);
                 var current = stored != null
                     ? canonical.FirstOrDefault(x => x.ForeignBookId == stored.ForeignBookId)
-                    : ambiguous ? null : BookWorkIdentity.FindUniqueMatch(candidate, canonical, out _);
+                    : ambiguous ? null : BookWorkIdentity.FindUniqueMatch(candidate, canonical, out ambiguous);
+                if (ambiguous)
+                {
+                    _logger.Warn("Holding work {0} for review because more than one catalogue entry matches", LogSanitizer.Sanitize(candidate.ForeignBookId));
+                    continue;
+                }
+
                 if (current != null && !BookWorkIdentity.AreEquivalent(candidate, current))
                 {
                     current = null;
