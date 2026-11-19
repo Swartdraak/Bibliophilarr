@@ -33,8 +33,7 @@ namespace NzbDrone.Core.Books
                 return null;
             }
 
-            var isEbook = formatType == FormatType.Ebook;
-            var formatEditions = editions.Where(e => e.IsEbook == isEbook).ToList();
+            var formatEditions = editions.Where(e => e.MatchesFormat(formatType)).ToList();
 
             if (!formatEditions.Any())
             {
