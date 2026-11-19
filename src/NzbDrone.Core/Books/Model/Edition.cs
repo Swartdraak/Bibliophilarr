@@ -10,6 +10,8 @@ namespace NzbDrone.Core.Books
 {
     public class Edition : Entity<Edition>
     {
+        internal const string PrintFormat = "Print";
+
         public Edition()
         {
             Overview = string.Empty;
@@ -47,6 +49,13 @@ namespace NzbDrone.Core.Books
         public LazyLoaded<Book> Book { get; set; }
         [MemberwiseEqualityIgnore]
         public LazyLoaded<List<BookFile>> BookFiles { get; set; }
+
+        public bool MatchesFormat(FormatType format)
+        {
+            return format == FormatType.Ebook
+                ? IsEbook
+                : !IsEbook && Format != PrintFormat;
+        }
 
         public override string ToString()
         {

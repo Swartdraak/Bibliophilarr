@@ -11,7 +11,10 @@ process.
 
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
-  requested. Complete Bibliography is available as an unfiltered metadata profile.
+  requested. Distinct provider work IDs retain separate catalogue records.
+  Complete Bibliography is available as an unfiltered metadata profile.
+- Hardcover tracks representative ebook and audiobook editions where available.
+  The Add Author and Add Book forms select quality profiles by media format.
 - Ebook matching recognizes native ebook format labels and treats equivalent
   checksum-valid ISBN-10 and ISBN-13 values as the same identifier.
 - General Settings saves unrelated changes for an already configured account

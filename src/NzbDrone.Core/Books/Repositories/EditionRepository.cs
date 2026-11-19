@@ -109,7 +109,10 @@ namespace NzbDrone.Core.Books
         public List<Edition> SetMonitoredByFormat(Edition edition)
         {
             var allEditions = FindByBook(new[] { edition.BookId });
-            var sameFormat = allEditions.Where(e => e.IsEbook == edition.IsEbook).ToList();
+            var format = edition.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
+            var isPrint = allEditions.Any(existing => existing.Id == edition.Id && existing.Format == Edition.PrintFormat);
+            var sameFormat = allEditions.Where(existing =>
+                isPrint ? existing.Format == Edition.PrintFormat : existing.MatchesFormat(format)).ToList();
 
             sameFormat.ForEach(r => r.Monitored = r.Id == edition.Id);
 

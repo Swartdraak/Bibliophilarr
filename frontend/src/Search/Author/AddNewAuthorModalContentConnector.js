@@ -5,8 +5,11 @@ import { createSelector } from 'reselect';
 import { addAuthor, setAuthorAddDefault } from 'Store/Actions/searchActions';
 import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
+import createSortedSectionSelector from 'Store/Selectors/createSortedSectionSelector';
 import createSystemStatusSelector from 'Store/Selectors/createSystemStatusSelector';
 import selectSettings from 'Store/Selectors/selectSettings';
+import sortByName from 'Utilities/Array/sortByName';
+import getAddQualityProfileSettings from 'Utilities/Author/getAddQualityProfileSettings';
 import AddNewAuthorModalContent from './AddNewAuthorModalContent';
 
 function createMapStateToProps() {
@@ -14,9 +17,10 @@ function createMapStateToProps() {
     (state) => state.search,
     (state) => state.settings.metadataProfiles,
     (state) => state.settings.mediaManagement.item,
+    createSortedSectionSelector('settings.qualityProfiles', sortByName),
     createDimensionsSelector(),
     createSystemStatusSelector(),
-    (searchState, metadataProfiles, mediaManagement, dimensions, systemStatus) => {
+    (searchState, metadataProfiles, mediaManagement, qualityProfiles, dimensions, systemStatus) => {
       const {
         isAdding,
         addError,
@@ -29,16 +33,19 @@ function createMapStateToProps() {
         validationWarnings
       } = selectSettings(authorDefaults, {}, addError);
 
+      const enableDualFormatTracking = mediaManagement.enableDualFormatTracking || false;
+
       return {
         isAdding,
         addError,
-        enableDualFormatTracking: mediaManagement.enableDualFormatTracking || false,
+        enableDualFormatTracking,
         showMetadataProfile: metadataProfiles.items.length > 2,
         isSmallScreen: dimensions.isSmallScreen,
         validationErrors,
         validationWarnings,
         isWindows: systemStatus.isWindows,
-        ...settings
+        ...settings,
+        ...(enableDualFormatTracking && getAddQualityProfileSettings(settings, qualityProfiles.items))
       };
     }
   );
@@ -90,14 +97,15 @@ class AddNewAuthorModalContentConnector extends Component {
       qualityProfileId: qualityProfileId.value,
       metadataProfileId: metadataProfileId.value,
       tags: tags.value,
-      searchForMissingBooks,
-      ebookQualityProfileId: ebookQualityProfileId?.value ?? qualityProfileId.value,
-      audiobookQualityProfileId: audiobookQualityProfileId?.value ?? qualityProfileId.value
+      searchForMissingBooks
     };
 
     if (enableDualFormatTracking) {
-      payload.ebookRootFolderPath = ebookRootFolderPath?.value ?? rootFolderPath.value;
-      payload.audiobookRootFolderPath = audiobookRootFolderPath?.value ?? rootFolderPath.value;
+      payload.ebookQualityProfileId = ebookQualityProfileId?.value;
+      payload.audiobookQualityProfileId = audiobookQualityProfileId?.value;
+      payload.ebookRootFolderPath = ebookRootFolderPath?.value || rootFolderPath.value;
+      payload.audiobookRootFolderPath = audiobookRootFolderPath?.value || rootFolderPath.value;
+      payload.rootFolderPath ||= payload.ebookRootFolderPath || payload.audiobookRootFolderPath;
     }
 
     this.props.addAuthor(payload);

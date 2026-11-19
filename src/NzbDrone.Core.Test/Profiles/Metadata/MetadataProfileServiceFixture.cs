@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FizzWare.NBuilder;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.Lifecycle;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
@@ -17,6 +19,40 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
 
     public class MetadataProfileServiceFixture : CoreTest<MetadataProfileService>
     {
+        [Test]
+        public void complete_bibliography_should_keep_both_format_variants_through_series_filtering()
+        {
+            var book = new Book
+            {
+                ForeignBookId = "hardcover:work:543",
+                Title = "Print, ebook, and audio",
+                Editions = new List<Edition>
+                {
+                    new Edition { ForeignEditionId = "hardcover:edition:543", Format = "Print" },
+                    new Edition { ForeignEditionId = "hardcover:source-edition:60", Format = "Ebook", IsEbook = true },
+                    new Edition { ForeignEditionId = "hardcover:source-edition:80", Format = "Audio CD" }
+                }
+            };
+            var series = new Series { ForeignSeriesId = "hardcover:series:789", Title = "Variant Series" };
+            series.LinkItems = new List<SeriesBookLink> { new SeriesBookLink { Book = book, Series = series, IsPrimary = true } };
+            var author = new Author
+            {
+                Metadata = new AuthorMetadata { ForeignAuthorId = "hardcover:author:123" },
+                Books = new List<Book> { book },
+                Series = new List<Series> { series }
+            };
+            Mocker.GetMock<IMetadataProfileRepository>()
+                .Setup(repository => repository.Get(3))
+                .Returns(new MetadataProfile { Id = 3, Name = "Complete Bibliography" });
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFilesByAuthor(0)).Returns(new List<BookFile>());
+
+            var filtered = Subject.FilterBooks(author, 3).Single();
+
+            filtered.Editions.Value.Should().HaveCount(3);
+            filtered.GetPreferredEdition(FormatType.Ebook).ForeignEditionId.Should().Be("hardcover:source-edition:60");
+            filtered.GetPreferredEdition(FormatType.Audiobook).ForeignEditionId.Should().Be("hardcover:source-edition:80");
+        }
+
         [Test]
         public void init_should_add_default_profiles()
         {

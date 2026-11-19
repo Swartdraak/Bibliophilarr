@@ -35,6 +35,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         ISearchForNewAuthor,
         ISearchForNewEntity
     {
+        internal const string ProviderEditionIdPrefix = "hardcover:source-edition:";
+
         private const string Endpoint = "https://api.hardcover.app/v1/graphql";
         private const string HardcoverApiTokenEnvironmentVariable = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
 
@@ -919,6 +921,23 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             }
                         }
                         editions(limit: 5) {
+                            id
+                            isbn_13
+                            asin
+                            reading_format_id
+                            language { language }
+                            pages
+                        }
+                        ebooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
+                            id
+                            isbn_13
+                            asin
+                            reading_format_id
+                            language { language }
+                            pages
+                        }
+                        audiobooks: editions(where: {reading_format_id: {_in: [3, 4]}}, order_by: {id: asc}, limit: 5) {
+                            id
                             isbn_13
                             asin
                             reading_format_id
@@ -1092,6 +1111,23 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             }
                                         }
                                         editions(limit: 5) {
+                                            id
+                                            isbn_13
+                                            asin
+                                            reading_format_id
+                                            language { language }
+                                            pages
+                                        }
+                                        ebooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
+                                            id
+                                            isbn_13
+                                            asin
+                                            reading_format_id
+                                            language { language }
+                                            pages
+                                        }
+                                        audiobooks: editions(where: {reading_format_id: {_in: [3, 4]}}, order_by: {id: asc}, limit: 5) {
+                                            id
                                             isbn_13
                                             asin
                                             reading_format_id
@@ -1167,9 +1203,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 throw new MetadataProviderUnavailableException("get-author-info", BuildHardcoverAuthorId(authorId), ex);
             }
 
-            var deduped = DeduplicateSimilarWorks(books);
-            _logger.Debug("Hardcover returned {0} unique works from {1} books for author ID {2}.", deduped.Count, books.Count, authorId);
-            return deduped;
+            _logger.Debug("Hardcover returned {0} distinct work IDs for author ID {1}.", books.Count, authorId);
+            return books;
         }
 
         private List<Series> FetchAuthorSeries(int authorId)
@@ -1337,160 +1372,6 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             book.AuthorMetadata = metadata;
         }
 
-        /// <summary>
-        /// Removes duplicate Hardcover works that represent the same real-world book.
-        /// Hardcover sometimes has multiple work entries for the same title with slight
-        /// variations (e.g. "Lights Out" vs "Lights Out: Into Darkness, Book 1" vs
-        /// "Caught Up" vs "Caught Up: Into Darkness Trilogy").
-        ///
-        /// Groups books by a normalised base title (stripping series suffixes like
-        /// ": Series Name, Book N" and common subtitle patterns). When duplicates
-        /// are found, keeps the work with the most metadata (ISBN, ASIN, pages,
-        /// ratings).
-        /// </summary>
-        private static List<Book> DeduplicateSimilarWorks(List<Book> books)
-        {
-            if (books.Count <= 1)
-            {
-                return books;
-            }
-
-            var result = new List<Book>();
-            var consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            // Sort by data richness descending so the best candidate is first
-            var sorted = books.OrderByDescending(b => ScoreBookData(b)).ToList();
-
-            foreach (var book in sorted)
-            {
-                if (consumed.Contains(book.ForeignBookId))
-                {
-                    continue;
-                }
-
-                var baseTitle = NormalizeForDedup(book.Title);
-                if (baseTitle.IsNullOrWhiteSpace())
-                {
-                    result.Add(book);
-                    consumed.Add(book.ForeignBookId);
-                    continue;
-                }
-
-                // Find all other unconsumed books whose normalised title matches
-                var duplicates = sorted
-                    .Where(b => !consumed.Contains(b.ForeignBookId) &&
-                                b.ForeignBookId != book.ForeignBookId &&
-                                IsDuplicateTitle(baseTitle, NormalizeForDedup(b.Title)))
-                    .ToList();
-
-                result.Add(book);
-                consumed.Add(book.ForeignBookId);
-
-                foreach (var dup in duplicates)
-                {
-                    consumed.Add(dup.ForeignBookId);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Normalises a book title for dedup comparison by stripping common suffixes:
-        ///   - Series subtitles like ": Into Darkness, Book 1"
-        ///   - Parenthetical suffixes like "(Series Name #1)"
-        ///   - Leading "The " / trailing punctuation
-        /// </summary>
-        private static string NormalizeForDedup(string title)
-        {
-            if (title.IsNullOrWhiteSpace())
-            {
-                return string.Empty;
-            }
-
-            // Strip everything after the first colon (series subtitles)
-            var colonIdx = title.IndexOf(':');
-            if (colonIdx > 2)
-            {
-                title = title.Substring(0, colonIdx);
-            }
-
-            // Strip parenthetical suffixes
-            var parenIdx = title.IndexOf('(');
-            if (parenIdx > 2)
-            {
-                title = title.Substring(0, parenIdx);
-            }
-
-            return title.Trim().ToLowerInvariant();
-        }
-
-        /// <summary>
-        /// Checks if two normalised titles are duplicates. Returns true if they are
-        /// identical or if one is a substring of the other (to catch "Lights Out"
-        /// matching "Lights Out" from different works with different subtitles).
-        /// </summary>
-        private static bool IsDuplicateTitle(string a, string b)
-        {
-            if (a.IsNullOrWhiteSpace() || b.IsNullOrWhiteSpace())
-            {
-                return false;
-            }
-
-            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Scores a book by data richness for dedup winner selection.
-        /// Higher score = more complete metadata = preferred work.
-        /// </summary>
-        private static int ScoreBookData(Book book)
-        {
-            var score = 0;
-            var edition = book.Editions?.Value?.FirstOrDefault();
-
-            if (edition != null)
-            {
-                if (edition.Isbn13.IsNotNullOrWhiteSpace())
-                {
-                    score += 20;
-                }
-
-                if (edition.Asin.IsNotNullOrWhiteSpace())
-                {
-                    score += 20;
-                }
-
-                if (edition.PageCount > 0)
-                {
-                    score += 10;
-                }
-
-                if (edition.Language.IsNotNullOrWhiteSpace())
-                {
-                    score += 5;
-                }
-            }
-
-            if (book.Ratings.Votes > 0)
-            {
-                score += 10;
-            }
-
-            if (book.ReleaseDate.HasValue)
-            {
-                score += 5;
-            }
-
-            // Prefer shorter titles (less likely to be subtitle-duplicates)
-            if (book.Title != null && book.Title.Length < 50)
-            {
-                score += 3;
-            }
-
-            return score;
-        }
-
         private static Book MapDirectBookResult(JToken bookData)
         {
             if (bookData == null)
@@ -1519,18 +1400,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var authorId = bookData.SelectToken("cached_contributors[0].author.id")?.Value<int?>();
             var authorSlug = bookData.SelectToken("cached_contributors[0].author.slug")?.Value<string>();
 
-            // Select the best edition from up to 5 returned.  Prefer English (or
-            // null-language) editions with the most identifiers and page data.
-            var bestEdition = SelectBestEdition(bookData.SelectToken("editions") as JArray);
-            var isbn13 = bestEdition?.Value<string>("isbn_13");
-            var asin = bestEdition?.Value<string>("asin");
-            var editionLanguage = bestEdition?.SelectToken("language.language")?.Value<string>();
-            var editionPages = bestEdition?.Value<int?>("pages");
-
-            // Hardcover reading_format_id: 1=Physical, 2=Ebook, 3=Audiobook, 4=Audio CD
-            // Null when the field is not present in the schema or not populated.
-            var readingFormatId = bestEdition?.Value<int?>("reading_format_id");
-            var isEbook = readingFormatId == 2;
+            // Keep the legacy synthetic edition and its metadata selection stable on refresh.
+            var bestEdition = SelectBestEdition(bookData["editions"] as JArray);
 
             var publishedDate = ParseDate(releaseDate, releaseYear);
 
@@ -1610,43 +1481,83 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
             }
 
-            var edition = new Edition
-            {
-                ForeignEditionId = $"hardcover:edition:{id}",
-                TitleSlug = $"hardcover:edition:{id}".ToUrlSlug(),
-                Title = title,
-                ReleaseDate = publishedDate,
-                Language = editionLanguage,
-                Isbn13 = isbn13,
-                Asin = asin,
-                IsEbook = isEbook,
-                Book = book,
-                PageCount = pages ?? editionPages ?? 0,
-                Overview = description,
-                Ratings = new Ratings
-                {
-                    Votes = ratingsCount ?? 0,
-                    Value = (decimal)(rating ?? 0)
-                }
-            };
-
-            if (coverUrl.IsNotNullOrWhiteSpace())
-            {
-                edition.Images.Add(new MediaCover.MediaCover
-                {
-                    Url = coverUrl,
-                    CoverType = MediaCoverTypes.Cover
-                });
-            }
-
-            book.Editions = new List<Edition> { edition };
-
             var bookSlug = slug.IsNotNullOrWhiteSpace() ? slug : id;
             var hardcoverBookUrl = $"https://hardcover.app/books/{bookSlug}";
             book.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
-            edition.Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } };
+
+            Edition CreateEdition(JToken source, string foreignEditionId, int? pageCount)
+            {
+                var readingFormatId = source?.Value<int?>("reading_format_id");
+                var edition = new Edition
+                {
+                    ForeignEditionId = foreignEditionId,
+                    TitleSlug = foreignEditionId.ToUrlSlug(),
+                    Title = title,
+                    ReleaseDate = publishedDate,
+                    Language = source?.SelectToken("language.language")?.Value<string>(),
+                    Isbn13 = source?.Value<string>("isbn_13"),
+                    Asin = source?.Value<string>("asin"),
+                    Format = readingFormatId switch
+                    {
+                        1 => Edition.PrintFormat,
+                        2 => "Ebook",
+                        3 => "Audiobook",
+                        4 => "Audio CD",
+                        _ => null
+                    },
+                    IsEbook = readingFormatId == 2,
+                    Book = book,
+                    PageCount = pageCount ?? 0,
+                    Overview = description,
+                    Ratings = new Ratings
+                    {
+                        Votes = ratingsCount ?? 0,
+                        Value = (decimal)(rating ?? 0)
+                    },
+                    Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } }
+                };
+
+                if (coverUrl.IsNotNullOrWhiteSpace())
+                {
+                    edition.Images.Add(new MediaCover.MediaCover
+                    {
+                        Url = coverUrl,
+                        CoverType = MediaCoverTypes.Cover
+                    });
+                }
+
+                return edition;
+            }
+
+            var editions = new List<Edition>
+            {
+                CreateEdition(bestEdition, $"hardcover:edition:{id}", pages ?? bestEdition?.Value<int?>("pages"))
+            };
+
+            var legacySourceId = bestEdition?.Value<long?>("id");
+            var ebookEdition = SelectBestSourceEdition(bookData["ebooks"] as JArray, 2);
+            var audiobookEdition = SelectBestSourceEdition(bookData["audiobooks"] as JArray, 3, 4);
+
+            foreach (var source in new[] { ebookEdition, audiobookEdition }.Where(candidate => candidate != null))
+            {
+                var sourceId = source.Value<long>("id");
+                if (sourceId != legacySourceId)
+                {
+                    editions.Add(CreateEdition(source, $"{ProviderEditionIdPrefix}{sourceId}", source.Value<int?>("pages") ?? pages));
+                }
+            }
+
+            book.Editions = editions;
 
             return book;
+        }
+
+        private static JToken SelectBestSourceEdition(JArray editions, params int[] readingFormatIds)
+        {
+            return SelectBestEdition(editions?.Where(edition => edition.Type == JTokenType.Object)
+                .Where(edition => edition.Value<long?>("id") > 0 &&
+                                  readingFormatIds.Contains(edition.Value<int?>("reading_format_id") ?? 0))
+                .ToList());
         }
 
         /// <summary>
@@ -1655,7 +1566,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         /// and page data to avoid importing non-English metadata when an English
         /// edition is available.
         /// </summary>
-        private static JToken SelectBestEdition(JArray editions)
+        private static JToken SelectBestEdition(IList<JToken> editions)
         {
             if (editions == null || !editions.Any())
             {
