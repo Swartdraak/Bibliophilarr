@@ -21,7 +21,6 @@ $app = Join-Path $bin 'Bibliophilarr.Console.exe'
 $sharedData = Join-Path $env:ProgramData 'Bibliophilarr'
 $scratch = (New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP ("installer-smoke-" + [guid]::NewGuid()))).FullName
 $testData = Join-Path $scratch 'data'
-$runningApp = $null
 
 function Assert-NoAutomaticStart {
     if ((Get-Service -Name Bibliophilarr -ErrorAction SilentlyContinue) -or
@@ -30,17 +29,21 @@ function Assert-NoAutomaticStart {
     }
 }
 
-function Assert-ProtectedPath([string]$Path) {
+function Assert-ProtectedPath([string]$Path, [switch]$PrivateData) {
     $broadSids = 'S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-32-546'
     $right = [System.Security.AccessControl.FileSystemRights]
     $writeRights = $right::WriteData -bor $right::AppendData -bor $right::WriteExtendedAttributes -bor
         $right::WriteAttributes -bor $right::Delete -bor $right::DeleteSubdirectoriesAndFiles -bor
         $right::ChangePermissions -bor $right::TakeOwnership
+    $disallowedRights = $writeRights
+    if ($PrivateData) {
+        $disallowedRights = $disallowedRights -bor $right::ReadData
+    }
     $rules = (Get-Acl -LiteralPath $Path).GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
     foreach ($rule in $rules) {
         if ($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference.Value -in $broadSids -and
-            ($rule.FileSystemRights -band $writeRights)) {
-            throw "A broad Windows principal has write access to $Path."
+            ($rule.FileSystemRights -band $disallowedRights)) {
+            throw "A broad Windows principal has excessive access to $Path."
         }
     }
 }
@@ -57,6 +60,75 @@ function Invoke-Setup([string]$Executable, [string[]]$ExtraArguments) {
 
 function Get-Uninstaller {
     Get-ChildItem -LiteralPath $installRoot -File -Filter 'unins*.exe' | Select-Object -First 1
+}
+
+function Test-InstalledApp([string]$DataPath, [int]$Port, [switch]$UseDefault) {
+    $arguments = @('/nobrowser')
+    if (!$UseDefault) {
+        $arguments += "/data=`"$DataPath`""
+    }
+
+    $testName = Split-Path -Path $DataPath -Leaf
+    $environment = @{
+        Bibliophilarr__Server__BindAddress = '127.0.0.1'
+        Bibliophilarr__Server__Port = "$Port"
+        Bibliophilarr__Server__EnableSsl = 'false'
+        Bibliophilarr__Auth__Method = 'Forms'
+        Bibliophilarr__Auth__Required = 'Enabled'
+        Bibliophilarr__Log__AnalyticsEnabled = 'false'
+    }
+    $runningApp = Start-Process -FilePath $app -WorkingDirectory $bin -ArgumentList $arguments `
+        -Environment $environment -PassThru `
+        -RedirectStandardOutput (Join-Path $scratch "$testName.stdout") `
+        -RedirectStandardError (Join-Path $scratch "$testName.stderr")
+
+    try {
+        $baseUrl = "http://127.0.0.1:$Port"
+        $deadline = [DateTime]::UtcNow.AddSeconds(60)
+        $ready = $false
+        do {
+            if ($runningApp.HasExited) {
+                throw "Installed application exited with code $($runningApp.ExitCode)."
+            }
+            try {
+                $ping = Invoke-WebRequest -Uri "$baseUrl/ping" -TimeoutSec 2 -SkipHttpErrorCheck -NoProxy
+                $ready = $ping.StatusCode -eq 200
+            } catch {
+                Start-Sleep -Milliseconds 250
+            }
+        } until ($ready -or [DateTime]::UtcNow -ge $deadline)
+        if (!$ready) {
+            throw 'Installed application did not become ready within 60 seconds.'
+        }
+
+        $listeners = @(Get-NetTCPConnection -State Listen -OwningProcess $runningApp.Id)
+        if ($listeners.Count -eq 0 -or @($listeners | Where-Object { $_.LocalAddress -ne '127.0.0.1' -or $_.LocalPort -ne $Port }).Count -gt 0) {
+            throw 'The installed application is not listening exclusively on its assigned loopback port.'
+        }
+        $configFile = Join-Path $DataPath 'config.xml'
+        $appConfig = [xml](Get-Content -LiteralPath $configFile -Raw)
+        $appApiKey = $appConfig.Config.ApiKey
+        if ([string]::IsNullOrWhiteSpace($appApiKey)) {
+            throw 'The disposable application did not persist a generated API key.'
+        }
+        $statusUri = "$baseUrl/api/v1/system/status"
+        $anonymous = Invoke-WebRequest -Uri $statusUri -TimeoutSec 5 -MaximumRedirection 0 -SkipHttpErrorCheck -NoProxy
+        $initialize = Invoke-WebRequest -Uri "$baseUrl/initialize.json" -TimeoutSec 5 -MaximumRedirection 0 -SkipHttpErrorCheck -NoProxy
+        $status = Invoke-RestMethod -Uri $statusUri -Headers @{'X-Api-Key' = $appApiKey} -TimeoutSec 5 -NoProxy
+        if ($anonymous.StatusCode -ne 401 -or $initialize.StatusCode -ne 401 -or
+            ([string]$initialize.Content).Contains($appApiKey) -or !$status.isWindows -or
+            $status.appData -ne $DataPath -or $status.startupPath -ne $bin) {
+            throw 'Authentication or the isolated paths reported by the installed app did not match expectations.'
+        }
+    } finally {
+        if (!$runningApp.HasExited) {
+            Stop-Process -Id $runningApp.Id
+            if (!$runningApp.WaitForExit(10000)) {
+                throw 'The disposable application did not stop.'
+            }
+        }
+        $runningApp.Dispose()
+    }
 }
 
 Assert-NoAutomaticStart
@@ -104,42 +176,37 @@ try {
 </Config>
 "@ | Set-Content -LiteralPath $config -Encoding utf8
 
-    $runningApp = Start-Process -FilePath $app -WorkingDirectory $bin `
-        -ArgumentList @('/nobrowser', "/data=`"$testData`"") -PassThru `
-        -RedirectStandardOutput (Join-Path $scratch 'app.stdout') `
-        -RedirectStandardError (Join-Path $scratch 'app.stderr')
-    $baseUrl = "http://127.0.0.1:$port"
-    $deadline = [DateTime]::UtcNow.AddSeconds(60)
-    $ready = $false
-    do {
-        if ($runningApp.HasExited) {
-            throw "Installed application exited with code $($runningApp.ExitCode)."
-        }
-        try {
-            $ping = Invoke-WebRequest -Uri "$baseUrl/ping" -TimeoutSec 2 -SkipHttpErrorCheck -NoProxy
-            $ready = $ping.StatusCode -eq 200
-        } catch {
-            Start-Sleep -Milliseconds 250
-        }
-    } until ($ready -or [DateTime]::UtcNow -ge $deadline)
-    if (!$ready) {
-        throw 'Installed application did not become ready within 60 seconds.'
+    $customAcl = (Get-Acl -LiteralPath $testData).Sddl
+    Test-InstalledApp -DataPath $testData -Port $port
+    if ((Get-Acl -LiteralPath $testData).Sddl -ne $customAcl) {
+        throw 'Startup rewrote the permissions of an existing custom data directory.'
     }
 
-    $listeners = @(Get-NetTCPConnection -State Listen -OwningProcess $runningApp.Id)
-    if ($listeners.Count -eq 0 -or @($listeners | Where-Object { $_.LocalAddress -ne '127.0.0.1' -or $_.LocalPort -ne $port }).Count -gt 0) {
-        throw 'The installed application is not listening exclusively on its assigned loopback port.'
+    Test-InstalledApp -DataPath $sharedData -Port $port -UseDefault
+    $defaultConfig = Join-Path $sharedData 'config.xml'
+    $defaultAcl = Get-Acl -LiteralPath $sharedData
+    if (!$defaultAcl.AreAccessRulesProtected) {
+        throw 'New default data inherits permissions from ProgramData.'
     }
-    $statusUri = "$baseUrl/api/v1/system/status"
-    $anonymous = Invoke-WebRequest -Uri $statusUri -TimeoutSec 5 -MaximumRedirection 0 -SkipHttpErrorCheck -NoProxy
-    $status = Invoke-RestMethod -Uri $statusUri -Headers @{'X-Api-Key' = $apiKey} -TimeoutSec 5 -NoProxy
-    if ($anonymous.StatusCode -ne 401 -or !$status.isWindows -or $status.appData -ne $testData -or $status.startupPath -ne $bin) {
-        throw 'Authentication or the isolated paths reported by the installed app did not match expectations.'
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    try {
+        $permittedSids = $identity.User.Value, 'S-1-5-18', 'S-1-5-32-544'
+    } finally {
+        $identity.Dispose()
     }
-    Stop-Process -Id $runningApp.Id
-    if (!$runningApp.WaitForExit(10000)) {
-        throw 'The disposable application did not stop.'
+    $rights = [System.Security.AccessControl.FileSystemRights]
+    $writeSids = @($defaultAcl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier]) |
+        Where-Object { $_.AccessControlType -eq 'Allow' -and ($_.FileSystemRights -band $rights::WriteData) } |
+        ForEach-Object { $_.IdentityReference.Value })
+    foreach ($sid in $permittedSids) {
+        if ($sid -notin $writeSids) {
+            throw "Fresh data does not grant write access to an expected Windows identity ($sid)."
+        }
     }
+    Assert-ProtectedPath $sharedData -PrivateData
+    Assert-ProtectedPath $defaultConfig -PrivateData
+    Assert-ProtectedPath (Join-Path $sharedData 'bibliophilarr.db') -PrivateData
+    $defaultConfigHash = (Get-FileHash -LiteralPath $defaultConfig).Hash
     $configHash = (Get-FileHash -LiteralPath $config).Hash
 
     if ((Invoke-Setup $installer @('/SP-', "/LOG=`"$scratch\reinstall.log`"")) -ne 0) {
@@ -153,17 +220,15 @@ try {
         throw 'Windows uninstall failed.'
     }
     Assert-NoAutomaticStart
-    if ((Test-Path -LiteralPath $app) -or (Test-Path -LiteralPath $sharedData) -or
-        (Get-FileHash -LiteralPath $config).Hash -ne $configHash) {
+    if ((Test-Path -LiteralPath $app) -or
+        (Get-FileHash -LiteralPath $config).Hash -ne $configHash -or
+        (Get-FileHash -LiteralPath $defaultConfig).Hash -ne $defaultConfigHash -or
+        (Get-Acl -LiteralPath $sharedData).Sddl -ne $defaultAcl.Sddl) {
         throw 'Uninstall left executable files or modified application data.'
     }
 
-    Write-Host 'Windows installer smoke passed: safe path, ACLs, no automatic start, loopback API, reinstall and uninstall.'
+    Write-Host 'Windows installer smoke passed: binary and data ACLs, no automatic start, loopback API, reinstall and uninstall.'
 } finally {
-    if ($runningApp -and !$runningApp.HasExited) {
-        Stop-Process -Id $runningApp.Id -ErrorAction SilentlyContinue
-        $null = $runningApp.WaitForExit(10000)
-    }
     if (Test-Path -LiteralPath $installRoot) {
         $uninstall = Get-Uninstaller
         if ($uninstall -and (Invoke-Setup $uninstall.FullName @()) -ne 0) {

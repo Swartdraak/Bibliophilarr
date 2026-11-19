@@ -1,9 +1,8 @@
 # Bibliophilarr
 
-[![Main SemVer](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=main%20semver&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
+[![Latest stable release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=stable%20release&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 [![Staging validation](https://img.shields.io/badge/staging-validation%20lane-7c5a19)](https://github.com/Swartdraak/Bibliophilarr/tree/staging)
 [![Develop Tracking](https://img.shields.io/badge/develop-tracks%20next%20promotion-6f42c1)](https://github.com/Swartdraak/Bibliophilarr/tree/develop)
-[![GitHub Release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=github%20release)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 [![GitHub Downloads](https://img.shields.io/github/downloads/Swartdraak/Bibliophilarr/total?logo=github&label=github%20downloads)](https://github.com/Swartdraak/Bibliophilarr/releases)
 [![Docker Image](https://img.shields.io/badge/ghcr.io-bibliophilarr-blue?logo=docker)](https://github.com/Swartdraak/Bibliophilarr/pkgs/container/bibliophilarr)
 [![npm](https://img.shields.io/npm/v/bibliophilarr?logo=npm&label=npm)](https://www.npmjs.com/package/bibliophilarr)
@@ -33,9 +32,9 @@ Use the core docs as the authoritative set:
 
 ## Branch CI health
 
-| Branch | SemVer signal | Backend CI | Frontend CI | Docs CI | Workflow lint |
+| Branch | Release lane | Backend CI | Frontend CI | Docs CI | Workflow lint |
 |---|---|---|---|---|---|
-| `main` | [![main](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?label=main&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases/latest) | [![backend-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Amain) | [![frontend-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Amain) | [![docs-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Amain) | [![lint-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Amain) |
+| `main` | [Stable releases](https://github.com/Swartdraak/Bibliophilarr/releases/latest) | [![backend-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Amain) | [![frontend-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Amain) | [![docs-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Amain) | [![lint-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Amain) |
 | `staging` | [Staging branch](https://github.com/Swartdraak/Bibliophilarr/tree/staging) | [![backend-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Astaging) | [![frontend-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Astaging) | [![docs-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Astaging) | [![lint-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Astaging) |
 | `develop` | [![develop](https://img.shields.io/badge/develop-integration%20lane-6f42c1)](https://github.com/Swartdraak/Bibliophilarr/tree/develop) | [![backend-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Adevelop) | [![frontend-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Adevelop) | [![docs-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Adevelop) | [![lint-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Adevelop) |
 
@@ -43,15 +42,13 @@ Release builds use the version from their Git tag. The stable release badge foll
 
 ## Publish pipeline health
 
-| Channel | Workflow status |
+| Channel | Latest workflow status |
 |---|---|
-| GitHub release | [![release-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/release.yml?query=branch%3Amain) |
-| Docker (GHCR) | [![docker-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docker-image.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docker-image.yml?query=branch%3Amain) |
-| npm publish | [![npm-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/npm-publish.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/npm-publish.yml?query=branch%3Amain) |
+| GitHub release | [![release](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/release.yml/badge.svg)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/release.yml) |
+| Docker (GHCR) | [![docker](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docker-image.yml/badge.svg)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docker-image.yml) |
+| npm publish | [![npm publish](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/npm-publish.yml) |
 
-Branch health badges are scoped per branch, and this layout stays consistent as
-you promote `develop -> staging -> main`. See [BRANCHING.md](BRANCHING.md) for
-the three-lane promotion lifecycle.
+Publish badges report their latest workflow runs, which normally use the release tag as the run ref. The branch CI badges above track each branch. See [BRANCHING.md](BRANCHING.md) for the promotion lifecycle.
 
 ## What the project does
 
@@ -100,6 +97,21 @@ Setup stops before changing files if it finds an older Bibliophilarr Windows
 service or binaries under the application data directory. Back up the application
 data and have a Windows administrator retire the old service and binaries before
 running setup again.
+
+On first run, Bibliophilarr creates the default data directory with access for
+the current Windows account, SYSTEM, and Administrators. Use the intended
+Windows account on first run. Bibliophilarr preserves existing permissions on
+upgrades and on all paths specified with `/data`. Use a private, dedicated NTFS
+directory if you configure a custom path.
+
+Older installations can retain broad permissions on data files. Before changing
+them, stop Bibliophilarr and back up both the data and its permissions. A Windows
+administrator can copy the data into a private NTFS directory without copying
+the old access rules. Grant the intended account Modify access to the directory
+and its contents before moving the instance. For an existing Windows service,
+verify the Log On account in Services and grant that account access, even when
+it differs from the account running Setup. Keep the original copy private until
+the updated instance has started and its library and settings are verified.
 
 ### npm launcher
 
