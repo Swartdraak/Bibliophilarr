@@ -71,7 +71,8 @@ class MetadataProfileSelectInputConnector extends Component {
     } = this.props;
 
     if (!value || !values.some((option) => option.key === value || parseInt(option.key) === value)) {
-      const firstValue = values.find((option) => !isNaN(parseInt(option.key)));
+      const firstValue = values.find((option) => option.value === metadataProfileNames.COMPLETE_BIBLIOGRAPHY) ??
+        values.find((option) => !isNaN(parseInt(option.key)));
 
       if (firstValue) {
         this.onChange({ name, value: firstValue.key });

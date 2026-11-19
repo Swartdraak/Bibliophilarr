@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using FluentAssertions;
 using Moq;
@@ -7,6 +9,8 @@ using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -329,6 +333,151 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             book.ReleaseDate.Should().Be(new DateTime(1978, month, day, hour, 0, 0, DateTimeKind.Utc));
             book.ReleaseDate.Value.Kind.Should().Be(DateTimeKind.Utc);
+        }
+
+        [TestCase("hardcover:author:123", 200, 100, new[] { 0, 100, 200 })]
+        [TestCase("hardcover:author:Complete%20Author", 101, 100, new[] { 0, 100, 101 })]
+        [TestCase("hardcover:author:123", 141, 65, new[] { 0, 65, 130, 141 })]
+        public void get_author_info_should_fetch_the_complete_ordered_bibliography(
+            string authorId, int contributionCount, int providerCap, int[] expectedOffsets)
+        {
+            var offsets = new List<int>();
+            var searchedByName = false;
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query SearchAuthors", StringComparison.Ordinal))
+                    {
+                        searchedByName = true;
+                        return CreateJsonResponse(request, JObject.Parse("{\"data\":{\"search\":{\"ids\":[123]}}}"));
+                    }
+
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("{\"data\":{\"book_series\":[]}}"));
+                    }
+
+                    query.Should().Contain("order_by: {id: asc}");
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    var limit = body.SelectToken("variables.limit").Value<int>();
+                    offsets.Add(offset);
+
+                    var contributionIds = Enumerable.Range(offset + 1, Math.Min(Math.Min(limit, providerCap), contributionCount - offset));
+                    return CreateJsonResponse(request, BuildAuthorPage(contributionIds));
+                });
+
+            var author = Subject.GetAuthorInfo(authorId);
+
+            searchedByName.Should().Be(authorId != "hardcover:author:123");
+            offsets.Should().Equal(expectedOffsets);
+            author.Metadata.Value.ForeignAuthorId.Should().Be("hardcover:author:123");
+            author.Books.Value.Should().HaveCount(contributionCount - 1);
+            author.Books.Value.Should().OnlyHaveUniqueItems(book => book.ForeignBookId);
+            author.Books.Value.Should().Contain(book => book.ForeignBookId == $"hardcover:work:{contributionCount}");
+            author.Books.Value.Should().OnlyContain(book => book.AuthorMetadata.Value.Name == "Complete Author");
+            author.Series.Value.Should().ContainSingle();
+            author.Series.Value.Single().LinkItems.Value.Should().HaveCount(contributionCount - 1);
+        }
+
+        [TestCase("hardcover:author:123", "transport")]
+        [TestCase("hardcover:author:Complete%20Author", "partial")]
+        [TestCase("hardcover:author:123", "missing")]
+        [TestCase("hardcover:author:123", "repeated")]
+        public void get_author_info_should_report_failed_later_pages_as_unavailable(string authorId, string failure)
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query SearchAuthors", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("{\"data\":{\"search\":{\"ids\":[123]}}}"));
+                    }
+
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    if (offset == 0)
+                    {
+                        return CreateJsonResponse(request, BuildAuthorPage(Enumerable.Range(1, 100)));
+                    }
+
+                    offset.Should().Be(100);
+                    if (failure == "transport")
+                    {
+                        throw new HttpRequestException("Provider connection closed.");
+                    }
+
+                    if (failure == "missing")
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("{\"data\":{\"authors\":[]}}"));
+                    }
+
+                    var payload = BuildAuthorPage(new[] { failure == "repeated" ? 100 : 101 });
+                    if (failure == "partial")
+                    {
+                        payload["errors"] = JArray.Parse("[{\"message\":\"Bibliography query incomplete\"}]");
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var registry = Mocker.GetMock<IMetadataProviderRegistry>();
+            registry.Setup(service => service.GetProviders()).Returns(new IMetadataProvider[] { Subject });
+            var orchestrator = Mocker.Resolve<MetadataProviderOrchestrator>();
+
+            var act = () => orchestrator.GetAuthorInfo(authorId);
+
+            act.Should().Throw<MetadataProviderUnavailableException>()
+                .Which.EntityId.Should().Be("hardcover:author:123");
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<IHttpClient>()
+                .Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never);
+        }
+
+        private static HttpResponse<JObject> CreateJsonResponse(HttpRequest request, JObject body)
+        {
+            return new HttpResponse<JObject>(
+                new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, body.ToString()));
+        }
+
+        private static JObject BuildAuthorPage(IEnumerable<int> contributionIds)
+        {
+            return JObject.FromObject(new
+            {
+                data = new
+                {
+                    authors = new[]
+                    {
+                        new
+                        {
+                            id = 123,
+                            name = "Complete Author",
+                            slug = "complete-author",
+                            contributions = contributionIds.Select(contributionId =>
+                            {
+                                // Duplicate work IDs are emitted with distinct contribution IDs.
+                                var bookId = contributionId == 100 ? 1 : contributionId;
+
+                                return new
+                                {
+                                    id = contributionId,
+                                    book = new
+                                    {
+                                        id = bookId,
+                                        title = $"Book {bookId}",
+                                        cached_contributors = new[] { new { author = new { id = 456, name = "Coauthor" } } },
+                                        book_series = new[] { new { position = bookId, series = new { id = 789, name = "Complete Series" } } }
+                                    }
+                                };
+                            })
+                        }
+                    }
+                }
+            });
         }
 
         [Test]

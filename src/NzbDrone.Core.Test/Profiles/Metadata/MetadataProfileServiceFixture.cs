@@ -22,8 +22,12 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
         {
             Subject.Handle(new ApplicationStartedEvent());
 
-            Mocker.GetMock<IMetadataProfileRepository>()
-                  .Verify(v => v.Insert(It.IsAny<MetadataProfile>()), Times.Exactly(2));
+            var profiles = Mocker.GetMock<IMetadataProfileRepository>();
+            profiles.Verify(v => v.Insert(It.IsAny<MetadataProfile>()), Times.Exactly(3));
+            profiles.Verify(v => v.Insert(It.Is<MetadataProfile>(p => p.Name == "Complete Bibliography" &&
+                p.MinPopularity == 0 && p.MinPages == 0 && !p.SkipMissingDate && !p.SkipMissingIsbn &&
+                !p.SkipPartsAndSets && !p.SkipSeriesSecondary && string.IsNullOrWhiteSpace(p.AllowedLanguages) &&
+                p.Ignored.Count == 0)), Times.Once());
         }
 
         [Test]
@@ -34,6 +38,7 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
         {
             var profiles = Builder<MetadataProfile>.CreateListOfSize(2).Build().ToList();
             profiles[0].Name = "Standard";
+            profiles[1].Name = "Complete Bibliography";
 
             Mocker.GetMock<IMetadataProfileRepository>()
                   .Setup(s => s.All())
@@ -42,7 +47,8 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
             Subject.Handle(new ApplicationStartedEvent());
 
             Mocker.GetMock<IMetadataProfileRepository>()
-                  .Verify(v => v.Insert(It.Is<MetadataProfile>(x => x.Name == "Standard")), Times.Never());
+                  .Verify(v => v.Insert(It.Is<MetadataProfile>(x => x.Name == "Standard" ||
+                      x.Name == "Complete Bibliography")), Times.Never());
         }
 
         [Test]

@@ -437,7 +437,18 @@ namespace NzbDrone.Core.Profiles.Metadata
                 });
             }
 
-            // Make sure empty profile exists and is configured correctly
+            EnsureEmptyProfile(profiles, emptyProfile);
+
+            const string completeName = "Complete Bibliography";
+            if (!profiles.Any(profile => profile.Name == completeName))
+            {
+                _logger.Info("Setting up complete bibliography metadata profile");
+                Add(new MetadataProfile { Name = completeName });
+            }
+        }
+
+        private void EnsureEmptyProfile(List<MetadataProfile> profiles, MetadataProfile emptyProfile)
+        {
             if (emptyProfile != null && emptyProfile.MinPopularity == NONE_PROFILE_MIN_POPULARITY)
             {
                 return;
