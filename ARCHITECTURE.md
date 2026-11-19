@@ -16,6 +16,7 @@ This document is the high-level navigation contract for the repository. It is no
 | `.devcontainer/` | Reproducible development-container configuration |
 | `.vscode/` | Workspace settings and developer/editor integration |
 | `.claude/` | Claude-compatible workspace/agent configuration |
+| `.impeccable/` | Repository-scoped WebUI design review exceptions |
 | `.test-env/` | Disposable runtime state only; generated contents must not become source-of-truth project data |
 
 Each maintained area must have an applicable `AGENTS.md`.
