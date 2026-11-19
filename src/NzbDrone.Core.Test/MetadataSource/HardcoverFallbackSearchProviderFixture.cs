@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Text;
 using FluentAssertions;
@@ -31,6 +32,27 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IConfigService>()
                 .SetupGet(x => x.HardcoverRequestTimeoutSeconds)
                 .Returns(0);
+        }
+
+        [Test]
+        public void should_preserve_timestamp_offset_in_stringified_search_results()
+        {
+            var payload = JObject.Parse(BuildBookInfoPayload());
+            var search = payload.SelectToken("data.search");
+            var results = search["results"];
+            results.SelectToken("hits[0].document")["release_date"] = "1978-10-03T01:00:00+02:00";
+            search["results"] = results.ToString(Newtonsoft.Json.Formatting.None);
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString())));
+
+            var books = Subject.Search("The Stand", "Stephen King");
+            var book = books.Single(x => x.ForeignBookId == "hardcover:work:book-1");
+
+            book.ReleaseDate.Should().Be(new System.DateTime(1978, 10, 2, 23, 0, 0, System.DateTimeKind.Utc));
+            book.ReleaseDate.Value.Kind.Should().Be(System.DateTimeKind.Utc);
         }
 
         [Test]
@@ -257,7 +279,9 @@ namespace NzbDrone.Core.Test.MetadataSource
             book.ForeignBookId.Should().Be("hardcover:work:book-1");
             book.TitleSlug.Should().Be("hardcover-work-book-1");
             book.Title.Should().Be("The Stand");
-            book.ReleaseDate.Should().Be(new System.DateTime(1978, 10, 3));
+            var expectedReleaseDate = new DateTime(1978, 10, 3, 0, 0, 0, DateTimeKind.Utc);
+            book.ReleaseDate.Should().Be(expectedReleaseDate);
+            book.ReleaseDate.Value.Kind.Should().Be(DateTimeKind.Utc);
             book.Ratings.Votes.Should().Be(12);
             book.Ratings.Value.Should().Be(4.5m);
             book.AuthorMetadata.Value.Should().BeSameAs(metadata);
@@ -281,11 +305,30 @@ namespace NzbDrone.Core.Test.MetadataSource
             edition.Format.Should().Be("Ebook");
             edition.IsEbook.Should().BeTrue();
             edition.PageCount.Should().Be(823);
+            edition.ReleaseDate.Should().Be(expectedReleaseDate);
+            edition.ReleaseDate.Value.Kind.Should().Be(DateTimeKind.Utc);
             edition.Overview.Should().Be("A classic horror novel");
             edition.Ratings.Votes.Should().Be(12);
             edition.Ratings.Value.Should().Be(4.5m);
             edition.Images.Should().ContainSingle();
             edition.Images[0].Url.Should().Be("https://covers.example/stand.jpg");
+        }
+
+        [TestCase("\"1978-10-03T01:00:00+02:00\"", 10, 2, 23)]
+        [TestCase("null", 1, 1, 0)]
+        [TestCase("\"invalid date\"", 1, 1, 0)]
+        public void get_book_info_should_normalize_timestamps_and_year_fallback_to_utc(string releaseDateJson, int month, int day, int hour)
+        {
+            var payload = BuildBookInfoPayload().Replace("\"1978-10-03\"", releaseDateJson);
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                    new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            var book = Subject.GetBookInfo("hardcover:work:book-1").Item2;
+
+            book.ReleaseDate.Should().Be(new DateTime(1978, month, day, hour, 0, 0, DateTimeKind.Utc));
+            book.ReleaseDate.Value.Kind.Should().Be(DateTimeKind.Utc);
         }
 
         [Test]

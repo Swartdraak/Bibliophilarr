@@ -4,7 +4,6 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Cloud;
 using NzbDrone.Common.Http;
-using NzbDrone.Common.Serializer;
 using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.Localization;
 using NzbDrone.Core.Test.Framework;
@@ -25,10 +24,8 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
             Mocker.SetConstant(cloudBuilder.Object);
         }
 
-        private void GivenServerTime(DateTime dateTime)
+        private void GivenServerResponse(string json)
         {
-            var json = new ServiceTimeResponse { DateTimeUtc = dateTime }.ToJson();
-
             Mocker.GetMock<ILocalizationService>()
                   .Setup(s => s.GetLocalizedString(It.IsAny<string>()))
                   .Returns("System time is off by more than 1 day. Scheduled tasks may not run correctly until the time is corrected");
@@ -38,21 +35,34 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
                   .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), Encoding.ASCII.GetBytes(json)));
         }
 
-        [Test]
-        public void should_not_return_error_when_system_time_is_close_to_server_time()
+        [TestCase("utc")]
+        [TestCase("dateTimeUtc")]
+        public void should_not_return_error_when_system_time_is_close_to_server_time(string property)
         {
-            GivenServerTime(DateTime.UtcNow);
+            GivenServerResponse($"{{\"{property}\":\"{DateTime.UtcNow:O}\"}}");
 
             Subject.Check().ShouldBeOk();
         }
 
-        [Test]
-        public void should_return_error_when_system_time_is_more_than_one_day_from_server_time()
+        [TestCase("utc")]
+        [TestCase("dateTimeUtc")]
+        public void should_return_error_when_system_time_is_more_than_one_day_from_server_time(string property)
         {
-            GivenServerTime(DateTime.UtcNow.AddDays(2));
+            GivenServerResponse($"{{\"{property}\":\"{DateTime.UtcNow.AddDays(2):O}\"}}");
 
             Subject.Check().ShouldBeError();
             ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [TestCase("{}")]
+        [TestCase("null")]
+        [TestCase("{\"utc\":\"invalid\"}")]
+        public void should_skip_clock_comparison_when_no_timestamp_is_available(string response)
+        {
+            GivenServerResponse(response);
+
+            Subject.Check().ShouldBeOk();
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }
