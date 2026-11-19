@@ -14,7 +14,7 @@ namespace NzbDrone.Core.MediaFiles
 {
     public interface IUpgradeMediaFiles
     {
-        BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false);
+        BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false, bool replaceExisting = true);
     }
 
     public class UpgradeMediaFileService : IUpgradeMediaFiles
@@ -50,7 +50,7 @@ namespace NzbDrone.Core.MediaFiles
             _logger = logger;
         }
 
-        public BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false)
+        public BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false, bool replaceExisting = true)
         {
             var moveFileResult = new BookFileMoveResult();
             var allExistingFiles = localBook.Book.BookFiles.Value;
@@ -75,6 +75,18 @@ namespace NzbDrone.Core.MediaFiles
             else
             {
                 existingFiles = allExistingFiles;
+            }
+
+            if (!replaceExisting)
+            {
+                var conflictingFile = existingFiles.FirstOrDefault(file => file.EditionId == bookFile.EditionId && file.Part == bookFile.Part);
+                if (conflictingFile != null)
+                {
+                    moveFileResult.PreservedFile = conflictingFile;
+                    return moveFileResult;
+                }
+
+                existingFiles = new List<BookFile>();
             }
 
             var rootFolderPath = _diskProvider.GetParentFolder(localBook.Author.Path);
@@ -129,11 +141,15 @@ namespace NzbDrone.Core.MediaFiles
             {
                 if (copyOnly)
                 {
-                    moveFileResult.BookFile = _bookFileMover.CopyBookFile(bookFile, localBook);
+                    moveFileResult.BookFile = replaceExisting
+                        ? _bookFileMover.CopyBookFile(bookFile, localBook)
+                        : _bookFileMover.CopyBookFile(bookFile, localBook, false);
                 }
                 else
                 {
-                    moveFileResult.BookFile = _bookFileMover.MoveBookFile(bookFile, localBook);
+                    moveFileResult.BookFile = replaceExisting
+                        ? _bookFileMover.MoveBookFile(bookFile, localBook)
+                        : _bookFileMover.MoveBookFile(bookFile, localBook, false);
                 }
 
                 _metadataTagService.WriteTags(bookFile, true);
@@ -141,6 +157,12 @@ namespace NzbDrone.Core.MediaFiles
             else
             {
                 var source = bookFile.Path;
+
+                if (!replaceExisting)
+                {
+                    // Adding a format to an existing Calibre ID can overwrite that format.
+                    bookFile.CalibreId = 0;
+                }
 
                 moveFileResult.BookFile = _calibre.AddAndConvert(bookFile, settings);
 

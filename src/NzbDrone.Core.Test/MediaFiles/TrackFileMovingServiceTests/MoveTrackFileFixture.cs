@@ -62,6 +62,29 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackFileMovingServiceTests
                   .Returns(true);
         }
 
+        [TestCase(true, true, true)]
+        [TestCase(false, true, false)]
+        [TestCase(true, false, true)]
+        public void should_not_touch_an_occupied_destination_when_replacement_is_disabled(bool copyOnly, bool fileExists, bool tracked)
+        {
+            var destination = @"C:\Test\Music\Author\Book\File Name.mp3".AsOsAgnostic();
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(destination)).Returns(fileExists);
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFileWithPath(destination)).Returns(tracked ? new BookFile { Id = 42 } : null);
+
+            if (copyOnly)
+            {
+                Assert.Throws<DestinationAlreadyExistsException>(() => Subject.CopyBookFile(_trackFile, _localtrack, false));
+            }
+            else
+            {
+                Assert.Throws<DestinationAlreadyExistsException>(() => Subject.MoveBookFile(_trackFile, _localtrack, false));
+            }
+
+            Mocker.GetMock<IRecycleBinProvider>().Verify(s => s.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
+            Mocker.GetMock<IDiskTransferService>().Verify(s => s.TransferFile(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TransferMode>(), It.IsAny<bool>()), Times.Never());
+        }
+
         [Test]
         public void should_catch_UnauthorizedAccessException_during_folder_inheritance()
         {

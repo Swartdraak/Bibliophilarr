@@ -76,7 +76,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                                        }));
 
             Mocker.GetMock<IUpgradeMediaFiles>()
-                  .Setup(s => s.UpgradeBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>(), It.IsAny<bool>()))
+                  .Setup(s => s.UpgradeBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>(), It.IsAny<bool>(), It.IsAny<bool>()))
                   .Returns(new BookFileMoveResult());
 
             _clientInfo = Builder<DownloadClientItemClientInfo>.CreateNew().Build();
@@ -140,7 +140,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Subject.Import(new List<ImportDecision<LocalBook>> { _approvedDecisions.First() }, true);
 
             Mocker.GetMock<IUpgradeMediaFiles>()
-                  .Verify(v => v.UpgradeBookFile(It.IsAny<BookFile>(), _approvedDecisions.First().Item, false),
+                  .Verify(v => v.UpgradeBookFile(It.IsAny<BookFile>(), _approvedDecisions.First().Item, false, true),
                           Times.Once());
         }
 
@@ -161,7 +161,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Subject.Import(new List<ImportDecision<LocalBook>> { track }, false);
 
             Mocker.GetMock<IUpgradeMediaFiles>()
-                  .Verify(v => v.UpgradeBookFile(It.IsAny<BookFile>(), _approvedDecisions.First().Item, false),
+                  .Verify(v => v.UpgradeBookFile(It.IsAny<BookFile>(), _approvedDecisions.First().Item, false, false),
                           Times.Never());
         }
 
@@ -234,7 +234,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Subject.Import(new List<ImportDecision<LocalBook>> { _approvedDecisions.First() }, true, new DownloadClientItem { Title = "Alien.Ant.Farm-Truant", CanMoveFiles = false, DownloadClientInfo = _clientInfo });
 
             Mocker.GetMock<IUpgradeMediaFiles>()
-                  .Verify(v => v.UpgradeBookFile(It.IsAny<BookFile>(), _approvedDecisions.First().Item, true), Times.Once());
+                  .Verify(v => v.UpgradeBookFile(It.IsAny<BookFile>(), _approvedDecisions.First().Item, true, true), Times.Once());
         }
 
         [Test]
@@ -243,11 +243,11 @@ namespace NzbDrone.Core.Test.MediaFiles
             Subject.Import(new List<ImportDecision<LocalBook>> { _approvedDecisions.First() }, true, new DownloadClientItem { Title = "Alien.Ant.Farm-Truant", CanMoveFiles = false, DownloadClientInfo = _clientInfo }, ImportMode.Move);
 
             Mocker.GetMock<IUpgradeMediaFiles>()
-                  .Verify(v => v.UpgradeBookFile(It.IsAny<BookFile>(), _approvedDecisions.First().Item, false), Times.Once());
+                  .Verify(v => v.UpgradeBookFile(It.IsAny<BookFile>(), _approvedDecisions.First().Item, false, true), Times.Once());
         }
 
         [Test]
-        public void should_delete_existing_trackfiles_with_the_same_path()
+        public void should_replace_existing_trackfiles_with_the_same_path_when_explicitly_requested()
         {
             Mocker.GetMock<IMediaFileService>()
                 .Setup(s => s.GetFileWithPath(It.IsAny<string>()))
@@ -255,7 +255,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var track = _approvedDecisions.First();
             track.Item.ExistingFile = true;
-            Subject.Import(new List<ImportDecision<LocalBook>> { track }, false);
+            Subject.Import(new List<ImportDecision<LocalBook>> { track }, true);
 
             Mocker.GetMock<IMediaFileService>()
                 .Verify(v => v.Delete(It.IsAny<BookFile>(), DeleteMediaFileReason.ManualOverride), Times.Once());

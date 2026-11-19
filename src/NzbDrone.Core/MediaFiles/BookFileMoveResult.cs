@@ -10,6 +10,7 @@ namespace NzbDrone.Core.MediaFiles
         }
 
         public BookFile BookFile { get; set; }
+        public BookFile PreservedFile { get; set; }
         public List<BookFile> OldFiles { get; set; }
     }
 }

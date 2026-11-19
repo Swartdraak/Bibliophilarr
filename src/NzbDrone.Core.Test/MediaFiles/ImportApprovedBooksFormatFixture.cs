@@ -63,7 +63,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .Build();
 
             Mocker.GetMock<IUpgradeMediaFiles>()
-                .Setup(s => s.UpgradeBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>(), It.IsAny<bool>()))
+                .Setup(s => s.UpgradeBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>(), It.IsAny<bool>(), It.IsAny<bool>()))
                 .Returns(new BookFileMoveResult());
 
             Mocker.GetMock<IMediaFileService>()

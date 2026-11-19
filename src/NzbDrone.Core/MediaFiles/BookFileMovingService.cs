@@ -19,7 +19,9 @@ namespace NzbDrone.Core.MediaFiles
     {
         BookFile MoveBookFile(BookFile bookFile, Author author);
         BookFile MoveBookFile(BookFile bookFile, LocalBook localBook);
+        BookFile MoveBookFile(BookFile bookFile, LocalBook localBook, bool replaceExisting);
         BookFile CopyBookFile(BookFile bookFile, LocalBook localBook);
+        BookFile CopyBookFile(BookFile bookFile, LocalBook localBook, bool replaceExisting);
     }
 
     public class BookFileMovingService : IMoveBookFiles
@@ -82,6 +84,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public BookFile MoveBookFile(BookFile bookFile, LocalBook localBook)
         {
+            return MoveBookFile(bookFile, localBook, true);
+        }
+
+        public BookFile MoveBookFile(BookFile bookFile, LocalBook localBook, bool replaceExisting)
+        {
             var newFileName = _buildFileNames.BuildBookFileName(localBook.Author, localBook.Edition, bookFile);
             var filePath = BuildDestinationFilePath(localBook.Author, localBook.Edition, newFileName, Path.GetExtension(localBook.Path), bookFile.Quality);
 
@@ -89,10 +96,15 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug("Moving book file: {0} to {1}", bookFile.Path, filePath);
 
-            return TransferFile(bookFile, localBook.Author, localBook.Book, filePath, TransferMode.Move);
+            return TransferFile(bookFile, localBook.Author, localBook.Book, filePath, TransferMode.Move, replaceExisting);
         }
 
         public BookFile CopyBookFile(BookFile bookFile, LocalBook localBook)
+        {
+            return CopyBookFile(bookFile, localBook, true);
+        }
+
+        public BookFile CopyBookFile(BookFile bookFile, LocalBook localBook, bool replaceExisting)
         {
             var newFileName = _buildFileNames.BuildBookFileName(localBook.Author, localBook.Edition, bookFile);
             var filePath = BuildDestinationFilePath(localBook.Author, localBook.Edition, newFileName, Path.GetExtension(localBook.Path), bookFile.Quality);
@@ -102,11 +114,11 @@ namespace NzbDrone.Core.MediaFiles
             if (_configService.CopyUsingHardlinks)
             {
                 _logger.Debug("Hardlinking book file: {0} to {1}", bookFile.Path, filePath);
-                return TransferFile(bookFile, localBook.Author, localBook.Book, filePath, TransferMode.HardLinkOrCopy);
+                return TransferFile(bookFile, localBook.Author, localBook.Book, filePath, TransferMode.HardLinkOrCopy, replaceExisting);
             }
 
             _logger.Debug("Copying book file: {0} to {1}", bookFile.Path, filePath);
-            return TransferFile(bookFile, localBook.Author, localBook.Book, filePath, TransferMode.Copy);
+            return TransferFile(bookFile, localBook.Author, localBook.Book, filePath, TransferMode.Copy, replaceExisting);
         }
 
         private string BuildDestinationFilePath(Author author, Edition edition, string fileName, string extension, QualityModel quality)
@@ -125,7 +137,7 @@ namespace NzbDrone.Core.MediaFiles
             return _buildFileNames.BuildBookFilePath(author, edition, fileName, extension);
         }
 
-        private BookFile TransferFile(BookFile bookFile, Author author, Book book, string destinationFilePath, TransferMode mode)
+        private BookFile TransferFile(BookFile bookFile, Author author, Book book, string destinationFilePath, TransferMode mode, bool replaceExisting = true)
         {
             Ensure.That(bookFile, () => bookFile).IsNotNull();
             Ensure.That(author, () => author).IsNotNull();
@@ -143,12 +155,16 @@ namespace NzbDrone.Core.MediaFiles
                 throw new SameFilenameException("File not moved, source and destination are the same", bookFilePath);
             }
 
-            // Check if the destination path is occupied by a file tracked under
-            // a different book (e.g. a collection edition vs an individual edition).
-            // If so, recycle the occupying file and remove its DB record so the
-            // transfer can proceed without DestinationAlreadyExistsException.
-            if (_diskProvider.FileExists(destinationFilePath))
+            if (!replaceExisting)
             {
+                if (_diskProvider.FileExists(destinationFilePath) || _mediaFileService.GetFileWithPath(destinationFilePath) != null)
+                {
+                    throw new DestinationAlreadyExistsException($"Destination {destinationFilePath} is already occupied.");
+                }
+            }
+            else if (_diskProvider.FileExists(destinationFilePath))
+            {
+                // Explicit replacement can recycle a file tracked under a different edition.
                 var occupyingFile = _mediaFileService.GetFileWithPath(destinationFilePath);
                 if (occupyingFile != null)
                 {
