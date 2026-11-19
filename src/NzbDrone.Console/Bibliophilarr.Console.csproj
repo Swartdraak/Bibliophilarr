@@ -10,7 +10,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Host\Bibliophilarr.Host.csproj" />
-    <PackageReference Include="Microsoft.Data.Sqlite" />
   </ItemGroup>
   <!-- Issue #286: the name-based platform assembly load in
        NzbDrone.Common.Composition.AssemblyLoader (OsInfo.IsWindows
@@ -65,97 +64,5 @@
        with System.IO.FileNotFoundException before /ping is ever served. -->
   <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win'))">
     <ProjectReference Include="..\NzbDrone.Windows\Bibliophilarr.Windows.csproj" />
-  </ItemGroup>
-  <!-- Issue #270 (macos-latest app-smoke lane): the SQLite ADO provider
-       (System.Data.SQLite, the netstandard stub of System.Data.SQLite.Core)
-       must be present in the app base directory for every non-Windows
-       single-project Console publish. The app boots 158 SQLite migrations
-       through FluentMigrator 3.3.2 (ReflectionBasedDbFactory.CreateDatabase),
-       which materializes the provider assembly BY FILE PATH from the app base
-       directory (Assembly.LoadFile, no resolver fallback). The stub is a
-       project-local asset (Bibliophilarr.Core references System.Data.SQLite.Core
-       for its own Dapper/DbFactory usage), so a single-project
-       `dotnet publish Bibliophilarr.Console.csproj` does not copy it. On the
-       hosted osx runner the missing provider assembly made the app die at
-       first-boot migration before /ping was ever served (hosted check
-       133120267219, head c89b72f7: the runner image's ADO provider
-       materialization resolved by a name that file was absent for -
-       FileNotFoundException at ReflectionBasedDbFactory; receipt BUILD_ONLY).
-       This scoped copy puts the provider assembly in the publish output for
-       every non-Windows RID. The Windows publish is byte-for-byte unaffected
-       (the condition is the exact logical complement of the win-RID platform
-       group above). No product source, no runtime loader behavior, no
-       deps.json rewrite: the published app's startup composition is preserved,
-       and the by-path LoadFile can no longer fail on the provider assembly.
-       The copy source is the build output's System.Data.SQLite.dll (the same
-       stub the build emits); the path is relative to the Console project
-       directory (the project's OutputPath convention per
-       Directory.Build.props places the net10.0 build output at
-       <repo-root>/_output/net10.0). Pinned by
-       ConsoleSqliteProviderPublishIssue270Fixture. -->
-  <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/System.Data.SQLite.dll">
-      <Link>System.Data.SQLite.dll</Link>
-    </CopyToPublishDirectory>
-  </ItemGroup>
-  <!-- Issue #270 (macos-latest app-smoke lane, repair 5): the managed SQLite
-       provider assemblies FluentMigrator 3.3.2 materializes BY FILE PATH from
-       the app base directory at first boot (ReflectionBasedDbFactory:
-       FluentMigrator.dll / Runner.dll / Runner.Core.dll / Runner.SQLite.dll /
-       Abstractions.dll / Extensions.*.dll; the ADO provider
-       System.Data.SQLite.dll itself is covered by the repair-4 group above)
-       must be present in EVERY non-Windows single-project Console publish.
-       The app boots 158 SQLite migrations through FluentMigrator 3.3.2; on the
-       hosted osx runner the first-boot by-path provider materialization
-       resolved provider files that the single-project publish does not emit
-       into the app base directory (hosted checks 133120267219 at c89b72f7 and
-       133259224161 at 466edee54f: FileNotFoundException at
-       ReflectionBasedDbFactory, receipt BUILD_ONLY), so /ping was never served.
-       This repair copies the provider assemblies from the shared
-       _output/net10.0 build output (the same directory the repair-4 group
-       sources System.Data.SQLite.dll from; the full-sln Release build emits
-       every referenced assembly there) into the publish output for every
-       non-Windows RID, under a RID gate evaluated at PUBLISH time (the
-       NonWinRidProviderProbe property: empty at restore/build time, so the
-       portable solution model is untouched; 'true' when the publish RID is
-       not win-* — the exact logical complement of the win-RID platform group
-       above, mirroring the issue-#286/#270 RID-scoped ItemGroup style). The
-       Windows publish is byte-for-byte unaffected. No product source, no
-       runtime loader behavior, no new package, no dependency-version change:
-       the published app's startup composition is preserved and the by-path
-       provider materialization can no longer fail on the provider surface.
-       Pinned by ConsoleSqliteProviderPublishIssue270Fixture (repair-5
-       assertions appended). -->
-  <PropertyGroup>
-    <NonWinRidProviderProbe Condition="'$(RuntimeIdentifier)' != '' and !$(RuntimeIdentifier.StartsWith('win'))">true</NonWinRidProviderProbe>
-  </PropertyGroup>
-  <ItemGroup Condition="'$(NonWinRidProviderProbe)' == 'true'">
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.dll">
-      <Link>FluentMigrator.dll</Link>
-    </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Runner.dll">
-      <Link>FluentMigrator.Runner.dll</Link>
-    </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Runner.Core.dll">
-      <Link>FluentMigrator.Runner.Core.dll</Link>
-    </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Runner.SQLite.dll">
-      <Link>FluentMigrator.Runner.SQLite.dll</Link>
-    </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Abstractions.dll">
-      <Link>FluentMigrator.Abstractions.dll</Link>
-    </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Extensions.Oracle.dll">
-      <Link>FluentMigrator.Extensions.Oracle.dll</Link>
-    </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Extensions.Postgres.dll">
-      <Link>FluentMigrator.Extensions.Postgres.dll</Link>
-    </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Extensions.SqlAnywhere.dll">
-      <Link>FluentMigrator.Extensions.SqlAnywhere.dll</Link>
-    </CopyToPublishDirectory>
-    <CopyToPublishDirectory Include="_output/net10.0/$(RuntimeIdentifier)/FluentMigrator.Extensions.SqlServer.dll">
-      <Link>FluentMigrator.Extensions.SqlServer.dll</Link>
-    </CopyToPublishDirectory>
   </ItemGroup>
 </Project>

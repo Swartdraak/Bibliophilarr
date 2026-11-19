@@ -46,12 +46,10 @@ namespace NzbDrone.Core.Datastore
 
         private static DatabaseConnectionInfo GetConnectionString(string dbPath)
         {
-            // Issue #270: the macOS SQLite provider rejects the page-cache
-            // keyword, so the -20000 hint is only emitted for non-osx hosts
-            // (see the osx gate below); every other keyword is unchanged.
             var connectionBuilder = new SQLiteConnectionStringBuilder
             {
                 DataSource = dbPath,
+                CacheSize = -20000,
                 DateTimeKind = DateTimeKind.Utc,
                 JournalMode = OsInfo.IsOsx ? SQLiteJournalModeEnum.Truncate : SQLiteJournalModeEnum.Wal,
                 Pooling = true,
@@ -62,10 +60,6 @@ namespace NzbDrone.Core.Datastore
             if (OsInfo.IsOsx)
             {
                 connectionBuilder.Add("Full FSync", true);
-            }
-            else
-            {
-                connectionBuilder.CacheSize = -20000;
             }
 
             return new DatabaseConnectionInfo(DatabaseType.SQLite, connectionBuilder.ConnectionString);

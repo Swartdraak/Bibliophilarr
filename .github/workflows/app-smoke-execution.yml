@@ -87,19 +87,6 @@ jobs:
           $lic = $env:SIXLABORS_LICENSE_FILE
           if (-not [System.IO.File]::Exists($lic)) { throw "Six Labors license missing at $lic" }
           $out = Join-Path $env:RUNNER_TEMP 'pub-win-x64'
-          # Durable reliability repair (issue #270): build the full solution first
-          # and then publish the single Console project. The single-project
-          # restore has been a moving composition target (the 9-head macOS
-          # failure lineage); building the solution populates the shared
-          # _output/net10.0/win-x64 build output that the csproj's
-          # CopyToPublishDirectory provider-surface items source from, so the
-          # publish consumes the deterministic, full-graph composition instead
-          # of whatever the isolated project restore happens to resolve.
-          # Platform=Windows matches the repo's established Windows build lane
-          # (cross-build-portability.yml).
-          dotnet build src/Bibliophilarr.sln --configuration Release -p:Platform=Windows `
-            "-p:SixLaborsLicenseFile=$lic"
-          if ($LASTEXITCODE -ne 0) { throw "full-solution build failed" }
           dotnet publish src/NzbDrone.Console/Bibliophilarr.Console.csproj `
             --configuration Release --framework net10.0 `
             -p:RuntimeIdentifier=win-x64 -p:UseAppHost=true `
@@ -331,6 +318,8 @@ jobs:
             --configuration Release --framework net10.0 \
             -p:RuntimeIdentifier="$RID" -p:UseAppHost=true \
             "-p:SixLaborsLicenseFile=$lic" -o "$out"
+          test -f "$out/System.Data.SQLite.dll"
+          test -f "$out/libe_sqlite3.dylib"
           echo "published to $out"
           # List the published apphost/dlls without `ls | grep` (shellcheck SC2010).
           for f in "$out"/Bibliophilarr*; do [ -e "$f" ] && echo "  $(basename "$f")"; done
