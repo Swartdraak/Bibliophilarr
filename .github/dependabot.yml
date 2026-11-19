@@ -23,6 +23,12 @@ updates:
     labels:
       - "area:dependencies"
     target-branch: "develop"
+    ignore:
+      # Runtime-family changes need a coordinated .NET migration.
+      - dependency-name: "Microsoft.AspNetCore.SignalR.Client"
+        versions: ["11.*"]
+      - dependency-name: "Microsoft.Extensions.Caching.Memory"
+        versions: ["11.*"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -39,3 +45,9 @@ updates:
     labels:
       - "area:dependencies"
     target-branch: "develop"
+    ignore:
+      # Keep the SDK and runtime aligned with global.json and the app target.
+      - dependency-name: "dotnet/sdk"
+        versions: ["~> 11.0"]
+      - dependency-name: "dotnet/aspnet"
+        versions: ["~> 11.0"]
