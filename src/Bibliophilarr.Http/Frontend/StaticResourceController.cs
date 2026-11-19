@@ -1,12 +1,16 @@
 using System.Collections.Generic;
 using System.Linq;
+using Bibliophilarr.Http.Authentication;
 using Bibliophilarr.Http.Extensions;
 using Bibliophilarr.Http.Frontend.Mappers;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Common.Instrumentation;
+using NzbDrone.Core.Authentication;
+using NzbDrone.Core.Configuration;
 
 namespace Bibliophilarr.Http.Frontend
 {
@@ -26,8 +30,22 @@ namespace Bibliophilarr.Http.Frontend
 
         [AllowAnonymous]
         [HttpGet("login")]
-        public IActionResult LoginPage()
+        public IActionResult LoginPage([FromServices] IAuthenticationService authenticationService,
+                                       [FromServices] IConfigFileProvider config,
+                                       [FromServices] IAntiforgery antiforgery,
+                                       [FromQuery] bool setupInvalid = false)
         {
+            if (FirstAccountSetup.IsDirectLocalRequest(HttpContext) &&
+                config.AuthenticationMethod == AuthenticationType.Forms &&
+                config.AuthenticationRequired == AuthenticationRequiredType.Enabled &&
+                authenticationService.FindUser() == null &&
+                _requestMappers.OfType<LoginHtmlMapper>().SingleOrDefault() is { } mapper)
+            {
+                var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+                Response.Headers.DisableCache();
+                return mapper.GetSetupResponse(tokens.RequestToken, setupInvalid);
+            }
+
             return MapResource("login");
         }
 

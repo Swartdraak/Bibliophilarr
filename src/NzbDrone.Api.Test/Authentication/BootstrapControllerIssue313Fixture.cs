@@ -1,4 +1,7 @@
+using System.Net;
+using Bibliophilarr.Http.Authentication;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using NUnit.Framework;
@@ -63,8 +66,18 @@ namespace NzbDrone.Api.Test.Authentication
             authService.Verify(a => a.AddUser(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         }
 
+        [Test]
+        public void bootstrap_should_reject_a_forwarded_request()
+        {
+            var (controller, authService) = CreateController(existingUser: null, forwarded: true);
+            var result = controller.Bootstrap(new BootstrapResource { Username = "admin", Password = "AValidPassword123" });
+
+            result.Should().BeOfType<StatusCodeResult>().Which.StatusCode.Should().Be(403);
+            authService.Verify(a => a.AddUser(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        }
+
         private static (Bibliophilarr.Http.Authentication.AuthenticationController, Moq.Mock<Bibliophilarr.Http.Authentication.IAuthenticationService>) CreateController(
-            NzbDrone.Core.Authentication.User existingUser)
+            NzbDrone.Core.Authentication.User existingUser, bool forwarded = false)
         {
             var authService = new Mock<Bibliophilarr.Http.Authentication.IAuthenticationService>();
             authService.Setup(a => a.FindUser()).Returns(existingUser);
@@ -74,6 +87,16 @@ namespace NzbDrone.Api.Test.Authentication
             var appFolderInfo = new Mock<NzbDrone.Common.EnvironmentInfo.IAppFolderInfo>();
             var controller = new Bibliophilarr.Http.Authentication.AuthenticationController(
                 authService.Object, configProvider.Object, appFolderInfo.Object, null);
+            var context = new DefaultHttpContext();
+            context.Connection.RemoteIpAddress = IPAddress.Loopback;
+            context.Request.Host = new HostString("localhost");
+            if (forwarded)
+            {
+                context.Request.Headers["X-Forwarded-For"] = "127.0.0.1";
+            }
+
+            FirstAccountSetup.CaptureRequest(context);
+            controller.ControllerContext = new ControllerContext { HttpContext = context };
             return (controller, authService);
         }
     }
