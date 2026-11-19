@@ -61,27 +61,17 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
         [Test]
         public void set_monitored_by_format_should_not_throw_when_no_same_format_edition_matches()
         {
-            // The imported edition IsEbook does not match any stored edition for the book
-            // (format misclassification). Previously this threw an ArgumentException and
-            // aborted the entire RescanFolders batch (see issue #203).
-            InsertEdition(bookId: 1, isEbook: true, monitored: false);
+            var ebook = InsertEdition(bookId: 1, isEbook: true, monitored: false);
+            var audio = InsertEdition(bookId: 1, isEbook: false, monitored: true);
+            ebook.IsEbook = false;
 
-            var mismatchedEdition = new Edition
-            {
-                Id = 999,
-                BookId = 1,
-                IsEbook = false,
-                Monitored = false,
-                ForeignEditionId = "mismatched-edition",
-                Title = "Mismatched",
-                TitleSlug = "mismatched"
-            };
+            Subject.SetMonitoredByFormat(ebook);
 
-            var act = () => Subject.SetMonitoredByFormat(mismatchedEdition);
-
-            act.Should().NotThrow();
-
-            ExceptionVerification.ExpectedWarns(2);
+            var stored = Db.All<Edition>();
+            stored.Should().Contain(edition => edition.Id == ebook.Id && edition.IsEbook && !edition.Monitored);
+            stored.Should().Contain(edition => edition.Id == audio.Id && edition.Monitored);
+            ebook.IsEbook.Should().BeFalse();
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -89,7 +79,7 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
         {
             // The imported edition id is not present in the book stored editions
             // (stale/unsaved edition id). Previously this threw an ArgumentException.
-            InsertEdition(bookId: 1, isEbook: true, monitored: false);
+            var ebook = InsertEdition(bookId: 1, isEbook: true, monitored: true);
 
             var staleEdition = new Edition
             {
@@ -106,7 +96,8 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
 
             act.Should().NotThrow();
 
-            ExceptionVerification.ExpectedWarns(2);
+            Db.All<Edition>().Should().ContainSingle(edition => edition.Id == ebook.Id && edition.Monitored);
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

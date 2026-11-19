@@ -109,50 +109,22 @@ namespace NzbDrone.Core.Books
         public List<Edition> SetMonitoredByFormat(Edition edition)
         {
             var allEditions = FindByBook(new[] { edition.BookId });
-            var format = edition.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
-            var hasUntrackedFormat = allEditions.Any(existing => existing.Id == edition.Id && existing.HasUntrackedFormat());
-            var sameFormat = allEditions.Where(existing =>
-                hasUntrackedFormat ? existing.HasUntrackedFormat() : existing.MatchesFormat(format)).ToList();
-
-            sameFormat.ForEach(r => r.Monitored = r.Id == edition.Id);
-
-            // Defensive: if no same-format edition ended up monitored (the imported edition's
-            // IsEbook does not match the stored editions, or its id is not present in the book's
-            // editions), do NOT throw. Throwing here aborts the entire RescanFolders batch and
-            // leaves every remaining file un-imported (see issue #203). Log a diagnostic and
-            // fall back to the format-agnostic monitored update.
-            if (sameFormat.Count(x => x.Monitored) != 1)
+            var storedEdition = allEditions.SingleOrDefault(existing => existing.Id == edition.Id);
+            if (storedEdition == null || storedEdition.IsEbook != edition.IsEbook)
             {
                 Logger.Warn(
-                    "SetMonitoredByFormat: no same-format edition matched for book {0} (edition {1}, IsEbook {2}); " +
-                    "found {3} same-format edition(s). Falling back to SetMonitored.",
+                    "Skipping edition monitoring update for book {0}, edition {1}: imported IsEbook={2}, stored IsEbook={3}.",
                     edition.BookId,
                     edition.Id,
                     edition.IsEbook,
-                    sameFormat.Count);
-
-                // The format-agnostic fallback can also fail to match (edition id not present in
-                // the book's editions). Guard against that so we never throw here.
-                if (allEditions.Any(x => x.Id == edition.Id))
-                {
-                    // Use the stored edition's IsEbook (not the imported edition's) so the
-                    // fallback does not unmonitor the other format when the imported IsEbook
-                    // is misclassified.
-                    var storedEdition = allEditions.First(x => x.Id == edition.Id);
-                    edition.IsEbook = storedEdition.IsEbook;
-                    return SetMonitored(edition);
-                }
-
-                Logger.Warn(
-                    "SetMonitoredByFormat: edition {0} is not present in book {1}; no monitored update applied.",
-                    edition.Id,
-                    edition.BookId);
-
-                // Re-query from DB to return a consistent snapshot (the in-memory
-                // allEditions list was mutated by sameFormat.ForEach above).
-                return FindByBook(new[] { edition.BookId });
+                    storedEdition?.IsEbook.ToString() ?? "missing");
+                return allEditions;
             }
 
+            var format = storedEdition.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
+            var sameFormat = allEditions.Where(existing =>
+                storedEdition.HasUntrackedFormat() ? existing.HasUntrackedFormat() : existing.MatchesFormat(format)).ToList();
+            sameFormat.ForEach(existing => existing.Monitored = existing.Id == edition.Id);
             UpdateMany(sameFormat);
             return allEditions;
         }

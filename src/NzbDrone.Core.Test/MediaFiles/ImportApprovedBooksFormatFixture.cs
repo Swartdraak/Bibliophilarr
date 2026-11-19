@@ -157,6 +157,43 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .Verify(v => v.SetMonitored(It.IsAny<Edition>()), Times.Never());
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_persist_later_files_when_one_approved_book_cannot_be_prepared(bool missingAuthor)
+        {
+            GivenAudiobookImport();
+            Mocker.GetMock<IConfigService>().Setup(s => s.EnableDualFormatTracking).Returns(true);
+            _book.ForeignBookId = "valid-work";
+            var brokenBook = new Book { Id = 2, ForeignBookId = "broken-work", Title = "Broken Book" };
+            var brokenEdition = new Edition { Id = 30, BookId = brokenBook.Id };
+            var brokenDecision = new ImportDecision<LocalBook>(new LocalBook
+            {
+                Author = missingAuthor ? null : _author,
+                Book = brokenBook,
+                Edition = brokenEdition,
+                Part = 1,
+                ExistingFile = true,
+                Path = Path.Combine(_author.Path, "Broken Book.epub"),
+                Quality = new QualityModel(Quality.EPUB),
+                FileTrackInfo = new ParsedTrackInfo()
+            });
+            _approvedDecisions.Insert(0, brokenDecision);
+            Mocker.GetMock<IEditionService>()
+                .Setup(s => s.SetMonitoredByFormat(brokenEdition))
+                .Throws(new System.InvalidOperationException("Unable to update edition"));
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.ImportDecision == brokenDecision && result.Result == ImportResultType.Rejected);
+            results.Should().ContainSingle(result => result.ImportDecision == _approvedDecisions[1] && result.Result == ImportResultType.Imported);
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].EditionId == _audiobookEdition.Id)), Times.Once());
+            if (!missingAuthor)
+            {
+                ExceptionVerification.ExpectedErrors(1);
+            }
+        }
+
         [Test]
         public void should_use_SetMonitored_when_flag_off()
         {

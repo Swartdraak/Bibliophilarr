@@ -9,6 +9,9 @@ process.
 
 ### Fixed
 
+- A malformed book or edition no longer interrupts the rest of a library
+  import batch. Rejected files report why preparation failed, and inconsistent
+  edition monitoring updates preserve the existing selections for both formats.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
   requested. Distinct provider work IDs retain separate catalogue records.
