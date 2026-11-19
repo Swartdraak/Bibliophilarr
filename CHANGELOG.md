@@ -41,6 +41,8 @@ process.
   import matches stay available for review.
 - Preserve linked edition formats and independent monitoring selections when
   refreshing metadata.
+- Read correctly labeled ASINs from EPUB metadata and avoid using folder names
+  as ebook identifiers during import.
 - Use verified alternate sources for missing edition details and author
   portraits. Display an available cover from the same work, and show a
   representative member cover alongside a series when available.

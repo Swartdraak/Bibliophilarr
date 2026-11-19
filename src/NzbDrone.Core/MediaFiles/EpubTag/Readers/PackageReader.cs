@@ -10,6 +10,8 @@ namespace VersOne.Epub.Internal
 {
     public static class PackageReader
     {
+        private const string OpfNamespaceUri = "http://www.idpf.org/2007/opf";
+
         public static async Task<EpubPackage> ReadPackageAsync(ZipArchive epubArchive, string rootFilePath)
         {
             var rootFileEntry = epubArchive.GetEntry(rootFilePath);
@@ -25,7 +27,7 @@ namespace VersOne.Epub.Internal
                 containerDocument = await XmlUtils.LoadDocumentAsync(containerStream).ConfigureAwait(false);
             }
 
-            XNamespace opfNamespace = "http://www.idpf.org/2007/opf";
+            XNamespace opfNamespace = OpfNamespaceUri;
             var packageNode = containerDocument.Element(opfNamespace + "package");
 
             if (packageNode == null)
@@ -80,7 +82,7 @@ namespace VersOne.Epub.Internal
                 containerDocument = XmlUtils.LoadDocument(containerStream);
             }
 
-            XNamespace opfNamespace = "http://www.idpf.org/2007/opf";
+            XNamespace opfNamespace = OpfNamespaceUri;
             var packageNode = containerDocument.Element(opfNamespace + "package");
 
             if (packageNode == null)
@@ -281,7 +283,7 @@ namespace VersOne.Epub.Internal
                     case "id":
                         result.Id = attributeValue;
                         break;
-                    case "opf:scheme":
+                    case "scheme" when metadataIdentifierNodeAttribute.Name.NamespaceName is OpfNamespaceUri or "":
                         result.Scheme = attributeValue;
                         break;
                 }

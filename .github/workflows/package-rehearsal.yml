@@ -14,6 +14,8 @@ on:
       - 'src/NzbDrone.Core/Books/Services/BookWorkIdentity.cs'
       - 'src/NzbDrone.Core/Books/Services/Refresh*Service.cs'
       - 'src/NzbDrone.Core/MediaFiles/BookImport/**'
+      - 'src/NzbDrone.Core/MediaFiles/EbookTagService.cs'
+      - 'src/NzbDrone.Core/MediaFiles/EpubTag/**'
       - 'src/NzbDrone.Core/MetadataSource/**'
       - 'distribution/windows/setup/**'
       - 'scripts/ops/check_release_assets.py'
