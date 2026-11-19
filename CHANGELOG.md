@@ -9,6 +9,8 @@ process.
 
 ### Fixed
 
+- Book detail and list badges now reflect the effective monitoring state when a
+  book or its author is unmonitored. Saved format preferences are preserved (#449).
 - Preserve the existing destination file and its tracking record when a manual import from a different source path would replace it and file replacement is disabled. With dual-format tracking, an ebook and an audiobook can still be added independently. (#426)
 - Restore database array filters on .NET 10 so the post-import history lookup records completed imports. (#435)
 - Restore rTorrent monitoring with blank categories, validate SABnzbd's default sorting when using its default category, and poll a shared NZBVortex group only once.
