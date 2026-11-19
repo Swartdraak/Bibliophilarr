@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bibliophilarr release manifest version 1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "version",
+    "channel",
+    "source",
+    "verification",
+    "updatePolicy",
+    "artifacts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "version": {
+      "type": "string"
+    },
+    "tag": {
+      "type": "string",
+      "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-rc\\.(0|[1-9][0-9]*))?$"
+    },
+    "channel": {
+      "enum": [
+        "stable",
+        "releaseCandidate",
+        "rehearsal"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "repository",
+        "commit"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "releaseNotesUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://github\\.com/"
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "signatureType"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "SHA-256"
+        },
+        "signatureType": {
+          "const": "none"
+        }
+      },
+      "additionalProperties": false
+    },
+    "updatePolicy": {
+      "type": "object",
+      "required": [
+        "automaticInstall",
+        "backupRequired",
+        "migrationAdvice"
+      ],
+      "properties": {
+        "automaticInstall": {
+          "const": false
+        },
+        "backupRequired": {
+          "const": true
+        },
+        "migrationAdvice": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "channel": {
+            "const": "stable"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "version": {
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": [
+          "tag",
+          "releaseNotesUrl"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "channel": {
+            "const": "releaseCandidate"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "version": {
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)-rc\\.(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": [
+          "tag",
+          "releaseNotesUrl"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "channel": {
+            "const": "rehearsal"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "version": {
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)-rehearsal\\.[0-9]+\\.[0-9]+$"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "tag"
+              ]
+            },
+            {
+              "required": [
+                "releaseNotesUrl"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": [
+        "name",
+        "rid",
+        "kind",
+        "bytes",
+        "sha256",
+        "runtime"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^bibliophilarr-[A-Za-z0-9.-]+$"
+        },
+        "rid": {
+          "enum": [
+            "linux-x64",
+            "linux-arm64",
+            "osx-x64",
+            "osx-arm64",
+            "win-x64"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "portable",
+            "installer"
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtime"
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "targetFramework",
+        "bundled",
+        "sharedFrameworks"
+      ],
+      "properties": {
+        "targetFramework": {
+          "const": "net10.0"
+        },
+        "bundled": {
+          "const": false
+        },
+        "sharedFrameworks": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "version"
+            ],
+            "properties": {
+              "name": {
+                "enum": [
+                  "Microsoft.NETCore.App",
+                  "Microsoft.AspNetCore.App"
+                ]
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^10\\.0\\.[0-9]+$"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

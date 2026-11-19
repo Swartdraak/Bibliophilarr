@@ -11,10 +11,6 @@ on:
         description: 'Existing release tag (example: v1.2.3)'
         required: true
         type: string
-      stagingDbPath:
-        description: 'Path to staging bibliophilarr.db for series gate snapshot generation'
-        required: false
-        default: ''
       draft:
         description: 'Create release as draft'
         required: false
@@ -34,13 +30,10 @@ jobs:
     name: Release Entry Gate
     needs: release-source
     runs-on: ubuntu-latest
-    # Advisory for initial releases — remove continue-on-error once snapshot
-    # generation cadence is established and gates are consistently passing.
-    continue-on-error: true
     timeout-minutes: 15
 
     steps:
-      - name: Checkout
+      - name: Checkout verified source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
@@ -49,30 +42,6 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
-
-      - name: Generate series persistence snapshot
-        env:
-          STAGING_DB_PATH: ${{ github.event.inputs.stagingDbPath }}
-        run: |
-          if [[ -z "${STAGING_DB_PATH}" ]]; then
-            echo "::warning::No staging database path provided — skipping series persistence snapshot."
-            echo "For manual dispatch, set the 'stagingDbPath' input."
-            exit 0
-          fi
-
-          if [[ ! -f "${STAGING_DB_PATH}" ]]; then
-            echo "Staging database path does not exist: ${STAGING_DB_PATH}"
-            exit 1
-          fi
-
-          run_date="$(date +%Y-%m-%d)"
-          snapshot_dir="docs/operations/series-persistence-snapshots"
-          mkdir -p "${snapshot_dir}" _artifacts/release-entry
-
-          python3 scripts/series_persistence_gate.py \
-            --db-path "${STAGING_DB_PATH}" \
-            --json-out "${snapshot_dir}/${run_date}.json" \
-            --md-out "${snapshot_dir}/${run_date}.md"
 
       - name: Enforce release-entry evidence gates
         run: |
@@ -87,118 +56,16 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-entry-gate
-          path: |
-            _artifacts/release-entry
-            docs/operations/series-persistence-snapshots
+          path: _artifacts/release-entry
 
   build-package:
-    name: Build and Package (${{ matrix.rid }})
     needs: [release-source, release-entry-gate]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            rid: linux-x64
-            archive_ext: tar.gz
-          - os: macos-latest
-            rid: osx-arm64
-            archive_ext: tar.gz
-          - os: windows-latest
-            rid: win-x64
-            archive_ext: zip
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with:
-          dotnet-version: '10.0.x'
-          global-json-file: global.json
-
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '22.22.2'
-
-      - name: Enable Yarn
-        shell: bash
-        run: |
-          corepack enable
-          corepack prepare yarn@1.22.19 --activate
-          yarn --version
-
-      - name: Build backend
-        shell: bash
-        env:
-          BIBLIOPHILARRVERSION: ${{ needs.release-source.outputs.core }}
-          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
-        run: |
-          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
-          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
-          export SIXLABORS_LICENSE_FILE="$RUNNER_TEMP/sixlabors.lic"
-          ./build.sh --backend -r ${{ matrix.rid }} -f net10.0
-
-      - name: Build frontend
-        shell: bash
-        run: ./build.sh --frontend
-
-      - name: Build package
-        shell: bash
-        env:
-          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
-        run: |
-          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
-          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
-          export SIXLABORS_LICENSE_FILE="$RUNNER_TEMP/sixlabors.lic"
-          ./build.sh --packages -r ${{ matrix.rid }} -f net10.0
-
-      - name: Archive package (unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          mkdir -p release
-          tar -C "_artifacts/${{ matrix.rid }}/net10.0" \
-            -czf "release/bibliophilarr-${{ needs.release-source.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" \
-            Bibliophilarr
-
-      - name: Archive package (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path release -Force | Out-Null
-          Compress-Archive `
-            -Path "_artifacts/${{ matrix.rid }}/net10.0/Bibliophilarr/*" `
-            -DestinationPath "release/bibliophilarr-${{ needs.release-source.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" `
-            -Force
-
-      - name: Build installer (windows only)
-        if: runner.os == 'Windows'
-        continue-on-error: true  # Installer requires net10.0-windows GUI project; portable zip is primary artifact
-        shell: bash
-        env:
-          MAJORVERSION: ${{ needs.release-source.outputs.core }}
-          MINORVERSION: '0'
-          BIBLIOPHILARRVERSION: ${{ needs.release-source.outputs.core }}
-          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
-        run: |
-          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
-          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
-          export SIXLABORS_LICENSE_FILE="$RUNNER_TEMP/sixlabors.lic"
-          ./build.sh --installer -r win-x64 -f net10.0
-          cp distribution/windows/setup/output/*.exe release/ || true
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-${{ matrix.rid }}
-          path: release/*
+    uses: ./.github/workflows/package-assets.yml
+    with:
+      version: ${{ needs.release-source.outputs.version }}
+      core-version: ${{ needs.release-source.outputs.core }}
+    secrets:
+      SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
 
   draft-release:
     name: GitHub Release
@@ -209,21 +76,16 @@ jobs:
       contents: write
 
     steps:
-      - name: Download packaged artifacts
+      - name: Download verified release assets
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: release-assets
-          pattern: release-*
-          merge-multiple: true
+          name: release-assets
 
-      - name: Generate SHA256 checksums
+      - name: Confirm artifact checksums
         shell: bash
         working-directory: release-assets
-        run: |
-          find . -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec sha256sum {} + > SHA256SUMS.txt
-          echo "::group::SHA256 Checksums"
-          cat SHA256SUMS.txt
-          echo "::endgroup::"
+        run: sha256sum --check SHA256SUMS.txt
 
       - name: Create release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v2
@@ -236,4 +98,6 @@ jobs:
           files: |
             release-assets/*.tar.gz
             release-assets/*.zip
+            release-assets/*.exe
             release-assets/SHA256SUMS.txt
+            release-assets/release-manifest.json

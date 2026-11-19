@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.IO.Abstractions;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -61,44 +60,30 @@ namespace NzbDrone.Windows.Disk
             fileInfo.SetAccessControl(fs);
         }
 
-        public override void SetEveryonePermissions(string filename)
+        public override void EnsurePrivateFolder(string path)
         {
-            var accountSid = WellKnownSidType.WorldSid;
-            var rights = FileSystemRights.Modify;
-            var controlType = AccessControlType.Allow;
+            Ensure.That(path, () => path).IsValidPath(PathValidationType.CurrentOs);
 
-            try
+            var directory = new DirectoryInfo(path);
+            if (directory.Exists)
             {
-                var sid = new SecurityIdentifier(accountSid, null);
-
-                var directoryInfo = new DirectoryInfo(filename);
-                var directorySecurity = directoryInfo.GetAccessControl(AccessControlSections.Access);
-
-                var rules = directorySecurity.GetAccessRules(true, false, typeof(SecurityIdentifier));
-
-                if (rules.OfType<FileSystemAccessRule>().Any(acl => acl.AccessControlType == controlType && (acl.FileSystemRights & rights) == rights && acl.IdentityReference.Equals(sid)))
-                {
-                    return;
-                }
-
-                var accessRule = new FileSystemAccessRule(sid,
-                                                          rights,
-                                                          InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                                                          PropagationFlags.InheritOnly,
-                                                          controlType);
-
-                directorySecurity.ModifyAccessRule(AccessControlModification.Add, accessRule, out var modified);
-
-                if (modified)
-                {
-                    directoryInfo.SetAccessControl(directorySecurity);
-                }
+                return;
             }
-            catch (Exception e)
-            {
-                Logger.Warn(e, "Couldn't set permission for {0}. account:{1} rights:{2} accessControlType:{3}", filename, accountSid, rights, controlType);
-                throw;
-            }
+
+            using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+            var userSid = identity.User ?? throw new UnauthorizedAccessException("Cannot identify the Windows account for the data directory.");
+            var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+            var administratorsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            const InheritanceFlags inheritance = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+
+            var security = new DirectorySecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.AddAccessRule(new FileSystemAccessRule(userSid, FileSystemRights.Modify, inheritance, PropagationFlags.None, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(systemSid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(administratorsSid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+
+            // Apply the DACL at creation, before the app writes configuration or credentials.
+            directory.Create(security);
         }
 
         public override void SetFilePermissions(string path, string mask, string group)

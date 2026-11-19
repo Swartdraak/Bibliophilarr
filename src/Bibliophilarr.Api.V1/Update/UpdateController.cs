@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.EnvironmentInfo;
@@ -13,11 +15,19 @@ namespace Bibliophilarr.Api.V1.Update
     {
         private readonly IRecentUpdateProvider _recentUpdateProvider;
         private readonly IUpdateHistoryService _updateHistoryService;
+        private readonly IPublicReleaseDiscovery _publicReleaseDiscovery;
 
-        public UpdateController(IRecentUpdateProvider recentUpdateProvider, IUpdateHistoryService updateHistoryService)
+        public UpdateController(IRecentUpdateProvider recentUpdateProvider, IUpdateHistoryService updateHistoryService, IPublicReleaseDiscovery publicReleaseDiscovery)
         {
             _recentUpdateProvider = recentUpdateProvider;
             _updateHistoryService = updateHistoryService;
+            _publicReleaseDiscovery = publicReleaseDiscovery;
+        }
+
+        [HttpPost("check")]
+        public Task<PublicReleaseCheck> CheckPublicRelease(CancellationToken cancellationToken)
+        {
+            return _publicReleaseDiscovery.Check(BuildInfo.Version, cancellationToken);
         }
 
         [HttpGet]

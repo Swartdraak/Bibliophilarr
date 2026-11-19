@@ -11,22 +11,22 @@ namespace NzbDrone.Common.EnvironmentInfo
     public interface IAppFolderFactory
     {
         void Register();
-        void SetPermissions();
     }
 
     public class AppFolderFactory : IAppFolderFactory
     {
         private readonly IAppFolderInfo _appFolderInfo;
         private readonly IDiskProvider _diskProvider;
+        private readonly IStartupContext _startupContext;
         private readonly Logger _logger;
 
         public AppFolderFactory(IAppFolderInfo appFolderInfo,
                                 IStartupContext startupContext,
-                                IDiskProvider diskProvider,
-                                IDiskTransferService diskTransferService)
+                                IDiskProvider diskProvider)
         {
             _appFolderInfo = appFolderInfo;
             _diskProvider = diskProvider;
+            _startupContext = startupContext;
             _logger = NzbDroneLogger.GetLogger(this);
         }
 
@@ -34,16 +34,18 @@ namespace NzbDrone.Common.EnvironmentInfo
         {
             try
             {
-                _diskProvider.EnsureFolder(_appFolderInfo.AppDataFolder);
+                if (OsInfo.IsWindows && !_startupContext.Args.ContainsKey(StartupContext.APPDATA))
+                {
+                    _diskProvider.EnsurePrivateFolder(_appFolderInfo.AppDataFolder);
+                }
+                else
+                {
+                    _diskProvider.EnsureFolder(_appFolderInfo.AppDataFolder);
+                }
             }
             catch (UnauthorizedAccessException)
             {
                 throw new BibliophilarrStartupException("Cannot create AppFolder, Access to the path {0} is denied", _appFolderInfo.AppDataFolder);
-            }
-
-            if (OsInfo.IsWindows)
-            {
-                SetPermissions();
             }
 
             if (!_diskProvider.FolderWritable(_appFolderInfo.AppDataFolder))
@@ -52,18 +54,6 @@ namespace NzbDrone.Common.EnvironmentInfo
             }
 
             InitializeMonoApplicationData();
-        }
-
-        public void SetPermissions()
-        {
-            try
-            {
-                _diskProvider.SetEveryonePermissions(_appFolderInfo.AppDataFolder);
-            }
-            catch (Exception ex)
-            {
-                _logger.Warn(ex, "Coudn't set app folder permission");
-            }
         }
 
         private void InitializeMonoApplicationData()
