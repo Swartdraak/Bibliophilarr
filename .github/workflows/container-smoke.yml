@@ -69,7 +69,7 @@ jobs:
           launch() {
             docker run --detach --platform "linux/$TEST_ARCH" --name "$container" \
               --mount "type=volume,source=$volume,target=/config" bibliophilarr:smoke >/dev/null
-            for attempt in {1..45}; do
+            for _ in {1..45}; do
               if docker exec "$container" curl -fsS http://127.0.0.1:8787/ping 2>/dev/null |
                 jq -e '.status == "OK"' >/dev/null; then
                 return

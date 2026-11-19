@@ -123,7 +123,6 @@ Both repository Compose files read `SIXLABORS_LICENSE_FILE` when building the
 application image. The container stores its database and configuration in the
 volume mounted at `/config`. The application runs as UID and GID 1000.
 
-
 ## Artifact layout and startup paths
 
 The repository produces three different artifact trees. Treat them differently:
