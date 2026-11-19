@@ -25,33 +25,34 @@ namespace NzbDrone.Core.Datastore.Migration
                   .OnColumn("FormatType").Ascending()
                   .WithOptions().Unique();
 
-            Execute.WithConnection(PopulateFromExistingAuthors);
+            IfDatabase("sqlite").Execute.WithConnection((conn, tran) => PopulateFromExistingAuthors(conn, tran, @"
+                SELECT 1 FROM json_each(qp.""Items"")
+                WHERE json_extract(value, '$.quality') IN (10, 11, 12, 13)
+                  AND json_extract(value, '$.allowed') = 1"));
+
+            IfDatabase("postgres").Execute.WithConnection((conn, tran) => PopulateFromExistingAuthors(conn, tran, @"
+                SELECT 1 FROM jsonb_array_elements(qp.""Items""::jsonb)
+                WHERE value -> 'quality' IN ('10'::jsonb, '11'::jsonb, '12'::jsonb, '13'::jsonb)
+                  AND value -> 'allowed' IN ('true'::jsonb, '1'::jsonb)"));
         }
 
-        private void PopulateFromExistingAuthors(IDbConnection conn, IDbTransaction tran)
+        private static void PopulateFromExistingAuthors(IDbConnection conn, IDbTransaction tran, string allowedAudioQualityQuery)
         {
             // Auto-populate one format profile per existing author from current config.
             // Detect format type from quality profile allowed qualities:
             //   Audio qualities (MP3=10, FLAC=11, M4B=12, UnknownAudio=13) → Audiobook (1)
             //   Ebook qualities (PDF=1, MOBI=2, EPUB=3, AZW3=4) → Ebook (0)
             // Fallback: if quality profile allows audio items, classify as Audiobook.
-            var sql = @"
+            var sql = $@"
                 INSERT INTO ""AuthorFormatProfiles""
                     (""AuthorId"", ""FormatType"", ""QualityProfileId"", ""RootFolderPath"", ""Tags"", ""Monitored"", ""Path"")
                 SELECT
                     a.""Id"",
-                    CASE
-                        WHEN EXISTS (
-                            SELECT 1 FROM json_each(qp.""Items"")
-                            WHERE json_extract(value, '$.quality') IN (10, 11, 12, 13)
-                              AND json_extract(value, '$.allowed') = 1
-                        ) THEN 1
-                        ELSE 0
-                    END,
+                    CASE WHEN EXISTS ({allowedAudioQualityQuery}) THEN 1 ELSE 0 END,
                     a.""QualityProfileId"",
                     '',
                     COALESCE(a.""Tags"", '[]'),
-                    1,
+                    TRUE,
                     COALESCE(a.""Path"", '')
                 FROM ""Authors"" a
                 JOIN ""QualityProfiles"" qp ON qp.""Id"" = a.""QualityProfileId""";

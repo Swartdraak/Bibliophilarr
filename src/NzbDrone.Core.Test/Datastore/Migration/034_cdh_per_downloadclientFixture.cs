@@ -119,8 +119,10 @@ namespace NzbDrone.Core.Test.Datastore.Migration
             var db = WithMigrationTestDb(c =>
             {
                 // Pre-columnize DownloadClients to reproduce the already-columnized prior-schema DB.
-                c.Execute.Sql("ALTER TABLE \"DownloadClients\" ADD COLUMN \"RemoveCompletedDownloads\" INTEGER NOT NULL DEFAULT 1");
-                c.Execute.Sql("ALTER TABLE \"DownloadClients\" ADD COLUMN \"RemoveFailedDownloads\" INTEGER NOT NULL DEFAULT 1");
+                c.IfDatabase("sqlite").Execute.Sql("ALTER TABLE \"DownloadClients\" ADD COLUMN \"RemoveCompletedDownloads\" INTEGER NOT NULL DEFAULT 1");
+                c.IfDatabase("postgres").Execute.Sql("ALTER TABLE \"DownloadClients\" ADD COLUMN \"RemoveCompletedDownloads\" BOOLEAN NOT NULL DEFAULT TRUE");
+                c.IfDatabase("sqlite").Execute.Sql("ALTER TABLE \"DownloadClients\" ADD COLUMN \"RemoveFailedDownloads\" INTEGER NOT NULL DEFAULT 1");
+                c.IfDatabase("postgres").Execute.Sql("ALTER TABLE \"DownloadClients\" ADD COLUMN \"RemoveFailedDownloads\" BOOLEAN NOT NULL DEFAULT TRUE");
 
                 // Seed a real row whose RemoveCompletedDownloads DIFFERS from the column default (1),
                 // so the assertion below proves the data migration preserved the value rather than

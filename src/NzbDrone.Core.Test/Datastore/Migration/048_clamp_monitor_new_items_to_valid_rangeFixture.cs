@@ -16,9 +16,9 @@ namespace NzbDrone.Core.Test.Datastore.Migration
             {
                 // Out-of-range (3), a defined value (2) and a negative (-1) on the
                 // AuthorFormatProfiles.MonitorNewItems column added by migration 047.
-                c.Execute.Sql("INSERT INTO \"AuthorFormatProfiles\" (\"AuthorId\", \"FormatType\", \"QualityProfileId\", \"RootFolderPath\", \"Tags\", \"Monitored\", \"Path\", \"MonitorNewItems\") VALUES (11, 0, 1, '', '[]', 1, '', 3)");
-                c.Execute.Sql("INSERT INTO \"AuthorFormatProfiles\" (\"AuthorId\", \"FormatType\", \"QualityProfileId\", \"RootFolderPath\", \"Tags\", \"Monitored\", \"Path\", \"MonitorNewItems\") VALUES (12, 1, 1, '', '[]', 1, '', 2)");
-                c.Execute.Sql("INSERT INTO \"AuthorFormatProfiles\" (\"AuthorId\", \"FormatType\", \"QualityProfileId\", \"RootFolderPath\", \"Tags\", \"Monitored\", \"Path\", \"MonitorNewItems\") VALUES (13, 0, 1, '', '[]', 1, '', -1)");
+                c.Execute.Sql("INSERT INTO \"AuthorFormatProfiles\" (\"AuthorId\", \"FormatType\", \"QualityProfileId\", \"RootFolderPath\", \"Tags\", \"Monitored\", \"Path\", \"MonitorNewItems\") VALUES (11, 0, 1, '', '[]', TRUE, '', 3)");
+                c.Execute.Sql("INSERT INTO \"AuthorFormatProfiles\" (\"AuthorId\", \"FormatType\", \"QualityProfileId\", \"RootFolderPath\", \"Tags\", \"Monitored\", \"Path\", \"MonitorNewItems\") VALUES (12, 1, 1, '', '[]', TRUE, '', 2)");
+                c.Execute.Sql("INSERT INTO \"AuthorFormatProfiles\" (\"AuthorId\", \"FormatType\", \"QualityProfileId\", \"RootFolderPath\", \"Tags\", \"Monitored\", \"Path\", \"MonitorNewItems\") VALUES (13, 0, 1, '', '[]', TRUE, '', -1)");
             });
 
             var bad = db.Query<MonitorRow>("SELECT \"MonitorNewItems\" FROM \"AuthorFormatProfiles\" WHERE \"AuthorId\" = 11").Single();
