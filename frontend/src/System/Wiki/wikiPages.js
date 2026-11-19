@@ -42,7 +42,7 @@ const wikiPages = [
       {
         heading: 'Adding Your First Author',
         paragraphs: [
-          'Navigate to Library → Add New, then search for an author name or book title. You can also search by GoodReads ID, ISBN, or ASIN using the format shown in the search box.',
+          'Go to Library → Add New and search by author name or book title. The search box also shows examples of supported identifiers.',
           'Select the correct match from the metadata results. A configuration dialog will appear with these options:'
         ],
         list: [
@@ -128,6 +128,7 @@ const wikiPages = [
         ],
         list: [
           'Toggle monitoring for individual books or the entire author.',
+          'Use the Series tab to browse the books in each series and change monitoring for the books currently listed.',
           'Search for all missing books at once with the search button.',
           'Edit the author\'s metadata, quality profile, root folder, and tags.',
           'View the author\'s history of downloads, imports, renames, and retags.',
@@ -160,9 +161,9 @@ const wikiPages = [
         ],
         list: [
           'Author name or book title — Free text search against metadata providers.',
-          'GoodReads Author ID — Use the format "author:12345".',
-          'ISBN — Enter a 10 or 13-digit ISBN.',
-          'ASIN — Enter an Amazon Standard Identification Number.'
+          'Open Library author or work ID, such as "author:OL26320A" or "work:OL45804W".',
+          'ISBN, such as "isbn:067003469X".',
+          'ASIN, such as "asin:B00JCDK5ME".'
         ],
         note: 'When adding an individual book and selecting "None" for the metadata profile, only that specific book will appear under the author. Choose an appropriate metadata profile if you want the author\'s full catalog.'
       },
@@ -298,7 +299,7 @@ const wikiPages = [
         heading: 'Metadata Profiles',
         paragraphs: [
           'Metadata profiles control which book editions and types appear in your library from the metadata source. They filter out unwanted entries such as foreign-language editions, box sets, or non-book products.',
-          'When you add an author, you choose a metadata profile. Selecting "None" means no filtering — all editions from the metadata source will appear. This can include unwanted foreign editions.'
+          'Choose Complete Bibliography to keep the works and editions returned by your metadata provider. Choose None to skip automatic book discovery for the author. You can still add books individually.'
         ],
         note: 'If you see unexpected foreign editions, create a metadata profile that filters by your preferred language and edition types.'
       },
