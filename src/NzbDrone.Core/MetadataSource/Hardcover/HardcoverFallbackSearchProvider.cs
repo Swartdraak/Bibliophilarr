@@ -1072,7 +1072,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     var request = new HttpRequest(Endpoint, HttpAccept.Json)
                     {
                         Method = HttpMethod.Post,
-                        RateLimit = TimeSpan.FromSeconds(1),
+                        RateLimit = TimeSpan.FromMilliseconds(1250),
                         RateLimitKey = ProviderName,
                         RequestTimeout = timeout
                     };

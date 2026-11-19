@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
@@ -126,6 +128,92 @@ namespace NzbDrone.Core.Test.MediaFiles
                     Quality = new QualityModel(Quality.EPUB),
                     FileTrackInfo = new ParsedTrackInfo { ReleaseGroup = "TEST" }
                 });
+        }
+
+        [TestCase(7, 1, nameof(Quality.EPUB), ImportResultType.Skipped)]
+        [TestCase(7, 1, nameof(Quality.AZW3), ImportResultType.Skipped)]
+        [TestCase(8, 1, nameof(Quality.EPUB), ImportResultType.Imported)]
+        [TestCase(7, 2, nameof(Quality.EPUB), ImportResultType.Imported)]
+        [TestCase(7, 1, nameof(Quality.M4B), ImportResultType.Imported)]
+        public void should_only_skip_the_same_edition_part_and_format_in_the_batch(
+            int editionId, int part, string qualityName, ImportResultType expected)
+        {
+            var first = BuildDecision();
+            first.Item.Path = "/root/Test Author/first.epub";
+            first.Item.ExistingFile = true;
+            first.Item.Size = 2048;
+
+            var second = BuildDecision();
+            second.Item.Path = $"/root/Test Author/second.{qualityName.ToLowerInvariant()}";
+            second.Item.ExistingFile = true;
+            second.Item.Size = 1024;
+            second.Item.Part = part;
+
+            if (editionId != _edition.Id)
+            {
+                second.Item.Edition = new Edition
+                {
+                    Id = editionId,
+                    BookId = _book.Id,
+                    Book = _book,
+                    ForeignEditionId = "OL124M",
+                    Title = _book.Title
+                };
+                _book.Editions.Value.Add(second.Item.Edition);
+            }
+
+            second.Item.Quality = new QualityModel(qualityName switch
+            {
+                nameof(Quality.AZW3) => Quality.AZW3,
+                nameof(Quality.M4B) => Quality.M4B,
+                _ => Quality.EPUB
+            });
+
+            if (qualityName == nameof(Quality.AZW3))
+            {
+                // Both candidates are ebooks. The higher-ranked AZW3 is
+                // considered first, so the EPUB is the redundant part.
+                (first, second) = (second, first);
+            }
+
+            var results = Subject.Import(new List<ImportDecision<LocalBook>> { first, second }, false);
+
+            Assert.That(results, Has.Count.EqualTo(2));
+            Assert.That(results.Single(x => x.ImportDecision == first).Result, Is.EqualTo(ImportResultType.Imported));
+            Assert.That(results.Single(x => x.ImportDecision == second).Result, Is.EqualTo(expected));
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(x => x.AddMany(It.Is<List<BookFile>>(files =>
+                    files.Any(f => f.Path == first.Item.Path && f.EditionId == _edition.Id) &&
+                    files.Any(f => f.Path == second.Item.Path && f.EditionId == editionId) ==
+                        (expected == ImportResultType.Imported))), Times.Once);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_not_skip_a_new_file_when_the_first_equivalent_item_was_unsuccessful(bool firstImportThrows)
+        {
+            var first = BuildDecision();
+            first.Item.Size = 4096;
+            if (firstImportThrows)
+            {
+                first.Item.Path = "/downloads/unreadable.epub";
+                Mocker.GetMock<IUpgradeMediaFiles>()
+                    .Setup(x => x.UpgradeBookFile(It.IsAny<BookFile>(), first.Item, true, false))
+                    .Throws(new UnauthorizedAccessException());
+            }
+
+            var second = BuildDecision();
+            second.Item.Path = "/downloads/recoverable.epub";
+            second.Item.Size = 2048;
+
+            var results = Subject.Import(new List<ImportDecision<LocalBook>> { first, second }, false, null, ImportMode.Copy);
+
+            Assert.That(results, Has.Count.EqualTo(2));
+            Assert.That(results.Single(x => x.ImportDecision == first).Result, Is.EqualTo(ImportResultType.Skipped));
+            Assert.That(results.Single(x => x.ImportDecision == second).Result, Is.EqualTo(ImportResultType.Imported));
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(x => x.AddMany(It.Is<List<BookFile>>(files =>
+                    files.Count == 1 && files[0].Path == second.Item.Path)), Times.Once);
         }
 
         [Test]

@@ -15,6 +15,8 @@ process.
   Complete Bibliography is available as an unfiltered metadata profile.
 - Hardcover tracks representative ebook and audiobook editions where available.
   The Add Author and Add Book forms select quality profiles by media format.
+- Import batches track duplicates by work, edition, part, and format after a
+  successful import, so later valid candidates are still considered.
 - Ebook matching recognizes native ebook format labels and treats equivalent
   checksum-valid ISBN-10 and ISBN-13 values as the same identifier.
 - General Settings saves unrelated changes for an already configured account
