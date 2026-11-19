@@ -3,10 +3,10 @@ using System.IO;
 using System.IO.Abstractions;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
-using System.Security.Principal;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnsureThat;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Instrumentation;
 
 namespace NzbDrone.Windows.Disk
@@ -64,26 +64,7 @@ namespace NzbDrone.Windows.Disk
         {
             Ensure.That(path, () => path).IsValidPath(PathValidationType.CurrentOs);
 
-            var directory = new DirectoryInfo(path);
-            if (directory.Exists)
-            {
-                return;
-            }
-
-            using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
-            var userSid = identity.User ?? throw new UnauthorizedAccessException("Cannot identify the Windows account for the data directory.");
-            var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
-            var administratorsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-            const InheritanceFlags inheritance = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
-
-            var security = new DirectorySecurity();
-            security.SetAccessRuleProtection(true, false);
-            security.AddAccessRule(new FileSystemAccessRule(userSid, FileSystemRights.Modify, inheritance, PropagationFlags.None, AccessControlType.Allow));
-            security.AddAccessRule(new FileSystemAccessRule(systemSid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
-            security.AddAccessRule(new FileSystemAccessRule(administratorsSid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
-
-            // Apply the DACL at creation, before the app writes configuration or credentials.
-            directory.Create(security);
+            AppFolderFactory.EnsurePrivateWindowsFolder(path);
         }
 
         public override void SetFilePermissions(string path, string mask, string group)

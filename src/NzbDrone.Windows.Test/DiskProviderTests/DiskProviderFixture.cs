@@ -17,6 +17,17 @@ namespace NzbDrone.Windows.Test.DiskProviderTests
         }
 
         [Test]
+        public void ensure_private_folder_should_create_with_protected_access_rules()
+        {
+            var path = GetTempFilePath();
+
+            Subject.EnsurePrivateFolder(path);
+
+            var security = new DirectoryInfo(path).GetAccessControl(AccessControlSections.Access);
+            Assert.That(security.AreAccessRulesProtected, Is.True);
+        }
+
+        [Test]
         public void ensure_private_folder_should_preserve_existing_service_permissions()
         {
             var directory = Directory.CreateDirectory(GetTempFilePath());

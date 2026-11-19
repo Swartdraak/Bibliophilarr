@@ -139,6 +139,12 @@ namespace NzbDrone.Host
 
         public static IHostBuilder CreateConsoleHostBuilder(string[] args, StartupContext context)
         {
+            if (OperatingSystem.IsWindows() && !context.Args.ContainsKey(StartupContext.APPDATA))
+            {
+                // Also cover direct host callers before Startup.ConfigureServices creates the key store.
+                AppFolderFactory.EnsurePrivateWindowsFolder(new AppFolderInfo(context).AppDataFolder);
+            }
+
             var config = GetConfiguration(context);
             RejectLegacyConfigurationKeys(config);
 

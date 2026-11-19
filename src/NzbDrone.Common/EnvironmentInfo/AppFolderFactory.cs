@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Exceptions;
@@ -54,6 +56,40 @@ namespace NzbDrone.Common.EnvironmentInfo
             }
 
             InitializeMonoApplicationData();
+        }
+
+        public static void EnsurePrivateWindowsFolder(string path)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var directory = new DirectoryInfo(path);
+            if (directory.Exists)
+            {
+                return;
+            }
+
+            using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+            var userSid = identity.User ?? throw new UnauthorizedAccessException("Cannot identify the Windows account for the data directory.");
+            var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+            var administratorsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            const InheritanceFlags inheritance = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+
+            var security = new DirectorySecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.AddAccessRule(new FileSystemAccessRule(userSid, FileSystemRights.Modify, inheritance, PropagationFlags.None, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(systemSid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(administratorsSid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+
+            // Apply the DACL at creation, before the app writes configuration or credentials.
+            directory.Create(security);
+
+            if (!directory.GetAccessControl(AccessControlSections.Access).AreAccessRulesProtected)
+            {
+                throw new UnauthorizedAccessException($"Could not create the Windows data directory with private permissions: {path}");
+            }
         }
 
         private void InitializeMonoApplicationData()

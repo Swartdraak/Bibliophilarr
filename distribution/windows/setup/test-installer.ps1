@@ -154,6 +154,17 @@ try {
         Assert-ProtectedPath $path
     }
 
+    $helpProcess = Start-Process -FilePath $app -WorkingDirectory $bin -ArgumentList @('/?', '/exitimmediately') `
+        -Wait -PassThru -RedirectStandardOutput (Join-Path $scratch 'help.stdout') `
+        -RedirectStandardError (Join-Path $scratch 'help.stderr')
+    try {
+        if ($helpProcess.ExitCode -ne 0 -or (Test-Path -LiteralPath $sharedData)) {
+            throw 'Help failed or created the default data directory before normal startup.'
+        }
+    } finally {
+        $helpProcess.Dispose()
+    }
+
     New-Item -ItemType Directory -Path $testData | Out-Null
     $probe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
     try {
