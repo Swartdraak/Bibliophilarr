@@ -17,6 +17,7 @@ namespace NzbDrone.Core.IndexerSearch
     public interface ISearchForReleases
     {
         Task<List<DownloadDecision>> BookSearch(int bookId, bool missingOnly, bool userInvokedSearch, bool interactiveSearch);
+        Task<List<DownloadDecision>> BookSearch(int bookId, bool missingOnly, bool userInvokedSearch, bool interactiveSearch, bool monitoredBooksOnly);
         Task<List<DownloadDecision>> AuthorSearch(int authorId, bool missingOnly, bool userInvokedSearch, bool interactiveSearch);
     }
 
@@ -47,13 +48,18 @@ namespace NzbDrone.Core.IndexerSearch
             _logger = logger;
         }
 
-        public async Task<List<DownloadDecision>> BookSearch(int bookId, bool missingOnly, bool userInvokedSearch, bool interactiveSearch)
+        public Task<List<DownloadDecision>> BookSearch(int bookId, bool missingOnly, bool userInvokedSearch, bool interactiveSearch)
+        {
+            return BookSearch(bookId, missingOnly, userInvokedSearch, interactiveSearch, _configService.EnableDualFormatTracking && !interactiveSearch);
+        }
+
+        public async Task<List<DownloadDecision>> BookSearch(int bookId, bool missingOnly, bool userInvokedSearch, bool interactiveSearch, bool monitoredBooksOnly)
         {
             var downloadDecisions = new List<DownloadDecision>();
 
             var book = _bookService.GetBook(bookId);
 
-            var decisions = await BookSearch(book, missingOnly, userInvokedSearch, interactiveSearch);
+            var decisions = await BookSearch(book, missingOnly, userInvokedSearch, interactiveSearch, monitoredBooksOnly);
             downloadDecisions.AddRange(decisions);
 
             return DeDupeDecisions(downloadDecisions);
@@ -76,35 +82,27 @@ namespace NzbDrone.Core.IndexerSearch
             var searchSpec = Get<AuthorSearchCriteria>(author, userInvokedSearch, interactiveSearch);
             var books = _bookService.GetBooksByAuthor(author.Id);
 
-            // In dual-format mode, monitoring is per-format on the author level
-            // (AuthorFormatProfiles.Monitored), not per-book. Include all books
-            // when any format profile is monitored.
+            var monitoredBooks = books.Where(book => book.Monitored);
             if (_configService.EnableDualFormatTracking)
             {
                 var profiles = _formatProfileService.GetByAuthorId(author.Id);
-                var anyMonitored = profiles.Any(p => p.Monitored);
-                if (!anyMonitored)
-                {
-                    books = new List<Book>();
-                }
-            }
-            else
-            {
-                books = books.Where(a => a.Monitored).ToList();
+                monitoredBooks = monitoredBooks.Where(book => profiles.Any(profile => profile.Monitored && book.IsFormatMonitored(profile.FormatType)));
             }
 
-            searchSpec.Books = books;
+            searchSpec.Books = monitoredBooks.ToList();
+            searchSpec.MonitoredBooksOnly = _configService.EnableDualFormatTracking && !interactiveSearch;
 
             return await Dispatch(indexer => indexer.Fetch(searchSpec), searchSpec);
         }
 
-        public async Task<List<DownloadDecision>> BookSearch(Book book, bool missingOnly, bool userInvokedSearch, bool interactiveSearch)
+        public async Task<List<DownloadDecision>> BookSearch(Book book, bool missingOnly, bool userInvokedSearch, bool interactiveSearch, bool monitoredBooksOnly = false)
         {
             var author = _authorService.GetAuthor(book.AuthorId);
 
             var searchSpec = Get<BookSearchCriteria>(author, new List<Book> { book }, userInvokedSearch, interactiveSearch);
 
-            var monitoredEdition = book.Editions.Value.SingleOrDefault(x => x.Monitored);
+            searchSpec.MonitoredBooksOnly = monitoredBooksOnly;
+            var monitoredEdition = book.Editions?.Value?.FirstOrDefault(edition => edition.Monitored);
             searchSpec.BookTitle = monitoredEdition?.Title ?? book.Title;
 
             // searchSpec.BookIsbn = book.Isbn13;

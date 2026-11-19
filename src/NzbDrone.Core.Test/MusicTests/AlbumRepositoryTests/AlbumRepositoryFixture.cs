@@ -6,6 +6,7 @@ using FluentAssertions;
 using FluentAssertions.Equivalency;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MusicTests.BookRepositoryTests
@@ -64,6 +65,67 @@ namespace NzbDrone.Core.Test.MusicTests.BookRepositoryTests
             };
 
             _bookRepo.Insert(_bookSpecial);
+        }
+
+        [Test]
+        public void should_update_only_the_requested_book_and_format()
+        {
+            _bookRepo.SetFormatMonitored(new[] { _book.Id }, FormatType.Ebook, false);
+            _bookRepo.SetFormatMonitored(new[] { _book.Id }, FormatType.Audiobook, true);
+
+            var updated = _bookRepo.Get(_book.Id);
+            updated.EbookMonitoringOverride.Should().BeFalse();
+            updated.AudiobookMonitoringOverride.Should().BeTrue();
+            updated.Monitored.Should().Be(_book.Monitored);
+
+            var otherBook = _bookRepo.Get(_bookSpecial.Id);
+            otherBook.EbookMonitoringOverride.Should().BeNull();
+            otherBook.AudiobookMonitoringOverride.Should().BeNull();
+        }
+
+        [Test]
+        public void missing_format_results_should_respect_the_book_preference()
+        {
+            var metadata = Mocker.Resolve<BasicRepository<AuthorMetadata>>().Insert(new AuthorMetadata
+            {
+                Name = "Sample author",
+                ForeignAuthorId = "author-fixture",
+                TitleSlug = "sample-author",
+                SortName = "sample author",
+                NameLastFirst = "Author, Sample",
+                SortNameLastFirst = "author sample"
+            });
+            var author = Mocker.Resolve<BasicRepository<Author>>().Insert(new Author
+            {
+                AuthorMetadataId = metadata.Id,
+                CleanName = "sampleauthor",
+                Path = "/sample-author",
+                Monitored = true
+            });
+            var profiles = Mocker.Resolve<BasicRepository<AuthorFormatProfile>>();
+            foreach (var format in new[] { FormatType.Ebook, FormatType.Audiobook })
+            {
+                profiles.Insert(new AuthorFormatProfile { AuthorId = author.Id, FormatType = format, RootFolderPath = "/fixture" });
+            }
+
+            foreach (var book in new[] { _book, _bookSpecial })
+            {
+                book.AuthorMetadataId = metadata.Id;
+                book.ReleaseDate = DateTime.UtcNow.AddDays(-1);
+                book.Monitored = true;
+                _bookRepo.Update(book);
+            }
+
+            _bookRepo.SetFormatMonitored(new[] { _book.Id }, FormatType.Ebook, false);
+            var page = new PagingSpec<Book> { Page = 1, PageSize = 10, SortKey = "Id", SortDirection = SortDirection.Ascending };
+
+            var ebooks = _bookRepo.BooksWithoutFiles(page, FormatType.Ebook, true);
+            ebooks.Records.Select(book => book.Id).Should().Equal(_bookSpecial.Id);
+            ebooks.TotalRecords.Should().Be(1);
+
+            var audiobooks = _bookRepo.BooksWithoutFiles(page, FormatType.Audiobook, true);
+            audiobooks.Records.Select(book => book.Id).Should().Equal(_book.Id, _bookSpecial.Id);
+            audiobooks.TotalRecords.Should().Be(2);
         }
 
         [TestCase("ANThology")]

@@ -5,6 +5,7 @@ import AuthorHistoryTable from 'Author/History/AuthorHistoryTable';
 import DeleteBookModal from 'Book/Delete/DeleteBookModal';
 import EditBookModalConnector from 'Book/Edit/EditBookModalConnector';
 import BookFileEditorTable from 'BookFile/Editor/BookFileEditorTable';
+import SelectInput from 'Components/Form/SelectInput';
 import IconButton from 'Components/Link/IconButton';
 import LoadingIndicator from 'Components/Loading/LoadingIndicator';
 import PageContent from 'Components/Page/PageContent';
@@ -36,7 +37,8 @@ class BookDetails extends Component {
       isRetagModalOpen: false,
       isEditBookModalOpen: false,
       isDeleteBookModalOpen: false,
-      selectedTabIndex: 0
+      selectedTabIndex: 0,
+      searchFormat: ''
     };
   }
 
@@ -82,6 +84,10 @@ class BookDetails extends Component {
     this.setState({ selectedTabIndex: index });
   };
 
+  onSearchFormatChange = ({ value }) => {
+    this.setState({ searchFormat: value });
+  };
+
   //
   // Render
 
@@ -112,7 +118,8 @@ class BookDetails extends Component {
       isRetagModalOpen,
       isEditBookModalOpen,
       isDeleteBookModalOpen,
-      selectedTabIndex
+      selectedTabIndex,
+      searchFormat
     } = this.state;
 
     return (
@@ -279,7 +286,21 @@ class BookDetails extends Component {
               </TabPanel>
 
               <TabPanel>
+                <label>
+                  {translate('SearchFormat')}
+                  <SelectInput
+                    name="searchFormat"
+                    value={searchFormat}
+                    values={[
+                      { key: '', value: translate('All') },
+                      { key: 'ebook', value: translate('Ebook') },
+                      { key: 'audiobook', value: translate('Audiobook') }
+                    ]}
+                    onChange={this.onSearchFormatChange}
+                  />
+                </label>
                 <InteractiveSearchTable
+                  {...(searchFormat && { formatType: searchFormat })}
                   bookId={id}
                   type="book"
                 />

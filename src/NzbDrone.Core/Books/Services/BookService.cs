@@ -31,6 +31,7 @@ namespace NzbDrone.Core.Books
         Book UpdateBook(Book book);
         void SetBookMonitored(int bookId, bool monitored);
         void SetMonitored(IEnumerable<int> ids, bool monitored);
+        void SetFormatMonitored(IEnumerable<int> ids, FormatType formatType, bool monitored);
         void UpdateLastSearchTime(List<Book> books);
         PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec);
         PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType);
@@ -301,6 +302,17 @@ namespace NzbDrone.Core.Books
             _eventAggregator.PublishEvent(new BookEditedEvent(book, book));
 
             _logger.Debug("Monitored flag for Book:{0} was set to {1}", bookId, monitored);
+        }
+
+        public void SetFormatMonitored(IEnumerable<int> ids, FormatType formatType, bool monitored)
+        {
+            var bookIds = ids.ToList();
+            _bookRepository.SetFormatMonitored(bookIds, formatType, monitored);
+
+            foreach (var book in _bookRepository.Get(bookIds))
+            {
+                _eventAggregator.PublishEvent(new BookEditedEvent(book, book));
+            }
         }
 
         public void SetMonitored(IEnumerable<int> ids, bool monitored)
