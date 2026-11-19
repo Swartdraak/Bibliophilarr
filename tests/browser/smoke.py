@@ -15,6 +15,12 @@ from xml.etree import ElementTree
 
 from playwright.sync_api import Error as PlaywrightError, expect, sync_playwright
 
+from catalogue_workflow import (
+    LIVE_PROVIDER_TOKEN_ENV,
+    exercise_catalogue,
+    verify_catalogue_after_restart,
+)
+
 
 def check_status(response, expected, label):
     print(f"{label}: HTTP {response.status}, expected {expected}", flush=True)
@@ -90,7 +96,10 @@ def running_app(binary, app_data, log_path, port, evidence, credentials):
             if failed or forced_stop:
                 log.flush()
                 safe_log = log_path.read_text(errors="replace")
-                secrets_to_remove = list(credentials.values()) + ["deliberately-wrong"]
+                secrets_to_remove = list(credentials.values()) + [
+                    "deliberately-wrong",
+                    os.environ.get(LIVE_PROVIDER_TOKEN_ENV, "").strip(),
+                ]
                 try:
                     secrets_to_remove.append(ElementTree.parse(app_data / "config.xml").findtext("ApiKey"))
                 except (FileNotFoundError, ElementTree.ParseError):
@@ -207,7 +216,7 @@ def check_routes(page, base, api, evidence):
         expect(toggle).to_be_focused()
 
 
-def run(binary, evidence):
+def run(binary, evidence, *, live_provider=False):
     username = "browser-fixture"
     password = "Ci!" + secrets.token_urlsafe(16)
     credentials = {"username": username, "password": password}
@@ -270,6 +279,7 @@ def run(binary, evidence):
             initializer = check_status(page.request.get(base + "/initialize.json"), 200, "Forms initializer")
             assert initializer.json()["apiKey"] == key and "no-store" in initializer.headers["cache-control"]
             check_routes(page, base, api, evidence)
+            catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
 
         with running_app(binary, data, log, port, evidence, credentials) as (app, base):
             assert wait_ready(app, http, base, data) == key
@@ -284,6 +294,7 @@ def run(binary, evidence):
             page.set_viewport_size({"width": 1366, "height": 900})
             check_status(page.goto(base + "/authors"), 200, "Library after restart")
             expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
+            verify_catalogue_after_restart(page, api, base, catalogue)
             assert not errors, f"{len(errors)} uncaught browser page errors"
             page.get_by_role("button", name="Menu Button").click()
             page.get_by_role("link", name="Logout").click()
@@ -302,11 +313,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--live-provider", action="store_true", help="Run live Hardcover checks with HARDCOVER_API_KEY")
     args = parser.parse_args()
     os.umask(0o077)
     args.evidence.mkdir(parents=True, exist_ok=True)
     try:
-        run(args.binary.resolve(strict=True), args.evidence)
+        run(args.binary.resolve(strict=True), args.evidence, live_provider=args.live_provider)
     except Exception as error:
         # Playwright exceptions can embed request values. Artifacts contain only safe status
         # lines, redacted process logs on failure, and screenshots of the disposable app.
