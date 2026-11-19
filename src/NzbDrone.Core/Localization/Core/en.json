@@ -924,6 +924,7 @@
   "SearchForMissing": "Search for Missing",
   "SearchForMonitoredBooks": "Search for monitored books",
   "SearchForNewItems": "Search for New Items",
+  "SearchMissingSeriesBooks": "Search for monitored missing books in this series",
   "SearchMonitored": "Search Monitored",
   "SearchSelected": "Search Selected",
   "Security": "Security",
