@@ -1,8 +1,10 @@
 using System;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Diacritical;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
@@ -49,6 +51,18 @@ namespace Bibliophilarr.Http.Authentication
                     options.ExpireTimeSpan = TimeSpan.FromDays(7);
                     options.SlidingExpiration = true;
                     options.ReturnUrlParameter = "returnUrl";
+
+                    var redirectToLogin = options.Events.OnRedirectToLogin;
+                    options.Events.OnRedirectToLogin = context =>
+                    {
+                        if (context.Request.Path.StartsWithSegments("/api"))
+                        {
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            return Task.CompletedTask;
+                        }
+
+                        return redirectToLogin(context);
+                    };
                 });
 
             // Issue #349: set the default authenticate/challenge schemes. Before this, the

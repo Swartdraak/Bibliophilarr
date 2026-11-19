@@ -67,7 +67,8 @@ namespace Bibliophilarr.Http.Middleware
                 !path.StartsWith("/content/", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(path, "/ping", StringComparison.OrdinalIgnoreCase);
 
-            if (isUiShellGet)
+            // The UI policy evaluates the Authorization header in Basic mode.
+            if (isUiShellGet && _configService.AuthenticationMethod != AuthenticationType.Basic)
             {
                 var user = context.User;
                 var isAuthenticated = user != null && user.Identity != null && user.Identity.IsAuthenticated;

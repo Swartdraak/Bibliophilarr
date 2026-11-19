@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -58,6 +60,41 @@ namespace NzbDrone.Integration.Test
                 await AssertInitializeResponse(response);
 
                 using var page = await client.GetAsync("");
+                Assert.That(page.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            }
+            finally
+            {
+                HostConfig.Put(original, HttpStatusCode.Accepted);
+            }
+        }
+
+        [Test]
+        public async Task basic_authentication_should_allow_an_authenticated_ui_and_bootstrap()
+        {
+            const string username = "integration-user";
+            const string password = "integration-user-password";
+            var original = HostConfig.GetSingle();
+            var config = HostConfig.GetSingle();
+            config.AuthenticationMethod = AuthenticationType.Basic;
+            config.AuthenticationRequired = AuthenticationRequiredType.Enabled;
+            config.Username = username;
+            config.Password = password;
+            config.PasswordConfirmation = password;
+            HostConfig.Put(config, HttpStatusCode.Accepted);
+
+            try
+            {
+                using var handler = new HttpClientHandler { AllowAutoRedirect = false };
+                using var client = new HttpClient(handler) { BaseAddress = new Uri(RootUrl) };
+                using var anonymous = await client.GetAsync("initialize.json");
+                Assert.That(anonymous.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+
+                var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+                using var bootstrap = await client.GetAsync("initialize.json");
+                await AssertInitializeResponse(bootstrap);
+
+                using var page = await client.GetAsync("authors");
                 Assert.That(page.StatusCode, Is.EqualTo(HttpStatusCode.OK));
             }
             finally
