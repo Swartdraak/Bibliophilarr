@@ -1,6 +1,6 @@
 # Project status summary
 
-**Last verified**: 2026-09-08
+**Last verified**: 2026-11-19
 **Verification scope**: branch topology, open issue queue, PR checks, release channels, dependency posture
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
@@ -27,11 +27,8 @@ The migration program remains open and intentionally tracked through these activ
 
 ## Governance and documentation tracks
 
-- #192 Documentation drift remediation for this file and cross-doc consistency.
 - #193 Naming convergence planning for legacy `NzbDrone.*` paths vs Bibliophilarr identity.
 - #194 Local tooling artifact ignore policy and contributor guidance.
-- #195 Rider inspection follow-up after promotion and cache refresh.
-- #197 Promotion checklist for `develop -> staging` validation cycle.
 
 ## Branch and promotion posture
 
@@ -40,12 +37,14 @@ The migration program remains open and intentionally tracked through these activ
 
 ## Release and CI posture
 
-- Backend/frontend/docs/workflow lint validations remain branch-protected required contexts.
-- CodeQL and cross-platform build checks are active in current PR validation runs.
+- The latest stable release is [v1.1.0](https://github.com/Swartdraak/Bibliophilarr/releases/tag/v1.1.0).
+- Protected branches require backend CI, Markdown lint, PR metadata, Linux, Windows, macOS and RID portability, and metadata telemetry smoke. Frontend, workflow lint and CodeQL results also inform release readiness.
+- Native macOS startup remains open in [PR #413](https://github.com/Swartdraak/Bibliophilarr/pull/413). The Windows smoke job passed and the macOS job failed.
+- Use the live [issues](https://github.com/Swartdraak/Bibliophilarr/issues) and [pull requests](https://github.com/Swartdraak/Bibliophilarr/pulls) for the current queues.
 
-## Notes on historical content
+## Branch reconciliation
 
-Earlier entries in this file that described open Dependabot PR queues and pre-normalization branch states are now superseded by this verified status baseline.
+The integration, staging, and stable branches each contain commits absent from the next or preceding lane. Reconcile the branch-only changes before promotion, verify required checks on the promoted commit, and retain history for any outstanding work.
 
 ## Related references
 

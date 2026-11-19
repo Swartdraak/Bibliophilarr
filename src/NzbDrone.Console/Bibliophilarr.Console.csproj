@@ -26,7 +26,43 @@
        RuntimeIdentifier-scoped item group is inactive, so
        Bibliophilarr.Windows.dll remains the platform assembly the loader
        requests, exactly as before. No runtime loader behavior changes. -->
+  <!-- Issue #286 (non-Windows RIDs) / Issue #270 (Windows RIDs) companion fix:
+       NzbDrone.Common.Composition.AssemblyLoader.Load (line ~29) selects the
+       platform assembly BY NAME on every host:
+           OsInfo.IsWindows ? "Bibliophilarr.Windows" : "Bibliophilarr.Mono"
+       and loads it BY FILE PATH from the app base directory (LoadFromAssemblyPath
+       with no existence fallback). Neither NzbDrone.Host nor NzbDrone.Common
+       pulls either platform project into the Console publish, so a
+       single-project publish omitted the platform DLL the loader requests and
+       the app crashed at DryIoc AutoAddServices (Bootstrap.CreateConsoleHostBuilder)
+       before any service started -> /ping never returned 200 -> the hosted
+       smoke receipt was BUILD_ONLY.
+       
+       This pair of RID-scoped ItemGroups is the build-composition repair for
+       BOTH halves of that by-name load (no runtime loader behavior changes):
+         - non-Windows RIDs (linux/osx/musl/arm...): reference NzbDrone.Mono so
+           the RID-aware publish emits Bibliophilarr.Mono.dll. This is the
+           existing issue-#286 fix; see ConsoleMonoPublishIssue286Fixture for
+           the semantic pin of the non-win condition.
+         - Windows RIDs (win-x64 / win-x86): reference NzbDrone.Windows so the
+           win-* publish emits Bibliophilarr.Windows.dll. NzbDrone.Windows is a
+           plain net10.0 class library (no WindowsDesktop SDK, no WinForms, no
+           net10.0-windows TFM) and cross-builds cleanly on every host; only
+           src/NzbDrone/Bibliophilarr.csproj (the WinForms desktop shell) targets
+           net10.0-windows, so this reference does not pull any Windows-only
+           project model into the portable Console publish.
+       Each condition is the exact logical complement of the other
+       (RuntimeIdentifier.StartsWith('win') vs !StartsWith('win')), so exactly
+       one platform assembly is referenced for every RID — matching what
+       AssemblyLoader will request at startup. -->
   <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
     <ProjectReference Include="..\NzbDrone.Mono\Bibliophilarr.Mono.csproj" />
+  </ItemGroup>
+  <!-- Issue #270: the Windows-side mirror of the issue-#286 fix above. Without
+       this scoped reference a win-* Console publish omits
+       Bibliophilarr.Windows.dll and the app crashes at DryIoc AutoAddServices
+       with System.IO.FileNotFoundException before /ping is ever served. -->
+  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win'))">
+    <ProjectReference Include="..\NzbDrone.Windows\Bibliophilarr.Windows.csproj" />
   </ItemGroup>
 </Project>
