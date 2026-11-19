@@ -88,6 +88,15 @@ Responsibilities:
 - emit required protected-branch contexts
 - provide the evidence consumed by readiness reporting
 
+### 5) Package rehearsal
+
+`package-rehearsal.yml` runs on packaging changes in same-repository pull
+requests into `develop` and after each staging push. It can also be dispatched
+on `develop` or `staging` once the workflow is on the default branch.
+It uses the same package build and asset checks as `release.yml` and uploads
+the result as the `release-assets` Actions artifact. It requires the Six
+Labors build license and read-only repository permissions.
+
 ## Current repository posture
 
 The repository currently documents release-entry readiness, branch-policy audit,
@@ -123,6 +132,7 @@ gh workflow run "Metadata Migration Dry Run" \
 | Name | Scope | Required | Used by | Notes |
 |---|---|---|---|---|
 | `GITHUB_TOKEN` | Built-in Actions token | Auto | current GitHub Actions workflows | Used for workflow API access and artifact publication within granted permissions. |
+| `SIXLABORS_LICENSE_KEY` | Actions secret | Required for licensed builds | `release.yml`, `package-rehearsal.yml` | Materialized during compilation and removed before artifact upload. |
 | `NPM_TOKEN` | `npm-publish` environment secret | Required for npm publish | `npm-publish.yml` | npmjs.org access token for publishing the `bibliophilarr` launcher package. |
 | `Bibliophilarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL host key during rename migration. |
 | `Bibliophilarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL port key during rename migration. |
@@ -195,12 +205,14 @@ Mandatory checklist flow:
 - `docs/operations/metadata-dry-run-snapshots/`
 - `docs/operations/metadata-telemetry-checkpoints/`
 - `docs/operations/install-test-snapshots/`
+- `docs/operations/series-persistence-snapshots/`
 
 2. Each snapshot must include explicit gate lines:
 
 - `Verdict: PASS|WARNING|CRITICAL|BLOCKED` (dry-run snapshots)
 - `Overall threshold verdict: PASS|WARNING|CRITICAL|BLOCKED` (telemetry checkpoints)
 - `Overall matrix verdict: PASS|BLOCKED` (install snapshots)
+- `Series persistence verdict: PASS|FAIL` (series persistence snapshots)
 
 3. Operator runs:
 
@@ -226,7 +238,7 @@ Legacy symbol guard:
 Packaging scope note:
 
 - Packaging validation has been completed on `main` with the v1.0.0 release.
-- `release.yml` builds Linux x64, macOS ARM64, and Windows x64 binaries and creates a GitHub Release.
+- `release.yml` builds Linux x64/ARM64, macOS Intel/Apple Silicon, and Windows x64 packages. The release also includes the Windows x64 installer and checksums for all six assets.
 - `docker-image.yml` builds multi-platform Docker images, pushes to GHCR, signs with cosign, and runs Trivy scanning.
 - `npm-publish.yml` publishes the launcher package to npmjs.org when a release is published.
 

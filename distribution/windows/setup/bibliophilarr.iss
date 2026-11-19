@@ -5,7 +5,7 @@
 #define AppPublisher "Team Bibliophilarr"
 #define AppURL "https://bibliophilarr.com/"
 #define ForumsURL "https://bibliophilarr.com/discord"
-#define AppExeName "Bibliophilarr.exe"
+#define AppExeName "Bibliophilarr.Console.exe"
 #define BaseVersion GetEnv('MAJORVERSION')
 #define BuildNumber GetEnv('MINORVERSION')
 #define BuildVersion GetEnv('BIBLIOPHILARRVERSION')
@@ -29,7 +29,7 @@ OutputBaseFilename=Bibliophilarr.{#BuildVersion}.{#Runtime}
 SolidCompression=yes
 AppCopyright=Creative Commons 3.0 License
 AllowUNCPath=False
-UninstallDisplayIcon={app}\bin\Bibliophilarr.exe
+UninstallDisplayIcon={app}\bin\{#AppExeName}
 DisableReadyPage=True
 CompressionThreads=2
 Compression=lzma2/normal
@@ -52,27 +52,27 @@ Name: "none"; Description: "Do not start automatically"; GroupDescription: "Star
 Name: "{app}"; Permissions: users-modify
 
 [Files]
-Source: "..\..\..\_artifacts\{#Runtime}\{#Framework}\Bibliophilarr\Bibliophilarr.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "..\..\..\_artifacts\{#Runtime}\{#Framework}\Bibliophilarr\{#AppExeName}"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\..\..\_artifacts\{#Runtime}\{#Framework}\Bibliophilarr\*"; Excludes: "Bibliophilarr.Update"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; Parameters: "/icon"
 Name: "{commondesktop}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; Parameters: "/icon"; Tasks: desktopIcon
-Name: "{userstartup}\{#AppName}"; Filename: "{app}\bin\Bibliophilarr.exe"; WorkingDir: "{app}\bin"; Tasks: startupShortcut
+Name: "{userstartup}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; WorkingDir: "{app}\bin"; Tasks: startupShortcut
 
 [InstallDelete]
 Name: "{app}\bin"; Type: filesandordirs
 
 [Run]
-Filename: "{app}\bin\Bibliophilarr.Console.exe"; StatusMsg: "Removing previous Windows Service"; Parameters: "/u /exitimmediately"; Flags: runhidden waituntilterminated;
-Filename: "{app}\bin\Bibliophilarr.Console.exe"; Description: "Enable Access from Other Devices"; StatusMsg: "Enabling Remote access"; Parameters: "/registerurl /exitimmediately"; Flags: postinstall runascurrentuser runhidden waituntilterminated; Tasks: startupShortcut none;
-Filename: "{app}\bin\Bibliophilarr.Console.exe"; StatusMsg: "Installing Windows Service"; Parameters: "/i /exitimmediately"; Flags: runhidden waituntilterminated; Tasks: windowsService
-Filename: "{app}\bin\Bibliophilarr.exe"; Description: "Open Bibliophilarr Web UI"; Flags: postinstall skipifsilent nowait; Tasks: windowsService;
-Filename: "{app}\bin\Bibliophilarr.exe"; Description: "Start Bibliophilarr"; Flags: postinstall skipifsilent nowait; Tasks: startupShortcut none;
+Filename: "{app}\bin\{#AppExeName}"; StatusMsg: "Removing previous Windows Service"; Parameters: "/u /exitimmediately"; Flags: runhidden waituntilterminated;
+Filename: "{app}\bin\{#AppExeName}"; Description: "Enable Access from Other Devices"; StatusMsg: "Enabling Remote access"; Parameters: "/registerurl /exitimmediately"; Flags: postinstall runascurrentuser runhidden waituntilterminated; Tasks: startupShortcut none;
+Filename: "{app}\bin\{#AppExeName}"; StatusMsg: "Installing Windows Service"; Parameters: "/i /exitimmediately"; Flags: runhidden waituntilterminated; Tasks: windowsService
+Filename: "{app}\bin\{#AppExeName}"; Description: "Open Bibliophilarr Web UI"; Flags: postinstall skipifsilent nowait; Tasks: windowsService;
+Filename: "{app}\bin\{#AppExeName}"; Description: "Start Bibliophilarr"; Flags: postinstall skipifsilent nowait; Tasks: startupShortcut none;
 
 [UninstallRun]
-Filename: "{app}\bin\bibliophilarr.console.exe"; Parameters: "/u"; Flags: waituntilterminated skipifdoesntexist
+Filename: "{app}\bin\{#AppExeName}"; Parameters: "/u"; Flags: waituntilterminated skipifdoesntexist
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;

@@ -41,9 +41,10 @@ UpdateVersionNumber()
     local appVersion="${BIBLIOPHILARRVERSION:-$BIBLIOPHILARRVERSION}"
     if [ "$appVersion" != "" ]; then
         echo "Updating Version Info"
-        sed -i'' -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>$appVersion<\/AssemblyVersion>/g" src/Directory.Build.props || { echo "ERROR: sed failed updating AssemblyVersion"; exit 1; }
-        sed -i'' -e "s/<AssemblyConfiguration>[\$()A-Za-z-]\+<\/AssemblyConfiguration>/<AssemblyConfiguration>${BUILD_SOURCEBRANCHNAME}<\/AssemblyConfiguration>/g" src/Directory.Build.props || { echo "ERROR: sed failed updating AssemblyConfiguration"; exit 1; }
-        sed -i'' -e "s/<string>10.0.0.0<\/string>/<string>$appVersion<\/string>/g" "distribution/osx/${APP_MAC_APP_NAME}/Contents/Info.plist" || { echo "ERROR: sed failed updating Info.plist version"; exit 1; }
+        sed -E -i.bak -e "s/<AssemblyVersion>[0-9.*]+<\/AssemblyVersion>/<AssemblyVersion>$appVersion<\/AssemblyVersion>/g" src/Directory.Build.props || { echo "ERROR: sed failed updating AssemblyVersion"; exit 1; }
+        sed -E -i.bak -e "s/<AssemblyConfiguration>[\$()A-Za-z-]+<\/AssemblyConfiguration>/<AssemblyConfiguration>${BUILD_SOURCEBRANCHNAME}<\/AssemblyConfiguration>/g" src/Directory.Build.props || { echo "ERROR: sed failed updating AssemblyConfiguration"; exit 1; }
+        sed -E -i.bak -e "s/<string>10.0.0.0<\/string>/<string>$appVersion<\/string>/g" "distribution/osx/${APP_MAC_APP_NAME}/Contents/Info.plist" || { echo "ERROR: sed failed updating Info.plist version"; exit 1; }
+        rm -f src/Directory.Build.props.bak "distribution/osx/${APP_MAC_APP_NAME}/Contents/Info.plist.bak"
     fi
 }
 
@@ -66,7 +67,7 @@ EnableExtraPlatformsInSDK()
 EnableExtraPlatforms()
 {
     if grep -qv freebsd-x64 src/Directory.Build.props; then
-        sed -i'' -e "s^<RuntimeIdentifiers>\(.*\)</RuntimeIdentifiers>^<RuntimeIdentifiers>\1;freebsd-x64;linux-x86</RuntimeIdentifiers>^g" src/Directory.Build.props || { echo "ERROR: sed failed updating RuntimeIdentifiers"; exit 1; }
+        sed -E -i.bak -e "s^<RuntimeIdentifiers>\(.*\)</RuntimeIdentifiers>^<RuntimeIdentifiers>\1;freebsd-x64;linux-x86</RuntimeIdentifiers>^g" src/Directory.Build.props || { echo "ERROR: sed failed updating RuntimeIdentifiers"; exit 1; }
     fi
 }
 
@@ -482,8 +483,20 @@ fi
 
 if [ "$INSTALLER" = "YES" ];
 then
+    installer_framework="${FRAMEWORK:-net10.0}"
+    installer_rid="${RID:-win-x64}"
+
+    if [[ "$os" != "windows" || ( "$installer_rid" != win-x64 && "$installer_rid" != win-x86 ) ]]; then
+        echo "ERROR: --installer requires a Windows host and a win-x64 or win-x86 package" >&2
+        exit 1
+    fi
+
+    if [[ ! -s "$artifactsFolder/$installer_rid/$installer_framework/$APP_INTERNAL_NAME/$APP_INTERNAL_NAME.Console.exe" ]]; then
+        echo "ERROR: Build the $installer_rid package for $installer_framework before building the installer" >&2
+        exit 1
+    fi
+
+    trap RemoveInno EXIT
     InstallInno
-    BuildInstaller "net10.0" "win-x64"
-    BuildInstaller "net10.0" "win-x86"
-    RemoveInno
+    BuildInstaller "$installer_framework" "$installer_rid"
 fi
