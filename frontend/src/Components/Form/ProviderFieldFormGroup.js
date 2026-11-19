@@ -61,6 +61,7 @@ function getSelectValues(selectOptions) {
 function ProviderFieldFormGroup(props) {
   const {
     advancedSettings,
+    inputId,
     name,
     label,
     helpText,
@@ -86,15 +87,20 @@ function ProviderFieldFormGroup(props) {
     return null;
   }
 
+  const inputType = getType(props);
+  const labelable = [inputTypes.TEXT, inputTypes.PASSWORD, inputTypes.TEXT_TAG].includes(inputType);
+  const labelTarget = labelable ? inputId : undefined;
+
   return (
     <FormGroup
       advancedSettings={advancedSettings}
       isAdvanced={advanced}
     >
-      <FormLabel>{label}</FormLabel>
+      <FormLabel name={labelTarget}>{label}</FormLabel>
 
       <FormInputGroup
-        type={getType(props)}
+        type={inputType}
+        inputId={labelTarget}
         name={name}
         label={label}
         helpText={helpText}
@@ -122,6 +128,7 @@ const selectOptionsShape = {
 
 ProviderFieldFormGroup.propTypes = {
   advancedSettings: PropTypes.bool.isRequired,
+  inputId: PropTypes.string,
   name: PropTypes.string.isRequired,
   label: PropTypes.string.isRequired,
   helpText: PropTypes.string,

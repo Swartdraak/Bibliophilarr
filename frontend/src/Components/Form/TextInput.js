@@ -129,6 +129,7 @@ class TextInput extends Component {
       autoFocus,
       placeholder,
       name,
+      inputId,
       value,
       hasError,
       hasWarning,
@@ -143,7 +144,7 @@ class TextInput extends Component {
     return (
       <input
         ref={this.setInputRef}
-        id={name}
+        id={inputId ?? name}
         type={type}
         readOnly={readOnly}
         autoFocus={autoFocus}
@@ -181,6 +182,7 @@ TextInput.propTypes = {
   autoFocus: PropTypes.bool,
   placeholder: PropTypes.string,
   name: PropTypes.string.isRequired,
+  inputId: PropTypes.string,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.array]).isRequired,
   hasError: PropTypes.bool,
   hasWarning: PropTypes.bool,
