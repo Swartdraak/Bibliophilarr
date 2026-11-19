@@ -15,6 +15,8 @@ process.
 - Preserve existing authors and their catalogues when provider lookups are
   inconclusive. Retry transport failures within a shared request budget and
   surface provider outages in System Health.
+- Honor the historical server port environment variable. The canonical
+  `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
   requested. Distinct provider work IDs retain separate catalogue records.

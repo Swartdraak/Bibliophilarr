@@ -37,8 +37,9 @@ def wait_ready(process, http, base, app_data):
         try:
             response = http.get(base + "/ping", timeout=1000, max_redirects=0)
             if response.ok and response.json().get("status") == "OK":
-                key = ElementTree.parse(app_data / "config.xml").findtext("ApiKey")
-                if key and (app_data / "bibliophilarr.db").is_file():
+                config = ElementTree.parse(app_data / "config.xml").getroot()
+                key = config.findtext("ApiKey")
+                if config.tag == "Config" and key and (app_data / "bibliophilarr.db").is_file():
                     return key
         except (PlaywrightError, FileNotFoundError, ElementTree.ParseError, ValueError):
             pass
@@ -64,7 +65,6 @@ def running_app(binary, app_data, log_path, port, evidence, credentials):
     }
     env.update(
         ASPNETCORE_ENVIRONMENT="Production",
-        ASPNETCORE_URLS=base,
         BIBLIOPHILARR__SERVER__PORT=str(port),
         BIBLIOPHILARR__SERVER__BINDADDRESS="127.0.0.1",
         BIBLIOPHILARR__LOG__ANALYTICSENABLED="false",
