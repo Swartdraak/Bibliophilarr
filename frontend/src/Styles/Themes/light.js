@@ -57,20 +57,26 @@ module.exports = {
   linkHoverColor: '#1b72e2',
 
   // Header
-  pageHeaderBackgroundColor: bibliophilarrNavy,
+  pageHeaderBackgroundColor: '#14283d',
+  headerControlColor: '#203951',
+  headerOutlineColor: '#7d98b4',
 
   // Sidebar
 
   sidebarColor: '#e1e2e3',
-  sidebarBackgroundColor: '#1a2e44',
-  sidebarActiveBackgroundColor: '#122336',
+  sidebarBackgroundColor: '#fbfbfa',
+  sidebarNavigationColor: '#34445a',
+  sidebarActiveColor: '#193555',
+  sidebarActiveBackgroundColor: '#e2ebf6',
+  workspaceBorderColor: '#d6dee7',
+  workspacePrimaryBackgroundColor: '#14283d',
 
   // Toolbar
-  toolbarColor: '#e1e2e3',
-  toolbarBackgroundColor: '#122336',
+  toolbarColor: '#263951',
+  toolbarBackgroundColor: '#fff',
   toolbarMenuItemBackgroundColor: '#0e1b2a',
   toolbarMenuItemHoverBackgroundColor: '#1a2e44',
-  toolbarLabelColor: '#e1e2e3',
+  toolbarLabelColor: '#34445a',
 
   // Accents
   borderColor: '#e5e5e5',

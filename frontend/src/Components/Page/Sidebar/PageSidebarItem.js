@@ -52,6 +52,7 @@ class PageSidebarItem extends Component {
             isActive && styles.isActiveLink
           )}
           to={to}
+          aria-current={isActive ? 'page' : undefined}
           onPress={this.onPress}
         >
           {

@@ -1,3 +1,4 @@
+import classNames from 'classnames';
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import styles from './PageToolbar.css';
@@ -10,11 +11,12 @@ class PageToolbar extends Component {
   render() {
     const {
       className,
+      stackOnMobile,
       children
     } = this.props;
 
     return (
-      <div className={className}>
+      <div className={classNames(className, stackOnMobile && styles.stackOnMobile)}>
         {children}
       </div>
     );
@@ -23,6 +25,7 @@ class PageToolbar extends Component {
 
 PageToolbar.propTypes = {
   className: PropTypes.string,
+  stackOnMobile: PropTypes.bool,
   children: PropTypes.node.isRequired
 };
 

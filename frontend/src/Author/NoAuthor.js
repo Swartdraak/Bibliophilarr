@@ -1,7 +1,8 @@
 import PropTypes from 'prop-types';
 import React from 'react';
+import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
-import { kinds } from 'Helpers/Props';
+import { icons, kinds } from 'Helpers/Props';
 import translate from 'Utilities/String/translate';
 import styles from './NoAuthor.css';
 
@@ -11,49 +12,56 @@ function NoAuthor(props) {
     itemType
   } = props;
 
+  const isBooks = itemType === 'books';
+
   if (totalItems > 0) {
     return (
-      <div>
-        <div className={styles.message}>
-          {`All ${itemType} are hidden due to the applied filter.`}
-        </div>
+      <div className={styles.filtered} role="status">
+        {translate(isBooks ? 'LibraryBooksFiltered' : 'LibraryAuthorsFiltered')}
       </div>
     );
   }
 
   return (
-    <div>
-      <div className={styles.message}>
-        {`No ${itemType} found, to get started you'll want to add a new author or book or add an existing library location (Root Folder) and update.`}
-      </div>
+    <section className={styles.empty}>
+      <span className={styles.icon} aria-hidden="true">
+        <Icon name={icons.BOOK} size={24} />
+      </span>
 
-      <div className={styles.buttonContainer}>
+      <h2 className={styles.heading}>
+        {translate(isBooks ? 'LibraryNoBooks' : 'LibraryNoAuthors')}
+      </h2>
+
+      <p className={styles.message}>
+        {translate('LibraryEmptyHelp')}
+      </p>
+
+      <div className={styles.actions}>
         <Button
-          to="/settings/mediamanagement"
+          className={styles.primaryAction}
+          to="/add/search"
           kind={kinds.PRIMARY}
+        >
+          {translate(isBooks ? 'AddNewBook' : 'AddNewAuthor')}
+        </Button>
+        <Button
+          className={styles.secondaryAction}
+          to="/settings/mediamanagement"
         >
           {translate('AddRootFolder')}
         </Button>
       </div>
-
-      <div className={styles.buttonContainer}>
-        <Button
-          to="/add/search"
-          kind={kinds.PRIMARY}
-        >
-          {translate('AddNewAuthor')}
-        </Button>
-      </div>
-    </div>
+    </section>
   );
 }
 
 NoAuthor.propTypes = {
-  totalItems: PropTypes.number.isRequired,
-  itemType: PropTypes.string.isRequired
+  totalItems: PropTypes.number,
+  itemType: PropTypes.oneOf(['authors', 'books'])
 };
 
 NoAuthor.defaultProps = {
+  totalItems: 0,
   itemType: 'authors'
 };
 

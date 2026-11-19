@@ -6,3 +6,21 @@
   overflow-x: hidden;
   width: 100%;
 }
+
+.title {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 20px $pageContentBodyPadding 12px;
+  color: var(--sidebarActiveColor);
+  font-weight: 600;
+  font-size: clamp(26px, 2.5vw, 34px);
+  font-family: 'Georgia', serif;
+  line-height: 1.15;
+}
+
+@media only screen and (max-width: $breakpointSmall) {
+  .title {
+    padding-right: $pageContentBodyPaddingSmallScreen;
+    padding-left: $pageContentBodyPaddingSmallScreen;
+  }
+}
