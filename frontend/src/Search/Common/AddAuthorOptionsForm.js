@@ -216,7 +216,7 @@ class AddAuthorOptionsForm extends Component {
                 name="ebookQualityProfileId"
                 helpText="Quality profile for ebook format downloads"
                 onChange={this.onEbookQualityProfileIdChange}
-                {...(ebookQualityProfileId || qualityProfileId)}
+                {...ebookQualityProfileId}
               />
             </FormGroup>
         }
@@ -233,7 +233,7 @@ class AddAuthorOptionsForm extends Component {
                 name="audiobookQualityProfileId"
                 helpText="Quality profile for audiobook format downloads"
                 onChange={this.onAudiobookQualityProfileIdChange}
-                {...(audiobookQualityProfileId || qualityProfileId)}
+                {...audiobookQualityProfileId}
               />
             </FormGroup>
         }

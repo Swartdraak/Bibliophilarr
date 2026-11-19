@@ -1,12 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using FluentAssertions;
 using Moq;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -270,7 +275,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var metadata = result.Item3[0];
             metadata.ForeignAuthorId.Should().Be("hardcover:author:Stephen%20King");
             metadata.Name.Should().Be("Stephen King");
-            metadata.Overview.Should().Be("A classic horror novel");
+            metadata.Overview.Should().BeNull();
             metadata.Ratings.Votes.Should().Be(0);
             metadata.Ratings.Value.Should().Be(0m);
 
@@ -329,6 +334,307 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             book.ReleaseDate.Should().Be(new DateTime(1978, month, day, hour, 0, 0, DateTimeKind.Utc));
             book.ReleaseDate.Value.Kind.Should().Be(DateTimeKind.Utc);
+        }
+
+        [TestCase("hardcover:author:123", 200, 100, new[] { 0, 100, 200 })]
+        [TestCase("hardcover:author:Complete%20Author", 101, 100, new[] { 0, 100, 101 })]
+        [TestCase("hardcover:author:123", 141, 65, new[] { 0, 65, 130, 141 })]
+        public void get_author_info_should_fetch_the_complete_ordered_bibliography(
+            string authorId, int contributionCount, int providerCap, int[] expectedOffsets)
+        {
+            var offsets = new List<int>();
+            var searchedByName = false;
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query SearchAuthors", StringComparison.Ordinal))
+                    {
+                        searchedByName = true;
+                        return CreateJsonResponse(request, JObject.Parse("{\"data\":{\"search\":{\"ids\":[123]}}}"));
+                    }
+
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("{\"data\":{\"book_series\":[]}}"));
+                    }
+
+                    query.Should().Contain("order_by: {id: asc}");
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    var limit = body.SelectToken("variables.limit").Value<int>();
+                    offsets.Add(offset);
+
+                    var contributionIds = Enumerable.Range(offset + 1, Math.Min(Math.Min(limit, providerCap), contributionCount - offset));
+                    return CreateJsonResponse(request, BuildAuthorPage(contributionIds));
+                });
+
+            var author = Subject.GetAuthorInfo(authorId);
+
+            searchedByName.Should().Be(authorId != "hardcover:author:123");
+            offsets.Should().Equal(expectedOffsets);
+            author.Metadata.Value.ForeignAuthorId.Should().Be("hardcover:author:123");
+            author.Books.Value.Should().HaveCount(contributionCount - 1);
+            author.Books.Value.Should().OnlyHaveUniqueItems(book => book.ForeignBookId);
+            author.Books.Value.Should().Contain(book => book.ForeignBookId == $"hardcover:work:{contributionCount}");
+            author.Books.Value.Should().Contain(book => book.Title == "Book Collection: Volume 1");
+            author.Books.Value.Should().Contain(book => book.Title == "Book Collection: Volume 2");
+            author.Books.Value.Should().OnlyContain(book => book.AuthorMetadata.Value.Name == "Complete Author");
+            author.Series.Value.Should().ContainSingle();
+            author.Series.Value.Single().LinkItems.Value.Should().HaveCount(contributionCount - 1);
+        }
+
+        [TestCase("hardcover:author:123", "transport")]
+        [TestCase("hardcover:author:Complete%20Author", "partial")]
+        [TestCase("hardcover:author:123", "missing")]
+        [TestCase("hardcover:author:123", "repeated")]
+        public void get_author_info_should_report_failed_later_pages_as_unavailable(string authorId, string failure)
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query SearchAuthors", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("{\"data\":{\"search\":{\"ids\":[123]}}}"));
+                    }
+
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    if (offset == 0)
+                    {
+                        return CreateJsonResponse(request, BuildAuthorPage(Enumerable.Range(1, 100)));
+                    }
+
+                    offset.Should().Be(100);
+                    if (failure == "transport")
+                    {
+                        throw new HttpRequestException("Provider connection closed.");
+                    }
+
+                    if (failure == "missing")
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("{\"data\":{\"authors\":[]}}"));
+                    }
+
+                    var payload = BuildAuthorPage(new[] { failure == "repeated" ? 100 : 101 });
+                    if (failure == "partial")
+                    {
+                        payload["errors"] = JArray.Parse("[{\"message\":\"Bibliography query incomplete\"}]");
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var registry = Mocker.GetMock<IMetadataProviderRegistry>();
+            registry.Setup(service => service.GetProviders()).Returns(new IMetadataProvider[] { Subject });
+            var orchestrator = Mocker.Resolve<MetadataProviderOrchestrator>();
+
+            var act = () => orchestrator.GetAuthorInfo(authorId);
+
+            act.Should().Throw<MetadataProviderUnavailableException>()
+                .Which.EntityId.Should().Be("hardcover:author:123");
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<IHttpClient>()
+                .Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_keep_the_legacy_edition_and_add_typed_provider_editions(bool authorHydration)
+        {
+            var source = InstallEditionResponse(JArray.Parse("""[{"id":50,"reading_format_id":1,"edition_format":"Paperback","isbn_13":"9780306406157","pages":307,"language":{"language":"English"}}]"""));
+
+            var book = authorHydration
+                ? Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single()
+                : Subject.GetBookInfo("hardcover:work:543").Item2;
+
+            book.SeriesLinks.Value.Single().Series.Value.Title.Should().Be("Variant Series");
+            book.Editions.Value.Select(edition => edition.ForeignEditionId)
+                .Should().Equal("hardcover:edition:543", "hardcover:source-edition:60", "hardcover:source-edition:80");
+            var primary = book.Editions.Value[0];
+            primary.Isbn13.Should().Be("9780306406157");
+            primary.PageCount.Should().Be(302);
+            primary.Format.Should().Be("Print");
+            primary.MatchesFormat(FormatType.Audiobook).Should().BeFalse();
+            book.GetPreferredEdition(FormatType.Ebook).Asin.Should().Be("EBOOKASIN");
+            book.GetPreferredEdition(FormatType.Audiobook).Asin.Should().Be("AUDIOASIN");
+            book.GetPreferredEdition(FormatType.Audiobook).Format.Should().Be("Audiobook");
+            source.SelectToken("ebooks[0].id").Value<int>().Should().Be(60);
+        }
+
+        [Test]
+        public void should_not_duplicate_the_legacy_edition_if_it_is_the_preferred_source_edition()
+        {
+            InstallEditionResponse(JArray.Parse("""[{"id":60,"reading_format_id":4,"edition_format":"Kindle","asin":"EBOOKASIN"}]"""));
+
+            var editions = Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single().Editions.Value;
+
+            editions.Select(edition => edition.ForeignEditionId)
+                .Should().Equal("hardcover:edition:543", "hardcover:source-edition:80");
+            editions[0].IsEbook.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_not_advertise_an_audiobook_from_print_or_a_wrongly_typed_alias()
+        {
+            var source = InstallEditionResponse(JArray.Parse("""[{"id":50,"reading_format_id":1,"edition_format":"Paperback"}]"""));
+            source["ebooks"] = new JArray();
+            source["audiobooks"] = JArray.Parse("""[{"id":50,"reading_format_id":1,"edition_format":"Paperback"},{"id":0,"reading_format_id":2}]""");
+
+            var book = Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single();
+
+            book.Editions.Value.Should().ContainSingle();
+            book.GetPreferredEdition(FormatType.Ebook).Should().BeNull();
+            book.GetPreferredEdition(FormatType.Audiobook).Should().BeNull();
+        }
+
+        [TestCase("""{"id":50,"reading_format_id":1}""")]
+        [TestCase("""{"id":50,"reading_format_id":3}""")]
+        [TestCase("""{"id":50,"reading_format_id":2,"edition_format":"Paperback"}""")]
+        [TestCase("""{"id":50,"reading_format_id":4,"edition_format":"Kindle","physical_format":"Paperback"}""")]
+        public void should_leave_ambiguous_or_conflicting_edition_format_unclassified(string editionJson)
+        {
+            var source = InstallEditionResponse(new JArray(JObject.Parse(editionJson)));
+            source["ebooks"] = new JArray();
+            source["audiobooks"] = new JArray();
+
+            var book = Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single();
+
+            book.Editions.Value.Single().Format.Should().Be("Unclassified");
+            book.GetPreferredEdition(FormatType.Ebook).Should().BeNull();
+            book.GetPreferredEdition(FormatType.Audiobook).Should().BeNull();
+        }
+
+        private JObject InstallEditionResponse(JArray legacyEditions)
+        {
+            var book = JObject.Parse("""
+                {
+                  "id": 543,
+                  "title": "Print, ebook, and audio",
+                  "pages": 302,
+                  "cached_contributors": [{"author":{"id":123,"name":"Complete Author"}}],
+                  "book_series": [{"position":1,"series":{"id":789,"name":"Variant Series"}}],
+                  "ebooks": [{"id":60,"reading_format_id":4,"edition_format":"Kindle","asin":"EBOOKASIN","pages":288}],
+                  "audiobooks": [{"id":80,"reading_format_id":2,"edition_format":"Audiobook","asin":"AUDIOASIN","language":{"language":"English"}}]
+                }
+                """);
+            book["editions"] = legacyEditions;
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                    }
+
+                    query.Should().Contain("ebooks: editions(where: {reading_format_id: {_eq: 4}}");
+                    query.Should().Contain("audiobooks: editions(where: {reading_format_id: {_eq: 2}}");
+
+                    if (query.StartsWith("query GetBook", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, new JObject { ["data"] = new JObject { ["books"] = new JArray(book) } });
+                    }
+
+                    var payload = BuildAuthorPage(body.SelectToken("variables.offset").Value<int>() == 0 ? new[] { 1 } : Array.Empty<int>());
+                    if (payload.SelectToken("data.authors[0].contributions[0]") is JObject contribution)
+                    {
+                        contribution["book"] = book;
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            return book;
+        }
+
+        [TestCase("Published author biography")]
+        [TestCase(null)]
+        public void author_hydration_should_map_the_queried_author_bio_without_using_coauthor_or_book_content(string biography)
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                    }
+
+                    query.Should().Contain("bio");
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    var payload = BuildAuthorPage(offset == 0 ? new[] { 1 } : Array.Empty<int>());
+                    payload.SelectToken("data.authors[0]")["bio"] = biography;
+                    if (offset == 0)
+                    {
+                        var book = payload.SelectToken("data.authors[0].contributions[0].book");
+                        book["description"] = "Synopsis of a coauthored book";
+                        book["ratings_count"] = 71;
+                        book["rating"] = 4.2;
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var author = Subject.GetAuthorInfo("hardcover:author:123");
+            var book = author.Books.Value.Single();
+
+            author.Metadata.Value.Name.Should().Be("Complete Author");
+            author.Metadata.Value.Overview.Should().Be(biography);
+            author.Metadata.Value.Ratings.Votes.Should().Be(0);
+            book.AuthorMetadata.Value.Should().BeSameAs(author.Metadata.Value);
+            book.Editions.Value.Single().Overview.Should().Be("Synopsis of a coauthored book");
+            book.Ratings.Votes.Should().Be(71);
+        }
+
+        private static HttpResponse<JObject> CreateJsonResponse(HttpRequest request, JObject body)
+        {
+            return new HttpResponse<JObject>(
+                new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, body.ToString()));
+        }
+
+        private static JObject BuildAuthorPage(IEnumerable<int> contributionIds)
+        {
+            return JObject.FromObject(new
+            {
+                data = new
+                {
+                    authors = new[]
+                    {
+                        new
+                        {
+                            id = 123,
+                            name = "Complete Author",
+                            slug = "complete-author",
+                            contributions = contributionIds.Select(contributionId =>
+                            {
+                                // Duplicate work IDs are emitted with distinct contribution IDs.
+                                var bookId = contributionId == 100 ? 1 : contributionId;
+
+                                return new
+                                {
+                                    id = contributionId,
+                                    book = new
+                                    {
+                                        id = bookId,
+                                        title = bookId is 1 or 2 ? $"Book Collection: Volume {bookId}" : $"Book {bookId}",
+                                        cached_contributors = new[] { new { author = new { id = 456, name = "Coauthor" } } },
+                                        book_series = new[] { new { position = bookId, series = new { id = 789, name = "Complete Series" } } }
+                                    }
+                                };
+                            })
+                        }
+                    }
+                }
+            });
         }
 
         [Test]
