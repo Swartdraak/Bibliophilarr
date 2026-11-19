@@ -87,6 +87,12 @@ namespace NzbDrone.Core.MetadataSource
                 return new List<Book>();
             }
 
+            if (!provider.IsFallbackEnabled)
+            {
+                _logger.Trace("Skipping disabled fallback provider {0}", provider.ProviderName);
+                return new List<Book>();
+            }
+
             if (TryGetActiveCooldown(provider.ProviderName, out var remaining))
             {
                 UpdateRateLimitHealth(provider, 0, remaining);

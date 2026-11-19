@@ -74,7 +74,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             request.SuppressHttpError = true;
 
             var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request, GetRetryBudget(OperationClass.Search));
-            return response ?? new OlSearchResponse();
+
+            // Author hydration must distinguish a failed request from an empty final page.
+            return query.StartsWith("author_key:", StringComparison.Ordinal) ? response : response ?? new OlSearchResponse();
         }
 
         public OlAuthorWorksResponse GetAuthorWorks(string olid, int limit = 100, int offset = 0)
@@ -91,8 +93,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
 
-            var response = ExecuteWithRateLimitRetry<OlAuthorWorksResponse>("openlibrary.author-works", request, GetRetryBudget(OperationClass.Work));
-            return response ?? new OlAuthorWorksResponse();
+            return ExecuteWithRateLimitRetry<OlAuthorWorksResponse>("openlibrary.author-works", request, GetRetryBudget(OperationClass.Work));
         }
 
         public OlWorkEditionsResponse GetWorkEditions(string olid, int limit = 20, int offset = 0)

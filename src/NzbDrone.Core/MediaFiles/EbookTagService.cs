@@ -937,58 +937,13 @@ namespace NzbDrone.Core.MediaFiles
             {
                 return null;
             }
-            else if ((isbn.Length == 10 && ValidateIsbn10(isbn)) ||
-                (isbn.Length == 13 && ValidateIsbn13(isbn)))
+            else if ((isbn.Length == 10 && Isbn.IsValid10(isbn)) ||
+                (isbn.Length == 13 && Isbn.IsValid13(isbn)))
             {
                 return isbn;
             }
 
             return null;
-        }
-
-        private static char Isbn10Checksum(string isbn)
-        {
-            var sum = 0;
-            for (var i = 0; i < 9; i++)
-            {
-                sum += int.Parse(isbn[i].ToString()) * (10 - i);
-            }
-
-            var result = sum % 11;
-
-            if (result == 0)
-            {
-                return '0';
-            }
-            else if (result == 1)
-            {
-                return 'X';
-            }
-
-            return (11 - result).ToString()[0];
-        }
-
-        private static char Isbn13Checksum(string isbn)
-        {
-            var result = 0;
-            for (var i = 0; i < 12; i++)
-            {
-                result += int.Parse(isbn[i].ToString()) * ((i % 2 == 0) ? 1 : 3);
-            }
-
-            result %= 10;
-
-            return result == 0 ? '0' : (10 - result).ToString()[0];
-        }
-
-        private static bool ValidateIsbn10(string isbn)
-        {
-            return ulong.TryParse(isbn.Substring(0, 9), out _) && isbn[9] == Isbn10Checksum(isbn);
-        }
-
-        private static bool ValidateIsbn13(string isbn)
-        {
-            return ulong.TryParse(isbn, out _) && isbn[12] == Isbn13Checksum(isbn);
         }
     }
 }

@@ -64,6 +64,25 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             ExceptionVerification.IgnoreWarns();
         }
 
+        [TestCase(true, System.Net.HttpStatusCode.TooManyRequests)]
+        [TestCase(false, System.Net.HttpStatusCode.TooManyRequests)]
+        [TestCase(true, System.Net.HttpStatusCode.OK)]
+        [TestCase(false, System.Net.HttpStatusCode.OK)]
+        public void author_pagination_should_distinguish_request_errors_and_malformed_data_from_empty_pages(
+            bool useWorksEndpoint, System.Net.HttpStatusCode status)
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.MetadataProviderRetryBudget).Returns(0);
+            var error = new HttpResponse(new HttpRequest("https://openlibrary.org"), new HttpHeader(), "{}", status);
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns(error);
+
+            var result = useWorksEndpoint
+                ? (object)Subject.GetAuthorWorks("OL1A", 100, 100)
+                : Subject.Search("author_key:OL1A", 100, 100);
+
+            result.Should().BeNull();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
         [Test]
         public void get_work_should_deserialize_author_role_when_type_is_string()
         {
