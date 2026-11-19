@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using FizzWare.NBuilder;
@@ -239,6 +240,97 @@ namespace NzbDrone.Core.Test.MediaFiles
                 editions.Count == 1 && editions[0].ForeignEditionId == remoteEdition.ForeignEditionId && editions[0].BookId == _book.Id)), Times.Once());
             Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files =>
                 files.Count == 1 && files[0].EditionId == _audiobookEdition.Id)), Times.Once());
+        }
+
+        [Test]
+        public void should_attach_a_provider_alias_to_the_same_work_without_replacing_the_ebook_edition()
+        {
+            _book.ForeignBookId = "hardcover:work:43";
+            _book.Title = "The Example";
+            _book.ReleaseDate = new DateTime(2022, 1, 25);
+            _book.AuthorMetadataId = _author.AuthorMetadataId = 5;
+            _ebookEdition.Format = "Ebook";
+            _book.Editions = new List<Edition> { _ebookEdition };
+            _audiobookEdition.Format = "Audiobook";
+            GivenAudiobookImport();
+
+            var remoteEdition = new Edition { ForeignEditionId = "openlibrary:edition:OL2M", Format = "Audiobook" };
+            var remoteBook = new Book
+            {
+                Title = "The Example",
+                ForeignBookId = "openlibrary:work:OL1W",
+                Author = _author,
+                AuthorMetadataId = _author.AuthorMetadataId,
+                ReleaseDate = _book.ReleaseDate,
+                Editions = new List<Edition> { remoteEdition }
+            };
+            _approvedDecisions[0].Item.Book = remoteBook;
+            _approvedDecisions[0].Item.Edition = remoteEdition;
+            _audiobookEdition.ForeignEditionId = remoteEdition.ForeignEditionId;
+
+            Mocker.GetMock<IBookService>().Setup(s => s.GetBooksByAuthorMetadataId(_author.AuthorMetadataId)).Returns(new List<Book> { _book });
+            Mocker.GetMock<IEditionService>().SetupSequence(s => s.GetEditionByForeignEditionId(remoteEdition.ForeignEditionId))
+                .Returns((Edition)null)
+                .Returns((Edition)null)
+                .Returns(_audiobookEdition);
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.Result == ImportResultType.Imported);
+            _approvedDecisions[0].Item.Book.Should().BeSameAs(_book);
+            Mocker.GetMock<IBookService>().Verify(s => s.InsertMany(It.IsAny<List<Book>>()), Times.Never());
+            Mocker.GetMock<IEditionService>().Verify(s => s.InsertMany(It.Is<List<Edition>>(editions =>
+                editions.Count == 1 && editions[0].BookId == _book.Id && editions[0].Format == "Audiobook")), Times.Once());
+        }
+
+        [Test]
+        public void should_leave_an_ambiguous_provider_alias_for_review()
+        {
+            GivenEbookImport();
+            var incoming = new Book
+            {
+                Title = "Example Work",
+                ForeignBookId = "hardcover:work:100",
+                AuthorMetadataId = 5,
+                ReleaseDate = new DateTime(2022, 1, 25)
+            };
+            _approvedDecisions[0].Item.Book = incoming;
+            Mocker.GetMock<IBookService>().Setup(s => s.GetBooksByAuthorMetadataId(5)).Returns(new List<Book>
+            {
+                new Book { Id = 11, ForeignBookId = "hardcover:work:11", Title = incoming.Title, ReleaseDate = incoming.ReleaseDate },
+                new Book { Id = 12, ForeignBookId = "hardcover:work:12", Title = incoming.Title, ReleaseDate = incoming.ReleaseDate }
+            });
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.Result == ImportResultType.Rejected);
+            Mocker.GetMock<IBookService>().Verify(s => s.InsertMany(It.IsAny<List<Book>>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+        }
+
+        [Test]
+        public void should_use_the_stored_edition_owner_after_provider_title_changes()
+        {
+            GivenAudiobookImport();
+            _book.AuthorMetadataId = _author.AuthorMetadataId = 5;
+            _audiobookEdition.ForeignEditionId = "hardcover:edition:42";
+            var selected = new Edition { ForeignEditionId = _audiobookEdition.ForeignEditionId, Format = "Audiobook" };
+            _approvedDecisions[0].Item.Book = new Book
+            {
+                Title = "Revised provider title",
+                ForeignBookId = "hardcover:work:100",
+                AuthorMetadataId = _book.AuthorMetadataId,
+                Editions = new List<Edition> { selected }
+            };
+            _approvedDecisions[0].Item.Edition = selected;
+            Mocker.GetMock<IEditionService>().Setup(s => s.GetEditionByForeignEditionId(selected.ForeignEditionId)).Returns(_audiobookEdition);
+            Mocker.GetMock<IBookService>().Setup(s => s.GetBook(_book.Id)).Returns(_book);
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.Result == ImportResultType.Imported);
+            _approvedDecisions[0].Item.Book.Should().BeSameAs(_book);
+            Mocker.GetMock<IBookService>().Verify(s => s.InsertMany(It.IsAny<List<Book>>()), Times.Never());
         }
 
         [TestCase(true)]

@@ -131,6 +131,27 @@ namespace NzbDrone.Api.Test.Books
         }
 
         [Test]
+        public void should_expose_another_same_work_cover_without_changing_the_preferred_edition()
+        {
+            var cover = new MediaCover(MediaCoverTypes.Cover, "https://covers.example/edition.jpg");
+            var book = new Book
+            {
+                Title = "Fixture Work",
+                Editions = new List<Edition>
+                {
+                    new Edition { ForeignEditionId = "preferred", Monitored = true },
+                    new Edition { ForeignEditionId = "alternate", Images = new List<MediaCover> { cover } }
+                }
+            };
+
+            var resource = book.ToResource();
+
+            resource.ForeignEditionId.Should().Be("preferred");
+            resource.Images.Should().ContainSingle().Which.Url.Should().Be(cover.Url);
+            resource.Images[0].Should().NotBeSameAs(cover);
+        }
+
+        [Test]
         public void should_include_ebook_format_status_when_ebook_edition_exists()
         {
             var book = new Book

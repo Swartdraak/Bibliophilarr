@@ -922,6 +922,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             series {
                                 id
                                 name
+                                description
                                 books_count
                                 primary_books_count
                             }
@@ -934,6 +935,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             edition_format
                             physical_format
                             language { language }
+                            cached_image
                             pages
                         }
                         ebooks: editions(where: {reading_format_id: {_eq: 4}}, order_by: {id: asc}, limit: 5) {
@@ -944,6 +946,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             edition_format
                             physical_format
                             language { language }
+                            cached_image
                             pages
                         }
                         audiobooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
@@ -954,6 +957,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             edition_format
                             physical_format
                             language { language }
+                            cached_image
                             pages
                         }
                     }
@@ -1121,6 +1125,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             series {
                                                 id
                                                 name
+                                                description
                                                 books_count
                                                 primary_books_count
                                             }
@@ -1133,6 +1138,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             edition_format
                                             physical_format
                                             language { language }
+                                            cached_image
                                             pages
                                         }
                                         ebooks: editions(where: {reading_format_id: {_eq: 4}}, order_by: {id: asc}, limit: 5) {
@@ -1143,6 +1149,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             edition_format
                                             physical_format
                                             language { language }
+                                            cached_image
                                             pages
                                         }
                                         audiobooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
@@ -1153,6 +1160,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             edition_format
                                             physical_format
                                             language { language }
+                                            cached_image
                                             pages
                                         }
                                     }
@@ -1261,6 +1269,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         series {
                             id
                             name
+                            description
                             books_count
                             primary_books_count
                         }
@@ -1301,6 +1310,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     {
                         ForeignSeriesId = $"hardcover:series:{group.Key}",
                         Title = seriesName,
+                        Description = firstEntry.SelectToken("series.description")?.Value<string>(),
                         WorkCount = firstEntry.SelectToken("series.books_count")?.Value<int>() ?? 0,
                         PrimaryWorkCount = firstEntry.SelectToken("series.primary_books_count")?.Value<int>() ?? 0,
                         Numbered = true
@@ -1477,6 +1487,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     {
                         ForeignSeriesId = $"hardcover:series:{firstSeries.SelectToken("series.id")?.Value<int>()}",
                         Title = seriesName,
+                        Description = firstSeries.SelectToken("series.description")?.Value<string>(),
                         WorkCount = firstSeries.SelectToken("series.books_count")?.Value<int>() ?? 0,
                         PrimaryWorkCount = firstSeries.SelectToken("series.primary_books_count")?.Value<int>() ?? 0,
                         Numbered = true
@@ -1526,11 +1537,13 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     Links = new List<Links> { new Links { Name = "Hardcover", Url = hardcoverBookUrl } }
                 };
 
-                if (coverUrl.IsNotNullOrWhiteSpace())
+                var editionCoverUrl = source?.SelectToken("cached_image.url")?.Value<string>();
+                editionCoverUrl = editionCoverUrl.IsNotNullOrWhiteSpace() ? editionCoverUrl : coverUrl;
+                if (editionCoverUrl.IsNotNullOrWhiteSpace())
                 {
                     edition.Images.Add(new MediaCover.MediaCover
                     {
-                        Url = coverUrl,
+                        Url = editionCoverUrl,
                         CoverType = MediaCoverTypes.Cover
                     });
                 }

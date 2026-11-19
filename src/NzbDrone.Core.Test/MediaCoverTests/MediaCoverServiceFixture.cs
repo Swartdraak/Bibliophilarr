@@ -7,11 +7,13 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Test.Framework;
 
@@ -150,6 +152,55 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Subject.ConvertToLocalUrls(12, MediaCoverEntity.Author, covers);
 
             covers.Single().Url.Should().Be(proxyUrl);
+        }
+
+        [TestCase("https://books.google.example/content?id=ABC&img=1", ".jpg")]
+        [TestCase("https://covers.example/art.PNG?signature=xyz.jpg", ".PNG")]
+        public void should_use_a_supported_filename_for_provider_image_urls(string url, string extension)
+        {
+            var cover = new MediaCover.MediaCover(MediaCoverTypes.Cover, url);
+            var proxy = new MediaCoverProxy(Mocker.Resolve<IHttpClient>(), Mocker.Resolve<IConfigFileProvider>(), new CacheManager());
+
+            cover.Extension.Should().Be(extension);
+            var localUrl = proxy.RegisterUrl(url);
+
+            localUrl.Should().EndWith("/image" + extension.ToLowerInvariant());
+            proxy.GetUrl(localUrl.Split('/')[^2]).Should().Be(url);
+        }
+
+        [TestCase(true, true)]
+        [TestCase(false, false)]
+        public void should_cache_preferred_book_cover_regardless_of_number_of_monitored_editions(bool primaryMonitored, bool otherMonitored)
+        {
+            const string preferredCover = "https://covers.example/preferred.jpg";
+            _edition.Monitored = primaryMonitored;
+            _edition.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, preferredCover) };
+            _book.Editions.Value.Add(new Edition
+            {
+                Monitored = otherMonitored,
+                Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, "https://covers.example/other.jpg") }
+            });
+
+            Subject.EnsureBookCovers(_book);
+
+            Mocker.GetMock<IHttpClient>()
+                .Verify(client => client.DownloadFile(preferredCover, It.IsAny<string>(), It.IsAny<string>()), Times.Once());
+        }
+
+        [Test]
+        public void should_cache_book_cover_from_another_edition_of_the_same_work_when_preferred_has_none()
+        {
+            const string availableCover = "https://covers.example/other.jpg";
+            _edition.Images.Clear();
+            _book.Editions.Value.Add(new Edition
+            {
+                Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, availableCover) }
+            });
+
+            Subject.EnsureBookCovers(_book);
+
+            Mocker.GetMock<IHttpClient>()
+                .Verify(client => client.DownloadFile(availableCover, It.IsAny<string>(), It.IsAny<string>()), Times.Once());
         }
 
         [Test]

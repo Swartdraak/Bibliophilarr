@@ -121,6 +121,7 @@ class AuthorDetailsSeries extends Component {
       onTableOptionChange,
       authorMonitored,
       searchBookIds,
+      representativeCover,
       isSearching
     } = this.props;
 
@@ -153,6 +154,16 @@ class AuthorDetailsSeries extends Component {
           >
             <div className={styles.header}>
               <div className={styles.left}>
+                {
+                  representativeCover &&
+                    <img
+                      className={styles.seriesCover}
+                      src={representativeCover.url}
+                      alt={translate('SeriesRepresentativeCover', [representativeCover.bookTitle])}
+                      title={translate('SeriesRepresentativeCover', [representativeCover.bookTitle])}
+                      loading="lazy"
+                    />
+                }
                 {
                   <div>
                     <span className={styles.bookTypeLabel}>
@@ -232,6 +243,10 @@ AuthorDetailsSeries.propTypes = {
   id: PropTypes.number.isRequired,
   authorId: PropTypes.number.isRequired,
   label: PropTypes.string.isRequired,
+  representativeCover: PropTypes.shape({
+    bookTitle: PropTypes.string.isRequired,
+    url: PropTypes.string.isRequired
+  }),
   sortKey: PropTypes.string,
   sortDirection: PropTypes.oneOf(sortDirections.all),
   items: PropTypes.arrayOf(PropTypes.object).isRequired,

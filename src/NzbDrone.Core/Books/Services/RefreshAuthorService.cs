@@ -247,6 +247,95 @@ namespace NzbDrone.Core.Books
             return all.Where(x => !excluded.Contains(x.ForeignBookId)).ToList();
         }
 
+        protected override List<Book> ReconcileRemoteChildren(Author local, List<Book> candidates, List<Book> localBooks)
+        {
+            if (candidates.Count == 0)
+            {
+                return candidates;
+            }
+
+            var existing = localBooks.Where(x => x.AuthorMetadataId == local.AuthorMetadataId)
+                .ToList();
+
+            var existingIds = existing.Select(x => x.ForeignBookId).ToHashSet();
+            var canonical = new List<Book>();
+            var aliases = new Dictionary<string, Book>();
+            foreach (var candidate in candidates.OrderByDescending(x => existingIds.Contains(x.ForeignBookId))
+                         .ThenByDescending(x => MetadataQualityScorer.GetBookScoreBreakdown(x).Values.Sum())
+                         .ThenBy(x => x.ForeignBookId, StringComparer.Ordinal))
+            {
+                var stored = BookWorkIdentity.FindUniqueMatch(candidate, existing, out var ambiguous);
+                var current = stored != null
+                    ? canonical.FirstOrDefault(x => x.ForeignBookId == stored.ForeignBookId)
+                    : ambiguous ? null : BookWorkIdentity.FindUniqueMatch(candidate, canonical, out _);
+                if (current != null && !BookWorkIdentity.AreEquivalent(candidate, current))
+                {
+                    current = null;
+                    stored = null;
+                }
+
+                if (current == null)
+                {
+                    current = candidate;
+                    if (stored != null && stored.ForeignBookId != candidate.ForeignBookId)
+                    {
+                        current = new Book
+                        {
+                            Author = candidate.Author,
+                            AuthorMetadata = candidate.AuthorMetadata,
+                            Editions = candidate.Editions,
+                            SeriesLinks = candidate.SeriesLinks
+                        };
+                        current.UseMetadataFrom(candidate);
+                        current.ForeignBookId = stored.ForeignBookId;
+                        current.TitleSlug = stored.TitleSlug;
+                    }
+
+                    current.OpenLibraryWorkId ??= BookWorkIdentity.GetOpenLibraryWorkId(candidate);
+                    if (stored != null)
+                    {
+                        current.OpenLibraryWorkId ??= BookWorkIdentity.GetOpenLibraryWorkId(stored);
+                    }
+
+                    canonical.Add(current);
+                }
+                else
+                {
+                    current.OpenLibraryWorkId ??= BookWorkIdentity.GetOpenLibraryWorkId(candidate);
+                    current.Editions = (current.Editions?.Value ?? new List<Edition>())
+                        .Concat(candidate.Editions?.Value ?? new List<Edition>())
+                        .DistinctBy(edition => edition.ForeignEditionId)
+                        .ToList();
+                }
+
+                if (candidate.ForeignBookId != null)
+                {
+                    aliases[candidate.ForeignBookId] = current;
+                }
+            }
+
+            foreach (var series in local.Series?.Value ?? new List<Series>())
+            {
+                var links = series.LinkItems?.Value ?? new List<SeriesBookLink>();
+                foreach (var link in links)
+                {
+                    var foreignBookId = link.Book?.Value?.ForeignBookId;
+                    if (foreignBookId != null && aliases.TryGetValue(foreignBookId, out var work))
+                    {
+                        link.Book = work;
+                    }
+                }
+
+                series.LinkItems = links.GroupBy(link => link.Book?.Value?.ForeignBookId)
+                    .Select(group => group.OrderByDescending(link => link.IsPrimary)
+                        .ThenByDescending(link => link.Position.IsNotNullOrWhiteSpace())
+                        .First())
+                    .ToList();
+            }
+
+            return canonical;
+        }
+
         protected override List<Book> GetLocalChildren(Author entity, List<Book> remoteChildren)
         {
             return _bookService.GetBooksForRefresh(entity.AuthorMetadataId,
@@ -294,8 +383,12 @@ namespace NzbDrone.Core.Books
 
         protected override bool RefreshChildren(SortedChildren localChildren, List<Book> remoteChildren, Author remoteData, bool forceChildRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
-            // Delete books that are no longer in the remote set (e.g. removed by dedup)
-            // only if they have no associated files and were not manually added.
+            // Refresh and reparent known editions before considering removal of any old work.
+            var updated = _refreshBookService.RefreshBookInfo(localChildren.Future, remoteChildren, remoteData, forceChildRefresh, forceUpdateFileTags, lastUpdate);
+
+            // A bibliography is not proof that omitted works ceased to exist.
+            // Only an identified alias with no remaining library state can be retired.
+            var retired = new List<Book>();
             foreach (var deleted in localChildren.Deleted)
             {
                 if (deleted.AddOptions?.AddType == BookAddType.Manual)
@@ -310,12 +403,24 @@ namespace NzbDrone.Core.Books
                     continue;
                 }
 
-                _logger.Info("Removing duplicate/stale book {0} ({1}) — not in remote set and has no files", deleted.Title, deleted.ForeignBookId);
+                var canonical = BookWorkIdentity.FindUniqueMatch(deleted, remoteChildren, out _);
+                if (canonical == null ||
+                    deleted.EbookMonitoringOverride.HasValue ||
+                    deleted.AudiobookMonitoringOverride.HasValue ||
+                    _historyService.GetByBook(deleted.Id, null)?.Any() == true ||
+                    _bookService.GetBook(deleted.Id)?.Editions?.Value?.Any() != false)
+                {
+                    _logger.Debug("Keeping work {0}: it still has state or has no unique canonical match", deleted);
+                    continue;
+                }
+
+                _logger.Info("Retiring empty work alias {0} in favor of {1}", deleted.Id, canonical.ForeignBookId);
                 _bookService.DeleteBook(deleted.Id, false);
+                retired.Add(deleted);
             }
 
-            // Only refresh books that are still in the remote set
-            return _refreshBookService.RefreshBookInfo(localChildren.Future, remoteChildren, remoteData, forceChildRefresh, forceUpdateFileTags, lastUpdate);
+            localChildren.Deleted = retired;
+            return updated;
         }
 
         protected override void PublishEntityUpdatedEvent(Author entity)

@@ -14,6 +14,7 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.HealthCheck;
 using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.Localization;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 
@@ -380,6 +381,151 @@ namespace NzbDrone.Core.Test.MetadataSource
             result.Should().NotBeNull();
             result.Item2.ForeignBookId.Should().Be("openlibrary:work:OL45883W");
             incompatible.CallCount.Should().Be(0);
+        }
+
+        [Test]
+        public void should_enrich_missing_overview_and_cover_only_from_matching_isbn()
+        {
+            var edition = new Edition
+            {
+                ForeignEditionId = "hardcover:edition:123",
+                Isbn13 = "9780141439518",
+                Asin = "B000000001",
+                Language = "eng",
+                PageCount = 317
+            };
+            var mismatchedEdition = new Edition
+            {
+                Isbn13 = "9780141439525",
+                Overview = "Unrelated overview",
+                Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, "https://covers.example/wrong.jpg") }
+            };
+            var matchedEdition = new Edition
+            {
+                Isbn13 = "0-14-143951-3",
+                PageCount = 500,
+                Overview = "Verified overview",
+                Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, "https://covers.example/match.jpg") }
+            };
+
+            EnrichFromIsbnFixture(edition, mismatchedEdition, matchedEdition);
+
+            edition.Overview.Should().Be("Verified overview");
+            edition.Images.Should().ContainSingle().Which.Url.Should().Be("https://covers.example/match.jpg");
+            edition.ForeignEditionId.Should().Be("hardcover:edition:123");
+            edition.PageCount.Should().Be(317);
+        }
+
+        [Test]
+        public void should_keep_missing_fields_when_supplementary_result_has_a_different_isbn()
+        {
+            var edition = new Edition { Isbn13 = "9780141439518" };
+            var mismatchedEdition = new Edition
+            {
+                Isbn13 = "9780141439525",
+                PageCount = 300,
+                Asin = "B000000002",
+                Overview = "Unrelated overview"
+            };
+
+            EnrichFromIsbnFixture(edition, mismatchedEdition);
+
+            edition.Asin.Should().BeNull();
+            edition.PageCount.Should().Be(0);
+            edition.Overview.Should().BeEmpty();
+            edition.Images.Should().BeEmpty();
+        }
+
+        private static void EnrichFromIsbnFixture(Edition edition, params Edition[] supplementaryEditions)
+        {
+            const string workId = "hardcover:work:123";
+
+            var primary = new Mock<IMetadataProvider>();
+            primary.SetupGet(provider => provider.ProviderName).Returns("Hardcover");
+            primary.SetupGet(provider => provider.SupportsBookSearch).Returns(true);
+            var book = new Book
+            {
+                ForeignBookId = workId,
+                ReleaseDate = new DateTime(2000, 1, 1),
+                Editions = new List<Edition> { edition }
+            };
+            primary.As<IProvideBookInfo>().Setup(provider => provider.GetBookInfo(workId))
+                .Returns(Tuple.Create("hardcover:author:1", book, new List<AuthorMetadata>()));
+
+            var supplementary = new Mock<IMetadataProvider>();
+            supplementary.SetupGet(provider => provider.ProviderName).Returns("OpenLibrary");
+            supplementary.SetupGet(provider => provider.SupportsIsbnLookup).Returns(true);
+            supplementary.SetupGet(provider => provider.SupportsCoverImages).Returns(true);
+            supplementary.As<ISearchForNewBook>().Setup(provider => provider.SearchByIsbn(edition.Isbn13))
+                .Returns(supplementaryEditions.Select(result => new Book
+                {
+                    Editions = new List<Edition> { result }
+                }).ToList());
+
+            var registry = new TestRegistry(new[] { primary.Object, supplementary.Object });
+            var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
+            orchestrator.GetBookInfo(workId);
+        }
+
+        [TestCase("Verified Author", null, "9780141439518", true)]
+        [TestCase("Wrong Author", null, "9780141439518", false)]
+        [TestCase("Verified Author", "OL2A", "9780141439518", false)]
+        [TestCase("Verified Author", null, "9780141439525", false)]
+        public void should_require_author_and_exact_book_evidence_before_filling_a_missing_portrait(string matchedName, string existingOpenLibraryId, string resultIsbn, bool expectPortrait)
+        {
+            const string authorId = "hardcover:author:123";
+            const string isbn = "9780141439518";
+            const string portrait = "https://covers.example/author.jpg";
+
+            var primary = new Mock<IMetadataProvider>();
+            primary.SetupGet(provider => provider.ProviderName).Returns("Hardcover");
+            primary.SetupGet(provider => provider.SupportsAuthorSearch).Returns(true);
+            var author = new Author
+            {
+                Metadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = authorId,
+                    Name = "Verified Author",
+                    OpenLibraryAuthorId = existingOpenLibraryId
+                },
+                Books = new List<Book> { new Book { Editions = new List<Edition> { new Edition { Isbn13 = isbn } } } }
+            };
+            primary.As<IProvideAuthorInfo>().Setup(provider => provider.GetAuthorInfo(authorId, true)).Returns(author);
+
+            var supplementary = new Mock<IMetadataProvider>();
+            supplementary.SetupGet(provider => provider.ProviderName).Returns("OpenLibrary");
+            supplementary.SetupGet(provider => provider.SupportsIsbnLookup).Returns(true);
+            supplementary.SetupGet(provider => provider.SupportsCoverImages).Returns(true);
+            supplementary.As<ISearchForNewBook>().Setup(provider => provider.SearchByIsbn(isbn))
+                .Returns(new List<Book>
+                {
+                    new Book
+                    {
+                        Editions = new List<Edition> { new Edition { Isbn13 = resultIsbn } },
+                        AuthorMetadata = new AuthorMetadata
+                        {
+                            Name = matchedName,
+                            OpenLibraryAuthorId = "OL1A",
+                            Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, portrait) }
+                        }
+                    }
+                });
+
+            var registry = new TestRegistry(new[] { primary.Object, supplementary.Object });
+            var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
+            var metadata = orchestrator.GetAuthorInfo(authorId).Metadata.Value;
+
+            metadata.ForeignAuthorId.Should().Be(authorId);
+            metadata.OpenLibraryAuthorId.Should().Be(existingOpenLibraryId);
+
+            if (expectPortrait)
+            {
+                metadata.Images.Should().ContainSingle().Which.Url.Should().Be(portrait);
+            }
+            else
+            {
+                metadata.Images.Should().BeEmpty();
+            }
         }
 
         [Test]

@@ -225,13 +225,8 @@ namespace NzbDrone.Core.MediaCover
 
         public void EnsureBookCovers(Book book)
         {
-            foreach (var cover in book.Editions.Value.Single(x => x.Monitored).Images.Where(e => e.CoverType == MediaCoverTypes.Cover))
+            foreach (var cover in GetBookCovers(book))
             {
-                if (cover.CoverType == MediaCoverTypes.Unknown)
-                {
-                    continue;
-                }
-
                 var fileName = GetCoverPath(book.Id, MediaCoverEntity.Book, cover.CoverType, cover.Extension, null);
                 var alreadyExists = false;
 
@@ -431,11 +426,15 @@ namespace NzbDrone.Core.MediaCover
             foreach (var book in books)
             {
                 EnsureBookCovers(book);
-                var monitored = book.Editions?.Value?.SingleOrDefault(x => x.Monitored);
-                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, monitored?.Images ?? new List<MediaCover>());
+                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, GetBookCovers(book));
             }
 
             _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));
+        }
+
+        private static IEnumerable<MediaCover> GetBookCovers(Book book)
+        {
+            return (book.Editions?.Value).GetBookImages().Where(image => image.CoverType == MediaCoverTypes.Cover);
         }
 
         public void HandleAsync(AuthorDeletedEvent message)

@@ -72,8 +72,7 @@ namespace Bibliophilarr.Api.V1.Books
             // guard every dereference, mirroring the AuthorResource fix from #249
             // (AuthorResourceMapper.ToResource).
             var editionsValue = model.Editions?.Value;
-            var selectedEdition = editionsValue?.Where(x => x.Monitored).FirstOrDefault()
-                                  ?? editionsValue?.FirstOrDefault();
+            var selectedEdition = editionsValue.GetPreferredEdition();
 
             var title = selectedEdition?.Title ?? model.Title;
             var canonicalOpenLibraryId = OpenLibraryIdNormalizer.NormalizeWorkId(model.ForeignBookId);
@@ -159,7 +158,7 @@ namespace Bibliophilarr.Api.V1.Books
                 AuthorTitle = authorTitle,
                 SeriesTitle = seriesTitle,
                 Disambiguation = selectedEdition?.Disambiguation,
-                Images = selectedEdition?.Images ?? new List<MediaCover>(),
+                Images = editionsValue.GetBookImages().JsonClone(),
                 Links = model.Links.Concat(selectedEdition?.Links ?? new List<Links>()).GroupBy(l => l.Url).Select(g => g.First()).ToList(),
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,

@@ -14,6 +14,7 @@ using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.RootFolders;
@@ -119,6 +120,113 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
                 .Setup(x => x.UpdateAuthor(It.IsAny<Author>()))
                 .Returns((Author a) => a);
+        }
+
+        [Test]
+        public void should_refresh_an_existing_work_with_editions_from_provider_aliases()
+        {
+            _book1.Title = "Example Work";
+            _book1.ReleaseDate = new DateTime(2022, 1, 25);
+            _book1.AuthorMetadataId = _author.AuthorMetadataId;
+            var ebook = new Edition { ForeignEditionId = "hardcover:edition:123", Format = "Ebook" };
+            var audiobook = new Edition { ForeignEditionId = "hardcover:edition:456", Format = "Audiobook" };
+            _remoteBooks.Clear();
+            _remoteBooks.Add(new Book
+            {
+                ForeignBookId = "hardcover:work:45",
+                Title = _book1.Title,
+                ReleaseDate = _book1.ReleaseDate,
+                Editions = new List<Edition> { ebook }
+            });
+            _remoteBooks.Add(new Book
+            {
+                ForeignBookId = "hardcover:work:54",
+                Title = _book1.Title,
+                ReleaseDate = _book1.ReleaseDate,
+                Editions = new List<Edition> { audiobook }
+            });
+
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Books = _remoteBooks;
+            var primary = new SeriesBookLink { Book = _remoteBooks[1], IsPrimary = true, Position = "2" };
+            var series = new Series
+            {
+                ForeignSeriesId = "hardcover:series:86",
+                LinkItems = new List<SeriesBookLink> { new SeriesBookLink { Book = _remoteBooks[0] }, primary }
+            };
+            newAuthorInfo.Series = new List<Series> { series };
+            GivenNewAuthorInfo(newAuthorInfo);
+            GivenBooksForRefresh(new List<Book> { _book1 });
+            AllowAuthorUpdate();
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IBookService>().Verify(s => s.InsertMany(It.Is<List<Book>>(books => books.Count == 0)), Times.Once());
+            Mocker.GetMock<IRefreshBookService>().Verify(s => s.RefreshBookInfo(
+                It.Is<List<Book>>(books => books.Count == 1 && books[0].Id == _book1.Id),
+                It.Is<List<Book>>(books => books.Count == 1 && books[0].ForeignBookId == _book1.ForeignBookId &&
+                    books[0].Editions.Value.Count == 2 && books[0].Editions.Value.Contains(ebook) &&
+                    books[0].Editions.Value.Contains(audiobook)),
+                It.IsAny<Author>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<DateTime?>()), Times.Once());
+            Assert.That(series.LinkItems.Value, Is.EqualTo(new[] { primary }));
+            Assert.That(primary.Book.Value.ForeignBookId, Is.EqualTo(_book1.ForeignBookId));
+        }
+
+        [Test]
+        public void should_preserve_exact_stored_works_with_the_same_title_and_release_date()
+        {
+            foreach (var book in _books)
+            {
+                book.Title = "A shared title";
+                book.ReleaseDate = new DateTime(2022, 1, 25);
+                book.AuthorMetadataId = _author.AuthorMetadataId;
+            }
+
+            _remoteBooks.Clear();
+            _remoteBooks.AddRange(_books.JsonClone());
+            _remoteBooks.ForEach(book => book.Id = 0);
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Books = _remoteBooks;
+            GivenNewAuthorInfo(newAuthorInfo);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IRefreshBookService>().Verify(s => s.RefreshBookInfo(
+                It.Is<List<Book>>(books => books.Count == 2 && books.Contains(_book1) && books.Contains(_book2)),
+                It.Is<List<Book>>(books => books.Count == 2 && books.Exists(x => x.ForeignBookId == _book1.ForeignBookId) &&
+                    books.Exists(x => x.ForeignBookId == _book2.ForeignBookId)),
+                It.IsAny<Author>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<DateTime?>()), Times.Once());
+            Mocker.GetMock<IBookService>().Verify(s => s.DeleteBook(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_a_work_omitted_by_the_provider_without_identity_evidence()
+        {
+            _remoteBooks.RemoveAt(1);
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Books = _remoteBooks;
+            GivenNewAuthorInfo(newAuthorInfo);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesByBook(_book2.Id)).Returns(new List<BookFile>());
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IBookService>().Verify(s => s.DeleteBook(_book2.Id, It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(
+                aggregator => aggregator.PublishEvent(It.Is<BookInfoRefreshedEvent>(message => message.Removed.Count == 0)),
+                Times.Once());
         }
 
         [Test]

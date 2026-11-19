@@ -36,6 +36,27 @@ export function compareSeriesBookPositions(left, right, direction) {
   return direction === 'descending' ? -order : order;
 }
 
+export function getSeriesRepresentativeCover(books, links) {
+  const booksById = new Map(books.map((book) => [book.id, book]));
+  const orderedLinks = [...links].sort((left, right) => {
+    const leftPosition = left.position || String(left.seriesPosition || '');
+    const rightPosition = right.position || String(right.seriesPosition || '');
+    const order = Number(!leftPosition) - Number(!rightPosition) ||
+      compareSeriesBookPositions(leftPosition, rightPosition, 'ascending');
+
+    return order || left.bookId - right.bookId;
+  });
+
+  for (const link of orderedLinks) {
+    const book = booksById.get(link.bookId);
+    const cover = book?.images?.find((image) => image.coverType === 'cover' && image.url);
+
+    if (cover) {
+      return { bookTitle: book.title, url: cover.url };
+    }
+  }
+}
+
 function createMapStateToProps() {
   return createSelector(
     (state, { seriesId }) => seriesId,
@@ -77,6 +98,7 @@ function createMapStateToProps() {
       return {
         id: currentSeries.id,
         label: currentSeries.title,
+        representativeCover: getSeriesRepresentativeCover(booksInSeries, currentSeries.links),
         items: sortedBooks,
         positionMap,
         columns: series.columns,

@@ -8,14 +8,15 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.Books
@@ -43,6 +44,7 @@ namespace NzbDrone.Core.Books
         private readonly IEventAggregator _eventAggregator;
         private readonly ICheckIfBookShouldBeRefreshed _checkIfBookShouldBeRefreshed;
         private readonly IMapCoversToLocal _mediaCoverService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
         private readonly ConcurrentDictionary<string, DateTime> _pendingDeleteMisses = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
@@ -62,6 +64,7 @@ namespace NzbDrone.Core.Books
                                   IEventAggregator eventAggregator,
                                   ICheckIfBookShouldBeRefreshed checkIfBookShouldBeRefreshed,
                                   IMapCoversToLocal mediaCoverService,
+                                  IConfigService configService,
                                   Logger logger)
         : base(logger, authorMetadataService)
         {
@@ -77,6 +80,7 @@ namespace NzbDrone.Core.Books
             _eventAggregator = eventAggregator;
             _checkIfBookShouldBeRefreshed = checkIfBookShouldBeRefreshed;
             _mediaCoverService = mediaCoverService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -303,12 +307,23 @@ namespace NzbDrone.Core.Books
 
         protected override UpdateResult MergeEntity(Book local, Book target, Book remote)
         {
-            _logger.Warn($"Book {local} was merged with {remote} because the original was a duplicate.");
-
-            // Update book ids for trackfiles
             var files = _mediaFileService.GetFilesByBook(local.Id);
-            files.ForEach(x => x.EditionId = target.Editions.Value.Single(e => e.Monitored).Id);
-            _mediaFileService.Update(files);
+            if (files.Count > 0)
+            {
+                var remoteIds = remote.Editions.Value.Select(edition => edition.ForeignEditionId).ToHashSet();
+                var targetEditions = target.Editions.Value.Where(edition => remoteIds.Contains(edition.ForeignEditionId)).ToList();
+                var moves = files.Select(file => (File: file, Target: ResolveMergeEdition(file, targetEditions))).ToList();
+                if (moves.Any(move => move.Target == null))
+                {
+                    _logger.Warn("Deferring duplicate book merge {0} into {1}: one or more linked editions lack an exact compatible target.", local.Id, target.Id);
+                    return UpdateResult.MergeDeferred;
+                }
+
+                moves.ForEach(move => move.File.EditionId = move.Target.Id);
+                _mediaFileService.Update(files);
+            }
+
+            _logger.Warn($"Book {local} was merged with {remote} because the original was a duplicate.");
 
             // Update book ids for history
             var items = _historyService.GetByBook(local.Id, null);
@@ -319,6 +334,29 @@ namespace NzbDrone.Core.Books
             _bookService.DeleteMany(new List<Book> { local });
 
             return UpdateResult.UpdateTags;
+        }
+
+        private static Edition ResolveMergeEdition(BookFile file, List<Edition> targetEditions)
+        {
+            var format = ImportFormat.ForPath(file.Path);
+            var source = file.Edition?.Value;
+            if (!format.HasValue || source == null || !source.MatchesFormat(format.Value) || !ImportFormat.IsCompatible(file.Path, source))
+            {
+                return null;
+            }
+
+            var candidates = targetEditions.Where(edition => edition.Id > 0 && edition.MatchesFormat(format.Value) &&
+                ImportFormat.IsCompatible(file.Path, edition) && HasMatchingEditionIdentifiers(source, edition)).Take(2).ToList();
+            return candidates.Count == 1 ? candidates[0] : null;
+        }
+
+        private static bool HasMatchingEditionIdentifiers(Edition source, Edition candidate)
+        {
+            var compareIsbn = source.Isbn13.IsNotNullOrWhiteSpace() && candidate.Isbn13.IsNotNullOrWhiteSpace();
+            var compareAsin = source.Asin.IsNotNullOrWhiteSpace() && candidate.Asin.IsNotNullOrWhiteSpace();
+            return (compareIsbn || compareAsin) &&
+                   (!compareIsbn || string.Equals(source.Isbn13, candidate.Isbn13, StringComparison.OrdinalIgnoreCase)) &&
+                   (!compareAsin || string.Equals(source.Asin, candidate.Asin, StringComparison.OrdinalIgnoreCase));
         }
 
         protected override Book GetEntityByForeignId(Book local)
@@ -361,10 +399,9 @@ namespace NzbDrone.Core.Books
 
         protected override void PrepareExistingChild(Edition local, Edition remote, Book entity)
         {
-            local.BookId = entity.Id;
-            local.Book = entity;
-
             remote.UseDbFieldsFrom(local);
+            remote.BookId = entity.Id;
+            remote.Book = entity;
         }
 
         protected override void AddChildren(List<Edition> children)
@@ -372,10 +409,36 @@ namespace NzbDrone.Core.Books
             // NOTE: Intentionally empty — children are added in RefreshChildren to control monitored status.
         }
 
-        private void MonitorSingleEdition(SortedChildren children)
+        private void MonitorEditions(SortedChildren children, List<Edition> remoteChildren)
         {
             children.Old.ForEach(x => x.Monitored = false);
-            var monitored = children.Future.Where(x => x.Monitored).ToList();
+            var dualFormat = _configService.EnableDualFormatTracking;
+            var groups = children.Future.GroupBy(edition => dualFormat ? GetMonitoringFormat(edition, remoteChildren) : null).ToList();
+
+            foreach (var group in groups)
+            {
+                MonitorSingleEdition(children, group.ToList());
+            }
+        }
+
+        private bool? GetMonitoringFormat(Edition edition, List<Edition> remoteChildren)
+        {
+            var currentFormat = edition.HasUntrackedFormat() ? (bool?)null : edition.IsEbook;
+            var remote = remoteChildren.Find(candidate => candidate.ForeignEditionId == edition.ForeignEditionId);
+            if (remote == null)
+            {
+                return currentFormat;
+            }
+
+            var remoteFormat = remote.HasUntrackedFormat() ? (bool?)null : remote.IsEbook;
+            return currentFormat == remoteFormat || RefreshEditionService.HasLinkedFileFormatConflict(edition, remote, _mediaFileService)
+                ? currentFormat
+                : remoteFormat;
+        }
+
+        private void MonitorSingleEdition(SortedChildren children, List<Edition> editions)
+        {
+            var monitored = editions.Where(x => x.Monitored).ToList();
 
             if (monitored.Count == 1)
             {
@@ -384,13 +447,7 @@ namespace NzbDrone.Core.Books
 
             if (monitored.Count == 0)
             {
-                monitored = children.Future;
-            }
-
-            if (monitored.Count == 0)
-            {
-                // there are no future children so nothing to do
-                return;
+                monitored = editions;
             }
 
             var toMonitor = monitored.OrderByDescending(x => x.Id > 0 ? _mediaFileService.GetFilesByEdition(x.Id).Count : 0)
@@ -404,22 +461,20 @@ namespace NzbDrone.Core.Books
             children.UpToDate = children.UpToDate.Except(extraToUpdate).ToList();
             children.Updated.AddRange(extraToUpdate);
 
-            Debug.Assert(!children.Future.Any() || children.Future.Count(x => x.Monitored) == 1, "one edition monitored");
+            Debug.Assert(editions.Count(x => x.Monitored) == 1, "one edition monitored in this format group");
         }
 
         protected override bool RefreshChildren(SortedChildren localChildren, List<Edition> remoteChildren, Author remoteData, bool forceChildRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
-            // A Hardcover refresh can return a different representative edition or fall back
-            // to a search result. Keep source editions that carry local files or manual edits.
+            // Providers may omit existing editions from a partial refresh.
+            // Keep the local editions that still carry file links or manual edits.
             var retainedEditions = localChildren.Deleted.Where(edition =>
-                edition.ForeignEditionId?.StartsWith(HardcoverFallbackSearchProvider.ProviderEditionIdPrefix, StringComparison.Ordinal) == true &&
-                (edition.ManualAdd || _mediaFileService.GetFilesByEdition(edition.Id).Any())).ToList();
+                edition.ManualAdd || _mediaFileService.GetFilesByEdition(edition.Id).Any()).ToList();
 
             localChildren.Deleted.RemoveAll(retainedEditions.Contains);
             localChildren.UpToDate.AddRange(retainedEditions);
 
-            // make sure only one of the releases ends up monitored
-            MonitorSingleEdition(localChildren);
+            MonitorEditions(localChildren, remoteChildren);
 
             localChildren.All.ForEach(x => _logger.Trace($"release: {x} monitored: {x.Monitored}"));
 

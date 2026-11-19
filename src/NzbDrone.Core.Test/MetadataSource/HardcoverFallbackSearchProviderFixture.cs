@@ -484,6 +484,34 @@ namespace NzbDrone.Core.Test.MetadataSource
             source.SelectToken("ebooks[0].id").Value<int>().Should().Be(60);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_prefer_edition_artwork_and_keep_work_artwork_as_fallback(bool authorHydration)
+        {
+            var legacyEditions = JArray.Parse("""[{"id":50,"reading_format_id":1}]""");
+            var authorSeries = JArray.Parse("""
+                [{"book_id":543,"position":1,"series":{"id":789,"name":"Variant Series","description":"Full series description"}}]
+                """);
+            var source = InstallEditionResponse(legacyEditions, authorSeries);
+            source["cached_image"] = new JObject { ["url"] = "https://covers.example/work.jpg" };
+            ((JObject)source.SelectToken("ebooks[0]"))["cached_image"] = new JObject { ["url"] = "https://covers.example/ebook.jpg" };
+            ((JObject)source.SelectToken("book_series[0].series"))["description"] = "Published series description";
+
+            var author = authorHydration ? Subject.GetAuthorInfo("hardcover:author:123") : null;
+            var book = author?.Books.Value.Single() ?? Subject.GetBookInfo("hardcover:work:543").Item2;
+
+            book.GetPreferredEdition(FormatType.Ebook).Images.Should().ContainSingle()
+                .Which.Url.Should().Be("https://covers.example/ebook.jpg");
+            book.GetPreferredEdition(FormatType.Audiobook).Images.Should().ContainSingle()
+                .Which.Url.Should().Be("https://covers.example/work.jpg");
+            book.SeriesLinks.Value.Single().Series.Value.Description.Should().Be("Published series description");
+
+            if (authorHydration)
+            {
+                author.Series.Value.Single().Description.Should().Be("Full series description");
+            }
+        }
+
         [Test]
         public void should_not_duplicate_the_legacy_edition_if_it_is_the_preferred_source_edition()
         {
@@ -527,7 +555,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             book.GetPreferredEdition(FormatType.Audiobook).Should().BeNull();
         }
 
-        private JObject InstallEditionResponse(JArray legacyEditions)
+        private JObject InstallEditionResponse(JArray legacyEditions, JArray authorSeries = null)
         {
             var book = JObject.Parse("""
                 {
@@ -550,7 +578,10 @@ namespace NzbDrone.Core.Test.MetadataSource
                     var query = body.Value<string>("query");
                     if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
                     {
-                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                        return CreateJsonResponse(request, new JObject
+                        {
+                            ["data"] = new JObject { ["book_series"] = authorSeries ?? new JArray() }
+                        });
                     }
 
                     query.Should().Contain("ebooks: editions(where: {reading_format_id: {_eq: 4}}");

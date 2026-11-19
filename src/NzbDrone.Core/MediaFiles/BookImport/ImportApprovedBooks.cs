@@ -601,7 +601,37 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (book.Id == 0)
             {
+                var selectedEdition = decisions[0].Item.Edition;
                 var dbBook = _bookService.FindById(book.ForeignBookId);
+
+                if (dbBook == null && selectedEdition.ForeignEditionId.IsNotNullOrWhiteSpace())
+                {
+                    var storedEdition = _editionService.GetEditionByForeignEditionId(selectedEdition.ForeignEditionId);
+                    if (storedEdition != null)
+                    {
+                        dbBook = _bookService.GetBook(storedEdition.BookId);
+                        if (dbBook == null || book.AuthorMetadataId == 0 || dbBook.AuthorMetadataId != book.AuthorMetadataId)
+                        {
+                            RejectBook(decisions);
+                            return null;
+                        }
+                    }
+                }
+
+                if (dbBook == null && book.AuthorMetadataId > 0)
+                {
+                    var candidates = _bookService.GetBooksByAuthorMetadataId(book.AuthorMetadataId) ?? new List<Book>();
+                    dbBook = BookWorkIdentity.FindUniqueMatch(book, candidates, out var ambiguous);
+                    if (ambiguous)
+                    {
+                        foreach (var decision in decisions)
+                        {
+                            decision.Reject(new Rejection("More than one existing work matches this book", RejectionType.Temporary));
+                        }
+
+                        return null;
+                    }
+                }
 
                 if (dbBook == null)
                 {
@@ -635,7 +665,6 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
                 }
 
-                var selectedEdition = decisions[0].Item.Edition;
                 var edition = dbBook.Editions.Value.ExclusiveOrDefault(x =>
                     selectedEdition.ForeignEditionId.IsNotNullOrWhiteSpace()
                         ? x.ForeignEditionId == selectedEdition.ForeignEditionId
@@ -693,6 +722,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
 
                 edition = dbEdition;
+            }
+
+            if (edition != null && edition.BookId != book.Id)
+            {
+                foreach (var decision in decisions)
+                {
+                    decision.Reject(new Rejection("The selected edition belongs to a different work", RejectionType.Temporary));
+                }
+
+                return null;
             }
 
             foreach (var decision in decisions)

@@ -34,8 +34,16 @@ process.
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
-  requested. Distinct provider work IDs retain separate catalogue records.
+  requested. Distinct works retain separate catalogue records.
   Complete Bibliography is available as an unfiltered metadata profile.
+- Reconcile corroborated provider work aliases within an author's catalogue and
+  preserve separate ebook and audiobook editions under the same work. Ambiguous
+  import matches stay available for review.
+- Preserve linked edition formats and independent monitoring selections when
+  refreshing metadata.
+- Use verified alternate sources for missing edition details and author
+  portraits. Display an available cover from the same work, and show a
+  representative member cover alongside a series when available.
 - Open Library and Google Books read all available author pages and preserve
   the current catalogue when a later provider page fails.
 - Hardcover tracks representative ebook and audiobook editions where available.

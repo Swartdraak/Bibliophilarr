@@ -9,7 +9,7 @@ namespace Bibliophilarr.Http.Frontend.Mappers
 {
     public class MediaCoverProxyMapper : IMapHttpRequestsToDisk
     {
-        private readonly Regex _regex = new Regex(@"/MediaCoverProxy/(?<hash>\w+)/(?<filename>(.+)\.(jpe?g|png|gif|webp))");
+        private static readonly Regex RegexImage = new Regex(@"/MediaCoverProxy/(?<hash>\w+)/(?<filename>.+\.(?:jpe?g|png|gif|webp))$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         private readonly IMediaCoverProxy _mediaCoverProxy;
         private readonly IContentTypeProvider _mimeTypeProvider;
@@ -32,7 +32,7 @@ namespace Bibliophilarr.Http.Frontend.Mappers
 
         public IActionResult GetResponse(string resourceUrl)
         {
-            var match = _regex.Match(resourceUrl);
+            var match = RegexImage.Match(resourceUrl);
 
             if (!match.Success)
             {

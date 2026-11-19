@@ -965,6 +965,7 @@
   "SendMetadataToCalibre": "Send Metadata to Calibre",
   "Series": "Series",
   "SeriesNumber": "Series Number",
+  "SeriesRepresentativeCover": "Representative cover from {0}",
   "SeriesTotal": "Series ({0})",
   "SetIndexerFlags": "Set Indexer Flags",
   "SetPermissions": "Set Permissions",

@@ -11,6 +11,8 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -24,6 +26,7 @@ namespace NzbDrone.Core.MetadataSource
     {
         private const string AuthorInfoOperation = "get-author-info";
         private const string BookSearchOperation = "search-for-new-book";
+        private const int MaxPortraitIsbnLookups = 2;
         private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(250);
         private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(30);
 
@@ -105,7 +108,6 @@ namespace NzbDrone.Core.MetadataSource
                 throw new BookNotFoundException(id);
             }
 
-            TryEnrichEditionIdentifiers(result.Item2, InferProviderFromScopedId(id));
             TryEnrichEditionMetadata(result.Item2, InferProviderFromScopedId(id));
 
             return result;
@@ -125,6 +127,8 @@ namespace NzbDrone.Core.MetadataSource
             {
                 throw new AuthorNotFoundException(id);
             }
+
+            TryEnrichAuthorPortrait(result);
 
             return result;
         }
@@ -437,74 +441,6 @@ namespace NzbDrone.Core.MetadataSource
         /// when the primary provider returned incomplete data. Uses ISBN-based lookup
         /// against non-primary providers to fill gaps.
         /// </summary>
-        private void TryEnrichEditionIdentifiers(Book book, string primaryProviderName)
-        {
-            if (book?.Editions?.Value == null)
-            {
-                return;
-            }
-
-            var editionsNeedingAsin = book.Editions.Value
-                .Where(e => e.Asin.IsNullOrWhiteSpace() && e.Isbn13.IsNotNullOrWhiteSpace())
-                .ToList();
-
-            if (!editionsNeedingAsin.Any())
-            {
-                return;
-            }
-
-            var supplementaryProviders = _registry.GetProviders()
-                .Where(p => p is ISearchForNewBook)
-                .Where(p => p.SupportsIsbnLookup)
-                .Where(p => primaryProviderName == null ||
-                            !string.Equals(p.ProviderName, primaryProviderName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (!supplementaryProviders.Any())
-            {
-                return;
-            }
-
-            foreach (var edition in editionsNeedingAsin)
-            {
-                foreach (var provider in supplementaryProviders)
-                {
-                    try
-                    {
-                        var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
-                        var matchedAsin = results?
-                            .SelectMany(b => b.Editions?.Value ?? new List<Edition>())
-                            .Select(e => e.Asin)
-                            .FirstOrDefault(a => a.IsNotNullOrWhiteSpace());
-
-                        if (matchedAsin != null)
-                        {
-                            edition.Asin = matchedAsin;
-                            _logger.Debug(
-                                "Enriched ASIN '{0}' for edition '{1}' from provider '{2}'",
-                                edition.Asin,
-                                edition.ForeignEditionId,
-                                provider.ProviderName);
-                            break;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Debug(
-                            ex,
-                            "ASIN enrichment from '{0}' failed for ISBN '{1}'",
-                            provider.ProviderName,
-                            edition.Isbn13);
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Enriches missing edition metadata (page count, release date, language) by
-        /// consulting supplementary providers when the primary provider returned
-        /// incomplete data. Uses ISBN-based lookup against non-primary providers.
-        /// </summary>
         private void TryEnrichEditionMetadata(Book book, string primaryProviderName)
         {
             if (book?.Editions?.Value == null)
@@ -513,76 +449,71 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             var editionsNeedingData = book.Editions.Value
-                .Where(e => e.Isbn13.IsNotNullOrWhiteSpace() &&
-                            (e.PageCount == 0 || !book.ReleaseDate.HasValue || e.Language.IsNullOrWhiteSpace()))
+                .Where(edition => edition?.Isbn13.IsNotNullOrWhiteSpace() == true && NeedsSupplementaryMetadata(book, edition))
                 .ToList();
 
-            if (!editionsNeedingData.Any())
+            if (editionsNeedingData.Count == 0)
             {
                 return;
             }
 
             var supplementaryProviders = _registry.GetProviders()
-                .Where(p => p is ISearchForNewBook)
-                .Where(p => p.SupportsIsbnLookup)
-                .Where(p => primaryProviderName == null ||
-                            !string.Equals(p.ProviderName, primaryProviderName, StringComparison.OrdinalIgnoreCase))
+                .Where(provider => provider is ISearchForNewBook && provider.SupportsIsbnLookup &&
+                                   !string.Equals(provider.ProviderName, primaryProviderName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
-
-            if (!supplementaryProviders.Any())
-            {
-                return;
-            }
 
             foreach (var edition in editionsNeedingData)
             {
                 foreach (var provider in supplementaryProviders)
                 {
+                    if (!NeedsSupplementaryMetadata(book, edition))
+                    {
+                        break;
+                    }
+
                     try
                     {
                         var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
-                        var matchedBook = results?.FirstOrDefault();
-                        var matchedEdition = matchedBook?.Editions?.Value?.FirstOrDefault();
+                        var (matchedBook, matchedEdition) = GetExactIsbnMatches(results, edition.Isbn13).FirstOrDefault();
 
                         if (matchedEdition == null)
                         {
                             continue;
                         }
 
-                        var enriched = false;
+                        if (edition.Asin.IsNullOrWhiteSpace() && matchedEdition.Asin.IsNotNullOrWhiteSpace())
+                        {
+                            edition.Asin = matchedEdition.Asin;
+                        }
 
                         if (edition.PageCount == 0 && matchedEdition.PageCount > 0)
                         {
                             edition.PageCount = matchedEdition.PageCount;
-                            enriched = true;
                         }
 
                         if (!book.ReleaseDate.HasValue && matchedBook.ReleaseDate.HasValue)
                         {
                             book.ReleaseDate = matchedBook.ReleaseDate;
-                            enriched = true;
                         }
 
                         if (edition.Language.IsNullOrWhiteSpace() && matchedEdition.Language.IsNotNullOrWhiteSpace())
                         {
                             edition.Language = matchedEdition.Language;
-                            enriched = true;
                         }
 
                         if (edition.Overview.IsNullOrWhiteSpace() && matchedEdition.Overview.IsNotNullOrWhiteSpace())
                         {
                             edition.Overview = matchedEdition.Overview;
-                            enriched = true;
                         }
 
-                        if (enriched)
+                        if (provider.SupportsCoverImages && edition.Images?.Any(IsCover) != true)
                         {
-                            _logger.Debug(
-                                "Enriched metadata for edition '{0}' (ISBN {1}) from provider '{2}'",
-                                edition.ForeignEditionId,
-                                edition.Isbn13,
-                                provider.ProviderName);
-                            break;
+                            var cover = matchedEdition.Images?.FirstOrDefault(IsCover);
+                            if (cover != null)
+                            {
+                                edition.Images ??= new List<MediaCover.MediaCover>();
+                                edition.Images.Add(new MediaCover.MediaCover(cover.CoverType, cover.Url));
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -595,6 +526,95 @@ namespace NzbDrone.Core.MetadataSource
                     }
                 }
             }
+        }
+
+        private void TryEnrichAuthorPortrait(Author author)
+        {
+            var metadata = author.Metadata?.Value;
+            if (metadata?.Name.IsNullOrWhiteSpace() != false ||
+                !string.Equals(InferProviderFromScopedId(metadata.ForeignAuthorId), "Hardcover", StringComparison.OrdinalIgnoreCase) ||
+                metadata.Images?.Any(IsPoster) == true)
+            {
+                return;
+            }
+
+            var provider = _registry.GetProviders().FirstOrDefault(candidate =>
+                candidate is ISearchForNewBook && candidate.SupportsIsbnLookup && candidate.SupportsCoverImages &&
+                string.Equals(candidate.ProviderName, "OpenLibrary", StringComparison.OrdinalIgnoreCase)) as ISearchForNewBook;
+            if (provider == null || author.Books?.Value == null)
+            {
+                return;
+            }
+
+            var isbns = author.Books.Value
+                .Where(book => book?.Editions?.Value != null)
+                .SelectMany(book => book.Editions.Value)
+                .Select(edition => edition?.Isbn13)
+                .Where(isbn => Isbn.AreEquivalent(isbn, isbn))
+                .Distinct()
+                .Take(MaxPortraitIsbnLookups);
+            var knownAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(metadata.OpenLibraryAuthorId);
+
+            foreach (var isbn in isbns)
+            {
+                try
+                {
+                    var candidates = GetExactIsbnMatches(provider.SearchByIsbn(isbn), isbn)
+                        .Select(match => match.Book.AuthorMetadata?.Value)
+                        .Where(candidate => string.Equals(candidate?.Name?.Trim(), metadata.Name.Trim(), StringComparison.OrdinalIgnoreCase))
+                        .Select(candidate => (Author: candidate, Id: OpenLibraryIdNormalizer.NormalizeAuthorId(candidate.OpenLibraryAuthorId)))
+                        .Where(candidate => candidate.Id != null)
+                        .ToList();
+                    var candidateIds = candidates.Select(candidate => candidate.Id).Distinct().ToList();
+
+                    if (candidateIds.Count != 1 || (knownAuthorId != null && candidateIds[0] != knownAuthorId))
+                    {
+                        continue;
+                    }
+
+                    var portrait = candidates.SelectMany(candidate => candidate.Author.Images ?? new List<MediaCover.MediaCover>())
+                        .FirstOrDefault(IsPoster);
+                    if (portrait != null)
+                    {
+                        metadata.Images ??= new List<MediaCover.MediaCover>();
+                        metadata.Images.Add(new MediaCover.MediaCover(portrait.CoverType, portrait.Url));
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug(ex, "Author portrait enrichment from Open Library failed for ISBN '{0}'", isbn);
+                    return;
+                }
+            }
+        }
+
+        private static IEnumerable<(Book Book, Edition Edition)> GetExactIsbnMatches(IEnumerable<Book> books, string isbn)
+        {
+            return (books ?? Enumerable.Empty<Book>())
+                .Where(book => book?.Editions?.Value != null)
+                .SelectMany(book => book.Editions.Value.Select(edition => (Book: book, Edition: edition)))
+                .Where(match => Isbn.AreEquivalent(isbn, match.Edition?.Isbn13));
+        }
+
+        private static bool NeedsSupplementaryMetadata(Book book, Edition edition)
+        {
+            return edition.Asin.IsNullOrWhiteSpace() ||
+                   edition.PageCount == 0 ||
+                   !book.ReleaseDate.HasValue ||
+                   edition.Language.IsNullOrWhiteSpace() ||
+                   edition.Overview.IsNullOrWhiteSpace() ||
+                   edition.Images?.Any(IsCover) != true;
+        }
+
+        private static bool IsCover(MediaCover.MediaCover image)
+        {
+            return image?.CoverType == MediaCoverTypes.Cover && image.Url.IsNotNullOrWhiteSpace();
+        }
+
+        private static bool IsPoster(MediaCover.MediaCover image)
+        {
+            return image?.CoverType == MediaCoverTypes.Poster && image.Url.IsNotNullOrWhiteSpace();
         }
 
         /// <summary>

@@ -23,6 +23,15 @@
   margin-left: 5px;
 }
 
+.seriesCover {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  width: 32px;
+  height: 48px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
 .bookCount {
   color: #8895aa;
   font-style: italic;
