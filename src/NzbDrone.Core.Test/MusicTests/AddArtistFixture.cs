@@ -95,6 +95,20 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_resolve_incomplete_author_details_by_the_verified_author_id()
+        {
+            var requested = new Author { RootFolderPath = @"C:\Test\Books" };
+            var metadata = new AuthorMetadata { ForeignAuthorId = "OL12345A" };
+            GivenValidAuthor("OL12345A");
+            GivenValidPath();
+
+            var author = Subject.AddAuthorWithMetadata(requested, metadata, false);
+
+            author.Name.Should().Be(_fakeAuthor.Name);
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Verify(provider => provider.GetAuthorInfo("OL12345A", false), Times.Once());
+        }
+
+        [Test]
         public void should_have_proper_path()
         {
             var newAuthor = new Author

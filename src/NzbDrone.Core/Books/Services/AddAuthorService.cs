@@ -75,6 +75,16 @@ namespace NzbDrone.Core.Books
 
         public Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh)
         {
+            Ensure.That(newAuthor, () => newAuthor).IsNotNull();
+            Ensure.That(metadata, () => metadata).IsNotNull();
+            Ensure.That(metadata.ForeignAuthorId, () => metadata.ForeignAuthorId).IsNotNullOrWhiteSpace();
+
+            if (metadata.Name.IsNullOrWhiteSpace())
+            {
+                newAuthor.ForeignAuthorId = metadata.ForeignAuthorId;
+                return AddAuthor(newAuthor, doRefresh);
+            }
+
             metadata.ForeignAuthorId = NormalizeForeignAuthorId(metadata.ForeignAuthorId);
             newAuthor.Metadata = metadata;
             return AddResolvedAuthor(newAuthor, doRefresh);

@@ -155,7 +155,15 @@ namespace NzbDrone.Core.Books
                 editionToMonitor.Monitored = true;
             }
 
-            var metadata = tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1);
+            var metadata = tuple.Item3?.FirstOrDefault(author => author?.ForeignAuthorId == tuple.Item1);
+            if (string.IsNullOrWhiteSpace(metadata?.ForeignAuthorId))
+            {
+                throw new ValidationException(new List<ValidationFailure>
+                {
+                    new ("ForeignAuthorId", "The book provider did not identify its author")
+                });
+            }
+
             newBook.AuthorMetadata = metadata;
 
             return newBook;
