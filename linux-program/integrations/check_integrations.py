@@ -72,7 +72,7 @@ def has_content(item):
 def main():
     api_key = common.fetch_api_key()
     if not api_key:
-        check('I0_api_key_available', False, 'initialize.json did not return an API key')
+        check('I0_api_key_available', False, 'config.xml contains no API key')
         common.finish(failures)
     auth = common.auth_headers(api_key)
 

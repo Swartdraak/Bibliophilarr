@@ -1,8 +1,11 @@
 using System;
+using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Diacritical;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
@@ -49,6 +52,30 @@ namespace Bibliophilarr.Http.Authentication
                     options.ExpireTimeSpan = TimeSpan.FromDays(7);
                     options.SlidingExpiration = true;
                     options.ReturnUrlParameter = "returnUrl";
+
+                    var redirectToLogin = options.Events.OnRedirectToLogin;
+                    options.Events.OnRedirectToLogin = context =>
+                    {
+                        if (context.Request.Path.StartsWithSegments("/api"))
+                        {
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            return Task.CompletedTask;
+                        }
+
+                        // The SPA controller is classified as an API endpoint by ASP.NET.
+                        // Browser navigation still needs to reach the configured Forms login.
+                        if (configFileProvider.AuthenticationMethod == AuthenticationType.Forms &&
+                            !string.Equals(context.Request.Path.Value, "/initialize.json", StringComparison.OrdinalIgnoreCase) &&
+                            context.Request.GetTypedHeaders().Accept.Any(mediaType =>
+                                mediaType.Quality.GetValueOrDefault(1) > 0 &&
+                                string.Equals(mediaType.MediaType.Value, "text/html", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            context.Response.Redirect(context.RedirectUri);
+                            return Task.CompletedTask;
+                        }
+
+                        return redirectToLogin(context);
+                    };
                 });
 
             // Issue #349: set the default authenticate/challenge schemes. Before this, the
