@@ -4,6 +4,7 @@ import React, { Component } from 'react';
 import Icon from 'Components/Icon';
 import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
+import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
 import MonitorToggleButton from 'Components/MonitorToggleButton';
 import Table from 'Components/Table/Table';
 import TableBody from 'Components/Table/TableBody';
@@ -93,10 +94,14 @@ class AuthorDetailsSeries extends Component {
     this.props.onMonitorBookPress(_.uniq(bookIds), monitored);
   };
 
-  onMonitorSeriesPress = (monitored, { shiftKey }) => {
+  onMonitorSeriesPress = (monitored) => {
     const bookIds = this.props.items.map((book) => book.id);
 
     this.props.onMonitorBookPress(_.uniq(bookIds), monitored);
+  };
+
+  onSearchPress = () => {
+    this.props.onSearchPress(this.props.searchBookIds);
   };
 
   //
@@ -114,7 +119,9 @@ class AuthorDetailsSeries extends Component {
       onSortPress,
       isSmallScreen,
       onTableOptionChange,
-      authorMonitored
+      authorMonitored,
+      searchBookIds,
+      isSearching
     } = this.props;
 
     return (
@@ -128,6 +135,16 @@ class AuthorDetailsSeries extends Component {
             isDisabled={!authorMonitored}
             isSaving={this.isSeriesSaving(this.props)}
             onPress={this.onMonitorSeriesPress}
+          />
+
+          <SpinnerIconButton
+            className={styles.actionButton}
+            name={icons.SEARCH}
+            size={20}
+            title={translate('SearchMissingSeriesBooks')}
+            isDisabled={!searchBookIds.length}
+            isSpinning={isSearching}
+            onPress={this.onSearchPress}
           />
 
           <Link
@@ -227,7 +244,10 @@ AuthorDetailsSeries.propTypes = {
   onSortPress: PropTypes.func.isRequired,
   onMonitorBookPress: PropTypes.func.isRequired,
   uiSettings: PropTypes.object.isRequired,
-  authorMonitored: PropTypes.bool.isRequired
+  authorMonitored: PropTypes.bool.isRequired,
+  searchBookIds: PropTypes.arrayOf(PropTypes.number).isRequired,
+  isSearching: PropTypes.bool.isRequired,
+  onSearchPress: PropTypes.func.isRequired
 };
 
 export default AuthorDetailsSeries;
