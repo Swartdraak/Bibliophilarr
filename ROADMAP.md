@@ -552,14 +552,14 @@ Measurement criteria:
 
 **Goal**: Enable a complete, safe, and observable update lifecycle across all distribution channels (binary, Docker, npm launcher).
 
-**Current state** (as of v1.2.0):
+**Current development state**
 
 | Component | Status | Notes |
 |---|---|---|
 | Update version check | working (if services configured) | `UpdatePackageProvider` → `GET /v1/update/{branch}` |
 | Frontend update page | working | Shows available updates, warns when services not configured |
 | Health check for stale builds | working | `UpdateCheck` warns when build > 14 days old and update available |
-| Default update branch | ✅ **main** | Changed from `develop` to `main` in v1.2.0 |
+| Default update branch | ✅ **main** | Stable releases follow the protected `main` promotion lane |
 | Valid update branches | ✅ main, master, develop, nightly | All recognized by health checks |
 | Published update branches | ⏸️ **main/master only** | `develop` and `nightly` configured but no automated builds |
 | Built-in update command | disabled | Intentionally disabled until service integration complete |

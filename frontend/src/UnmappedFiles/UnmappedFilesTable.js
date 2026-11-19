@@ -17,8 +17,8 @@ import translate from 'Utilities/String/translate';
 import areAllSelected from 'Utilities/Table/areAllSelected';
 import selectAll from 'Utilities/Table/selectAll';
 import toggleSelected from 'Utilities/Table/toggleSelected';
-import UnmappedFilesTableHeader from './UnmappedFilesTableHeader';
 import filterUnmappedFiles from './filterUnmappedFiles';
+import UnmappedFilesTableHeader from './UnmappedFilesTableHeader';
 import UnmappedFilesTableRow from './UnmappedFilesTableRow';
 import styles from './UnmappedFilesTable.css';
 
@@ -124,8 +124,8 @@ class UnmappedFilesTable extends Component {
 
   onSelectedChange = ({ id, value, shiftKey = false }) => {
     const items = this.getVisibleItems();
-    this.setState((state) => items.some((item) => item.id === id) ?
-      toggleSelected(state, items, id, value, shiftKey) : null
+    this.setState((state) => (items.some((item) => item.id === id) ?
+      toggleSelected(state, items, id, value, shiftKey) : null)
     );
   };
 

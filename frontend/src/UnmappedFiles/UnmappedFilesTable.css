@@ -1,10 +1,10 @@
 .filters {
   display: flex;
+  align-items: flex-end;
   flex: 0 0 auto;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px 12px;
   padding: 12px $pageContentBodyPadding 0;
+  gap: 8px 12px;
 }
 
 .search {
@@ -34,11 +34,11 @@
 
 .counts {
   display: flex;
+  align-self: flex-end;
   flex: 1 0 auto;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  align-self: flex-end;
   padding: 7px 0;
+  gap: 4px 12px;
   font-variant-numeric: tabular-nums;
 }
 

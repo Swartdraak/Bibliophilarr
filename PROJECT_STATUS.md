@@ -39,12 +39,19 @@ The migration program remains open and intentionally tracked through these activ
 ## Release and CI posture
 
 - The latest stable release is [v1.1.0](https://github.com/Swartdraak/Bibliophilarr/releases/tag/v1.1.0).
+- The next planned stable release is [v2.0.0](https://github.com/Swartdraak/Bibliophilarr/milestone/4).
+  The major version reflects the move to .NET 10 for native installations and
+  the new database migrations. Validate upgrade and rollback with matching
+  backups before promotion.
 - Protected branches require backend CI, Markdown lint, PR metadata, Linux, Windows, macOS and RID portability, and metadata telemetry smoke. Frontend, workflow lint and CodeQL results also inform release readiness.
 - Native Windows and macOS startup and configuration round-trip passed after the
   SQLite packaging fixes in [#413](https://github.com/Swartdraak/Bibliophilarr/pull/413).
 - The complete bibliography refresh landed in
   [#456](https://github.com/Swartdraak/Bibliophilarr/pull/456). The live Hardcover
   benchmark retained all 2,060 work IDs and 150 series.
+- The Open Library benchmark retained all 132 source works and the author’s
+  biography. Google Books returned inconsistent totals across pages for its
+  benchmark author, so full bibliography validation stays open in #455.
 - Use the live [issues](https://github.com/Swartdraak/Bibliophilarr/issues) and [pull requests](https://github.com/Swartdraak/Bibliophilarr/pulls) for the current queues.
 
 ## Branch reconciliation

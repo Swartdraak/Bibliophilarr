@@ -7,8 +7,15 @@ process.
 
 ## [Unreleased]
 
+### Added
+
+- Filter Unmapped Files by path or media format and review matching and selected
+  counts. A bulk action targets selected files in the current results.
+
 ### Fixed
 
+- Name, URL, credentials, and tags in connection forms have associated labels.
+- Connection and health help links open the maintained WebUI guides.
 - A malformed book or edition no longer interrupts the rest of a library
   import batch. Rejected files report why preparation failed, and inconsistent
   edition monitoring updates preserve the existing selections for both formats.
