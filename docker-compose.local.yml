@@ -30,13 +30,14 @@
 #   move files automatically.
 # ─────────────────────────────────────────────────────────────────────────────
 
-version: "3.9"
 
 services:
   bibliophilarr:
     build:
       context: .
       dockerfile: Dockerfile
+      secrets:
+        - sixlabors_license
     image: bibliophilarr:local
     container_name: bibliophilarr_local
     restart: unless-stopped
@@ -71,7 +72,7 @@ services:
       - bibliophilarr_config:/config
 
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8787/api/v1/system/status"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8787/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -92,3 +93,7 @@ services:
 volumes:
   bibliophilarr_config:
     driver: local
+
+secrets:
+  sixlabors_license:
+    file: ${SIXLABORS_LICENSE_FILE:-./sixlabors.lic}
