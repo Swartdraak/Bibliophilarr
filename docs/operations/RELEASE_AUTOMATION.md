@@ -105,11 +105,11 @@ are present in this repository (`release.yml`, `docker-image.yml`, and
 `npm-publish.yml`), while readiness and branch-policy workflows remain the
 authoritative operator decision inputs for promotion decisions.
 
-Current limitation:
-
-- `release.yml` still runs the release-entry gate in advisory mode (`continue-on-error: true`).
-- The series-persistence snapshot step is skipped when `stagingDbPath` is not supplied.
-- Operators must therefore treat a non-PASS gate result as release-blocking even though packaging can still continue in workflow execution today.
+Release packaging requires a passing release-entry report. The workflow reads
+the dated operational snapshots from the verified source commit. Generate the
+series snapshot against a disposable or staging database before promotion and
+commit the results through the development branch. Database files belong outside
+the repository and are not required on the hosted release runner.
 
 ## Workflow dispatch commands (GitHub CLI)
 
@@ -212,6 +212,7 @@ Mandatory checklist flow:
 - `Verdict: PASS|WARNING|CRITICAL|BLOCKED` (dry-run snapshots)
 - `Overall threshold verdict: PASS|WARNING|CRITICAL|BLOCKED` (telemetry checkpoints)
 - `Overall matrix verdict: PASS|BLOCKED` (install snapshots)
+- `Verdict: PASS|BLOCKED` (series persistence snapshots)
 - `Series persistence verdict: PASS|FAIL` (series persistence snapshots)
 
 3. Operator runs:
@@ -233,7 +234,7 @@ Legacy symbol guard:
 - The gate supports an explicit allowlist for approved compatibility shims via `--symbol-allowlist` (defaults include parser model alias files used for backward-compatible JSON deserialization).
 
 4. Promotion is blocked unless the gate report returns `Overall: PASS`.
-5. `release.yml` publishes this gate automatically in the `Release Entry Gate` job, but the job is currently advisory and does not yet hard-stop packaging on failure.
+5. The `Release Entry Gate` job uploads the report. Packaging requires that job to pass.
 
 Packaging scope note:
 

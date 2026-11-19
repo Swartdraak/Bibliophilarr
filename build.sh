@@ -66,8 +66,9 @@ EnableExtraPlatformsInSDK()
 
 EnableExtraPlatforms()
 {
-    if grep -qv freebsd-x64 src/Directory.Build.props; then
-        sed -E -i.bak -e "s^<RuntimeIdentifiers>\(.*\)</RuntimeIdentifiers>^<RuntimeIdentifiers>\1;freebsd-x64;linux-x86</RuntimeIdentifiers>^g" src/Directory.Build.props || { echo "ERROR: sed failed updating RuntimeIdentifiers"; exit 1; }
+    if ! grep -q '<RuntimeIdentifiers>.*freebsd-x64' src/Directory.Build.props; then
+        sed -E -i.bak 's|(<RuntimeIdentifiers>[^<]*)(</RuntimeIdentifiers>)|\1;freebsd-x64;linux-x86\2|' src/Directory.Build.props || { echo "ERROR: sed failed updating RuntimeIdentifiers"; exit 1; }
+        rm -f src/Directory.Build.props.bak
     fi
 }
 
