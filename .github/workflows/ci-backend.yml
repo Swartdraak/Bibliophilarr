@@ -221,7 +221,7 @@ jobs:
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~HostConfigCredentialValidationFixture'
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~HostConfigCredentialValidationFixture'
 
   metadata-diagnostics-integration:
     name: Metadata Diagnostics Integration

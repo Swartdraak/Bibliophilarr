@@ -50,6 +50,9 @@ process.
   the same work (#477).
 - Interactive Import accepts an ebook and audiobook of the same work in one
   selection. It still blocks competing editions within a format (#478).
+- Refresh ebook and audiobook file counts as soon as an import finishes.
+  Multiple files for one work no longer inflate the library completion
+  percentage (#479).
 - Save a new book's provider-verified author without a second synchronous
   author lookup. Expose stored work identifiers and source labels in the API
   for catalogue health checks.

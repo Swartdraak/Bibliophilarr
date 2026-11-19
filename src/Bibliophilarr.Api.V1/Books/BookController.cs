@@ -35,7 +35,6 @@ namespace Bibliophilarr.Api.V1.Books
         IHandle<BookUpdatedEvent>,
         IHandle<BookDeletedEvent>,
         IHandle<BookImportedEvent>,
-        IHandle<TrackImportedEvent>,
         IHandle<BookFileDeletedEvent>
     {
         private const int DefaultPageSize = 100;
@@ -280,13 +279,10 @@ namespace Bibliophilarr.Api.V1.Books
         [NonAction]
         public void Handle(BookImportedEvent message)
         {
-            BroadcastResourceChange(ModelAction.Updated, MapToResource(message.Book, true));
-        }
-
-        [NonAction]
-        public void Handle(TrackImportedEvent message)
-        {
-            BroadcastResourceChange(ModelAction.Updated, message.BookInfo.Book.ToResource());
+            if (message?.Book?.Id is > 0)
+            {
+                BroadcastResourceChange(ModelAction.Updated, message.Book.Id);
+            }
         }
 
         [NonAction]
