@@ -29,6 +29,7 @@ namespace NzbDrone.Core.Books
         List<Book> AuthorBooksBetweenDates(Author author, DateTime startDate, DateTime endDate, bool includeUnmonitored);
         void SetMonitoredFlat(Book book, bool monitored);
         void SetMonitored(IEnumerable<int> ids, bool monitored);
+        void SetFormatMonitored(IEnumerable<int> ids, FormatType formatType, bool monitored);
         List<Book> GetAuthorBooksWithFiles(Author author);
     }
 
@@ -153,29 +154,21 @@ namespace NzbDrone.Core.Books
                 .Join<Author, AuthorMetadata>((l, r) => l.AuthorMetadataId == r.Id)
                 .Where<Book>(a => a.ReleaseDate <= currentTime);
 
-            if (formatType.HasValue)
+            string MissingFormat(FormatType format, string qualityLikes)
             {
-                // Specific format filter: find books where the author has a monitored format
-                // profile for this type AND no BookFiles with matching quality exist.
-                var ft = (int)formatType.Value;
-                var qualityLikes = formatType.Value == FormatType.Ebook ? ebookQualityLikes : audiobookQualityLikes;
-
-                builder = builder
-                    .Where($"EXISTS (SELECT 1 FROM \"AuthorFormatProfiles\" WHERE \"AuthorFormatProfiles\".\"AuthorId\" = \"Authors\".\"Id\" AND \"AuthorFormatProfiles\".\"FormatType\" = {ft} AND \"AuthorFormatProfiles\".\"Monitored\" = 1)")
-                    .Where($"NOT EXISTS (SELECT 1 FROM \"BookFiles\" INNER JOIN \"Editions\" ON \"BookFiles\".\"EditionId\" = \"Editions\".\"Id\" WHERE \"Editions\".\"BookId\" = \"Books\".\"Id\" AND ({qualityLikes}))");
-            }
-            else
-            {
-                // No format filter: find books missing files for ANY monitored format.
-                // A book is included if (author has monitored ebook profile AND no ebook files)
-                // OR (author has monitored audiobook profile AND no audiobook files).
-                var missingEbook = $"(EXISTS (SELECT 1 FROM \"AuthorFormatProfiles\" WHERE \"AuthorFormatProfiles\".\"AuthorId\" = \"Authors\".\"Id\" AND \"AuthorFormatProfiles\".\"FormatType\" = 0 AND \"AuthorFormatProfiles\".\"Monitored\" = 1) AND NOT EXISTS (SELECT 1 FROM \"BookFiles\" INNER JOIN \"Editions\" ON \"BookFiles\".\"EditionId\" = \"Editions\".\"Id\" WHERE \"Editions\".\"BookId\" = \"Books\".\"Id\" AND ({ebookQualityLikes})))";
-                var missingAudiobook = $"(EXISTS (SELECT 1 FROM \"AuthorFormatProfiles\" WHERE \"AuthorFormatProfiles\".\"AuthorId\" = \"Authors\".\"Id\" AND \"AuthorFormatProfiles\".\"FormatType\" = 1 AND \"AuthorFormatProfiles\".\"Monitored\" = 1) AND NOT EXISTS (SELECT 1 FROM \"BookFiles\" INNER JOIN \"Editions\" ON \"BookFiles\".\"EditionId\" = \"Editions\".\"Id\" WHERE \"Editions\".\"BookId\" = \"Books\".\"Id\" AND ({audiobookQualityLikes})))";
-
-                builder = builder.Where($"({missingEbook} OR {missingAudiobook})");
+                var preference = format == FormatType.Ebook ? nameof(Book.EbookMonitoringOverride) : nameof(Book.AudiobookMonitoringOverride);
+                return $"(COALESCE(\"Books\".\"{preference}\", TRUE) AND EXISTS (SELECT 1 FROM \"AuthorFormatProfiles\" WHERE \"AuthorFormatProfiles\".\"AuthorId\" = \"Authors\".\"Id\" AND \"AuthorFormatProfiles\".\"FormatType\" = {(int)format} AND \"AuthorFormatProfiles\".\"Monitored\" = TRUE) AND NOT EXISTS (SELECT 1 FROM \"BookFiles\" INNER JOIN \"Editions\" ON \"BookFiles\".\"EditionId\" = \"Editions\".\"Id\" WHERE \"Editions\".\"BookId\" = \"Books\".\"Id\" AND ({qualityLikes})))";
             }
 
-            return builder;
+            var missingEbook = MissingFormat(FormatType.Ebook, ebookQualityLikes);
+            var missingAudiobook = MissingFormat(FormatType.Audiobook, audiobookQualityLikes);
+
+            return formatType switch
+            {
+                FormatType.Ebook => builder.Where(missingEbook),
+                FormatType.Audiobook => builder.Where(missingAudiobook),
+                _ => builder.Where($"({missingEbook} OR {missingAudiobook})")
+            };
         }
 #pragma warning restore CS0472
 
@@ -290,6 +283,25 @@ namespace NzbDrone.Core.Books
         {
             var books = ids.Select(x => new Book { Id = x, Monitored = monitored }).ToList();
             SetFields(books, p => p.Monitored);
+        }
+
+        public void SetFormatMonitored(IEnumerable<int> ids, FormatType formatType, bool monitored)
+        {
+            var books = ids.Select(id => new Book
+            {
+                Id = id,
+                EbookMonitoringOverride = monitored,
+                AudiobookMonitoringOverride = monitored
+            }).ToList();
+
+            if (formatType == FormatType.Ebook)
+            {
+                SetFields(books, book => book.EbookMonitoringOverride);
+            }
+            else
+            {
+                SetFields(books, book => book.AudiobookMonitoringOverride);
+            }
         }
 
         public Book FindByTitle(int authorMetadataId, string title)

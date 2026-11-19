@@ -47,28 +47,11 @@ namespace Bibliophilarr.Api.V1.Wanted
 
             if (monitored)
             {
-                if (dualFormatEnabled)
-                {
-                    // In dual-format mode, monitoring is driven by AuthorFormatProfiles
-                    // which is already checked by the format-aware SQL builder.
-                    // Only require the author to be monitored at book level.
-                    pagingSpec.FilterExpressions.Add(v => v.Author.Value.Monitored == true);
-                }
-                else
-                {
-                    pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Author.Value.Monitored == true);
-                }
+                pagingSpec.FilterExpressions.Add(v => v.Monitored == true && v.Author.Value.Monitored == true);
             }
             else
             {
-                if (dualFormatEnabled)
-                {
-                    pagingSpec.FilterExpressions.Add(v => v.Author.Value.Monitored == false);
-                }
-                else
-                {
-                    pagingSpec.FilterExpressions.Add(v => v.Monitored == false || v.Author.Value.Monitored == false);
-                }
+                pagingSpec.FilterExpressions.Add(v => v.Monitored == false || v.Author.Value.Monitored == false);
             }
 
             return pagingSpec.ApplyToPage(spec => _bookService.BooksWithoutFiles(spec, formatType, dualFormatEnabled), v => MapToResource(v, includeAuthor));

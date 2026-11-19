@@ -223,23 +223,12 @@ namespace Bibliophilarr.Api.V1.Books
         {
             if (resource.FormatType.HasValue)
             {
-                // Format-aware monitoring: toggle edition monitoring for specific format
-                foreach (var bookId in resource.BookIds)
+                if (resource.FormatType.Value != FormatType.Ebook && resource.FormatType.Value != FormatType.Audiobook)
                 {
-                    var editions = _editionService.GetEditionsByBook(bookId);
-                    var isEbook = resource.FormatType.Value == FormatType.Ebook;
-                    var formatEditions = editions.Where(e => e.IsEbook == isEbook).ToList();
-
-                    foreach (var edition in formatEditions)
-                    {
-                        edition.Monitored = resource.Monitored;
-                    }
-
-                    if (formatEditions.Any())
-                    {
-                        _editionService.UpdateMany(formatEditions);
-                    }
+                    return BadRequest("Unsupported book format.");
                 }
+
+                _bookService.SetFormatMonitored(resource.BookIds, resource.FormatType.Value, resource.Monitored);
 
                 return Accepted(MapToResource(_bookService.GetBooks(resource.BookIds), false));
             }

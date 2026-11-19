@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Bibliophilarr.Http;
 using FluentValidation;
@@ -15,6 +16,7 @@ using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Validation;
 using HttpStatusCode = System.Net.HttpStatusCode;
 
@@ -136,11 +138,11 @@ namespace Bibliophilarr.Api.V1.Indexers
         }
 
         [HttpGet]
-        public async Task<List<ReleaseResource>> GetReleases(int? bookId, int? authorId)
+        public async Task<List<ReleaseResource>> GetReleases(int? bookId, int? authorId, FormatType? formatType = null)
         {
             if (bookId.HasValue)
             {
-                return await GetBookReleases(int.Parse(Request.Query["bookId"]));
+                return await GetBookReleases(bookId.Value, formatType);
             }
 
             if (authorId.HasValue)
@@ -151,11 +153,22 @@ namespace Bibliophilarr.Api.V1.Indexers
             return await GetRss();
         }
 
-        private async Task<List<ReleaseResource>> GetBookReleases(int bookId)
+        private async Task<List<ReleaseResource>> GetBookReleases(int bookId, FormatType? formatType)
         {
             try
             {
                 var decisions = await _releaseSearchService.BookSearch(bookId, true, true, true);
+                if (formatType.HasValue)
+                {
+                    decisions = decisions.Where(decision =>
+                    {
+                        var remoteBook = decision.RemoteBook;
+                        var quality = remoteBook?.ParsedBookInfo?.Quality?.Quality;
+                        return remoteBook?.ResolvedFormatType == formatType ||
+                               (remoteBook?.ResolvedFormatType == null && quality != null && Quality.GetFormatType(quality) == formatType);
+                    }).ToList();
+                }
+
                 var prioritizedDecisions = _prioritizeDownloadDecision.PrioritizeDecisions(decisions);
 
                 return MapDecisions(prioritizedDecisions);

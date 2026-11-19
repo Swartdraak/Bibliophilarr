@@ -57,7 +57,7 @@ export const defaultState = {
     },
     {
       key: 'discography-pack',
-      label: 'Discography',
+      label: () => translate('BookCollections'),
       filters: [
         {
           key: 'discography',
@@ -68,7 +68,7 @@ export const defaultState = {
     },
     {
       key: 'not-discography-pack',
-      label: 'Not Discography',
+      label: () => translate('SingleBookReleases'),
       filters: [
         {
           key: 'discography',

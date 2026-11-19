@@ -101,6 +101,18 @@
   margin: 5px 10px 5px 0;
 }
 
+.formatMonitorButton {
+  composes: link from '~Components/Link/Link.css';
+
+  &:focus-visible {
+    outline: 2px solid var(--white);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
 .sizeOnDisk,
 .qualityProfileName,
 .links,

@@ -3,6 +3,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine.Specifications.RssSync;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
@@ -122,6 +123,40 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         {
             WithFirstBookUnmonitored();
             _monitoredBookSpecification.IsSatisfiedBy(_parseResultSingle, new BookSearchCriteria { MonitoredBooksOnly = true }).Accepted.Should().BeFalse();
+        }
+
+        [TestCase(FormatType.Ebook, false)]
+        [TestCase(FormatType.Audiobook, true)]
+        public void should_check_the_requested_format_and_leave_other_formats_independent(FormatType formatType, bool accepted)
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(s => s.EnableDualFormatTracking).Returns(true);
+            _firstBook.EbookMonitoringOverride = false;
+            _parseResultSingle.ResolvedFormatType = formatType;
+
+            _monitoredBookSpecification.IsSatisfiedBy(_parseResultSingle, null).Accepted.Should().Be(accepted);
+        }
+
+        [Test]
+        public void unmonitoring_an_author_format_should_override_the_book_preference()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(s => s.EnableDualFormatTracking).Returns(true);
+            Mocker.GetMock<IAuthorFormatProfileService>()
+                .Setup(s => s.GetByAuthorIdAndFormat(_fakeAuthor.Id, FormatType.Audiobook))
+                .Returns(new AuthorFormatProfile { Monitored = false });
+            _firstBook.AudiobookMonitoringOverride = true;
+            _parseResultSingle.ResolvedFormatType = FormatType.Audiobook;
+
+            _monitoredBookSpecification.IsSatisfiedBy(_parseResultSingle, null).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void explicit_interactive_search_can_still_find_an_unmonitored_format()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(s => s.EnableDualFormatTracking).Returns(true);
+            _firstBook.EbookMonitoringOverride = false;
+            _parseResultSingle.ResolvedFormatType = FormatType.Ebook;
+
+            _monitoredBookSpecification.IsSatisfiedBy(_parseResultSingle, new BookSearchCriteria { InteractiveSearch = true }).Accepted.Should().BeTrue();
         }
 
         [Test]

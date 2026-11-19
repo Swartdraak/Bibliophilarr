@@ -16,6 +16,7 @@ import fonts from 'Styles/Variables/fonts';
 import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
 import formatBytes from 'Utilities/Number/formatBytes';
 import stripHtml from 'Utilities/String/stripHtml';
+import translate from 'Utilities/String/translate';
 import BookDetailsLinks from './BookDetailsLinks';
 import styles from './BookDetailsHeader.css';
 
@@ -193,9 +194,11 @@ class BookDetailsHeader extends Component {
 
               {
                 (formatStatuses || []).map((fs) => {
-                  const formatLabel = fs.formatType === 'ebook' ? 'Ebook' : 'Audiobook';
+                  const formatLabel = translate(fs.formatType === 'ebook' ? 'Ebook' : 'Audiobook');
+                  const action = fs.monitored ? 'UnmonitorBookFormat' : 'MonitorBookFormat';
+                  const actionLabel = translate(fs.canMonitor ? action : 'BookFormatMonitoringUnavailable', { format: formatLabel });
                   const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
-                  const fileCountLabel = fs.fileCount > 0 ? ` — ${fs.fileCount} file${fs.fileCount !== 1 ? 's' : ''}` : '';
+                  const fileCountLabel = fs.fileCount > 0 ? ` — ${fs.fileCount} file${fs.fileCount === 1 ? '' : 's'}` : '';
                   let kind = kinds.DEFAULT;
 
                   if (fs.hasFile) {
@@ -205,32 +208,40 @@ class BookDetailsHeader extends Component {
                   }
 
                   return (
-                    <Label
+                    <button
                       key={fs.formatType}
-                      className={styles.detailsLabel}
-                      kind={kind}
-                      size={sizes.LARGE}
-                      title={`Click to ${fs.monitored ? 'unmonitor' : 'monitor'} ${formatLabel}`}
-                      onClick={() => onFormatMonitorTogglePress && onFormatMonitorTogglePress(fs.formatType, !fs.monitored)}
+                      type="button"
+                      className={styles.formatMonitorButton}
+                      disabled={!fs.canMonitor || isSaving}
+                      aria-label={formatLabel}
+                      aria-pressed={fs.monitored}
+                      title={actionLabel}
+                      onClick={() => onFormatMonitorTogglePress?.(fs.formatType, !fs.monitored)}
                     >
-                      <Icon
-                        name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
-                        size={17}
-                      />
+                      <Label
+                        className={styles.detailsLabel}
+                        kind={kind}
+                        size={sizes.LARGE}
+                      >
+                        <Icon
+                          name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
+                          size={17}
+                        />
 
-                      <span className={styles.qualityProfileName}>
-                        {`${formatLabel}: ${fs.monitored ? 'Monitored' : 'Unmonitored'}${qpLabel}${fileCountLabel}`}
-                      </span>
+                        <span className={styles.qualityProfileName}>
+                          {`${formatLabel}: ${translate(fs.monitored ? 'Monitored' : 'Unmonitored')}${qpLabel}${fileCountLabel}`}
+                        </span>
 
-                      {
-                        fs.hasFile &&
-                          <Icon
-                            name={icons.CHECK}
-                            size={12}
-                            title="Has file"
-                          />
-                      }
-                    </Label>
+                        {
+                          fs.hasFile &&
+                            <Icon
+                              name={icons.CHECK}
+                              size={12}
+                              title={translate('HasFile')}
+                            />
+                        }
+                      </Label>
+                    </button>
                   );
                 })
               }
