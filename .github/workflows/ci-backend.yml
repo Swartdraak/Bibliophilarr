@@ -201,7 +201,13 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'
+          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~GoogleBooksFallbackSearchProviderFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'
+
+      - name: Run host composition fixtures
+        run: >-
+          dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj
+          --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~ContainerFixture'
 
       - name: Run metadata, format monitoring and host configuration API fixtures
         run: >-
