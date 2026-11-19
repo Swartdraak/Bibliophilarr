@@ -85,6 +85,8 @@ process.
 
 ### Operations
 
+- Release workflows verify the SemVer tag and promotion branch before
+  publishing a GitHub release, npm package, or container image.
 - Full codebase audit completed May 24, 2026. Report at `docs/operations/AUDIT-2026-05-24.md`. Critical finding: stuck download loop (Issue #72). High finding: Dependabot PR #70 targets wrong .NET runtime (Issue #73). Sprint 7 plan at `docs/sprint-7/plan.md`.
 - Added four new Copilot agents: `runtime-health-monitor`, `release-gate`, `dependabot-triage`, `metadata-health`.
 - Added two new Copilot prompts: `stuck-download-diagnosis`, `dependabot-pr-triage`.
