@@ -179,6 +179,13 @@ const wikiPages = [
           'Click the trash icon to delete the file.',
           'Use "Add Missing" at the top to attempt to automatically add all unmapped files to Bibliophilarr — note this can be time-intensive for large collections.'
         ]
+      },
+      {
+        heading: 'Import Lists',
+        paragraphs: [
+          'Under Settings → Import Lists, connect a supported list source such as another Bibliophilarr instance or LazyLibrarian. Choose the root folder and profiles for new entries, then use Test to verify the connection.',
+          'Enable Automatic Add to let list sync add entries to the library. The Monitor and Search for New Items settings control what happens after an entry is added.'
+        ]
       }
     ]
   },

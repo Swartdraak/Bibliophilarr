@@ -5,6 +5,7 @@ import Link from 'Components/Link/Link';
 import Menu from 'Components/Menu/Menu';
 import MenuContent from 'Components/Menu/MenuContent';
 import { sizes } from 'Helpers/Props';
+import getWikiHelpLink from 'Utilities/getWikiHelpLink';
 import AddNotificationPresetMenuItem from './AddNotificationPresetMenuItem';
 import styles from './AddNotificationItem.css';
 
@@ -88,7 +89,8 @@ class AddNotificationItem extends Component {
             }
 
             <Button
-              to={infoLink}
+              to={getWikiHelpLink(infoLink, 'supported', 'notifications')}
+              target="_blank"
               size={sizes.SMALL}
             >
               More info
