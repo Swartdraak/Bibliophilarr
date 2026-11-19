@@ -71,6 +71,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         public bool IsEnabled => _configService.EnableHardcoverFallback && HasConfiguredToken();
 
+        public bool IsFallbackEnabled => IsEnabled;
+
         public bool SupportsAuthorSearch => true;
 
         public bool SupportsBookSearch => true;

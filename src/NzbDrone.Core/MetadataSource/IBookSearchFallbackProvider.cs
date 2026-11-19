@@ -6,6 +6,7 @@ namespace NzbDrone.Core.MetadataSource
     public interface IBookSearchFallbackProvider
     {
         string ProviderName { get; }
+        bool IsFallbackEnabled { get; }
         ProviderRateLimitInfo RateLimitInfo { get; }
         List<Book> Search(string title, string author);
     }

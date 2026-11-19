@@ -9,9 +9,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         [JsonPropertyName("numFound")]
         public int NumFound { get; set; }
 
+        [JsonPropertyName("numFoundExact")]
+        public bool? NumFoundExact { get; set; }
+
         [JsonPropertyName("start")]
         public int Start { get; set; }
 
+        [JsonRequired]
         [JsonPropertyName("docs")]
         public List<OlSearchDoc> Docs { get; set; } = new List<OlSearchDoc>();
     }

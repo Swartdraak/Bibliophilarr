@@ -7,7 +7,11 @@ using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.TPL;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.GoogleBooks;
+using NzbDrone.Core.MetadataSource.Hardcover;
+using NzbDrone.Core.MetadataSource.Inventaire;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 
@@ -22,10 +26,57 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.SetConstant<IMetadataProviderRegistry>(new MetadataProviderRegistry(Array.Empty<IMetadataProvider>()));
         }
 
+        [TestCase("GoogleBooks")]
+        [TestCase("Hardcover")]
+        [TestCase("Inventaire")]
+        public void should_not_reserve_quota_or_issue_requests_when_fallback_is_disabled(string providerName)
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.EnableGoogleBooksProvider)
+                .Returns(true);
+
+            IBookSearchFallbackProvider provider = providerName switch
+            {
+                "GoogleBooks" => Mocker.Resolve<GoogleBooksFallbackSearchProvider>(),
+                "Hardcover" => Mocker.Resolve<HardcoverFallbackSearchProvider>(),
+                _ => Mocker.Resolve<InventaireFallbackSearchProvider>()
+            };
+
+            Subject.Search(provider, "Title", "Author").Should().BeEmpty();
+
+            Mocker.GetMock<IRateLimitService>()
+                .Verify(x => x.WaitAndPulse("metadata-fallback", providerName, It.IsAny<TimeSpan>()), Times.Never());
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+            Mocker.GetMock<IProviderTelemetryService>()
+                .Verify(x => x.RecordSuccess(providerName, "fallback-search", It.IsAny<double>(), It.IsAny<int>()), Times.Never());
+        }
+
+        [Test]
+        public void should_run_google_fallback_with_the_primary_provider_disabled()
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.EnableGoogleBooksFallback)
+                .Returns(true);
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                    new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(request, new HttpHeader(), "{\"items\":[]}")));
+
+            var provider = Mocker.Resolve<GoogleBooksFallbackSearchProvider>();
+
+            Subject.Search(provider, "Title", "Author").Should().BeEmpty();
+
+            Mocker.GetMock<IRateLimitService>()
+                .Verify(x => x.WaitAndPulse("metadata-fallback", "GoogleBooks", It.IsAny<TimeSpan>()), Times.Once());
+            Mocker.GetMock<IHttpClient>()
+                .Verify(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
         [Test]
         public void should_apply_retry_after_cooldown_on_rate_limit()
         {
             var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns("GoogleBooks");
             provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
 
@@ -59,6 +110,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.SetConstant<IMetadataProviderRegistry>(registry);
 
             var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns("GoogleBooks");
             provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo { MaxRequests = 60, TimeWindow = TimeSpan.FromMinutes(1) });
             provider.Setup(x => x.Search(It.IsAny<string>(), It.IsAny<string>())).Returns(new List<Book>());
@@ -73,6 +125,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void should_apply_server_error_cooldown_on_hardcover_request_timeout()
         {
             var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns("Hardcover");
             provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
 
@@ -93,6 +146,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void should_apply_server_error_cooldown_on_hardcover_5xx_error()
         {
             var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns("Hardcover");
             provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
 
@@ -113,6 +167,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void should_record_telemetry_on_hardcover_rate_limit_429()
         {
             var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns("Hardcover");
             provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
 
@@ -135,6 +190,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void should_record_empty_result_telemetry_on_hardcover_no_matches()
         {
             var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns("Hardcover");
             provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
             provider.Setup(x => x.Search(It.IsAny<string>(), It.IsAny<string>())).Returns(new List<Book>());
@@ -149,6 +205,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void should_expose_retry_after_remaining_when_provider_is_rate_limited()
         {
             var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns("Hardcover");
             provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo { MaxRequests = 10, TimeWindow = TimeSpan.FromMinutes(1) });
 
@@ -173,6 +230,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void should_mark_rate_limit_as_near_ceiling_when_usage_crosses_threshold()
         {
             var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns("Hardcover");
             provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo { MaxRequests = 10, TimeWindow = TimeSpan.FromMinutes(1) });
             provider.Setup(x => x.Search(It.IsAny<string>(), It.IsAny<string>())).Returns(new List<Book>());
