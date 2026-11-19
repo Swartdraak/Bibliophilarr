@@ -139,7 +139,9 @@ gh workflow run "Metadata Migration Dry Run" \
 
 ## Release procedure
 
-1. Merge validated changes to `main` only after readiness criteria are met.
+1. Promote `develop` to `staging` through a pull request. Promote `staging`
+   to `main` through a second pull request after its checks and readiness
+   criteria pass.
 2. Review the latest readiness, branch-policy, and operational drift artifacts.
 3. Tag the release: `git tag v<major>.<minor>.<patch> && git push origin v<major>.<minor>.<patch>`.
 4. `release.yml` triggers automatically on the tag push: builds all platform binaries and publishes a GitHub Release with artifacts and SHA256 checksums.
@@ -147,9 +149,19 @@ gh workflow run "Metadata Migration Dry Run" \
 6. `docker-image.yml` triggers on the tag push in parallel with `release.yml`.
 7. Verify GitHub Release assets, GHCR image tags, and npm package version after workflows complete.
 
+The publication workflows verify the exact tag and source commit before building
+release artifacts or publishing images and packages. Stable tags use
+`vMAJOR.MINOR.PATCH` on the first-parent history of `main`. Staging candidates
+use `vMAJOR.MINOR.PATCH-rc.N` on the first-parent history of `staging` and publish
+to GitHub prereleases, npm `next`, and versioned GHCR tags.
+
+For manual publication, dispatch from the exact tagged commit on `main`.
+The main-branch Docker build-only dispatch can still run before tagging.
+
 ## Update branch configuration
 
-As of v1.2.0, Bibliophilarr defaults to the `main` branch for application updates. Users receive notifications when new stable releases are published.
+New installations default to the `main` branch for application updates.
+Users receive notifications when new stable releases are published.
 
 ### Available branches
 
@@ -160,7 +172,8 @@ As of v1.2.0, Bibliophilarr defaults to the `main` branch for application update
 
 Users can change their update branch in Settings > General > Updates > Branch.
 
-Currently, only `main`/`master` branch releases are published via automated workflows. Support for `develop` and `nightly` branch builds is planned for a future release.
+The publication workflows accept stable `main` releases and tagged `staging`
+release candidates. Update settings also accept `develop` and `nightly`.
 
 See [wiki/Updates-and-Branches.md](../../wiki/Updates-and-Branches.md) for user-facing update documentation.
 

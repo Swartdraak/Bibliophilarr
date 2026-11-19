@@ -1,6 +1,6 @@
 name: Bibliophilarr npm Publish
 
-# npm publish workflow — runs from release tags or manual dispatch.
+# Publish versions from existing stable or release-candidate tags.
 on:
   push:
     tags:
@@ -8,15 +8,21 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'npm package version to publish (x.y.z)'
+        description: 'Existing tagged npm version (x.y.z or x.y.z-rc.N)'
         required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
+  release-source:
+    uses: ./.github/workflows/release-source.yml
+    with:
+      requested-tag: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || '' }}
+
   publish:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    needs: release-source
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: npm-publish
@@ -27,6 +33,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.release-source.outputs.commit }}
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -34,21 +43,13 @@ jobs:
           node-version: '22.22.2'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Resolve version
-        id: ver
-        shell: bash
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="${{ github.event.inputs.version }}"
-          fi
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
       - name: Set package version
-        run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version
+        env:
+          RELEASE_VERSION: ${{ needs.release-source.outputs.version }}
 
       - name: Publish package
-        run: npm publish --access public
+        run: npm publish --access public --tag "$NPM_DIST_TAG"
         env:
+          NPM_DIST_TAG: ${{ needs.release-source.outputs.prerelease == 'true' && 'next' || 'latest' }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

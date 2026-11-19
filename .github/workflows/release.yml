@@ -1,6 +1,6 @@
 name: Bibliophilarr Release
 
-# Release workflow — runs only from main branch (via tags or manual dispatch).
+# Publish stable tags from main and release-candidate tags from staging.
 on:
   push:
     tags:
@@ -8,8 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (example: v1.2.3)'
+        description: 'Existing release tag (example: v1.2.3)'
         required: true
+        type: string
       stagingDbPath:
         description: 'Path to staging bibliophilarr.db for series gate snapshot generation'
         required: false
@@ -24,9 +25,14 @@ permissions:
   contents: read
 
 jobs:
+  release-source:
+    uses: ./.github/workflows/release-source.yml
+    with:
+      requested-tag: ${{ inputs.tag }}
+
   release-entry-gate:
     name: Release Entry Gate
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    needs: release-source
     runs-on: ubuntu-latest
     # Advisory for initial releases — remove continue-on-error once snapshot
     # generation cadence is established and gates are consistently passing.
@@ -36,6 +42,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.release-source.outputs.commit }}
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -85,7 +94,7 @@ jobs:
 
   build-package:
     name: Build and Package (${{ matrix.rid }})
-    needs: release-entry-gate
+    needs: [release-source, release-entry-gate]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
@@ -105,6 +114,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.release-source.outputs.commit }}
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -124,23 +136,10 @@ jobs:
           corepack prepare yarn@1.22.19 --activate
           yarn --version
 
-      - name: Resolve version metadata
-        id: ver
-        shell: bash
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG="${{ github.event.inputs.tag }}"
-          fi
-          VERSION="${TAG#v}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
       - name: Build backend
         shell: bash
         env:
-          BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
+          BIBLIOPHILARRVERSION: ${{ needs.release-source.outputs.core }}
           SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
           echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
@@ -168,7 +167,7 @@ jobs:
         run: |
           mkdir -p release
           tar -C "_artifacts/${{ matrix.rid }}/net10.0" \
-            -czf "release/bibliophilarr-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" \
+            -czf "release/bibliophilarr-${{ needs.release-source.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" \
             Bibliophilarr
 
       - name: Archive package (windows)
@@ -178,7 +177,7 @@ jobs:
           New-Item -ItemType Directory -Path release -Force | Out-Null
           Compress-Archive `
             -Path "_artifacts/${{ matrix.rid }}/net10.0/Bibliophilarr/*" `
-            -DestinationPath "release/bibliophilarr-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" `
+            -DestinationPath "release/bibliophilarr-${{ needs.release-source.outputs.version }}-${{ matrix.rid }}.${{ matrix.archive_ext }}" `
             -Force
 
       - name: Build installer (windows only)
@@ -186,9 +185,9 @@ jobs:
         continue-on-error: true  # Installer requires net10.0-windows GUI project; portable zip is primary artifact
         shell: bash
         env:
-          MAJORVERSION: ${{ steps.ver.outputs.version }}
+          MAJORVERSION: ${{ needs.release-source.outputs.core }}
           MINORVERSION: '0'
-          BIBLIOPHILARRVERSION: ${{ steps.ver.outputs.version }}
+          BIBLIOPHILARRVERSION: ${{ needs.release-source.outputs.core }}
           SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
           echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
@@ -207,7 +206,7 @@ jobs:
     name: GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: build-package
+    needs: [release-source, build-package]
     permissions:
       contents: write
 
@@ -228,22 +227,13 @@ jobs:
           cat SHA256SUMS.txt
           echo "::endgroup::"
 
-      - name: Resolve tag
-        id: tag
-        shell: bash
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG="${{ github.event.inputs.tag }}"
-          fi
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-
       - name: Create release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v2
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          draft: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.draft || false }}
+          tag_name: ${{ needs.release-source.outputs.tag }}
+          target_commitish: ${{ needs.release-source.outputs.commit }}
+          prerelease: ${{ needs.release-source.outputs.prerelease == 'true' }}
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
           generate_release_notes: true
           files: |
             release-assets/*.tar.gz

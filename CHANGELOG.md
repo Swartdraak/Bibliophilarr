@@ -9,6 +9,8 @@ process.
 
 ### Fixed
 
+- Release workflows verify the SemVer tag and its promotion branch before
+  publishing a GitHub release, npm package, or container image.
 - General Settings saves unrelated changes for an already configured account
   without requiring the existing password. Credential changes still require
   password confirmation (#453).
