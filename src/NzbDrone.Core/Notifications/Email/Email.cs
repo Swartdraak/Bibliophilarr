@@ -206,7 +206,7 @@ namespace NzbDrone.Core.Notifications.Email
 
             _logger.Debug("Sending to mail server");
 
-            client.Send(email);
+            client.Send(new SmtpSendRequest(email));
 
             _logger.Debug("Sent to mail server, disconnecting");
 
