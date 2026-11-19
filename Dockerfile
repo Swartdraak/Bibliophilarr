@@ -43,20 +43,24 @@ LABEL org.opencontainers.image.title="Bibliophilarr" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
       org.opencontainers.image.vendor="Bibliophilarr"
 
-RUN groupadd --gid 1000 bibliophilarr \
-    && useradd --uid 1000 --gid bibliophilarr --shell /bin/false --create-home bibliophilarr \
-    && install -d -o bibliophilarr -g bibliophilarr /config \
-    && apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+    if ! getent group 1000 >/dev/null; then groupadd --gid 1000 bibliophilarr; fi; \
+    if ! getent passwd 1000 >/dev/null; then \
+      useradd --uid 1000 --gid 1000 --shell /bin/false --create-home bibliophilarr; \
+    fi; \
+    install -d -o 1000 -g 1000 /config; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
     ASPNETCORE_URLS=http://+:8787
 
-COPY --from=build --chown=bibliophilarr:bibliophilarr /release/ /app/
+COPY --from=build --chown=1000:1000 /release/ /app/
 
-USER bibliophilarr
+USER 1000:1000
 
 EXPOSE 8787
 
