@@ -989,7 +989,7 @@ const wikiPages = [
           'Access and download log files directly from the UI. Bibliophilarr uses rolling log files:'
         ],
         list: [
-          'bibliophilarr.txt — Current main log file (info, warn, error, fatal). Rolls over at about 1 MB and retains up to five archives.',
+          'bibliophilarr.txt — Current main log file (info, warn, error, fatal). Rolls over at about 1 MB. Archive retention is configurable and defaults to 50.',
           'bibliophilarr.debug.txt — Debug-level log. Includes info and debug entries when debug logging is enabled.',
           'bibliophilarr.trace.txt — Trace-level log. Includes the most detail when trace logging is enabled.',
           'Update logs — Separate logs for the update process, accessible via the dropdown toggle.'
