@@ -147,10 +147,8 @@ namespace Bibliophilarr.Api.V1.Books
                     resource.FormatStatuses.Add(fs);
                 }
 
-                // AuthorFormatProfile is the source of truth for monitoring intent,
-                // overriding the edition-derived value from ToResource() which may
-                // be wrong when a single edition serves both ebook and audiobook formats.
-                fs.Monitored = fp.Monitored;
+                // The format preference only applies while the book and author are monitored.
+                fs.Monitored = resource.AllowsFormatMonitoring && fp.Monitored;
                 fs.QualityProfileId = fp.QualityProfileId;
                 if (!profileCache.TryGetValue(fp.QualityProfileId, out var name))
                 {
@@ -197,8 +195,7 @@ namespace Bibliophilarr.Api.V1.Books
                         resource.FormatStatuses.Add(fs);
                     }
 
-                    // AuthorFormatProfile is the source of truth for monitoring intent.
-                    fs.Monitored = fp.Monitored;
+                    fs.Monitored = resource.AllowsFormatMonitoring && fp.Monitored;
                     fs.QualityProfileId = fp.QualityProfileId;
                     if (!qpCache.TryGetValue(fp.QualityProfileId, out var name))
                     {

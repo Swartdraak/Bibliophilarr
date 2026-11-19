@@ -41,6 +41,8 @@ namespace Bibliophilarr.Api.V1.Books
         public List<EditionResource> Editions { get; set; }
         public List<BookFormatStatusResource> FormatStatuses { get; set; }
 
+        internal bool AllowsFormatMonitoring { get; set; }
+
         //Hiding this so people don't think its usable (only used to set the initial state)
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
         [SwaggerIgnore]
@@ -70,6 +72,7 @@ namespace Bibliophilarr.Api.V1.Books
 
             var title = selectedEdition?.Title ?? model.Title;
             var bookAuthor = model.Author?.Value;
+            var allowsFormatMonitoring = model.Monitored && bookAuthor?.Monitored == true;
             var authorTitle = $"{bookAuthor?.Metadata?.Value?.SortNameLastFirst ?? string.Empty} {title}";
 
             var seriesLinks = model.SeriesLinks?.Value?.OrderBy(x => x.SeriesPosition);
@@ -153,7 +156,8 @@ namespace Bibliophilarr.Api.V1.Books
                 Added = model.Added,
                 LastSearchTime = model.LastSearchTime,
                 Editions = editionsValue?.Select(e => e.ToResource()).ToList() ?? new List<EditionResource>(),
-                FormatStatuses = formatStatuses
+                FormatStatuses = formatStatuses,
+                AllowsFormatMonitoring = allowsFormatMonitoring
             };
         }
 
