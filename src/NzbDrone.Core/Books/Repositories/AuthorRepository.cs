@@ -106,7 +106,13 @@ namespace NzbDrone.Core.Books
 
         public bool AuthorExistsWithQualityProfile(int qualityProfileId)
         {
-            return Query(s => s.QualityProfileId == qualityProfileId).Any();
+            using (var conn = _database.OpenConnection())
+            {
+                const string sql = "SELECT EXISTS (SELECT 1 FROM \"Authors\" WHERE \"QualityProfileId\" = @qualityProfileId) " +
+                                   "OR EXISTS (SELECT 1 FROM \"AuthorFormatProfiles\" WHERE \"QualityProfileId\" = @qualityProfileId)";
+
+                return conn.ExecuteScalar<bool>(sql, new { qualityProfileId });
+            }
         }
     }
 }

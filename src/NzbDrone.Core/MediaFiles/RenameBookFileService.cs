@@ -89,10 +89,10 @@ namespace NzbDrone.Core.MediaFiles
                 var file = f;
                 file.PartCount = counts[file.EditionId];
 
-                var book = file.Edition.Value;
+                var book = file.Edition?.Value;
                 var bookFilePath = file.Path;
 
-                if (book == null)
+                if (book?.Book?.Value == null)
                 {
                     _logger.Warn("File ({0}) is not linked to a book", bookFilePath);
                     continue;
@@ -140,14 +140,17 @@ namespace NzbDrone.Core.MediaFiles
             // Pre-compute destination paths to detect collisions within the batch
             var filesToRename = bookFiles.Where(x => x.CalibreId == 0).ToList();
             var destinationPaths = new Dictionary<string, List<BookFile>>(StringComparer.OrdinalIgnoreCase);
+            var skipFiles = new HashSet<int>();
 
             foreach (var bookFile in filesToRename)
             {
                 bookFile.PartCount = counts.GetValueOrDefault(bookFile.EditionId, 1);
-                var book = bookFile.Edition.Value;
+                var book = bookFile.Edition?.Value;
 
-                if (book == null)
+                if (book?.Book?.Value == null)
                 {
+                    _logger.Warn("File ({0}) is not linked to a book", bookFile.Path);
+                    skipFiles.Add(bookFile.Id);
                     continue;
                 }
 
@@ -175,7 +178,6 @@ namespace NzbDrone.Core.MediaFiles
 
             // Log and skip files that would collide with each other
             var collisions = destinationPaths.Where(kvp => kvp.Value.Count > 1).ToList();
-            var skipFiles = new HashSet<int>();
 
             foreach (var collision in collisions)
             {
