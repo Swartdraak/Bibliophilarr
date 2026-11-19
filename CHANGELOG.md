@@ -19,6 +19,17 @@ process.
   The Add Author and Add Book forms select quality profiles by media format.
 - Store provider author biographies separately from book synopses. Hardcover
   uses confirmed format data and keeps ambiguous editions unclassified.
+- Persist independent ebook and audiobook monitoring and allow interactive
+  release searches by format. Series positions sort in both directions, and
+  a series search can target monitored library members with missing files.
+- Recognize native audio format labels during automatic matching. Keep a single
+  audiobook for review when its filename and embedded metadata identify
+  different known works by the same author.
+- Save a new book's provider-verified author without a second synchronous
+  author lookup. Expose stored work identifiers and source labels in the API
+  for catalogue health checks.
+- Repair the historical PostgreSQL migrations for download settings and author
+  format profiles. Validate independent format preferences on PostgreSQL and SQLite.
 - Import batches track duplicates by work, edition, part, and format after a
   successful import, so later valid candidates are still considered.
 - Disabled metadata fallbacks skip request pacing and dispatch during imports.
