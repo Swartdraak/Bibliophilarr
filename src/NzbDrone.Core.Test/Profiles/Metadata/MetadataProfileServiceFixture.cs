@@ -74,7 +74,7 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .Returns(profiles[0]);
 
             Mocker.GetMock<IAuthorService>()
-                .Setup(s => s.GetAllAuthors())
+                .Setup(s => s.GetAuthorsByMetadataProfile(profiles[0].Id))
                 .Returns(new List<Author>());
 
             Mocker.GetMock<IImportListFactory>()
@@ -154,11 +154,6 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .With(p => p.Id = 2)
                 .Build();
 
-            var authorList = Builder<Author>.CreateListOfSize(3)
-                                            .Random(1)
-                                            .With(c => c.MetadataProfileId = profile.Id)
-                                            .Build().ToList();
-
             var importLists = Builder<ImportListDefinition>.CreateListOfSize(2)
                 .All()
                 .With(c => c.MetadataProfileId = 1)
@@ -169,7 +164,7 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .With(f => f.DefaultMetadataProfileId = 1)
                 .BuildList();
 
-            Mocker.GetMock<IAuthorService>().Setup(c => c.GetAllAuthors()).Returns(authorList);
+            Mocker.GetMock<IAuthorService>().Setup(c => c.AuthorExistsWithMetadataProfile(profile.Id)).Returns(true);
             Mocker.GetMock<IImportListFactory>().Setup(c => c.All()).Returns(importLists);
             Mocker.GetMock<IRootFolderService>().Setup(c => c.All()).Returns(rootFolders);
             Mocker.GetMock<IMetadataProfileRepository>().Setup(c => c.Get(profile.Id)).Returns(profile);
@@ -186,11 +181,6 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .With(p => p.Id = 2)
                 .Build();
 
-            var authorList = Builder<Author>.CreateListOfSize(3)
-                .All()
-                .With(c => c.MetadataProfileId = 1)
-                .Build().ToList();
-
             var importLists = Builder<ImportListDefinition>.CreateListOfSize(2)
                 .Random(1)
                 .With(c => c.MetadataProfileId = profile.Id)
@@ -201,7 +191,6 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .With(f => f.DefaultMetadataProfileId = 1)
                 .BuildList();
 
-            Mocker.GetMock<IAuthorService>().Setup(c => c.GetAllAuthors()).Returns(authorList);
             Mocker.GetMock<IImportListFactory>().Setup(c => c.All()).Returns(importLists);
             Mocker.GetMock<IRootFolderService>().Setup(c => c.All()).Returns(rootFolders);
             Mocker.GetMock<IMetadataProfileRepository>().Setup(c => c.Get(profile.Id)).Returns(profile);
@@ -218,11 +207,6 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .With(p => p.Id = 2)
                 .Build();
 
-            var authorList = Builder<Author>.CreateListOfSize(3)
-                .All()
-                .With(c => c.MetadataProfileId = 1)
-                .Build().ToList();
-
             var importLists = Builder<ImportListDefinition>.CreateListOfSize(2)
                 .All()
                 .With(c => c.MetadataProfileId = 1)
@@ -233,7 +217,6 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .With(f => f.DefaultMetadataProfileId = profile.Id)
                 .BuildList();
 
-            Mocker.GetMock<IAuthorService>().Setup(c => c.GetAllAuthors()).Returns(authorList);
             Mocker.GetMock<IImportListFactory>().Setup(c => c.All()).Returns(importLists);
             Mocker.GetMock<IRootFolderService>().Setup(c => c.All()).Returns(rootFolders);
             Mocker.GetMock<IMetadataProfileRepository>().Setup(c => c.Get(profile.Id)).Returns(profile);
@@ -250,11 +233,6 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .With(p => p.Id = 1)
                 .Build();
 
-            var authorList = Builder<Author>.CreateListOfSize(3)
-                                            .All()
-                                            .With(c => c.MetadataProfileId = 2)
-                                            .Build().ToList();
-
             var importLists = Builder<ImportListDefinition>.CreateListOfSize(2)
                 .All()
                 .With(c => c.MetadataProfileId = 2)
@@ -265,7 +243,6 @@ namespace NzbDrone.Core.Test.Profiles.Metadata
                 .With(f => f.DefaultMetadataProfileId = 2)
                 .BuildList();
 
-            Mocker.GetMock<IAuthorService>().Setup(c => c.GetAllAuthors()).Returns(authorList);
             Mocker.GetMock<IImportListFactory>().Setup(c => c.All()).Returns(importLists);
             Mocker.GetMock<IRootFolderService>().Setup(c => c.All()).Returns(rootFolders);
             Mocker.GetMock<IMetadataProfileRepository>().Setup(c => c.Get(profile.Id)).Returns(profile);
