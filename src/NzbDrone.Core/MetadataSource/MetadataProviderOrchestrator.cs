@@ -597,26 +597,6 @@ namespace NzbDrone.Core.MetadataSource
             }
         }
 
-        // ── ISearchForNewBook / ISearchForNewAuthor (V1 fan-out surface) ────────────
-        // Issue #277: the /api/v1/book/lookup and /api/v1/author/lookup endpoints inject
-        // these raw provider contracts directly, which DryIoc (auto-concrete-type
-        // resolution, first concrete wins) binds to a single provider and bypasses this
-        // orchestrator entirely. As a result those endpoints got neither priority-ordered
-        // fan-out (Hardcover -> OpenLibrary fallback) nor the per-provider telemetry that
-        // /api/v1/search (via IMetadataProviderOrchestrator) records. Declaring the
-        // orchestrator as a concrete implementer of the V1 contracts means DryIoc resolves
-        // them to the orchestrator, so every lookup path goes through ExecuteFirst:
-        // enabled providers are tried in priority order, the first non-empty result wins,
-        // and every provider call is recorded (provider, operation, latency, success,
-        // null, fallback, result count) so an empty fan-out is diagnosable in telemetry.
-        //
-        // No new method bodies are needed: SearchForNewBook / SearchForNewAuthor /
-        // SearchByIsbn / SearchByAsin / SearchByExternalId are already implemented for
-        // IMetadataProviderOrchestrator (above), and those signatures satisfy the V1
-        // ISearchForNewBook / ISearchForNewAuthor contracts exactly. Declaring the V1
-        // interfaces on the class is therefore sufficient to make DryIoc resolve them to
-        // this orchestrator.
-
         /// <summary>
         /// Counts the results a provider operation returned, for telemetry. The orchestrator's
         /// fan-out methods always return a non-null List when a provider was reached, so this

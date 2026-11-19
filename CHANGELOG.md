@@ -14,6 +14,8 @@ process.
 
 ### Fixed
 
+- Book and author lookups respect the enabled metadata providers and their
+  configured order. They return an empty list when no provider returns a match.
 - Name, URL, credentials, and tags in connection forms have associated labels.
 - Connection and health help links open the maintained WebUI guides.
 - A malformed book or edition no longer interrupts the rest of a library

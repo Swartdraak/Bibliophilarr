@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using Bibliophilarr.Api.V1.Author;
+using Bibliophilarr.Api.V1.Books;
 using DryIoc;
 using DryIoc.Microsoft.DependencyInjection;
 using FluentAssertions;
@@ -14,6 +16,7 @@ using NzbDrone.Common.Composition.Extensions;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Common.Options;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Extensions;
 using NzbDrone.Core.Download;
@@ -22,9 +25,11 @@ using NzbDrone.Core.HealthCheck;
 using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Localization;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.Organizer;
 using NzbDrone.Host;
 using NzbDrone.SignalR;
 using NzbDrone.Test.Common;
@@ -88,6 +93,78 @@ namespace NzbDrone.App.Test
             events.Verify(x => x.PublishEvent(It.IsAny<MetadataProviderConnectivityChangedEvent>()), Times.Once());
 
             ExceptionVerification.ExpectedWarns(2);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_route_book_and_author_lookup_through_enabled_providers(bool transportFailure)
+        {
+            const string term = "fixture author";
+            const string bookId = "openlibrary:work:OL123W";
+            const string authorId = "openlibrary:author:OL456A";
+
+            var disabled = new Mock<IMetadataProvider>();
+            disabled.SetupGet(x => x.ProviderName).Returns("GoogleBooks");
+            disabled.SetupGet(x => x.SupportsBookSearch).Returns(true);
+            disabled.SetupGet(x => x.SupportsAuthorSearch).Returns(true);
+            var disabledBooks = disabled.As<ISearchForNewBook>();
+            var disabledAuthors = disabled.As<ISearchForNewAuthor>();
+
+            var enabled = new Mock<IMetadataProvider>();
+            enabled.SetupGet(x => x.ProviderName).Returns("OpenLibrary");
+            enabled.SetupGet(x => x.IsEnabled).Returns(true);
+            enabled.SetupGet(x => x.Priority).Returns(1);
+            enabled.SetupGet(x => x.SupportsBookSearch).Returns(true);
+            enabled.SetupGet(x => x.SupportsAuthorSearch).Returns(true);
+            var bookSearch = enabled.As<ISearchForNewBook>();
+            var authorSearch = enabled.As<ISearchForNewAuthor>();
+
+            if (transportFailure)
+            {
+                bookSearch.Setup(x => x.SearchForNewBook(term, null, true)).Throws(new HttpRequestException("Fixture connection unavailable"));
+                authorSearch.Setup(x => x.SearchForNewAuthor(term)).Throws(new HttpRequestException("Fixture connection unavailable"));
+            }
+            else
+            {
+                bookSearch.Setup(x => x.SearchForNewBook(term, null, true))
+                    .Returns(new List<Book> { new Book { ForeignBookId = bookId, Title = "Fixture Book" } });
+                authorSearch.Setup(x => x.SearchForNewAuthor(term))
+                    .Returns(new List<Author> { new Author { Metadata = new AuthorMetadata { ForeignAuthorId = authorId, Name = "Fixture Author" } } });
+            }
+
+            _registrations.RegisterInstance<IMetadataProviderRegistry>(
+                new MetadataProviderRegistry(new[] { disabled.Object, enabled.Object }),
+                ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+
+            // Raw provider contracts are not a routing facade. Model the binding that
+            // the old controller constructors received on the packaged application.
+            _registrations.RegisterInstance(disabledBooks.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+            _registrations.RegisterInstance(disabledAuthors.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+            _registrations.RegisterInstance(Mock.Of<IMapCoversToLocal>(), ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+            _registrations.RegisterInstance(Mock.Of<IBuildFileNames>(), ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+            _registrations.RegisterInstance(Mock.Of<IEventAggregator>(), ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+
+            var bookLookup = ActivatorUtilities.CreateInstance<BookLookupController>(_container);
+            var authorLookup = ActivatorUtilities.CreateInstance<AuthorLookupController>(_container);
+            var books = (IEnumerable<BookResource>)bookLookup.Search(term);
+            var authors = (IEnumerable<AuthorResource>)authorLookup.Search(term);
+
+            if (transportFailure)
+            {
+                books.Should().BeEmpty();
+                authors.Should().BeEmpty();
+                ExceptionVerification.ExpectedWarns(4);
+            }
+            else
+            {
+                books.Should().ContainSingle().Which.ForeignBookId.Should().Be(bookId);
+                authors.Should().ContainSingle().Which.ForeignAuthorId.Should().Be(authorId);
+            }
+
+            bookSearch.Verify(x => x.SearchForNewBook(term, null, true), Times.AtLeastOnce);
+            authorSearch.Verify(x => x.SearchForNewAuthor(term), Times.Once);
+            disabledBooks.Verify(x => x.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
+            disabledAuthors.Verify(x => x.SearchForNewAuthor(It.IsAny<string>()), Times.Never);
         }
 
         [Test]
