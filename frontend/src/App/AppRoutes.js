@@ -85,13 +85,13 @@ function AppRoutes(props) {
         <Route
           exact={true}
           path="/library"
-          render={() => <Redirect to={getPathWithUrlBase('/authors')} />}
+          render={({ location }) => <Redirect to={{ ...location, pathname: getPathWithUrlBase('/authors') }} />}
         />
 
         <Route
           exact={true}
           path="/search"
-          render={() => <Redirect to={getPathWithUrlBase('/add/search')} />}
+          render={({ location }) => <Redirect to={{ ...location, pathname: getPathWithUrlBase('/add/search') }} />}
         />
 
         <Route
