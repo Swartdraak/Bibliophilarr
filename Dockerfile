@@ -67,4 +67,5 @@ EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8787/ping || exit 1
 
-ENTRYPOINT ["sh", "-c", "umask 077 && exec ./Bibliophilarr /data=/config \"$@\"", "--"]
+ENTRYPOINT ["sh", "-c", "umask 077 && exec ./Bibliophilarr \"$@\"", "--"]
+CMD ["/data=/config"]

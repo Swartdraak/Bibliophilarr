@@ -280,7 +280,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
 
         [TestCase(-1)] // Infinite/Unknown
         [TestCase(-2)] // Magnet Downloading
-        [TestCase(long.MaxValue)] // Not representable in seconds or milliseconds
+        [TestCase(2147483648000)] // Out of range in the seconds unit specified by Transmission
+        [TestCase(long.MaxValue)]
         public void should_ignore_unsupported_eta(long eta)
         {
             _completed.Eta = eta;
@@ -298,16 +299,6 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
             PrepareClientToReturnDownloadingItem();
             var item = Subject.GetItems().Single();
             item.RemainingTime.Should().Be(TimeSpan.FromSeconds(eta));
-        }
-
-        [TestCase(2147483648000)] // works with milliseconds format too
-        public void should_support_long_values_for_eta_in_milliseconds(long eta)
-        {
-            _downloading.Eta = eta;
-
-            PrepareClientToReturnDownloadingItem();
-            var item = Subject.GetItems().Single();
-            item.RemainingTime.Should().Be(TimeSpan.FromMilliseconds(eta));
         }
 
         [Test]

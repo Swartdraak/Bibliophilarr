@@ -30,7 +30,7 @@ namespace NzbDrone.Core.Datastore
                 return conversion.Arguments[0];
             }
 
-            throw new NotSupportedException("Unexpected form of Enumerable.Contains");
+            throw new NotSupportedException($"Unsupported membership expression: {call.Method.DeclaringType?.Name}.{call.Method.Name}");
         }
     }
 }

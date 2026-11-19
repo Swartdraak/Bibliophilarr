@@ -145,12 +145,12 @@ jobs:
           --filter
           'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'
 
-      - name: Run metadata API fixtures
+      - name: Run metadata and format monitoring API fixtures
         run: >-
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture'
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture'
 
   metadata-diagnostics-integration:
     name: Metadata Diagnostics Integration
@@ -189,3 +189,10 @@ jobs:
           --configuration Debug --verbosity minimal -p:Platform=Posix
           --filter
           'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~RootFolderFixture|FullyQualifiedName~ConfigWireContractFixture'
+
+      - name: Run catalogue and provider integration fixtures
+        run: >-
+          dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
+          --configuration Debug --no-build --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~AuthorEditorFixture|FullyQualifiedName~CalendarFixture|FullyQualifiedName~CutoffUnmetFixture|FullyQualifiedName~MissingFixture|FullyQualifiedName~OpenLibraryRefreshBaselineFixture'

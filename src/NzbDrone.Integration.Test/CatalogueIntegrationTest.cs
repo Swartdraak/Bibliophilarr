@@ -66,22 +66,17 @@ namespace NzbDrone.Integration.Test
             });
         }
 
-        protected Book SeedCatalogueBook(bool monitored, Quality fileQuality = null)
+        protected Book SeedCatalogueBook(bool authorMonitored, Quality fileQuality = null)
         {
-            var author = SeedAuthor(CatalogueAuthor, monitored);
+            // Wanted filters these fixtures by author monitoring on an otherwise monitored book.
+            var author = SeedAuthor(CatalogueAuthor, authorMonitored);
             var database = OpenCatalogue();
             var books = new BookRepository(database, null);
             const string foreignBookId = "test:book:last-day";
             const string foreignEditionId = "test:edition:last-day";
-            var book = books.FindById(foreignBookId);
-
-            if (book != null)
-            {
-                return book;
-            }
 
             var releaseDate = new DateTime(2020, 2, 4, 0, 0, 0, DateTimeKind.Utc);
-            book = books.Insert(new Book
+            var book = books.FindById(foreignBookId) ?? books.Insert(new Book
             {
                 Author = author,
                 AuthorMetadata = author.Metadata,
@@ -96,7 +91,8 @@ namespace NzbDrone.Integration.Test
                 Monitored = true
             });
 
-            var edition = new EditionRepository(database, null).Insert(new Edition
+            var editions = new EditionRepository(database, null);
+            var edition = editions.FindByForeignEditionId(foreignEditionId) ?? editions.Insert(new Edition
             {
                 BookId = book.Id,
                 ForeignEditionId = foreignEditionId,
@@ -109,14 +105,25 @@ namespace NzbDrone.Integration.Test
 
             if (fileQuality != null)
             {
-                new MediaFileRepository(database, null).Insert(new BookFile
+                var files = new MediaFileRepository(database, null);
+                var path = Path.Combine(author.Path, $"{book.Title}.mobi");
+                var file = files.GetFileWithPath(path);
+                if (file == null)
                 {
-                    EditionId = edition.Id,
-                    Path = Path.Combine(author.Path, $"{book.Title}.mobi"),
-                    DateAdded = DateTime.UtcNow,
-                    Modified = DateTime.UtcNow,
-                    Quality = new QualityModel(fileQuality)
-                });
+                    files.Insert(new BookFile
+                    {
+                        EditionId = edition.Id,
+                        Path = path,
+                        DateAdded = DateTime.UtcNow,
+                        Modified = DateTime.UtcNow,
+                        Quality = new QualityModel(fileQuality)
+                    });
+                }
+                else if (file.Quality.Quality != fileQuality)
+                {
+                    file.Quality = new QualityModel(fileQuality);
+                    files.Update(file);
+                }
             }
 
             return book;

@@ -28,16 +28,28 @@ namespace NzbDrone.Integration.Test.ApiTests
                 OutputProfile = "default"
             });
 
+            var assertionsPassed = false;
             try
             {
                 created.Id.Should().BePositive();
                 var listed = RootFolders.All().Single(folder => folder.Id == created.Id);
                 listed.Path.Should().Be(path);
                 listed.Name.Should().Be(created.Name);
+                assertionsPassed = true;
             }
             finally
             {
-                RootFolders.Delete(created.Id);
+                if (created.Id > 0)
+                {
+                    try
+                    {
+                        RootFolders.Delete(created.Id);
+                    }
+                    catch (Exception cleanupError) when (!assertionsPassed)
+                    {
+                        TestContext.Error.WriteLine($"Root folder cleanup also failed: {cleanupError.Message}");
+                    }
+                }
             }
         }
 

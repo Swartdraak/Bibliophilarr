@@ -87,16 +87,9 @@ namespace NzbDrone.Core.Download.Clients.Transmission
                 item.SeedRatio = torrent.DownloadedEver <= 0 ? 0 :
                     (double)torrent.UploadedEver / torrent.DownloadedEver;
 
-                if (torrent.Eta >= 0)
+                if (torrent.Eta >= 0 && torrent.Eta <= TimeSpan.MaxValue.Ticks / TimeSpan.TicksPerSecond)
                 {
-                    if (torrent.Eta <= TimeSpan.MaxValue.Ticks / TimeSpan.TicksPerSecond)
-                    {
-                        item.RemainingTime = TimeSpan.FromSeconds(torrent.Eta);
-                    }
-                    else if (torrent.Eta <= TimeSpan.MaxValue.Ticks / TimeSpan.TicksPerMillisecond)
-                    {
-                        item.RemainingTime = TimeSpan.FromMilliseconds(torrent.Eta);
-                    }
+                    item.RemainingTime = TimeSpan.FromTicks(torrent.Eta * TimeSpan.TicksPerSecond);
                 }
 
                 if (!torrent.ErrorString.IsNullOrWhiteSpace())
