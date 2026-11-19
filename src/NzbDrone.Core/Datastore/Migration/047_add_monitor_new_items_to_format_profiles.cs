@@ -13,10 +13,10 @@ namespace NzbDrone.Core.Datastore.Migration
 
             // Sync Author.Monitored from format profiles: if any format profile
             // is monitored the author should also be marked monitored.
-            Execute.Sql(@"UPDATE Authors SET Monitored = 1
-                          WHERE Id IN (
-                              SELECT DISTINCT AuthorId FROM AuthorFormatProfiles WHERE Monitored = 1
-                          ) AND Monitored = 0");
+            Execute.Sql(@"UPDATE ""Authors"" SET ""Monitored"" = TRUE
+                          WHERE ""Id"" IN (
+                              SELECT DISTINCT ""AuthorId"" FROM ""AuthorFormatProfiles"" WHERE ""Monitored"" = TRUE
+                          ) AND ""Monitored"" = FALSE");
         }
     }
 }

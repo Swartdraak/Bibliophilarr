@@ -22,10 +22,10 @@ namespace NzbDrone.Core.Datastore.Migration
         {
             // Clamp each NewItemMonitorTypes column to the valid range 0..2 (values outside
             // that range are out-of-range for the enum and are reset to the All=0 default).
-            Execute.Sql("UPDATE AuthorFormatProfiles SET MonitorNewItems = 0 WHERE MonitorNewItems IS NOT NULL AND (MonitorNewItems < 0 OR MonitorNewItems > 2)");
-            Execute.Sql("UPDATE Authors SET MonitorNewItems = 0 WHERE MonitorNewItems IS NOT NULL AND (MonitorNewItems < 0 OR MonitorNewItems > 2)");
-            Execute.Sql("UPDATE RootFolders SET DefaultNewItemMonitorOption = 0 WHERE DefaultNewItemMonitorOption IS NOT NULL AND (DefaultNewItemMonitorOption < 0 OR DefaultNewItemMonitorOption > 2)");
-            Execute.Sql("UPDATE ImportLists SET MonitorNewItems = 0 WHERE MonitorNewItems IS NOT NULL AND (MonitorNewItems < 0 OR MonitorNewItems > 2)");
+            Execute.Sql(@"UPDATE ""AuthorFormatProfiles"" SET ""MonitorNewItems"" = 0 WHERE ""MonitorNewItems"" IS NOT NULL AND (""MonitorNewItems"" < 0 OR ""MonitorNewItems"" > 2)");
+            Execute.Sql(@"UPDATE ""Authors"" SET ""MonitorNewItems"" = 0 WHERE ""MonitorNewItems"" IS NOT NULL AND (""MonitorNewItems"" < 0 OR ""MonitorNewItems"" > 2)");
+            Execute.Sql(@"UPDATE ""RootFolders"" SET ""DefaultNewItemMonitorOption"" = 0 WHERE ""DefaultNewItemMonitorOption"" IS NOT NULL AND (""DefaultNewItemMonitorOption"" < 0 OR ""DefaultNewItemMonitorOption"" > 2)");
+            Execute.Sql(@"UPDATE ""ImportLists"" SET ""MonitorNewItems"" = 0 WHERE ""MonitorNewItems"" IS NOT NULL AND (""MonitorNewItems"" < 0 OR ""MonitorNewItems"" > 2)");
         }
     }
 }
