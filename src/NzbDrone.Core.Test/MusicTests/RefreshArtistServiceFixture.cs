@@ -183,22 +183,8 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
-        public void should_log_error_and_delete_if_musicbrainz_id_not_found_and_author_has_no_files()
+        public void should_keep_unlinked_local_author_without_provider_metadata()
         {
-            // Pre-existing test (base a104fc72): this fixture author carries the builder
-            // default foreign id ("ForeignAuthorId1"), which is NOT a provider-scoped id
-            // (openlibrary:/hardcover:/bare OLxxxxA) — it is a synthetic/unmapped id.
-            // Under the issue #272/#325 provider-scope deletion gate (RefreshAuthorService
-            // .ShouldDelete -> ProviderOwnedForeignId), a not-found for a synthetic id is
-            // NOT a provider-removal signal, so the correct behavior is no-delete (local-
-            // author retention). The original deletion assertion was written for the
-            // pre-#272 gate (delete on any not-found without files) and is superseded by
-            // should_still_delete_provider_sourced_author_when_remote_removed_and_no_files
-            // and should_still_delete_provider_sourced_author_by_provider_id_scope_...,
-            // which exercise the documented #204/#209 provider-removed deletion path with
-            // provider-scoped ids. This test is rewritten to lock the new no-delete
-            // behavior for synthetic ids (and the resulting error log, which is the
-            // documented "kept with existing metadata" outcome).
             Mocker.GetMock<IAuthorService>()
                 .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
 
@@ -210,21 +196,13 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
+            Mocker.GetMock<ICommandResultReporter>().Verify(x => x.Report(It.IsAny<CommandResult>()), Times.Never());
             ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
-        public void should_log_error_but_not_delete_if_musicbrainz_id_not_found_and_author_has_files()
+        public void should_keep_local_author_with_files_without_provider_metadata()
         {
-            // Pre-existing test (base a104fc72), aligned with the #272/#325 provider-
-            // scope gate: the fixture author carries the builder default foreign id
-            // ("ForeignAuthorId1"), a synthetic/unmapped id. A not-found for a
-            // synthetic id is NOT a provider-removal signal, so the not-found branch
-            // logs exactly one error ("was not found, it may have been removed from
-            // Metadata sources") and no deletion occurs (files present anyway). The
-            // original ExpectedErrors(2) counted a pre-#272 second error that the
-            // provider-scope gate no longer emits for synthetic ids.
             GivenAuthorFiles();
             GivenBooksForRefresh(new List<Book>());
 
@@ -236,7 +214,6 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
             ExceptionVerification.ExpectedWarns(1);
         }
 
@@ -268,7 +245,6 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
             ExceptionVerification.ExpectedWarns(1);
         }
 
@@ -300,7 +276,6 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
             ExceptionVerification.ExpectedWarns(1);
         }
 
@@ -325,43 +300,79 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>().Verify(x => x.UpdateAuthor(It.IsAny<Author>()), Times.Never());
 
             ExceptionVerification.ExpectedWarns(1);
+            if (transportFailure)
+            {
+                ExceptionVerification.ExpectedErrors(1);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_report_unavailable_refresh_as_unsuccessful_and_continue(bool refreshAll)
+        {
+            _author.Metadata.Value.Name = "Alpha";
+            var other = _author.JsonClone();
+            other.Id++;
+            other.Metadata = _author.Metadata.Value.JsonClone();
+            other.Metadata.Value.Name = "Zulu";
+            other.ForeignAuthorId = "openlibrary:author:OL9000A";
+            other.AuthorMetadataId = other.Metadata.Value.Id;
+
+            var ids = new List<int> { _author.Id, other.Id };
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAuthors(ids)).Returns(new List<Author> { _author, other });
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { _author, other });
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(new MetadataProviderUnavailableException("get-author-info", _author.ForeignAuthorId, new InvalidOperationException("Incomplete provider response")));
+            var otherData = other.JsonClone();
+            otherData.Metadata = other.Metadata.Value.JsonClone();
+            otherData.Books = _remoteBooks;
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Setup(x => x.GetAuthorInfo(other.ForeignAuthorId, true)).Returns(otherData);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            if (refreshAll)
+            {
+                Subject.Execute(new RefreshAuthorCommand(null, true) { Trigger = CommandTrigger.Manual });
+            }
+            else
+            {
+                Subject.Execute(new BulkRefreshAuthorCommand(ids, true));
+            }
+
+            Mocker.GetMock<ICommandResultReporter>().Verify(x => x.Report(CommandResult.Unsuccessful), Times.Once());
+            Mocker.GetMock<IAuthorService>().Verify(x => x.UpdateAuthor(It.Is<Author>(a => a.Id == other.Id)), Times.Once());
+            Mocker.GetMock<IManageCommandQueue>().Verify(x => x.Push(It.IsAny<RescanFoldersCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
             ExceptionVerification.ExpectedErrors(1);
         }
 
-        [Test]
-        public void should_still_delete_provider_sourced_author_when_remote_removed_and_no_files()
+        [TestCase("openlibrary:author:OL87654A", false)]
+        [TestCase("OL87654A", true)]
+        public void should_keep_monitored_provider_author_when_author_endpoint_returns_404(string foreignId, bool bulk)
         {
-            // Issue #272 no-regression guard: provider-sourced authors keep the
-            // documented provider-removed deletion behavior (#204/#209) — a genuine
-            // not-found with no local files still deletes. The foreign id is set to a
-            // provider-scoped id (openlibrary:author:...): under the #272/#325
-            // provider-scope gate the deletion signal keys on the id scope, and this
-            // is the canonical provider-removed scenario (resolved at add time,
-            // AuthorMetadataId > 0, provider later removes the entry).
             _author.AuthorMetadataId = 1;
-            _author.ForeignAuthorId = "openlibrary:author:OL87654A";
+            _author.ForeignAuthorId = foreignId;
+            _author.Monitored = true;
 
-            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
-                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
-                  .Returns(new List<Author> { _author });
-
-            Mocker.GetMock<IMediaFileService>()
-                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
-                .Returns(new List<BookFile>());
-
-            Mocker.GetMock<IAuthorService>()
-                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
-
+            Mocker.GetMock<IAuthorService>().Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
             Mocker.GetMock<IMetadataProviderOrchestrator>()
-                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
-                .Throws(new AuthorNotFoundException(_author.ForeignAuthorId, isConfirmedMissing: true));
+                .Setup(x => x.GetAuthorInfo(foreignId, true))
+                .Throws(new AuthorNotFoundException(foreignId, isConfirmedMissing: true));
 
-            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+            if (bulk)
+            {
+                Subject.Execute(new BulkRefreshAuthorCommand(new List<int> { _author.Id }));
+            }
+            else
+            {
+                Subject.Execute(new RefreshAuthorCommand(_author.Id));
+            }
 
             Mocker.GetMock<IAuthorService>()
-                .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Once());
+                .Verify(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAuthorService>().Verify(x => x.UpdateAuthor(It.IsAny<Author>()), Times.Never());
 
-            ExceptionVerification.ExpectedWarns(2);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -399,7 +410,6 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
             ExceptionVerification.ExpectedWarns(1);
         }
 
@@ -434,40 +444,7 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
             ExceptionVerification.ExpectedWarns(1);
-        }
-
-        [TestCase("openlibrary:author:OL87654A")]
-        [TestCase("OL87654A")]
-        public void should_still_delete_provider_sourced_author_by_provider_id_scope_when_remote_removed_and_no_files(string foreignId)
-        {
-            // Issue #325 no-regression guard: the deletion gate now keys on the
-            // Exact Open Library 404s are authoritative for both persisted ID spellings.
-            _author.AuthorMetadataId = 1;
-            _author.ForeignAuthorId = foreignId;
-
-            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
-                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
-                  .Returns(new List<Author> { _author });
-
-            Mocker.GetMock<IMediaFileService>()
-                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
-                .Returns(new List<BookFile>());
-
-            Mocker.GetMock<IAuthorService>()
-                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
-
-            Mocker.GetMock<IMetadataProviderOrchestrator>()
-                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
-                .Throws(new AuthorNotFoundException(_author.ForeignAuthorId, isConfirmedMissing: true));
-
-            Subject.Execute(new RefreshAuthorCommand(_author.Id));
-
-            Mocker.GetMock<IAuthorService>()
-                .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Once());
-
-            ExceptionVerification.ExpectedWarns(2);
         }
 
         [TestCase("hardcover:author:recoveryseed")]
@@ -516,7 +493,6 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
             ExceptionVerification.ExpectedWarns(1);
         }
 
@@ -549,14 +525,11 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Never());
 
             ExceptionVerification.ExpectedWarns(1);
-            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
         public void should_not_delete_provider_sourced_author_when_remote_removed_but_files_exist()
         {
-            // Pre-existing #272 no-regression guard (now also exercised through the
-            // provider-scope path): files present -> no deletion even on not-found.
             _author.AuthorMetadataId = 1;
             _author.ForeignAuthorId = "openlibrary:author:OL87654A";
             GivenAuthorFiles();
@@ -577,7 +550,6 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
             ExceptionVerification.ExpectedWarns(1);
         }
 

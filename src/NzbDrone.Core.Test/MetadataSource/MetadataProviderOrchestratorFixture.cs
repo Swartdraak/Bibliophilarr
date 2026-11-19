@@ -488,23 +488,45 @@ namespace NzbDrone.Core.Test.MetadataSource
             events.Verify(e => e.PublishEvent(It.IsAny<MetadataProviderConnectivityChangedEvent>()), Times.Exactly(4));
         }
 
-        [TestCase("OpenLibrary", "OL4821A", true)]
-        [TestCase("OpenLibrary", "OL9000A", false)]
-        [TestCase("Other", "OL4821A", false)]
-        public void should_require_authority_before_marking_author_missing(string providerName, string missingId, bool confirmed)
+        [Test]
+        public void should_report_provider_404_as_reachable_absence()
         {
+            const string requestedId = "openlibrary:author:OL4821A";
             var provider = new Mock<IMetadataProvider>();
-            provider.SetupGet(x => x.ProviderName).Returns(providerName);
+            provider.SetupGet(x => x.ProviderName).Returns("OpenLibrary");
             provider.SetupGet(x => x.SupportsAuthorSearch).Returns(true);
-            provider.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo("openlibrary:author:OL4821A", true))
-                .Throws(new AuthorNotFoundException(missingId, isConfirmedMissing: true));
+            provider.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo(requestedId, true))
+                .Throws(new AuthorNotFoundException("OL4821A", isConfirmedMissing: true));
+            var telemetry = new MetadataProviderTelemetryService();
+            telemetry.RecordTransportOutage("get-author-info", true);
+            var orchestrator = new MetadataProviderOrchestrator(new TestRegistry(new[] { provider.Object }), telemetry, LogManager.GetCurrentClassLogger());
+
+            var lookup = () => orchestrator.GetAuthorInfo(requestedId);
+            lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().BeTrue();
+            telemetry.HasRecentTransportOutage().Should().BeFalse();
+        }
+
+        [Test]
+        public void should_retain_author_lookup_fallback_after_a_provider_404()
+        {
+            const string requestedId = "unscoped-author";
+            var primary = new Mock<IMetadataProvider>();
+            primary.SetupGet(x => x.ProviderName).Returns("Primary");
+            primary.SetupGet(x => x.SupportsAuthorSearch).Returns(true);
+            primary.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo(requestedId, true))
+                .Throws(new AuthorNotFoundException(requestedId, isConfirmedMissing: true));
+            var fallback = new Mock<IMetadataProvider>();
+            fallback.SetupGet(x => x.ProviderName).Returns("Fallback");
+            fallback.SetupGet(x => x.SupportsAuthorSearch).Returns(true);
+            var author = new Author();
+            fallback.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo(requestedId, true)).Returns(author);
+
             var orchestrator = new MetadataProviderOrchestrator(
-                new TestRegistry(new[] { provider.Object }),
+                new TestRegistry(new[] { primary.Object, fallback.Object }),
                 new MetadataProviderTelemetryService(),
                 LogManager.GetCurrentClassLogger());
 
-            var lookup = () => orchestrator.GetAuthorInfo("openlibrary:author:OL4821A", true);
-            lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().Be(confirmed);
+            orchestrator.GetAuthorInfo(requestedId).Should().BeSameAs(author);
         }
 
         [TestCase(System.Net.WebExceptionStatus.Timeout, true)]
@@ -533,10 +555,8 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
-        public void should_not_throw_unavailable_when_provider_fails_with_non_transport_error()
+        public void should_report_non_transport_provider_failure_without_marking_outage()
         {
-            // A genuine provider error (not a network/transport failure) must still be
-            // treated as a not-found, NOT as an unavailable provider.
             var registry = new TestRegistry(new IMetadataProvider[]
             {
                 new NonTransportFailingAuthorInfoProvider()
@@ -547,7 +567,8 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             var act = () => orchestrator.GetAuthorInfo("hardcover:author:171873", true);
 
-            act.Should().Throw<AuthorNotFoundException>();
+            act.Should().Throw<MetadataProviderUnavailableException>().WithInnerException<InvalidOperationException>();
+            telemetry.HasRecentTransportOutage().Should().BeFalse();
         }
 
         [Test]

@@ -11,7 +11,6 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
-using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -168,7 +167,7 @@ namespace NzbDrone.Core.MetadataSource
                     // but no enabled provider is compatible with it. The compatible provider may be
                     // disabled, unregistered, or mismatched by name. Log a clear diagnostic so
                     // operators understand the observed condition (issue #214 / #215).
-                    _logger.Warn("No enabled metadata provider is compatible with the provider-scoped id for operation '{0}'. The lookup cannot confirm removal. Verify the expected provider is enabled and registered, or re-resolve the entity via an enabled provider.", operationName);
+                    _logger.Warn("No enabled metadata provider is compatible with the provider-scoped id for operation '{0}'. Verify the expected provider is enabled and registered, or re-resolve the entity via an enabled provider.", operationName);
                 }
             }
 
@@ -176,6 +175,7 @@ namespace NzbDrone.Core.MetadataSource
             var transportFailures = 0;
             var receivedResponse = false;
             Exception lastError = null;
+            AuthorNotFoundException notFound = null;
             var allFailuresWereTransport = true;
             var anyFailure = false;
 
@@ -244,12 +244,15 @@ namespace NzbDrone.Core.MetadataSource
                         return result;
                     }
                 }
-                catch (AuthorNotFoundException ex) when (operationName == AuthorInfoOperation && ex.IsConfirmedMissing && IsConfirmedAuthorRemoval(provider, entityId, ex.ForeignAuthorId))
+                catch (AuthorNotFoundException ex) when (operationName == AuthorInfoOperation)
                 {
                     stopwatch.Stop();
                     _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, true, false);
-                    _telemetry.RecordTransportOutage(operationName, false);
-                    throw;
+                    receivedResponse |= ex.IsConfirmedMissing;
+                    if (ex.IsConfirmedMissing)
+                    {
+                        notFound ??= ex;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -299,13 +302,17 @@ namespace NzbDrone.Core.MetadataSource
                 }
             }
 
-            if (throwOnTransportFailure && anyFailure && allFailuresWereTransport)
+            // Author refresh needs to distinguish an empty lookup from a failed request.
+            // Keep existing transport handling for other ID-based metadata lookups.
+            if ((operationName == AuthorInfoOperation && anyFailure) ||
+                (throwOnTransportFailure && anyFailure && allFailuresWereTransport))
             {
-                // Every provider failed with a transport/network error. This is a transient
-                // outage, NOT a "provider removed this entity" signal. Surface it distinctly
-                // so callers never interpret it as a genuine not-found (which would lead to
-                // destructive deletion of local data — see issue #204 / #209).
                 throw new MetadataProviderUnavailableException(operationName, entityId, lastError);
+            }
+
+            if (notFound != null)
+            {
+                throw notFound;
             }
 
             return null;
@@ -345,13 +352,6 @@ namespace NzbDrone.Core.MetadataSource
             return _nextRetry.TryAdd(providerName, after) ||
                    (_nextRetry.TryGetValue(providerName, out var nextRetry) && nextRetry <= now &&
                     _nextRetry.TryUpdate(providerName, after, nextRetry));
-        }
-
-        private static bool IsConfirmedAuthorRemoval(IMetadataProvider provider, string requestedId, string missingId)
-        {
-            var requested = OpenLibraryIdNormalizer.NormalizeAuthorId(requestedId);
-            return string.Equals(provider.ProviderName, "OpenLibrary", StringComparison.OrdinalIgnoreCase) &&
-                   requested != null && requested == OpenLibraryIdNormalizer.NormalizeAuthorId(missingId);
         }
 
         private static bool IsProviderCompatibleWithIdScope(IMetadataProvider provider, string providerScopedId)

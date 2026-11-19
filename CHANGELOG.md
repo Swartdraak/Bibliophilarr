@@ -19,9 +19,10 @@ process.
 - A malformed book or edition no longer interrupts the rest of a library
   import batch. Rejected files report why preparation failed, and inconsistent
   edition monitoring updates preserve the existing selections for both formats.
-- Preserve existing authors and their catalogues when provider lookups are
-  inconclusive. Retry transport failures within a shared request budget and
-  surface provider outages in System Health.
+- Keep existing authors and their catalogues when a provider lookup fails or
+  reports the author missing. Retry transport failures within a shared request
+  budget, surface provider outages in System Health, and report incomplete
+  refresh requests as unsuccessful while continuing the rest of the batch.
 - Honor the historical server port environment variable. The canonical
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
 - Hardcover now reads every page of an author's bibliography before applying

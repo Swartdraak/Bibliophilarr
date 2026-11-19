@@ -9,6 +9,17 @@ namespace NzbDrone.Integration.Test.ApiTests
     public class AuthorEditorFixture : CatalogueIntegrationTest
     {
         [Test]
+        public void should_remove_a_monitored_author_on_explicit_api_delete()
+        {
+            var author = SeedAuthor("Fixture Explicit Author Removal");
+            Author.Get(author.Id).Monitored.Should().BeTrue();
+
+            Author.Delete(author.Id);
+
+            Author.InvalidGet(author.Id);
+        }
+
+        [Test]
         public void should_be_able_to_update_multiple_author()
         {
             var authors = new[] { SeedAuthor("Fixture Author One"), SeedAuthor("Fixture Author Two") };

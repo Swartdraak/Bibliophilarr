@@ -17,7 +17,6 @@ using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.RootFolders;
 
@@ -40,6 +39,7 @@ namespace NzbDrone.Core.Books
         private readonly IRefreshSeriesService _refreshSeriesService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly ICommandResultReporter _commandResultReporter;
         private readonly IMediaFileService _mediaFileService;
         private readonly IHistoryService _historyService;
         private readonly IRootFolderService _rootFolderService;
@@ -58,6 +58,7 @@ namespace NzbDrone.Core.Books
                                     IRefreshSeriesService refreshSeriesService,
                                     IEventAggregator eventAggregator,
                                     IManageCommandQueue commandQueueManager,
+                                    ICommandResultReporter commandResultReporter,
                                     IMediaFileService mediaFileService,
                                     IHistoryService historyService,
                                     IRootFolderService rootFolderService,
@@ -76,6 +77,7 @@ namespace NzbDrone.Core.Books
             _refreshSeriesService = refreshSeriesService;
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
+            _commandResultReporter = commandResultReporter;
             _mediaFileService = mediaFileService;
             _historyService = historyService;
             _rootFolderService = rootFolderService;
@@ -92,30 +94,20 @@ namespace NzbDrone.Core.Books
             {
                 return _orchestrator.GetAuthorInfo(foreignId);
             }
-            catch (AuthorNotFoundException ex) when (ex.IsConfirmedMissing)
+            catch (AuthorNotFoundException ex)
             {
-                _logger.Warn("The metadata provider confirmed that author id '{0}' no longer exists.", LogSanitizer.Sanitize(foreignId));
-            }
-            catch (AuthorNotFoundException)
-            {
-                _logger.Warn("Metadata lookup was inconclusive for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
-                throw;
+                // A missing author or a local identifier with no provider result is an expected no-op.
+                var message = ex.IsConfirmedMissing
+                    ? "The metadata provider returned not found for author id '{0}'. Keeping the existing author and metadata."
+                    : "No metadata matched author id '{0}'. Keeping the existing author and metadata.";
+                _logger.Warn(message, LogSanitizer.Sanitize(foreignId));
+                return null;
             }
             catch (MetadataProviderUnavailableException ex)
             {
-                // A transient network/transport outage is NOT a signal that the provider
-                // removed this author. Re-throw so the caller skips the refresh entirely
-                // instead of interpreting null as "not found" (which would trigger
-                // destructive deletion when ShouldDelete is true — see issue #204 / #209).
-                _logger.Warn(ex,
-                    "Metadata provider unreachable for author id '{0}'. " +
-                    "The author will be kept with existing metadata. " +
-                    "This is a transient network condition, not a removal.",
-                    LogSanitizer.Sanitize(foreignId));
+                _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
                 throw;
             }
-
-            return null;
         }
 
         protected override RemoteData GetRemoteData(Author local, List<Author> remote, Author data)
@@ -133,110 +125,7 @@ namespace NzbDrone.Core.Books
 
         protected override bool ShouldDelete(Author local)
         {
-            // An authoritative not-found is only a safe deletion signal for
-            // provider-sourced authors: providers own those identifiers, so a
-            // confirmed absence is the documented provider-removed
-            // condition (#204/#209). Locally created authors (synthetic/unmapped
-            // foreign ids, e.g. a locally created author added via POST /api/v1/author)
-            // were never provider-resolvable, so a not-found is expected, not a removal
-            // signal — deleting them destroys API-created data (issue #272: the
-            // post-create background refresh deleted the row before the 201 Created
-            // redirect could resolve it, producing a 404; issue #325: the same
-            // post-create refresh deleted rows ~3s after the 201, because
-            // AddAuthorService upserts an AuthorMetadata row for every added author
-            // and assigns the resulting positive id to Author.AuthorMetadataId — so
-            // the old "AuthorMetadataId <= 0" guard no longer identifies locally
-            // created authors).
-            //
-            // The correct identification is the provider id scope itself: only a
-            // provider-scoped id ("openlibrary:author:...", the bare OpenLibrary
-            // "OLxxxxA" form, or a "hardcover:..." / numeric-Hardcover form) can ever
-            // be resolved by a metadata provider, and only then is a genuine
-            // not-found a documented provider-removal signal. Locally created authors
-            // carry synthetic/unmapped ids (e.g. "recovery:author:RTA-001") that no
-            // provider can resolve; their AuthorMetadata rows are intentionally
-            // persisted locally and are never deletion evidence.
-            if (!ProviderOwnedForeignId(local.ForeignAuthorId))
-            {
-                return false;
-            }
-
-            return !_mediaFileService.GetFilesByAuthor(local.Id).Any();
-        }
-
-        /// <summary>
-        /// True when the foreign author id is owned by a known metadata provider
-        /// (i.e. the id came from a provider, not from a local/synthetic create).
-        /// Mirrors the id scopes the orchestrator routes to (IMetadataProviderOrchestrator
-        /// .IsProviderCompatibleWithIdScope): OpenLibrary-scoped ids
-        /// ("openlibrary:author:..." or the bare OpenLibrary "OLxxxxA" form that
-        /// OpenLibraryIdNormalizer recognizes) and the resolvable numeric
-        /// Hardcover-author id form ("hardcover:author:&lt;positive integer&gt;") that
-        /// AuthorMetadataRepository.IsNumericHardcoverAuthorId recognizes.
-        ///
-        /// Issue #404: the previous gate returned true for ANY id starting
-        /// "hardcover:" — including non-numeric synthetic ids such as
-        /// "hardcover:author:recoveryseed". Those ids can never be resolved by any
-        /// provider (the live app log shows "Hardcover author search returned no
-        /// results" -> AuthorNotFoundException), so their not-found is expected,
-        /// never a provider-removal signal. Treating them as provider-owned made the
-        /// post-create refresh synchronously delete API-created authors (the Authors
-        /// row vanished while the AuthorMetadata row persisted). The gate now scopes
-        /// the hardcover: prefix to the numeric author form only — a non-numeric
-        /// hardcover:-scoped id is locally-created and is NOT provider-owned.
-        /// </summary>
-        private static bool ProviderOwnedForeignId(string foreignAuthorId)
-        {
-            if (foreignAuthorId.IsNullOrWhiteSpace())
-            {
-                return false;
-            }
-
-            var id = foreignAuthorId.Trim();
-
-            if (id.StartsWith("openlibrary:", StringComparison.OrdinalIgnoreCase))
-            {
-                return OpenLibraryIdNormalizer.NormalizeAuthorId(id) != null;
-            }
-
-            // Only the resolvable numeric Hardcover-author id form is provider-owned.
-            // A non-numeric hardcover:-scoped id (e.g. "hardcover:author:recoveryseed")
-            // is a synthetic locally-created id: no provider can resolve it, so its
-            // not-found must not be treated as a provider-removed signal (issue #404).
-            if (id.StartsWith("hardcover:", StringComparison.OrdinalIgnoreCase))
-            {
-                return IsNumericHardcoverAuthorId(id);
-            }
-
-            // Bare OpenLibrary author id form (e.g. "OL89131A"), not yet scoped.
-            return OpenLibraryIdNormalizer.NormalizeAuthorId(id) != null;
-        }
-
-        /// <summary>
-        /// True when the foreign author id is the resolvable numeric Hardcover-author
-        /// form: "hardcover:author:&lt;positive integer&gt;". This mirrors
-        /// AuthorMetadataRepository.IsNumericHardcoverAuthorId, which is the scope the
-        /// Hardcover provider actually recognizes. Anything else in the "hardcover:"
-        /// namespace (non-numeric, zero/negative, or a different sub-scope) is a
-        /// synthetic/unmapped locally-created id (issue #404).
-        /// </summary>
-        private static bool IsNumericHardcoverAuthorId(string foreignAuthorId)
-        {
-            if (foreignAuthorId.IsNullOrWhiteSpace())
-            {
-                return false;
-            }
-
-            const string prefix = "hardcover:author:";
-            var raw = foreignAuthorId.Trim();
-
-            if (!raw.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            var token = raw.Substring(prefix.Length);
-            return int.TryParse(token, out var id) && id > 0;
+            return false;
         }
 
         protected override void LogProgress(Author local)
@@ -345,7 +234,7 @@ namespace NzbDrone.Core.Books
 
         protected override void DeleteEntity(Author local, bool deleteFiles)
         {
-            _authorService.DeleteAuthor(local.Id, deleteFiles);
+            throw new NotSupportedException("Missing provider metadata cannot delete a library author.");
         }
 
         protected override List<Book> GetRemoteChildren(Author local, Author remote)
@@ -563,6 +452,7 @@ namespace NzbDrone.Core.Books
         private void RefreshSelectedAuthors(List<int> authorIds, bool isNew, CommandTrigger trigger)
         {
             var updated = false;
+            var refreshFailed = false;
             var authors = _authorService.GetAuthors(authorIds);
 
             foreach (var author in authors)
@@ -570,15 +460,28 @@ namespace NzbDrone.Core.Books
                 try
                 {
                     var data = GetSkyhookData(author.ForeignAuthorId);
-                    updated |= RefreshEntityInfo(author, null, data, true, false, null);
+                    if (data != null)
+                    {
+                        updated |= RefreshEntityInfo(author, null, data, true, false, null);
+                    }
                 }
                 catch (Exception e)
                 {
+                    refreshFailed = true;
                     _logger.Error(e, "Couldn't refresh info for {0}", author);
                 }
             }
 
+            CompleteRefresh(authorIds, isNew, trigger, updated, refreshFailed);
+        }
+
+        private void CompleteRefresh(List<int> authorIds, bool isNew, CommandTrigger trigger, bool updated, bool refreshFailed)
+        {
             Rescan(authorIds, isNew, trigger, updated);
+            if (refreshFailed)
+            {
+                _commandResultReporter.Report(CommandResult.Unsuccessful);
+            }
         }
 
         public void Execute(BulkRefreshAuthorCommand message)
@@ -598,6 +501,7 @@ namespace NzbDrone.Core.Books
             else
             {
                 var updated = false;
+                var refreshFailed = false;
                 var authors = _authorService.GetAllAuthors().OrderBy(c => c.Name).ToList();
                 var authorIds = authors.Select(x => x.Id).ToList();
 
@@ -620,10 +524,14 @@ namespace NzbDrone.Core.Books
                         {
                             LogProgress(author);
                             var data = GetSkyhookData(author.ForeignAuthorId);
-                            updated |= RefreshEntityInfo(author, null, data, manualTrigger, false, message.LastStartTime);
+                            if (data != null)
+                            {
+                                updated |= RefreshEntityInfo(author, null, data, manualTrigger, false, message.LastStartTime);
+                            }
                         }
                         catch (Exception e)
                         {
+                            refreshFailed = true;
                             _logger.Error(e, "Couldn't refresh info for {0}", author);
                         }
                     }
@@ -633,7 +541,7 @@ namespace NzbDrone.Core.Books
                     }
                 }
 
-                Rescan(authorIds, isNew, trigger, updated);
+                CompleteRefresh(authorIds, isNew, trigger, updated, refreshFailed);
             }
         }
     }
