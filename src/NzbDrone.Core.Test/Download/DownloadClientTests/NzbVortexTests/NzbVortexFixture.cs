@@ -6,7 +6,6 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
-using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.Clients;
 using NzbDrone.Core.Download.Clients.Nzbget;
@@ -82,23 +81,50 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
                 .Returns(Guid.NewGuid().ToString().Replace("-", ""));
         }
 
-        protected virtual void GivenQueue(NzbVortexQueueItem queue)
+        protected virtual void GivenQueue(params NzbVortexQueueItem[] queue)
         {
-            var list = new List<NzbVortexQueueItem>();
-
-            list.AddIfNotNull(queue);
-
             Mocker.GetMock<INzbVortexProxy>()
                 .Setup(s => s.GetQueue(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<NzbVortexSettings>()))
-                .Returns(list);
+                .Returns<int, string, NzbVortexSettings>((_, category, _) => queue
+                    .Where(item => string.IsNullOrWhiteSpace(category) || item.GroupName == category)
+                    .ToList());
         }
 
         [Test]
         public void GetItems_should_return_no_items_when_queue_is_empty()
         {
-            GivenQueue(null);
+            GivenQueue();
 
             Subject.GetItems().Should().BeEmpty();
+        }
+
+        [Test]
+        public void GetItems_should_return_downloads_from_both_format_categories()
+        {
+            var settings = Subject.Definition.Settings.As<NzbVortexSettings>();
+            var audiobook = new NzbVortexQueueItem
+            {
+                Id = _queued.Id + 1,
+                GroupName = settings.AudiobookCategory,
+                UiTitle = "Audiobook"
+            };
+            GivenQueue(_queued, audiobook);
+
+            var items = Subject.GetItems().ToList();
+
+            items.Select(item => item.DownloadId).Should().BeEquivalentTo(new[] { _queued.Id.ToString(), audiobook.Id.ToString() });
+            items.Select(item => item.Category).Should().BeEquivalentTo(new[] { settings.EbookCategory, settings.AudiobookCategory });
+        }
+
+        [Test]
+        public void GetItems_should_query_a_group_shared_by_both_formats_once()
+        {
+            var settings = Subject.Definition.Settings.As<NzbVortexSettings>();
+            settings.AudiobookCategory = settings.EbookCategory;
+            GivenQueue(_queued);
+
+            Subject.GetItems().Should().ContainSingle(item => item.DownloadId == _queued.Id.ToString());
+            Mocker.GetMock<INzbVortexProxy>().Verify(proxy => proxy.GetQueue(30, settings.EbookCategory, settings), Times.Once());
         }
 
         [Test]
@@ -171,7 +197,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
         [Test]
         public void should_report_UncompressFailed_as_failed()
         {
-            _queued.State = NzbVortexStateType.UncompressFailed;
+            _failed.State = NzbVortexStateType.UncompressFailed;
             GivenQueue(_failed);
 
             var items = Subject.GetItems();
@@ -182,7 +208,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
         [Test]
         public void should_report_CheckFailedDataCorrupt_as_failed()
         {
-            _queued.State = NzbVortexStateType.CheckFailedDataCorrupt;
+            _failed.State = NzbVortexStateType.CheckFailedDataCorrupt;
             GivenQueue(_failed);
 
             var result = Subject.GetItems().Single();
@@ -193,7 +219,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
         [Test]
         public void should_report_BadlyEncoded_as_failed()
         {
-            _queued.State = NzbVortexStateType.BadlyEncoded;
+            _failed.State = NzbVortexStateType.BadlyEncoded;
             GivenQueue(_failed);
 
             var items = Subject.GetItems();
@@ -228,7 +254,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
         {
             _completed.GroupName = "mycat";
 
-            GivenQueue(null);
+            GivenQueue(_completed);
 
             var items = Subject.GetItems();
 
@@ -298,9 +324,14 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbVortexTests
         [TestCase("3.0", true)]
         public void should_test_api_version(string version, bool expected)
         {
+            var settings = Subject.Definition.Settings.As<NzbVortexSettings>();
             Mocker.GetMock<INzbVortexProxy>()
                 .Setup(v => v.GetGroups(It.IsAny<NzbVortexSettings>()))
-                .Returns(new List<NzbVortexGroup> { new NzbVortexGroup { GroupName = ((NzbVortexSettings)Subject.Definition.Settings).EbookCategory } });
+                .Returns(new List<NzbVortexGroup>
+                {
+                    new NzbVortexGroup { GroupName = settings.EbookCategory },
+                    new NzbVortexGroup { GroupName = settings.AudiobookCategory }
+                });
 
             Mocker.GetMock<INzbVortexProxy>()
                 .Setup(v => v.GetApiVersion(It.IsAny<NzbVortexSettings>()))

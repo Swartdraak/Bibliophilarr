@@ -35,13 +35,21 @@ namespace NzbDrone.Core.HealthCheck.Checks
                                               .Build();
 
             var response = _client.Execute(request);
-            var result = Json.Deserialize<ServiceTimeResponse>(response.Content);
+            Json.TryDeserialize<ServiceTimeResponse>(response.Content, out var result);
+            var serverTime = result?.Utc ?? result?.DateTimeUtc;
+
+            if (!serverTime.HasValue)
+            {
+                _logger.Warn("The services endpoint returned no valid UTC timestamp. Skipping clock drift check.");
+                return new HealthCheck(GetType());
+            }
+
             var systemTime = DateTime.UtcNow;
 
             // +/- more than 1 day
-            if (Math.Abs(result.DateTimeUtc.Subtract(systemTime).TotalDays) >= 1)
+            if (Math.Abs(serverTime.Value.Subtract(systemTime).TotalDays) >= 1)
             {
-                _logger.Error("System time mismatch. SystemTime: {0} Expected Time: {1}. Update system time", systemTime, result.DateTimeUtc);
+                _logger.Error("System time mismatch. SystemTime: {0} Expected Time: {1}. Update system time", systemTime, serverTime.Value);
                 return new HealthCheck(GetType(), HealthCheckResult.Error, _localizationService.GetLocalizedString("SystemTimeCheckMessage"), "#system-time-off");
             }
 
@@ -51,6 +59,7 @@ namespace NzbDrone.Core.HealthCheck.Checks
 
     public class ServiceTimeResponse
     {
-        public DateTime DateTimeUtc { get; set; }
+        public DateTime? Utc { get; set; }
+        public DateTime? DateTimeUtc { get; set; }
     }
 }

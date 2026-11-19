@@ -8,6 +8,7 @@ interface CssExports {
   'logoLink': string;
   'right': string;
   'sidebarToggleContainer': string;
+  'wordmark': string;
 }
 export const cssExports: CssExports;
 export default cssExports;

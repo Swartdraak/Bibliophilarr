@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises';
 
 const OWNER = process.env.BIBLIOPHILARR_OWNER || 'Swartdraak';
 const REPO = process.env.BIBLIOPHILARR_REPO || 'Bibliophilarr';
-const TAG = process.env.BIBLIOPHILARR_VERSION || 'latest';
+const requestedTag = process.env.BIBLIOPHILARR_VERSION || 'latest';
 const CACHE_DIR = join(homedir(), '.cache', 'bibliophilarr');
 
 const target = resolveTarget();
@@ -16,20 +16,28 @@ if (!target) {
   process.exit(1);
 }
 
-const releaseBase = TAG === 'latest'
-  ? `https://github.com/${OWNER}/${REPO}/releases/latest/download`
-  : `https://github.com/${OWNER}/${REPO}/releases/download/${TAG}`;
+const tag = requestedTag === 'latest' ? await resolveLatestTag() : requestedTag;
+if (typeof tag !== 'string' || !/^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.+-]+)?$/.test(tag)) {
+  throw new Error('Expected a Bibliophilarr release version such as v1.1.0');
+}
 
-const archiveName = TAG === 'latest'
-  ? `bibliophilarr-latest-${target.file}`
-  : `bibliophilarr-${TAG.replace(/^v/, '')}-${target.file}`;
+const releaseBase = `https://github.com/${OWNER}/${REPO}/releases/download/${encodeURIComponent(tag)}`;
+const archiveName = `bibliophilarr-${tag.replace(/^v/, '')}-${target.file}`;
 
 const archivePath = join(CACHE_DIR, archiveName);
-const installDir = join(CACHE_DIR, `${TAG}-${target.id}`);
-const executablePath = join(installDir, target.binaryPath);
+const installDir = join(CACHE_DIR, `${tag}-${target.id}`);
+runBinary(await ensureBinary());
 
-await ensureBinary();
-runBinary();
+async function resolveLatestTag() {
+  const url = `https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`;
+  const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+  if (!response.ok) {
+    throw new Error(`Failed to look up the latest Bibliophilarr release: HTTP ${response.status}`);
+  }
+
+  const release = await response.json();
+  return release.tag_name;
+}
 
 function resolveTarget() {
   if (platform() === 'linux' && arch() === 'x64') {
@@ -49,7 +57,12 @@ function resolveTarget() {
   }
 
   if (platform() === 'win32' && arch() === 'x64') {
-    return { id: 'win-x64', file: 'win-x64.zip', binaryPath: 'Bibliophilarr/Bibliophilarr.exe' };
+    return {
+      id: 'win-x64',
+      file: 'win-x64.zip',
+      binaryPath: 'Bibliophilarr.exe',
+      legacyPaths: ['Bibliophilarr.Console.exe', 'Bibliophilarr/Bibliophilarr.exe', 'Bibliophilarr/Bibliophilarr.Console.exe']
+    };
   }
 
   return null;
@@ -58,7 +71,9 @@ function resolveTarget() {
 async function ensureBinary() {
   mkdirSync(CACHE_DIR, { recursive: true });
 
-  if (!existsSync(executablePath)) {
+  const paths = [target.binaryPath, ...(target.legacyPaths ?? [])].map(path => join(installDir, path));
+  let executablePath = paths.find(existsSync);
+  if (!executablePath) {
     if (!existsSync(archivePath)) {
       const url = `${releaseBase}/${basename(archiveName)}`;
       console.log(`Downloading ${url}`);
@@ -74,7 +89,12 @@ async function ensureBinary() {
     if (archivePath.endsWith('.tar.gz')) {
       await runCommand('tar', ['-xzf', archivePath, '-C', installDir]);
     } else {
-      await runCommand('unzip', ['-o', archivePath, '-d', installDir]);
+      await runCommand('tar.exe', ['-xf', archivePath, '-C', installDir]);
+    }
+
+    executablePath = paths.find(existsSync);
+    if (!executablePath) {
+      throw new Error(`No Bibliophilarr executable was found in ${archiveName}`);
     }
   }
 
@@ -83,9 +103,11 @@ async function ensureBinary() {
   } catch {
     // No-op on platforms that do not support chmod for the extracted file.
   }
+
+  return executablePath;
 }
 
-function runBinary() {
+function runBinary(executablePath) {
   const child = spawn(executablePath, process.argv.slice(2), {
     stdio: 'inherit',
     env: process.env

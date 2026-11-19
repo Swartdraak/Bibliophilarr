@@ -190,7 +190,7 @@ const wikiPages = [
       {
         heading: 'What is Dual Format Tracking?',
         paragraphs: [
-          'Dual Format Tracking is a Bibliophilarr-exclusive feature that allows you to manage both ebook and audiobook versions of the same book simultaneously within a single instance. In the original Readarr, tracking both formats required running two separate instances. Bibliophilarr solves this natively.',
+          'Dual Format Tracking lets you manage ebook and audiobook versions of the same book in a single Bibliophilarr instance.',
           'This feature is enabled by default (since v1.1.0-dev.27).'
         ]
       },

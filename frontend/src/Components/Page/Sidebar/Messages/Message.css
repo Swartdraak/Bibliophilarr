@@ -9,7 +9,7 @@
   justify-content: center;
   flex-direction: column;
   padding: 2px 0;
-  color: var(--sidebarColor);
+  color: var(--sidebarNavigationColor);
 }
 
 .iconContainer {

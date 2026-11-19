@@ -455,13 +455,18 @@ export const actionHandlers = handleThunks({
     }).request;
 
     promise.done((data) => {
+      const booksById = _.keyBy(data, 'id');
+
       dispatch(batchActions(
         bookIds.map((bookId) => {
+          const book = booksById[bookId];
+
           return updateItem({
             id: bookId,
             section: bookEntity,
             isSaving: false,
-            monitored
+            monitored: book?.monitored ?? monitored,
+            ...(Array.isArray(book?.formatStatuses) && { formatStatuses: book.formatStatuses })
           });
         })
       ));

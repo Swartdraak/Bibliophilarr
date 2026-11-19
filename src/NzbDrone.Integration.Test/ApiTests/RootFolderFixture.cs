@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Bibliophilarr.Api.V1.RootFolders;
 using FluentAssertions;
 using NUnit.Framework;
@@ -12,6 +13,44 @@ namespace NzbDrone.Integration.Test.ApiTests
         public void should_have_no_root_folder_initially()
         {
             RootFolders.All().Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_list_the_created_root_folder_id_and_path()
+        {
+            var path = GetTempDirectory("library");
+            var created = RootFolders.Post(new RootFolderResource
+            {
+                Name = "Test Library",
+                Path = path,
+                DefaultMetadataProfileId = 1,
+                DefaultQualityProfileId = 1,
+                OutputProfile = "default"
+            });
+
+            var assertionsPassed = false;
+            try
+            {
+                created.Id.Should().BePositive();
+                var listed = RootFolders.All().Single(folder => folder.Id == created.Id);
+                listed.Path.Should().Be(path);
+                listed.Name.Should().Be(created.Name);
+                assertionsPassed = true;
+            }
+            finally
+            {
+                if (created.Id > 0)
+                {
+                    try
+                    {
+                        RootFolders.Delete(created.Id);
+                    }
+                    catch (Exception cleanupError) when (!assertionsPassed)
+                    {
+                        TestContext.Error.WriteLine($"Root folder cleanup also failed: {cleanupError.Message}");
+                    }
+                }
+            }
         }
 
         [Test]

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -53,13 +54,14 @@ namespace Bibliophilarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.UrlBase).ValidUrlBase();
             SharedValidator.RuleFor(c => c.InstanceName).ContainsBibliophilarr().When(c => c.InstanceName.IsNotNullOrWhiteSpace());
 
-            SharedValidator.RuleFor(c => c.Username).NotEmpty().When(c => c.AuthenticationMethod == AuthenticationType.Basic ||
-                                                                          c.AuthenticationMethod == AuthenticationType.Forms);
-            SharedValidator.RuleFor(c => c.Password).NotEmpty().When(c => c.AuthenticationMethod == AuthenticationType.Basic ||
-                                                                          c.AuthenticationMethod == AuthenticationType.Forms);
+            SharedValidator.RuleFor(c => c.Username).NotEmpty().When(UsesPassword);
 
-            SharedValidator.RuleFor(c => c.PasswordConfirmation)
-                .Must((resource, p) => IsMatchingPassword(resource)).WithMessage("Must match Password");
+            SharedValidator.When(RequiresPassword, () =>
+            {
+                SharedValidator.RuleFor(c => c.Password).NotEmpty();
+                SharedValidator.RuleFor(c => c.PasswordConfirmation)
+                    .Equal(c => c.Password).WithMessage("Must match Password");
+            });
 
             SharedValidator.RuleFor(c => c.SslPort).ValidPort().When(c => c.EnableSsl);
             SharedValidator.RuleFor(c => c.SslPort).NotEqual(c => c.Port).When(c => c.EnableSsl);
@@ -95,21 +97,32 @@ namespace Bibliophilarr.Api.V1.Config
             return cert != null;
         }
 
-        private bool IsMatchingPassword(HostConfigResource resource)
+        private static bool UsesPassword(HostConfigResource resource)
         {
+            return resource.AuthenticationMethod is AuthenticationType.Basic or AuthenticationType.Forms;
+        }
+
+        private bool RequiresPassword(HostConfigResource resource)
+        {
+            if (resource.Password.IsNotNullOrWhiteSpace() || resource.PasswordConfirmation.IsNotNullOrWhiteSpace())
+            {
+                return true;
+            }
+
+            if (!UsesPassword(resource))
+            {
+                return false;
+            }
+
+            if (resource.AuthenticationMethod != _configFileProvider.AuthenticationMethod)
+            {
+                return true;
+            }
+
             var user = _userService.FindUser();
 
-            if (user != null && user.Password == resource.Password)
-            {
-                return true;
-            }
-
-            if (resource.Password == resource.PasswordConfirmation)
-            {
-                return true;
-            }
-
-            return false;
+            return user == null || user.Password.IsNullOrWhiteSpace() ||
+                   !string.Equals(user.Username, resource.Username, StringComparison.OrdinalIgnoreCase);
         }
 
         protected override HostConfigResource GetResourceById(int id)

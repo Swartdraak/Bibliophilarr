@@ -1,11 +1,93 @@
-.message {
-  margin-top: 10px;
-  margin-bottom: 30px;
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 48px 24px;
+  min-height: 340px;
+  border: 1px solid var(--workspaceBorderColor);
+  border-radius: 10px;
+  background-color: var(--toolbarBackgroundColor);
+  color: var(--toolbarColor);
   text-align: center;
-  font-size: 20px;
 }
 
-.buttonContainer {
-  margin-top: 20px;
+.icon {
+  display: grid;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  background-color: var(--sidebarActiveBackgroundColor);
+  color: var(--sidebarActiveColor);
+}
+
+.heading {
+  margin: 0;
+  color: var(--sidebarActiveColor);
+  font-weight: 600;
+  font-size: clamp(25px, 2.8vw, 38px);
+  font-family: 'Georgia', serif;
+  line-height: 1.15;
+}
+
+.message {
+  margin: 10px 0 22px;
+  max-width: 44ch;
+  line-height: 1.55;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.primaryAction,
+.secondaryAction {
+  composes: button from '~Components/Link/Button.css';
+
+  min-height: 40px;
+  font-weight: 600;
+  line-height: 26px;
+
+  &:focus-visible {
+    outline: 2px solid var(--sidebarActiveColor);
+    outline-offset: 2px;
+  }
+}
+
+.primaryAction {
+  border-color: var(--workspacePrimaryBackgroundColor);
+  background-color: var(--workspacePrimaryBackgroundColor);
+  color: var(--white);
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--headerControlColor);
+    color: var(--white);
+  }
+}
+
+.secondaryAction {
+  border-color: var(--workspaceBorderColor);
+  background-color: var(--toolbarBackgroundColor);
+  color: var(--sidebarActiveColor);
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--sidebarActiveBackgroundColor);
+    color: var(--sidebarActiveColor);
+  }
+}
+
+.filtered {
+  padding: 28px 20px;
+  border: 1px solid var(--workspaceBorderColor);
+  border-radius: 10px;
+  background-color: var(--toolbarBackgroundColor);
   text-align: center;
 }

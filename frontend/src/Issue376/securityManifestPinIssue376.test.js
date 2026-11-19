@@ -1,92 +1,7 @@
 /**
- * Issue #376 regression (SECURITY / DEPENDABOT, second coordinated manifest
- * pin pass — 5 newly-published npm advisories landed on develop 7d1fc8cb
- * between the #375 security-regeneration tip (05:38Z) and the run-4011
- * security snapshot (06:0xZ), 2026-11-06).
- *
- * The 5 new alerts vs the run-3990 inventory (39-112)
- * ---------------------------------------------------
- *   #116 fast-uri                    GHSA-333x-w4r6-6crp  CVE-2026-110725  (low)
- *        scheme injection via unescaped first-segment colon in suffix refs
- *   #117 fast-uri                    GHSA-w74x-v6f9-j3xg  CVE-2026-110306  (medium)
- *        URI scheme spoofing via percent-encoded scheme decoding
- *   #118 fast-uri                    GHSA-xhq7-xmqj-769h  CVE-2026-110095  (low)
- *        improper path equivalence in relative reference normalization
- *   #119 postcss-selector-parser     GHSA-rj75-hr5-9f10... (medium)
- *        quadratic complexity in flat selector parsing (CPU exhaustion)
- *        advisory: 6.x lane <6.1.5 (floor 6.1.5); 7.x lane >=7.0.0,<7.1.6 (floor 7.1.6)
- *   #120 deepmerge                   GHSA-gcqx-w48m-w2h4  CVE-2026-93753   (low)
- *        mergeObject() prototype poisoning of returned objects
- *        advisory range >=4.2.0, <=4.3.1 — NO first_patched_version (no patched
- *        release exists as of this audit; registry latest is 4.3.1)
- *
- * What this change does
- * ---------------------
- * ONE coordinated manifest pass (the single shared manifest yarn.lock +
- * package.json resolutions again means no per-alert PRs):
- *
- *   - fast-uri: the 3-lane advisory ranges (<2.4.8, 3.x <3.1.9, 4.x <4.2.3)
- *     are closed by the existing floor 3.1.9 (first_patched_version for the
- *     3.x lane; released 2026-10-19, after the #375 05:38Z snapshot). No new
- *     pin: value-strict 3-lane floor assertions for the installed copy and
- *     the full lockfile below.
- *   - postcss-selector-parser (6.x lane): keeps the existing 6.1.5 floor
- *     (first_patched for the <6.1.5 lane).
- *   - postcss-selector-parser (7.x lane, alert #119): the two 7.x-lane
- *     consumers (stylelint -> @csstools/selector-specificity -> ^7.0.0 and
- *     stylelint's ^7.1.0 lane) are pinned to the 7.1.6 advisory floor.
- *     Yarn 1.22.19's `resolutions` field cannot express a range-scoped pin
- *     (`"name@range": "version"` is parsed as the registry request
- *     "range@version" and fails with `Couldn't find any versions ... that
- *     matches "^7.0.0@7.1.6"` — reproduced verbatim in this run, see
- *     baseline.json), so the 7.x-lane pin is carried in the lockfile entry
- *     itself: `postcss-selector-parser@^7.0.0, postcss-selector-parser@^7.1.0:
- *     version "7.1.6"` (resolved + integrity from the npm registry), while
- *     the 6.x entry keeps 6.1.5 for `postcss-selector-parser@6.1.5,
- *     postcss-selector-parser@^6.1.1`. This split is what a coordinated
- *     regeneration would have produced had the 6.x resolutions pin not
- *     shadowed the 7.x lanes; it closes the advisory lane in the committed
- *     manifest.
- *   - deepmerge: NEW resolution pin "deepmerge": "4.3.1". The advisory has
- *     NO first_patched_version — no patched release exists (npm registry
- *     latest 4.3.1 published 2023-03-16; upstream issue #285 open since
- *     2026-10-28; upstream PR #274 closed unmerged 2026-09-24; a
- *     maintainer-adjacent dispute of the advisory was filed 2026-11-01).
- *     The pin is a registry-exact floor pin: it fixes the 4.x lane at the
- *     registry latest, the maximum available version in the affected range,
- *     and stops a future `yarn install`/regeneration from re-selecting any
- *     other deepmerge version. It does NOT close alert #120; closure rides
- *     the upstream patch + develop -> staging -> main promotion + re-scan
- *     (human release gate).
- *
- * What this test pins (every assertion is value-strict, no existence-only
- * guards)
- * --------
- * 1. package.json `resolutions` carries the new deepmerge pin at its exact
- *    value (regression guard against a future regeneration dropping it).
- * 2. yarn.lock: the 7.x-lane postcss-selector-parser entry (key
- *    `postcss-selector-parser@^7.0.0, postcss-selector-parser@^7.1.0`)
- *    resolves to 7.1.6 (advisory floor); NO 7.x-lane version below 7.1.6
- *    (7.0.0-7.1.5) appears in the lockfile; the 6.1.5 floor is still
- *    present for the 6.x lane.
- * 3. The ACTUALLY INSTALLED (hoisted) modules resolve to the patched floors
- *    (postcss-selector-parser 6.1.5; deepmerge 4.3.1; fast-uri 3.1.9) —
- *    the real shipped dependencies.
- * 4. fast-uri: value-strict 3-lane floor assertions — the installed 3.x
- *    copy equals the 3.1.9 advisory floor, and no fast-uri version below
- *    any advisory lane floor (2.x <2.4.8, 3.x <3.1.9, 4.x <4.2.3) appears
- *    in the lockfile.
- * 5. The real shipped postcss-selector-parser module loads from
- *    node_modules and parses a selector string via its real API
- *    (functional proof of the 6.x-lane pinned version).
- *
- * No production / runtime UI behavior is touched by this change; it is a
- * package.json resolutions pass plus lockfile entry pinning. The frontend
- * jest suite, ESLint, stylelint, and the production webpack build all pass
- * at the exact head (see baseline.json). No JS/TS runtime files under a
- * src/frontend/lib/app path are changed (that path does not exist in this
- * repo — the frontend lives under frontend/src), so no production_coverage
- * binding is required.
+ * Keep the dependency floors covered by #376. The current selector-parser
+ * consumers all require 7.x, so the lockfile tracks that compatible lane.
+ * A global 6.x override would replace the compatible version at install time.
  */
 
 const fs = require('fs');
@@ -181,8 +96,8 @@ describe('issue #376: exact new resolution pin present in package.json', () => {
   test('package.json resolutions carry "deepmerge" -> 4.3.1 (registry-exact floor pin)', () => {
     expect(RESOLUTIONS.deepmerge).toBe('4.3.1');
   });
-  test('the existing 6.x-lane postcss-selector-parser floor 6.1.5 is still in resolutions', () => {
-    expect(RESOLUTIONS['postcss-selector-parser']).toBe('6.1.5');
+  test('selector-parser has no global version override', () => {
+    expect(RESOLUTIONS['postcss-selector-parser']).toBeUndefined();
   });
   test('the existing fast-uri floor 3.1.9 is still in resolutions', () => {
     expect(RESOLUTIONS['fast-uri']).toBe('3.1.9');
@@ -191,7 +106,6 @@ describe('issue #376: exact new resolution pin present in package.json', () => {
 
 // --- 2. postcss-selector-parser 7.x lane: advisory floor in the lockfile ---
 describe('issue #376: postcss-selector-parser 7.x lane pinned at the advisory floor in yarn.lock', () => {
-  const belowFloor7 = ['7.0.0', '7.1.0', '7.1.1', '7.1.2', '7.1.3', '7.1.4', '7.1.5'];
   test('a lockfile entry keyed on the 7.x requirements (^7.0.0, ^7.1.0) exists', () => {
     const keys = lockKeysForPackage('postcss-selector-parser');
     let found = false;
@@ -203,26 +117,21 @@ describe('issue #376: postcss-selector-parser 7.x lane pinned at the advisory fl
     });
     expect(found).toBe(true);
   });
-  test('yarn.lock resolves the 7.x-lane requirement set to 7.1.6 (advisory floor)', () => {
+  test('all locked selector-parser versions satisfy the current 7.x consumers', () => {
     const locked = lockVersionsForPackage('postcss-selector-parser');
-    expect(locked.has('7.1.6')).toBe(true);
-  });
-  test('yarn.lock carries NO 7.x-lane version below the 7.1.6 advisory floor', () => {
-    const locked = lockVersionsForPackage('postcss-selector-parser');
-    belowFloor7.forEach((v) => {
-      expect(locked.has(v)).toBe(false);
+    expect(locked.size).toBeGreaterThan(0);
+    locked.forEach((version) => {
+      expect(version).toMatch(/^7\./);
+      expect(semverLess(version, '7.1.7')).toBe(false);
     });
-  });
-  test('the 6.x-lane 6.1.5 floor is still present in yarn.lock', () => {
-    const locked = lockVersionsForPackage('postcss-selector-parser');
-    expect(locked.has('6.1.5')).toBe(true);
   });
 });
 
 // --- 3. installed (hoisted) modules resolve to the patched floors ----------
 describe('issue #376: installed modules resolve to the patched floors', () => {
-  test('postcss-selector-parser hoisted 6.x copy at 6.1.5 floor', () => {
-    expect(installedVersion('postcss-selector-parser')).toBe('6.1.5');
+  test('the installed selector-parser matches the patched lockfile lane', () => {
+    const installed = installedVersion('postcss-selector-parser');
+    expect(lockVersionsForPackage('postcss-selector-parser').has(installed)).toBe(true);
   });
   test('deepmerge hoisted at 4.3.1 (registry-exact pin; advisory lane top)', () => {
     expect(installedVersion('deepmerge')).toBe('4.3.1');

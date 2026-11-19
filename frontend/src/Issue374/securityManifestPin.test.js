@@ -111,12 +111,11 @@ describe('issue #374: exact resolution pins present in package.json', () => {
   // be present in package.json.resolutions with exactly this value.
   const expectedPins = {
     'fast-uri': '3.1.9',
-    postcss: '8.5.18',
+    postcss: '8.5.33',
     flatted: '3.4.2',
-    'postcss-selector-parser': '6.1.5',
     '@babel/plugin-transform-modules-systemjs': '7.29.4',
     '@babel/core': '7.29.6',
-    nanoid: '3.3.12',
+    nanoid: '3.3.20',
     browserslist: '4.28.7',
     'source-map-js': '1.2.2',
     'baseline-browser-mapping': '2.11.35',
@@ -137,8 +136,8 @@ describe('issue #374: vulnerable versions absent from yarn.lock', () => {
     'fast-uri': ['3.0.3'],
     'js-yaml': ['4.1.1', '3.14.2'],
     'brace-expansion': ['2.0.2', '1.1.12', '5.0.4'],
-    postcss: ['8.5.8', '8.4.48'],
-    picomatch: ['2.3.1'],
+    postcss: ['8.5.8', '8.4.48', '8.5.18'],
+    picomatch: ['2.3.1', '4.0.3'],
     ws: ['8.20.0'],
     flatted: ['3.3.1'],
     '@babel/plugin-transform-modules-systemjs': ['7.29.0'],
@@ -170,7 +169,7 @@ describe('issue #374: installed modules resolve to patched floors', () => {
   // Single-lane packages: hoisted copy must equal the floor exactly.
   const exact = {
     'fast-uri': '3.1.9',
-    postcss: '8.5.18',
+    postcss: '8.5.33',
     '@babel/plugin-transform-modules-systemjs': '7.29.4',
     '@babel/core': '7.29.6',
     browserslist: '4.28.7',
@@ -190,14 +189,11 @@ describe('issue #374: installed modules resolve to patched floors', () => {
   test('brace-expansion hoisted at a resolved lane floor (1.1.21 / 2.1.7 / 5.0.12)', () => {
     expect(['1.1.21', '2.1.7', '5.0.12']).toContain(installedVersion('brace-expansion'));
   });
-  test('picomatch hoisted at a resolved lane floor (2.3.2 / 4.0.3 / 4.0.7)', () => {
-    expect(['2.3.2', '4.0.3', '4.0.7']).toContain(installedVersion('picomatch'));
+  test('picomatch hoisted at a resolved lane floor (2.3.2 / 4.0.7)', () => {
+    expect(['2.3.2', '4.0.7']).toContain(installedVersion('picomatch'));
   });
   test('ws hoisted at a resolved lane floor (7.5.13 or 8.22.1)', () => {
     expect(['7.5.13', '8.22.1']).toContain(installedVersion('ws'));
-  });
-  test('postcss-selector-parser hoisted at 6.1.5 floor', () => {
-    expect(installedVersion('postcss-selector-parser')).toBe('6.1.5');
   });
 });
 
@@ -210,9 +206,9 @@ describe('issue #374: previously-at-floor packages remain patched', () => {
     const v = installedVersion('lodash');
     expect((/^4\.18\.[1-9]$|^4\.[1-9]\d/).test(v)).toBe(true);
   });
-  test('qs installed at >= 6.10.3 floor', () => {
-    const v = installedVersion('qs');
-    expect((/^6\.(1[0-9]|[2-9]\d)/).test(v)).toBe(true);
+  test('direct and transitive qs use the patched release', () => {
+    expect(installedVersion('qs')).toBe('6.17.1');
+    expect([...lockVersionsForPackage('qs')]).toEqual(['6.17.1']);
   });
   test('websocket-driver installed at 0.7.5 (CRITICAL floor, PR #372)', () => {
     expect(installedVersion('websocket-driver')).toBe('0.7.5');

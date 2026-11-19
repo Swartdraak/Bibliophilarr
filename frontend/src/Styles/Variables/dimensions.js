@@ -4,7 +4,7 @@ module.exports = {
   pageContentBodyPaddingSmallScreen: '10px',
 
   // Header
-  headerHeight: '60px',
+  headerHeight: '64px',
 
   // Sidebar
   sidebarWidth: '210px',

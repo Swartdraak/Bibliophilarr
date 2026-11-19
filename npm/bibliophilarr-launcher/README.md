@@ -19,7 +19,7 @@ bibliophilarr
 Pass arguments directly to the Bibliophilarr binary:
 
 ```bash
-bibliophilarr --help
+bibliophilarr /data=/path/to/bibliophilarr-data
 ```
 
 ## Environment Variables

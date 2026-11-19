@@ -29,15 +29,8 @@ namespace NzbDrone.Common.Test
     [TestFixture]
     public class NuGetAuditModeIssue103Fixture
     {
-        // The Common.Test build output (per Directory.Build.props OutputPath for Test projects)
-        // is <repo-root>/_tests/net10.0/. From that output dir the repo root is two levels up
-        // (verified against the actual _tests/net10.0 layout). AppContext.BaseDirectory is the
-        // test assembly's own directory.
-        private static readonly string RepoRoot =
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", ".."));
-
         private static string DirectoryBuildPropsPath =>
-            Path.Combine(RepoRoot, "src", "Directory.Build.props");
+            Path.Combine(RepositorySource.Root, "src", "Directory.Build.props");
 
         private static string[] ReadPropsLines()
         {

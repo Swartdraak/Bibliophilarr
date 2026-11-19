@@ -206,6 +206,18 @@ namespace NzbDrone.Core.Test.Datastore
             _subject = WhereMetadata(x => allowed.Contains(x.Status));
 
             _subject.ToString().Should().Be($"(\"AuthorMetadata\".\"Status\" = ANY (@Clause1_P1))");
+            _subject.Parameters.Get<AuthorStatusType[]>("Clause1_P1").Should().Equal(allowed);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void empty_or_null_array_matches_nothing(bool useNullArray)
+        {
+            var allowed = useNullArray ? null : Array.Empty<AuthorStatusType>();
+            _subject = WhereMetadata(x => allowed.Contains(x.Status));
+
+            _subject.ToString().Should().Be("(1 = 0)");
+            _subject.Parameters.ParameterNames.Should().BeEmpty();
         }
     }
 }
