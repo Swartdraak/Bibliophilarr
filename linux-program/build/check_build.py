@@ -12,8 +12,8 @@ THIS head). Assertions:
   B4 fresh data dir produced config.xml with nonempty <ApiKey> and actual HTTP listener (first-boot)
   B5 SQLite main DB created in the fresh data dir (database bootstrap)
   B6 GET /ping -> 200 JSON {"status":"OK"} (AllowAnonymous, source-verified)
-  B7 GET /initialize.json -> 200 with nonempty apiKey and apiRoot ending /api/v1
-  B8 GET /api/v1/config/host (X-Api-Key from initialize.json) -> 200 JSON id=1 (authenticated access)
+  B7 Anonymous GET /initialize.json -> 401 with no credential
+  B8 GET /api/v1/config/host (X-Api-Key from config.xml) -> 200 JSON id=1 (authenticated access)
 
 PATH CONTRACT FIX (recovery case 4d1db880eca5c8c4645b72a2): the previous build-stage
 check derived its helper root from __file__ (os.path.dirname(os.path.abspath(__file__)) +
@@ -132,20 +132,10 @@ def main():
             detail += f' json_parse_error={e}'
     check('B6_ping_200_status_ok', ok, detail)
 
-    # B7 /initialize.json unauthenticated, nonempty apiKey + apiRoot
+    # B7 The fresh instance requires authentication for UI bootstrap.
     status, ctype, raw = get(APP_URL + '/initialize.json')
-    ok = status == 200
-    detail = f'status={status} content_type={ctype}'
-    if ok:
-        try:
-            payload = json.loads(raw.decode('utf-8', 'replace'))
-            api_key = payload.get('apiKey')
-            ok = isinstance(api_key, str) and len(api_key) >= 16 and str(payload.get('apiRoot', '')).endswith('/api/v1')
-            detail += f' apiKey_nonempty={bool(api_key)} apiRoot={payload.get("apiRoot")!r} version={payload.get("version")!r}'
-        except Exception as e:
-            ok = False
-            detail += f' json_parse_error={e}'
-    check('B7_initialize_json_apikey', ok, detail)
+    check('B7_initialize_json_requires_auth', status == 401 and b'"apiKey"' not in raw,
+          f'status={status} content_type={ctype}')
 
     # B8 authenticated API access with the generated API key -> /api/v1/config/host id=1
     api_key = common.fetch_api_key()
@@ -156,7 +146,7 @@ def main():
         check('B8_api_config_get_with_key', ok,
               f'status={status} content_type={ctype} id={data.get("id") if isinstance(data, dict) else None}')
     else:
-        check('B8_api_config_get_with_key', False, 'skipped: no API key from initialize.json (B7 failed)')
+        check('B8_api_config_get_with_key', False, 'skipped: no API key in config.xml')
 
     common.finish(failures)
 

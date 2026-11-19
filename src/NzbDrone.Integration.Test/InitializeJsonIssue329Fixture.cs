@@ -1,75 +1,87 @@
+using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
-using FluentAssertions;
+using System.Text.Json;
+using System.Threading.Tasks;
 using NUnit.Framework;
+using NzbDrone.Core.Authentication;
 
 namespace NzbDrone.Integration.Test
 {
-    // Issue #329 regression: the SPA's boot endpoint /initialize.json must reach the SPA's
-    // index bundle on an anonymous GET, even when authentication is required (the test
-    // runner's config uses AuthenticationMethod=Forms + AuthenticationRequired=
-    // DisabledForLocalAddresses, and the test client connects from localhost).
-    //
-    // Before the fix, UiAuthenticationMiddleware (introduced for #313) classified
-    // GET /initialize.json as a UI-shell GET and issued a Forms challenge (401, empty
-    // body) BEFORE routing/AllowAnonymous was evaluated. The SPA's index.ts performs
-    // `const response = await fetch('/initialize.json'); window.Bibliophilarr =
-    // await response.json();` as a top-level await with no error handling, so the 401
-    // (empty body) made response.json() throw, bootstrap() never ran, and every authed
-    // SPA route rendered a blank app shell (the b4-b7 byte-identical screenshots in the
-    // issue). The controller is [AllowAnonymous] and must serve the bootstrap payload
-    // (apiRoot, apiKey, urlBase, ...) exactly like the pre-#315 behavior the UI bundle
-    // relies on.
     [TestFixture]
     public class InitializeJsonIssue329Fixture : IntegrationTest
     {
-        private readonly HttpClient _httpClient = new HttpClient();
-
-        private (HttpResponseMessage Response, string Body) GetInitializeJson()
+        [Test]
+        public async Task local_ui_bypass_should_allow_the_spa_to_initialize()
         {
-            // /initialize.json is served at the site root (not under /api/v1), so build the
-            // absolute URL from RootUrl (RootUrl ends with '/'), matching how the SPA's index
-            // bundle fetches it and how IndexHtmlFixture addresses the root.
-            var request = new HttpRequestMessage(HttpMethod.Get, RootUrl + "initialize.json");
-            var response = _httpClient.Send(request);
-            var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            return (response, body);
+            using var client = new HttpClient { BaseAddress = new Uri(RootUrl) };
+            using var response = await client.GetAsync("initialize.json");
+
+            await AssertInitializeResponse(response);
         }
 
         [Test]
-        public void anonymous_get_initialize_json_should_serve_bootstrap_payload_not_forms_challenge()
+        public async Task required_authentication_should_protect_spa_bootstrap_until_forms_login()
         {
-            var (response, body) = GetInitializeJson();
+            const string username = "integration-user";
+            const string password = "integration-user-password";
+            var original = HostConfig.GetSingle();
+            var config = HostConfig.GetSingle();
+            config.AuthenticationMethod = AuthenticationType.Forms;
+            config.AuthenticationRequired = AuthenticationRequiredType.Enabled;
+            config.Username = username;
+            config.Password = password;
+            config.PasswordConfirmation = password;
+            HostConfig.Put(config, HttpStatusCode.Accepted);
 
-            response.StatusCode.Should().Be(HttpStatusCode.OK,
-                "issue #329: a Forms challenge (401) on /initialize.json blanks every SPA route");
-            response.Headers.Location.Should().BeNull(
-                "issue #329: a Forms challenge sets Location: /login; the bootstrap must pass through to the [AllowAnonymous] controller");
-            body.Should().NotBeNullOrWhiteSpace(
-                "issue #329: the 401 challenge body is empty, which is what crashes the SPA's response.json()");
-            body.Should().Contain("\"apiRoot\"");
-            body.Should().Contain("\"apiKey\"");
-            body.Should().Contain("\"urlBase\"");
+            try
+            {
+                using var handler = new HttpClientHandler { AllowAutoRedirect = false };
+                using var client = new HttpClient(handler) { BaseAddress = new Uri(RootUrl) };
+                using var anonymous = await client.GetAsync("initialize.json");
+                Assert.That(anonymous.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+
+                using var badForm = LoginForm(username, "invalid-password");
+                using var rejected = await client.PostAsync("login", badForm);
+                Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+                Assert.That(rejected.Headers.Location?.OriginalString, Does.Contain("loginFailed=true"));
+                Assert.That(rejected.Headers.Contains("Set-Cookie"), Is.False);
+
+                using var validForm = LoginForm(username, password);
+                using var login = await client.PostAsync("login", validForm);
+                Assert.That(login.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+                Assert.That(login.Headers.Location?.OriginalString, Is.EqualTo("/"));
+                Assert.That(handler.CookieContainer.GetCookies(client.BaseAddress)["BibliophilarrAuth"], Is.Not.Null);
+
+                using var response = await client.GetAsync("initialize.json");
+                await AssertInitializeResponse(response);
+
+                using var page = await client.GetAsync("");
+                Assert.That(page.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            }
+            finally
+            {
+                HostConfig.Put(original, HttpStatusCode.Accepted);
+            }
         }
 
-        [Test]
-        public void initialize_json_api_key_should_match_persisted_key_per_request()
+        private async Task AssertInitializeResponse(HttpResponseMessage response)
         {
-            var (_, body) = GetInitializeJson();
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(response.Headers.CacheControl?.NoStore, Is.True);
+            using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.That(payload.RootElement.GetProperty("apiRoot").GetString(), Is.EqualTo("/api/v1"));
+            Assert.That(payload.RootElement.GetProperty("apiKey").GetString() == ApiKey, Is.True, "bootstrap should use the configured API key");
+        }
 
-            // The runner's ApiKey is the key persisted to config.xml at startup; the
-            // controller must read it per request (not a stale static cache captured at
-            // construction, which could predate the finalized key — issue #309 class).
-            // This is the per-request read the fix enforces: the served key equals the
-            // persisted key the test runner exposes, so a stale constructor-time cache
-            // (which can hold a pre-finalization key) would NOT match.
-            body.Should().Contain($"\"apiKey\": \"{ApiKey}\"");
-
-            // The bootstrap payload must also carry the SPA's apiRoot and urlBase fields
-            // (the SPA consumes both; apiRoot is relative and urlBase is the server-rendered
-            // value — returned independently, as the SPA's index bundle expects).
-            body.Should().Contain("\"apiRoot\": \"/api/v1\"");
-            body.Should().Contain("\"urlBase\":");
+        private static FormUrlEncodedContent LoginForm(string username, string password)
+        {
+            return new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["username"] = username,
+                ["password"] = password
+            });
         }
     }
 }

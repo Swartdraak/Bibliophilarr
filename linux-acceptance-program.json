@@ -125,7 +125,7 @@
         "SPA root and login page served as HTML by the static resource controller",
         "login page (frontend/src/login.html) contains a password field and is retrievable",
         "a built JS bundle referenced by the served page is retrievable (real webpack output, not a placeholder)",
-        "API bootstrap endpoints the SPA relies on (/initialize.json, /ping) respond 200"
+        "authenticated SPA bootstrap (/initialize.json) and public liveness (/ping) respond 200, and anonymous SPA bootstrap is denied"
       ],
       "plan": {
         "version": 1,
@@ -206,7 +206,7 @@
       "criteria": [
         "net10.0/linux-x64 backend publish + frontend UI build into the durable _output directory at the exact candidate head",
         "Microsoft.Extensions.Primitives.dll present in the exact-head publish output (prior assembly-load defect re-verified at this head)",
-        "app starts locally on a fresh case-specific data directory: config.xml generated with a generated ApiKey, SQLite DB created, /ping 200 JSON status=OK, /initialize.json returns nonempty apiKey, authenticated /api/v1/config/host returns id=1"
+        "app starts locally on a fresh case-specific data directory: config.xml generated with a generated ApiKey, SQLite DB created, /ping 200 JSON status=OK, anonymous /initialize.json returns 401, authenticated /api/v1/config/host returns id=1"
       ],
       "plan": {
         "version": 1,
