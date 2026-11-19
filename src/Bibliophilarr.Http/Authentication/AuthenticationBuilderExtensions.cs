@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Diacritical;
@@ -58,6 +59,18 @@ namespace Bibliophilarr.Http.Authentication
                         if (context.Request.Path.StartsWithSegments("/api"))
                         {
                             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            return Task.CompletedTask;
+                        }
+
+                        // The SPA controller is classified as an API endpoint by ASP.NET.
+                        // Browser navigation still needs to reach the configured Forms login.
+                        if (configFileProvider.AuthenticationMethod == AuthenticationType.Forms &&
+                            !string.Equals(context.Request.Path.Value, "/initialize.json", StringComparison.OrdinalIgnoreCase) &&
+                            context.Request.GetTypedHeaders().Accept.Any(mediaType =>
+                                mediaType.Quality.GetValueOrDefault(1) > 0 &&
+                                string.Equals(mediaType.MediaType.Value, "text/html", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            context.Response.Redirect(context.RedirectUri);
                             return Task.CompletedTask;
                         }
 

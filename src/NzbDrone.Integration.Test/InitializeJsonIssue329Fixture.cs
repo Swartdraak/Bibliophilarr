@@ -44,6 +44,18 @@ namespace NzbDrone.Integration.Test
                 using var anonymous = await client.GetAsync("initialize.json");
                 Assert.That(anonymous.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
 
+                using var browserNavigation = new HttpRequestMessage(HttpMethod.Get, "authors");
+                browserNavigation.Headers.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                using var redirected = await client.SendAsync(browserNavigation);
+                Assert.That(redirected.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
+                Assert.That(redirected.Headers.Location?.AbsolutePath, Is.EqualTo("/login"));
+                Assert.That(redirected.Headers.Location?.Query, Does.Contain("returnUrl=%2Fauthors"));
+
+                using var bootstrapNavigation = new HttpRequestMessage(HttpMethod.Get, "initialize.json");
+                bootstrapNavigation.Headers.Accept.ParseAdd("text/html");
+                using var bootstrapDenied = await client.SendAsync(bootstrapNavigation);
+                Assert.That(bootstrapDenied.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+
                 using var badForm = LoginForm(username, "invalid-password");
                 using var rejected = await client.PostAsync("login", badForm);
                 Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
