@@ -14,7 +14,7 @@ namespace NzbDrone.Core.MediaFiles
 {
     public interface IUpgradeMediaFiles
     {
-        BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false);
+        BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false, bool replaceExisting = true);
     }
 
     public class UpgradeMediaFileService : IUpgradeMediaFiles
@@ -50,7 +50,7 @@ namespace NzbDrone.Core.MediaFiles
             _logger = logger;
         }
 
-        public BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false)
+        public BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false, bool replaceExisting = true)
         {
             var moveFileResult = new BookFileMoveResult();
             var allExistingFiles = localBook.Book.BookFiles.Value;
@@ -75,6 +75,12 @@ namespace NzbDrone.Core.MediaFiles
             else
             {
                 existingFiles = allExistingFiles;
+            }
+
+            if (!replaceExisting && existingFiles.Count > 0)
+            {
+                moveFileResult.PreservedFile = existingFiles[0];
+                return moveFileResult;
             }
 
             var rootFolderPath = _diskProvider.GetParentFolder(localBook.Author.Path);

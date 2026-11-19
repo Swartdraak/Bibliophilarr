@@ -292,7 +292,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     {
                         bookFile.SceneName = GetSceneReleaseName(downloadClientItem);
 
-                        var moveResult = _bookFileUpgrader.UpgradeBookFile(bookFile, localTrack, copyOnly);
+                        var moveResult = _bookFileUpgrader.UpgradeBookFile(bookFile, localTrack, copyOnly, replaceExisting);
+                        if (moveResult.PreservedFile != null)
+                        {
+                            var preservedId = moveResult.PreservedFile.Id;
+                            _logger.ProgressInfo("Skipping import: existing book file {0} is preserved", preservedId);
+                            importResults.Add(new ImportResult(importDecision, $"Skipped: existing book file {preservedId} is preserved (replaceExistingFiles=false)"));
+                            continue;
+                        }
+
                         oldFiles = moveResult.OldFiles;
                     }
                     else

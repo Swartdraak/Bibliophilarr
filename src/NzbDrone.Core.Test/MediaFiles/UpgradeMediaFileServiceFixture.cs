@@ -6,9 +6,11 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -64,6 +66,42 @@ namespace NzbDrone.Core.Test.MediaFiles
                               }
                           }))
                 .Build();
+        }
+
+        [Test]
+        public void should_preserve_library_file_when_copying_from_a_different_path_with_replacement_disabled()
+        {
+            GivenSingleTrackWithSingleTrackFile();
+            var existing = _localTrack.Book.BookFiles.Value[0];
+            existing.Quality = new QualityModel(Quality.EPUB);
+            _trackFile.Quality = new QualityModel(Quality.EPUB);
+            _trackFile.Path = Path.Combine(_rootPath, "incoming", "book.epub");
+            _localTrack.Path = _trackFile.Path;
+            Mocker.GetMock<IConfigService>().SetupGet(c => c.EnableDualFormatTracking).Returns(true);
+
+            var result = Subject.UpgradeBookFile(_trackFile, _localTrack, copyOnly: true, replaceExisting: false);
+
+            result.PreservedFile.Should().BeSameAs(existing);
+            result.OldFiles.Should().BeEmpty();
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(v => v.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
+            Mocker.GetMock<IMoveBookFiles>().Verify(v => v.CopyBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>()), Times.Never());
+        }
+
+        [Test]
+        public void should_copy_the_other_format_when_replacement_is_disabled()
+        {
+            GivenSingleTrackWithSingleTrackFile();
+            _localTrack.Book.BookFiles.Value[0].Quality = new QualityModel(Quality.EPUB);
+            _trackFile.Quality = new QualityModel(Quality.MP3);
+            Mocker.GetMock<IConfigService>().SetupGet(c => c.EnableDualFormatTracking).Returns(true);
+
+            var result = Subject.UpgradeBookFile(_trackFile, _localTrack, copyOnly: true, replaceExisting: false);
+
+            result.PreservedFile.Should().BeNull();
+            result.OldFiles.Should().BeEmpty();
+            Mocker.GetMock<IMoveBookFiles>().Verify(v => v.CopyBookFile(_trackFile, _localTrack), Times.Once());
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
         }
 
         [Test]
