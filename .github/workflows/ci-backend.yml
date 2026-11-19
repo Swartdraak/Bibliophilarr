@@ -107,7 +107,7 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
           --filter
-          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture'
+          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture|FullyQualifiedName~WhereBuilder|FullyQualifiedName~HistoryRepositoryFixture'
 
   metadata-provider-fixtures:
     name: Metadata Provider Fixtures
