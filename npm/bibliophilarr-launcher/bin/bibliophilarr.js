@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises';
 
 const OWNER = process.env.BIBLIOPHILARR_OWNER || 'Swartdraak';
 const REPO = process.env.BIBLIOPHILARR_REPO || 'Bibliophilarr';
-const TAG = process.env.BIBLIOPHILARR_VERSION || 'latest';
+const requestedTag = process.env.BIBLIOPHILARR_VERSION || 'latest';
 const CACHE_DIR = join(homedir(), '.cache', 'bibliophilarr');
 
 const target = resolveTarget();
@@ -16,20 +16,31 @@ if (!target) {
   process.exit(1);
 }
 
-const releaseBase = TAG === 'latest'
-  ? `https://github.com/${OWNER}/${REPO}/releases/latest/download`
-  : `https://github.com/${OWNER}/${REPO}/releases/download/${TAG}`;
+const tag = requestedTag === 'latest' ? await resolveLatestTag() : requestedTag;
+if (typeof tag !== 'string' || !/^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.+-]+)?$/.test(tag)) {
+  throw new Error('Expected a Bibliophilarr release version such as v1.1.0');
+}
 
-const archiveName = TAG === 'latest'
-  ? `bibliophilarr-latest-${target.file}`
-  : `bibliophilarr-${TAG.replace(/^v/, '')}-${target.file}`;
+const releaseBase = `https://github.com/${OWNER}/${REPO}/releases/download/${encodeURIComponent(tag)}`;
+const archiveName = `bibliophilarr-${tag.replace(/^v/, '')}-${target.file}`;
 
 const archivePath = join(CACHE_DIR, archiveName);
-const installDir = join(CACHE_DIR, `${TAG}-${target.id}`);
+const installDir = join(CACHE_DIR, `${tag}-${target.id}`);
 const executablePath = join(installDir, target.binaryPath);
 
 await ensureBinary();
 runBinary();
+
+async function resolveLatestTag() {
+  const url = `https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`;
+  const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+  if (!response.ok) {
+    throw new Error(`Failed to look up the latest Bibliophilarr release: HTTP ${response.status}`);
+  }
+
+  const release = await response.json();
+  return release.tag_name;
+}
 
 function resolveTarget() {
   if (platform() === 'linux' && arch() === 'x64') {
