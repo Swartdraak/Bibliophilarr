@@ -99,6 +99,19 @@ namespace NzbDrone.Api.Test.Books
     [TestFixture]
     public class BookFormatStatusResourceFixture
     {
+        [TestCase("openlibrary:work:OL123W", null, "OL123W", "Open Library")]
+        [TestCase("hardcover:work:432", "OL456W", "OL456W", "Hardcover")]
+        [TestCase("googlebooks:work:volume", null, null, "Google Books")]
+        [TestCase("inventaire:work:uuid", "OL456M", null, "Inventaire")]
+        [TestCase("local:work:88", null, null, null)]
+        public void should_expose_known_book_provenance(string foreignId, string storedWorkId, string workId, string source)
+        {
+            var result = new Book { ForeignBookId = foreignId, OpenLibraryWorkId = storedWorkId }.ToResource();
+
+            result.OpenLibraryWorkId.Should().Be(workId);
+            result.MetadataSourceLabel.Should().Be(source);
+        }
+
         [Test]
         public void should_include_ebook_format_status_when_ebook_edition_exists()
         {

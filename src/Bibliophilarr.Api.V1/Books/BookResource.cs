@@ -8,6 +8,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Qualities;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -23,6 +24,10 @@ namespace Bibliophilarr.Api.V1.Books
         public int AuthorId { get; set; }
         public string ForeignBookId { get; set; }
         public string ForeignEditionId { get; set; }
+        [SwaggerSchema(ReadOnly = true)]
+        public string OpenLibraryWorkId { get; set; }
+        [SwaggerSchema(ReadOnly = true)]
+        public string MetadataSourceLabel { get; set; }
         public string TitleSlug { get; set; }
         public bool Monitored { get; set; }
         public bool AnyEditionOk { get; set; }
@@ -71,6 +76,8 @@ namespace Bibliophilarr.Api.V1.Books
                                   ?? editionsValue?.FirstOrDefault();
 
             var title = selectedEdition?.Title ?? model.Title;
+            var canonicalOpenLibraryId = OpenLibraryIdNormalizer.NormalizeWorkId(model.ForeignBookId);
+            var openLibraryWorkId = OpenLibraryIdNormalizer.NormalizeWorkId(model.OpenLibraryWorkId);
             var bookAuthor = model.Author?.Value;
             var allowsFormatMonitoring = model.Monitored && bookAuthor?.Monitored == true;
             var authorTitle = $"{bookAuthor?.Metadata?.Value?.SortNameLastFirst ?? string.Empty} {title}";
@@ -140,6 +147,8 @@ namespace Bibliophilarr.Api.V1.Books
                 AuthorId = model.AuthorId,
                 ForeignBookId = model.ForeignBookId,
                 ForeignEditionId = selectedEdition?.ForeignEditionId,
+                OpenLibraryWorkId = IsOpenLibraryWorkId(openLibraryWorkId) ? openLibraryWorkId : IsOpenLibraryWorkId(canonicalOpenLibraryId) ? canonicalOpenLibraryId : null,
+                MetadataSourceLabel = GetMetadataSourceLabel(model.ForeignBookId, canonicalOpenLibraryId),
                 TitleSlug = model.TitleSlug,
                 Monitored = model.Monitored,
                 AnyEditionOk = model.AnyEditionOk,
@@ -158,6 +167,27 @@ namespace Bibliophilarr.Api.V1.Books
                 Editions = editionsValue?.Select(e => e.ToResource()).ToList() ?? new List<EditionResource>(),
                 FormatStatuses = formatStatuses,
                 AllowsFormatMonitoring = allowsFormatMonitoring
+            };
+        }
+
+        private static bool IsOpenLibraryWorkId(string value)
+        {
+            return value?.EndsWith("W", StringComparison.OrdinalIgnoreCase) == true;
+        }
+
+        private static string GetMetadataSourceLabel(string foreignBookId, string canonicalOpenLibraryId)
+        {
+            if (IsOpenLibraryWorkId(canonicalOpenLibraryId))
+            {
+                return "Open Library";
+            }
+
+            return foreignBookId?.Split(':', 2)[0].ToLowerInvariant() switch
+            {
+                "hardcover" => "Hardcover",
+                "googlebooks" => "Google Books",
+                "inventaire" => "Inventaire",
+                _ => null
             };
         }
 
