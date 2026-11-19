@@ -1,0 +1,101 @@
+name: Container startup smoke
+
+on:
+  pull_request:
+    branches: [develop, staging]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.local.yml
+      - docker-compose.test.yml
+      - .github/workflows/container-smoke.yml
+      - .github/workflows/docker-image.yml
+  push:
+    branches: [staging]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    name: Container startup and persistence (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up ARM emulation
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build local test image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: bibliophilarr:smoke
+          secret-envs: sixlabors_license=SIXLABORS_LICENSE_KEY
+
+      - name: Check the running container and volume persistence
+        env:
+          TEST_ARCH: ${{ matrix.arch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          container=bibliophilarr-smoke
+          volume=bibliophilarr-smoke-config
+
+          cleanup() {
+            docker rm -f "$container" >/dev/null 2>&1 || true
+            docker volume rm "$volume" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          launch() {
+            docker run --detach --platform "linux/$TEST_ARCH" --name "$container" \
+              --mount "type=volume,source=$volume,target=/config" bibliophilarr:smoke >/dev/null
+            for _ in {1..45}; do
+              if docker exec "$container" curl -fsS http://127.0.0.1:8787/ping 2>/dev/null |
+                jq -e '.status == "OK"' >/dev/null; then
+                return
+              fi
+              if [[ "$(docker inspect --format '{{.State.Running}}' "$container")" != true ]]; then
+                break
+              fi
+              sleep 2
+            done
+            docker logs --tail 100 "$container"
+            return 1
+          }
+
+          key_fingerprint() {
+            docker exec "$container" grep '<ApiKey>[^<]' /config/config.xml | sha256sum | cut -d ' ' -f 1
+          }
+
+          test "$(docker image inspect --format '{{.Architecture}}' bibliophilarr:smoke)" = "$TEST_ARCH"
+          docker volume create "$volume" >/dev/null
+          launch
+          test "$(docker exec "$container" id -u)" != 0
+          docker exec "$container" test -s /config/bibliophilarr.db
+          docker exec "$container" test ! -e /run/secrets/sixlabors_license
+          before="$(key_fingerprint)"
+          docker stop "$container" >/dev/null
+          docker rm "$container" >/dev/null
+          launch
+          test "$before" = "$(key_fingerprint)"
+          echo "Container startup and persistence passed for linux/$TEST_ARCH"

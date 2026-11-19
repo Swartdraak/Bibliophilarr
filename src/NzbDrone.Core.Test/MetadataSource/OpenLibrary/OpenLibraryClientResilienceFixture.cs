@@ -4,6 +4,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -62,6 +63,42 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             second.Docs.Should().BeEmpty();
             Mocker.GetMock<IHttpClient>().Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once);
             ExceptionVerification.IgnoreWarns();
+        }
+
+        [TestCase(true, System.Net.HttpStatusCode.TooManyRequests)]
+        [TestCase(false, System.Net.HttpStatusCode.TooManyRequests)]
+        [TestCase(true, System.Net.HttpStatusCode.OK)]
+        [TestCase(false, System.Net.HttpStatusCode.OK)]
+        public void author_pagination_should_distinguish_request_errors_and_malformed_data_from_empty_pages(
+            bool useWorksEndpoint, System.Net.HttpStatusCode status)
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.MetadataProviderRetryBudget).Returns(0);
+            var error = new HttpResponse(new HttpRequest("https://openlibrary.org"), new HttpHeader(), "{}", status);
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns(error);
+
+            var result = useWorksEndpoint
+                ? (object)Subject.GetAuthorWorks("OL1A", 100, 100)
+                : Subject.Search("author_key:OL1A", 100, 100);
+
+            result.Should().BeNull();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void author_lookup_marks_only_an_explicit_404_as_confirmed_missing()
+        {
+            var request = new HttpRequest("https://openlibrary.org/authors/OL1A.json");
+            Mocker.GetMock<IHttpClient>()
+                .SetupSequence(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns(new HttpResponse(request, new HttpHeader(), "", System.Net.HttpStatusCode.OK))
+                .Returns(new HttpResponse(request, new HttpHeader(), "", System.Net.HttpStatusCode.ServiceUnavailable))
+                .Returns(new HttpResponse(request, new HttpHeader(), "", System.Net.HttpStatusCode.NotFound));
+
+            Subject.GetAuthor("OL1A", true).Should().BeNull();
+            Subject.GetAuthor("OL1A", true).Should().BeNull();
+            var lookup = () => Subject.GetAuthor("OL1A", true);
+            lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().BeTrue();
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

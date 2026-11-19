@@ -192,7 +192,10 @@ namespace NzbDrone.Core.Datastore
                 return true;
             }
 
-            var memberExp = expression as MemberExpression;
+            if (expression is not MemberExpression memberExp)
+            {
+                return false;
+            }
 
             if (TryGetPropertyValue(memberExp, out value))
             {
@@ -284,27 +287,22 @@ namespace NzbDrone.Core.Datastore
 
         private void ParseEnumerableContains(MethodCallExpression body)
         {
-            // Fish out the list and the item to compare
-            // It's in a different form for arrays and Lists
-            var list = body.Object;
-            Expression item;
+            var list = body.Object ?? GetStaticContainsSource(body);
+            var item = body.Arguments[body.Object == null ? 1 : 0];
+            var spanContains = body.Method.DeclaringType == typeof(MemoryExtensions);
+            object value = null;
+            var gotValue = (spanContains || item.Type == typeof(int)) && TryGetRightValue(list, out value);
 
-            if (list != null)
+            if (spanContains && !gotValue)
             {
-                // Generic collection
-                item = body.Arguments[0];
+                throw new NotSupportedException("Span Contains requires a captured or constant array");
             }
-            else
-            {
-                // Static method
-                // Must be Enumerable.Contains(source, item)
-                if (body.Method.DeclaringType != typeof(Enumerable) || body.Arguments.Count != 2)
-                {
-                    throw new NotSupportedException("Unexpected form of Enumerable.Contains");
-                }
 
-                list = body.Arguments[0];
-                item = body.Arguments[1];
+            if (spanContains && value is null or Array { Length: 0 })
+            {
+                _sb.Append("(1 = 0)");
+                _gotConcreteValue = true;
+                return;
             }
 
             _sb.Append('(');
@@ -314,7 +312,7 @@ namespace NzbDrone.Core.Datastore
             _sb.Append(" = ANY (");
 
             // hardcode the integer list if it exists to bypass parameter limit
-            if (item.Type == typeof(int) && TryGetRightValue(list, out var value))
+            if (item.Type == typeof(int) && gotValue)
             {
                 var items = (IEnumerable<int>)value;
                 _sb.Append("('{");
@@ -322,6 +320,10 @@ namespace NzbDrone.Core.Datastore
                 _sb.Append("}')");
 
                 _gotConcreteValue = true;
+            }
+            else if (spanContains)
+            {
+                _sb.Append(AddParameter(value, EnumerableMultiParameter));
             }
             else
             {

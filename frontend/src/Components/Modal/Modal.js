@@ -10,6 +10,7 @@ import * as keyCodes from 'Utilities/Constants/keyCodes';
 import getUniqueElememtId from 'Utilities/getUniqueElementId';
 import { setScrollLock } from 'Utilities/scrollLock';
 import ModalError from './ModalError';
+import ModalTitleContext from './ModalTitleContext';
 import styles from './Modal.css';
 
 const openModals = [];
@@ -33,6 +34,8 @@ class Modal extends Component {
     this._node = document.getElementById('portal-root');
     this._backgroundRef = null;
     this._modalId = getUniqueElememtId();
+    this._titleId = `${this._modalId}-title`;
+    this._dialog = null;
     this._bodyScrollTop = 0;
   }
 
@@ -65,6 +68,18 @@ class Modal extends Component {
 
   _setBackgroundRef = (ref) => {
     this._backgroundRef = ref;
+  };
+
+  _setDialogRef = (ref) => {
+    this._dialog = ref;
+  };
+
+  onFocusLockActivation = () => {
+    this._dialog?.setAttribute('aria-modal', 'true');
+  };
+
+  onFocusLockDeactivation = () => {
+    this._dialog?.removeAttribute('aria-modal');
   };
 
   _openModal() {
@@ -181,7 +196,12 @@ class Modal extends Component {
     }
 
     return ReactDOM.createPortal(
-      <FocusLock disabled={false} returnFocus={true}>
+      <FocusLock
+        disabled={false}
+        returnFocus={true}
+        onActivation={this.onFocusLockActivation}
+        onDeactivation={this.onFocusLockDeactivation}
+      >
         <div
           className={styles.modalContainer}
         >
@@ -196,14 +216,19 @@ class Modal extends Component {
                 className,
                 styles[size]
               )}
+              ref={this._setDialogRef}
               style={style}
+              role="dialog"
+              aria-labelledby={this._titleId}
             >
-              <ErrorBoundary
-                errorComponent={ModalError}
-                onModalClose={onModalClose}
-              >
-                {children}
-              </ErrorBoundary>
+              <ModalTitleContext.Provider value={this._titleId}>
+                <ErrorBoundary
+                  errorComponent={ModalError}
+                  onModalClose={onModalClose}
+                >
+                  {children}
+                </ErrorBoundary>
+              </ModalTitleContext.Provider>
             </div>
           </div>
         </div>

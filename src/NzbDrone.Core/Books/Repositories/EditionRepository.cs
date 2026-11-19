@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using NLog;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
@@ -21,6 +22,8 @@ namespace NzbDrone.Core.Books
 
     public class EditionRepository : BasicRepository<Edition>, IEditionRepository
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         public EditionRepository(IMainDatabase database, IEventAggregator eventAggregator)
             : base(database, eventAggregator)
         {
@@ -106,11 +109,22 @@ namespace NzbDrone.Core.Books
         public List<Edition> SetMonitoredByFormat(Edition edition)
         {
             var allEditions = FindByBook(new[] { edition.BookId });
-            var sameFormat = allEditions.Where(e => e.IsEbook == edition.IsEbook).ToList();
+            var storedEdition = allEditions.SingleOrDefault(existing => existing.Id == edition.Id);
+            if (storedEdition == null || storedEdition.IsEbook != edition.IsEbook)
+            {
+                Logger.Warn(
+                    "Skipping edition monitoring update for book {0}, edition {1}: imported IsEbook={2}, stored IsEbook={3}.",
+                    edition.BookId,
+                    edition.Id,
+                    edition.IsEbook,
+                    storedEdition?.IsEbook.ToString() ?? "missing");
+                return allEditions;
+            }
 
-            sameFormat.ForEach(r => r.Monitored = r.Id == edition.Id);
-            Ensure.That(sameFormat.Count(x => x.Monitored) == 1).IsTrue();
-
+            var format = storedEdition.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
+            var sameFormat = allEditions.Where(existing =>
+                storedEdition.HasUntrackedFormat() ? existing.HasUntrackedFormat() : existing.MatchesFormat(format)).ToList();
+            sameFormat.ForEach(existing => existing.Monitored = existing.Id == edition.Id);
             UpdateMany(sameFormat);
             return allEditions;
         }

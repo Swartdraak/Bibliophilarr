@@ -89,6 +89,27 @@ namespace NzbDrone.Core.Test.MusicTests.AuthorRepositoryTests
             StoredModel.MetadataProfile.Should().NotBeNull();
         }
 
+        [Test]
+        public void should_find_quality_profiles_referenced_by_legacy_and_format_author_settings()
+        {
+            var author = Builder<Author>.CreateNew()
+                .With(x => x.QualityProfileId = 10)
+                .BuildNew();
+            Subject.Insert(author);
+
+            Mocker.Resolve<AuthorFormatProfileRepository>().Insert(new AuthorFormatProfile
+            {
+                AuthorId = author.Id,
+                FormatType = FormatType.Audiobook,
+                QualityProfileId = 20,
+                RootFolderPath = string.Empty
+            });
+
+            Subject.AuthorExistsWithQualityProfile(10).Should().BeTrue();
+            Subject.AuthorExistsWithQualityProfile(20).Should().BeTrue();
+            Subject.AuthorExistsWithQualityProfile(30).Should().BeFalse();
+        }
+
         [TestCase("The Black Eyed Peas")]
         [TestCase("The Black Keys")]
         public void should_find_author_in_db_by_name(string name)

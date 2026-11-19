@@ -6,7 +6,6 @@ using System.Threading;
 using NLog;
 using Npgsql;
 using NzbDrone.Common.Disk;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Exceptions;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Datastore.Migration.Framework;
@@ -127,12 +126,7 @@ namespace NzbDrone.Core.Datastore
             {
                 var fileName = _connectionStringFactory.GetDatabasePath(connectionString);
 
-                if (OsInfo.IsOsx)
-                {
-                    throw new CorruptDatabaseException("Database file: {0} is corrupt, restore from backup if available. See: https://github.com/Swartdraak/Bibliophilarr/wiki/faq#i-use-bibliophilarr-on-a-mac-and-it-suddenly-stopped-working-what-happened", e, fileName);
-                }
-
-                throw new CorruptDatabaseException("Database file: {0} is corrupt, restore from backup if available. See: https://github.com/Swartdraak/Bibliophilarr/wiki/faq#i-am-getting-an-error-database-disk-image-is-malformed", e, fileName);
+                throw new CorruptDatabaseException("Database file: {0} is corrupt, restore from backup if available. For diagnostics, see https://github.com/Swartdraak/Bibliophilarr/blob/main/QUICKSTART.md#logging-and-diagnostics", e, fileName);
             }
             catch (NpgsqlException e)
             {

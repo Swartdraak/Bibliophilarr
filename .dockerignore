@@ -17,3 +17,8 @@ schemas
 *.md
 !README.md
 !LICENSE.md
+
+.env
+.env.*
+.test-env
+**/*.lic

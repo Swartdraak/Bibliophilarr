@@ -128,14 +128,15 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         public override IEnumerable<DownloadClientItem> GetItems()
         {
             var torrents = _proxy.GetTorrents(Settings);
+            var categories = Settings.GetAllCategories().ToHashSet();
 
             _logger.Debug("Retrieved metadata of {0} torrents in client", torrents.Count);
 
             var items = new List<DownloadClientItem>();
             foreach (var torrent in torrents)
             {
-                // Don't concern ourselves with categories other than specified
-                if (!Settings.MatchesAnyCategory(torrent.Category))
+                // Allow the legacy unfiltered mode only when no categories are configured.
+                if (categories.Count != 0 && !categories.Contains(torrent.Category))
                 {
                     continue;
                 }

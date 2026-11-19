@@ -1,28 +1,20 @@
 import PropTypes from 'prop-types';
-import React, { Component } from 'react';
+import React, { useContext } from 'react';
+import ModalTitleContext from './ModalTitleContext';
 import styles from './ModalHeader.css';
 
-class ModalHeader extends Component {
+function ModalHeader({ children, ...otherProps }) {
+  const titleId = useContext(ModalTitleContext);
 
-  //
-  // Render
-
-  render() {
-    const {
-      children,
-      ...otherProps
-    } = this.props;
-
-    return (
-      <div
-        className={styles.modalHeader}
-        {...otherProps}
-      >
-        {children}
-      </div>
-    );
-  }
-
+  return (
+    <div
+      className={styles.modalHeader}
+      {...otherProps}
+      id={titleId}
+    >
+      {children}
+    </div>
+  );
 }
 
 ModalHeader.propTypes = {

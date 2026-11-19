@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "task_id": "@TASK@",
+  "head_sha": "@HEAD@",
+  "deadline_seconds": 1180,
+  "setup": [
+    {
+      "name": "prepare_fresh_data",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/workflows/prepare.sh"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 120,
+      "env": {
+        "CASE_DIR": "/workspace/@CASE@"
+      }
+    }
+  ],
+  "services": [
+    {
+      "name": "bibliophilarr-app",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/build/start_app.sh"
+      ],
+      "cwd": "repo",
+      "env": {
+        "DATA_DIR": "/workspace/@CASE@/app-data",
+        "APP_PORT": "8765"
+      },
+      "ready": {
+        "url": "http://127.0.0.1:8765/ping",
+        "status": 200,
+        "timeout_seconds": 120,
+        "files": [
+          {
+            "path": "@CASE@/app-data/config.xml",
+            "xml_nonempty": [
+              "ApiKey"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "state_directories": [
+    {
+      "path": "@CASE@/app-data",
+      "mode": "fresh",
+      "reason": "First-user bootstrap and the subsequent restart/persistence scenario must start from an empty data directory"
+    }
+  ],
+  "steps": [
+    {
+      "name": "check_first_boot",
+      "argv": [
+        "python3",
+        "/workspace/linux-program/workflows/check_first_boot.py"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 300,
+      "env": {
+        "APP_URL": "http://127.0.0.1:8765",
+        "CASE_DIR": "/workspace/@CASE@",
+        "WF_USERNAME": "linuxaccept",
+        "WF_PASSWORD": "L!nxAcc3pt-2026",
+        "SEARCH_TERM": "j k rowling"
+      },
+      "secret_env": {
+        "BIBLIOPHILARR_HARDCOVER_API_TOKEN": "HARDCOVER_API_KEY"
+      }
+    },
+    {
+      "action": "restart",
+      "service": "bibliophilarr-app",
+      "signal": "TERM"
+    },
+    {
+      "name": "check_persistence",
+      "argv": [
+        "python3",
+        "/workspace/linux-program/workflows/check_persistence.py"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 180,
+      "env": {
+        "APP_URL": "http://127.0.0.1:8765",
+        "CASE_DIR": "/workspace/@CASE@",
+        "WF_USERNAME": "linuxaccept",
+        "WF_PASSWORD": "L!nxAcc3pt-2026"
+      }
+    }
+  ]
+}

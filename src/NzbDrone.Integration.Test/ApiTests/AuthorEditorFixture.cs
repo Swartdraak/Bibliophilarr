@@ -2,41 +2,32 @@ using System.Linq;
 using Bibliophilarr.Api.V1.Author;
 using FluentAssertions;
 using NUnit.Framework;
-using NzbDrone.Test.Common;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
-    public class AuthorEditorFixture : IntegrationTest
+    public class AuthorEditorFixture : CatalogueIntegrationTest
     {
-        private void GivenExistingAuthor()
+        [Test]
+        public void should_remove_a_monitored_author_on_explicit_api_delete()
         {
-            WaitForCompletion(() => Profiles.All().Count > 0);
+            var author = SeedAuthor("Fixture Explicit Author Removal");
+            Author.Get(author.Id).Monitored.Should().BeTrue();
 
-            foreach (var name in new[] { "Alien Ant Farm", "Kiss" })
-            {
-                var newAuthor = Author.Lookup(name).First();
+            Author.Delete(author.Id);
 
-                newAuthor.QualityProfileId = 1;
-                newAuthor.MetadataProfileId = 1;
-                newAuthor.Path = string.Format(@"C:\Test\{0}", name).AsOsAgnostic();
-
-                Author.Post(newAuthor);
-            }
+            Author.InvalidGet(author.Id);
         }
 
         [Test]
         public void should_be_able_to_update_multiple_author()
         {
-            GivenExistingAuthor();
-
-            var author = Author.All();
+            var authors = new[] { SeedAuthor("Fixture Author One"), SeedAuthor("Fixture Author Two") };
 
             var authorEditor = new AuthorEditorResource
             {
                 QualityProfileId = 2,
-                AuthorIds = author.Select(o => o.Id).ToList()
+                AuthorIds = authors.Select(o => o.Id).ToList()
             };
 
             var result = Author.Editor(authorEditor);

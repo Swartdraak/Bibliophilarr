@@ -1,11 +1,18 @@
 .menuButton {
-  margin-right: 15px;
-  width: 30px;
-  height: 60px;
+  margin: 12px 12px 12px 4px;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
   text-align: center;
 
-  &:hover {
-    color: var(--themeDarkColor);
+  &:hover,
+  &:focus-visible {
+    background-color: var(--headerControlColor);
+    color: var(--white);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--inputFocusBorderColor);
   }
 }
 

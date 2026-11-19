@@ -49,7 +49,7 @@ namespace NzbDrone.Core.Test.MusicTests
                                       new List<AuthorMetadata> { _fakeAuthor.Metadata.Value }));
 
             Mocker.GetMock<IAddAuthorService>()
-                .Setup(s => s.AddAuthor(It.IsAny<Author>(), It.IsAny<bool>()))
+                .Setup(s => s.AddAuthorWithMetadata(It.IsAny<Author>(), _fakeAuthor.Metadata.Value, false))
                 .Returns(_fakeAuthor);
         }
 

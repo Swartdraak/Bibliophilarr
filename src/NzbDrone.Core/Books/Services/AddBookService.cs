@@ -77,11 +77,9 @@ namespace NzbDrone.Core.Books
             var dbAuthor = _authorService.FindById(book.AuthorMetadata.Value.ForeignAuthorId);
             if (dbAuthor == null)
             {
-                var author = book.Author.Value;
-
-                author.Metadata.Value.ForeignAuthorId = book.AuthorMetadata.Value.ForeignAuthorId;
-
-                dbAuthor = _addAuthorService.AddAuthor(author, false);
+                // The work lookup already returned this author. The BookAdded
+                // handler can hydrate their bibliography after the book is saved.
+                dbAuthor = _addAuthorService.AddAuthorWithMetadata(book.Author.Value, book.AuthorMetadata.Value, false);
             }
 
             book.Author = dbAuthor;
@@ -157,7 +155,15 @@ namespace NzbDrone.Core.Books
                 editionToMonitor.Monitored = true;
             }
 
-            var metadata = tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1);
+            var metadata = tuple.Item3?.FirstOrDefault(author => author?.ForeignAuthorId == tuple.Item1);
+            if (string.IsNullOrWhiteSpace(metadata?.ForeignAuthorId))
+            {
+                throw new ValidationException(new List<ValidationFailure>
+                {
+                    new ("ForeignAuthorId", "The book provider did not identify its author")
+                });
+            }
+
             newBook.AuthorMetadata = metadata;
 
             return newBook;

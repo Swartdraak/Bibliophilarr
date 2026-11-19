@@ -28,10 +28,18 @@ jobs:
         run: bash scripts/ops/check_http_binding.sh
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.x'
           global-json-file: global.json
+
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
 
       - name: Restore
         run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
@@ -57,10 +65,18 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.x'
           global-json-file: global.json
+
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
 
       - name: Build backend runtime for RID test resolution
         run: |
@@ -91,7 +107,65 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
           --filter
-          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture'
+          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture|FullyQualifiedName~WhereBuilder|FullyQualifiedName~HistoryRepositoryFixture'
+
+      - name: Set up Node for the browser package
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.22.2'
+
+      - name: Package the existing Linux runtime and production UI
+        working-directory: .
+        run: |
+          rm -f -- "$SIXLABORS_LICENSE_FILE"
+          corepack enable
+          ./build.sh --frontend --packages -r linux-x64 -f net10.0
+
+      - name: Set up Python for browser smoke
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned Playwright Chromium
+        working-directory: .
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/browser-smoke-chromium
+        run: |
+          python -m venv "$RUNNER_TEMP/browser-smoke-venv"
+          "$RUNNER_TEMP/browser-smoke-venv/bin/python" -m pip install -r tests/browser/requirements.txt
+          "$RUNNER_TEMP/browser-smoke-venv/bin/python" -m playwright install --with-deps --only-shell chromium
+
+      - name: Smoke-test the WebUI with loopback-only Chromium and app
+        working-directory: .
+        timeout-minutes: 5
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/browser-smoke-chromium
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/browser-smoke-evidence"
+          mkdir -m 700 "$evidence"
+          printf 'Candidate %s\n' "$GITHUB_SHA" > "$evidence/results.log"
+
+          # The private network namespace has only loopback. Run the app and
+          # Chromium as the runner user after bringing that interface up.
+          sudo --non-interactive --preserve-env=HOME,DOTNET_ROOT,DOTNET_ROOT_X64,PLAYWRIGHT_BROWSERS_PATH \
+            unshare --net --fork --kill-child bash -c '
+              set -euo pipefail
+              ip link set lo up
+              exec setpriv --reuid "$1" --regid "$2" --init-groups -- "${@:3}"
+            ' bash "$(id -u)" "$(id -g)" "$RUNNER_TEMP/browser-smoke-venv/bin/python" \
+              tests/browser/smoke.py \
+              --binary _artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr \
+              --evidence "$evidence" 2>&1 | tee -a "$evidence/results.log"
+
+      - name: Upload safe browser evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-webui-smoke
+          path: ${{ runner.temp }}/browser-smoke-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
 
   metadata-provider-fixtures:
     name: Metadata Provider Fixtures
@@ -106,10 +180,18 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.x'
           global-json-file: global.json
+
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
 
       - name: Restore
         run: dotnet restore Bibliophilarr.sln -p:Platform=Posix
@@ -119,14 +201,27 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'
+          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~GoogleBooksFallbackSearchProviderFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture'
 
-      - name: Run metadata API fixtures
+      - name: Run host composition fixtures
+        run: >-
+          dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj
+          --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~ContainerFixture'
+
+      - name: Run library import format fixtures
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture'
+
+      - name: Run metadata, format monitoring and host configuration API fixtures
         run: >-
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture'
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~HostConfigCredentialValidationFixture'
 
   metadata-diagnostics-integration:
     name: Metadata Diagnostics Integration
@@ -141,19 +236,34 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.x'
           global-json-file: global.json
+
+      - name: Provision Six Labors license
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          echo "$SIXLABORS_LICENSE_KEY" > "$RUNNER_TEMP/sixlabors.lic"
+          chmod 600 "$RUNNER_TEMP/sixlabors.lic"
+          echo "SIXLABORS_LICENSE_FILE=$RUNNER_TEMP/sixlabors.lic" >> "$GITHUB_ENV"
 
       - name: Build backend runtime for integration harness
         run: |
           cd ..
           ./build.sh --backend -r linux-x64 -f net10.0
 
-      - name: Run metadata diagnostics integration fixture
+      - name: Run metadata diagnostics and API wire-contract fixtures
         run: >-
           dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
           --configuration Debug --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture'
+          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~RootFolderFixture|FullyQualifiedName~ConfigWireContractFixture'
+
+      - name: Run catalogue and provider integration fixtures
+        run: >-
+          dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
+          --configuration Debug --no-build --verbosity minimal -p:Platform=Posix
+          --filter
+          'FullyQualifiedName~AuthorEditorFixture|FullyQualifiedName~CalendarFixture|FullyQualifiedName~CutoffUnmetFixture|FullyQualifiedName~MissingFixture|FullyQualifiedName~OpenLibraryRefreshBaselineFixture'

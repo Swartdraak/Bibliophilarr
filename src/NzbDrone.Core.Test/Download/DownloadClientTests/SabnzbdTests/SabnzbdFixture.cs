@@ -100,7 +100,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SabnzbdTests
                 },
                 Categories = new List<SabnzbdCategory>
                         {
-                            new SabnzbdCategory  { Name = "tv", Dir = "vv" }
+                            new SabnzbdCategory { Name = "tv", Dir = "vv" },
+                            new SabnzbdCategory { Name = "audiobooks", Dir = "audiobooks" }
                         }
             };
 
@@ -621,28 +622,31 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SabnzbdTests
             result.IsValid.Should().BeTrue();
         }
 
-        [Test]
-        public void should_test_failed_if_tv_sorting_contains_category()
+        [TestCase("tv")]
+        [TestCase("audiobooks")]
+        public void should_test_failed_if_tv_sorting_contains_category(string category)
         {
             _config.Misc.enable_tv_sorting = true;
-            _config.Misc.tv_categories = new[] { "tv" };
+            _config.Misc.tv_categories = new[] { category };
 
             var result = new NzbDroneValidationResult(Subject.Test());
 
-            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.ErrorMessage == $"Disable TV Sorting for category '{category}'");
         }
 
         [Test]
         public void should_test_failed_if_tv_sorting_default_category()
         {
-            Subject.Definition.Settings.As<SabnzbdSettings>().EbookCategory = null;
+            var settings = Subject.Definition.Settings.As<SabnzbdSettings>();
+            settings.EbookCategory = null;
+            settings.AudiobookCategory = null;
 
             _config.Misc.enable_tv_sorting = true;
             _config.Misc.tv_categories = new[] { "Default" };
 
             var result = new NzbDroneValidationResult(Subject.Test());
 
-            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.ErrorMessage == "Disable TV Sorting for category 'Default'");
         }
 
         [Test]

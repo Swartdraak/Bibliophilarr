@@ -197,8 +197,9 @@ namespace NzbDrone.Host
                     policy.RequireAuthenticatedUser();
                 });
 
-                // Require auth on everything except those marked [AllowAnonymous]
-                options.FallbackPolicy = new AuthorizationPolicyBuilder("API")
+                // The fallback policy accepts a browser session or an API key. The SPA shell
+                // and its bootstrap endpoint share the explicit UI policy.
+                options.FallbackPolicy = new AuthorizationPolicyBuilder(new[] { "API", "Forms" })
                 .RequireAuthenticatedUser()
                 .Build();
             });
@@ -267,6 +268,11 @@ namespace NzbDrone.Host
             app.UseRouting();
             app.UseCors();
             app.UseAuthentication();
+
+            // Issue #313 A1/A2: challenge anonymous UI requests with the Forms scheme so the
+            // denial is 401 (Unauthorized) rather than 403 (the cookie scheme's AccessDeniedPath
+            // would otherwise make ForbidAsync yield 403). API and [AllowAnonymous] routes pass through.
+            app.UseMiddleware<UiAuthenticationMiddleware>();
             app.UseAuthorization();
             app.UseResponseCompression();
             app.Properties["host.AppName"] = BuildInfo.AppName;

@@ -4,6 +4,7 @@
   flex: 0 0 auto;
   padding: 0 20px;
   height: $toolbarHeight;
+  border-bottom: 1px solid var(--workspaceBorderColor);
   background-color: var(--toolbarBackgroundColor);
   color: var(--toolbarColor);
   line-height: 60px;
@@ -12,5 +13,25 @@
 @media only screen and (max-width: $breakpointSmall) {
   .toolbar {
     padding: 0 10px;
+  }
+}
+
+.stackOnMobile {
+  margin: 0 $pageContentBodyPadding;
+  padding: 0 6px;
+  border: 1px solid var(--workspaceBorderColor);
+  border-radius: 7px;
+}
+
+@media only screen and (max-width: $breakpointSmall) {
+  .stackOnMobile {
+    margin: 0 $pageContentBodyPaddingSmallScreen;
+  }
+}
+
+@media only screen and (max-width: $breakpointExtraSmall) {
+  .stackOnMobile {
+    flex-direction: column;
+    height: calc(2 * $toolbarHeight + 2px);
   }
 }

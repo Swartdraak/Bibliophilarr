@@ -355,7 +355,8 @@ export const actionHandlers = handleThunks({
     }
   ),
 
-  [RESTART]: function(getState, payload, dispatch) {
+  [RESTART]: function(getState, { reloadOnRestart }, dispatch) {
+    const previousStartTime = getState().system.status.item.startTime;
     const promise = createAjaxRequest({
       url: '/system/restart',
       method: 'POST'
@@ -363,7 +364,7 @@ export const actionHandlers = handleThunks({
 
     promise.done(() => {
       dispatch(setAppValue({ isRestarting: true }));
-      dispatch(pingServer());
+      dispatch(pingServer({ reloadOnRestart, previousStartTime }));
     });
   },
 

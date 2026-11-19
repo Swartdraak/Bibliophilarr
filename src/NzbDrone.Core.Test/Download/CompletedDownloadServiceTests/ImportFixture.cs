@@ -164,6 +164,10 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
         [Test]
         public void should_not_mark_as_failed_if_nothing_found_to_import()
         {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(c => c.ZeroFileRetryThreshold)
+                  .Returns(5);
+
             Mocker.GetMock<IDownloadedBooksImportService>()
                 .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Author>(), It.IsAny<DownloadClientItem>()))
                 .Returns(new List<ImportResult>());
@@ -427,6 +431,61 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             // Verify a history event is published so the terminal state survives restart
             Mocker.GetMock<IEventAggregator>()
                   .Verify(v => v.PublishEvent(It.IsAny<BookImportIncompleteEvent>()), Times.Once());
+        }
+
+        [Test]
+        public void should_surface_actionable_diagnostic_when_zero_files_found_below_retry_threshold()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(c => c.ZeroFileRetryThreshold)
+                  .Returns(5);
+
+            Mocker.GetMock<IDownloadedBooksImportService>()
+                  .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Author>(), It.IsAny<DownloadClientItem>()))
+                  .Returns(new List<ImportResult>());
+
+            _trackedDownload.ZeroFileRetryCount = 0;
+
+            Subject.Import(_trackedDownload);
+
+            // The download stays pending (not failed) below the threshold...
+            _trackedDownload.State.Should().Be(TrackedDownloadState.ImportPending);
+            _trackedDownload.ZeroFileRetryCount.Should().Be(1);
+
+            // ...and every retry cycle carries an actionable diagnostic naming the monitored path
+            // and the remediation hints, not just a bare "no files found".
+            var message = _trackedDownload.StatusMessages.Should().ContainSingle()
+                                                         .Subject.Messages.Should().ContainSingle()
+                                                                         .Subject;
+
+            message.Should().Contain(_trackedDownload.DownloadItem.OutputPath.FullPath);
+            message.Should().Contain("remote path mapping");
+            message.Should().Contain("supported extension");
+        }
+
+        [Test]
+        public void should_surface_actionable_diagnostic_in_exception_message_when_zero_files_exceed_retry_threshold()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(c => c.ZeroFileRetryThreshold)
+                  .Returns(2);
+
+            Mocker.GetMock<IDownloadedBooksImportService>()
+                  .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Author>(), It.IsAny<DownloadClientItem>()))
+                  .Returns(new List<ImportResult>());
+
+            _trackedDownload.ZeroFileRetryCount = 1;
+
+            var act = () => Subject.Import(_trackedDownload);
+
+            // The terminal ImportException carries the monitored path and remediation hints so the
+            // operator can see exactly which path yielded no importable files and what to check.
+            act.Should().Throw<ImportException>()
+               .WithMessage("*after 2 monitoring cycles*")
+               .WithMessage("*" + _trackedDownload.DownloadItem.OutputPath.FullPath + "*")
+               .WithMessage("*remote path mapping*")
+               .WithMessage("*supported extension*")
+               .WithMessage("*queue format*");
         }
     }
 }

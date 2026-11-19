@@ -11,9 +11,11 @@ using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
@@ -471,6 +473,137 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Mocker.GetMock<IMediaFileService>()
                 .Verify(x => x.AddMany(It.Is<List<BookFile>>(l => l.Count > 0)),
                         Times.Never());
+        }
+
+        private static Exception RecordException(Action action)
+        {
+            try
+            {
+                action();
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return ex;
+            }
+        }
+
+        [Test]
+        public void should_not_throw_when_requested_author_row_is_missing()
+        {
+            // Issue #383: RescanFolders crashes with "Expected query to return 1 rows but
+            // returned 0" from BasicRepository.Get when an author row is missing. This
+            // regression test exercises the REAL AuthorService + AuthorRepository + SQLite
+            // database (no mocks on the crash path): the requested author id simply has no
+            // row, exactly like production after the post-create refresh deletion (#204/#325).
+            // DiskScanService must tolerate this and skip the missing author.
+            var db = CreateInMemoryDatabase();
+            var realAuthorService = new AuthorService(
+                new AuthorRepository(new MainDatabase(db), Mocker.GetMock<IEventAggregator>().Object),
+                Mocker.GetMock<IEventAggregator>().Object,
+                Mocker.GetMock<IBuildAuthorPaths>().Object,
+                new NzbDrone.Common.Cache.CacheManager(),
+                TestLogger);
+
+            // Request an author id that has no row in the database.
+            var missingAuthorId = 987654;
+            var ex = RecordException(() =>
+            {
+                var authors = realAuthorService.GetAuthors(new List<int> { missingAuthorId });
+
+                // The scan should be able to consume this result without crashing.
+                authors.Should().BeEmpty();
+            });
+
+            ex.Should().BeNull();
+
+            // The fix logs a warning for the missing author; declare it expected so the
+            // TearDown log assertion (0 unexpected warns) passes.
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_return_author_when_requested_author_row_exists()
+        {
+            // Positive control for #383: the same path with an author row that IS present
+            // in the database returns the author.
+            var db = CreateInMemoryDatabase();
+            var realAuthorService = new AuthorService(
+                new AuthorRepository(new MainDatabase(db), Mocker.GetMock<IEventAggregator>().Object),
+                Mocker.GetMock<IEventAggregator>().Object,
+                Mocker.GetMock<IBuildAuthorPaths>().Object,
+                new NzbDrone.Common.Cache.CacheManager(),
+                TestLogger);
+
+            // Insert a real AuthorMetadata row first, then the author row that references it.
+            // AuthorRepository joins Authors to AuthorMetadata in every query, so the positive
+            // control needs both rows (production always has them; only the Authors row is
+            // what the post-create refresh deletes, see #204/#325).
+            // All NOT NULL AuthorMetadata columns are populated to match the migrated schema.
+            var metadataRepo = new AuthorMetadataRepository(new MainDatabase(db), Mocker.GetMock<IEventAggregator>().Object, TestLogger);
+            var metadata = metadataRepo.Insert(new AuthorMetadata
+            {
+                ForeignAuthorId = "hardcover:author:140004",
+                TitleSlug = "test-author",
+                Name = "Test Author",
+                SortName = "Test Author",
+                NameLastFirst = "Author, Test",
+                SortNameLastFirst = "Author, Test",
+                Status = AuthorStatusType.Continuing,
+                Images = new List<NzbDrone.Core.MediaCover.MediaCover>(),
+                Aliases = new List<string>()
+            });
+
+            var author = new Author
+            {
+                AuthorMetadataId = metadata.Id,
+                CleanName = "TestAuthor",
+                Path = @"/C/Test/Music/Author".AsOsAgnostic(),
+                Monitored = true,
+
+                // Stored via DapperUtcConverter as UTC ticks; the read path casts the value
+                // back to DateTime, so keep it non-default (the converter rejects 0 ticks).
+                Added = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            };
+
+            // Insert the author row directly via the repository (not via AddAuthor, which
+            // re-reads the row through Get() after insert).
+            var repo = realAuthorService.GetType().GetField("_authorRepository",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .GetValue(realAuthorService) as IAuthorRepository;
+            repo.Insert(author);
+
+            var ex = RecordException(() =>
+            {
+                var authors = realAuthorService.GetAuthors(new List<int> { author.Id });
+                authors.Should().ContainSingle(a => a.Id == author.Id);
+            });
+
+            ex.Should().BeNull();
+        }
+
+        private static IDatabase CreateInMemoryDatabase()
+        {
+            // Ensure the table mappers are registered exactly once (normally done at startup
+            // by DbFactory). Guard with a type marker so repeated calls are a no-op.
+            if (TableMapping.Mapper.TableMap.Count == 0)
+            {
+                TableMapping.Map();
+            }
+
+            // Use the same cached migrated test database that the DbTest harness uses
+            // (TestContext.CurrentContext.TestDirectory is the test output directory, which
+            // contains cached_Main.db - the fully migrated SQLite schema, so all Dapper type
+            // converters round-trip exactly as in production). Copy it to a per-test file so
+            // tests stay independent.
+            var cachedDb = Path.Combine(TestContext.CurrentContext.TestDirectory, "cached_Main.db");
+            var dbPath = Path.Combine(Path.GetTempPath(), $"issue383-{Guid.NewGuid():N}.db");
+
+            File.Copy(cachedDb, dbPath, true);
+
+            // The real Database implementation: each OpenConnection returns a fresh connection
+            // to the same file, exactly like production.
+            return new Database(dbPath, () => new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"));
         }
 
         [Test]

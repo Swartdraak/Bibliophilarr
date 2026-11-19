@@ -23,6 +23,7 @@ namespace NzbDrone.Core.Books
     public interface IAddAuthorService
     {
         Author AddAuthor(Author newAuthor, bool doRefresh = true);
+        Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh);
         List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh = true);
     }
 
@@ -69,7 +70,28 @@ namespace NzbDrone.Core.Books
         {
             Ensure.That(newAuthor, () => newAuthor).IsNotNull();
 
-            newAuthor = AddSkyhookData(newAuthor);
+            return AddResolvedAuthor(AddSkyhookData(newAuthor), doRefresh);
+        }
+
+        public Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh)
+        {
+            Ensure.That(newAuthor, () => newAuthor).IsNotNull();
+            Ensure.That(metadata, () => metadata).IsNotNull();
+            Ensure.That(metadata.ForeignAuthorId, () => metadata.ForeignAuthorId).IsNotNullOrWhiteSpace();
+
+            if (metadata.Name.IsNullOrWhiteSpace())
+            {
+                newAuthor.ForeignAuthorId = metadata.ForeignAuthorId;
+                return AddAuthor(newAuthor, doRefresh);
+            }
+
+            metadata.ForeignAuthorId = NormalizeForeignAuthorId(metadata.ForeignAuthorId);
+            newAuthor.Metadata = metadata;
+            return AddResolvedAuthor(newAuthor, doRefresh);
+        }
+
+        private Author AddResolvedAuthor(Author newAuthor, bool doRefresh)
+        {
             newAuthor = SetPropertiesAndValidate(newAuthor);
 
             var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(newAuthor, out var confidence, out var reason);

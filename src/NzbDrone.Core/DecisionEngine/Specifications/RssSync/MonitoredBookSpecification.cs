@@ -42,8 +42,9 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                 return Decision.Reject("Author is not monitored");
             }
 
-            // When dual-format tracking is enabled, check per-format monitoring
-            if (_configService.EnableDualFormatTracking && subject.ResolvedFormatType.HasValue)
+            var formatType = _configService.EnableDualFormatTracking ? subject.ResolvedFormatType : null;
+
+            if (formatType.HasValue)
             {
                 var formatProfile = _formatProfileService.GetByAuthorIdAndFormat(
                     subject.Author.Id,
@@ -59,7 +60,9 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                 }
             }
 
-            var monitoredCount = subject.Books.Count(book => book.Monitored);
+            var monitoredCount = subject.Books.Count(book => formatType.HasValue
+                ? book.IsFormatMonitored(formatType.Value)
+                : book.Monitored);
             if (monitoredCount == subject.Books.Count)
             {
                 return Decision.Accept();

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -5,6 +6,7 @@ using System.Security.Cryptography.X509Certificates;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.REST;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Authentication;
@@ -16,6 +18,17 @@ using NzbDrone.Http.REST.Attributes;
 
 namespace Bibliophilarr.Api.V1.Config
 {
+    // Issue #329 repair: /api/v1/config/host is a sensitive API endpoint (it can read and
+    // rewrite the instance's auth configuration: AuthenticationMethod/AuthenticationRequired,
+    // credentials, URL base, API key). Before #315 the app-wide fallback policy accepted any
+    // scheme; #315 pinned it to the "API" scheme, and the #329 implementation widened it to
+    // ["API", "Forms"] so a browser session (Forms cookie) can reach authed SPA routes. A
+    // browser Forms session must NOT satisfy the fallback policy for this resource, so pin
+    // its authorization to the "API" scheme explicitly (valid X-Api-Key/apikey, exactly as
+    // before #315). The scoped attribute does not touch the fallback policy, so the #329
+    // Forms-session behavior for UI routes is preserved. Anonymous or invalid credentials
+    // get a 401 from the API scheme's challenge (ApiKeyAuthenticationHandler).
+    [Authorize(Policy = "API")]
     [V1ApiController("config/host")]
     public class HostConfigController : RestController<HostConfigResource>
     {
@@ -41,13 +54,14 @@ namespace Bibliophilarr.Api.V1.Config
             SharedValidator.RuleFor(c => c.UrlBase).ValidUrlBase();
             SharedValidator.RuleFor(c => c.InstanceName).ContainsBibliophilarr().When(c => c.InstanceName.IsNotNullOrWhiteSpace());
 
-            SharedValidator.RuleFor(c => c.Username).NotEmpty().When(c => c.AuthenticationMethod == AuthenticationType.Basic ||
-                                                                          c.AuthenticationMethod == AuthenticationType.Forms);
-            SharedValidator.RuleFor(c => c.Password).NotEmpty().When(c => c.AuthenticationMethod == AuthenticationType.Basic ||
-                                                                          c.AuthenticationMethod == AuthenticationType.Forms);
+            SharedValidator.RuleFor(c => c.Username).NotEmpty().When(UsesPassword);
 
-            SharedValidator.RuleFor(c => c.PasswordConfirmation)
-                .Must((resource, p) => IsMatchingPassword(resource)).WithMessage("Must match Password");
+            SharedValidator.When(RequiresPassword, () =>
+            {
+                SharedValidator.RuleFor(c => c.Password).NotEmpty();
+                SharedValidator.RuleFor(c => c.PasswordConfirmation)
+                    .Equal(c => c.Password).WithMessage("Must match Password");
+            });
 
             SharedValidator.RuleFor(c => c.SslPort).ValidPort().When(c => c.EnableSsl);
             SharedValidator.RuleFor(c => c.SslPort).NotEqual(c => c.Port).When(c => c.EnableSsl);
@@ -83,21 +97,32 @@ namespace Bibliophilarr.Api.V1.Config
             return cert != null;
         }
 
-        private bool IsMatchingPassword(HostConfigResource resource)
+        private static bool UsesPassword(HostConfigResource resource)
         {
+            return resource.AuthenticationMethod is AuthenticationType.Basic or AuthenticationType.Forms;
+        }
+
+        private bool RequiresPassword(HostConfigResource resource)
+        {
+            if (resource.Password.IsNotNullOrWhiteSpace() || resource.PasswordConfirmation.IsNotNullOrWhiteSpace())
+            {
+                return true;
+            }
+
+            if (!UsesPassword(resource))
+            {
+                return false;
+            }
+
+            if (resource.AuthenticationMethod != _configFileProvider.AuthenticationMethod)
+            {
+                return true;
+            }
+
             var user = _userService.FindUser();
 
-            if (user != null && user.Password == resource.Password)
-            {
-                return true;
-            }
-
-            if (resource.Password == resource.PasswordConfirmation)
-            {
-                return true;
-            }
-
-            return false;
+            return user == null || user.Password.IsNullOrWhiteSpace() ||
+                   !string.Equals(user.Username, resource.Username, StringComparison.OrdinalIgnoreCase);
         }
 
         protected override HostConfigResource GetResourceById(int id)

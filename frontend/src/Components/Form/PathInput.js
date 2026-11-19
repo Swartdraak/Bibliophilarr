@@ -60,33 +60,46 @@ class PathInput extends Component {
   //
   // Listeners
 
+  notifyChange(value) {
+    this.props.onChange({
+      name: this.props.name,
+      value
+    });
+  }
+
   onInputChange = ({ value }) => {
     this.setState({ value });
+
+    if (this.props.updateOnInput) {
+      this.notifyChange(value);
+    }
   };
 
   onInputKeyDown = (event) => {
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      const path = this.props.paths[0];
+    if (event.key !== 'Tab' || event.shiftKey) {
+      return;
+    }
 
-      if (path) {
-        this.props.onChange({
-          name: this.props.name,
-          value: path.path
-        });
+    const { value } = this.state;
+    const [path] = this.props.paths;
 
-        if (path.type !== 'file') {
-          this.props.onFetchPaths(path.path);
-        }
-      }
+    if (!value || !path || path.path === value || !path.path.toLowerCase().startsWith(value.toLowerCase())) {
+      return;
+    }
+
+    event.preventDefault();
+    this.setState({ value: path.path });
+    this.notifyChange(path.path);
+
+    if (path.type !== 'file') {
+      this.props.onFetchPaths(path.path);
     }
   };
 
   onInputBlur = () => {
-    this.props.onChange({
-      name: this.props.name,
-      value: this.state.value
-    });
+    if (!this.props.updateOnInput) {
+      this.notifyChange(this.state.value);
+    }
 
     this.props.onClearPaths();
   };
@@ -122,6 +135,7 @@ class PathInput extends Component {
       paths,
       includeFiles,
       hasFileBrowser,
+      updateOnInput,
       onChange,
       ...otherProps
     } = this.props;
@@ -181,6 +195,7 @@ PathInput.propTypes = {
   paths: PropTypes.array.isRequired,
   includeFiles: PropTypes.bool.isRequired,
   hasFileBrowser: PropTypes.bool,
+  updateOnInput: PropTypes.bool,
   onChange: PropTypes.func.isRequired,
   onFetchPaths: PropTypes.func.isRequired,
   onClearPaths: PropTypes.func.isRequired
@@ -189,7 +204,8 @@ PathInput.propTypes = {
 PathInput.defaultProps = {
   className: styles.inputWrapper,
   value: '',
-  hasFileBrowser: true
+  hasFileBrowser: true,
+  updateOnInput: false
 };
 
 export default PathInput;

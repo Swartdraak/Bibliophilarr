@@ -8,6 +8,7 @@ function PageContent(props) {
   const {
     className,
     title,
+    showTitle,
     children
   } = props;
 
@@ -18,6 +19,7 @@ function PageContent(props) {
   return (
     <ErrorBoundary errorComponent={PageContentError}>
       <div className={className}>
+        {showTitle && title && <h1 className={styles.title}>{title}</h1>}
         {children}
       </div>
     </ErrorBoundary>
@@ -27,6 +29,7 @@ function PageContent(props) {
 PageContent.propTypes = {
   className: PropTypes.string,
   title: PropTypes.string,
+  showTitle: PropTypes.bool,
   children: PropTypes.node.isRequired
 };
 

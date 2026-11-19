@@ -1,0 +1,620 @@
+{
+  "candidate_head": "c3a458a464301890bfd5d4e3231e0f7e7fe04b2f",
+  "configuration_bindings": [
+    {
+      "configuration_key": "Bibliophilarr:Server:Port",
+      "environment_variable": "BIBLIOPHILARR__SERVER__PORT",
+      "path": "linux-program/build/start_app.sh",
+      "provider": "dotnet-environment"
+    },
+    {
+      "configuration_key": "Bibliophilarr:Server:BindAddress",
+      "environment_variable": "BIBLIOPHILARR__SERVER__BINDADDRESS",
+      "path": "linux-program/build/start_app.sh",
+      "provider": "dotnet-environment"
+    }
+  ],
+  "files": [
+    {
+      "path": "linux-program/browser/check_browser.py",
+      "sha256": "53b0a75f4d8ab0041df6a037cf3beeffb1cd81583cb10f8e8831882c44cbb967"
+    },
+    {
+      "path": "linux-program/browser/prepare.sh",
+      "sha256": "04f73514907fda1880e0d0010fe90767a1dc1956af11b73d244501e1d86fcf42"
+    },
+    {
+      "path": "linux-program/build/build_backend.sh",
+      "sha256": "bafb7c4942fecd2cba704e07d813d610f1644e953b261fc1901de9a9193ab4d0"
+    },
+    {
+      "path": "linux-program/build/build_frontend.sh",
+      "sha256": "60ef4f5678ae98ba97c519099bb282ae31d9c23a09d92b85e7b5872c188206fe"
+    },
+    {
+      "path": "linux-program/build/check_build.py",
+      "sha256": "b74a41a3c12bf985e355499a8bba05b2131368dc752681f48f8de9a94e4d9408"
+    },
+    {
+      "path": "linux-program/build/durabilize_output.sh",
+      "sha256": "d40196292e09d1f536f7ec7e6a3591abe83ff24d413e378dfaef7c9d7de312df"
+    },
+    {
+      "path": "linux-program/build/preflight_build.sh",
+      "sha256": "7cd2d42b51a7e454951eba930f0fc63edfd394b5d4903698c0688b42c1bbd6c5"
+    },
+    {
+      "path": "linux-program/build/start_app.sh",
+      "sha256": "7538ab5af40a3a3002ba3c200a46708578b11c6b417e9b23ecdffe33121c0286"
+    },
+    {
+      "path": "linux-program/harness/common.py",
+      "sha256": "12383fbf075eae025f355cf2bdcff9aac3b19327543ae34b845347acef355751"
+    },
+    {
+      "path": "linux-program/harness/enable_providers.py",
+      "sha256": "c030909b6ca4b70043e39c6aa1d0b1ff1a7e0e3fc560a7aadd9f3e6ed8820e34"
+    },
+    {
+      "path": "linux-program/integrations/check_integrations.py",
+      "sha256": "976cd64d5b88844f2eea3d93365ed4c9f6c9771c8838dba3c39ceddb06d2b536"
+    },
+    {
+      "path": "linux-program/integrations/prepare.sh",
+      "sha256": "9ab26414b5650689b99b103d8ce3f8431af5638a16e4d55ce57e4d930f7d1b0f"
+    },
+    {
+      "path": "linux-program/plan_browser.json",
+      "sha256": "56ae11b2c9664756ecfaaefc2f13aa298398be270680530a62751cbdd3c7954c"
+    },
+    {
+      "path": "linux-program/plan_build.json",
+      "sha256": "d2f484a338efa44f1b1b1dea27a05078832363e20f6804cf4510d4f3acdec1f7"
+    },
+    {
+      "path": "linux-program/plan_integrations.json",
+      "sha256": "df1d48ace94df4b967a474f682d73606b83c06a033ee6a3d6f2cb1e5d255eed8"
+    },
+    {
+      "path": "linux-program/plan_recovery.json",
+      "sha256": "1f84d9d03e12baca45a3dfb571ffea6a50841ff9bb1a2f682ccbe20c9ff43fb4"
+    },
+    {
+      "path": "linux-program/plan_workflows.json",
+      "sha256": "1383e4687b9e8350a101dece6cd06ca786168850f6e07badb9a2d09e2bb5fd64"
+    },
+    {
+      "path": "linux-program/recovery/check_integrity.py",
+      "sha256": "97607a5302adaffb1d04c8df6b33f1f2550e97a06a6c924ab43695ab8d0bd869"
+    },
+    {
+      "path": "linux-program/recovery/check_recovery.py",
+      "sha256": "cb4dd5de390cecfa8f262ba4aba3f558f034fd6e53f1f37ad52d0480f1e02064"
+    },
+    {
+      "path": "linux-program/recovery/prepare.sh",
+      "sha256": "5431135de67f4eb13f44b6ccb445fc0d36b8b4f97b9fe72a64e1ac0d4814aa84"
+    },
+    {
+      "path": "linux-program/workflows/check_first_boot.py",
+      "sha256": "2abe42726c006b839991c31f262950e3aea9721ae6d6363e67dc55301701a7a3"
+    },
+    {
+      "path": "linux-program/workflows/check_persistence.py",
+      "sha256": "6808877fd8aa5bded18e3c36370160d72318bc7e1b8caf577011a190c5d86350"
+    },
+    {
+      "path": "linux-program/workflows/prepare.sh",
+      "sha256": "94692c4311f2499cfa479dfc40ae4f69a68be15c378d6ee2e1869fba1e1e3216"
+    }
+  ],
+  "fixture_manifest_sha256": "e2d177e5b8fec74d7e348f731008868b558ce95f39eb0e3b93ea3cfa5ab169d7",
+  "notes": {
+    "build_strategy": "Build once into the durable repo/_output/net10.0/linux-x64 directory (publish + UI) and snapshot it to /workspace/tmp/linux-program-build-output; later stages reuse the durable output. Source libraries stay read-only; fixtures are disposable approved copies.",
+    "known_product_blocker": "Prior exact-head evidence (acceptance-stages/t_e53b844e) recorded a linux-x64 startup crash (FileNotFoundException: Microsoft.Extensions.Primitives v10.0.0.0 at Bootstrap.GetConfiguration) at head fa61fc55. The build stage re-verifies the Primitives DLL in this candidate's publish output (B2) with startup proof as the primary assertion. If that product/build defect is still present at this candidate, the build stage startup proof and all dependent stages will fail; that requirement is recorded, not waived, and no product code is rewritten here.",
+    "placeholders": "task_id/head_sha use @TASK@/@HEAD@; case-owned fresh writable data uses @CASE@ (materialized to acceptance-stages/<task>/data).",
+    "repair_input_generalization": "Corrections from linux-program-repair-input/manifest.json (case 60354f1854f5483c56e6b0d1, task t_dd7ab58b at fa61fc55) are generalized into this reusable template: provider-enablement wire names are camelCase (enableOpenLibraryProvider/enableHardcoverFallback/hardcoverApiToken) with the id=1 guard and the hard-fail after failed enablement; I3 targets /api/v1/metadata/providers/health/basic and I4 targets /api/v1/metadata/providers/health (both rows carry providerName; the bare /metadata/providers base route has no [HttpGet] action and is not a definitions endpoint); search terms are URL-quoted; the browser check asserts the served login page and the built Content/login.html asset instead of the app-root index.html. The case-owned start_app.sh corrections (reviewed, t_d325f8e1/t_dd7ab58b) were already generalized: per-case DATA_DIR/APP_PORT bindings, durable _output/net10.0/linux-x64/publish + UI, bind-address 127.0.0.1 and ASPNETCORE_URLS, and no secret values in the launcher.",
+    "scope": "Reusable Linux acceptance program for Swartdraak/Bibliophilarr; the registered candidate is c3a458a464301890bfd5d4e3231e0f7e7fe04b2f (source: fix(issue-426) duplicate-copy import record preservation). The harness reads the expected source head from runner-owned ONYX_STAGE_HEAD and never hardcodes a candidate SHA into executable files. Shared behavior on Linux; native Windows/macOS smoke is a separate platform stage and is out of scope here.",
+    "secrets": "No secret values are stored in this program. Credentials are projected at execution time through the runner secret_env broker (SIXLABORS_LICENSE_KEY -> SIXLABORS_LICENSE_FILE env var for the backend build via secret_file_env, a private byte-exact 0600 file whose PATH is bound to the MSBuild-recognized SIXLABORS_LICENSE_FILE variable per src/Directory.Build.props; removed on cleanup; HARDCOVER_API_KEY -> BIBLIOPHILARR_HARDCOVER_API_TOKEN env var for the integrations/workflows check steps, where it is persisted as the DB hardcoverApiToken by the provider-enablement helper). The app service itself starts with no provider secrets; provider enablement happens through the authenticated config API."
+  },
+  "repository": "Swartdraak/Bibliophilarr",
+  "repository_id": "1159029625",
+  "stages": {
+    "browser": {
+      "criteria": [
+        "SPA root and login page served as HTML by the static resource controller",
+        "login page (frontend/src/login.html) contains a password field and is retrievable",
+        "a built JS bundle referenced by the served page is retrievable (real webpack output, not a placeholder)",
+        "authenticated SPA bootstrap (/initialize.json) and public liveness (/ping) respond 200, and anonymous SPA bootstrap is denied"
+      ],
+      "plan": {
+        "version": 1,
+        "task_id": "@TASK@",
+        "head_sha": "@HEAD@",
+        "deadline_seconds": 600,
+        "setup": [
+          {
+            "name": "prepare_fresh_data",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/browser/prepare.sh"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 120,
+            "env": {
+              "CASE_DIR": "/workspace/@CASE@"
+            }
+          }
+        ],
+        "services": [
+          {
+            "name": "bibliophilarr-app",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/start_app.sh"
+            ],
+            "cwd": "repo",
+            "env": {
+              "DATA_DIR": "/workspace/@CASE@/app-data",
+              "APP_PORT": "8765"
+            },
+            "ready": {
+              "url": "http://127.0.0.1:8765/ping",
+              "status": 200,
+              "timeout_seconds": 120,
+              "files": [
+                {
+                  "path": "@CASE@/app-data/config.xml",
+                  "xml_nonempty": [
+                    "ApiKey"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "state_directories": [
+          {
+            "path": "@CASE@/app-data",
+            "mode": "fresh",
+            "reason": "Browser/UI stage boots a first-instance app so the served frontend and its bootstrap contract are observed from a clean state"
+          }
+        ],
+        "steps": [
+          {
+            "name": "check_browser",
+            "argv": [
+              "python3",
+              "/workspace/linux-program/browser/check_browser.py"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 240,
+            "env": {
+              "APP_URL": "http://127.0.0.1:8765",
+              "CASE_DIR": "/workspace/@CASE@"
+            }
+          }
+        ]
+      },
+      "source_references": [
+        "repo/src/Bibliophilarr.Http/Frontend/StaticResourceController.cs",
+        "repo/src/Bibliophilarr.Http/Frontend/InitializeJsonController.cs",
+        "repo/src/Bibliophilarr.Http/Authentication/AuthenticationController.cs"
+      ]
+    },
+    "build": {
+      "criteria": [
+        "net10.0/linux-x64 backend publish + frontend UI build into the durable _output directory at the exact candidate head",
+        "Microsoft.Extensions.Primitives.dll present in the exact-head publish output (prior assembly-load defect re-verified at this head)",
+        "app starts locally on a fresh case-specific data directory: config.xml generated with a generated ApiKey, SQLite DB created, /ping 200 JSON status=OK, anonymous /initialize.json returns 401, authenticated /api/v1/config/host returns id=1"
+      ],
+      "plan": {
+        "version": 1,
+        "task_id": "@TASK@",
+        "head_sha": "@HEAD@",
+        "deadline_seconds": 2350,
+        "setup": [
+          {
+            "name": "preflight",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/preflight_build.sh"
+            ],
+            "cwd": "repo",
+            "env": {
+              "EXPECTED_HEAD": "@HEAD@"
+            },
+            "timeout_seconds": 120
+          },
+          {
+            "name": "build_backend_net10_linux_x64",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/build_backend.sh"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 1180,
+            "secret_file_env": {
+              "SIXLABORS_LICENSE_FILE": "SIXLABORS_LICENSE_KEY"
+            }
+          },
+          {
+            "name": "build_frontend_ui_and_packages",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/build_frontend.sh"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 940
+          },
+          {
+            "name": "durabilize_output",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/durabilize_output.sh"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 180
+          }
+        ],
+        "services": [
+          {
+            "name": "bibliophilarr-app",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/start_app.sh"
+            ],
+            "cwd": "repo",
+            "env": {
+              "DATA_DIR": "/workspace/@CASE@/app-data",
+              "APP_PORT": "8765"
+            },
+            "ready": {
+              "url": "http://127.0.0.1:8765/ping",
+              "status": 200,
+              "timeout_seconds": 120,
+              "files": [
+                {
+                  "path": "@CASE@/app-data/config.xml",
+                  "xml_nonempty": [
+                    "ApiKey"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "state_directories": [
+          {
+            "path": "@CASE@/app-data",
+            "mode": "fresh",
+            "reason": "First-user bootstrap must start from an empty data directory so the app generates config.xml, the API key and the SQLite DB itself"
+          }
+        ],
+        "steps": [
+          {
+            "name": "check_build",
+            "argv": [
+              "python3",
+              "/workspace/linux-program/build/check_build.py"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 240,
+            "env": {
+              "APP_URL": "http://127.0.0.1:8765",
+              "CASE_DIR": "/workspace/@CASE@"
+            }
+          }
+        ]
+      },
+      "source_references": [
+        "repo/build.sh",
+        "repo/src/Directory.Packages.props",
+        "repo/src/NzbDrone.Host/Bootstrap.cs",
+        "repo/src/Bibliophilarr.Http/Ping/PingController.cs",
+        "repo/src/Bibliophilarr.Http/Frontend/InitializeJsonController.cs"
+      ]
+    },
+    "integrations": {
+      "criteria": [
+        "authenticated v1 API access works (/api/v1/config/host id=1 with generated API key)",
+        "live-provider search returns nonempty results: the keyless OpenLibrary provider (and hardcover fallback) is enabled via PUT /api/v1/config/metadataprovider and round-trip-verified, then the provider fan-out actually returns data",
+        "provider health/definitions endpoints return nonempty lists",
+        "auth boundaries: /config/host without key -> 401; wrong key -> 401; too-short search term -> 200 empty list (no 500)"
+      ],
+      "plan": {
+        "version": 1,
+        "task_id": "@TASK@",
+        "head_sha": "@HEAD@",
+        "deadline_seconds": 900,
+        "setup": [
+          {
+            "name": "prepare_fresh_data_and_ui",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/integrations/prepare.sh"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 120
+          }
+        ],
+        "services": [
+          {
+            "name": "bibliophilarr-app",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/start_app.sh"
+            ],
+            "cwd": "repo",
+            "env": {
+              "DATA_DIR": "/workspace/@CASE@/app-data",
+              "APP_PORT": "8765"
+            },
+            "ready": {
+              "url": "http://127.0.0.1:8765/ping",
+              "status": 200,
+              "timeout_seconds": 120,
+              "files": [
+                {
+                  "path": "@CASE@/app-data/config.xml",
+                  "xml_nonempty": [
+                    "ApiKey"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "state_directories": [
+          {
+            "path": "@CASE@/app-data",
+            "mode": "fresh",
+            "reason": "Integrations run against a first-boot instance so the live-provider and auth-boundary behavior is observed from a clean config and database"
+          }
+        ],
+        "steps": [
+          {
+            "name": "check_integrations",
+            "argv": [
+              "python3",
+              "/workspace/linux-program/integrations/check_integrations.py"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 420,
+            "env": {
+              "APP_URL": "http://127.0.0.1:8765",
+              "CASE_DIR": "/workspace/@CASE@",
+              "SEARCH_TERM": "j k rowling"
+            },
+            "secret_env": {
+              "BIBLIOPHILARR_HARDCOVER_API_TOKEN": "HARDCOVER_API_KEY"
+            }
+          }
+        ]
+      },
+      "source_references": [
+        "repo/src/Bibliophilarr.Api.V1/Search/SearchController.cs",
+        "repo/src/Bibliophilarr.Api.V1/Metadata/MetadataProvidersController.cs",
+        "repo/src/Bibliophilarr.Api.V1/Metadata/ProviderHealthController.cs",
+        "repo/src/Bibliophilarr.Api.V1/Config/MetadataProviderConfigController.cs",
+        "repo/src/Bibliophilarr.Api.V1/Config/HostConfigController.cs",
+        "repo/src/Bibliophilarr.Http/Authentication/ApiKeyAuthenticationHandler.cs",
+        "repo/src/NzbDrone.Core/Configuration/ConfigService.cs",
+        "repo/src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryProvider.cs",
+        "repo/src/NzbDrone.Core/MetadataSource/Hardcover/HardcoverFallbackSearchProvider.cs"
+      ]
+    },
+    "recovery": {
+      "criteria": [
+        "backup listing endpoint returns 200 list",
+        "restore of a nonexistent backup id -> 404; restore/upload with unsupported media type -> 415",
+        "data integrity: persisted DB + config survive a hard KILL relaunch; API still authenticates with the same key afterward"
+      ],
+      "plan": {
+        "version": 1,
+        "task_id": "@TASK@",
+        "head_sha": "@HEAD@",
+        "deadline_seconds": 700,
+        "setup": [
+          {
+            "name": "prepare_fresh_data",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/recovery/prepare.sh"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 120,
+            "env": {
+              "CASE_DIR": "/workspace/@CASE@"
+            }
+          }
+        ],
+        "services": [
+          {
+            "name": "bibliophilarr-app",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/start_app.sh"
+            ],
+            "cwd": "repo",
+            "env": {
+              "DATA_DIR": "/workspace/@CASE@/app-data",
+              "APP_PORT": "8765"
+            },
+            "ready": {
+              "url": "http://127.0.0.1:8765/ping",
+              "status": 200,
+              "timeout_seconds": 120,
+              "files": [
+                {
+                  "path": "@CASE@/app-data/config.xml",
+                  "xml_nonempty": [
+                    "ApiKey"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "state_directories": [
+          {
+            "path": "@CASE@/app-data",
+            "mode": "fresh",
+            "reason": "Recovery stage boots a fresh instance and then exercises backup/restore boundaries and persistence of the database and config across relaunch"
+          }
+        ],
+        "steps": [
+          {
+            "name": "check_recovery",
+            "argv": [
+              "python3",
+              "/workspace/linux-program/recovery/check_recovery.py"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 300,
+            "env": {
+              "APP_URL": "http://127.0.0.1:8765",
+              "CASE_DIR": "/workspace/@CASE@"
+            }
+          },
+          {
+            "action": "restart",
+            "service": "bibliophilarr-app",
+            "signal": "KILL"
+          },
+          {
+            "name": "check_recovery_integrity",
+            "argv": [
+              "python3",
+              "/workspace/linux-program/recovery/check_integrity.py"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 180,
+            "env": {
+              "APP_URL": "http://127.0.0.1:8765",
+              "CASE_DIR": "/workspace/@CASE@"
+            }
+          }
+        ]
+      },
+      "source_references": [
+        "repo/src/Bibliophilarr.Api.V1/System/Backup/BackupController.cs",
+        "repo/src/Bibliophilarr.Api.V1/Config/HostConfigController.cs",
+        "repo/src/NzbDrone.Core/Configuration/ConfigService.cs"
+      ]
+    },
+    "workflows": {
+      "criteria": [
+        "first-user bootstrap: POST /bootstrap creates the first user (200), second call 409, short username 400",
+        "UI login route served",
+        "primary find workflow: after enabling the keyless OpenLibrary provider via PUT /api/v1/config/metadataprovider (round-trip-verified), live-provider search returns nonempty results",
+        "backup listing endpoint reachable",
+        "persistence across a TERM restart: DB + config survive, same API key still authenticates, first user persists (bootstrap stays 409)"
+      ],
+      "plan": {
+        "version": 1,
+        "task_id": "@TASK@",
+        "head_sha": "@HEAD@",
+        "deadline_seconds": 1180,
+        "setup": [
+          {
+            "name": "prepare_fresh_data",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/workflows/prepare.sh"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 120,
+            "env": {
+              "CASE_DIR": "/workspace/@CASE@"
+            }
+          }
+        ],
+        "services": [
+          {
+            "name": "bibliophilarr-app",
+            "argv": [
+              "bash",
+              "/workspace/linux-program/build/start_app.sh"
+            ],
+            "cwd": "repo",
+            "env": {
+              "DATA_DIR": "/workspace/@CASE@/app-data",
+              "APP_PORT": "8765"
+            },
+            "ready": {
+              "url": "http://127.0.0.1:8765/ping",
+              "status": 200,
+              "timeout_seconds": 120,
+              "files": [
+                {
+                  "path": "@CASE@/app-data/config.xml",
+                  "xml_nonempty": [
+                    "ApiKey"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "state_directories": [
+          {
+            "path": "@CASE@/app-data",
+            "mode": "fresh",
+            "reason": "First-user bootstrap and the subsequent restart/persistence scenario must start from an empty data directory"
+          }
+        ],
+        "steps": [
+          {
+            "name": "check_first_boot",
+            "argv": [
+              "python3",
+              "/workspace/linux-program/workflows/check_first_boot.py"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 300,
+            "env": {
+              "APP_URL": "http://127.0.0.1:8765",
+              "CASE_DIR": "/workspace/@CASE@",
+              "WF_USERNAME": "linuxaccept",
+              "WF_PASSWORD": "L!nxAcc3pt-2026",
+              "SEARCH_TERM": "j k rowling"
+            },
+            "secret_env": {
+              "BIBLIOPHILARR_HARDCOVER_API_TOKEN": "HARDCOVER_API_KEY"
+            }
+          },
+          {
+            "action": "restart",
+            "service": "bibliophilarr-app",
+            "signal": "TERM"
+          },
+          {
+            "name": "check_persistence",
+            "argv": [
+              "python3",
+              "/workspace/linux-program/workflows/check_persistence.py"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 180,
+            "env": {
+              "APP_URL": "http://127.0.0.1:8765",
+              "CASE_DIR": "/workspace/@CASE@",
+              "WF_USERNAME": "linuxaccept",
+              "WF_PASSWORD": "L!nxAcc3pt-2026"
+            }
+          }
+        ]
+      },
+      "source_references": [
+        "repo/src/Bibliophilarr.Http/Authentication/AuthenticationController.cs",
+        "repo/src/Bibliophilarr.Api.V1/System/Backup/BackupController.cs",
+        "repo/src/Bibliophilarr.Api.V1/Search/SearchController.cs",
+        "repo/src/Bibliophilarr.Api.V1/Config/MetadataProviderConfigController.cs",
+        "repo/src/NzbDrone.Core/MetadataSource/OpenLibrary/OpenLibraryProvider.cs",
+        "repo/src/Bibliophilarr.Http/Frontend/StaticResourceController.cs"
+      ]
+    }
+  },
+  "version": 1
+}

@@ -81,6 +81,7 @@ class ImportLists extends Component {
 
             <Card
               className={styles.addList}
+              ariaLabel={translate('AddList')}
               onPress={this.onAddImportListPress}
             >
               <div className={styles.center}>

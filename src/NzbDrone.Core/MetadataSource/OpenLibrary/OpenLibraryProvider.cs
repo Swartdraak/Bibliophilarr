@@ -5,6 +5,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
@@ -49,7 +50,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var normalizedAuthorId = NormalizeAuthorId(foreignAuthorId);
 
             // foreignAuthorId may arrive as either "OL{n}A" or "openlibrary:author:OL{n}A"
-            var authorResource = _client.GetAuthor(normalizedAuthorId);
+            var authorResource = _client.GetAuthor(normalizedAuthorId, confirmNotFound: OpenLibraryIdNormalizer.NormalizeAuthorId(foreignAuthorId) != null);
             if (authorResource == null)
             {
                 throw new NzbDrone.Core.Exceptions.AuthorNotFoundException(foreignAuthorId);
@@ -166,73 +167,83 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         private List<OlWorkResource> GetAuthorWorkEntries(string normalizedAuthorId)
         {
-            const int pageSize = 100;
-            const int maxWorks = 1000;
-
-            var works = new List<OlWorkResource>();
-            var offset = 0;
-
-            while (offset < maxWorks)
-            {
-                var response = _client.GetAuthorWorks(normalizedAuthorId, pageSize, offset);
-                var page = response?.Entries ?? new List<OlWorkResource>();
-
-                if (!page.Any())
+            return ReadAuthorPages(
+                normalizedAuthorId,
+                offset =>
                 {
-                    break;
-                }
-
-                works.AddRange(page);
-                offset += page.Count;
-
-                if (page.Count < pageSize)
-                {
-                    break;
-                }
-
-                if (response != null && response.Size > 0 && offset >= response.Size)
-                {
-                    break;
-                }
-            }
-
-            return works;
+                    var response = _client.GetAuthorWorks(normalizedAuthorId, 100, offset);
+                    return (response?.Entries, response?.Size);
+                },
+                work => work?.Key);
         }
 
         private List<OlSearchDoc> GetAuthorWorkSearchDocs(string normalizedAuthorId)
         {
-            const int pageSize = 100;
-            const int maxDocs = 1000;
-
             var query = $"author_key:{normalizedAuthorId}";
-            var docs = new List<OlSearchDoc>();
+            return ReadAuthorPages(
+                normalizedAuthorId,
+                offset =>
+                {
+                    var response = _client.Search(query, 100, offset);
+                    return (response?.Docs, response?.NumFoundExact == true ? response.NumFound : (int?)null);
+                },
+                doc => doc?.Key);
+        }
+
+        private static List<T> ReadAuthorPages<T>(string authorId, Func<int, (List<T> Entries, int? Total)> fetchPage, Func<T, string> getKey)
+        {
+            var results = new List<T>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var offset = 0;
+            var total = 0;
 
-            while (offset < maxDocs)
+            try
             {
-                var response = _client.Search(query, pageSize, offset);
-                var page = response?.Docs ?? new List<OlSearchDoc>();
-
-                if (!page.Any())
+                while (true)
                 {
-                    break;
-                }
+                    var (page, reportedTotal) = fetchPage(offset);
+                    if (page == null)
+                    {
+                        throw new InvalidOperationException($"Open Library did not return a bibliography page at offset {offset}.");
+                    }
 
-                docs.AddRange(page);
-                offset += page.Count;
+                    total = Math.Max(total, reportedTotal ?? 0);
+                    if (page.Count == 0)
+                    {
+                        if (offset < total)
+                        {
+                            throw new InvalidOperationException($"Open Library ended its bibliography at offset {offset} before the reported total {total}.");
+                        }
 
-                if (page.Count < pageSize)
-                {
-                    break;
-                }
+                        return results;
+                    }
 
-                if (response != null && response.NumFound > 0 && offset >= response.NumFound)
-                {
-                    break;
+                    var previousCount = seen.Count;
+                    foreach (var entry in page)
+                    {
+                        var key = NormalizeWorkId(getKey(entry));
+                        if (key.IsNotNullOrWhiteSpace() && seen.Add(key))
+                        {
+                            results.Add(entry);
+                        }
+                    }
+
+                    if (seen.Count == previousCount)
+                    {
+                        throw new InvalidOperationException($"Open Library bibliography did not advance at offset {offset}.");
+                    }
+
+                    offset += page.Count;
+                    if (total > 0 && offset >= total)
+                    {
+                        return results;
+                    }
                 }
             }
-
-            return docs;
+            catch (Exception ex)
+            {
+                throw new MetadataProviderUnavailableException("get-author-info", $"openlibrary:author:{authorId}", ex);
+            }
         }
 
         private Book MapAuthorWorkToBook(OlWorkResource work,
@@ -572,7 +583,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 return Search(query, getAllEditions);
             }
-            catch (OpenLibraryException ex)
+            catch (OpenLibraryException ex) when (!MetadataProviderOrchestrator.IsTransportError(ex))
             {
                 _logger.Warn(ex, "OpenLibrary search failed for '{0}'", title);
                 return new List<Book>();

@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/Components/Page/Sidebar/Messages/Message.css"
+        ],
+        "createdAt": "2026-11-19T16:42:31.911Z",
+        "reason": "Reviewed in source and Git history: this pre-existing sidebar status indicator encodes error, warning, success, and info. It is not a decorative card border."
+      }
+    ]
+  }
+}

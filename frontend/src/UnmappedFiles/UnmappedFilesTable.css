@@ -1,0 +1,63 @@
+.filters {
+  display: flex;
+  align-items: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  padding: 12px $pageContentBodyPadding 0;
+  gap: 8px 12px;
+}
+
+.search {
+  flex: 0 1 340px;
+  min-width: min(100%, 200px);
+}
+
+.format {
+  flex: 0 0 auto;
+}
+
+.filterLabel {
+  display: block;
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.searchInput {
+  composes: input from '~Components/Form/TextInput.css';
+}
+
+.formatInput {
+  composes: select from '~Components/Form/SelectInput.css';
+
+  min-width: 120px;
+}
+
+.counts {
+  display: flex;
+  align-self: flex-end;
+  flex: 1 0 auto;
+  flex-wrap: wrap;
+  padding: 7px 0;
+  gap: 4px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.selectionCount {
+  font-weight: 600;
+}
+
+@media only screen and (max-width: $breakpointSmall) {
+  .filters {
+    padding-right: $pageContentBodyPaddingSmallScreen;
+    padding-left: $pageContentBodyPaddingSmallScreen;
+  }
+
+  .search,
+  .counts {
+    flex-basis: 100%;
+  }
+
+  .counts {
+    padding: 0;
+  }
+}

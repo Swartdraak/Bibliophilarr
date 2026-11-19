@@ -5,6 +5,7 @@ import Link from 'Components/Link/Link';
 import Menu from 'Components/Menu/Menu';
 import MenuContent from 'Components/Menu/MenuContent';
 import { sizes } from 'Helpers/Props';
+import getWikiHelpLink from 'Utilities/getWikiHelpLink';
 import AddSpecificationPresetMenuItem from './AddSpecificationPresetMenuItem';
 import styles from './AddSpecificationItem.css';
 
@@ -87,7 +88,8 @@ class AddSpecificationItem extends Component {
             }
 
             <Button
-              to={infoLink}
+              to={getWikiHelpLink(infoLink, 'settings', 'custom-formats')}
+              target="_blank"
               size={sizes.SMALL}
             >
               More Info

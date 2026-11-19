@@ -4,7 +4,19 @@
   padding-top: 4px;
   width: $toolbarButtonWidth;
   height: $toolbarHeight;
+  border-radius: 6px;
   text-align: center;
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--sidebarActiveBackgroundColor);
+    color: var(--sidebarActiveColor);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--sidebarActiveColor);
+    outline-offset: -2px;
+  }
 }
 
 .indicatorContainer {

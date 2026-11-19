@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "task_id": "@TASK@",
+  "head_sha": "@HEAD@",
+  "deadline_seconds": 2350,
+  "setup": [
+    {
+      "name": "preflight",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/build/preflight_build.sh"
+      ],
+      "cwd": "repo",
+      "env": {
+        "EXPECTED_HEAD": "@HEAD@"
+      },
+      "timeout_seconds": 120
+    },
+    {
+      "name": "build_backend_net10_linux_x64",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/build/build_backend.sh"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 1180,
+      "secret_file_env": {
+        "SIXLABORS_LICENSE_FILE": "SIXLABORS_LICENSE_KEY"
+      }
+    },
+    {
+      "name": "build_frontend_ui_and_packages",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/build/build_frontend.sh"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 940
+    },
+    {
+      "name": "durabilize_output",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/build/durabilize_output.sh"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 180
+    }
+  ],
+  "services": [
+    {
+      "name": "bibliophilarr-app",
+      "argv": [
+        "bash",
+        "/workspace/linux-program/build/start_app.sh"
+      ],
+      "cwd": "repo",
+      "env": {
+        "DATA_DIR": "/workspace/@CASE@/app-data",
+        "APP_PORT": "8765"
+      },
+      "ready": {
+        "url": "http://127.0.0.1:8765/ping",
+        "status": 200,
+        "timeout_seconds": 120,
+        "files": [
+          {
+            "path": "@CASE@/app-data/config.xml",
+            "xml_nonempty": [
+              "ApiKey"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "state_directories": [
+    {
+      "path": "@CASE@/app-data",
+      "mode": "fresh",
+      "reason": "First-user bootstrap must start from an empty data directory so the app generates config.xml, the API key and the SQLite DB itself"
+    }
+  ],
+  "steps": [
+    {
+      "name": "check_build",
+      "argv": [
+        "python3",
+        "/workspace/linux-program/build/check_build.py"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 240,
+      "env": {
+        "APP_URL": "http://127.0.0.1:8765",
+        "CASE_DIR": "/workspace/@CASE@"
+      }
+    }
+  ]
+}

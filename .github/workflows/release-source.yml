@@ -1,0 +1,58 @@
+name: Verify Release Source
+
+on:
+  workflow_call:
+    inputs:
+      requested-tag:
+        type: string
+        default: ''
+      use-current-stable:
+        type: boolean
+        default: false
+      build-only:
+        type: boolean
+        default: false
+    outputs:
+      commit:
+        value: ${{ jobs.verify.outputs.commit }}
+      tag:
+        value: ${{ jobs.verify.outputs.tag }}
+      version:
+        value: ${{ jobs.verify.outputs.version }}
+      core:
+        value: ${{ jobs.verify.outputs.core }}
+      prerelease:
+        value: ${{ jobs.verify.outputs.prerelease }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      tag: ${{ steps.source.outputs.tag }}
+      version: ${{ steps.source.outputs.version }}
+      core: ${{ steps.source.outputs.core }}
+      prerelease: ${{ steps.source.outputs.prerelease }}
+    steps:
+      - name: Checkout event source and promotion refs
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify release source
+        id: source
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.requested-tag }}
+          USE_CURRENT_STABLE: ${{ inputs.use-current-stable }}
+          BUILD_ONLY: ${{ inputs.build-only }}
+        run: |
+          python3 scripts/verify_release_source.py \
+            --requested-tag="$REQUESTED_TAG" \
+            --use-current-stable="$USE_CURRENT_STABLE" \
+            --build-only="$BUILD_ONLY"

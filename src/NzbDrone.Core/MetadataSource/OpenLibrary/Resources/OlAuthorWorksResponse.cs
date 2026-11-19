@@ -14,6 +14,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         [JsonPropertyName("size")]
         public int Size { get; set; }
 
+        [JsonRequired]
         [JsonPropertyName("entries")]
         public List<OlWorkResource> Entries { get; set; } = new List<OlWorkResource>();
     }

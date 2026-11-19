@@ -237,13 +237,35 @@ namespace NzbDrone.Core.Organizer
 
         private void AddAuthorTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, Author author)
         {
-            tokenHandlers["{Author Name}"] = m => author.Name;
-            tokenHandlers["{Author CleanName}"] = m => CleanTitle(author.Name);
-            tokenHandlers["{Author NameThe}"] = m => TitleThe(author.Name);
-            tokenHandlers["{Author SortName}"] = m => author?.Metadata?.Value?.NameLastFirst ?? string.Empty;
-            tokenHandlers["{Author NameFirstCharacter}"] = m => TitleThe(author.Name).Substring(0, 1).FirstCharToUpper();
+            // {Author Name} and friends may be invoked for an author whose metadata is
+            // not yet loaded/available (e.g. a freshly constructed author on the
+            // local-add path, where Author.Name resolves through
+            // Metadata.Value and that value can be null before provider resolution).
+            // The folder name must never crash the API: fall back to the clean name
+            // or an empty string instead of throwing (issue #325 DEFECT-RECOVERY-
+            // AUTHOR-ADD-500-NRE: POST /api/v1/author without an explicit path
+            // returned 500 'Object reference not set' from this token handler).
+            var name = author?.Name;
+            if (name == null)
+            {
+                name = author?.CleanName;
+            }
 
-            if (author.Metadata.Value.Disambiguation != null)
+            if (name == null)
+            {
+                name = string.Empty;
+            }
+
+            var cleanName = name;
+            var sortName = author?.Metadata?.Value?.NameLastFirst;
+
+            tokenHandlers["{Author Name}"] = m => name;
+            tokenHandlers["{Author CleanName}"] = m => CleanTitle(cleanName);
+            tokenHandlers["{Author NameThe}"] = m => TitleThe(name);
+            tokenHandlers["{Author SortName}"] = m => sortName ?? string.Empty;
+            tokenHandlers["{Author NameFirstCharacter}"] = m => TitleThe(name).Length > 0 ? TitleThe(name).Substring(0, 1).FirstCharToUpper() : string.Empty;
+
+            if (author?.Metadata?.Value?.Disambiguation != null)
             {
                 tokenHandlers["{Author Disambiguation}"] = m => author.Metadata.Value.Disambiguation;
             }

@@ -10,10 +10,10 @@ namespace Bibliophilarr.Api.V1.Books
     [V1ApiController("book/lookup")]
     public class BookLookupController : Controller
     {
-        private readonly ISearchForNewBook _searchProxy;
+        private readonly IMetadataProviderOrchestrator _searchProxy;
         private readonly IMapCoversToLocal _coverMapper;
 
-        public BookLookupController(ISearchForNewBook searchProxy, IMapCoversToLocal coverMapper)
+        public BookLookupController(IMetadataProviderOrchestrator searchProxy, IMapCoversToLocal coverMapper)
         {
             _searchProxy = searchProxy;
             _coverMapper = coverMapper;
@@ -23,7 +23,7 @@ namespace Bibliophilarr.Api.V1.Books
         public object Search(string term)
         {
             var searchResults = _searchProxy.SearchForNewBook(term, null);
-            return MapToResource(searchResults).ToList();
+            return MapToResource(searchResults ?? Enumerable.Empty<NzbDrone.Core.Books.Book>()).ToList();
         }
 
         private IEnumerable<BookResource> MapToResource(IEnumerable<NzbDrone.Core.Books.Book> books)

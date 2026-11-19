@@ -82,6 +82,9 @@ namespace Bibliophilarr.Api.V1.Author
 
             Http.Validation.RuleBuilderExtensions.ValidId(SharedValidator.RuleFor(s => s.QualityProfileId));
             Http.Validation.RuleBuilderExtensions.ValidId(SharedValidator.RuleFor(s => s.MetadataProfileId));
+            Http.Validation.RuleBuilderExtensions.IsInEnum(
+                SharedValidator.RuleFor(s => s.MonitorNewItems),
+                typeof(NzbDrone.Core.Books.NewItemMonitorTypes));
 
             SharedValidator.RuleFor(s => s.Path)
                            .Cascade(CascadeMode.Stop)

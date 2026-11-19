@@ -9,8 +9,7 @@ using NzbDrone.Integration.Test.Client;
 namespace NzbDrone.Integration.Test.ApiTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
-    public class CalendarFixture : IntegrationTest
+    public class CalendarFixture : CatalogueIntegrationTest
     {
         public ClientBase<BookResource> Calendar;
 
@@ -24,23 +23,23 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Test]
         public void should_be_able_to_get_books()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
+            var book = SeedCatalogueBook(true);
 
             var request = Calendar.BuildRequest();
             request.AddParameter("start", new DateTime(2020, 02, 01).ToString("s") + "Z");
             request.AddParameter("end", new DateTime(2020, 02, 28).ToString("s") + "Z");
             var items = Calendar.Get<List<BookResource>>(request);
 
-            items = items.Where(v => v.AuthorId == author.Id).ToList();
+            items = items.Where(v => v.AuthorId == book.AuthorId).ToList();
 
             items.Should().HaveCount(1);
-            items.First().Title.Should().Be("The Last Day");
+            items.First().Title.Should().Be(CatalogueTitle);
         }
 
         [Test]
         public void should_not_be_able_to_get_unmonitored_books()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
+            var book = SeedCatalogueBook(false);
 
             var request = Calendar.BuildRequest();
             request.AddParameter("start", new DateTime(2020, 02, 01).ToString("s") + "Z");
@@ -48,7 +47,7 @@ namespace NzbDrone.Integration.Test.ApiTests
             request.AddParameter("unmonitored", "false");
             var items = Calendar.Get<List<BookResource>>(request);
 
-            items = items.Where(v => v.AuthorId == author.Id).ToList();
+            items = items.Where(v => v.AuthorId == book.AuthorId).ToList();
 
             items.Should().BeEmpty();
         }
@@ -56,7 +55,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Test]
         public void should_be_able_to_get_unmonitored_books()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
+            var book = SeedCatalogueBook(false);
 
             var request = Calendar.BuildRequest();
             request.AddParameter("start", new DateTime(2020, 02, 01).ToString("s") + "Z");
@@ -64,10 +63,10 @@ namespace NzbDrone.Integration.Test.ApiTests
             request.AddParameter("unmonitored", "true");
             var items = Calendar.Get<List<BookResource>>(request);
 
-            items = items.Where(v => v.AuthorId == author.Id).ToList();
+            items = items.Where(v => v.AuthorId == book.AuthorId).ToList();
 
             items.Should().HaveCount(1);
-            items.First().Title.Should().Be("The Last Day");
+            items.First().Title.Should().Be(CatalogueTitle);
         }
     }
 }

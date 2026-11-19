@@ -82,6 +82,7 @@ class InteractiveImportSelectFolderModalContent extends Component {
           <PathInputConnector
             name="folder"
             value={folder}
+            updateOnInput={true}
             onChange={this.onPathChange}
           />
 

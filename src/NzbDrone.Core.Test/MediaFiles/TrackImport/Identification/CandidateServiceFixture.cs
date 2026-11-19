@@ -150,8 +150,9 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
                 .Verify(s => s.SearchForNewBook("Spellmonger", "Terry Mancour", true), Times.Once());
         }
 
-        [Test]
-        public void should_try_swapped_author_title_search_when_primary_author_title_search_fails()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_try_swapped_author_title_search_when_primary_search_has_no_compatible_edition(bool incompatibleFirstResult)
         {
             var metadata = new AuthorMetadata
             {
@@ -187,7 +188,21 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
                 {
                     if (title == "Frank Herbert" && author == "Dune")
                     {
-                        return new List<Book>();
+                        var incompatibleBook = new Book
+                        {
+                            ForeignBookId = "openlibrary:work:OL2W",
+                            Editions = new List<Edition>
+                            {
+                                new Edition
+                                {
+                                    ForeignEditionId = "openlibrary:edition:OL2M",
+                                    Title = "Frank Herbert",
+                                    Format = ".EPUB"
+                                }
+                            }
+                        };
+
+                        return incompatibleFirstResult ? new List<Book> { incompatibleBook } : new List<Book>();
                     }
 
                     if (title == "Dune" && author == "Frank Herbert")
@@ -204,6 +219,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
                 {
                     new LocalBook
                     {
+                        Path = "/media/Dune.m4b",
                         FileTrackInfo = new ParsedTrackInfo
                         {
                             Authors = new List<string> { "Dune" },
@@ -215,7 +231,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 
             var candidates = Subject.GetRemoteCandidates(edition, null).ToList();
 
-            candidates.Should().NotBeEmpty();
+            candidates.Should().ContainSingle().Which.Edition.Should().BeSameAs(matchedBook.Editions.Value.Single());
             Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Verify(x => x.SearchForNewBook("Frank Herbert", "Dune", true), Times.Once());
             Mocker.GetMock<IMetadataProviderOrchestrator>()

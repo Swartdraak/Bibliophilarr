@@ -439,5 +439,123 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
 
             Assert.DoesNotThrow(() => Subject.GetTrackMetadata(bookFile));
         }
+
+        [Test]
+        public void get_track_metadata_should_not_throw_when_book_author_not_loaded()
+        {
+            GivenFileCopy("nin.mp3");
+
+            var file = GivenPopulatedTrackfile(0);
+            file.Path = _copiedFile;
+
+            // Simulate the lazy-loaded Author not being populated (the #210 NRE scenario).
+            var book = file.Edition.Value.Book.Value;
+            var authorId = book.Author.Value.Id;
+            book.Author = null;
+            file.Author = null;
+
+            // No author available to fall back to -> graceful skip, no NRE.
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.GetAuthor(authorId))
+                .Returns((Author)null);
+
+            AudioTag result = null;
+            var act = () => result = Subject.GetTrackMetadata(file);
+
+            act.Should().NotThrow();
+            result.Should().BeNull();
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void get_track_metadata_should_load_author_by_id_when_not_loaded()
+        {
+            GivenFileCopy("nin.mp3");
+
+            var file = GivenPopulatedTrackfile(0);
+            file.Path = _copiedFile;
+
+            var book = file.Edition.Value.Book.Value;
+
+            // Capture the author id BEFORE nulling the lazy-loaded Author, because
+            // Book.AuthorId reads Author.Value.Id (which is 0 once Author is null).
+            var authorId = book.Author.Value.Id;
+            var authorName = book.Author.Value.Name;
+            book.Author = null;
+
+            // The author is available via the service -> tags are built successfully.
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.GetAuthor(authorId))
+                .Returns(new Author { Id = authorId, Name = authorName });
+
+            var tag = Subject.GetTrackMetadata(file);
+
+            tag.Should().NotBeNull();
+            tag.Performers.Should().ContainSingle().Which.Should().Be(authorName);
+        }
+
+        [Test]
+        public void get_track_metadata_should_not_throw_when_edition_not_loaded()
+        {
+            GivenFileCopy("nin.mp3");
+
+            var file = GivenPopulatedTrackfile(0);
+            file.Path = _copiedFile;
+            file.Edition = null;
+
+            AudioTag result = null;
+            var act = () => result = Subject.GetTrackMetadata(file);
+
+            act.Should().NotThrow();
+            result.Should().BeNull();
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void get_track_metadata_should_not_throw_when_book_not_loaded()
+        {
+            GivenFileCopy("nin.mp3");
+
+            var file = GivenPopulatedTrackfile(0);
+            file.Path = _copiedFile;
+            file.Edition.Value.Book = null;
+
+            AudioTag result = null;
+            var act = () => result = Subject.GetTrackMetadata(file);
+
+            act.Should().NotThrow();
+            result.Should().BeNull();
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void write_tags_should_not_throw_when_book_author_not_loaded()
+        {
+            GivenFileCopy("nin.mp3");
+
+            Mocker.GetMock<IConfigService>()
+                .Setup(x => x.ScrubAudioTags)
+                .Returns(true);
+
+            var file = GivenPopulatedTrackfile(0);
+            file.Path = _copiedFile;
+
+            var book = file.Edition.Value.Book.Value;
+            var authorId = book.Author.Value.Id;
+            book.Author = null;
+            file.Author = null;
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.GetAuthor(authorId))
+                .Returns((Author)null);
+
+            // A tag-write skip must not itself throw (secondary NRE guard).
+            Assert.DoesNotThrow(() => Subject.WriteTags(file, false, true));
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
     }
 }

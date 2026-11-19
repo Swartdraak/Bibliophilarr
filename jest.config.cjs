@@ -11,7 +11,7 @@ module.exports = {
     '<rootDir>/frontend/src/Shims'
   ],
   moduleNameMapper: {
-    '^jquery$': 'jquery/dist/jquery.min',
+    '^jquery$': '<rootDir>/node_modules/jquery/dist/jquery.min.js',
     '^react-middle-truncate$': 'react-middle-truncate/lib/react-middle-truncate',
     '\\.(css)$': 'identity-obj-proxy',
     '\\.(gif|ttf|eot|svg|png|jpg|jpeg|webp)$': '<rootDir>/frontend/build/jestFileMock.js'

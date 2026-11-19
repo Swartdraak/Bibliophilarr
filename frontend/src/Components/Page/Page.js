@@ -89,6 +89,7 @@ class Page extends Component {
           <SignalRConnector />
 
           <PageHeader
+            isSidebarVisible={isSidebarVisible}
             onSidebarToggle={onSidebarToggle}
           />
 
@@ -100,9 +101,11 @@ class Page extends Component {
               onSidebarVisibleChange={onSidebarVisibleChange}
             />
 
-            <ErrorBoundary errorComponent={PageContentError}>
-              {children}
-            </ErrorBoundary>
+            <main className={styles.workspace}>
+              <ErrorBoundary errorComponent={PageContentError}>
+                {children}
+              </ErrorBoundary>
+            </main>
           </div>
 
           <AppUpdatedModalConnector

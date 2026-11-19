@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, { useState } from 'react';
 import Alert from 'Components/Alert';
 import Form from 'Components/Form/Form';
 import FormGroup from 'Components/Form/FormGroup';
@@ -15,11 +15,16 @@ import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { inputTypes, kinds } from 'Helpers/Props';
 import AdvancedSettingsButton from 'Settings/AdvancedSettingsButton';
+import getUniqueElementId from 'Utilities/getUniqueElementId';
 import translate from 'Utilities/String/translate';
 import NotificationEventItems from './NotificationEventItems';
 import styles from './EditNotificationModalContent.css';
 
 function EditNotificationModalContent(props) {
+  const [formId] = useState(getUniqueElementId);
+  const nameId = `${formId}-name`;
+  const tagsId = `${formId}-tags`;
+
   const {
     advancedSettings,
     isFetching,
@@ -80,7 +85,7 @@ function EditNotificationModalContent(props) {
               }
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name={nameId}>
                   {translate('Name')}
                 </FormLabel>
 
@@ -88,6 +93,7 @@ function EditNotificationModalContent(props) {
                   type={inputTypes.TEXT}
                   name="name"
                   {...name}
+                  inputId={nameId}
                   onChange={onInputChange}
                 />
               </FormGroup>
@@ -98,7 +104,7 @@ function EditNotificationModalContent(props) {
               />
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name={tagsId}>
                   {translate('Tags')}
                 </FormLabel>
 
@@ -107,6 +113,7 @@ function EditNotificationModalContent(props) {
                   name="tags"
                   helpText={translate('TagsHelpText')}
                   {...tags}
+                  inputId={tagsId}
                   onChange={onInputChange}
                 />
               </FormGroup>
@@ -121,6 +128,7 @@ function EditNotificationModalContent(props) {
                       providerData={item}
                       section="settings.notifications"
                       {...field}
+                      inputId={`${formId}-provider-${field.name}`}
                       onChange={onFieldChange}
                     />
                   );

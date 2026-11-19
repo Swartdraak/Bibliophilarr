@@ -59,9 +59,7 @@ class RestoreBackupModalContent extends Component {
     this.state = {
       file: null,
       path: '',
-      isRestored: false,
-      isRestarted: false,
-      isReloading: false
+      isRestored: false
     };
   }
 
@@ -69,22 +67,12 @@ class RestoreBackupModalContent extends Component {
     const {
       isRestoring,
       restoreError,
-      isRestarting,
       dispatchRestart
     } = this.props;
 
     if (prevProps.isRestoring && !isRestoring && !restoreError) {
       this.setState({ isRestored: true }, () => {
         dispatchRestart();
-      });
-    }
-
-    if (prevProps.isRestarting && !isRestarting) {
-      this.setState({
-        isRestarted: true,
-        isReloading: true
-      }, () => {
-        location.reload();
       });
     }
   }
@@ -120,22 +108,18 @@ class RestoreBackupModalContent extends Component {
       name,
       isRestoring,
       restoreError,
-      isRestarting,
       onModalClose
     } = this.props;
 
     const {
       path,
-      isRestored,
-      isRestarted,
-      isReloading
+      isRestored
     } = this.state;
 
     const isRestoreDisabled = (
       (!id && !path) ||
       isRestoring ||
-      isRestarting ||
-      isReloading
+      isRestored
     );
 
     return (
@@ -177,25 +161,12 @@ class RestoreBackupModalContent extends Component {
               <div className={styles.stepState}>
                 <Icon
                   size={20}
-                  {...getStepIconProps(isRestarting, isRestarted)}
+                  {...getStepIconProps(isRestored, false)}
                 />
               </div>
 
               <div>
                 {translate('Restart')}
-              </div>
-            </div>
-
-            <div className={styles.step}>
-              <div className={styles.stepState}>
-                <Icon
-                  size={20}
-                  {...getStepIconProps(isReloading, false)}
-                />
-              </div>
-
-              <div>
-                {translate('Reload')}
               </div>
             </div>
           </div>
@@ -230,7 +201,6 @@ RestoreBackupModalContent.propTypes = {
   path: PropTypes.string,
   isRestoring: PropTypes.bool.isRequired,
   restoreError: PropTypes.object,
-  isRestarting: PropTypes.bool.isRequired,
   dispatchRestart: PropTypes.func.isRequired,
   onRestorePress: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired

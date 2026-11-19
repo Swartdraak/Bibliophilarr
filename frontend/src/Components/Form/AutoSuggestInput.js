@@ -155,6 +155,7 @@ class AutoSuggestInput extends Component {
       className,
       inputContainerClassName,
       name,
+      inputId,
       value,
       placeholder,
       suggestions,
@@ -178,6 +179,7 @@ class AutoSuggestInput extends Component {
         hasError && styles.hasError,
         hasWarning && styles.hasWarning
       ),
+      id: inputId,
       name,
       value,
       placeholder,
@@ -203,7 +205,7 @@ class AutoSuggestInput extends Component {
         <Autosuggest
           {...otherProps}
           ref={forwardedRef}
-          id={name}
+          id={inputId ?? name}
           inputProps={inputProps}
           theme={theme}
           suggestions={suggestions}
@@ -225,6 +227,7 @@ AutoSuggestInput.propTypes = {
   className: PropTypes.string.isRequired,
   inputContainerClassName: PropTypes.string.isRequired,
   name: PropTypes.string.isRequired,
+  inputId: PropTypes.string,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
   placeholder: PropTypes.string,
   suggestions: PropTypes.array.isRequired,

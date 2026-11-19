@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="DryIoc.dll" />
     <PackageReference Include="IPAddressRange" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
 	<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="NLog.Extensions.Logging" />
@@ -15,7 +16,8 @@
     <PackageReference Include="SharpZipLib" />
     <PackageReference Include="System.IO.Abstractions" />
     <PackageReference Include="System.ValueTuple" />
-    <PackageReference Include="System.Data.SQLite.Core" />
+    <PackageReference Include="System.Data.SQLite" />
+    <PackageReference Include="SourceGear.sqlite3.ext" />
     <PackageReference Include="System.Configuration.ConfigurationManager" />
     <PackageReference Include="System.ServiceProcess.ServiceController" />
   </ItemGroup>

@@ -4,6 +4,8 @@
     <OutputType>Library</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="MailKit" />
     <ProjectReference Include="..\NzbDrone.Core\Bibliophilarr.Core.csproj" />
   </ItemGroup>
 </Project>

@@ -5,13 +5,15 @@ Welcome to the Bibliophilarr wiki.
 ## Start here
 
 - [Architecture Overview](Architecture.md)
+- [Dual-Library and Dual-Format Tracking](Dual-Format-Tracking.md)
+- [Metadata Source Fallback and Provider-Failure Semantics](Metadata-Fallback.md)
 - [Updates and Branches](Updates-and-Branches.md)
 - [Metadata Migration Program](Metadata-Migration-Program.md)
 - [Contributor Onboarding](Contributor-Onboarding.md)
 
 ## Current priorities
 
-1. Execute remediation queue (176 items tracked in `PROJECT_STATUS.md`).
+1. Verify open issues and pull requests against the current integration build.
 2. Consolidate multi-provider metadata pipeline (Hardcover → OpenLibrary → Inventaire → Google Books).
 3. Harden provider resilience (timeouts, circuit breakers, fallback ordering).
 4. Improve identification accuracy on large ebook/audiobook libraries.
@@ -38,3 +40,6 @@ Welcome to the Bibliophilarr wiki.
 - [GitHub Projects Blueprint](../docs/operations/GITHUB_PROJECTS_BLUEPRINT.md)
 - [Provider Implementation Guide](../docs/operations/PROVIDER_IMPLEMENTATION_GUIDE.md)
 - [Services Endpoint Runbook](../docs/operations/services-endpoint-runbook.md)
+- [Metadata Provider Outage and Fallback Runbook](../docs/operations/METADATA_PROVIDER_RUNBOOK.md)
+- [Troubleshooting Runbook](../docs/operations/TROUBLESHOOTING_RUNBOOK.md)
+- [Local Instance Operator Runbook](../docs/operations/LOCAL_INSTANCE_OPERATOR_RUNBOOK.md)

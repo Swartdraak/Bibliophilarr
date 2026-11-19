@@ -23,7 +23,7 @@ namespace Bibliophilarr.Http.Authentication
 
     public class ApiKeyAuthenticationHandler : AuthenticationHandler<ApiKeyAuthenticationOptions>
     {
-        private readonly string _apiKey;
+        private readonly IConfigFileProvider _config;
 
         public ApiKeyAuthenticationHandler(IOptionsMonitor<ApiKeyAuthenticationOptions> options,
             ILoggerFactory logger,
@@ -31,7 +31,7 @@ namespace Bibliophilarr.Http.Authentication
             IConfigFileProvider config)
             : base(options, logger, encoder)
         {
-            _apiKey = config.ApiKey;
+            _config = config;
         }
 
         private string ParseApiKey()
@@ -60,7 +60,15 @@ namespace Bibliophilarr.Http.Authentication
                 return Task.FromResult(AuthenticateResult.NoResult());
             }
 
-            if (_apiKey == providedApiKey)
+            // Read the API key from the config provider per request rather than
+            // caching it once in the constructor. On a cold boot the value
+            // captured at construction time can be a pre-finalization key that
+            // differs from the key ultimately persisted to config.xml during
+            // startup; because the old cache was never invalidated, the
+            // persisted key could never authenticate until a restart (issue #309).
+            var currentApiKey = _config.ApiKey;
+
+            if (!string.IsNullOrWhiteSpace(currentApiKey) && currentApiKey == providedApiKey)
             {
                 var claims = new List<Claim>
                 {

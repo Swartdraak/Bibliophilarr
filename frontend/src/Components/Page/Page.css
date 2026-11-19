@@ -10,6 +10,12 @@
   flex: 1 1 auto;
 }
 
+.workspace {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 @media only screen and (max-width: $breakpointSmall) {
   .page {
     flex-grow: 1;

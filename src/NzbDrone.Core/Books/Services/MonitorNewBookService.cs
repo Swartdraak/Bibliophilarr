@@ -38,7 +38,16 @@ namespace NzbDrone.Core.Books
                 return (addedBook.ReleaseDate ?? DateTime.MinValue) >= newest;
             }
 
-            throw new NotImplementedException($"Unknown new item monitor type {monitorNewItems}");
+            // Unknown / out-of-range monitor value (e.g. a stale or externally-written
+            // numeric value such as 3). Never throw: throwing here was caught upstream and
+            // only logged, which silently dropped every new book on import/refresh (issue #256).
+            // Log loudly and fall back to the safe "do not auto-monitor" default (None).
+            _logger.Warn("Unknown NewItemMonitorTypes value {0} ({1}) for book '{2}'; defaulting to no-monitor. The value is out of range (expected All=0, None=1, New=2).",
+                (int)monitorNewItems,
+                monitorNewItems,
+                addedBook?.Title);
+
+            return false;
         }
     }
 }

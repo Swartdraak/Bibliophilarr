@@ -111,7 +111,12 @@ namespace Bibliophilarr.Api.V1.Books
 
         public static List<Edition> ToModel(this IEnumerable<EditionResource> resources)
         {
-            return resources.Select(ToModel).ToList();
+            // Issue #276: guard a null collection — BookResourceMapper.ToModel invokes
+            // resource.Editions.ToModel() on the post-add mapping path, where Editions
+            // can be null (book whose edition list was never loaded). The sibling
+            // ToResource(IEnumerable) uses models?.Select; mirror it so a null
+            // collection maps to an empty list instead of ArgumentNullException.
+            return resources?.Select(ToModel).ToList() ?? new List<Edition>();
         }
     }
 }

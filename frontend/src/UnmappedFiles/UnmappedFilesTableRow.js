@@ -11,6 +11,7 @@ import { icons, kinds } from 'Helpers/Props';
 import InteractiveImportModal from 'InteractiveImport/InteractiveImportModal';
 import formatBytes from 'Utilities/Number/formatBytes';
 import translate from 'Utilities/String/translate';
+import { getUnmappedFileFormat } from './filterUnmappedFiles';
 import styles from './UnmappedFilesTableRow.css';
 
 class UnmappedFilesTableRow extends Component {
@@ -75,7 +76,9 @@ class UnmappedFilesTableRow extends Component {
       onSelectedChange
     } = this.props;
 
-    const folder = path.substring(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
+    const separatorIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+    const folder = path.substring(0, separatorIndex);
+    const fileName = path.slice(separatorIndex + 1);
 
     const {
       isInteractiveImportModalOpen,
@@ -115,7 +118,10 @@ class UnmappedFilesTableRow extends Component {
                   key={name}
                   className={styles[name]}
                 >
-                  {path}
+                  <div title={path}>
+                    <div className={styles.fileName}>{fileName}</div>
+                    <div className={styles.folder}>{folder}</div>
+                  </div>
                 </VirtualTableRowCell>
               );
             }
@@ -148,9 +154,21 @@ class UnmappedFilesTableRow extends Component {
                   key={name}
                   className={styles[name]}
                 >
-                  <BookQuality
-                    quality={quality}
-                  />
+                  {quality?.quality ? <BookQuality quality={quality} /> : translate('Unknown')}
+                </VirtualTableRowCell>
+              );
+            }
+
+            if (name === 'format') {
+              const format = getUnmappedFileFormat({ quality });
+              const label = { ebook: 'Ebook', audiobook: 'Audiobook', unknown: 'Unknown' }[format];
+
+              return (
+                <VirtualTableRowCell
+                  key={name}
+                  className={styles[name]}
+                >
+                  {translate(label)}
                 </VirtualTableRowCell>
               );
             }
@@ -221,7 +239,7 @@ UnmappedFilesTableRow.propTypes = {
   id: PropTypes.number.isRequired,
   path: PropTypes.string.isRequired,
   size: PropTypes.number.isRequired,
-  quality: PropTypes.object.isRequired,
+  quality: PropTypes.object,
   dateAdded: PropTypes.string.isRequired,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   isSelected: PropTypes.bool,

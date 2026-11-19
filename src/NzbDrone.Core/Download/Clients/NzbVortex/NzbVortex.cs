@@ -51,7 +51,7 @@ namespace NzbDrone.Core.Download.Clients.NzbVortex
         {
             var queueItems = new List<DownloadClientItem>();
 
-            foreach (var category in Settings.GetAllCategories())
+            foreach (var category in Settings.GetAllCategories().Distinct())
             {
                 var vortexQueue = _proxy.GetQueue(30, category, Settings);
 

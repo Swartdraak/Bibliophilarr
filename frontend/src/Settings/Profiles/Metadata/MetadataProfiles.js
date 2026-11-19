@@ -74,6 +74,7 @@ class MetadataProfiles extends Component {
 
             <Card
               className={styles.addMetadataProfile}
+              ariaLabel={translate('AddMetadataProfile')}
               onPress={this.onEditMetadataProfilePress}
             >
               <div className={styles.center}>

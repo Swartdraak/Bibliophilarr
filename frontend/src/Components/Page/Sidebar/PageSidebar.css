@@ -2,6 +2,7 @@
   flex: 0 0 $sidebarWidth;
   overflow: hidden;
   width: $sidebarWidth;
+  border-right: 1px solid var(--workspaceBorderColor);
   background-color: var(--sidebarBackgroundColor);
   transition: transform 300ms ease-in-out;
   transform: translateX(0);
@@ -11,8 +12,13 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding: 12px 9px;
   background-color: var(--sidebarBackgroundColor);
-  color: var(--white);
+  color: var(--sidebarNavigationColor);
+}
+
+.isClosed {
+  pointer-events: none;
 }
 
 @media only screen and (max-width: $breakpointSmall) {
@@ -29,5 +35,11 @@
     overflow-y: auto;
     width: 100%;
     height: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebarContainer {
+    transition: none;
   }
 }

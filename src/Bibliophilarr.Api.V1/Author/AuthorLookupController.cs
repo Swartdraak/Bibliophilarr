@@ -11,11 +11,11 @@ namespace Bibliophilarr.Api.V1.Author
     [V1ApiController("author/lookup")]
     public class AuthorLookupController : Controller
     {
-        private readonly ISearchForNewAuthor _searchProxy;
+        private readonly IMetadataProviderOrchestrator _searchProxy;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IMapCoversToLocal _coverMapper;
 
-        public AuthorLookupController(ISearchForNewAuthor searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper)
+        public AuthorLookupController(IMetadataProviderOrchestrator searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
@@ -26,7 +26,7 @@ namespace Bibliophilarr.Api.V1.Author
         public object Search([FromQuery] string term)
         {
             var searchResults = _searchProxy.SearchForNewAuthor(term);
-            return MapToResource(searchResults).ToList();
+            return MapToResource(searchResults ?? Enumerable.Empty<NzbDrone.Core.Books.Author>()).ToList();
         }
 
         private IEnumerable<AuthorResource> MapToResource(IEnumerable<NzbDrone.Core.Books.Author> author)

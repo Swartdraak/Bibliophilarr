@@ -139,13 +139,18 @@ namespace NzbDrone.Host
 
         public static IHostBuilder CreateConsoleHostBuilder(string[] args, StartupContext context)
         {
+            if (OperatingSystem.IsWindows() && !context.Args.ContainsKey(StartupContext.APPDATA))
+            {
+                // Also cover direct host callers before Startup.ConfigureServices creates the key store.
+                AppFolderFactory.EnsurePrivateWindowsFolder(new AppFolderInfo(context).AppDataFolder);
+            }
+
             var config = GetConfiguration(context);
             RejectLegacyConfigurationKeys(config);
 
             var bindAddress = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.BindAddress)}")
                               ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
-            var port = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.Port)}")
-                       ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
+            var port = GetServerPort(config);
             var sslPort = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.SslPort)}")
                           ?? config.GetValue(nameof(ConfigFileProvider.SslPort), 6868);
             var enableSsl = config.GetValue<bool?>($"Bibliophilarr:Server:{nameof(ServerOptions.EnableSsl)}")
@@ -269,9 +274,16 @@ namespace NzbDrone.Host
             }
         }
 
-        private static string BuildUrl(string scheme, string bindAddress, int port)
+        internal static string BuildUrl(string scheme, string bindAddress, int port)
         {
             return $"{scheme}://{bindAddress}:{port}";
+        }
+
+        internal static int GetServerPort(IConfiguration config)
+        {
+            return config.GetValue<int?>("Bibliophilarr:Server:Port")
+                   ?? config.GetValue<int?>("Bibliophilarr_Server:Port")
+                   ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
         }
 
         private static void ConfigureOptions<T>(IServiceCollection services, IConfiguration config, string sectionName)
@@ -280,10 +292,11 @@ namespace NzbDrone.Host
             services.Configure<T>(config.GetSection($"Bibliophilarr:{sectionName}"));
         }
 
-        private static void RejectLegacyConfigurationKeys(IConfiguration config)
+        // Reject the pre-rebrand namespace while preserving active configuration keys.
+        internal static void RejectLegacyConfigurationKeys(IConfiguration config)
         {
             var legacyKeys = config.AsEnumerable()
-                .Where(kv => kv.Key.StartsWith("Bibliophilarr:", StringComparison.OrdinalIgnoreCase))
+                .Where(kv => kv.Key.StartsWith("Readarr:", StringComparison.OrdinalIgnoreCase))
                 .Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
                 .Select(kv => kv.Key)
                 .Distinct()

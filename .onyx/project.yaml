@@ -1,0 +1,1935 @@
+# Onyx project contract — Swartdraak/Bibliophilarr
+# Authoritative executable contract for autonomous work on this repository.
+# Commands below were re-verified in an isolated Docker audit environment
+# (Debian 13, .NET SDK 10.0.401, Node v20.20.2, Yarn 1.22.19).
+# Issue #383 dev run (2026-11-13, task t_29ddea0d, runs 4914+4916+4922, base
+# develop 0b92739ed1071c10b2da8efb293c052ebc2596f9 = live develop tip at
+# checkout t_40a6bead, work branch fix/issue-383-rescanfolders-missing-author
+# at 7bc59111bdb591f305dc5f8fdca7ddec8bf610a1): RescanFolders crash fix.
+# AuthorService.GetAuthors now resolves each author id via Find() and skips
+# missing rows with a warning log instead of letting BasicRepository.Get
+# throw ApplicationException "Expected query to return 1 rows but returned 0".
+# 2 regression tests in ScanFixture (missing-author + positive control).
+# RED at base: missing-author test failed via ApplicationException.
+# GREEN post-fix: 22/22 DiskScanServiceTests pass. No JS/TS runtime files
+# changed (no production_coverage binding). CHANGELOG Unreleased Fixed entry
+# added. Publication stage owns push + PR creation targeting develop.
+# Existing-PR #402 audit run (2026-11-12, task t_96626bf8, run 4800, base
+# develop 07bd77cf68ea63be514d64038777ae8942cea642 = live develop tip, work
+# branch dependabot/nuget/src/develop/multi-b7e0246e06 at the registered
+# contributor head 17039ba72b01b4f563b53576290b6927ec5f1dd6):
+# dependabot: bump Microsoft.IdentityModel.JsonWebTokens and
+# System.IdentityModel.Tokens.Jwt 8.22.0 -> 8.23.0 (2 central-package pins in
+# src/Directory.Packages.props lines 28 and 85; +2/-2). Both are
+# transitive-consumer pins (no direct PackageReference in any csproj; they
+# resolve into Bibliophilarr.Core / Bibliophilarr.Api / Bibliophilarr.Http and
+# the test graph via Microsoft.AspNetCore.Identity / token-validation
+# dependency chains). MINOR-line NuGet central-package-management bump. NO
+# code, test, lockfile, or runtime changes. The registered contributor head
+# 17039ba7 IS the reviewed result (single contributor commit, parent
+# 07bd77cf68 == live PR base == current develop tip; merge-base == develop tip,
+# gap of zero -- no catch-up merge needed; no rebase/force-push). Contributor
+# commit preserved as ancestor. Exact-head hosted CI green at 17039ba7 (13
+# checks: 12 success + 1 neutral CodeQL, 0 failure, 0 pending; live-re-verified
+# by checkout stage t_8e9e3e7d run 4798 at 2026-11-12T05:41Z; develop tip
+# unchanged since). Validation at the exact head 17039ba7 (evidence:
+# /workspace/raw-logs-t_96626bf8/ + baseline.json commands[]): dotnet restore
+# exit 0 (zero NU19xx); JWT 8.23.0 resolved in 23 fresh _temp/obj assets; dotnet
+# build Release 0 warn / 0 err in 1m49s (SixLabors license provisioned, value
+# never logged/committed); full NzbDrone.Common.Test 633 passed / 35 skipped /
+# 0 failed (668 total, 50s -- skip count identical to the contributor head, all
+# platform-specific Windows service/forms tests); central-pin invariants
+# (NuGetAuditModeIssue103 + NuGetCompatibilityIssue103) 6/6 PASS; targeted Core
+# (RateLimitServiceFixture + ProcessProviderFixture) 0 failed; targeted Api
+# (MetadataProvidersControllerFixture + MetadataProviderConfigResourceMapperFixture)
+# 4/4 PASS; yarn install --frozen-lockfile PASS; jest 155/155 (23 suites);
+# eslint 0 errors / 7 pre-existing warnings. No JS/TS runtime files under
+# src/frontend/lib/app changed (no production_coverage binding). Dependency-only
+# maintenance work: no linked issue applies. Publication stage owns
+# fast-forward push to the SAME PR #402 + onyx-onboard guarded merge after real
+# exact-head CI/governance passes.
+# Existing-PR #390 audit run (2026-11-11, task t_8938a0e1, run 4741, base
+# develop ddfbdfd6857026643aacb5185664fa4039c83367 = live develop tip, work
+# branch dependabot/github_actions/develop/actions/setup-dotnet-6.1.0):
+# dependabot: bump actions/setup-dotnet 5.2.0 -> 6.1.0 (4 workflow files, 10
+# pins: ci-backend.yml x4, cross-build-portability.yml x4, release.yml x1,
+# staging-smoke-metadata-telemetry.yml x1; pinned SHA c2fa09f4 v5.2.0 ->
+# 0f4a354dd5547a28c70b7853dbd95d5b67886e73 v6.1.0). Workflow-action pin only:
+# NO code, test, lockfile, or runtime changes. Exact-head hosted CI green at
+# contributor head 2c312665 (15 success + 1 neutral CodeQL, 0 failure, 0
+# pending; re-verified 2026-11-11 via /commits/2c312665/check-runs,
+# /workspace/scratch-t_8938a0e1/live-summary.json). All 19 workflow YAMLs
+# parse; no v5.2.0 pin remains in .github/workflows/. PR head 2c312665 sits
+# directly on the live develop tip ddfbdfd6 (merge-base == develop tip, gap
+# of zero — no catch-up merge needed; no rebase/force-push). Contributor
+# commit preserved. No JS/TS runtime files under src/frontend/lib/app
+# changed (no production_coverage binding). Dependency-only maintenance
+# work: no linked issue applies. Publication stage owns fast-forward push
+# to the SAME PR #390 + onyx-onboard guarded merge after real exact-head
+# CI/governance passes.
+# Existing-PR #389 audit run (2026-11-10, task t_60bec14b, run 4652, base
+# develop 0fa8c3e192e861863eec95fa35ad79314a5c59c1 = live develop tip, work
+# branch dependabot/github_actions/develop/docker/login-action-4.8.0):
+# dependabot: bump docker/login-action 4.7.0 -> 4.8.0 (1 file / +1 -1 in
+# .github/workflows/docker-image.yml, pinned SHA 81c6f93 -> 8aa5831 # v4.8.0).
+# The changed step runs only on push events (if: github.event_name == 'push'
+# || github.event.inputs.push == 'true'), so it does not affect PR-merge CI
+# or any other lane. PR head c72869f6 sits directly on the live develop tip
+# 0fa8c3e1 (merge-base == develop tip, gap of zero — no catch-up merge
+# needed; no rebase/force-push). Contributor commit preserved. NO code,
+# test, lockfile, or runtime changes.
+# Validation at the exact head c72869f6 (evidence: /workspace/audit-t_60bec14b/
+# + baseline.json commands[]): actionlint clean on all 19 workflow files;
+# YAML validation 19/19 passed; dotnet restore exit 0 (zero NU19xx);
+# dotnet build Release 0 warn / 0 err in 1m04s (SixShield license
+# provisioned, value never logged/committed); Common.Test 634 passed /
+# 35 skipped / 0 failed (669 total); yarn install --frozen-lockfile PASS;
+# jest 155/155 (23 suites); eslint 0 errors / 7 pre-existing warnings.
+# Hosted exact-head CI on c72869f6: 15 success + 1 neutral CodeQL, 0
+# failures (re-verified this run via onyx_automation.api_for, task
+# t_89335365). No JS/TS runtime files under src/frontend/lib/app changed
+# (no production_coverage binding). Dependency-only maintenance work:
+# no linked issue applies. Publication stage owns fast-forward push to
+# the SAME PR #389 + onyx-onboard guarded merge after real exact-head
+# CI/governance passes.
+# Issue #404 development run (2026-11-10, task t_d78e651b, run 4530, base
+# develop 92c9c7e0e2613faecdc96ecc8d203e3eebd2659a = live develop tip = issue
+# #404 exact head, work branch
+# fix/issue-404-hardcover-nonnumeric-foreign-id-deletion):
+# [DATA-LOSS] RefreshAuthorService deletes a locally-created author whose foreign
+# id is in the hardcover: scope but is NOT the resolvable numeric author form.
+# RefreshAuthorService.ProviderOwnedForeignId (L174-195 at the issue head)
+# returned TRUE for ANY id starting "hardcover:" WITHOUT checking resolvability —
+# even though the code's own doc comment and
+# AuthorMetadataRepository.IsNumericHardcoverAuthorId (L183-200, int.TryParse of
+# the suffix, id > 0) scope Hardcover author ids to the numeric form. A synthetic
+# unresolvable id (e.g. hardcover:author:recoveryseed) was misclassified as
+# provider-owned, so the post-create synchronous refresh
+# (AddAuthorService -> AuthorsImportedEvent -> RefreshAuthorCommand) interpreted
+# the expected AuthorNotFoundException as a provider-removal signal and deleted
+# the API-created Authors row while the AuthorMetadata row persisted (orphaned) —
+# reproduced across two independent runs (r3 run 4476, r4 run 4479) on fresh data
+# dirs. Fix: the hardcover: branch now returns IsNumericHardcoverAuthorId(id)
+# (hardcover:author:<positive integer> only), so a non-numeric hardcover:-scoped
+# id is locally-created and NOT provider-owned; provider-sourced authors with
+# resolvable numeric hardcover:author:<n> ids retain the documented #204/#209
+# provider-removed deletion behavior. Regression: 6 new tests in
+# RefreshArtistServiceFixture.cs (RefreshAuthorServiceFixture, MusicTests
+# namespace) — positive no-delete for 4 non-numeric hardcover:author:<synthetic>
+# cases (recoveryseed/local-author-xyz/0/-7) + negative delete-guard for 2
+# numeric hardcover:author:<n> cases. RED 4 failed / 24 passed at base /
+# GREEN 28/28 post-fix (no JS/TS runtime files changed — no
+# production_coverage binding required). Closes #404.
+# Issue #364 development run (2026-11-08, task t_af0de60f, run 4388, base
+# develop a21ef55ae5f9cf405267bb4444a23fb5c6a82c93 = live develop tip, work
+# branch fix/issue-364-server-port-env-legacy-rejection):
+# [CONFIG/PORT][STARTUP] BIBLIOPHILARR_SERVER__PORT env var silently ignored.
+# RejectLegacyConfigurationKeys (Bootstrap.cs L283-302 at issue head 3a6e5222)
+# rejected ALL keys starting with 'Bibliophilarr:' — the SAME namespace the
+# code reads at L145-156 (Bibliophilarr:Server:Port, the target of the
+# documented BIBLIOPHILARR_SERVER__PORT env var via AddEnvironmentVariables).
+# The logical contradiction: the legacy-key guard rejected the active namespace
+# while the runtime read it. Root cause: commit 1e45e43ae (PR #118) renamed
+# the rejection prefix from 'Readarr:' to 'Bibliophilarr:' in the same commit
+# that added code reading 'Bibliophilarr:Server:Port'. Fix: the guard now
+# rejects only 'Readarr:*' (the pre-rebrand legacy namespace). BuildUrl and
+# RejectLegacyConfigurationKeys made internal (InternalsVisibleTo
+# Bibliophilarr.Host.Test) for direct test access. Regression:
+# BootstrapIssue364Fixture (5 tests) — RED 1/4 at base / GREEN 5/5 post-fix.
+# Closes #364.
+# Issue #286 development run (2026-11-06, task t_02ee5d55, run 3987, base
+# develop f52a69935c074723d7df6dcfe66e2e2d6f1054be = live develop tip, work
+# branch fix/issue-286-linux-x64-console-publish-mono-assembly):
+# [build-stage] Console linux-x64 publish omits Bibliophilarr.Mono.dll
+# (loaded by name on non-Windows hosts). Root cause (reproduced in-container
+# at the base head): NzbDrone.Common.Composition.AssemblyLoader.Load selects
+# the platform assembly BY NAME on every non-Windows host
+# (OsInfo.IsWindows ? "Bibliophilarr.Windows" : "Bibliophilarr.Mono") and
+# loads it BY NAME from the app base directory with no existence fallback.
+# Neither NzbDrone.Host nor NzbDrone.Common pulls NzbDrone.Mono into the
+# Console publish, so `dotnet publish
+# src/NzbDrone.Console/Bibliophilarr.Console.csproj -p:RuntimeIdentifier=linux-x64`
+# exited 0 but omitted Bibliophilarr.Mono.dll and the published app crashed
+# at startup with System.IO.FileNotFoundException before any service started
+# (reproduced: PUBLISH_EXIT=0, MONO_DLL=ABSENT, boot crash, FILENOTFOUNDCOUNT=3
+# in the base publish tree). Fix (build composition only, AC4 honored):
+# Bibliophilarr.Console.csproj gains a RuntimeIdentifier-scoped project
+# reference — <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
+#   <ProjectReference Include="..\NzbDrone.Mono\Bibliophilarr.Mono.csproj" />
+# </ItemGroup> — so a RID-aware non-Windows publish emits Bibliophilarr.Mono.dll
+# into the Console output for every non-Windows RID, while the win-* publish
+# is byte-for-byte unaffected (the scoped group is inactive; Bibliophilarr.Windows
+# remains the platform assembly the loader requests on Windows). Regression
+# test: ConsoleMonoPublishIssue286Fixture (3 tests, Common.Test) pins the
+# scoped reference contract + the unchanged runtime loader contract. Verified
+# in-container at the candidate head (baseline.json commands[]): BEFORE (base
+# f52a6993): linux-x64 publish exit 0 / Bibliophilarr.Mono.dll ABSENT / startup
+# crash (defect reproduced). AFTER (work-branch tree): linux-x64 publish emits
+# Bibliophilarr.Mono.dll (AC1); the published app boots on Linux, /ping returns
+# 200 {"status":"OK"} and a persisted-API-key /api/v1/book returns 200 while
+# the unauthenticated request is rejected (302 login challenge — the app's
+# Forms/auth surface, identical pre/post fix, so the auth behavior is unchanged;
+# AC2); win-x64 publish omits Bibliophilarr.Mono.dll and still emits
+# Bibliophilarr.Console.exe (AC3). Full-sln restore exit 0 (zero NU19xx) +
+# Release build 0 warn / 0 err at the work-branch tree state. RED 2/3 failed at
+# base in a detached worktree / GREEN 3/3 post-fix (the new fixture). No JS/TS
+# runtime files under src/frontend/lib/app or frontend/src changed (no
+# production_coverage binding required). Scope guard honored: no runtime loader
+# logic, configuration, or HTTP behavior changed — build composition only.
+# Closes #286.
+# Issue #371 development run (2026-11-05, task t_cb36776c, run 3979, base
+# develop b08c384ca5820fdc39550fc947f8f1c46500f4b0 = live develop tip, work
+# branch fix/issue-371-websocket-driver-075-residual-pins):
+# SECURITY (DEPENDABOT-59, CRITICAL): websocket-driver 0.7.4 residual in
+# yarn.lock — GHSA-xv26-6w52-cph6 / CVE-2026-54466. At the develop tip
+# b08c3844, yarn.lock resolved the shared range `websocket-driver@>=0.5.1`
+# to the vulnerable 0.7.4. Two lanes consumed that range: (a) faye-websocket
+# 0.11.4 (direct dependency, pinned by PR #339 / issue #338 — the pin did NOT
+# eliminate the shared range), and (b) the dev-only watcher lane
+# webpack-livereload-plugin 3.0.2 -> tiny-lr 1.1.1 -> faye-websocket ~0.10.0.
+# Fix: added the `**/websocket-driver` resolution pin (value 0.7.5) to the
+# resolutions field of package.json — 0.7.5 is the advisory floor, the only
+# 0.7.x above 0.7.4, and the registry latest (probe: registry.npmjs.org,
+# /workspace/tmp/wsd.json). Regenerated yarn.lock: the range entry merged into
+# `websocket-driver@0.7.5, websocket-driver@>=0.5.1:` -> 0.7.5; NO 0.7.4
+# entry remains anywhere in the lockfile (acceptance grep clean). The lockfile
+# diff also carries a set of unrelated same-version entry merges (react-is
+# ^18.3.1, string-width-cjs, strip-ansi-cjs, wrap-ansi-cjs) performed by
+# yarn 1.22.19 when it rewrites the file — byte-identical package versions,
+# no dependency surface change, no other package version moved.
+# Regression test: 7-test jest suite
+# frontend/src/Issue371/websocketDriverPin.test.js — pins the package.json
+# resolution, asserts the lockfile carries no 0.7.4 entry, asserts the merged
+# entry resolves both lanes to 0.7.5, and exercises the REAL installed
+# websocket-driver 0.7.5 module (loads from node_modules, factory surface:
+# client/server/http driver factories + isWebSocket/validateOptions helpers)
+# plus both dependent lanes (faye-websocket 0.11.4 with its >=0.5.1 range;
+# webpack-livereload-plugin -> tiny-lr 1.1.1 -> faye-websocket ~0.10.0).
+# Verified in-container at the exact head (see baseline.json commands[]):
+# BEFORE (base b08c3844): frozen-lockfile install PASS; full jest 85/85 (19
+# suites); eslint 0 errors / 8 pre-existing warnings; ui-build-mode guard
+# PASS; production webpack build PASS. AFTER (work-branch tree): full jest
+# 92/92 (20 suites = 85 baseline + 7 new); eslint 0 errors / 8 pre-existing
+# warnings; stylelint-linux PASS; ui-build-mode guard PASS; production
+# webpack build PASS; acceptance greps clean (no 0.7.4; both lanes resolve
+# 0.7.5); yarn why websocket-driver reports 0.7.5 for both lanes; frozen-
+# lockfile round-trip "Already up-to-date" (committed lockfile consistent
+# with package.json). No JS/TS runtime files under a src/frontend/lib/app
+# path changed (that path does not exist in this repo — the frontend lives
+# under frontend/src), so no production_coverage binding is required. Scope
+# guard honored: the immutable-resolution state (issue #242, floors 5.1.8 /
+# 4.3.9) is untouched; issue #338 / #242 are NOT closed by this PR; the
+# remaining 53 dependabot alerts are a separate post-#59 coordinated pass.
+# Closes #371.
+# Existing-PR #362 audit run (2026-11-05, task t_5152b50f, onyx-architect,
+# run 3914): work branch dependabot/nuget/src/develop/Microsoft.Data.SqlClient-
+# 7.1.1. PR delta (contributor commit 0a5ec581): Bump Microsoft.Data.SqlClient
+# 7.0.2 -> 7.1.1, src/Directory.Packages.props line 27 only, +1/-1. develop tip
+# 885d1443864dac8b6055ea07b378755066390bec (post-#361 squash) is an ANCESTOR
+# of the PR head (merge-base == 885d1443; re-verified live 2026-11-05T10:28Z:
+# origin/develop=885d1443, PR #362 head=0a5ec581, no writer surprise; the only
+# open PR is #362). NO catch-up merge required.
+# EXACT-HEAD CI FAILURE CLASSIFICATION (8/13 lanes red at 0a5ec581, 15/15
+# green at develop tip 885d1443): DETERMINISTIC PACKAGE-GRAPH DEFECT - NOT a
+# runner flake, NOT check-state drift. Data.SqlClient 7.1.1's net9.0 TFM group
+# (nuspec fetched from nuget.org flat container, evidence
+# /workspace/tmp/audit362-nuspec.sh) requires Microsoft.Extensions.Caching.
+# Memory >= 9.0.18 and System.Configuration.ConfigurationManager >= 9.0.18,
+# while 7.0.2 required >= 9.0.13. The repo's central CPM pins at 9.0.13
+# (Directory.Packages.props lines 22/52) therefore forced a NuGet NU1605
+# package-downgrade error under TreatWarningsAsErrors=true (Directory.Build.
+# props line 4), failing `dotnet restore` in every platform lane (reproduced
+# locally at 0a5ec581: Bibliophilarr.Core -> Caching.Memory NU1605,
+# Bibliophilarr.Common -> ConfigurationManager NU1605; all other projects
+# restored OK). The 8 red CI lanes (Linux/Windows/macOS + build-test +
+# metadata lanes + RID lanes) all start from the same restore step, so the
+# single root cause explains the full failure set; develop tip 885d1443
+# (7.0.2) restores cleanly, explaining the green contrast.
+# SCOPED REPAIR COMMIT 39d0c4346f27b9bf0d1d962879ab4b8c47f8ce65 (on top of
+# the registered head 0a5ec581, which remains an ancestor of the reviewed
+# result per the existing-PR rule): bump the two central pins
+# Microsoft.Extensions.Caching.Memory 9.0.13 -> 9.0.18 (line 22) and
+# System.Configuration.ConfigurationManager 9.0.13 -> 9.0.18 (line 52).
+# Transitive-consumer-only pins (no direct PackageReference changes, no code
+# change); the Pkcs security pin (10.0.13) is untouched. No Caching.Memory
+# sibling PR was open on GitHub at audit time (verified live 10:21Z), so the
+# in-branch pin bump is the only repair that makes exact-head CI green
+# without waiting on a separate PR. Contributor dependabot history preserved
+# (normal commit on top; no rebase/force-push).
+# Validation at the exact head 39d0c4346f (evidence: /workspace/tmp/audit362-
+# restore-head39d.log, audit362-build-head39d.log, audit362-tests-head39d.log):
+#   - dotnet restore src/Bibliophilarr.sln -p:Platform=Posix: EXIT 0, zero
+#     NU19xx / warning NU (NU1605 downgrade resolved).
+#   - dotnet build src/Bibliophilarr.sln --configuration Release
+#     -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic>: 0 warn / 0
+#     err in 1m34s (license provisioned, value never logged/committed).
+#   - Central-pin invariants (NuGetAuditModeIssue103 +
+#     NuGetCompatibilityIssue103, Common.Test): 6/6 PASS.
+#   - common-tests (full Common.Test): 627 passed / 35 skipped / 0 failed
+#     (662 total).
+#   - rid-common-targeted: 16 passed / 2 skipped / 0 failed (18 total).
+#   - core-targeted (MonitorNewBookServiceFixture): 6/6 PASS.
+#   - sqlclient-surface (MetadataProviderOrchestratorFixture): 13/13 PASS -
+#     exercises the Core test graph that links Data.SqlClient 7.1.1.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# (no production_coverage binding required). Dependency-only maintenance work:
+# no linked issue applies (the repository's dependency-maintenance policy
+# covers this class of change).
+# Existing-PR #361 audit run (2026-11-05, task t_a18c1366, onyx-architect,
+# run 3886): work branch dependabot/nuget/src/develop/Microsoft.AspNetCore.
+# SignalR.Client-10.0.14 at the registered contributor head
+# a0f67e7f95f37bcfa7e334f2c3004a277ad19096 (Bump
+# Microsoft.AspNetCore.SignalR.Client 10.0.13 -> 10.0.14, NuGet runtime
+# dependency, src/Directory.Packages.props line 21 only, 1 insertion /
+# 1 deletion). The PR head a0f67e7f IS the current develop tip beb789c3's
+# direct child (merge-base == develop tip beb789c3, post-#360 squash;
+# re-verified live 2026-11-05T04:44Z via git fetch + GitHub API:
+# origin/develop=beb789c3, origin/dependabot/nuget/src/develop/Microsoft.
+# AspNetCore.SignalR.Client-10.0.14=a0f67e7f, refs/pull/361/head=a0f67e7f,
+# all three channels agree - NO writer surprise; checkout stage t_da5256ee
+# run 3884 confirmed merge-base --is-ancestor develop PR-head = YES). NO
+# catch-up merge required - the PR is fully current with develop. The
+# registered initial head a0f67e7f IS the reviewed result (no additional
+# commits on this contract; the PR delta is the single contributor commit).
+# Validation at the exact head a0f67e7f (evidence: workspace
+# scratch-a18c1366-*.log + baseline.json commands[]):
+#   - dotnet restore src/Bibliophilarr.sln -p:Platform=Posix: EXIT 0, zero
+#     NU19xx (NuGetAuditMode=direct); SignalR.Client 10.0.14 resolves in
+#     Bibliophilarr.Integration.Test (sole direct consumer via
+#     IntegrationTestBase.cs) + all dependent test assemblies.
+#   - dotnet build src/Bibliophilarr.sln --configuration Release
+#     -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic>: 0 warn / 0
+#     err in 1m39s (SignalR.Client 10.0.14 compiles into Integration.Test
+#     + downstream test assemblies; SixLabors license provisioned, value
+#     never logged/committed).
+#   - Central-pin invariants (NuGetAuditModeIssue103 +
+#     NuGetCompatibilityIssue103, Common.Test): 6/6 PASS - the single-line
+#     central-pin bump preserves the exact-version (no floating '*' /
+#     ranges) + ManagePackageVersionsCentrally invariants; the three
+#     residual-risk pins remain at their audited lines (Pkcs 10.0.13,
+#     System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2).
+#   - common-tests (full Common.Test): 627 passed / 35 skipped / 0 failed
+#     (662 total).
+#   - rid-common-targeted: 16 passed / 2 skipped / 0 failed (18 total).
+#   - yarn install --frozen-lockfile PASS; yarn test:frontend jest 85/85
+#     (20 suites) on jest 30.5.2 - no frontend regression (no JS/TS changes
+#     in this PR; verified for completeness).
+#   - eslint (yarn lint): 0 errors / 8 pre-existing warnings.
+#   - PRE-EXISTING (reported, NOT a #361 regression): NzbDrone.Integration.
+#     Test CalendarFixture is [Ignore]d until 2026-01-15 ("Waiting for
+#     metadata to be back again"); its failures occur at
+#     IntegrationTestBase.EnsureAuthor line 262 doing a LIVE OpenLibrary
+#     lookup (external metadata) BEFORE any SignalR code path -
+#     environmental/pre-existing, not caused by #361.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# by the PR delta (no production_coverage binding required). Dependency-only
+# maintenance work: no linked issue applies (the repository's
+# dependency-maintenance policy covers this class of change). Sibling open
+# NuGet PR #362 (Data.SqlClient) touches the SAME file
+# src/Directory.Packages.props; oldest-first sequential merge order makes
+# #361 the first of the set. No new test command is required: the existing
+# central-pin + common-tests lanes ARE the regression evidence for this
+# patch-line runtime dependency bump.
+# Existing-PR #360 audit run (2026-11-05, task t_8823565d, onyx-architect,
+# run 3862): work branch dependabot/nuget/src/develop/MailKit-4.18.2 at the
+# registered contributor head 9a03378c3890be9356076f81cfed6dbcdbd0c5d1 (Bump
+# MailKit 4.16.0 -> 4.18.2, NuGet runtime dependency, src/Directory.Packages.
+# props line 20 + src/NzbDrone.SignalR/Bibliophilarr.SignalR.csproj
+# +PackageReference MailKit, 2 files / +2 -1). The PR head 9a03378c IS the
+# current develop tip 33281c80's direct child (merge-base == develop tip
+# 33281c80, post-#359-squash; re-verified live 2026-11-05T00:40Z via git
+# fetch: origin/develop=33281c80, origin/dependabot/nuget/src/develop/
+# MailKit-4.18.2=9a03378c, NO writer surprise; checkout stage t_66f502ea
+# run 3859 confirmed merge-base --is-ancestor develop PR-head = YES). NO
+# catch-up merge required - the PR is fully current with develop. The
+# registered initial head 9a03378c IS the reviewed result (no additional
+# commits on this contract; the PR delta is the single contributor commit).
+# Validation at the exact head 9a03378c (evidence: workspace
+# scratch-t_8823565d/ + baseline.json commands[]):
+#   - dotnet restore src/Bibliophilarr.sln -p:Platform=Posix: EXIT 0, zero
+#     NU19xx (NuGetAuditMode=Default); MailKit 4.18.2 resolves in
+#     Bibliophilarr.Core (Email notification consumer) +
+#     Bibliophilarr.SignalR (new PackageReference from this PR) + all
+#     dependent test assemblies (confirmed via dotnet list package).
+#   - dotnet build src/Bibliophilarr.sln --configuration Release
+#     -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic>: 0 warn / 0
+#     err in 1m40s (MailKit 4.18.2 compiles into Core + SignalR + downstream
+#     test assemblies; SixLabors license provisioned, value never
+#     logged/committed).
+#   - Email tests (MailKit consumer, NzbDrone.Core.Test):
+#     EmailSettingsValidatorFixture 11/11 PASS on MailKit 4.18.2 - no
+#     behavioral regression in the email notification path that #360's
+#     bump affects. (Email.cs uses MailKit.Net.Smtp + MimeKit for the SMTP
+#     send path; the validator tests exercise the settings validation
+#     layer that the SMTP client depends on.)
+#   - NuGetAuditModeIssue103 + NuGetCompatibilityIssue103 (Common.Test):
+#     6/6 PASS - the single-line central-pin bump preserves the exact-version
+#     (no floating '*' / ranges) + ManagePackageVersionsCentrally invariants;
+#     the three residual-risk pins remain at their audited lines
+#     (Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2).
+#   - common-tests (full Common.Test): 627 passed / 35 skipped / 0 failed
+#     (662 total).
+#   - yarn install --frozen-lockfile PASS; yarn test:frontend jest 85/85
+#     (20 suites) on jest 30.5.2 - no frontend regression (no JS/TS changes
+#     in this PR; verified for completeness).
+#   - PRE-EXISTING (reported, NOT a #360 regression): NzbDrone.Integration.
+#     Test CalendarFixture is [Ignore]d until 2026-01-15 ("Waiting for
+#     metadata to be back again"); its failures occur at
+#     IntegrationTestBase.EnsureAuthor line 262 doing a LIVE OpenLibrary
+#     lookup (external metadata) BEFORE any MailKit code path -
+#     environmental/pre-existing, not caused by #360.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# by the PR delta (no production_coverage binding required). Dependency-only
+# maintenance work: no linked issue applies (the repository's
+# dependency-maintenance policy covers this class of change). Sibling open
+# NuGet PRs #361 (SignalR.Client) and #362 (Data.SqlClient) touch the SAME
+# file src/Directory.Packages.props; oldest-first sequential merge order
+# makes #360 the first of the set. No new test command is required: the
+# existing MailKit-consumer + central-pin lanes ARE the regression evidence
+# for this patch-line runtime dependency bump.
+# Existing-PR #359 audit run (2026-11-04, task t_d73e8c93, onyx-architect):
+# work branch dependabot/nuget/src/develop/Ical.Net-5.2.4 at the registered
+# contributor head a1da93b8106861da6e708b604664072794f675f6 (Bump Ical.Net
+# 5.2.3 -> 5.2.4, NuGet runtime dependency, src/Directory.Packages.props line
+# 18 only). This audit incorporated the current develop tip
+# 978aa058a215e3f3a15af2a4634a2c7d6067a983 (post-#357-merge) via a NORMAL
+# MERGE (no rebase/force-push of contributor history): merge commit
+# 0b7615e78799adba8f4af1d94860aa5d0bd2542c, parents [a1da93b8 contributor,
+# 978aa058 develop]; the registered initial head a1da93b8 remains a strict
+# ancestor of the reviewed result (governance existing-PR rule). The 6
+# intervening develop commits (3a6e5222 -> 978aa058: #366 migration-158 fix,
+# #353-#357 dependabot workflow/npm tooling bumps) touch files disjoint from
+# src/Directory.Packages.props - zero file overlap with #359's delta, so the
+# merge is content-clean and the one-line PR delta (Ical.Net 5.2.3 -> 5.2.4)
+# is intact at the merged head.
+# Validation at the exact merged head 0b7615e7 (evidence: workspace
+# scratch-t_d73e8c93/ + baseline.json commands[]):
+#   - dotnet restore src/Bibliophilarr.sln -p:Platform=Posix: EXIT 0, zero
+#     NU19xx (NuGetAuditMode=direct); Ical.Net 5.2.4 resolves in
+#     Bibliophilarr.Api.V1 (sole direct consumer) + all dependent test
+#     assemblies (nupkg sha256 02dd43536b9d6298199f7784df489806731d956f6c).
+#   - dotnet build src/Bibliophilarr.sln --configuration Release
+#     -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic>: 0 warn / 0
+#     err in 1m44s (Ical.Net 5.2.4 compiles into Api.V1 + downstream test
+#     assemblies; SixLabors license provisioned, value never logged/committed).
+#   - CalendarFeedControllerFixture (Ical.Net consumer, NzbDrone.Api.Test):
+#     2/2 PASS on 5.2.4 - no behavioral regression in the ICS calendar-feed
+#     path that #359's bump affects.
+#   - NuGetAuditModeIssue103 + NuGetCompatibilityIssue103 (Common.Test):
+#     6/6 PASS - the single-line central-pin bump preserves the exact-version
+#     (no floating '*' / ranges) + ManagePackageVersionsCentrally invariants;
+#     the three residual-risk pins remain at their audited lines
+#     (Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2).
+#   - common-tests (full Common.Test): 627 passed / 35 skipped / 0 failed
+#     (662 total); rid-common-targeted: 16 passed / 2 skipped / 0 failed (18).
+#   - yarn install --frozen-lockfile PASS (merged-in jest 30.5.2 + dev-tooling
+#     #353-#357 intact); yarn test:frontend jest 85/85 (20 suites) on jest
+#     30.5.2; yarn lint eslint 0 errors / 8 pre-existing warnings.
+#   - PRE-EXISTING (reported, NOT a #359 regression): NzbDrone.Integration.Test
+#     CalendarFixture is [Ignore]d until 2026-01-15 ("Waiting for metadata to
+#     be back again"); its 3 failures occur at IntegrationTestBase.EnsureAuthor
+#     line 262 doing a LIVE OpenLibrary lookup (external metadata) BEFORE any
+#     Ical.Net code path - environmental/pre-existing, not caused by #359;
+#     CI-parity calendar coverage is CalendarFeedControllerFixture (2/2).
+#     Additionally, the src/NzbDrone (Bibliophilarr) net10.0-windows project
+#     graph carries an Ical.Net/5.2.3 TRANSITIVE entry (0 direct Ical deps; it
+#     ProjectReferences Host + Windows) - unchanged pre-existing graph state
+#     (base central pin was 5.2.3); the direct consumer resolves 5.2.4.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed by
+# the PR delta (no production_coverage binding required). Dependency-only
+# maintenance work: no linked issue applies (the repository's
+# dependency-maintenance policy covers this class of change). Sibling open
+# NuGet PRs #360/#361/#362 (same file) + #363 touch distinct dependabot
+# branches; oldest-first sequential merge order makes #359 the first of the
+# set. No new test command is required: the existing Ical.Net-consumer +
+# central-pin lanes ARE the regression evidence for this patch-line runtime
+# dependency bump.
+# Existing-PR #357 audit run (2026-11-04, task t_6c152e90,
+# run 3816) at exact registered head c2532527ba48f4cb63039598da94a11bd5fae6f0
+# (work branch dependabot/npm_and_yarn/develop/jest-30.5.2, base develop
+# cbc2824757de7ee238a3b3287070cc0b0092f405 = CURRENT live develop tip,
+# re-verified live 2026-11-04T16:00Z; the head's single parent IS the tip —
+# merge-base == tip, no catch-up merge needed; live-verified by checkout stage
+# t_1eacafa4, run 3808, and re-probed live at 15:58Z this run: PR #357
+# state=open, merged_at=null, mergeable_state=clean, head_sha=c2532527 ==
+# registered initial_head, NO writer surprise). Delta: jest 30.3.0 -> 30.5.2
+# (devDependency test framework only; package.json + yarn.lock, 2 files /
+# +699 -570 — the yarn.lock rewrite is the jest 30.3 -> 30.5 dependency-graph
+# shift of the test toolchain).
+# Re-verified in-container at the exact head (Node v20.20.2, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS (~16s warm; lockfile integrity
+#     verified; installed jest = 30.5.2 confirmed via node_modules/jest/package.json).
+#   - Frontend CI lane (ci-frontend.yml parity) ALL PASS: full jest 30.5.2
+#     suite 85/85 (20 suites, 39.4s, yarn test:frontend), yarn lint (eslint)
+#     0 errors / 8 pre-existing warnings, yarn stylelint-linux PASS, both
+#     ops guards (ui-build-mode, http-binding) PASS, and the webpack 5.105.4
+#     PRODUCTION build (yarn build) compiled successfully in 77906 ms with
+#     zero warnings/errors.
+#   - jest 30.5.2 semantics: jest.config.cjs is consumed the same way as
+#     30.3.0 (babel-jest transform, jsdom environment, and the
+#     setupFilesAfterEach polyfill in frontend/build/jest.setup.js —
+#     @testing-library/jest-dom matchers + the window.Bibliophilarr
+#     bootstrap — loaded via the 'setupFilesAfterEach' config key);
+#     the full 85-test suite passes unchanged — no test-helper rewrite
+#     was required.
+#   - No behavioral change expected: jest is a devDependency test tool; no
+#     shipped runtime JS/TS, no backend, no CI workflow touched.
+# No JS/TS runtime files under src/frontend/lib/app or frontend/src changed
+# (no production_coverage binding required). NO code edits — validation/
+# publication-only; this .onyx/project.yaml header update is the single
+# contract commit on top of the contributor head c2532527, which is
+# preserved as an ancestor of the reviewed result (no rebase, no
+# force-push). See baseline.json (workspace root) and
+# scratch-t_6c152e90/*.log for per-command evidence.
+# Existing-PR #356 audit run (2026-11-04, task t_17590efb, run 3765) at exact
+# registered head 66ed6f3349e3b814a49461029d1de3af5e40f891 (work branch
+# dependabot/npm_and_yarn/develop/postcss-loader-8.2.1, base develop
+# 9a95dd45952bb6efb33a1afded4930662c5944a4 = CURRENT live develop tip; the
+# head's single parent IS the tip — merge-base == tip, no catch-up merge
+# needed; live-verified by checkout stage t_8821b3e6, run 3762). Delta:
+# postcss-loader 7.3.4 -> 8.2.1 (devDependency, frontend webpack build
+# tooling only; package.json + yarn.lock, 2 files / +17 -22).
+# Re-verified in-container at the exact head (Node v20.20.2, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS (31.6s; installed postcss-loader =
+#     8.2.1 confirmed via node require of postcss-loader/package.json; CJS
+#     entry loads).
+#   - Frontend CI lane (ci-frontend.yml parity) ALL PASS: full jest suite
+#     85/85 (20 suites, yarn test:frontend), yarn lint (eslint) 0 errors / 8
+#     pre-existing warnings, yarn stylelint-linux PASS, both ops guards
+#     (ui-build-mode, http-binding) PASS, and the webpack 5.105.4 PRODUCTION
+#     build (yarn build) compiled successfully in 75069 ms with ZERO
+#     warnings and ZERO errors. The production build + the ui-build-mode
+#     guard (independent pinned production webpack run) both drive the
+#     postcss-loader 8.2.1 CSS-module chain end-to-end: every *.css file
+#     except globals.css/node_modules flows MiniCssExtractPlugin ->
+#     css-modules-typescript-loader -> css-loader -> postcss-loader with
+#     frontend/postcss.config.js plugins (postcss-mixins,
+#     postcss-simple-vars, @csstools/postcss-color-function, postcss-nested)
+#     — the loader's 8.x API (webpack 5 async loader contract,
+#     postcssOptions.config) is exercised on the real 100+ shipped CSS
+#     modules; a broken 8.x loader/option path would fail the build.
+#   - No behavioral change expected: postcss-loader is a devDependency build
+#     tool; no shipped runtime JS/TS, no backend, no CI workflow touched.
+# No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required). NO code edits — validation/
+# publication-only; this .onyx/project.yaml header update is the single
+# contract commit on top of the contributor head 66ed6f33, which is
+# preserved as an ancestor of the reviewed result (no rebase, no
+# force-push). See baseline.json (workspace root) and
+# scratch-t_17590efb/*.log for per-command evidence.
+# Existing-PR #355 audit run (2026-11-04, task t_8d5caba4, run 3748) at exact
+# head a99b1f36cfe587b400d933d20f1e54f60906e1d7 (work branch
+# dependabot/npm_and_yarn/develop/types/lodash-4.17.27, base develop
+# ef35cdcfc371c65e8de853a41e4970b5a15bc299 = CURRENT live develop tip; head is
+# a direct child of the tip, no catch-up merge needed). Delta: @types/lodash
+# 4.17.24 -> 4.17.27 (devDependency, types only; package.json + yarn.lock).
+# Re-verified in-container at the exact head (Node v22.x, Yarn 1.22.19):
+#   - yarn install --frozen-lockfile PASS; installed @types/lodash = 4.17.27.
+#   - Frontend CI lane (ci-frontend.yml parity): full jest suite 85/85 (20
+#     suites), yarn lint 0 errors / 8 pre-existing warnings, both ops guards
+#     (ui-build-mode, http-binding) PASS, stylelint-linux PASS.
+#   - Dev-type surface check: a probe file exercising the broad lodash API
+#     surface used across frontend/src (findIndex/pick/groupBy/debounce/
+#     throttle/isEqual/chain/merge/cloneDeep/sortBy/unionBy/uniqBy/startsWith/
+#     padStart/truncate/get/set/keyBy/flow/omitBy) typechecks CLEAN (tsc
+#     --noEmit, strict, TS 5.9.3) against the installed 4.17.27, and the same
+#     probe passes identically against 4.17.24 (isolated control dir) — the
+#     bump is type-compatible with the shipped frontend usage.
+#   - PRE-EXISTING (not introduced by this PR): a plain `tsc --noEmit` with
+#     the committed frontend/tsconfig.json fails with TS5103
+#     ("Invalid value for '--ignoreDeprecations'" — the file pins "6.0",
+#     which TS 5.9.3 does not accept); with the flag set to a valid value the
+#     full-project typecheck surfaces ~188 pre-existing errors concentrated in
+#     node_modules @types duplicates (react-redux's nested @types/react) and
+#     react-dnd-multi-backend typings. tsc is NOT a CI-required lane
+#     (ci-frontend.yml runs test:frontend + lint + build only; the build uses
+#     babel/ts-loader without project-wide tsc gating), so this pre-existing
+#     state does not block the PR and is out of scope for a dev-types bump.
+# No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required).
+# Issue #103 development run (2026-11-01, task t_ca020c6d, run 3451) at
+# candidate head FINALSHA (work branch
+# fix/issue-103-nuget-compatibility-review, base develop
+# e36967ad9721aae53d30701e25a603bb090e2de6 = CURRENT live develop tip,
+# live-verified by checkout stage t_7e1f262b; single commit: one new test
+# file + this contract header/command update):
+# Migration train (issue #103, epic #96): POST-MIGRATION NuGet compatibility
+# review — full package-graph audit of all 24 solution projects (23 x net10.0
+# + 1 x net10.0-windows) at the .NET 10 baseline (global.json 10.0.100,
+# rollForward latestFeature; verified in-container on SDK 10.0.401).
+# Findings (evidence: baseline.json + scratch-t_ca020c6d/analysis.txt):
+#   - Central CPM pins (src/Directory.Packages.props, 66 pins): every direct
+#     PackageReference in every project resolves AT or ABOVE its central pin;
+#     ZERO resolved versions below a pin (no downgrade/downlevel), ZERO
+#     cross-project line-split (149 distinct package/version pairs, one line
+#     per package across the whole solution).
+#   - Full-sln restore EXIT 0 with NuGetAuditMode=direct active: zero NU19xx,
+#     zero NU15xx/NU16xx/NU17xx/NU18xx; full Release build 0 warn / 0 err
+#     (SixLabors license file from the scoped testing credential); windows-
+#     desktop project model cross-builds clean on POSIX.
+#   - Residual risk stays explicitly tracked (NOT churned): Pkcs 10.0.13
+#     (GHSA-2fmv-rv2c-59x7 / GHSA-846f-f764-76mx patched line), System.
+#     Drawing.Common 9.0.0 (blocks the 4.7.0 critical line, GHSA-rxg9-xrhp-
+#     64gj), SixLabors.ImageSharp 4.1.2 (Oct-2026 3.1.11 incident).
+#   - PRE-EXISTING DEFECT (documented, not fixed — out of #103 scope): the
+#     orphan project src/NzbDrone.Automation.Test/Bibliophilarr.Automation.
+#     Test.csproj is NOT in src/Bibliophilarr.sln and its two PackageReference
+#     items (Selenium.Support, Selenium.WebDriver.ChromeDriver) have no central
+#     PackageVersion entry, so a standalone restore fails NU1010. It is
+#     excluded from every CI lane (sln-based) and therefore benign for CI,
+#     but it fails any standalone 'dotnet restore/build' of that project.
+#     Routed as follow-up under epic #96 (add central pins OR remove the
+#     orphan project).
+# Blockers identified & assigned: the only actionable compatibility blocker is
+# the Automation.Test CPM defect above (follow-up issue under #96); no
+# .NET-10 package compatibility blocker remains in the solution graph — the
+# package set is STABLE under the .NET 10 baseline and no dependency churn is
+# introduced by this change (acceptance criteria 1-3 of #103).
+# Regression coverage added: NuGetCompatibilityIssue103Fixture (3 tests)
+# pins (a) all central pins are exact versions (no floating '*' / ranges),
+# (b) the three residual-risk pins remain at their audited lines, (c) CPM
+# stays enabled — complements the existing NuGetAuditModeIssue103Fixture
+# (3 tests). Pinned by the new issue-103-regression-nuget-compatibility-
+# review dotnet test command (6 tests total, both fixtures).
+# Verified in-container at the candidate head: issue-103 fixtures 6/6 PASS;
+# full Common.Test 662 total -> 627 passed, 35 skipped, 0 failed (659 baseline
+# + 3 new); full-sln Release build 0 warn / 0 err; yarn install (frozen-
+# lockfile) PASS; frontend jest 85/85; eslint 0 errors / 8 pre-existing
+# warnings; rid-common-targeted 18 (16 passed / 2 skipped); issue-256 lanes
+# 6+5+5 PASS; windows-desktop project model PASS. No JS/TS runtime files
+# under src/frontend/lib/app changed (no production_coverage binding
+# required). Contributes to #103 and epic #96.
+# Issue #99 development run (2026-10-31, task t_6f0386ae, run 3367) at
+# candidate head 70dede0d19 (work branch
+# chore/issue-99-frontend-toolchain-modernization, base develop
+# 761424f2a6ad176504f5a6a3eca72090419cb1a5 = CURRENT live develop tip,
+# live-verified by checkout stage t_eda6dda7; single commit: package.json +
+# yarn.lock + 2 reformatted .ts state files + 1 new jest regression file +
+# this contract header/baseline_evidence/test-command update):
+# Migration train (issue #99, epic #96): frontend toolchain modernization —
+# Prettier 2.x -> 3.x. The historical dependabot slice for this bump (PR #56,
+# "bump prettier from 2.8.8 to 3.8.3") was closed UNMERGED, so the repo kept
+# pinning prettier 2.8.8 while its ESLint toolchain was written against the
+# Prettier 2 API. A naive prettier-3 bump alone breaks the prettier/prettier
+# ESLint rule ("prettier.resolveConfig.sync is not a function" — Prettier 3
+# dropped the sync helper), so this is a COORDINATED modernization:
+#   - prettier                 2.8.8   -> 3.8.1
+#   - eslint-config-prettier   8.10.2  -> 9.1.0  (9.x line targets prettier 3)
+#   - eslint-plugin-prettier   4.2.5   -> 5.5.5  (5.x line built on the Prettier 3 API)
+#   - frontend/src/App/State/{AuthorsAppState,SettingsAppState}.ts reformatted to
+#     the Prettier 3 default (pure whitespace/line-break; no behavior change).
+# Pinned by the new issue-99-regression-prettier-toolchain-modernization jest
+# command (frontend/src/Issue99/prettierToolchainModernization.test.js, 6
+# tests): pins the devDependency lines AND exercises the REAL installed
+# prettier 3.x binary (node_modules/.bin/prettier) as a subprocess —
+# `--version` is 3.x, `--check` on the two reformatted files exits 0
+# (idempotent), and a TS snippet is re-emitted honoring the repo .prettierrc
+# singleQuote convention. The CLI is invoked (not imported in-proc) because
+# Prettier 3's CJS entry re-exports an ESM build via dynamic import(), which
+# jest 30's CJS transform cannot run without --experimental-vm-modules.
+# No production / runtime UI behavior is touched — a devDependency + lockfile
+# advance plus a whitespace-only reformat and a test. No src/frontend/lib/app
+# runtime file changed (no production_coverage binding required). Verified
+# in-container at the candidate head: yarn install (frozen-lockfile) PASS;
+# eslint 0 errors / 8 pre-existing warnings (the new test file is clean);
+# full frontend jest suite 74/74 / 18 suites PASS (68 baseline + 6 new);
+# both ops guards (ui-build-mode + http-binding) PASS; stylelint-linux PASS;
+# full production webpack build (yarn build) compiled successfully. Historical
+# #99 item mapping: #56 Prettier DONE (this run); #55 rimraf, #54 webpack-cli,
+# #53 postcss-mixins, #52 Font Awesome remain REMAINING (genuine future work,
+# not silently resolved). See baseline.json (workspace root) and
+# scratch-t_6f0386ae-*.sh for per-command evidence.
+# Issue #98 development run (2026-10-31, task t_803e4ba6, run 3324) at
+# candidate head a30b83ac724 (work branch
+# fix/issue-98-fluentmigrator-coordinated-upgrade, base develop
+# a30b83ac724cf8a91fe1d0f7f22886680bbda289 = CURRENT live develop tip,
+# live-verified by checkout stage t_c96af33f; single commit, .onyx/project.yaml
+# only — documentation/audit run, NO application code, NO dependency bump,
+# NO src/frontend/lib/app runtime changes; no production_coverage binding
+# required):
+# Migration train (issue #98, epic #96): FluentMigrator coordinated upgrade
+# audit. Current posture verified in-container at the exact head:
+#   - FluentMigrator.Runner / Runner.SQLite / Runner.Postgres all pinned to
+#     3.3.2 in src/Directory.Packages.props (central CPM).
+#   - 63 migration files in src/NzbDrone.Core/Datastore/Migration/
+#     (migrations 001-048 + framework classes).
+#   - MigrationController uses AddFluentMigratorCore() + ConfigureRunner()
+#     with AddPostgres() + AddNzbDroneSQLite() + ScanIn(assembly).For.All()
+#     + TypeFilterOptions.Namespace = "NzbDrone.Core.Datastore.Migration".
+#   - NzbDroneMigrationBase extends FluentMigrator.Migration; uses
+#     MigrationContext.Current for per-type routing (Main/Log/Cache).
+#   - All 48 migrations apply cleanly in order on SQLite 3.46.1 (verified by
+#     the migration-test lane: 5/5 tests pass, full chain 001-048 applied
+#     in ~1s).
+#   - Compatible with .NET 10 (net10.0 TFM): restore exit 0, full solution
+#     Release build 0 warn / 0 err.
+# Compatibility risks (documented, assigned to follow-up):
+#   R1: FluentMigrator 3.3.2 was released 2021; the current 4.x line (if
+#     published) would be a MAJOR upgrade requiring migration-attribute
+#     review, processor/generator accessor re-validation, and a full
+#     migration-chain re-run on both SQLite and Postgres. Not actionable
+#     in this run; tracked as a follow-up under epic #96.
+#   R2: The NzbDroneSQLiteProcessor (custom processor in
+#     src/NzbDrone.Core/Datastore/Migration/Framework/NzbDroneSQLiteProcessor.cs)
+#     wraps the FluentMigrator SQLite processor; a FluentMigrator major bump
+#     would require re-validating this wrapper against the new processor
+#     interface.
+#   R3: Migration ordering is version-numeric (001-048); the
+#     TypeFilterOptions.Namespace filter scopes discovery to
+#     "NzbDrone.Core.Datastore.Migration" — a rename of that namespace
+#     would silently break migration discovery.
+#   R4: Postgres-specific migrations (023, 032) use raw SQL with
+#     timestamp-with-timezone semantics that are dialect-specific; any
+#     FluentMigrator processor change must preserve the raw-SQL escape
+#     hatch (ExecuteSqlSQL / PerformDBOperation).
+# No code edits — documentation/audit-only; this .onyx/project.yaml header +
+# migration-test command addition is the single contract commit on the work
+# branch. No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required). See baseline.json (workspace root)
+# and scratch-t_803e4ba6/ for per-command evidence.
+# Issue #97 development run (2026-10-31, task t_9bedcc72, run 3300) at candidate
+# head 4cc21022f3 (work branch chore/issue-97-workflow-action-modernization,
+# base develop 06fc7015feedaabd66f6cd3ca4bd4b5d4e43487d = CURRENT live develop
+# tip, live-verified by checkout stage t_226db8e0; single commit, 1 file / +1 -1):
+# workflow/action modernization train (issue #97) historical-item mapping at the
+# live tip: #68 label-actions DONE (dessant/label-actions v3 modernized and
+# enforced by labeler.yml), #64 markdownlint DONE (docs-validation.yml markdown
+# lint active), #65 upload-artifact SUPERSEDED (actions/upload-artifact v7.0.2
+# + download-artifact v8.0.2 pinned full-SHA across all 8 workflows; the
+# original deprecated v4 upload path no longer exists), #67 cosign-installer
+# REMAINING (the Docker signing step was still on the legacy cosign v2 line:
+# sigstore/cosign-installer 7e8b541e v3.10.1). This run completes the #67
+# slice: bumped the pinned action to 6f9f17788090df1f26f669e9d70d6ae9567deba6
+# (# v4.1.2, the cosign v3 line — v3.10.1 cannot install cosign v3) in
+# .github/workflows/docker-image.yml, preserving the repo's full-SHA pinning
+# convention. The release pipeline behavior is unchanged: same keyless cosign
+# sign --yes flow, same if-gates, same Trivy/SBOM steps; only the installer
+# action advance. NO application code, NO release-promotion, NO
+# src/frontend/lib/app runtime changes (no production_coverage binding
+# required). Verified in-container at the candidate head: actionlint 1.7.7
+# (the exact version lint-workflows.yml enforces) GREEN before AND after;
+# yarn install --frozen-lockfile PASS; eslint 0 errors / 8 pre-existing
+# warnings; stylelint-linux PASS; full frontend jest suite PASS; both ops
+# guards (ui-build-mode + http-binding) PASS; dotnet restore exit 0;
+# common-tests 624 passed / 35 skipped / 0 failed; rid-core-targeted 25/25;
+# issue-103 NuGet-audit gate regression 3/3 (license-provisioned lanes via
+# SIXLABORS_LICENSE_FILE, mirroring ci-backend.yml). See baseline.json
+# (workspace root) and scratch-t_9bedcc72/*.log for per-command evidence.
+# Existing PR #304 audit run (2026-10-29, task t_530855e6, run 3092) at exact
+# registered head 515b637a541ab9ea22b9ddf74efe27ae41a80c39 (dependabot: bump
+# @typescript-eslint/parser 8.57.1 -> 8.72.0 in package.json/yarn.lock,
+# devDependency, lint toolchain; 2 files / +77 -19; NO production code, NO
+# workflow semantics, NO src/frontend/lib/app runtime changes; work branch =
+# registered head_ref
+# dependabot/npm_and_yarn/develop/typescript-eslint/parser-8.71.2):
+# base develop 9cbbaa03dfcdae2a1181e34961ac6b44aa83d94f = CURRENT develop tip
+# (== the #303 filesize 10.1.6->11.0.29 squash-merge commit, merged
+# 2026-10-29T05:10Z) and IS an ancestor of the PR head (merge-base == develop
+# tip; git merge-base --is-ancestor returned rc=0 this run) — NO catch-up merge
+# required (re-verified live this run: ls-remote develop == 9cbbaa03, refs/pull/304/head
+# == 515b637a == local HEAD; zero foreign writer drift). Re-verified in-container
+# at the exact head: yarn install --frozen-lockfile (EXIT 0; installed parser
+# @typescript-eslint/parser 8.72.0 confirmed in node_modules), full frontend
+# jest suite (yarn test:frontend): 17 suites / 68 tests PASS, full frontend
+# ESLint (yarn lint): 0 errors / 8 pre-existing warnings, stylelint-linux
+# (PASS), both ops guards (ui-build-mode + http-binding, both PASS), plus a
+# parser-load probe: ESLint 8.57.1 + @typescript-eslint/parser 8.72.0 parses a
+# .ts sample file with 0 errors (proves the bumped devDependency is
+# functional in the repo's own ESLint 8.x toolchain — the repo's frontend
+# config uses @babel/eslint-parser for JS sources and the plugin config
+# requires @typescript-eslint/parser as its paired parser). Lockfile delta
+# verified as a clean toolchain advance: parser 8.57.1->8.72.0 plus its
+# @typescript-eslint 8.72.x dependency closure (project-service,
+# tsconfig-utils, types, typescript-estree, visitor-keys, ts-api-utils 2.5.0,
+# eslint-visitor-keys ^5); NO src/** changes. NO code edits — validation/
+# publication-only; this .onyx/project.yaml header + frontend-tests note
+# update is the single contract commit on top of the contributor head 515b637a,
+# which is preserved as an ancestor of the reviewed result. No JS/TS runtime
+# files under src/frontend/lib/app changed (no production_coverage binding
+# required). See baseline.json (workspace root) and
+# scratch-t_530855e6/*.log for per-command evidence.
+# Existing PR #336 audit run (2026-10-27, task t_ddca77f1, run 2891) at exact
+# registered head cb6f6496eb1d471434812e05891e41128f832789 (dependabot: bump
+# docker/login-action 4.1.0 -> 4.7.0 in .github/workflows/docker-image.yml,
+# 1 file / +1 -1; pinned-action SHA 4907a6ddec9925e35a0a9e82d7399ccc52663121
+# # v4.1.0 -> 81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0 — a MINOR-line
+# bump on the 4.x line with no production code, no workflow step semantics,
+# no inputs/outputs, no src/frontend/lib/app runtime changes; work branch =
+# registered head_ref
+# dependabot/github_actions/develop/docker/login-action-4.7.0):
+# base develop 530531a0189e623b391a50f4310873ebaec17cad = CURRENT develop tip
+# (== the #334 docker/setup-buildx-action 4.0.0->4.4.1 squash-merge commit,
+# merged 2026-10-27T11:30:28Z) and IS an ancestor of the PR head (merge-base
+# == develop tip; git merge-base --is-ancestor returned rc=0 this run) —
+# NO catch-up merge required. Re-verified the full contract in-container
+# at the exact head: all 19 .github/workflows/*.yml parse as valid YAML
+# (js-yaml), yarn install --frozen-lockfile (up-to-date), eslint (0 errors,
+# 8 pre-existing warnings), both ops guards (ui-build-mode + http-binding,
+# both PASS), stylelint-linux (PASS), webpack production build (compiled
+# successfully, production bundle carries no eval-source-map devtool and no
+# eval() calls), jest (60/60 / 15 suites), dotnet restore (exit 0, zero
+# NU19xx), backend Release build of the FULL solution (0 warnings / 0 errors
+# in 1m40s — with the operator-provisioned SixLabors license file provisioned
+# via SIXLABORS_LICENSE_FILE from the operator-provisioned workspace copy;
+# the license VALUE is never logged or committed). The 4 license-gated CI
+# test lanes (rid-core-targeted, rid-common-targeted,
+# metadata-core-fixtures, metadata-api-fixtures) are covered by the hosted
+# exact-head CI on cb6f6496: 16 check-runs (15 success + 1 neutral CodeQL +
+# 0 failure + 0 pending, LIVE-REVERIFIED by the checkout stage t_dd746b93
+# via the GitHub REST check-runs API at 2026-10-27T13:51Z). NO code edits
+# (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of
+# the contributor head cb6f6496, which is preserved as an ancestor of the
+# reviewed result). No JS/TS runtime files under src/frontend/lib/app
+# changed (no production_coverage binding required). See baseline.json
+# (workspace root) and scratch-t_ddca77f1/logs/ for per-command evidence.
+# Existing PR #334 audit run (2026-10-27, task t_4354933b, run 2874) at exact
+# registered head ddf2b4e3cd6afba610510433148764d6270ec09b (dependabot: bump
+# docker/setup-buildx-action 4.0.0 -> 4.4.1 in .github/workflows/docker-image.yml,
+# 1 file / +1 -1; pinned-action SHA 4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
+# # v4.0.0 -> f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1 — a MINOR-line
+# bump on the 4.x line with no production code, no workflow step semantics,
+# no inputs/outputs, no src/frontend/lib/app runtime changes; work branch =
+# registered head_ref
+# dependabot/github_actions/develop/docker/setup-buildx-action-4.4.1):
+# base develop 47fd11b27b245e156fb3d80bebcd543c5b5244b7 = CURRENT develop tip
+# (== the #335 actions/setup-python 7.0.0->7.1.0 squash-merge commit, merged
+# 2026-10-27T04:41:42Z) and IS an ancestor of the PR head (merge-base ==
+# develop tip; git merge-base --is-ancestor returned rc=0 this run) —
+# NO catch-up merge required. Re-verified the full contract in-container
+# at the exact head: all 20 .github/workflows/*.yml parse as valid YAML
+# (js-yaml), yarn install --frozen-lockfile (up-to-date), eslint (0 errors,
+# 8 pre-existing warnings), both ops guards (ui-build-mode + http-binding,
+# both PASS), stylelint-linux (PASS), jest (60/60 / 15 suites), dotnet
+# restore (exit 0, zero NU19xx), backend Release build of the FULL solution
+# (0 warnings / 0 errors in 1m44s — with the operator-provisioned SixLabors
+# license file provisioned via SIXLABORS_LICENSE_FILE, the whole-solution
+# build now completes clean in this isolated container; the license VALUE is
+# never logged or committed). The 4 license-gated CI test lanes
+# (rid-core-targeted, rid-common-targeted, metadata-core-fixtures,
+# metadata-api-fixtures) are covered by the hosted exact-head CI on
+# ddf2b4e3: 16 check-runs (15 success + 1 neutral CodeQL + 0 failure + 0
+# pending, LIVE-REVERIFIED by the checkout stage t_85dfc766 via the GitHub
+# REST check-runs API at 2026-10-27T10:07Z). NO code edits
+# (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of
+# the contributor head ddf2b4e3, which is preserved as an ancestor of the
+# reviewed result). No JS/TS runtime files under src/frontend/lib/app
+# changed (no production_coverage binding required). See baseline.json
+# (workspace root) and tmp/t_4354933b/pr334-logs/ for per-command evidence.
+# Existing PR #335 audit run (2026-10-27, task t_82f47662, run 2828) at exact
+# registered head b267e4e55ef42856deba14a5fb6e3193fb7ca3d4 (dependabot: bump
+# actions/setup-python 7.0.0 -> 7.1.0 in 5 GitHub Actions workflow files,
+# 5 files / +5 -5; pure CI/Actions PATCH-line bump with no production code,
+# no workflow step semantics, no src/frontend/lib/app runtime changes;
+# work branch = registered head_ref
+# dependabot/github_actions/develop/actions/setup-python-7.1.0):
+# base develop 28cd2b094d6a7bb28e050379883c1eb3b6326c55 = CURRENT develop tip
+# (== the #300 actions/labeler 6.0.1->7.0.0 squash-merge commit, merged
+# 2026-10-27T00:48:07Z) and IS an ancestor of the PR head (merge-base ==
+# develop tip; git merge-base --is-ancestor returned true this run) —
+# NO catch-up merge required. Re-verified the full contract in-container
+# at the exact head: yarn install --frozen-lockfile (up-to-date), eslint
+# (0 errors, 8 pre-existing warnings), both ops guards (ui-build-mode +
+# http-binding, both PASS), stylelint-linux (PASS), jest (60/60 / 15 suites),
+# dotnet restore (exit 0, zero NU19xx, all up-to-date), backend Release build
+# (0 errors in all non-licensed projects; the NzbDrone.Core / FullLabLicense
+# ValidateLicenseTask requires the operator-provisioned SixLabors license —
+# identical at base, host-gated, not a #335 regression; the license-gated
+# Core/Api test lanes (rid-core-targeted, rid-common-targeted,
+# metadata-core-fixtures, metadata-api-fixtures) cannot be re-executed in the
+# isolated container without the SIXLABORS_LICENSE_KEY / SIXLABORS_LICENSE_FILE,
+# and the hosted exact-head CI on b267e4e5 is the authority: 26 check-runs
+# (25 success + 1 neutral + 0 failure + 0 pending, LIVE-REVERIFIED by the
+# checkout stage t_51ea6d45 via the GitHub REST check-runs API at
+# 2026-10-27T03:12Z)). NO code edits (validation/publication-only; the
+# .onyx/project.yaml header + baseline_evidence pointer update is the single
+# contract commit on top of the contributor head). No JS/TS runtime files
+# under src/frontend/lib/app changed (no production_coverage binding
+# required). See baseline.json (workspace root) and
+# tmp/t_82f47662/pr335-logs/ for per-command evidence.
+# Existing PR #267 audit run (2026-10-26, task t_43e9cf71, run 2773) at exact
+# registered head 86b0f036e378b44cca53d1b242a7ba5479df6dbc (dependabot: bump
+# FluentAssertions 8.9.0 -> 8.11.0 in src/Directory.Packages.props, 1 file /
+# +1 -1; FluentAssertions is the Xceed test-assertion library referenced only
+# by test projects via the central package version, a MINOR-line bump on the
+# 8.x line with no production-code or workflow change; work branch =
+# registered head_ref dependabot/nuget/src/develop/FluentAssertions-8.11.0):
+# base develop 58101938e18bd865456fbaf977baa409d080e87b = CURRENT develop tip
+# (== the #266 Dapper merge commit, merged 2026-10-26T15:26:34Z) and IS an
+# ancestor of the PR head (dependabot rebased after the #266 merge;
+# merge-base == develop tip; git merge-base --is-ancestor returned true this
+# run) - NO catch-up merge required. Re-verified the backend contract
+# in-container at the exact head against the ci-backend.yml lanes: http-binding
+# guard (passed), dotnet restore (exit 0, zero NU19xx; FluentAssertions 8.11.0
+# resolved into the package cache), backend Release build of
+# Bibliophilarr.Common/Bibliophilarr.Http/Bibliophilarr.Api.V1/NzbDrone.SignalR
+# + all test projects (0 errors; the FullLab solution build fails only at the
+# SixLabors.ImageSharp 4.1.2 ValidateLicenseTask, which requires the
+# operator-provisioned SIXLABORS_LICENSE_KEY — identical at base, not a #267
+# regression; the licensed Core/Api assembly build + test lane is host-gated),
+# Common.Test full (621 passed / 35 skipped / 0 failed, 2x: plain + coverlet
+# coverage collection, which also produced a raw coverage.cobertura.xml for
+# this run), metadata-core-fixtures (32/32), metadata-api-fixtures (4/4).
+# NO code edits (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of the
+# contributor head). No JS/TS runtime files under src/frontend/lib/app changed
+# (the diff is src/Directory.Packages.props only), so no production_coverage
+# binding is required. Hosted exact-head CI on 86b0f036: 18 success + 1 neutral
+# CodeQL, 0 failures, label-policy GREEN (LIVE-REVERIFIED by route run 2766 /
+# t_f46fa284; labels [type:dependency, area:dependencies, priority:medium,
+# risk:low, area:backend]). See baseline.json (workspace root) and
+# scratch-t_43e9cf71/ for per-command evidence.
+# Existing PR #266 audit run (2026-10-26, task t_12360743, run 2747) at exact
+# registered head dc07676acb02a47864ee3e072346008657e2a7f9 (dependabot: bump
+# Dapper 2.1.86 -> 2.1.89 in src/Directory.Packages.props + adds
+# <PackageReference Include="Dapper" /> to
+# src/NzbDrone.SignalR/Bibliophilarr.SignalR.csproj, 2 files / +2 -1;
+# Dapper is the database-access library now referenced by the SignalR service;
+# 2.1.86->2.1.89 is a PATCH-line maintenance bump, 2.1.x line, no breaking
+# changes expected; work branch = registered head_ref
+# dependabot/nuget/src/develop/Dapper-2.1.89):
+# base develop fa42ab679731b220cfd84b92dca2393818f4c0f7 = CURRENT develop tip
+# (== the #265 coverlet.collector merge commit, merged 2026-10-26T10:53:37Z)
+# and IS an ancestor of the PR head (dependabot rebased after the #265 merge;
+# merge-base == develop tip; git merge-base --is-ancestor returned true) - NO
+# catch-up merge required. Re-verified the full contract in-container at the
+# exact head: yarn-install (frozen-lockfile, up-to-date), eslint (8
+# pre-existing warnings, 0 errors, 0 new), both ops guards (ui-build-mode +
+# http-binding), stylelint-linux, jest (60/60 / 15 suites), dotnet restore
+# (exit 0, zero NU19xx), backend Release build (0 warn/0 err), NzbDrone
+# default-config build (0/0), rid-core-targeted (25/25), rid-common-targeted
+# (16/18, 2 pre-existing skips), metadata-core-fixtures (32/32),
+# metadata-api-fixtures (4/4), issue-325 regression filter (30/30,
+# license-gated via SIXLABORS_LICENSE_FILE). NO code edits
+# (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of the
+# contributor head). No JS/TS runtime files under src/frontend/lib/app changed,
+# so no production_coverage binding is required. Hosted exact-head CI on
+# dc07676a: 12 success + 1 neutral CodeQL, 0 failures, label-policy GREEN
+# (LIVE-VERIFIED by the checkout stage t_06417dc5 via the check-runs API).
+# See baseline.json (workspace root) and tmp/t_12360743/pr266-logs/ for
+# per-command evidence.
+# Existing PR #305 audit run (2026-10-26, task t_32bfd631, run 2693) at the
+# post-catch-up head 4cee868df9eefb206f12ae8e742dd0332680743b (dependabot: bump
+# Microsoft.AspNetCore.SignalR.Client 10.0.12 -> 10.0.13 in
+# src/Directory.Packages.props, 1 file / +1 -1, semver-patch; SECURITY lane
+# CVE-2026-70159 / GHSA-334f-vvp4-7g6p — SignalR stateful reconnect DoS; work
+# branch = registered head_ref
+# dependabot/nuget/src/develop/Microsoft.AspNetCore.SignalR.Client-10.0.13):
+# the PR head 82da398705e8c58039240b9553d37010674c was BEHIND the live develop
+# tip (merge-base 520d5d2a, pre-#333), so this audit performed a NORMAL
+# catch-up merge of develop tip 418a581cb9ee6eeb8b12b17dff49c0519136454 onto
+# the PR branch (zero conflicts, 45 files all from develop since base;
+# contributor 82da3987 preserved as ancestor; no rebase/force-push). Re-verified
+# the full contract in-container at the post-catch-up head: yarn-install
+# (frozen-lockfile, up-to-date), eslint (8 pre-existing warnings, 0 errors, 0
+# new), both ops guards (ui-build-mode + http-binding), stylelint-linux, jest
+# (60/60 / 15 suites, incl. issue-329 regression 5/5 via
+# --testPathPatterns), dotnet restore (exit 0, zero NU19xx), backend Release
+# build (0 warn/0 err), NzbDrone default-config build (0/0), rid-core-targeted
+# (25/25), rid-common-targeted (16/18, 2 pre-existing skips),
+# metadata-core-fixtures (32/32), metadata-api-fixtures (4/4), issue-325
+# regression filter (30/30, license-gated via SIXLABORS_LICENSE_FILE). NO code
+# edits (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of the
+# catch-up merge). No JS/TS runtime files under src/frontend/lib/app changed,
+# so no production_coverage binding is required. The 10.0.12 -> 10.0.13 bump
+# is a Microsoft servicing patch-level release (no API/behavior change
+# expected); all lanes green at the post-catch-up head. See baseline.json
+# (workspace root) and tmp/t_32bfd631/pr305-logs/ for per-command evidence.
+# Existing PR #264 audit run (2026-10-25, task t_8240540f, run 2663) at exact
+# registered head 17eb4ee05b174b938d47838c896fba9698783224 (dependabot: bump
+# docker/setup-qemu-action 3.7.0 -> 4.4.0 in .github/workflows/docker-image.yml,
+# 1 file / +1 -1 pinned SHA 99012661954931238ded8c8b007157a8430204e1 # v4.4.0;
+# base develop af01d5c4635bd17a40005d9fe6fab0caa84dbdf0 = CURRENT develop tip
+# and an ancestor of the head, so no catch-up merge was needed; work branch =
+# registered head_ref dependabot/github_actions/develop/docker/setup-qemu-action-4.4.0):
+# re-verified the full contract in-container: yarn-install (frozen-lockfile,
+# up-to-date), eslint (8 pre-existing warnings, 0 errors, 0 new), both ops
+# guards (ui-build-mode + http-binding), stylelint-linux, jest (60/60 / 15
+# suites, incl. issue-329 regression 5/5), dotnet restore (exit 0, zero NU19xx),
+# backend Release build (0 warn/0 err), NzbDrone default-config build (0/0),
+# rid-core-targeted (25/25), rid-common-targeted (16/18, 2 pre-existing skips),
+# metadata-core-fixtures (32/32), metadata-api-fixtures (4/4), issue-325
+# regression filter (30/30, license-gated via SIXLABORS_LICENSE_FILE). NO code
+# edits (validation/publication-only). No JS/TS runtime files under
+# src/frontend/lib/app changed, so no production_coverage binding is required.
+# Hosted exact-head CI on the unchanged commit shows the inherited #270
+# platform-execution CI-capability gap (build-test 'Test' step + Linux and
+# macOS cross-build lanes red on the develop tip as well); the in-container
+# re-execution of every failing POSIX step at the exact head is GREEN
+# (restore exit 0; Release build 0 warn/0 err; NzbDrone model build 0/0;
+# RID/POSIX test filters all green). See baseline.json (workspace root) and
+# tmp/t_8240540f/pr264-logs/ for per-command evidence.
+# Existing PR #263 audit run (2026-10-25, task t_a0ef0b74) at exact registered
+# head 061bddbdd3a3e05dc29f5c16f11d084831bace11 (dependabot: bump
+# docker/build-push-action 7.0.0 -> 7.4.0 in .github/workflows/docker-image.yml,
+# 1 file / +2 -2, contributor commit preserved; base develop 9b9f9648c3658663d07b5122379523f41ee9fd79
+# = CURRENT develop tip and an ancestor of the head, so no catch-up merge was
+# needed; work branch = registered head_ref
+# dependabot/github_actions/develop/docker/build-push-action-7.4.0):
+# re-verified the full contract in-container: yarn-install (frozen-lockfile,
+# up-to-date), eslint (8 pre-existing warnings, 0 errors, 0 new), both ops
+# guards (ui-build-mode + http-binding), stylelint-linux, jest (60/60 / 15
+# suites), dotnet restore (exit 0, zero NU19xx), backend Release build
+# (0 warn/0 err), rid-core-targeted (25/25), rid-common-targeted (16/18,
+# 2 pre-existing skips), metadata-core-fixtures (32/32),
+# metadata-api-fixtures (4/4), issue-325 regression filter (30/30,
+# license-gated via SIXLABORS_LICENSE_FILE). Live exact-head CI re-probed
+# green: 16 check-runs (15 success + 1 neutral CodeQL, 0 failure, 0 pending)
+# at 061bdd; PR mergeable=true / mergeable_state=clean onto develop tip
+# 9b9f9648c3. NO code edits (validation/publication-only). No JS/TS runtime
+# files under src/frontend/lib/app changed, so no production_coverage
+# binding is required. SixLabors community license required for the .NET
+# build/test lanes (see note above). See baseline.json (workspace root) and
+# tmp/t_a0ef0b74/pr263-logs/ for per-command evidence.
+# Existing PR #220 audit run (2026-10-18, task t_43f927cc) at merged head 848ba72b
+# (dependabot/github_actions/develop/actions/setup-python-7.0.0 @ 23d8bdeb + normal
+# catch-up merge of develop e7b73817; base develop e7b73817, zero conflicts):
+# re-verified yarn-install (frozen-lockfile), eslint (7 pre-existing warnings, 0
+# errors), both ops guards, jest (47/47 / 13 suites), dotnet restore, backend
+# Release build (0 warn/0 err), rid-core-targeted (25/25), rid-common-targeted
+# (16/18, 2 pre-existing skips), issue-279 regression (3/3) in-container.
+# NOTE: .NET build/test lanes require the operator-provisioned SixLabors
+# ImageSharp community license via -p:SixLaborsLicenseFile=<sixlabors.lic>
+# (mirrors ci-backend.yml's SIXLABORS_LICENSE_FILE mechanism); without it the
+# CoreCompile stage fails with "No Six Labors license found". See baseline.json
+# (workspace root) and audit-t_43f927cc/logs/ for per-command evidence.
+# Existing PR #243 audit run (2026-10-14, task t_e4ea7a87) at merged head 949a43a160
+# (dependabot/npm_and_yarn/develop/babel/preset-react-7.29.7 @ 1d101b0eda + normal
+# catch-up merge of develop fe85b50d; base develop 75c21186, zero conflicts):
+# re-verified yarn-install (frozen-lockfile @ @babel/preset-react 7.29.7), eslint
+# (7 pre-existing warnings), jest (47/47), the two ops guards, and the
+# rid-core-targeted dotnet filter (25/25) in-container. See baseline.json
+# (workspace root) and scratch-t_e4ea7a87/logs/ for per-command evidence.
+# Issue #256 development run (2026-10-13) at develop 75c21186 (base), work branch
+# fix/issue-256-unknown-new-item-monitor-type: added the issue-256-regression-* test
+# commands and re-verified the contract. See baseline.json (workspace root) and
+# scratch-t_5daa7896/logs/ for this run's per-command evidence. Historical verification
+# at existing PR #225 head 1f37119280 (2026-10-12, t_efb34b16) and the original
+# 2026-09-18 baseline at d21d1361c remain the record.
+# Issue #272 development run (2026-10-17) at develop d0f6b0e0 (base), work branch
+# fix/issue-272-author-refresh-delete: added the issue-272-regression-author-refresh-
+# delete-local test command and re-verified the contract (rid-core-targeted 25/25,
+# metadata-core-fixtures 32/32, issue-272 regression 3/3 new pass + 11 pre-existing
+# pass, 2 pre-existing not-found tests failing on NLog async-delivery timing — see
+# baseline.json). Head 42d0de9e. See logs-t_60662025/ for per-command evidence.
+# Issue #296 development run (2026-10-18, task t_56e08eff) at develop 5eac4ee3 (base),
+# work branch fix/issue-296-command-unknown-name-4xx, head 816bd8d3e8: added the
+# issue-296-regression-command-unknown-name test command and re-verified the contract
+# in-container (issue-296 fixture 5/5 — RED 4-fail at base / GREEN 5-pass post-fix; full
+# NzbDrone.Api.Test suite 80/80; full solution Release build 0 warn/0 err). See
+# baseline.json (workspace root) and t_56e08eff-logs/ for this run's per-command
+# evidence.
+# Issue #307 development run (2026-10-20, task t_d604af7f) at develop 1f158eede (base),
+# work branch fix/issue-307-manualimport-default-monitored-edition: added the
+# issue-307-regression-manualimport-null-edition test command and re-verified the
+# contract in-container (ManualImportServiceExecute* fixtures 5/5 — the #307
+# default-to-monitored-edition test RED-fails at base / GREEN post-fix; rid-core-targeted
+# 25/25, issue-275 19/19, issue-256 16/16, full solution Release build 0 warn/0 err).
+# See baseline.json (workspace root) and logs-t_d604af7f/ for this run's per-command
+# evidence.
+# Issue #309 development run (2026-10-20, task t_00c99e08) at develop 3374451bd (base),
+# work branch fix/issue-309-coldboot-apikey-stale-cache: added the
+# issue-309-regression-coldboot-apikey-stale-cache test command and re-verified the
+# contract in-container (ApiKeyAuthenticationHandlerFixture 5/5 — the cold-boot
+# persisted-key test RED-fails at base / GREEN post-fix; full NzbDrone.Api.Test suite
+# 89/89; full solution Release build 0 warn/0 err). See baseline.json (workspace root)
+# and logs-t_00c99e08/ for this run's per-command evidence.
+# Issue #316 development run (2026-10-21, task t_897492ef) at develop f5857ee953 (base),
+# work branch fix/issue-316-ping-anonymous-json-shadowed-by-spa-shell: added the
+# issue-316-regression-ping-anonymous-json test command and re-verified the contract
+# in-container (UiAuthenticationMiddlewareIssue316Fixture 5/5 + PingControllerIssue316Fixture
+# 3/3 + ProbeFixture 1/1 — the critical middleware test RED-fails at base / GREEN post-fix;
+# full NzbDrone.Api.Test suite 117/117; full solution Release build 0 warn/0 err). See
+# baseline.json (workspace root) and logs-t_897492ef/ for this run's per-command evidence.
+# Issue #323 CI-repair assessment run (2026-10-22, task t_bdadaf92) at develop
+# dd09a97c80 (PR #318 merge, the CI-failing tip): 4/14 hosted check-runs were FAILING
+# (build-test, cross-build Linux/Windows/macOS) while parent f5857ee953 was 14/14.
+# In-container re-execution of EVERY failing POSIX step at the exact head is GREEN
+# (restore exit 0; Release build 0 warn/0 err; Common.Test 621/621; desktop project
+# model restore+build 0/0; http-binding check 0; RID mapping gate 4/4) and zero NU19xx
+# audit diagnostics at this moment (default live audit AND explicit -p:NuGetAudit=true).
+# Root cause: the .NET SDK NuGetAudit runs during restore against the LIVE advisory
+# endpoint; the advisory database is time-of-run dependent, so a package can gain a
+# new advisory between a green run and the next run and (with TreatWarningsAsErrors)
+# escalate NU19xx to hard restore errors — a non-deterministic, environment-timing
+# failure class the PR #318 merge did not cause. This run documents the evidence and
+# re-verifies the contract; see baseline.json (workspace root) and
+# logs-t_bdadaf92/ for per-command evidence. No product-code change was required.
+# Do not store credentials or secrets here.
+# Existing PR #300 audit run (2026-10-26, task t_31ec4eaf, run 2801) at the
+# post-catch-up head bb3e24b13eb65085083c85fc588e07fa0f3df7d0 (dependabot: bump
+# actions/labeler 6.0.1 -> 7.0.0 in .github/workflows/labeler.yml, 1 file /
+# +1 -1, pinned action SHA 634933edcd8ababfe52f92936142cc22ac488b1b ->
+# bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13; work branch = registered head_ref
+# dependabot/github_actions/develop/actions/labeler-7.0.0): the PR head
+# db878d0146326e7650bbaeb951e18e0c07faaf02 was BEHIND the live develop tip
+# (merge-base 418a581cb9ee6eeb5db08147dff49c0519136454, the #264 merge;
+# develop advanced to 9f13e27323630ca351f611916143a731b0dc2481 via the #267
+# FluentAssertions squash merge 2026-10-26T20:08:34Z after the PR branched),
+# so this audit performed a NORMAL catch-up merge of develop tip 9f13e273 onto
+# the PR branch (zero conflicts, 3 files all from develop since base;
+# contributor db878d01 preserved as ancestor; no rebase/force-push).
+# v7 mapping-semantics verification vs the #327 label-policy gate contract:
+# the v7.0.0 release (actions/labeler, 2026-07-16, "Migrate to ESM and update
+# dependencies" #949) states "No changes to action inputs, outputs, or
+# behavior"; the built-distribution diff (raw GitHub git/trees + raw content
+# this run, logs in scratch-t_31ec4eaf/) shows the only structural delta is
+# the internal ESM migration (dist/main.js CommonJS -> dist/index.js ESM with
+# dist/package.json {"type":"module"}); all mapping-core fingerprints are
+# present in both distributions (changed-files, all four
+# *-glob-to-*-files match keys, branches, sync-labels, functionally
+# identical getChangedFiles), and the repo's .github/labeler.yml uses only
+# changed-files + any-glob-to-any-file (the documented v5+ match-object
+# schema, unchanged at v7). The trusted-base-config checkout mechanism and
+# the #327 automated-actor exception (TRUSTED_AUTOMATION_ACTORS in the
+# actions/github-script step) are byte-identical to the develop tip copy -
+# the PR touches only the pinned action SHA line. Full contract
+# re-verified in-container at the post-catch-up head: yarn-install
+# (frozen-lockfile, up-to-date), eslint (8 pre-existing warnings, 0 errors,
+# 0 new), both ops guards (ui-build-mode + http-binding), stylelint-linux,
+# jest (60/60 / 15 suites), issue-327 label-policy regression (8/8), dotnet
+# restore (exit 0, zero NU19xx), backend Release build (0 warn/0 err,
+# SixLabors license via -p:SixLaborsLicenseFile), rid-core-targeted (25/25),
+# rid-common-targeted (16/18, 2 pre-existing skips),
+# metadata-core-fixtures (32/32), metadata-api-fixtures (4/4). NO code edits
+# (validation/publication-only; the .onyx/project.yaml header +
+# baseline_evidence pointer update is the single contract commit on top of
+# the catch-up merge). No JS/TS runtime files under src/frontend/lib/app
+# changed, so no production_coverage binding is required. See baseline.json
+# (workspace root) and scratch-t_31ec4eaf/ for per-command evidence.
+# Issue #340 development run (2026-10-29, task t_61914698, run 3111) at
+# develop tip 5f21b32cd14720525622f8a25b42f8974fb3dc6a (base), work branch
+# fix/issue-340-manualimport-null-safety-no-provider. POST /api/v1/manualimport
+# (update path, ManualImportController.UpdateItems) accepted a payload carrying
+# an approved, seeded book fixture (202) but created no BookFile row: with NO
+# metadata provider configured (a legal configuration state),
+# MetadataProviderOrchestrator.SearchForNewBook returned null (ExecuteFirst
+# returns null when no enabled provider yields a result), and
+# CandidateService.SearchPrimary immediately invoked results.Any() on that
+# null, throwing an unhandled ArgumentNullException (Parameter 'source') that
+# escaped GetRemoteCandidates, aborted identification for the release, left
+# release.Edition == null, and GetDecision rejected it — so
+# ImportApprovedBooks imported 0 files while the endpoint still returned 202.
+# The #275 direct-catalogue fallback in ImportDecisionMaker.IdentifyReleaseFallback
+# had the same null hazard (books.Where on the null result), swallowed by its
+# catch but still leaving the release unrecoverable. Fix: null-coalesce the
+# orchestrator result to an empty List<Book> at every call site feeding
+# ToCandidates (SearchPrimary, the four GetRemoteCandidates paths, and the
+# ISBN contextual fallback) and null-guard books before .Where in
+# IdentifyReleaseFallback so the fallback degrades to the original permanent
+# rejection. Verified in-container: full solution Release build
+# 0 warn / 0 err (1m45s, SixLabors license provisioned via
+# SIXLABORS_LICENSE_FILE from the operator-provisioned workspace copy; the
+# license VALUE is never logged or committed); RED: CandidateServiceIssue340Fixture
+# 4/4 FAILED at base (NRE at ToCandidates line 943 via
+# GetRemoteCandidates line 312 — the unhandled ArgumentNullException path);
+# GREEN: CandidateServiceIssue340Fixture 4/4 PASSED +
+# ImportDecisionMakerIssue275Fixture 6/6 PASSED (including the new
+# #340-complement test should_keep_permanent_rejection_when_catalogue_lookup_returns_null_no_provider_configured);
+# targeted CI filters (MetadataProviderOrchestratorFixture, CandidateServiceFixture,
+# ManualImportServiceExecute, ImportDecisionMakerIssue275Fixture) 31/31 PASSED.
+# No JS/TS runtime files under src/frontend/lib/app changed (no
+# production_coverage binding required). No code edits beyond the null-guards
+# and regression fixtures. See baseline.json (workspace root) and
+# scratch-t_61914698/logs/ for per-command evidence.
+# Issue #329 development run (2026-10-24, task t_1445b5f4, run 2406) at develop tip
+# c19a261c538246b69957eb1d1b2e1c3fa912edcc (base), work branch
+# fix/issue-329-authed-spa-routes-blank-shell: implemented D1/D2/D3 (per-request
+# InitializeJsonController config reads; UiAuthenticationMiddleware /initialize.json
+# exact-path exclusion; Startup FallbackPolicy API+Forms; index.ts boot hardening via
+# loadInitializeConfig + exported moduleReady) + 5-test jest regression
+# (frontend/src/index.test.js) + InitializeJsonIssue329Fixture (2 integration tests).
+# Verified in-container: jest RED 5/5 on original index.ts -> GREEN 5/5 on fixed; full
+# solution Release build 0 warn/0 err; InitializeJsonIssue329Fixture GREEN 2/2;
+# CI-parity integration filter 13/16 with 3 pre-existing HostConfigAuthorizationFixture
+# failures (identical at BASE per hostcfg-base-r2421.log — adjacent host-config authz
+# defect, not a #329 regression). Added the issue-329-regression-authed-spa-blank-shell
+# test command. .NET build/test lanes use the operator-provisioned SixLabors license
+# via -p:SixLaborsLicenseFile=<sixlabors.lic> (mirrors ci-backend.yml's
+# SIXLABORS_LICENSE_FILE mechanism). See baseline.json (workspace root) and
+# logs-t_1445b5f4/ for per-command evidence.
+# Existing PR #326 audit run (2026-10-23, task t_4906a68c) at work-branch head
+# 8def6a3855 (registered existing PR head 9970dccf29 + normal catch-up merge of
+# develop c2513d5e, merge commit 8def6a38; base develop c2513d5e, zero conflicts;
+# merge preserved all 4 contributor/agent commits a104fc72..9970dccf as ancestors):
+# re-verified the full contract in-container (Debian 13, .NET SDK 10.0.401,
+# Node v20.20.2 + Yarn 1.22.19): yarn-install (frozen-lockfile, 0.9s), eslint
+# (7 pre-existing warnings, 0 errors), jest (47/47 / 13 suites), both ops guards,
+# dotnet restore (0 NU19xx at this run window), backend Release build
+# (0 warn/0 err), Common.Test full (621 passed / 35 skipped / 0 failed),
+# rid-common-targeted (16/18, 2 pre-existing skips), rid-core-targeted (25/25),
+# metadata-core-fixtures (32/32), issue-325 regression filter (30/30:
+# RefreshAuthorServiceFixture incl. 4 new #325 tests + GetAuthorFolderFixture
+# incl. 2 new null-name tests). Added the issue-325-regression-author-add-nre-
+# and-no-delete test command. .NET build/test lanes use the operator-provisioned
+# SixLabors license file via -p:SixLaborsLicenseFile=<sixlabors.lic> (mirrors
+# ci-backend.yml's SIXLABORS_LICENSE_FILE mechanism). NO product-code change was
+# made by this audit stage (validation/publication-only selection); see
+# PR_DESCRIPTION.md (workspace root) and baseline.json for per-command evidence.
+# Existing PR #262 audit run (2026-10-22, task t_e1b456d9, run 2302) at work-branch head
+# f6ea6959f2 (dependabot/github_actions/develop/actions/setup-node-7.1.0 @ e0263985
+# + normal catch-up merge of develop a104fc72, merge commit f6ea6959; base develop
+# a104fc72, zero conflicts; merge preserved contributor commit e0263985 as an
+# ancestor):
+# re-verified the full contract in-container (Debian 13, .NET SDK 10.0.401,
+# Node + Yarn preinstalled): yarn-install (frozen-lockfile), eslint (7
+# pre-existing warnings, 0 errors), both ops guards, jest (47/47 / 13 suites),
+# dotnet restore (0 NU19xx at this run window), backend Release build
+# (0 warn/0 err), rid-core-targeted (25/25), rid-common-targeted (16/18, 2
+# pre-existing skips). .NET build/test lanes use the operator-provisioned
+# SixLabors license file via -p:SixLaborsLicenseFile=<sixlabors.lic>
+# (mirrors ci-backend.yml's SIXLABORS_LICENSE_FILE mechanism). No product-code
+# change was required or made for this PR: the 3-file pinned-SHA bump
+# (actions/setup-node 6.3.0 v53b83947 -> 7.1.0 v949feb24, node-version
+# 22.22.2, cache: yarn) was independently assessed as low-risk - see
+# PR_DESCRIPTION.md (workspace root) and baseline.json for per-command
+# evidence. The PR's label-policy check failures are metadata-surface
+# (labels/assignee/body contract), not code defects, and are out of scope for
+# this audit stage.
+
+version: 1
+name: bibliophilarr
+canonical_repo: https://github.com/Swartdraak/Bibliophilarr
+immutable_repo_id: 1159029625
+default_branch: main
+integration_branch: develop
+promotion_path: [develop, staging, main]
+human_gates: [stable-release, hotfix]
+license: GPL-3.0
+runtime_port: 8787
+
+components:
+  backend:
+    path: src
+    language: csharp
+    solution: src/Bibliophilarr.sln
+    framework: net10.0
+    build_platform: Posix          # -p:Platform=Posix required on Linux/macOS
+    nuget_config: src/NuGet.config # nuget.org only; pinned Servarr feed is 401 and NOT used
+  frontend:
+    path: frontend
+    language: typescript
+    bundler: webpack
+    test_runner: jest
+    package_manager: yarn@1.22.19
+  host_app:
+    path: src/NzbDrone.Console
+    output: _output/net10.0/linux-x64/Bibliophilarr
+    packaged: _artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr
+  windows_desktop:
+    path: src/NzbDrone
+    framework: net10.0-windows
+    note: WinForms shell; runnable on Windows only. On Linux/macOS the project model must still restore/build (EnableWindowsTargeting) — this is the Rider/Coder portability gate.
+
+toolchain:
+  dotnet: "10.0.x (verified 10.0.401; global.json pins 10.0.100, rollForward latestFeature)"
+  node: "22.x per repo docs (verified locally on v20.20.2 — frontend gates pass on both)"
+  yarn: "1.22.19"
+
+commands:
+  bootstrap:
+    - name: yarn-install
+      command: yarn install --frozen-lockfile
+      cwd: .
+    - name: dotnet-restore
+      command: dotnet restore src/Bibliophilarr.sln -p:Platform=Posix
+      cwd: .
+  lint:
+    - name: eslint
+      command: yarn lint
+      cwd: .
+      note: 7 pre-existing warnings, 0 errors (no-negated-condition in frontend/src)
+    - name: ui-build-mode-guard
+      command: ./scripts/ops/check_ui_build_mode.sh
+      cwd: .
+      note: >
+        Issue #252 regression guard (added in fix/issue-252-release-ui-eval-bundle):
+        asserts the 'yarn build' script pins BIBLIOPHILARR_WEBPACK_PRODUCTION=1,
+        that webpack.config.js honors it, and that a pinned production build emits
+        an eval-free entry bundle (no eval-source-map devtool, no eval() calls).
+        Also wired into .github/workflows/ci-frontend.yml.
+    - name: stylelint
+      command: yarn stylelint-linux
+      cwd: .
+    - name: http-binding-check
+      command: ./scripts/ops/check_http_binding.sh
+      cwd: .
+      note: governance check — all complex mutation payloads use explicit source binding
+  build:
+    - name: backend-release
+      command: dotnet build src/Bibliophilarr.sln --configuration Release -p:Platform=Posix
+      cwd: .
+      note: 0 warnings, 0 errors (~1m)
+    - name: windows-desktop-project-model
+      command: dotnet build src/NzbDrone/Bibliophilarr.csproj -p:Platform=Posix
+      cwd: .
+      note: cross-build portability gate — the net10.0-windows WinForms project model must restore/build on POSIX hosts (Rider/Coder failure mode regression check)
+    - name: full-build
+      command: ./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
+      cwd: .
+      note: full pipeline (backend publish, test-asset packaging, yarn install, eslint+stylelint, webpack UI, linux-x64 package). Does NOT execute the dotnet test suite — test gating is via CI or the explicit test commands below.
+  test:
+    - name: common-tests
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix
+      cwd: .
+      note: "RE-VERIFIED 2026-11-06 at develop tip 7a9d95e5 in isolated Docker, .NET 10.0.401, Release/Posix, exact CI build-test parity: full-sln Release build exit 0 0w/0e then dotnet test --configuration Release --no-build --verbosity minimal -p:Platform=Posix: 3 consecutive runs all exit 0 (665 tests: 630 passed, 35 skipped, 0 failed; logs-t_60287cb7/common-test-ci-exact.log, common-test-run2.log, common-test-run3.log). 2026-11-06 IMPLEMENTED (task t_60287cb7, run 4098, work branch fix/ci-common-test-host-repro-4089): the 4 failed required lanes at tip 7a9d95e5 (ci-backend.yml build-test + cross-build-portability.yml Linux/macOS/Windows, all NzbDrone.Common.Test Release --no-build) failed on a REAL test-code defect, NOT a host quirk: authenticated exact-head CI log evidence (workspace ci-failure-context-t_60287cb7.json, runs 42251224259/42251224270, jobs 128006526540/128006526769/128006526864/128006526966) shows System.DivideByZeroException thrown from HttpClientFixture<TDispatcher>.SetUp at the round-robin line '_httpBinHosts[_httpBinRandom++ % _httpBinHosts.Length]' in all four lanes (build-test additionally shows a live 502 from httpbin.servarr.com for one should_send_headers case - a separate external-site flake). Root cause: when the mirror probe in FixtureSetUp finds httpbin1.servarr.com unavailable, _httpBinHosts is EMPTY and the % _httpBinHosts.Length (0) throws from SetUp for EVERY subsequent test in the fixture (cascade of bad_ssl_certificate_validation_is_deterministic, should_parse_malformed_cloudflare_cookie, should_reject_malformed_domain_cookie, should_send_headers, should_throw_on_unsuccessful_status_codes failures in the logs). The sandbox could not reproduce it because the mirror was reachable from the sandbox at run time, while it was not from the hosted runners at that CI run. Fix (test code only, no production code touched): SetUp now falls back to the primary host (_httpBinHost) when _httpBinHosts is empty; FixtureSetUp logs the actual mirror-probe result instead of the candidate count; regression tests added - set_up_must_survive_no_available_mirrors (in-fixture, mirrors the live probe result) and the new HttpClientMirrorFallbackFixture (3 deterministic tests, no network: legacy expression throws DivideByZeroException on the empty list, guarded selection falls back to primary, guarded selection still round-robins when mirrors are available). Post-fix verification at candidate head: full-sln Release build 0w/0e + dotnet test --configuration Release --no-build -p:Platform=Posix 3 consecutive runs exit 0, 669 tests: 634 passed, 35 skipped, 0 failed (logs-t_60287cb7/common-test-fix-run1/2/3.log); targeted filter FullyQualifiedName~HttpClientMirrorFallbackFixture|FullyQualifiedName~set_up_must_survive_no_available_mirrors 4/4 (logs-t_60287cb7/common-test-fix-targeted.log). ProcessProviderFixture requires DOTNET_ROOT exported (or .NET on PATH) so the dummy helper app can start. Residual (honestly reported): the hosted-runner mirror availability at future CI runs is environmental - this fix removes the cascade so a mirror outage degrades the fixture to primary-host-only instead of a full-fixture crash; the single live 502 from httpbin.servarr.com remains an external-site flake outside this change's scope."
+    - name: issue-277-regression-openlibrary-empty-fanout-telemetry
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~Issue277OpenLibraryEmptyFanoutTelemetryFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture"
+      cwd: .
+      note: "Issue #277 regression: V1 lookup fan-out must be diagnosable in telemetry. 5 new tests (Issue277OpenLibraryEmptyFanoutTelemetryFixture) prove: (1) book/author lookup falls back to the second provider when the primary returns an empty list (the orchestrator now implements ISearchForNewBook/ISearchForNewAuthor so DryIoc resolves the V1 lookup contracts to the fan-out), (2) a provider failure is recorded in telemetry as a failure, not a silent [], (3) an empty-200 fan-out is diagnosable via recorded result count 0 (distinguishable from a failure), (4) an empty fan-out does not mask a later provider that has data. Verified in Docker at head 25ec7eca18 (base develop d945bea7, work branch fix/issue-277-openlibrary-empty-fanout-telemetry, .NET 10.0.401, Release/Posix + SixLabors license): build 0 warn / 0 err; 18/18 pass (5 new + 13 pre-existing MetadataProviderOrchestratorFixture, no regressions). Raw logs audit-277/. Do NOT add -r linux-x64: the fresh build emits to _tests/net10.0/ (framework output); -r linux-x64 points at a stale RID-specific copy."
+      evidence:
+        raw_logs:
+          - audit-277/2-test-issue277.log
+        status: passed
+        tests_total: 18
+        tests_passed: 18
+        tests_failed: 0
+    - name: issue-256-regression-monitor-failsafe
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~MonitorNewBookServiceFixture"
+      cwd: .
+      note: "Issue #256 regression: MonitorNewBookService must not throw NotImplementedException for out-of-range NewItemMonitorTypes values (3, -1, 99); it logs a Warning and returns the safe no-monitor default. 6 tests (3 pre-existing + 3 new), 0 failed at head 75c21186."
+    - name: issue-256-regression-import-no-silent-drop
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~ImportApprovedBooksFormatFixture"
+      cwd: .
+      note: "Issue #256 regression: import must not silently drop a book when the author's MonitorNewItems is out of range; the pipeline completes without throwing. 5 tests (4 pre-existing + 1 new), 0 failed at head 75c21186."
+    - name: issue-256-regression-migration-048-clamp
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~clamp_monitor_new_items_to_valid_rangeFixture"
+      cwd: .
+      note: "Issue #256 data repair: migration 048 clamps out-of-range MonitorNewItems (AuthorFormatProfiles/Authors) to 0 and preserves valid values. 3 tests, 0 failed at head 75c21186."
+    - name: rid-common-targeted
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture"
+      cwd: .
+      note: "CI parity (ci-backend.yml rid-core-common-targeted): 18 tests: 16 passed, 2 skipped, 0 failed. RID-sensitive process/rate-limit fixtures only; HttpClientFixture deliberately excluded (covered by build-test lane)."
+    - name: rid-core-targeted
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture"
+      cwd: .
+      note: "CI parity (ci-backend.yml rid-core-common-targeted): re-verified 2026-10-12 at 8e381ed8c6 - 25 tests, 25 passed, 0 failed (fixture count grown since the 2026-09-18 note of 20). OpenLibrarySearchProxyFixture replaced the stale OpenLibraryIsbnAsinLookupFixture reference from the main band."
+    - name: metadata-core-fixtures
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture"
+      cwd: .
+      note: "CI parity (ci-backend.yml metadata-provider-fixtures): re-verified 2026-10-12 at 8e381ed8c6 - 32 tests, 32 passed, 0 failed (fixture count grown since the 2026-09-18 note of 27)."
+    - name: metadata-api-fixtures
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture"
+      cwd: .
+      note: "CI parity (ci-backend.yml metadata-provider-fixtures): 4 tests, 4 passed, 0 failed."
+    - name: issue-279-regression-add-book-null-addoptions
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~Issue279"
+      cwd: .
+      note: "Issue #279 regression: BookResourceMapper.ToModel must substitute a fresh AddBookOptions when the client omits the optional addOptions field, so AddBookService.AddBook's 'book.AddOptions.AddType = Manual' (AddBookService.cs:63) never throws NullReferenceException (500 instead of 201). 3 tests (null-addOptions -> non-null default; omitted-addOptions+editions payload maps cleanly; client-provided addOptions preserved), 0 failed at head 8d2281e4c5 (work branch fix/issue-279-add-book-500-null-addoptions, run t_f1ae9028). Pinned by BookResourceMapperIssue279Fixture."
+    - name: issue-275-regression-manualimport-null-edition-mapping
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~ImportDecisionMaker"
+      cwd: .
+      note: "Issue #275 regression: the manual-import scan path (GET /api/v1/manualimport) must not leave the discovered item's book/edition mapping NULL -> permanent 'Couldn't find similar book' rejection (ImportDecisionMaker.GetDecision null-Edition branch). When identification leaves a release without a catalogue Edition, ImportDecisionMaker now performs a bounded direct catalogue lookup (IMetadataProviderOrchestrator.SearchForNewBook) from the file's own book/author metadata and adopts the best candidate edition; genuinely-unresolvable items keep the original permanent rejection. Pinned by ImportDecisionMakerIssue275Fixture (5 tests: match-on-null-edition; keep-rejection-no-metadata; keep-rejection-lookup-empty; keep-rejection-lookup-throws; no-throw-no-metadata) plus the 14 pre-existing ImportDecisionMakerFixture tests. RE-VERIFIED 2026-10-16 on a FRESH linux-x64 RID build at the repaired head (work branch fix/issue-275-manualimport-null-edition-mapping, run t_7bdf990f): this filter yields 19 total (14 pre-existing + 5 new), 19 passed / 0 failed / 0 skipped. PITFALL: the linux-x64 RID test assembly only rebuilds with '-r linux-x64'; a stale RID DLL that predates the new fixture makes this filter silently report only the 14 pre-existing tests (a false '14/14'), so ALWAYS rebuild the RID assembly fresh at the exact head and confirm the fixture is present in the DLL (strings | grep -c ImportDecisionMakerIssue275Fixture == 1) before trusting the count."
+    - name: issue-272-regression-author-refresh-delete-local
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~RefreshAuthorServiceFixture"
+      cwd: .
+      note: "Issue #272 regression: a locally created author (synthetic/unmapped foreign id, AuthorMetadataId == 0) persisted via POST /api/v1/author must survive the post-create background refresh — RefreshAuthorService.ShouldDelete returns false for AuthorMetadataId <= 0 so the expected not-found is not treated as a provider-removal signal; provider-sourced authors (AuthorMetadataId > 0) keep the documented provider-removed deletion behavior (#204/#209). Pinned by three new tests in RefreshAuthorServiceFixture: should_not_delete_newly_created_local_author_when_foreign_id_unresolvable_and_no_files (single RefreshAuthorCommand), should_not_delete_local_author_on_bulk_refresh_when_foreign_id_unresolvable_and_no_files (BulkRefreshAuthorCommand), and should_still_delete_provider_sourced_author_when_remote_removed_and_no_files (no-regression guard). RE-VERIFIED 2026-10-17 at head 42d0de9e (work branch fix/issue-272-author-refresh-delete, run t_60662025): 16 total (13 pre-existing + 3 new); the 3 new + 11 pre-existing pass. PRE-EXISTING: 2 pre-existing not-found tests (should_log_error_and_delete_if_musicbrainz_id_not_found_and_author_has_no_files, should_log_error_but_not_delete_if_musicbrainz_id_not_found_and_author_has_files) fail in this isolated environment due to NLog async-delivery timing of the ExceptionVerification target (the fixture's ExpectedErrors/ExpectedWarns counts race with log delivery) — they fail identically on the BASE head d0f6b0e0 (see baseline.json) and are NOT caused by this change; RefreshAuthorServiceFixture is not a CI-required lane (ci-backend.yml runs targeted filters only), so these pre-existing failures do not block the PR."
+    - name: issue-296-regression-command-unknown-name
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~CommandControllerUnknownNameIssue296Fixture"
+      cwd: .
+      note: "Issue #296 regression: POST /api/v1/command with a command name matching no registered Command implementation must return 400 (BadRequest), never 500. Before the fix, CommandController.StartCommand used Enumerable.Single, which throws InvalidOperationException when zero implementations match; BibliophilarrErrorPipeline maps that to HttpStatusCode.InternalServerError and logs it at Fatal, producing a 500 for a benign client-input condition. The endpoint now resolves the type with FirstOrDefault and throws a 400 BadRequestException when the name is unknown, and reads the raw request body up front (no behavior change for the error path). Pinned by CommandControllerUnknownNameIssue296Fixture (5 tests: 3 unknown-name cases -> 400 ApiException not 500/InvalidOperationException; ApplicationUpdateCommand guard preserved -> 400 with disabled message; resolvable name not rejected by the guard -> 201 CreatedAtActionResult). RE-VERIFIED 2026-10-18 at head 816bd8d3e8 (work branch fix/issue-296-command-unknown-name-4xx, run t_56e08eff): RED 4-failed at base (3 unknown-name -> InvalidOperationException @ CommandController.cs:55; 1 resolvable blocked at Request.Body) / GREEN 5-passed post-fix; full NzbDrone.Api.Test suite 80/80; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (unknown-name -> 4xx over the wire) is exercised in the application-test stage; the existing NzbDrone.Integration.Test CommandFixture is [Ignore]d and requires Postgres, so this unit-level fixture is the CI-parity guard."
+    - name: issue-307-regression-manualimport-null-edition
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~ManualImportServiceExecute"
+      cwd: .
+      note: "Issue #307 regression (complement of the #295 fix at 1f158eede): POST /api/v1/manualimport (update) with a valid BookId and null ForeignEditionId must NOT strand the imported file unmapped (BookFile.EditionId=0). ManualImportService.Execute now defaults the edition to the book's MONITORED edition (mirroring the event-path fallback at ImportApprovedBooks.cs:359) BEFORE the #295 rejection guard, so the file is persisted mapped (EditionId>0); a book with NO monitored edition is still explicitly rejected (honest failure, #295 semantics preserved). Pinned by ManualImportServiceExecuteIssue307Fixture (3 tests: null-foreignEditionId + monitored edition -> decision APPROVED with Edition.Id>0; null-foreignEditionId + no monitored edition -> decision REJECTED; unresolvable named edition + no monitored edition -> decision REJECTED) plus the 2 pre-existing ManualImportServiceExecuteFixture (#295) tests. RE-VERIFIED 2026-10-20 at develop 1f158eede (base) with work branch fix/issue-307-manualimport-default-monitored-edition (run t_d604af7f): the default-to-monitored-edition test RED-fails at base (decision rejected instead of approved) / GREEN post-fix; full ManualImportServiceExecute* filter 5/5 post-fix; rid-core-targeted 25/25, issue-275 19/19, issue-256 16/16; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (mapped BookFile row + per-book view) is exercised in the application-test stage; this unit-level fixture is the CI-parity guard. Secondary defect noted in issue #307 (zero-byte/corrupt media persisting BookFile rows, AC4) is a distinct defect with no media-integrity validation layer in this repo and is NOT fixed by this change; it is reported as a follow-up issue."
+    - name: issue-309-regression-coldboot-apikey-stale-cache
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~ApiKeyAuthenticationHandlerFixture"
+      cwd: .
+      note: "Issue #309 regression (cold-boot API-key authentication): a freshly-booted instance whose config.xml holds a persisted 32-char ApiKey must accept X-Api-Key=<that key> with 200 during the readiness window. Root cause: ApiKeyAuthenticationHandler (src/Bibliophilarr.Http/Authentication/ApiKeyAuthenticationHandler.cs) captured config.ApiKey exactly once in its constructor (private readonly string _apiKey = config.ApiKey) and compared every request against that stale value. On a cold boot the value captured at construction can be a pre-finalization key that differs from the key ultimately persisted to config.xml during startup (ConfigFileProvider.ApiKey generates/persists on first access); because the cache was never invalidated, the persisted key 401'd for the entire boot until a restart. Fix: the handler now reads _config.ApiKey per request in HandleAuthenticateAsync (no construction-time cache) and treats a blank configured key as non-authenticating. Pinned by ApiKeyAuthenticationHandlerFixture (5 tests: persisted key authenticates after cold-boot finalization — RED at base; wrong key rejected; missing key rejected; blank configured key rejects all; Bearer Authorization header still authenticates). RE-VERIFIED 2026-10-20 at develop 3374451bd (base) with work branch fix/issue-309-coldboot-apikey-stale-cache (run t_00c99e08): RED 1-failed/4-passed at base (cold-boot test) / GREEN 5/5 post-fix; full NzbDrone.Api.Test suite 89/89; full solution Release build 0 warn/0 err (CI parity, analyzers ON). The durable end-to-end cold-boot HTTP acceptance (persisted key 200 over the wire on a fresh data dir) is exercised in the application-test stage; this unit-level fixture is the CI-parity guard."
+    - name: issue-316-regression-ping-anonymous-json
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~Issue316"
+      cwd: .
+      note: "Issue #316 regression (anonymous /ping JSON liveness contract): the documented [AllowAnonymous] JSON liveness endpoint GET /ping was shadowed to the SPA shell because UiAuthenticationMiddleware classified /ping as a UI-shell GET (its exclusion list only covered /api/, /login, /content/). Under AuthenticationRequired=Enabled the Forms challenge's LoginPath falls through to the SPA catch-all, so anonymous GET /ping returned 200 + index.html instead of the PingController's JSON {\"Status\":\"OK\"}. Fix: exclude the EXACT path /ping from the UiAuthenticationMiddleware UI-shell classification (string.Equals(path, \"/ping\")) so the [AllowAnonymous] PingController response is served directly; the #313/#315 auth-gate behavior (unauth UI 401, unauth API 401, authed API 200) is preserved for real UI-shell paths. Pinned by UiAuthenticationMiddlewareIssue316Fixture (5 tests: anonymous /ping passes through unchallenged — RED at base; disabled-mode /ping passes through; authed /ping passes through; UI-shell paths still challenge with Forms; /ping/extra is not exempted) plus PingControllerIssue316Fixture (3 tests: 200 + Status=OK JSON contract; 500 + Status=Error when config repo unavailable; route attributes declare [AllowAnonymous] + [HttpGet/HttpHead \"/ping\"]) plus ProbeFixture (1 sanity test). RE-VERIFIED 2026-10-21 at develop f5857ee953 (base) with work branch fix/issue-316-ping-anonymous-json-shadowed-by-spa-shell (run t_897492ef): RED 1-failed/7-passed at base (the critical middleware test) / GREEN 8/8 post-fix; full NzbDrone.Api.Test suite 117/117; full solution Release build 0 warn/0 err. The durable end-to-end HTTP acceptance (anonymous /ping = 200 JSON over the wire) is exercised in the application-test stage; this unit-level fixture is the CI-parity guard."
+    - name: issue-325-regression-author-add-nre-and-no-delete
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~GetAuthorFolderFixture"
+      cwd: .
+      note: "Issue #325 regression (POST /api/v1/author 500 NRE + post-create refresh deleting the freshly created local author), pinned by existing PR #326 (4 commits, 4 files: RefreshAuthorService.cs, FileNameBuilder.cs, RefreshArtistServiceFixture.cs, GetAuthorFolderFixture.cs). DEFECT 1 — folder-name NRE: FileNameBuilder.AddAuthorTokens now null-guards author.Name/CleanName/Metadata so a freshly constructed local author (metadata value not yet provider-resolved) can no longer throw 'Object reference not set' and 500 the add. DEFECT 2 — post-create delete: AddAuthorService upserts an AuthorMetadata row for every added author and assigns the resulting POSITIVE id to Author.AuthorMetadataId, so the old 'AuthorMetadataId <= 0' no-delete guard (issue #272) no longer identified locally created authors; the post-create RefreshAuthorCommand then deleted the persisted row ~3s after the 201. ShouldDelete now keys on the PROVIDER ID SCOPE (ProviderOwnedForeignId: openlibrary:author:... / bare OLxxxxA via OpenLibraryIdNormalizer, hardcover:...): only provider-scoped ids can be provider-removed, so synthetic/unmapped ids (e.g. recovery:author:RTA-001) are retained regardless of AuthorMetadataId; provider-sourced authors keep the documented #204/#209 provider-removed deletion. RE-VERIFIED 2026-10-23 in-container at work-branch head 8def6a38 (registered PR head 9970dccf + catch-up merge of develop c2513d5e, zero conflicts; task t_4906a68c): filter GREEN 30/30 — RefreshAuthorServiceFixture (21 tests incl. 4 new #325 tests: positive-metadata-id + synthetic-id no-delete single/bulk, provider-scope deletion 3-case matrix, files-present no-delete) + GetAuthorFolderFixture (9 tests incl. 2 new null-name NRE-guard tests). Companion RefreshArtistServiceFixture (MusicTests namespace, same file path) aligns the 2 pre-existing synthetic-id not-found tests to the provider-scope gate (no-delete for synthetic ids; the documented provider-removed deletion is now exercised via provider-scoped ids) — verified by build (0 warn/0 err) + full Common.Test 621/0-fail. The durable end-to-end HTTP acceptance (local-author add -> 201 + row survives the post-create refresh) is exercised in the application-test stage; this unit-level fixture set is the CI-parity guard."
+    - name: issue-103-regression-nuget-audit-nonfatal-gate
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~NuGetAuditModeIssue103"
+      cwd: .
+      note: "NET10-03 (#103, epic #96 .NET 8 -> .NET 10 LTS) NuGet compatibility review: the .NET 10 SDK enables NuGetAudit by default (audit level = high), emitting NU1901-NU1904 vulnerable-package warnings at restore. With TreatWarningsAsErrors=true (Directory.Build.props) ANY of those audit warnings escalates to a hard restore/build error that aborts the whole restore, so a single NEW advisory (direct OR transitive) red-lines the entire solution and stops every PR/CI lane (the documented Oct-2026 'develop went red' trap: SixLabors/ImageSharp 3.1.11, System.Security.Cryptography.Pkcs). Fix: src/Directory.Build.props now sets <NuGetAuditMode>direct</NuGetAuditMode> - the audit is narrowed to DIRECT package references; transitive-only advisories degrade to a visible, triageable warning while direct-reference advisories still surface as NU19xx and still gate the build (TreatWarningsAsErrors stays true). The repo keeps the known-vulnerable transitive pins (System.Security.Cryptography.Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2) in Directory.Packages.props so residual transitive risk is explicitly tracked. Pinned by NuGetAuditModeIssue103Fixture (3 tests: NuGetAuditMode=direct declared exactly once and not all/default; TreatWarningsAsErrors remains true; a single NuGetAuditMode occurrence so a later override cannot silently win in MSBuild). RE-VERIFIED 2026-10-31 at develop base 7b830538 (work branch fix/issue-103-nuget-audit-nonfatal-gate, run 3278): RED 2/3 failed when the gate line is removed (negative test proves the guard is not vacuous) / GREEN 3/3 post-fix; full-sln restore EXIT 0 + full Release build 0 warn/0 err with NuGetAuditMode=direct active (behaviorally inert at the current head, zero NU19xx, no dependency churn). No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Contributes to #103 and epic #96."
+    - name: issue-103-regression-nuget-compatibility-review
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~NuGetCompatibilityIssue103"
+      cwd: .
+      note: "NET10-03 (#103) post-migration NuGet compatibility review (2026-11-01, task t_ca020c6d, run 3451): pins the post-migration package-graph invariants established by the full 24-project graph audit at develop e36967ad. Pinned by NuGetCompatibilityIssue103Fixture (3 tests): (1) every central PackageVersion in src/Directory.Packages.props is an EXACT version - no floating '*' and no NuGet ranges (CPM pins are the graph minimum; a floating pin would silently drift restores, violating the 'no accidental dependency churn' acceptance); (2) the three residual-risk pins remain at their audited post-migration lines - System.Security.Cryptography.Pkcs 10.0.13, System.Drawing.Common 9.0.0, SixLabors.ImageSharp 4.1.2 - so removing or re-pointing a documented vulnerability pin breaks the build; (3) ManagePackageVersionsCentrally stays true in src/Directory.Build.props (the whole pin analysis only holds under CPM). The audit itself (zero resolved-below-pin, zero cross-project line-split, zero NU19xx/NU15xx/NU16xx at restore, full-sln Release build 0 warn/0 err) is recorded in baseline.json + scratch-t_ca020c6d/analysis.txt; the pre-existing orphan-project CPM defect (NzbDrone.Automation.Test, NU1010 on standalone restore, not in the solution) is documented there and routed as an epic #96 follow-up. RE-VERIFIED 2026-11-01 in-container at the candidate head: GREEN 3/3; combined with the audit-gate fixture (6/6); full Common.Test 662 total -> 627 passed / 35 skipped / 0 failed; full-sln Release build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Contributes to #103 and epic #96."
+    - name: issue-384-regression-polymorphic-converter-read-recursion
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~PolymorphicWriteOnlyJsonConverterIssue384Fixture"
+      cwd: .
+      note: "Issue #384 regression (CRASH/SERIALIZATION): PolymorphicWriteOnlyJsonConverter<T>.Read called JsonSerializer.Deserialize<T> with the same options that registered the converter via [JsonConverter] on the type; System.Text.Json resolves attribute converters via the type metadata cache (not options.Converters), so the inner Deserialize re-entered Read indefinitely and the StackOverflowException killed the whole process whenever a command error was serialised for the response/log. Fix (commit 79f7eb102c, work branch fix/issue-384-polymorphic-converter-read-recursion from develop tip 8634b0e0): a per-thread [ThreadStatic] read-depth counter guards Read - the outermost call deserialises as before (catchable JsonException for the abstract Command base type), any re-entrant call returns default and breaks the cycle; the counter resets in a finally block after each top-level call. Pinned by PolymorphicWriteOnlyJsonConverterIssue384Fixture (6 tests: write_should_serialize_concrete_type_properties, write_should_use_runtime_type_not_static_type, read_with_converter_in_options_should_not_recurse_infinite - RED at base (test host aborts: 'Test Run Aborted ... Stack overflow'), read_should_not_mutate_options_state, command_error_serialization_should_not_crash_application - RED at base, write_only_converter_read_should_be_idempotent_safe). RE-VERIFIED 2026-11-12 in isolated Docker (.NET 10.0.401, Release/Posix, PN-owned NuGet scratch cache): RED at base 8634b0e0 via git worktree - Common.Test Release build 0w/0e then the 6-test filter aborts the test host with a StackOverflowException inside PolymorphicWriteOnlyJsonConverter<T>.Read (raw-logs-t_bed560c2/red-issue384.log); GREEN at head 79f7eb102c - Common.Test Release build 0w/0e, filter 6/6 passed (raw-logs-t_bed560c2/issue384-regression.log), full Common.Test 639 passed / 35 skipped / 0 failed (raw-logs-t_bed560c2/full-common-test.log). The 35 skips are platform-specific Windows service/forms tests, identical set to the base. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Closes #384."
+    - name: issue-426-regression-manualcopy-duplicate-copy-preserves-bookfile
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~ImportApprovedBooksDuplicateCopyFixture"
+      cwd: .
+      note: "Issue #426 regression (IMPORT/DUPLICATE): a manual copy import submitted with replaceExistingFiles=false still replaced the identity of the already-imported BookFile record when the identical file was re-imported - ImportApprovedBooks.Import never consulted the flag on the incoming-file path (only the dead RemoveExistingTrackFiles call and event emission used it), so the duplicate flowed into UpgradeMediaFileService.UpgradeBookFile, which unconditionally recycles the prior record (delete + insert -> new identity despite identical bytes). Fix: when replaceExisting is false and a DB record already backs the incoming path for the same book+part+edition, the duplicate import short-circuits - the original record and file are preserved, no upgrade/copy is issued, and the result reports the skip with the preserved record id. Explicit replaceExisting=true keeps the existing replacement/upgrade path unchanged. Pinned by ImportApprovedBooksDuplicateCopyFixture (3 tests: duplicate copy import with replaceExistingFiles=false preserves the original record - no upgrade issued, no record deleted, no new record added, result Skipped with the preserved id; duplicate import with replaceExistingFiles=true still upgrades and imports; non-duplicate import with replaceExistingFiles=false still imports - normal-path guard). RE-VERIFIED 2026-11-17 in isolated Docker (task t_31c3f4b6, .NET SDK 10.0.401, Release/Posix, provisioned SixLabors license from /run/onyx-test-secrets.json, value never logged/committed) at base develop fa61fc55 (work branch fix/issue-426-preserve-bookfile-on-duplicate-copy): RED at base - the preservation test failed (result Imported instead of Skipped; UpgradeBookFile invoked 1 time; Moq Verify Times.Never failed) / GREEN post-fix 3/3; combined regression band (ImportApprovedBooksDuplicateCopyFixture + ImportApprovedBooksFormatFixture + ManualImportServiceExecute* + ImportDecisionMaker) 33/33; full-sln Release build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Closes #426."
+    - name: issue-98-regression-fluentmigrator-migration-chain
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~MigrationTest|FullyQualifiedName~clamp_monitor_new_items"
+      cwd: .
+      note: "Issue #98 regression (FluentMigrator coordinated upgrade, migration train under epic #96): pins the FluentMigrator 3.3.2 migration-chain contract. Runs the migration-test lane which exercises the full 001-048 migration chain on SQLite via the custom NzbDroneSQLiteProcessor + MigrationController (AddFluentMigratorCore + ConfigureRunner + AddPostgres + AddNzbDroneSQLite + ScanIn + TypeFilterOptions). 5 tests (MigrationTest fixture: migration ordering, version tracking, rollback rejection; clamp_monitor_new_items fixture: 048 data-repair clamp). RE-VERIFIED 2026-10-31 at develop base a30b83ac (work branch fix/issue-98-fluentmigrator-coordinated-upgrade, run 3328): GREEN 5/5 post-audit; full migration chain 001-048 applied in ~1s on SQLite 3.46.1. No code edits — audit/documentation-only. Contributes to #98 and epic #96."
+    - name: issue-344-regression-migration-158-idempotent
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~cdh_per_downloadclientFixture"
+      cwd: .
+      note: "Issue #344 regression (migration 158 034_cdh_per_downloadclient must be idempotent): a prior-schema (pre-158) DownloadClients table that ALREADY carries RemoveCompletedDownloads/RemoveFailedDownloads must migrate cleanly instead of aborting startup with 'SQL logic error: duplicate column name: RemoveCompletedDownloads'. Root cause: the bare Alter.Table(...).AddColumn(...) had no presence guard, and the fluent Schema.Table(...).Column(...).Exists() check is BLIND to columns added outside FluentMigrator (e.g. a prior partial run), so re-running MigrateUp re-issued the ALTER and crashed (reproduced in the FluentMigrator runner context: probe_mig.log PROBE344-MIG Exists(RCD)=False Exists(RFD)=False TableExists=True). Fix: migration 158 now runs a live 'PRAGMA table_info(DownloadClients)' on the runner's own connection (Execute.WithConnection, same transaction as the migration) and issues each ALTER only when the column is still absent; MoveRemoveSettings is unchanged and already idempotent (Config-key read + delete). Pinned by 4 tests in cdh_per_downloadclientFixture: 3 pre-existing behavior tests (columns absent -> added + MoveRemoveSettings semantics, unchanged) + 1 new should_migrate_idempotently_when_columns_already_present (raw-DDL pre-columnization + seeded Deluge row with RemoveCompletedDownloads=false, which DIFFERS from the column default true, so the test proves both the guard skipped the re-ALTER AND the data migration preserved the row value). RE-VERIFIED 2026-11-02 in isolated Docker (task t_1cd5c026, run 3542, .NET SDK 10.0.401): RED at base 3a6e5222 (the new test fails with 'duplicate column name' through DbFactory.CreateMain; 3/3 original pass), GREEN 4/4 post-fix, build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Resolves #344 (migration train under epic #96)."
+    - name: issue-286-regression-console-publish-mono-assembly
+      command: dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj --configuration Release -p:Platform=Posix --filter "FullyQualifiedName~ConsoleMonoPublishIssue286Fixture"
+      cwd: .
+      note: "Issue #286 regression (Console linux-x64 single-project publish omitted Bibliophilarr.Mono.dll -> startup crash on non-Windows hosts): the name-based platform-assembly load in src/NzbDrone.Common/Composition/AssemblyLoader.cs (OsInfo.IsWindows ? 'Bibliophilarr.Windows' : 'Bibliophilarr.Mono', loaded by file name from the app base directory with no existence fallback) is only satisfied when the referenced assembly is present in the published output. Fix: src/NzbDrone.Console/Bibliophilarr.Console.csproj gains a RuntimeIdentifier-scoped project reference — <ItemGroup Condition=\"!$(RuntimeIdentifier.StartsWith('win'))\"><ProjectReference Include=..\\NzbDrone.Mono\\Bibliophilarr.Mono.csproj/></ItemGroup> — so a RID-aware non-Windows publish emits Bibliophilarr.Mono.dll while the win-* publish is byte-for-byte unaffected. Pinned by ConsoleMonoPublishIssue286Fixture (3 tests): (1) exactly one NzbDrone.Mono reference in the Console csproj, with no inline Condition on the reference line (scoping lives on the enclosing ItemGroup, matching the project's existing RID-scoped AssemblyName style); (2) the reference sits INSIDE the '!$(RuntimeIdentifier.StartsWith('win'))' ItemGroup and nowhere else (an unconditional reference would pollute the Windows publish); (3) the runtime loader contract is preserved — AssemblyLoader still selects 'Bibliophilarr.Mono' by name on non-Windows and still loads by path via LoadFromAssemblyPath (the fix is build-composition only, AC4). RE-VERIFIED 2026-11-06 in-container at work branch fix/issue-286-linux-x64-console-publish-mono-assembly (task t_02ee5d55, run 3987, base develop f52a6993): RED 2/3 failed at base in a detached worktree (tests 1+2 fail without the scoped reference; test 3 passes — the loader contract predates the fix), GREEN 3/3 post-fix; end-to-end acceptance at the candidate head: linux-x64 single-project publish emits Bibliophilarr.Mono.dll, the published app boots on Linux and serves /ping 200 {status:OK} with a persisted-API-key /api/v1/book 200 (unauthenticated /api/v1/book is rejected via the app's 302 login challenge, identical pre/post fix — the auth surface is unchanged), and the win-x64 publish omits Bibliophilarr.Mono.dll (AC1/AC2/AC3). Full-sln restore (zero NU19xx) + Release build 0 warn/0 err at the work-branch tree state. No JS/TS runtime files under src/frontend/lib/app or frontend/src changed (no production_coverage binding required). Closes #286."
+    - name: issue-403-regression-anonymous-api-get-401-authz-contract
+      command: dotnet test src/NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj --configuration Debug -p:Platform=Posix --filter "FullyQualifiedName~ApiAuthzContractIssue403AnonymousApiGetFixture"
+      cwd: .
+      note: "Issue #403 regression ([AUTHZ/CONTRACT][INTEGRATIONS] anonymous GET /api/v1/search -> 3xx redirect, expected 401, under AuthenticationMethod=None + AuthenticationRequired=Enabled at head 92c9c7e0): the integrations-stage governed recovery handoff (case ab36355914, task t_87f353e1, source run 4462) recorded a 3xx for an anonymous /api/v1/search GET and asked for a reusable repository test fixture that pins the 401 contract. This fixture (ApiAuthzContractIssue403AnonymousApiGetFixture, 4 tests) boots the real host via the standard NzbDroneRunner integration harness (CI-parity with the existing metadata-diagnostics-integration lane, which already includes HostConfigAuthorizationFixture) and asserts: (1) anonymous GET /api/v1/search?term=probe -> 401/403, never 3xx and never 200 (the exact issue #403 endpoint shape — the 401 challenge fires in the authorization middleware before the controller action, so the orchestrator dependency is never touched); (2) the same NOT-3xx half of the contract against /api/v1/config/host (a second V1 endpoint — proves the 401/403 is a property of the /api/v1/* fallback-policy surface, not the search route); (3) positive control: an authorized X-Api-Key GET /api/v1/config/host succeeds (proves the challenge, not a broken route); (4) the recorded scenario explicitly: reads the live config, asserts AuthenticationMethod=None + AuthenticationRequired=Enabled (the harness defaults per ConfigFileProvider.cs L213-216 and the app's None default), then re-runs the anonymous GET. NO production authentication/authorization code was changed by this run: the committed source at base develop de65e3c9 already closes the fallback-policy chain (FallbackPolicy [API,Forms] RequireAuthenticatedUser in Startup.cs L212-214; ApiKeyAuthenticationHandler.HandleChallengeAsync=401 / HandleForbiddenAsync=403; UiAuthenticationMiddleware excludes every /api/* path from the Forms shell challenge; NoAuthenticationHandler.NoResult per the #287 fix PR #385 / commit a21ef55a merged 2026-11-08 — BEFORE the issue's recorded head 92c9c7e0, which post-dates that merge). The observed 3xx at 92c9c7e0 is not reproducible from the committed source: the 3xx mechanism (Forms default challenge scheme invoked for an API path) is not established by any committed source file at either head, and the issue's own trace (UiAuthenticationMiddleware L72-79 excludes /api/*; UrlBaseMiddleware inert without UrlBase) rules out the only committed 3xx emitters. RE-VERIFIED 2026-11-10 in isolated Docker (.NET SDK 10.0.401) at base develop de65e3c9 (task t_7d0e4152, work branch fix/issue-403-anonymous-api-get-401-authz-contract): GREEN 4/4 post-addition (the fixture passes against the committed source — it pins the contract and will fail loudly if a future head reintroduces a 3xx or 200 for an anonymous /api/v1 GET); full NzbDrone.Api.Test suite 131/131 (no regression to the #287/#313/#316/#329/#369 auth fixtures); full-sln Release build 0 warn / 0 err. If the live 3xx recurs at a future head, this fixture turns that observation into a failing repository test instead of a one-off harness receipt. No JS/TS runtime files under src/frontend/lib/app or frontend/src changed (no production_coverage binding required). Closes #403."
+    - name: issue-369-regression-forms-auth-lifecycle
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~AuthenticationServiceIssue369Fixture"
+      cwd: .
+      note: "Issue #369 regression ([AUTH/FORMS] first-boot Forms lifecycle): after POST /bootstrap creates the first user and the host-config flip to Forms is persisted to config.xml, POST /login with the bootstrapped credentials must set the Forms auth cookie (redirect off /login, no loginFailed=true); wrong credentials must still redirect with loginFailed=true and no cookie (negative case keeps failing). Root cause at base develop d0323ee9: AuthenticationService cached IConfigFileProvider.AuthenticationMethod in a process-lifetime static field (AUTH_METHOD) set once in the constructor, so at first boot (AuthenticationMethod=None) the value was captured as None and POST /login returned null (loginFailed) even after the method was activated in-process; a restart was required for login to work. Fix: read IConfigFileProvider.AuthenticationMethod per call in Login/Logout (ConfigFileProvider.SaveConfigDictionary clears its value cache on save, so a per-call read always observes the current method), mirroring the already-per-request UiAuthorizationPolicyProvider. Pinned by AuthenticationServiceIssue369Fixture (4 tests): login returns the bootstrapped user when the live method is Forms; wrong password rejected when Forms; login stays rejected while the live method is None (negative case); and the core #369 regression — a single service instance constructed while the config said None observes a later in-process activation to Forms without a restart. RE-VERIFIED 2026-11-06 in isolated Docker (task t_10497dbb, run 4058, .NET SDK 10.0.401) at base develop d0323ee9: the new fixture is RED on the base static-cache implementation (the live-activation test fails: login returns null after the in-process flip because the cached None is never re-read) and GREEN 4/4 post-fix; the full NzbDrone.Api.Test.Authentication band is 22/22 (no regression to the #313/#315/#316/#329 auth fixtures); full NzbDrone.Api.Test build 0 errors (StyleCop/IDE analyzers ON). HostConfigController 400 'Password must not be empty' (A12) is the committed validator contract (L56-59) satisfied by a correct activation payload (username + password + passwordConfirmation), NOT a code defect. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Closes #369."
+    - name: core-tests
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix
+      cwd: .
+      note: "PRE-EXISTING FAILURES: 2767 total -> 2600 passed, 108 failed, 59 skipped in isolated env 2026-09-18 (net10.0 band). Deterministic. Concentrated in DownloadClient fixtures (93 of 108) plus MediaFiles/Profiles/Books/Datastore. CI does NOT run the full Core suite — it runs the targeted filters above (all green). NOT caused by onboarding. See baseline.json + logs/develop-15-core-full.log."
+    - name: frontend-tests
+      command: yarn test:frontend
+      cwd: .
+      note: "jest --runInBand: 85 tests / 20 suites, 0 failures (re-verified 2026-11-04 in isolated Docker at existing-PR #355 exact head a99b1f36, @types/lodash 4.17.27 installed; suite count grown from 68/17 (2026-10-29, PR #304) by later develop test additions — all green, no new failures)."
+    - name: issue-329-regression-authed-spa-blank-shell
+      command: yarn test:frontend --testPathPattern frontend/src/index.test.js
+      cwd: .
+      note: "Issue #329 regression (authed SPA routes render blank app shell under Forms auth): pins the frontend boot contract in index.ts. Before the fix, index.ts fetched /initialize.json via a top-level await with no error handling; a 401 (UiAuthenticationMiddleware Forms-challenged /initialize.json as a UI-shell GET) or any failure threw an unhandled rejection before React mounted, leaving every authed route (/library, /search, /settings) as a byte-identical blank app shell. The fix extracts loadInitializeConfig() with a response.ok gate + try/catch, wraps bootstrap() in try/catch with a visible error on #root, and exports the moduleReady promise. 5 tests: (1) boots end-to-end on 200+JSON — window.Bibliophilarr populated, app mounted; (2) does NOT blank-shell on the #329 signature 401+empty body; (3) does NOT blank-shell when the boot fetch throws (network failure); (4) does NOT blank-shell on a non-JSON body; (5) pins the guarded-fetch integration contract in index.ts (static source checks: response.ok gate before response.json()). RED 5/5 on original index.ts (top-level await SyntaxError under jest CJS transform + missing response.ok gate) / GREEN 5/5 post-fix. RE-VERIFIED 2026-10-24 in-container (task t_1445b5f4, run 2406): logs-t_1445b5f4/jest-issue329-redgreen-r2421.log. Companion backend regression: InitializeJsonIssue329Fixture (2 integration tests) via the ci-backend.yml metadata-diagnostics-integration filter (Debug): anonymous GET /initialize.json -> 200 + persisted apiKey + urlBase, no Location challenge; apiKey matches persisted key per request. GREEN 2/2 post-fix (logs-t_1445b5f4/integration-issue329-r2421.log). PRE-EXISTING (not a #329 regression): 3 HostConfigAuthorizationFixture failures in the same CI-parity filter (malformed-Basic-auth expected 401 got 200; malformed-PUT expected 401 got RequestUriTooLong; anon-GET expected 401 got 200) — fail identically at BASE c19a261c (logs-t_1445b5f4/hostcfg-base-r2421.log, BASE_HOSTCFG_EXIT=1, 3 failed/2 passed); adjacent host-config authz defect routed through the existing deduplicated issue process, not fixed in this PR."
+    - name: issue-371-regression-websocket-driver-075-residual-pins
+      command: yarn test:frontend --testPathPatterns frontend/src/Issue371/websocketDriverPin.test.js
+      cwd: .
+      note: "Issue #371 regression (SECURITY / DEPENDABOT-59, websocket-driver 0.7.4 residual, GHSA-xv26-6w52-cph6 / CVE-2026-54466, CRITICAL): pins the **/websocket-driver -> 0.7.5 resolution in package.json and the regenerated yarn.lock so the vulnerable 0.7.4 cannot re-enter the lockfile. 7 tests (frontend/src/Issue371/websocketDriverPin.test.js): (1) package.json carries the glob resolution set to 0.7.5; (2) yarn.lock contains NO 0.7.4 entry anywhere (no 0.7.4 tarball URL, no 0.7.4 version line under any websocket-driver entry); (3) the merged lockfile entry resolves BOTH lanes (the 0.7.5 pin and the >=0.5.1 range) to 0.7.5 and its header names both the pin and the range; (4) the actually-installed websocket-driver in node_modules is 0.7.5; (5) the installed module loads and exposes its real factory surface (client/server/http driver factories + isWebSocket/validateOptions helpers — the real production module the faye-websocket lanes run against, not a substitute); (6) faye-websocket 0.11.4 (direct lane, PR #339) is installed with its websocket-driver range >=0.5.1 intact; (7) the dev-only watcher lane (webpack-livereload-plugin 3.0.2 -> tiny-lr 1.1.1 -> faye-websocket ~0.10.0) is recorded. RE-VERIFIED 2026-11-05 in-container (task t_cb36776c, run 3979) at base develop b08c3844: GREEN 7/7 post-fix; full frontend suite 92/92 (20 suites); yarn lint 0 errors / 8 pre-existing warnings; both ops guards PASS; stylelint PASS; production webpack build PASS; frozen-lockfile round-trip clean. No src/frontend/lib/app runtime file changed (no production_coverage binding required). Closes #371."
+    - name: issue-287-regression-none-scheme-noresult
+      command: dotnet test src/NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~NoAuthenticationHandlerIssue287Fixture"
+      cwd: .
+      note: "Issue #287 regression (unauthenticated v1 API under AuthenticationMethod=None): with no API key configured, the None scheme registered via AddNone('None') used NoAuthenticationHandler, which returned an anonymous Success for every request. That Success was invisible to the FallbackPolicy [API, Forms] RequireAuthenticatedUser (the 'None' scheme is not in the policy's scheme list), so empty/absent X-Api-Key requests to GET /api/v1/book were served 200 instead of 401. Fix: NoAuthenticationHandler returns AuthenticateResult.NoResult() so the None scheme behaves like the API scheme when no key is presented; the FallbackPolicy then sees NoResult from both schemes and challenges with 401. Pinned by NoAuthenticationHandlerIssue287Fixture (3 tests): (1) the None scheme returns NoResult, not an anonymous Success; (2) no principal is produced; (3) the NoResult is distinct from a challenge (Reason=null). RE-VERIFIED 2026-11-08 in isolated Docker (task t_20a3a10f, run 4306, .NET SDK 10.0.401) at base develop 9f2aee2f: build 0 warn / 0 err; 3/3 pass; full NzbDrone.Api.Test suite 131/131 (no regressions). Closes #287."
+    - name: issue-327-regression-label-policy-automated-actor-exception
+      command: yarn test:frontend --testPathPatterns frontend/src/Issue327/labelPolicyAutomatedActorException.test.js
+      cwd: .
+      note: "Issue #327 regression (systemic label-policy intake gap for automated PRs): pins the automated-actor exception in the 'Enforce PR metadata contract' gate (.github/workflows/labeler.yml). The gate's PR metadata contract (type:/area:/priority:/risk: labels, an assignee, the five body sections, Candidate SHA, linked-issue reference) is written for HUMAN PRs and systematically blocked every dependabot/agent PR (13 open PRs as of develop a6cd30f4, all by dependabot[bot]). The fix adds a NARROW exception: when the PR's authenticated author (pr.user.login, from the REST read, not the PR-controlled event payload) is in TRUSTED_AUTOMATION_ACTORS (dependabot[bot], onyx-devops[bot]), the gate logs a core.info and returns BEFORE any contract check, so a dependabot PR passes label-policy WITHOUT a manual per-PR metadata repair (AC1/AC3). For every human-authored PR the full contract is enforced unchanged (AC2). 8 tests: (1) the exception allow-list contains dependabot[bot]+onyx-devops[bot]; (2) the exception keys on pr.user.login; (3) the bot path short-circuits before the first contract check; (4) the exception sits AFTER the authenticated REST fetch so a bot PR whose fetch fails still fails loudly; (5-7) the full human contract (4 label prefixes, assignee, 5 body sections + Candidate SHA + linked-issue ref) is still present and unchanged; (8) the file-scoped build/test gates (ci-frontend.yml/ci-backend.yml) are untouched and do not contain the exception. No production runtime code changed, so the raw Istanbul coverage-final.json is byte-identical to the develop base. RE-VERIFIED 2026-10-25 in-container (task t_309778c3): GREEN 8/8 post-fix; full frontend suite 60/60 (15 suites); yarn lint 0 errors (8 pre-existing warnings, 0 new); all 19 .github/workflows/*.yml parse as valid YAML. The durable exact-head end-to-end acceptance (label-policy job green on a live dependabot PR + a human PR at the merged head) is exercised by the review/publication stage; this unit-level source-contract test is the CI-parity guard."
+    - name: issue-364-regression-server-port-env-legacy-rejection
+      command: dotnet test src/NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj --configuration Release -p:Platform=Posix -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~BootstrapIssue364"
+      cwd: .
+      note: "Issue #364 regression ([CONFIG/PORT][STARTUP] BIBLIOPHILARR_SERVER__PORT env var silently ignored): RejectLegacyConfigurationKeys in Bootstrap.cs rejected ALL keys starting with 'Bibliophilarr:' (the ACTIVE configuration namespace the code reads at L145-156 and via AddEnvironmentVariables), creating a logical contradiction — any env-var override (e.g. BIBLIOPHILARR_SERVER__PORT=8811 → Bibliophilarr:Server:Port) either threw BibliophilarrStartupException at startup or the key silently never resolved. Root cause: commit 1e45e43ae (PR #118) renamed the rejection prefix from 'Readarr:' to 'Bibliophilarr:' in the same commit that added code reading 'Bibliophilarr:Server:Port'. Fix: RejectLegacyConfigurationKeys now rejects only 'Readarr:*' (the pre-rebrand legacy namespace); BuildUrl and RejectLegacyConfigurationKeys made internal (InternalsVisibleTo Bibliophilarr.Host.Test) so the regression fixture can call them directly. Pinned by BootstrapIssue364Fixture (5 tests): (a) env-var port override is honored — Bibliophilarr:Server:Port=8811 resolves to 8811 and BuildUrl emits http://*:8811; (b) active Bibliophilarr:* keys (Server:Port, Server:SslPort, Server:BindAddress, Server:EnableSsl, Server:SslCertPath, Server:SslCertPassword, App:InstanceName, Log:LogLevel, Auth:AuthenticationMethod, Postgres:Host, Update:Branch) are NOT rejected — no exception; (c) legacy Readarr:Server:Port still throws BibliophilarrStartupException; (d) case-insensitive legacy rejection (readarr:server:port still throws); (e) blank legacy values are inert (no exception). RE-VERIFIED 2026-11-08 in isolated Docker (task t_af0de60f, run 4388, .NET SDK 10.0.401, SixLabors license) at base develop a21ef55a: RED 1 passed / 4 failed at base (tests b/c/d fail — the broken guard rejected Bibliophilarr:* not Readarr:*, so Readarr:* keys were NOT rejected and the env-var port key WAS rejected); GREEN 5/5 post-fix; full Host.Test suite 15 passed / 4 skipped (Windows) / 0 failed; full solution Release build 0 warn / 0 err. No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Closes #364."
+    - name: issue-404-regression-hardcover-nonnumeric-foreign-id-deletion
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 -p:SixLaborsLicenseFile=<sixlabors.lic> --filter "FullyQualifiedName~RefreshAuthorServiceFixture"
+      cwd: .
+      note: "Issue #404 regression ([DATA-LOSS] RefreshAuthorService deletes a locally-created author whose foreign id is in the hardcover: scope but is NOT the resolvable numeric author form): ProviderOwnedForeignId in RefreshAuthorService.cs returned TRUE for ANY id starting 'hardcover:' without checking resolvability, so a synthetic unresolvable id (e.g. hardcover:author:recoveryseed) was misclassified as provider-owned and the post-create synchronous refresh (RefreshAuthorCommand, triggered by AddAuthorService -> AuthorsImportedEvent) interpreted the expected AuthorNotFoundException as a provider-removal signal and deleted the API-created Authors row while the AuthorMetadata row persisted (orphaned). Root cause: the gate did not enforce the numeric scope that its own doc comment and AuthorMetadataRepository.IsNumericHardcoverAuthorId (int.TryParse of the suffix, id > 0) recognize. Fix: the hardcover: branch of ProviderOwnedForeignId now returns IsNumericHardcoverAuthorId(id) (hardcover:author:<positive integer> only), so a non-numeric hardcover:-scoped id is locally-created and is NOT provider-owned; provider-sourced authors with resolvable numeric hardcover:author:<n> ids retain the documented #204/#209 provider-removed deletion behavior. Pinned by 6 new tests in RefreshArtistServiceFixture (RefreshAuthorServiceFixture, MusicTests namespace): should_not_delete_local_author_with_non_numeric_hardcover_scoped_foreign_id_when_not_found_and_no_files (4 TestCases: hardcover:author:recoveryseed — the exact r4 repro id — / hardcover:author:local-author-xyz / hardcover:author:0 / hardcover:author:-7 — all AuthorMetadataId=42, DeleteAuthor Times.Never) and should_still_delete_provider_sourced_author_with_numeric_hardcover_author_id_when_remote_removed_and_no_files (2 TestCases: hardcover:author:4821 / hardcover:author:1 — DeleteAuthor Once, the #204/#209 regression guard). RE-VERIFIED 2026-11-10 in isolated Docker (task t_d78e651b, run 4530, .NET SDK 10.0.401, SixLabors license) at base develop 92c9c7e0 (= issue #404 exact head = live develop tip): RED 4 failed / 24 passed at base (the 4 non-numeric no-delete cases fail with Moq.MockException 'DeleteAuthor should never have been performed, but was 1 times' — the data-loss defect reproduced; the 2 numeric guard cases still pass, proving the deletion contract predates and survives the fix); GREEN 28/28 post-fix (22 pre-existing + 6 new, 0 failed). No JS/TS runtime files under src/frontend/lib/app changed (no production_coverage binding required). Distinct from #204 (transient network trigger), #272/#325 (AuthorMetadataId<=0 guard, fixed by the provider-scope gate — this issue proves that gate was insufficient for non-numeric hardcover: ids), #320 (foreign-id canonicalization), #290 (identity persistence after re-resolution). Closes #404."
+    - name: issue-99-regression-prettier-toolchain-modernization
+      command: yarn test:frontend --testPathPatterns frontend/src/Issue99/prettierToolchainModernization.test.js
+      cwd: .
+      note: "Issue #99 regression (frontend toolchain modernization, Prettier 2.x -> 3.x, epic #96): pins the coordinated Prettier 3 bump. The historical dependabot slice (PR #56, prettier 2.8.8 -> 3.x) was closed UNMERGED, so the repo kept prettier 2.8.8 with a Prettier-2-era ESLint toolchain. This run bumps prettier 2.8.8 -> 3.8.1, eslint-config-prettier 8.10.2 -> 9.1.0, eslint-plugin-prettier 4.2.5 -> 5.5.5 (the plugin bump is REQUIRED: 4.x calls prettier.resolveConfig.sync, which Prettier 3 removed), and reformats frontend/src/App/State/{AuthorsAppState,SettingsAppState}.ts to the Prettier 3 default (whitespace-only). 6 tests (frontend/src/Issue99/prettierToolchainModernization.test.js): (1) package.json pins a 3.x prettier; (2) package.json pins the prettier-3-compatible eslint-config-prettier 9.x + eslint-plugin-prettier 5.x lines; (3) the actually-installed prettier package is 3.x; (4) the installed prettier binary (node_modules/.bin/prettier, invoked as a subprocess — the real toolchain, not a substitute) reports 3.x; (5) `prettier --check` on the two reformatted state files exits 0 (idempotent — the committed bytes ARE the Prettier 3 output); (6) the installed prettier re-emits a TS snippet honoring the repo .prettierrc singleQuote convention. The CLI is invoked (not `require('prettier')` in-proc) because Prettier 3's CJS entry re-exports an ESM build via dynamic import(), which jest 30's CJS transform cannot run without --experimental-vm-modules. RE-VERIFIED 2026-10-31 in-container (task t_6f0386ae, run 3367) at base develop 761424f2: GREEN 6/6; full frontend suite 74/74 / 18 suites (68 baseline + 6 new); yarn lint 0 errors / 8 pre-existing warnings; both ops guards PASS; stylelint PASS; full production webpack build compiled successfully. No src/frontend/lib/app runtime file changed (no production_coverage binding). Historical #99 mapping: #56 Prettier DONE (this run); #55 rimraf, #54 webpack-cli, #53 postcss-mixins, #52 Font Awesome REMAINING (genuine future work). Contributes to #99 and epic #96."
+    - name: issue-284-regression-login-failed-banner-reveal
+      command: yarn test:frontend --testPathPatterns frontend/src/Issue284/loginBannerReveal.test.js
+      cwd: .
+      note: "Issue #284 regression ([UI/LOGIN] #login-failed 'Incorrect Username or Password' banner never unhides on the rejected-credential redirect): frontend/src/login.html is a static asset served verbatim for GET /login (LoginHtmlMapper); its single inline <script> set the footer year with BACKSLASH-ESCAPED QUOTES (yearSpan.textContent = \"2017-\" + ...), which is an INVALID JS token — the script threw 'SyntaxError: Invalid or unexpected token' and never reached the banner-reveal block that unhides #login-failed when ?loginFailed=true is present, so the banner stayed hidden after a rejected login (302 -> /login?loginFailed=true). Fix: plain quotes on the year line (1 line, frontend/src/login.html:284); no JS/TS runtime module under a src/frontend/lib/app path is touched, so no production_coverage binding is required. Regression test: frontend/src/Issue284/loginBannerReveal.test.js (5 tests) reads the SHIPPED frontend/src/login.html (the durable source of truth — _output/UI/login.html is a git-ignored build artifact) and: (1) asserts the shipped source contains no backslash-escaped quote (the exact regression token); (2) compiles every inline <script> body with node:vm (parse-only) so a future token regression throws the same SyntaxError a browser would; (3) executes the inline script in a real jsdom DOM (runScripts outside-only + a vm context exposing jsdom document/window/location) and asserts the footer year is set to 2017-<year> and #copy is unhidden; (4) the same execution with ?loginFailed=true asserts #login-failed is UNHIDDEN (the issue-284 acceptance) while the rest of the script still ran; (5) a plain /login visit (no loginFailed) keeps #login-failed HIDDEN (no false positive). Also hardened frontend/build/jest.setup.js to polyfill TextEncoder/TextDecoder from node:util before any test imports jsdom (jsdom 30 loads whatwg-url at module-evaluation time and needs them; the jest-environment-jsdom global is absent in setupFilesAfterEach context) — a benign test-infra addition, no shipped code. RE-VERIFIED 2026-11-13 in isolated Docker (task t_3c33815b, .NET 10.0.401 not needed, Node v20.20.2) at base develop tip 2c963c8e009af0ea6bc99e11542be0fa210face2: RED 5/5 FAILED at base (the pre-fix script throws 'SyntaxError: Invalid or unexpected token' on parse AND the jsdom execution throws / #login-failed stays hidden); GREEN 5/5 post-fix; full frontend jest suite 164 passed / 25 suites (159 baseline + 5 new), 0 failures; yarn lint (eslint) 0 errors / 8 pre-existing warnings (0 new). Closes #284."
+  runtime:
+    start: |
+      ./build.sh --backend --frontend --packages --lint --framework net10.0 --runtime linux-x64
+      cp -r _output/UI _output/net10.0/linux-x64/UI
+      ./_output/net10.0/linux-x64/Bibliophilarr /data=<data-dir> /nobrowser /nosingleinstancecheck
+    package_start: |
+      ./_artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr /data=<data-dir> /nobrowser /nosingleinstancecheck
+    health:
+      - command: curl -sS http://127.0.0.1:8787/ping
+        expect: "200 { \"status\": \"OK\" }"
+      - command: curl -sS "http://127.0.0.1:8787/api/v1/system/status?apikey=<ApiKey>"
+        expect: "200 JSON (apiKey read from <data-dir>/config.xml; API requires the key)"
+    note: >
+      Data dir must be a fresh writable path. The app generates ApiKey and
+      config.xml on first start. /ping is unauthenticated; /api/v1/* requires
+      the apikey query param. BIBLIOPHILARR_SERVICES_URL and
+      BIBLIOPHILARR_HARDCOVER_API_TOKEN are optional env overrides.
+      Verified on the _output tree (app 10.0.0.15583) and on the packaged
+      _artifacts tree (no manual UI copy needed).
+  deployment:
+    isolation: testing-only
+    docker_image: "ghcr.io/swartdraak/bibliophilarr (release images; local build: docker build -t bibliophilarr:local .)"
+    production_deployment: PROHIBITED for autonomous work — isolated testing / semi-production validation only, with synthetic data, scoped access, and cleanup.
+
+governance:
+  documentation:
+    canonical:
+      - README.md
+      - AGENTS.md            # develop-only: repository-wide agent operating contract
+      - ARCHITECTURE.md
+      - BRANCHING.md         # authoritative branch lifecycle (develop/staging/main)
+      - PROJECT_STATUS.md
+      - ROADMAP.md
+      - MIGRATION_PLAN.md
+      - QUICKSTART.md        # net10.0 canonical commands
+      - CONTRIBUTING.md      # PR metadata + contribution flow
+      - SECURITY.md
+      - CHANGELOG.md
+    operations_runbooks: docs/operations/
+  branching:
+    lanes: [develop, staging, main]
+    integration: develop
+    patterns: [feat/*, feature/*, fix/*, docs/*, chore/*, refactor/*, security/*, perf/*, test/*, release-fix/*, hotfix/*]
+    human_gates: [stable-release, hotfix]
+    docs: [BRANCHING.md, docs/operations/BRANCH_STRATEGY.md, docs/operations/BRANCH_PROTECTION_RUNBOOK.md]
+  ci:
+    backend: .github/workflows/ci-backend.yml          # build-test, rid-core-common-targeted, metadata-provider-fixtures, metadata-diagnostics-integration
+    frontend: .github/workflows/ci-frontend.yml        # yarn install/test/lint/build
+    cross_build_portability: .github/workflows/cross-build-portability.yml  # Linux/Windows/macOS lanes + rid_mapping (X64->x64, Arm64->arm64), functional since PR #234 (main) and present on develop
+    app_smoke_execution: .github/workflows/app-smoke-execution.yml  # Issue #270: windows-latest + macos-latest APPLICATION-EXECUTION coverage — boots the published portable app (win-x64 / osx-arm64|x64) against a disposable data dir, polls GET /ping (200 status=OK), runs a bounded config round-trip (GET -> mutate metadataProviderTimeoutSeconds -> PUT 202 -> re-GET assert), and a recovery check (stop stage-owned app, restart, GET-after-restart proves the config mutation persisted from actual persisted state). Emits a pass/fail receipt distinguishing "app started + workflow + recovery passed" from "build-only". Hermetic (no external provider needed).
+    other: [docs-validation.yml, lint-workflows.yml (actionlint), release.yml, docker-image.yml, npm-publish.yml, required-check-emission-smoke.yml, staging-smoke-metadata-telemetry.yml, validate-release-version.yml, branch-policy-audit.yml, operational-drift-check.yml]
+
+baseline_evidence:
+  file: ../baseline.json
+  logs: ../logs-8d5caba4/
+  verified_at: 2026-11-04
+  base_sha: ef35cdcfc371c65e8de853a41e4970b5a15bc299
+  head_sha: e21932873413679452962b2877a51361f5d08e0a
+  # Existing-PR #355 audit run (t_8d5caba4, run 3748, 2026-11-04): dependabot
+  # npm_and_yarn dev-types bump @types/lodash 4.17.24 -> 4.17.27
+  # (package.json + yarn.lock only). Re-verified in-container at the exact
+  # head: yarn install --frozen-lockfile PASS (installed 4.17.27); full
+  # frontend jest 85/85 (20 suites); eslint 0 errors / 8 pre-existing
+  # warnings; ops guards (ui-build-mode, http-binding) PASS; stylelint
+  # PASS; lodash API-surface tsc probe clean on 4.17.27 and on the 4.17.24
+  # control. Pre-existing: repo-wide tsc --noEmit fails on the committed
+  # tsconfig (invalid ignoreDeprecations value) and, with a valid flag,
+  # ~188 pre-existing node_modules typings errors — tsc is not a
+  # CI-required lane. No production runtime files changed.
+  # Issue #103 development run (t_ca020c6d, run 3451, 2026-11-01):
+  # chore/issue-99-frontend-toolchain-modernization from live develop tip
+  # 761424f2 (the #98 FluentMigrator 3.3.2 audit merge, #348). Frontend
+  # toolchain modernization (migration train, epic #96): coordinated Prettier
+  # 2.x -> 3.x bump — prettier 2.8.8 -> 3.8.1, eslint-config-prettier
+  # 8.10.2 -> 9.1.0, eslint-plugin-prettier 4.2.5 -> 5.5.5 (the plugin bump is
+  # required: 4.x calls the removed prettier.resolveConfig.sync), plus a
+  # whitespace-only Prettier-3 reformat of
+  # frontend/src/App/State/{AuthorsAppState,SettingsAppState}.ts. The historical
+  # dependabot slice (PR #56, prettier 2.8.8 -> 3.x) was closed UNMERGED; this
+  # completes it. Pinned by the new issue-99-regression-prettier-toolchain-
+  # modernization jest command (frontend/src/Issue99/prettierToolchainModernization.
+  # test.js, 6 tests) which exercises the installed Prettier 3.x binary as a
+  # subprocess. Full contract re-verified in-container at the exact head: yarn
+  # install (frozen-lockfile) PASS; eslint 0 errors / 8 pre-existing warnings;
+  # full frontend jest suite 74/74 / 18 suites (68 baseline + 6 new); both ops
+  # guards (ui-build-mode + http-binding) PASS; stylelint-linux PASS; full
+  # production webpack build (yarn build) compiled successfully. No
+  # src/frontend/lib/app runtime files changed (no production_coverage binding
+  # required). Historical #99 mapping: #56 Prettier DONE (this run); #55 rimraf,
+  # #54 webpack-cli, #53 postcss-mixins, #52 Font Awesome REMAINING (genuine
+  # future work, not silently resolved).
+  # Issue #98 development run (t_803e4ba6, run 3324, 2026-10-31): work branch
+  # fix/issue-98-fluentmigrator-coordinated-upgrade from live develop tip
+  # a30b83ac724 (the #97 cosign-installer v4.1.2 merge). Documentation/audit-
+  # only run: documents the current FluentMigrator 3.3.2 posture, enumerates
+  # compatibility risks (R1-R4), and adds the issue-98-regression-fluentmigrator-
+  # migration-chain test command to the contract. Full contract re-verified in-
+  # container at the exact head: dotnet restore exit 0 (zero NU19xx), backend
+  # Release build 0 warn / 0 err (SixLabors license), common-tests 624 passed /
+  # 35 skipped / 0 failed, migration-test 5/5 (full 001-048 chain on SQLite
+  # 3.46.1), frontend-tests 68/68 (17 suites). NO code edits; the .onyx/
+  # project.yaml header + migration-test command addition is the single
+  # contract commit. No src/frontend/lib/app runtime files changed (no
+  # production_coverage binding).
+  # Existing PR #334 audit run (t_4354933b, run 2874, 2026-10-27): work branch
+  # dependabot/github_actions/develop/docker/setup-buildx-action-4.4.1 at the
+  # EXACT registered head ddf2b4e3 (contributor head == live PR head; base
+  # develop 47fd11b2 = CURRENT develop tip (== the #335 actions/setup-python
+  # 7.0.0->7.1.0 squash-merge commit, merged 2026-10-27T04:41:42Z) and IS an
+  # ancestor of the PR head; merge-base == develop tip; NO catch-up merge
+  # required; git merge-base --is-ancestor returned rc=0 this run). dependabot:
+  # bump docker/setup-buildx-action 4.0.0 -> 4.4.1 (MINOR-line GitHub Actions
+  # bump, 1 file / +1 -1 pinned-action-reference update in
+  # .github/workflows/docker-image.yml; pinned SHA
+  # 4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0 ->
+  # f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1).
+  # Full contract re-verified in-container at the exact head (see header note
+  # + baseline.json commands[]): all 20 .github/workflows/*.yml parse as valid
+  # YAML (js-yaml); frontend 6/6 lanes (yarn install frozen-lockfile
+  # up-to-date; eslint 0 errors / 8 pre-existing warnings; ui-build-mode +
+  # http-binding guards both PASS; stylelint PASS; jest 60/60 / 15 suites);
+  # backend restore exit 0 (zero NU19xx); Release build of the FULL solution
+  # 0 warnings / 0 errors in 1m44s (SixLabors license file provisioned via
+  # SIXLABORS_LICENSE_FILE from the operator-provisioned workspace copy; the
+  # license VALUE never logged or committed; the 4 license-gated CI test
+  # lanes are verified by hosted exact-head CI: 16 check-runs, 15 success +
+  # 1 neutral + 0 failure + 0 pending, LIVE-REVERIFIED by checkout stage
+  # t_85dfc766 at 2026-10-27T10:07Z). NO code edits (validation/publication-
+  # only; the .onyx/project.yaml header + baseline_evidence pointer update is
+  # the single contract commit on top of the contributor head ddf2b4e3, which
+  # is preserved as an ancestor of the reviewed result — no rebase, no
+  # force-push, no history rewrite, no duplicate branch). No
+  # src/frontend/lib/app runtime files changed (no production_coverage
+  # binding). Publication stage owns fast-forward push to the SAME PR #334
+  # + onyx-onboard guarded merge after real exact-head CI/governance passes.
+  # Existing PR #335 audit run (t_82f47662, run 2828, 2026-10-27): work branch
+  # dependabot/github_actions/develop/actions/setup-python-7.1.0 at the EXACT
+  # registered head b267e4e5 (contributor head == live PR head; base develop
+  # 28cd2b09 = CURRENT develop tip (== the #300 actions/labeler 7.0.0 squash
+  # merge commit, merged 2026-10-27T00:48:07Z) and IS an ancestor of the PR
+  # head; merge-base == develop tip; NO catch-up merge required; git
+  # merge-base --is-ancestor returned true this run). dependabot: bump
+  # actions/setup-python 7.0.0 -> 7.1.0 (PATCH-line GitHub Actions bump,
+  # 5 files / +5 -5 pinned-action-reference updates in
+  # .github/workflows/branch-policy-audit.yml,
+  # .github/workflows/metadata-migration-dry-run.yml,
+  # .github/workflows/operational-drift-check.yml,
+  # .github/workflows/release-readiness-report.yml,
+  # .github/workflows/release.yml; pinned SHA
+  # 5fda3b95a4ea9ea3d27318b80e75c9f0e5e4e4b97 -> 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0).
+  # Full contract re-verified in-container at the exact head (see header note
+  # + baseline.json commands[]): frontend 6/6 lanes (yarn install
+  # frozen-lockfile up-to-date; eslint 0 errors / 8 pre-existing warnings;
+  # ui-build-mode + http-binding guards both PASS; stylelint PASS; jest
+  # 60/60 / 15 suites), backend restore exit 0 (zero NU19xx), Release build
+  # (0 errors in all non-licensed projects; SixLabors license gate is
+  # host-gated and identical at base — the license-gated Core/Api test lanes
+  # are verified by hosted exact-head CI: 26 check-runs, 25 success + 1
+  # neutral + 0 failure + 0 pending, LIVE-REVERIFIED by checkout stage
+  # t_51ea6d45 at 2026-10-27T03:12Z). NO code edits (validation/publication-
+  # only; the .onyx/project.yaml header + baseline_evidence pointer update is
+  # the single contract commit on top of the contributor head). No
+  # src/frontend/lib/app runtime files changed (no production_coverage
+  # binding). Publication stage owns fast-forward push to the SAME PR #335
+  # + onyx-onboard guarded merge after real exact-head CI/governance passes.
+  # Existing PR #300 audit run (t_31ec4eaf, run 2801, 2026-10-26): work branch
+  # dependabot/github_actions/develop/actions/labeler-7.0.0 at the
+  # POST-CATCH-UP head bb3e24b1 (contributor head
+  # db878d0146326e7650bbaeb951e18e0c07faaf02 + NORMAL merge of develop tip
+  # 9f13e27323630ca351f611916143a731b0dc2481; zero conflicts, 3 files all from
+  # develop since base; contributor db878d01 preserved as ancestor, no
+  # rebase/force-push; merge-base of the two parents is 418a581c). dependabot:
+  # bump actions/labeler 6.0.1 -> 7.0.0 (MAJOR-line GitHub Actions bump,
+  # 1 file / +1 -1 pinned action SHA 634933ed -> bf12e9b0 in
+  # .github/workflows/labeler.yml). Base develop 9f13e273 = live integration
+  # tip at audit time (== the #267 FluentAssertions squash merge). The PR head
+  # db878d01 was BEHIND the tip (develop advanced after the PR branched), so a
+  # normal catch-up merge onto the tip was REQUIRED before re-validation.
+  # v7 mapping semantics verified unchanged against the #327 label-policy gate
+  # contract (trusted-base-config label mapping + automated-actor exception):
+  # v7 release contract "No changes to action inputs, outputs, or behavior" +
+  # built-dist diff evidence (scratch-t_31ec4eaf/labeler-mapping-compare.log;
+  # raw dist bundles labeler-main-v6.js / labeler-main-v7.js with sha256 in
+  # PR_DESCRIPTION.md). Full contract re-verified in-container (see header
+  # note + baseline.json commands[]): frontend 6/6 lanes (yarn install
+  # frozen-lockfile; eslint 0 errors / 8 pre-existing warnings; ui-build-mode
+  # + http-binding guards; stylelint; jest 60/60 / 15 suites; issue-327 filter
+  # 8/8), backend restore exit 0 (zero NU19xx), Release build 0 warn/0 err
+  # (SixLabors license), rid-core 25/25, rid-common 16/18 (2 pre-existing
+  # skips), metadata-core 32/32, metadata-api 4/4. NO code edits
+  # (validation/publication-only). No src/frontend/lib/app runtime files
+  # changed (no production_coverage binding). Publication stage owns
+  # fast-forward push to the SAME PR #300 + onyx-onboard guarded merge after
+  # real exact-head CI/governance passes.
+  # Existing PR #267 audit run (t_43e9cf71, run 2773, 2026-10-26): work branch
+  # dependabot/nuget/src/develop/FluentAssertions-8.11.0 at the EXACT registered
+  # head 86b0f036 (contributor head == live PR head; dependabot force-pushed the
+  # rebase onto the current develop tip at 2026-10-26T15:33:51Z; base develop
+  # 58101938 = CURRENT develop tip (== the #266 Dapper merge commit) and IS an
+  # ancestor of the head — NO catch-up merge required; git merge-base
+  # --is-ancestor returned true this run). dependabot: bump FluentAssertions
+  # 8.9.0 -> 8.11.0 (src/Directory.Packages.props, 1 file / +1 -1; MINOR-line
+  # test-assertion library bump, no production code, no workflow lines).
+  # Backend contract re-verified in-container (see header note +
+  # baseline.json commands[]): http-binding guard passed; dotnet restore exit 0
+  # (zero NU19xx; FluentAssertions 8.11.0 resolved); Common + Http +
+  # Api.V1 + SignalR + all test projects built Release (the FullLab solution
+  # build stops only at the SixLabors.ImageSharp 4.1.2 ValidateLicenseTask,
+  # which needs the operator-provisioned SIXLABORS_LICENSE_KEY — identical at
+  # base, host-gated, not a #267 regression); Common.Test full 621 passed /
+  # 35 skipped / 0 failed (plain + coverlet collection, raw
+  # coverage.cobertura.xml produced); metadata-core-fixtures 32/32;
+  # metadata-api-fixtures 4/4. NO code edits (validation/publication-only).
+  # No src/frontend/lib/app runtime files changed (no production_coverage
+  # binding). Hosted exact-head CI on 86b0f036: 18 success + 1 neutral CodeQL,
+  # 0 failures, label-policy GREEN (LIVE-REVERIFIED by route run 2766).
+  # Publication stage owns fast-forward push to the SAME PR #267 +
+  # onyx-onboard guarded merge after real exact-head CI/governance passes.
+  # Existing PR #266 audit run (t_12360743, run 2747, 2026-10-26): work branch
+  # dependabot/nuget/src/develop/Dapper-2.1.89 at the EXACT registered head
+  # dc07676a (contributor head dc07676a == live PR head; base develop
+  # fa42ab67 = CURRENT develop tip (== the #265 coverlet.collector merge
+  # commit) and IS an ancestor of the head — NO catch-up merge required;
+  # dependabot rebased after the #265 merge; merge-base == develop tip;
+  # git merge-base --is-ancestor returned true). dependabot: bump Dapper
+  # 2.1.86 -> 2.1.89 (src/Directory.Packages.props, 1 line) + adds
+  # <PackageReference Include="Dapper" /> to
+  # src/NzbDrone.SignalR/Bibliophilarr.SignalR.csproj (2 files / +2 -1;
+  # Dapper is the database-access library now referenced by the SignalR
+  # service; PATCH-line maintenance bump, 2.1.x, no breaking changes).
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites), backend restore exit 0 (zero NU19xx),
+  # Release build 0 warn/0 err, NzbDrone default-config build 0/0, rid-core
+  # 25/25, rid-common 16/18 (2 pre-existing skips), metadata-core 32/32,
+  # metadata-api 4/4, issue-325 filter 30/30 (SIXLABORS_LICENSE_FILE).
+  # NO code edits (validation/publication-only). No src/frontend/lib/app
+  # runtime files changed (no production_coverage binding). Hosted
+  # exact-head CI on dc07676a: 12 success + 1 neutral CodeQL, 0 failures,
+  # label-policy GREEN (LIVE-VERIFIED by checkout stage t_12606417dc5 via
+  # check-runs API). Publication stage owns fast-forward push to the SAME PR
+  # #266 + onyx-onboard guarded merge after real exact-head CI/governance
+  # passes.
+  # Existing PR #305 audit run (t_32bfd631, run 2693, 2026-10-26): work branch
+  # dependabot/nuget/src/develop/Microsoft.AspNetCore.SignalR.Client-10.0.13 at
+  # the POST-CATCH-UP head 4cee868d (contributor head
+  # 82da398705e8c58039240b955c3cdaca00a0674c + NORMAL merge of develop tip
+  # 418a581cb9ee6eeb5db08147dff49c0519136454; zero conflicts, contributor
+  # 82da3987 preserved as ancestor, no rebase/force-push). dependabot: bump
+  # Microsoft.AspNetCore.SignalR.Client 10.0.12 -> 10.0.13 (1 file / +1 -1 in
+  # src/Directory.Packages.props, semver-patch; SECURITY lane CVE-2026-70159 /
+  # GHSA-334f-vvp4-7g6p — SignalR stateful reconnect DoS). Base develop
+  # 418a581c = live integration tip at audit time. The PR head 82da3987 was
+  # BEHIND the tip (merge-base 520d5d2a, pre-#333 label-policy fix), so a
+  # normal catch-up merge onto the tip was REQUIRED before re-validation.
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites; issue-329 filter 5/5), backend restore
+  # exit 0 (zero NU19xx), Release build 0 warn/0 err, NzbDrone default-config
+  # build 0/0, rid-core 25/25, rid-common 16/18 (2 pre-existing skips),
+  # metadata-core 32/32, metadata-api 4/4, issue-325 filter 30/30
+  # (SIXLABORS_LICENSE_FILE). NO code edits (validation/publication-only). No
+  # src/frontend/lib/app runtime files changed (no production_coverage
+  # binding). Publication stage owns fast-forward push to the SAME PR #305 +
+  # onyx-onboard guarded merge after real exact-head CI/governance passes.
+  # Existing PR #264 audit run (t_8240540f, 2026-10-25): work branch
+  # dependabot/github_actions/develop/docker/setup-qemu-action-4.4.0 at the
+  # exact registered head 17eb4ee0 (dependabot: docker/setup-qemu-action
+  # 3.7.0 -> 4.4.0, 1 file / +1 -1 in .github/workflows/docker-image.yml,
+  # pinned SHA 99012661954931238ded8c8b007157a8430204e1 # v4.4.0).
+  # Base develop af01d5c4 is the CURRENT tip and an ancestor of the head —
+  # no catch-up merge. Contributor commit preserved; no rebase/force-push.
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites; issue-329 filter 5/5), backend restore
+  # exit 0 (zero NU19xx), Release build 0 warn/0 err, NzbDrone default-config
+  # build 0/0, rid-core 25/25, rid-common 16/18 (2 pre-existing skips),
+  # metadata-core 32/32, metadata-api 4/4, issue-325 filter 30/30
+  # (SIXLABORS_LICENSE_FILE). Hosted exact-head CI on the unchanged commit
+  # shows the inherited #270 platform-execution CI-capability gap (build-test
+  # 'Test' step + Linux/macOS cross-build lanes); the in-container
+  # re-execution of every failing POSIX step at the exact head is GREEN. NO
+  # code edits. No src/frontend/lib/app runtime files changed (no
+  # production_coverage binding). Publication stage owns push + merge.
+  # Existing PR #263 audit run (t_a0ef0b74, 2026-10-25): work branch
+  # dependabot/github_actions/develop/docker/build-push-action-7.4.0 at the
+  # exact registered head 061bdd (dependabot: docker/build-push-action
+  # 7.0.0 -> 7.4.0, 1 file / +2 -2 in .github/workflows/docker-image.yml,
+  # both 'uses:' pins at c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0).
+  # Base develop 9b9f9648c3 is the CURRENT tip and an ancestor of the head —
+  # no catch-up merge. Contributor commit preserved; no rebase/force-push.
+  # Full contract re-verified in-container (see header note + baseline.json
+  # commands[]): frontend 6/6 lanes (yarn install frozen-lockfile; eslint 0
+  # errors / 8 pre-existing warnings; ui-build-mode + http-binding guards;
+  # stylelint; jest 60/60 / 15 suites), backend restore exit 0 (zero NU19xx),
+  # Release build 0 warn/0 err, rid-core 25/25, rid-common 16/18 (2
+  # pre-existing skips), metadata-core 32/32, metadata-api 4/4, issue-325
+  # filter 30/30 (SIXLABORS_LICENSE_FILE). Live exact-head CI: 16 check-runs
+  # (15 success + 1 neutral CodeQL, 0 failure, 0 pending) at 061bdd;
+  # mergeable=true / mergeable_state=clean onto develop 9b9f9648c3. NO code
+  # edits. No src/frontend/lib/app runtime files changed (no
+  # production_coverage binding). Hosted exact-head CI is the merge gate.
+  # Issue #329 development run (t_1445b5f4, 2026-10-24): work branch
+  # fix/issue-329-authed-spa-routes-blank-shell from develop tip c19a261c.
+  # Three compounding defects caused every authed SPA route to render a blank
+  # app shell under Forms auth: (1) UiAuthenticationMiddleware classified
+  # /initialize.json as a UI-shell GET and Forms-challenged it before
+  # [AllowAnonymous] routing; (2) InitializeJsonController cached
+  # ApiKey/UrlBase in static fields set at construction (issue #309 pattern);
+  # (3) index.ts had no error handling on the initialize.json fetch. The fix
+  # excludes /initialize.json from the UI-shell classification (exact-path,
+  # like /ping), reads config per request, widens FallbackPolicy to
+  # API+Forms, and hardens the SPA boot (loadInitializeConfig + try/catch +
+  # moduleReady export). 5-test jest regression (frontend/src/index.test.js)
+  # RED 5/5 on original / GREEN 5/5 post-fix; InitializeJsonIssue329Fixture
+  # 2/2 GREEN; full solution Release build 0 warn/0 err. PRE-EXISTING: 3
+  # HostConfigAuthorizationFixture failures in the CI-parity integration
+  # filter (identical at BASE; adjacent host-config authz defect, not a
+  # #329 regression). Hosted exact-head CI is the merge gate.
+  # Issue #323 CI-repair assessment run (t_bdadaf92, 2026-10-22): develop tip
+  # dd09a97c80 (PR #318 merge, the issue-323 CI-failing tip) had 4/14 hosted
+  # check-runs FAILING (build-test, cross-build Linux, Windows, macOS) while
+  # parent f5857ee953 was 14/14. The in-container re-execution of EVERY failing
+  # POSIX step at the EXACT head is GREEN (restore exit 0 with the default live
+  # NuGetAudit and with explicit -p:NuGetAudit=true; full Release build 0 warn/0
+  # err; Common.Test --no-build 621 passed/35 skipped/0 failed; check_http_binding.sh
+  # exit 0; direct Windows-desktop project restore + model build 0/0; RID Architecture
+  # property x64; rid_mapping source-assertion gate 4/4) with zero NU19xx audit
+  # diagnostics. The failing lane surface (restore/build/Common.Test/desktop-model/
+  # RID) is disjoint from the PR #318 diff (.onyx/project.yaml +
+  # UiAuthenticationMiddleware.cs + 3 Api.Test fixtures) — none of those artifacts is
+  # touched by any failing CI step. Root cause: the .NET SDK NuGetAudit runs during
+  # restore against the LIVE advisory endpoint; the advisory database is
+  # time-of-run dependent, so a package can gain a new advisory between a green run
+  # and the next run and (with TreatWarningsAsErrors) escalate NU19xx to hard restore
+  # errors — a non-deterministic environment-timing failure class, NOT a deterministic
+  # product-code regression from the merged PR. Disposition: no product-code change
+  # required; the exact head is verified green in-container; hosted exact-head CI is
+  # the merge gate (a re-run of the 4 failed check-runs on the unchanged commit
+  # re-resolves the tip; the 14-PR dependabot train unblocks). PRE-EXISTING: 108
+  # deterministic Core-suite failures in the isolated env (unchanged; CI runs
+  # targeted filters only).
+  # Issue #316 development run (t_897492ef, 2026-10-21): work branch
+  # fix/issue-316-ping-anonymous-json-shadowed-by-spa-shell from live develop
+  # f5857ee953 (the #313/#315 auth-gate fix merged at this head). Implemented the
+  # /ping exclusion in UiAuthenticationMiddleware so the documented [AllowAnonymous]
+  # JSON liveness endpoint GET /ping is no longer shadowed to the SPA shell by the
+  # UI auth middleware. The fix adds `!string.Equals(path, "/ping",
+  # StringComparison.OrdinalIgnoreCase)` to the isUiShellGet classification, so
+  # anonymous GET /ping passes through to the PingController and its 200 + JSON
+  # {"Status":"OK"} is served directly. The #313/#315 auth-gate behavior is
+  # unchanged: unauth UI pages still return 401 under AuthenticationRequired=Enabled,
+  # unauth v1 API still returns 401, authed v1 API still returns 200 JSON.
+  # Three regression test fixtures added (8 tests total):
+  #   - UiAuthenticationMiddlewareIssue316Fixture (5 tests): anonymous /ping passes
+  #     through unchallenged (RED at base); disabled-mode /ping passes through;
+  #     authed /ping passes through; UI-shell paths still challenge with Forms;
+  #     /ping/extra is not exempted (exact-path-only exclusion).
+  #   - PingControllerIssue316Fixture (3 tests): 200 + Status=OK JSON contract;
+  #     500 + Status=Error when config repo unavailable; route attributes declare
+  #     [AllowAnonymous] + [HttpGet/HttpHead "/ping"].
+  #   - ProbeFixture (1 test): sanity probe.
+  # Verified at the fixed head: issue-316 8/8 (RED 1-fail at base for the critical
+  # middleware test), full NzbDrone.Api.Test suite 117/117, full solution Release
+  # build 0 warn/0 err. PRE-EXISTING: 108 deterministic Core-suite failures in the
+  # isolated env (unchanged; CI runs targeted filters only).
+  # Hosted exact-head CI is the merge gate. Prior verified runs remain the record:
+  # issue #309 @ 9013f8fd (t_00c99e08), issue #307 @ 9013f8fd (t_d604af7f), issue #296
+  # @ 816bd8d3e8 (t_56e08eff), issue #272 @ 42d0de9e (t_60662025), issue #275 repair
+  # (t_7bdf990f), issue #279 @ 8d2281e4c5 (t_f1ae9028), issue #256 @ 75c21186
+  # (t_5daa7896), PR #243 @ 949a43a160 (t_e4ea7a87), PR #225 @ 1f37119280
+  # (t_efb34b16), 2026-09-18 baseline @ d21d1361c. Issue #323 CI-repair assessment
+  # (t_bdadaf92, 2026-10-22) at develop dd09a97c80 re-verified the full failing-lane
+  # surface GREEN with zero NU19xx audit diagnostics; see its baseline entry and
+  # logs-t_bdadaf92/.
+  lane: develop (net10.0 band)
+  note: >
+    Issue #340 development run (t_61914698, run 3111, 2026-10-29, base
+    develop 5f21b32cd147, work branch
+    fix/issue-340-manualimport-null-safety-no-provider, head 8407bb9079).
+    POST /api/v1/manualimport (update path) accepted a payload with an
+    approved, seeded book fixture (202) but created no BookFile row: with
+    NO metadata provider configured (a legal state),
+    MetadataProviderOrchestrator.SearchForNewBook returned null and
+    CandidateService.SearchPrimary invoked results.Any() on it, throwing
+    an unhandled ArgumentNullException (Parameter 'source') that escaped
+    GetRemoteCandidates, left release.Edition == null, and
+    ImportApprovedBooks imported 0 files. The #275 fallback in
+    ImportDecisionMaker.IdentifyReleaseFallback had the same null hazard
+    (books.Where on null). Fix: null-coalesce the orchestrator result to
+    an empty List<Book> at all call sites feeding ToCandidates
+    (SearchPrimary, four GetRemoteCandidates paths, ISBN contextual
+    fallback) and null-guard books before .Where in
+    IdentifyReleaseFallback. RED: CandidateServiceIssue340Fixture 4/4
+    FAILED at base; GREEN: 4/4 + ImportDecisionMakerIssue275Fixture 6/6
+    (incl. new #340-complement test); targeted CI filters 31/31 PASSED;
+    full solution Release build 0 warn/0 err (SixLabors license
+    provisioned; value never logged/committed). No JS/TS runtime files
+    under src/frontend/lib/app changed (no production_coverage binding
+    required). Closes #340.
+    Issue #323 CI-repair assessment run (t_bdadaf92, 2026-10-22). At exact develop
+    head dd09a97c80 (PR #318 merge), 4/14 hosted check-runs were failing
+    (build-test, cross-build Linux/Windows/macOS) while parent f5857ee953 was 14/14.
+    The in-container re-execution of every failing POSIX step at the exact head is
+    GREEN: restore exit 0 (default live NuGetAudit and explicit -p:NuGetAudit=true),
+    full Release build 0 warn/0 err, Common.Test --no-build 621 passed/35 skipped/0
+    failed, check_http_binding.sh exit 0, direct Windows-desktop project restore +
+    model build 0/0, RID Architecture property x64, rid_mapping source-assertion
+    gate 4/4 — with zero NU19xx audit diagnostics. The failing lane surface is
+    disjoint from the PR #318 diff (.onyx/project.yaml + UiAuthenticationMiddleware.cs
+    + 3 Api.Test fixtures); no failing CI step touches those artifacts. Root cause:
+    the .NET SDK NuGetAudit runs during restore against the LIVE advisory endpoint
+    and the advisory database is time-of-run dependent, so a package can gain a new
+    advisory between runs and (with TreatWarningsAsErrors) escalate NU19xx to hard
+    restore errors — a non-deterministic environment-timing failure class, not a
+    deterministic product-code regression from the merged PR. No product-code change
+    required; this run documents the evidence and re-verifies the contract. Hosted
+    exact-head CI is the merge gate. PRE-EXISTING: 108 deterministic Core-suite
+    failures in the isolated env (unchanged; CI runs targeted filters only).
+    Prior run record (issue #316 development run, t_897492ef, 2026-10-21, base
+    f5857ee953): the documented [AllowAnonymous] JSON liveness endpoint GET /ping was
+    shadowed to the SPA shell because UiAuthenticationMiddleware (src/Bibliophilarr.Http/Middleware/UiAuthenticationMiddleware.cs)
+    classified /ping as a UI-shell GET — its exclusion list only covered /api/,
+    /login, and /content/. Under AuthenticationRequired=Enabled, the Forms
+    challenge's LoginPath falls through to the SPA catch-all
+    (StaticResourceController.Index), so every anonymous /ping request returned 200 +
+    7666-byte HTML instead of the PingController's JSON {"Status":"OK"}. The fix
+    excludes the EXACT path /ping from the UI-shell classification
+    (string.Equals(path, "/ping")) so the [AllowAnonymous] PingController response is
+    served directly; the exclusion is path-exact only (/ping/extra is still governed
+    as a UI shell) and the #313/#315 auth-gate behavior (unauth UI 401, unauth API
+    401, authed API 200) is preserved unchanged. Three regression test fixtures
+    (8 tests) added. Verified at the fixed head: issue-316 8/8 (RED 1-fail at base),
+    full NzbDrone.Api.Test 117/117, full solution Release build 0 warn/0 err.
+    Hosted exact-head CI is the merge gate.
+
+skipped_integrations:
+  - name: docker-image-build
+    reason: Docker daemon not available in the audit container; image build/release pipeline (Dockerfile, docker-image.yml, docker-compose.*) verified by inspection only.
+  - name: rid-core-diagnostics-integration
+    reason: metadata-diagnostics-integration job (NzbDrone.Integration.Test, Debug config, 5 fixtures) not re-run locally beyond the metadata fixture filters above; CI on GitHub Actions remains the authority.
+  - name: postgres-integration
+    reason: postgres.runsettings present; no Postgres server available in audit environment.
+  - name: browser-e2e
+    reason: no browser/E2E harness in repo; UI verified via webpack build + HTTP runtime smoke only.
+  - name: external-metadata-providers
+    reason: live provider calls (Hardcover, OpenLibrary, Inventaire) require network/credentials; unit fixtures only, per CI design.
+  - name: windows-macos-host-lanes
+    reason: cross-build-portability.yml Windows/macOS runner lanes cannot execute in a Linux audit container; the POSIX parity surface they encode (Posix restore/build, Windows-desktop project model, RID property mapping) was verified locally instead.
+
+pre_existing_faults:
+  - name: core-test-suite-failures
+    severity: medium
+    description: >
+      Bibliophilarr.Core.Test has 108 deterministic pre-existing failures out of
+      2767 (2600 passed, 59 skipped) in the isolated audit environment
+      (2026-09-18, develop d21d1361c, net10.0 band; the main band showed 103/2765
+      on 2026-09-17, same failure classes). Error classes: InvalidOperationException
+      (75), FluentAssertions "Expected boolean" (16), NullReferenceException (4),
+      Moq.MockException unmet expectations (3), NotSupportedException (3),
+      DownloadClientException (2), ImportException (1), other (4). Failures
+      concentrate in DownloadClient fixtures (93/108: QBittorrent/Nzbget/Sabnzbd/
+      NzbVortex/RTorrent/Transmission/DownloadStation/Hadouken/CompletedDownloadService),
+      plus MediaFiles (4), Profiles (3), BooksTests (2), Datastore (2), MusicTests (2),
+      BookTests (1), Housekeeping (1). This is a pre-existing condition of the
+      fork's test suite, NOT introduced by onboarding; the repo's own CI
+      (ci-backend.yml) runs targeted fixture filters rather than the full Core
+      suite, and all targeted filters verified in this audit are green.
+      Evidence: logs/develop-15-core-full.log.
+  - name: pinned-nuget-feed-401
+    severity: low
+    description: >
+      QUICKSTART.md states src/NuGet.config "includes the Servarr package feeds
+      required for FluentMigrator, SQLite, Mono.Posix", but the checked-in
+      NuGet.config (develop blob 296a5db4) contains only
+      nuget.org. The pinned Azure DevOps feed (pkgs.dev.azure.com/Servarr/v3)
+      returns 401 anonymously, so restore actually resolves everything from
+      nuget.org. Documentation drift, not a build break — restore and build
+      succeed — but the docs overstate the feed dependency.
+  - name: eslint-negated-condition-warnings
+    severity: low
+    description: >
+      yarn lint reports 7 pre-existing no-negated-condition warnings
+      (frontend/src). 0 errors; lint gate passes.
+  - name: openapi-json-test-path-resolution
+    severity: low
+    description: >
+      OpenApiIdentifierContractFixture.openapi_should_not_expose_legacy_goodreads_identifier_contracts
+      fails in isolated worktrees with 'Unable to resolve src/Bibliophilarr.Api.V1/openapi.json
+      from test directory' (verified pre-existing at develop 6332741e on a pristine
+      worktree, 2026-10-03, issue #252 run). The test walks UP from the test output
+      directory looking for <ancestor>/src/Bibliophilarr.Api.V1/openapi.json; with the
+      per-task output overrides used in the audit container (BibliophilarrRootDir
+      relocation) the test directory no longer sits under a tree that contains
+      src/Bibliophilarr.Api.V1, so resolution fails. In-repo/CI checkouts resolve
+      fine. Environment-dependent test-path fault, not a code regression; GitHub
+      CI remains the authority for this fixture.
+  - name: processprovider-needs-dotnet-root
+    severity: low
+    description: >
+      ProcessProviderFixture tests spawn the Bibliophilarr.Test.Dummy app host,
+      which requires .NET to be discoverable (DOTNET_ROOT or PATH).
+      In CI (actions/setup-dotnet) this is satisfied; in isolated containers
+      with a non-standard dotnet install they fail with
+      "Failed to resolve libhostfxr.so" unless DOTNET_ROOT is exported.
+      Environment setup gap, not a code fault: with DOTNET_ROOT set,
+      the full Common suite passes (621/621 non-skipped).

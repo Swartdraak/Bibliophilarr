@@ -183,7 +183,7 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
-        public void should_log_error_and_delete_if_musicbrainz_id_not_found_and_author_has_no_files()
+        public void should_keep_unlinked_local_author_without_provider_metadata()
         {
             Mocker.GetMock<IAuthorService>()
                 .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
@@ -194,14 +194,14 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Verify(v => v.UpdateAuthor(It.IsAny<Author>()), Times.Never());
 
             Mocker.GetMock<IAuthorService>()
-                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Once());
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(1);
+            Mocker.GetMock<ICommandResultReporter>().Verify(x => x.Report(It.IsAny<CommandResult>()), Times.Never());
             ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
-        public void should_log_error_but_not_delete_if_musicbrainz_id_not_found_and_author_has_files()
+        public void should_keep_local_author_with_files_without_provider_metadata()
         {
             GivenAuthorFiles();
             GivenBooksForRefresh(new List<Book>());
@@ -214,7 +214,343 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
-            ExceptionVerification.ExpectedErrors(2);
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_delete_newly_created_local_author_when_foreign_id_unresolvable_and_no_files()
+        {
+            // Issue #272: a locally created author (synthetic/unmapped foreign id, e.g.
+            // "recovery:author:RTA-001") is persisted by POST /api/v1/author and its
+            // AuthorMetadataId is 0 (never provider-resolved). The post-create
+            // RefreshAuthorCommand must not treat the expected not-found as a removal
+            // signal and delete the row before the 201 response resolves.
+            _author.AuthorMetadataId = 0;
+
+            // Builder default foreign id ("ForeignAuthorId1") is a synthetic/unmapped id
+            // (not provider-scoped), matching the locally created author this guards.
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id, true));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_delete_local_author_on_bulk_refresh_when_foreign_id_unresolvable_and_no_files()
+        {
+            // Issue #272 companion: bulk refresh (queued via AuthorsImportedEvent) hits
+            // the same ShouldDelete path — the local-author guard must hold there too.
+            _author.AuthorMetadataId = 0;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new BulkRefreshAuthorCommand
+            {
+                AuthorIds = new List<int> { _author.Id },
+                AreNewAuthors = true,
+                Trigger = CommandTrigger.Manual
+            });
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_existing_provider_author_when_lookup_is_inconclusive(bool transportFailure)
+        {
+            _author.ForeignAuthorId = "hardcover:author:4821";
+            _author.AuthorMetadataId = 1;
+            Exception failure = transportFailure
+                ? new MetadataProviderUnavailableException("get-author-info", _author.ForeignAuthorId, new System.Net.Http.HttpRequestException("provider unreachable"))
+                : new AuthorNotFoundException(_author.ForeignAuthorId);
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(failure);
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAuthorService>().Verify(x => x.UpdateAuthor(It.IsAny<Author>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+            if (transportFailure)
+            {
+                ExceptionVerification.ExpectedErrors(1);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_report_unavailable_refresh_as_unsuccessful_and_continue(bool refreshAll)
+        {
+            _author.Metadata.Value.Name = "Alpha";
+            var other = _author.JsonClone();
+            other.Id++;
+            other.Metadata = _author.Metadata.Value.JsonClone();
+            other.Metadata.Value.Name = "Zulu";
+            other.ForeignAuthorId = "openlibrary:author:OL9000A";
+            other.AuthorMetadataId = other.Metadata.Value.Id;
+
+            var ids = new List<int> { _author.Id, other.Id };
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAuthors(ids)).Returns(new List<Author> { _author, other });
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { _author, other });
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(new MetadataProviderUnavailableException("get-author-info", _author.ForeignAuthorId, new InvalidOperationException("Incomplete provider response")));
+            var otherData = other.JsonClone();
+            otherData.Metadata = other.Metadata.Value.JsonClone();
+            otherData.Books = _remoteBooks;
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Setup(x => x.GetAuthorInfo(other.ForeignAuthorId, true)).Returns(otherData);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            if (refreshAll)
+            {
+                Subject.Execute(new RefreshAuthorCommand(null, true) { Trigger = CommandTrigger.Manual });
+            }
+            else
+            {
+                Subject.Execute(new BulkRefreshAuthorCommand(ids, true));
+            }
+
+            Mocker.GetMock<ICommandResultReporter>().Verify(x => x.Report(CommandResult.Unsuccessful), Times.Once());
+            Mocker.GetMock<IAuthorService>().Verify(x => x.UpdateAuthor(It.Is<Author>(a => a.Id == other.Id)), Times.Once());
+            Mocker.GetMock<IManageCommandQueue>().Verify(x => x.Push(It.IsAny<RescanFoldersCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [TestCase("openlibrary:author:OL87654A", false)]
+        [TestCase("OL87654A", true)]
+        public void should_keep_monitored_provider_author_when_author_endpoint_returns_404(string foreignId, bool bulk)
+        {
+            _author.AuthorMetadataId = 1;
+            _author.ForeignAuthorId = foreignId;
+            _author.Monitored = true;
+
+            Mocker.GetMock<IAuthorService>().Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(foreignId, true))
+                .Throws(new AuthorNotFoundException(foreignId, isConfirmedMissing: true));
+
+            if (bulk)
+            {
+                Subject.Execute(new BulkRefreshAuthorCommand(new List<int> { _author.Id }));
+            }
+            else
+            {
+                Subject.Execute(new RefreshAuthorCommand(_author.Id));
+            }
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAuthorService>().Verify(x => x.UpdateAuthor(It.IsAny<Author>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_delete_local_author_with_positive_metadata_id_when_foreign_id_unresolvable()
+        {
+            // Issue #325 (DEFECT-RECOVERY-LOCAL-AUTHOR-DELETED-AFTER-CREATE): at the
+            // exact head, AddAuthorService upserts an AuthorMetadata row for every
+            // added author (including locally created ones with synthetic/unmapped
+            // foreign ids) and assigns the resulting POSITIVE id to
+            // Author.AuthorMetadataId. The old "AuthorMetadataId <= 0" guard
+            // therefore no longer identifies locally created authors, and the
+            // post-create RefreshAuthorCommand deleted the persisted row ~3s after
+            // the 201 Created — destroying API-created data (R3
+            // metadata/file-lifecycle invariant, regression of issue #272's intent).
+            // The guard must key on the provider id scope, not on AuthorMetadataId:
+            // a synthetic/unmapped id (e.g. "recovery:author:RTA-001") can never be
+            // provider-resolvable, so its not-found is expected, never a removal
+            // signal — even when the author DID get a metadata row.
+            _author.AuthorMetadataId = 42;
+            _author.ForeignAuthorId = "recovery:author:RTA-001";
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id, true));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_delete_local_author_with_positive_metadata_id_on_bulk_refresh()
+        {
+            // Issue #325 companion: the bulk-refresh path (queued via
+            // AuthorsImportedEvent) hits the same ShouldDelete — the
+            // provider-scope guard must hold there too for a locally created
+            // author that DID get an AuthorMetadata row.
+            _author.AuthorMetadataId = 42;
+            _author.ForeignAuthorId = "recovery:author:RTA-001";
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new BulkRefreshAuthorCommand
+            {
+                AuthorIds = new List<int> { _author.Id },
+                AreNewAuthors = true,
+                Trigger = CommandTrigger.Manual
+            });
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase("hardcover:author:recoveryseed")]
+        [TestCase("hardcover:author:local-author-xyz")]
+        [TestCase("hardcover:author:0")]
+        [TestCase("hardcover:author:-7")]
+        public void should_not_delete_local_author_with_non_numeric_hardcover_scoped_foreign_id_when_not_found_and_no_files(string foreignId)
+        {
+            // Issue #404 (DATA-LOSS regression): a locally-created author whose foreign
+            // id is in the "hardcover:" scope but is NOT the resolvable numeric author
+            // form (e.g. "hardcover:author:recoveryseed") can never be resolved by any
+            // provider (the live app log shows "Hardcover author search returned no
+            // results" -> AuthorNotFoundException). The previous gate treated ANY id
+            // starting "hardcover:" as provider-owned, so the post-create refresh
+            // interpreted the expected not-found as a provider-removal signal and
+            // synchronously deleted the API-created Authors row (orphaning the
+            // AuthorMetadata row). The gate now scopes the hardcover: prefix to the
+            // numeric author form only, so a non-numeric hardcover:-scoped id is
+            // locally-created and must NOT be deleted on a genuine not-found — even
+            // though the author carries a positive AuthorMetadataId (AddAuthorService
+            // upserts an AuthorMetadata row for every added author).
+            //
+            // Test case matrix:
+            //   "hardcover:author:recoveryseed"  — the exact r4 reproduction id
+            //   "hardcover:author:local-author-xyz" — a generic non-numeric synthetic id
+            //   "hardcover:author:0"            — zero is not a valid positive provider id
+            //   "hardcover:author:-7"           — negative is not a valid positive provider id
+            // All four are non-resolvable synthetic ids; none may be treated as
+            // provider-owned, so none may be deleted.
+            _author.AuthorMetadataId = 42;
+            _author.ForeignAuthorId = foreignId;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id, true));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase("hardcover:author:4821")]
+        [TestCase("hardcover:author:1")]
+        public void should_keep_numeric_hardcover_authors_when_lookup_returns_no_match(string foreignId)
+        {
+            // Hardcover can return empty results for a valid ID without confirming a removal.
+            _author.AuthorMetadataId = 1;
+            _author.ForeignAuthorId = foreignId;
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(x => x.GetFilesByAuthor(It.IsAny<int>()))
+                .Returns(new List<BookFile>());
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(new AuthorNotFoundException(_author.ForeignAuthorId));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_delete_provider_sourced_author_when_remote_removed_but_files_exist()
+        {
+            _author.AuthorMetadataId = 1;
+            _author.ForeignAuthorId = "openlibrary:author:OL87654A";
+            GivenAuthorFiles();
+
+            Mocker.GetMock<IAuthorService>(MockBehavior.Strict)
+                  .Setup(s => s.GetAuthors(new List<int> { _author.Id }))
+                  .Returns(new List<Author> { _author });
+
+            Mocker.GetMock<IAuthorService>()
+                .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(new AuthorNotFoundException(_author.ForeignAuthorId, isConfirmedMissing: true));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

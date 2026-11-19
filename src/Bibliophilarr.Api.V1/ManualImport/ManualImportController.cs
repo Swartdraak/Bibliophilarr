@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
 using NzbDrone.Core.Qualities;
@@ -43,6 +44,33 @@ namespace Bibliophilarr.Api.V1.ManualImport
         [HttpPost]
         public IActionResult UpdateItems([FromBody] List<ManualImportUpdateResource> resource)
         {
+            // Honest success semantics (issue #295): do NOT return a silent 202 when
+            // every submitted item is un-importable.  When no item carries a usable
+            // catalogue mapping (BookId / ForeignEditionId) the import is a no-op;
+            // surface that to the caller as a 400 with per-item rejections instead of
+            // reporting a success for an import that mapped nothing.
+            var unmappable = resource
+                .Where(r => !r.BookId.HasValue || r.BookId.Value <= 0)
+                .Count();
+
+            if (resource.Count > 0 && unmappable == resource.Count)
+            {
+                _logger.Warn("Rejected manual import: none of the {0} submitted items maps to a catalogue book", resource.Count);
+
+                var rejections = resource.Select(r => new
+                {
+                    path = r.Path,
+                    rejections = new[]
+                    {
+                        new Rejection(
+                            "Cannot import: no catalogue book/edition mapping (BookId and ForeignEditionId both missing). " +
+                            "Run the manual-import scan first to resolve the catalogue match, then retry.")
+                    }
+                });
+
+                return BadRequest(rejections);
+            }
+
             return Accepted(UpdateImportItems(resource));
         }
 

@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Exceptions;
@@ -11,22 +13,22 @@ namespace NzbDrone.Common.EnvironmentInfo
     public interface IAppFolderFactory
     {
         void Register();
-        void SetPermissions();
     }
 
     public class AppFolderFactory : IAppFolderFactory
     {
         private readonly IAppFolderInfo _appFolderInfo;
         private readonly IDiskProvider _diskProvider;
+        private readonly IStartupContext _startupContext;
         private readonly Logger _logger;
 
         public AppFolderFactory(IAppFolderInfo appFolderInfo,
                                 IStartupContext startupContext,
-                                IDiskProvider diskProvider,
-                                IDiskTransferService diskTransferService)
+                                IDiskProvider diskProvider)
         {
             _appFolderInfo = appFolderInfo;
             _diskProvider = diskProvider;
+            _startupContext = startupContext;
             _logger = NzbDroneLogger.GetLogger(this);
         }
 
@@ -34,16 +36,18 @@ namespace NzbDrone.Common.EnvironmentInfo
         {
             try
             {
-                _diskProvider.EnsureFolder(_appFolderInfo.AppDataFolder);
+                if (OsInfo.IsWindows && !_startupContext.Args.ContainsKey(StartupContext.APPDATA))
+                {
+                    _diskProvider.EnsurePrivateFolder(_appFolderInfo.AppDataFolder);
+                }
+                else
+                {
+                    _diskProvider.EnsureFolder(_appFolderInfo.AppDataFolder);
+                }
             }
             catch (UnauthorizedAccessException)
             {
                 throw new BibliophilarrStartupException("Cannot create AppFolder, Access to the path {0} is denied", _appFolderInfo.AppDataFolder);
-            }
-
-            if (OsInfo.IsWindows)
-            {
-                SetPermissions();
             }
 
             if (!_diskProvider.FolderWritable(_appFolderInfo.AppDataFolder))
@@ -54,15 +58,37 @@ namespace NzbDrone.Common.EnvironmentInfo
             InitializeMonoApplicationData();
         }
 
-        public void SetPermissions()
+        public static void EnsurePrivateWindowsFolder(string path)
         {
-            try
+            if (!OperatingSystem.IsWindows())
             {
-                _diskProvider.SetEveryonePermissions(_appFolderInfo.AppDataFolder);
+                return;
             }
-            catch (Exception ex)
+
+            var directory = new DirectoryInfo(path);
+            if (directory.Exists)
             {
-                _logger.Warn(ex, "Coudn't set app folder permission");
+                return;
+            }
+
+            using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+            var userSid = identity.User ?? throw new UnauthorizedAccessException("Cannot identify the Windows account for the data directory.");
+            var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+            var administratorsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            const InheritanceFlags inheritance = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+
+            var security = new DirectorySecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.AddAccessRule(new FileSystemAccessRule(userSid, FileSystemRights.Modify, inheritance, PropagationFlags.None, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(systemSid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(administratorsSid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+
+            // Apply the DACL at creation, before the app writes configuration or credentials.
+            directory.Create(security);
+
+            if (!directory.GetAccessControl(AccessControlSections.Access).AreAccessRulesProtected)
+            {
+                throw new UnauthorizedAccessException($"Could not create the Windows data directory with private permissions: {path}");
             }
         }
 

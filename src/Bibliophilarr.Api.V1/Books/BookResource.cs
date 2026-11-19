@@ -7,6 +7,8 @@ using Newtonsoft.Json;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Qualities;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -22,6 +24,10 @@ namespace Bibliophilarr.Api.V1.Books
         public int AuthorId { get; set; }
         public string ForeignBookId { get; set; }
         public string ForeignEditionId { get; set; }
+        [SwaggerSchema(ReadOnly = true)]
+        public string OpenLibraryWorkId { get; set; }
+        [SwaggerSchema(ReadOnly = true)]
+        public string MetadataSourceLabel { get; set; }
         public string TitleSlug { get; set; }
         public bool Monitored { get; set; }
         public bool AnyEditionOk { get; set; }
@@ -40,6 +46,8 @@ namespace Bibliophilarr.Api.V1.Books
         public List<EditionResource> Editions { get; set; }
         public List<BookFormatStatusResource> FormatStatuses { get; set; }
 
+        internal bool AllowsFormatMonitoring { get; set; }
+
         //Hiding this so people don't think its usable (only used to set the initial state)
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
         [SwaggerIgnore]
@@ -55,38 +63,58 @@ namespace Bibliophilarr.Api.V1.Books
                 return null;
             }
 
-            var selectedEdition = model.Editions?.Value.Where(x => x.Monitored).FirstOrDefault()
-                                  ?? model.Editions?.Value.FirstOrDefault();
+            // Issue #250: complete the #249 null-safe mapping repair for the BOOK
+            // branch.  Every nested LazyLoaded here can hold a null Value when a
+            // metadata provider returns a partial result (e.g. the Editions list
+            // exists but is empty/null, the Author row was resolved but its
+            // AuthorMetadata row was not, or a SeriesBookLink points at an
+            // unresolved Series).  Capture each nested value exactly once and
+            // guard every dereference, mirroring the AuthorResource fix from #249
+            // (AuthorResourceMapper.ToResource).
+            var editionsValue = model.Editions?.Value;
+            var selectedEdition = editionsValue?.Where(x => x.Monitored).FirstOrDefault()
+                                  ?? editionsValue?.FirstOrDefault();
 
             var title = selectedEdition?.Title ?? model.Title;
-            var authorTitle = $"{model.Author?.Value?.Metadata?.Value?.SortNameLastFirst} {title}";
+            var canonicalOpenLibraryId = OpenLibraryIdNormalizer.NormalizeWorkId(model.ForeignBookId);
+            var openLibraryWorkId = OpenLibraryIdNormalizer.NormalizeWorkId(model.OpenLibraryWorkId);
+            var bookAuthor = model.Author?.Value;
+            var allowsFormatMonitoring = model.Monitored && bookAuthor?.Monitored == true;
+            var authorTitle = $"{bookAuthor?.Metadata?.Value?.SortNameLastFirst ?? string.Empty} {title}";
 
             var seriesLinks = model.SeriesLinks?.Value?.OrderBy(x => x.SeriesPosition);
-            var seriesTitle = seriesLinks?.Select(x => x?.Series?.Value?.Title + (x?.Position.IsNotNullOrWhiteSpace() ?? false ? $" #{x.Position}" : string.Empty)).ConcatToString("; ");
+            var seriesTitle = seriesLinks?
+                .Select(x =>
+                {
+                    var series = x?.Series?.Value;
+                    return series?.Title + (x?.Position.IsNotNullOrWhiteSpace() ?? false ? $" #{x.Position}" : string.Empty);
+                })
+                .ConcatToString("; ");
 
             var formatStatuses = new List<BookFormatStatusResource>();
-            var editions = model.Editions?.Value;
-            if (editions != null)
+            if (editionsValue != null)
             {
                 // Collect all book files across all editions and group by derived format type.
                 // This ensures format is determined from actual file quality (e.g. EPUB → Ebook,
                 // M4B → Audiobook) rather than relying solely on Edition.IsEbook, which may not
                 // be set correctly by all metadata providers.
-                var allFiles = editions
+                // Issue #250: Edition.BookFiles.Value can be a null list (provider partial
+                // result) — guard the second dereference too.
+                var allFiles = editionsValue
                     .Where(e => e.BookFiles?.Value != null)
-                    .SelectMany(e => e.BookFiles.Value)
+                    .SelectMany(e => e.BookFiles.Value ?? new List<BookFile>())
                     .ToList();
 
                 var ebookFiles = allFiles.Where(f => Quality.GetFormatType(f.Quality.Quality) == FormatType.Ebook).ToList();
                 var audiobookFiles = allFiles.Where(f => Quality.GetFormatType(f.Quality.Quality) == FormatType.Audiobook).ToList();
 
                 // Also check edition-level classification for books without files
-                var hasEbookEdition = editions.Any(e => e.IsEbook);
-                var hasAudiobookEdition = editions.Any(e => !e.IsEbook);
+                var hasEbookEdition = editionsValue.Any(e => e.IsEbook);
+                var hasAudiobookEdition = editionsValue.Any(e => e.MatchesFormat(FormatType.Audiobook));
 
                 // Determine monitored status from editions
-                var monitoredEbookEdition = editions.Where(e => e.IsEbook).FirstOrDefault(e => e.Monitored);
-                var monitoredAudiobookEdition = editions.Where(e => !e.IsEbook).FirstOrDefault(e => e.Monitored);
+                var monitoredEbookEdition = editionsValue.Where(e => e.IsEbook).FirstOrDefault(e => e.Monitored);
+                var monitoredAudiobookEdition = editionsValue.FirstOrDefault(e => e.MatchesFormat(FormatType.Audiobook) && e.Monitored);
 
                 // Emit ebook status if we have ebook files OR a classified ebook edition
                 if (ebookFiles.Any() || hasEbookEdition)
@@ -119,6 +147,8 @@ namespace Bibliophilarr.Api.V1.Books
                 AuthorId = model.AuthorId,
                 ForeignBookId = model.ForeignBookId,
                 ForeignEditionId = selectedEdition?.ForeignEditionId,
+                OpenLibraryWorkId = IsOpenLibraryWorkId(openLibraryWorkId) ? openLibraryWorkId : IsOpenLibraryWorkId(canonicalOpenLibraryId) ? canonicalOpenLibraryId : null,
+                MetadataSourceLabel = GetMetadataSourceLabel(model.ForeignBookId, canonicalOpenLibraryId),
                 TitleSlug = model.TitleSlug,
                 Monitored = model.Monitored,
                 AnyEditionOk = model.AnyEditionOk,
@@ -134,8 +164,30 @@ namespace Bibliophilarr.Api.V1.Books
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,
                 LastSearchTime = model.LastSearchTime,
-                Editions = editions?.Select(e => e.ToResource()).ToList() ?? new List<EditionResource>(),
-                FormatStatuses = formatStatuses
+                Editions = editionsValue?.Select(e => e.ToResource()).ToList() ?? new List<EditionResource>(),
+                FormatStatuses = formatStatuses,
+                AllowsFormatMonitoring = allowsFormatMonitoring
+            };
+        }
+
+        private static bool IsOpenLibraryWorkId(string value)
+        {
+            return value?.EndsWith("W", StringComparison.OrdinalIgnoreCase) == true;
+        }
+
+        private static string GetMetadataSourceLabel(string foreignBookId, string canonicalOpenLibraryId)
+        {
+            if (IsOpenLibraryWorkId(canonicalOpenLibraryId))
+            {
+                return "Open Library";
+            }
+
+            return foreignBookId?.Split(':', 2)[0].ToLowerInvariant() switch
+            {
+                "hardcover" => "Hardcover",
+                "googlebooks" => "Google Books",
+                "inventaire" => "Inventaire",
+                _ => null
             };
         }
 
@@ -148,6 +200,14 @@ namespace Bibliophilarr.Api.V1.Books
 
             var author = resource.Author?.ToModel() ?? new NzbDrone.Core.Books.Author();
 
+            // Issue #279: resource.AddOptions is null when the client omits the
+            // optional addOptions field (it is not required by the API schema).
+            // Copying null here overwrote the Book constructor's
+            // "AddOptions = new AddBookOptions()" initialization, and
+            // AddBookService.AddBook then threw NullReferenceException on
+            // "book.AddOptions.AddType = BookAddType.Manual;" (AddBookService.cs:63),
+            // surfacing as a 500 instead of 201. Substitute a fresh AddBookOptions
+            // so the service layer never sees a null AddOptions.
             return new Book
             {
                 Id = resource.Id,
@@ -158,7 +218,7 @@ namespace Bibliophilarr.Api.V1.Books
                 Monitored = resource.Monitored,
                 AnyEditionOk = resource.AnyEditionOk,
                 Editions = resource.Editions.ToModel(),
-                AddOptions = resource.AddOptions,
+                AddOptions = resource.AddOptions ?? new AddBookOptions(),
                 Author = author,
                 AuthorMetadata = author.Metadata.Value
             };

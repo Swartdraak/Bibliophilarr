@@ -88,6 +88,15 @@ Responsibilities:
 - emit required protected-branch contexts
 - provide the evidence consumed by readiness reporting
 
+### 5) Package rehearsal
+
+`package-rehearsal.yml` runs on packaging changes in same-repository pull
+requests into `develop` and after each staging push. It can also be dispatched
+on `develop` or `staging` once the workflow is on the default branch.
+It uses the same package build and asset checks as `release.yml` and uploads
+the result as the `release-assets` Actions artifact. It requires the Six
+Labors build license and read-only repository permissions.
+
 ## Current repository posture
 
 The repository currently documents release-entry readiness, branch-policy audit,
@@ -96,11 +105,11 @@ are present in this repository (`release.yml`, `docker-image.yml`, and
 `npm-publish.yml`), while readiness and branch-policy workflows remain the
 authoritative operator decision inputs for promotion decisions.
 
-Current limitation:
-
-- `release.yml` still runs the release-entry gate in advisory mode (`continue-on-error: true`).
-- The series-persistence snapshot step is skipped when `stagingDbPath` is not supplied.
-- Operators must therefore treat a non-PASS gate result as release-blocking even though packaging can still continue in workflow execution today.
+Release packaging requires a passing release-entry report. The workflow reads
+the dated operational snapshots from the verified source commit. Generate the
+series snapshot against a disposable or staging database before promotion and
+commit the results through the development branch. Database files belong outside
+the repository and are not required on the hosted release runner.
 
 ## Workflow dispatch commands (GitHub CLI)
 
@@ -123,6 +132,7 @@ gh workflow run "Metadata Migration Dry Run" \
 | Name | Scope | Required | Used by | Notes |
 |---|---|---|---|---|
 | `GITHUB_TOKEN` | Built-in Actions token | Auto | current GitHub Actions workflows | Used for workflow API access and artifact publication within granted permissions. |
+| `SIXLABORS_LICENSE_KEY` | Actions secret | Required for licensed builds | `release.yml`, `package-rehearsal.yml` | Materialized during compilation and removed before artifact upload. |
 | `NPM_TOKEN` | `npm-publish` environment secret | Required for npm publish | `npm-publish.yml` | npmjs.org access token for publishing the `bibliophilarr` launcher package. |
 | `Bibliophilarr__Postgres__Host` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL host key during rename migration. |
 | `Bibliophilarr__Postgres__Port` | Runtime env var | Optional | app runtime/tests | Preferred PostgreSQL port key during rename migration. |
@@ -139,7 +149,9 @@ gh workflow run "Metadata Migration Dry Run" \
 
 ## Release procedure
 
-1. Merge validated changes to `main` only after readiness criteria are met.
+1. Promote `develop` to `staging` through a pull request. Promote `staging`
+   to `main` through a second pull request after its checks and readiness
+   criteria pass.
 2. Review the latest readiness, branch-policy, and operational drift artifacts.
 3. Tag the release: `git tag v<major>.<minor>.<patch> && git push origin v<major>.<minor>.<patch>`.
 4. `release.yml` triggers automatically on the tag push: builds all platform binaries and publishes a GitHub Release with artifacts and SHA256 checksums.
@@ -147,9 +159,19 @@ gh workflow run "Metadata Migration Dry Run" \
 6. `docker-image.yml` triggers on the tag push in parallel with `release.yml`.
 7. Verify GitHub Release assets, GHCR image tags, and npm package version after workflows complete.
 
+The publication workflows verify the exact tag and source commit before building
+release artifacts or publishing images and packages. Stable tags use
+`vMAJOR.MINOR.PATCH` on the first-parent history of `main`. Staging candidates
+use `vMAJOR.MINOR.PATCH-rc.N` on the first-parent history of `staging` and publish
+to GitHub prereleases, npm `next`, and versioned GHCR tags.
+
+For manual publication, dispatch from the exact tagged commit on `main`.
+The main-branch Docker build-only dispatch can still run before tagging.
+
 ## Update branch configuration
 
-As of v1.2.0, Bibliophilarr defaults to the `main` branch for application updates. Users receive notifications when new stable releases are published.
+New installations default to the `main` branch for application updates.
+Users receive notifications when new stable releases are published.
 
 ### Available branches
 
@@ -160,7 +182,8 @@ As of v1.2.0, Bibliophilarr defaults to the `main` branch for application update
 
 Users can change their update branch in Settings > General > Updates > Branch.
 
-Currently, only `main`/`master` branch releases are published via automated workflows. Support for `develop` and `nightly` branch builds is planned for a future release.
+The publication workflows accept stable `main` releases and tagged `staging`
+release candidates. Update settings also accept `develop` and `nightly`.
 
 See [wiki/Updates-and-Branches.md](../../wiki/Updates-and-Branches.md) for user-facing update documentation.
 
@@ -182,12 +205,15 @@ Mandatory checklist flow:
 - `docs/operations/metadata-dry-run-snapshots/`
 - `docs/operations/metadata-telemetry-checkpoints/`
 - `docs/operations/install-test-snapshots/`
+- `docs/operations/series-persistence-snapshots/`
 
 2. Each snapshot must include explicit gate lines:
 
 - `Verdict: PASS|WARNING|CRITICAL|BLOCKED` (dry-run snapshots)
 - `Overall threshold verdict: PASS|WARNING|CRITICAL|BLOCKED` (telemetry checkpoints)
 - `Overall matrix verdict: PASS|BLOCKED` (install snapshots)
+- `Verdict: PASS|BLOCKED` (series persistence snapshots)
+- `Series persistence verdict: PASS|FAIL` (series persistence snapshots)
 
 3. Operator runs:
 
@@ -208,12 +234,12 @@ Legacy symbol guard:
 - The gate supports an explicit allowlist for approved compatibility shims via `--symbol-allowlist` (defaults include parser model alias files used for backward-compatible JSON deserialization).
 
 4. Promotion is blocked unless the gate report returns `Overall: PASS`.
-5. `release.yml` publishes this gate automatically in the `Release Entry Gate` job, but the job is currently advisory and does not yet hard-stop packaging on failure.
+5. The `Release Entry Gate` job uploads the report. Packaging requires that job to pass.
 
 Packaging scope note:
 
 - Packaging validation has been completed on `main` with the v1.0.0 release.
-- `release.yml` builds Linux x64, macOS ARM64, and Windows x64 binaries and creates a GitHub Release.
+- `release.yml` builds Linux x64/ARM64, macOS Intel/Apple Silicon, and Windows x64 packages. The release also includes the Windows x64 installer and checksums for all six assets.
 - `docker-image.yml` builds multi-platform Docker images, pushes to GHCR, signs with cosign, and runs Trivy scanning.
 - `npm-publish.yml` publishes the launcher package to npmjs.org when a release is published.
 

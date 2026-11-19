@@ -166,7 +166,7 @@ class AuthorSearchInput extends Component {
       return;
     }
 
-    if (event.key !== 'Tab' && event.key !== 'Enter') {
+    if (event.key !== 'Enter' || !this.state.value.trim()) {
       return;
     }
 
@@ -320,7 +320,8 @@ class AuthorSearchInput extends Component {
       className: styles.input,
       name: 'authorSearch',
       value,
-      placeholder: translate('Search'),
+      placeholder: translate('SearchBooksAndAuthors'),
+      'aria-label': translate('SearchBooksAndAuthors'),
       autoComplete: 'off',
       spellCheck: false,
       onChange: this.onChange,

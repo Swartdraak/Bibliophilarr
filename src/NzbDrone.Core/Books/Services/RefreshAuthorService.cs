@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Books.Events;
@@ -38,6 +39,7 @@ namespace NzbDrone.Core.Books
         private readonly IRefreshSeriesService _refreshSeriesService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly ICommandResultReporter _commandResultReporter;
         private readonly IMediaFileService _mediaFileService;
         private readonly IHistoryService _historyService;
         private readonly IRootFolderService _rootFolderService;
@@ -56,6 +58,7 @@ namespace NzbDrone.Core.Books
                                     IRefreshSeriesService refreshSeriesService,
                                     IEventAggregator eventAggregator,
                                     IManageCommandQueue commandQueueManager,
+                                    ICommandResultReporter commandResultReporter,
                                     IMediaFileService mediaFileService,
                                     IHistoryService historyService,
                                     IRootFolderService rootFolderService,
@@ -74,6 +77,7 @@ namespace NzbDrone.Core.Books
             _refreshSeriesService = refreshSeriesService;
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
+            _commandResultReporter = commandResultReporter;
             _mediaFileService = mediaFileService;
             _historyService = historyService;
             _rootFolderService = rootFolderService;
@@ -90,15 +94,20 @@ namespace NzbDrone.Core.Books
             {
                 return _orchestrator.GetAuthorInfo(foreignId);
             }
-            catch (AuthorNotFoundException)
+            catch (AuthorNotFoundException ex)
             {
-                _logger.Warn("Metadata provider could not find author with id '{0}'. " +
-                             "The author will be kept with existing metadata. " +
-                             "This may occur when a provider removes an author entry.",
-                             foreignId);
+                // A missing author or a local identifier with no provider result is an expected no-op.
+                var message = ex.IsConfirmedMissing
+                    ? "The metadata provider returned not found for author id '{0}'. Keeping the existing author and metadata."
+                    : "No metadata matched author id '{0}'. Keeping the existing author and metadata.";
+                _logger.Warn(message, LogSanitizer.Sanitize(foreignId));
+                return null;
             }
-
-            return null;
+            catch (MetadataProviderUnavailableException ex)
+            {
+                _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
+                throw;
+            }
         }
 
         protected override RemoteData GetRemoteData(Author local, List<Author> remote, Author data)
@@ -116,7 +125,7 @@ namespace NzbDrone.Core.Books
 
         protected override bool ShouldDelete(Author local)
         {
-            return !_mediaFileService.GetFilesByAuthor(local.Id).Any();
+            return false;
         }
 
         protected override void LogProgress(Author local)
@@ -225,7 +234,7 @@ namespace NzbDrone.Core.Books
 
         protected override void DeleteEntity(Author local, bool deleteFiles)
         {
-            _authorService.DeleteAuthor(local.Id, deleteFiles);
+            throw new NotSupportedException("Missing provider metadata cannot delete a library author.");
         }
 
         protected override List<Book> GetRemoteChildren(Author local, Author remote)
@@ -443,6 +452,7 @@ namespace NzbDrone.Core.Books
         private void RefreshSelectedAuthors(List<int> authorIds, bool isNew, CommandTrigger trigger)
         {
             var updated = false;
+            var refreshFailed = false;
             var authors = _authorService.GetAuthors(authorIds);
 
             foreach (var author in authors)
@@ -450,15 +460,28 @@ namespace NzbDrone.Core.Books
                 try
                 {
                     var data = GetSkyhookData(author.ForeignAuthorId);
-                    updated |= RefreshEntityInfo(author, null, data, true, false, null);
+                    if (data != null)
+                    {
+                        updated |= RefreshEntityInfo(author, null, data, true, false, null);
+                    }
                 }
                 catch (Exception e)
                 {
+                    refreshFailed = true;
                     _logger.Error(e, "Couldn't refresh info for {0}", author);
                 }
             }
 
+            CompleteRefresh(authorIds, isNew, trigger, updated, refreshFailed);
+        }
+
+        private void CompleteRefresh(List<int> authorIds, bool isNew, CommandTrigger trigger, bool updated, bool refreshFailed)
+        {
             Rescan(authorIds, isNew, trigger, updated);
+            if (refreshFailed)
+            {
+                _commandResultReporter.Report(CommandResult.Unsuccessful);
+            }
         }
 
         public void Execute(BulkRefreshAuthorCommand message)
@@ -478,6 +501,7 @@ namespace NzbDrone.Core.Books
             else
             {
                 var updated = false;
+                var refreshFailed = false;
                 var authors = _authorService.GetAllAuthors().OrderBy(c => c.Name).ToList();
                 var authorIds = authors.Select(x => x.Id).ToList();
 
@@ -500,10 +524,14 @@ namespace NzbDrone.Core.Books
                         {
                             LogProgress(author);
                             var data = GetSkyhookData(author.ForeignAuthorId);
-                            updated |= RefreshEntityInfo(author, null, data, manualTrigger, false, message.LastStartTime);
+                            if (data != null)
+                            {
+                                updated |= RefreshEntityInfo(author, null, data, manualTrigger, false, message.LastStartTime);
+                            }
                         }
                         catch (Exception e)
                         {
+                            refreshFailed = true;
                             _logger.Error(e, "Couldn't refresh info for {0}", author);
                         }
                     }
@@ -513,7 +541,7 @@ namespace NzbDrone.Core.Books
                     }
                 }
 
-                Rescan(authorIds, isNew, trigger, updated);
+                CompleteRefresh(authorIds, isNew, trigger, updated, refreshFailed);
             }
         }
     }

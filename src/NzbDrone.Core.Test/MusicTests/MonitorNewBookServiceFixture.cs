@@ -61,5 +61,37 @@ namespace NzbDrone.Core.Test.BookTests
                 Subject.ShouldMonitorNewBook(book, _books, NewItemMonitorTypes.New).Should().BeFalse();
             }
         }
+
+        [Test]
+        public void should_not_throw_and_should_default_to_no_monitor_when_monitor_type_is_out_of_range()
+        {
+            // Regression (issue #256): an out-of-range NewItemMonitorTypes value (e.g. 3, a
+            // MonitorTypes value mistakenly stored in a NewItemMonitorTypes column) must NOT
+            // throw NotImplementedException — that exception was caught upstream and only
+            // logged, silently dropping every new book on import/refresh. It must log a
+            // warning and fall back to the safe "do not auto-monitor" default.
+            var outOfRange = (NewItemMonitorTypes)3;
+
+            var result = Subject.ShouldMonitorNewBook(_books[0], _books, outOfRange);
+
+            result.Should().BeFalse("out-of-range values must fall back to the safe no-monitor default");
+        }
+
+        [Test]
+        public void should_not_throw_and_should_default_to_no_monitor_when_monitor_type_is_negative()
+        {
+            var negative = (NewItemMonitorTypes)(-1);
+
+            Subject.ShouldMonitorNewBook(_books[0], _books, negative).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_not_throw_when_monitor_type_exceeds_defined_range()
+        {
+            // A value above the highest defined member (New=2) is also out of range.
+            var tooLarge = (NewItemMonitorTypes)99;
+
+            Subject.ShouldMonitorNewBook(_books[0], _books, tooLarge).Should().BeFalse();
+        }
     }
 }

@@ -3,6 +3,7 @@ using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
 
@@ -99,6 +100,36 @@ namespace NzbDrone.Api.Test.Books
     [TestFixture]
     public class BookFormatStatusResourceFixture
     {
+        [TestCase(0, 0)]
+        [TestCase(1, 100)]
+        [TestCase(2, 100)]
+        [TestCase(5, 100)]
+        public void should_count_available_works_instead_of_files(int fileCount, int percent)
+        {
+            var result = new BookStatistics
+            {
+                BookCount = 1,
+                AvailableBookCount = fileCount > 0 ? 1 : 0,
+                BookFileCount = fileCount
+            }.ToResource();
+
+            result.BookFileCount.Should().Be(fileCount);
+            result.PercentOfBooks.Should().Be(percent);
+        }
+
+        [TestCase("openlibrary:work:OL123W", null, "OL123W", "Open Library")]
+        [TestCase("hardcover:work:432", "OL456W", "OL456W", "Hardcover")]
+        [TestCase("googlebooks:work:volume", null, null, "Google Books")]
+        [TestCase("inventaire:work:uuid", "OL456M", null, "Inventaire")]
+        [TestCase("local:work:88", null, null, null)]
+        public void should_expose_known_book_provenance(string foreignId, string storedWorkId, string workId, string source)
+        {
+            var result = new Book { ForeignBookId = foreignId, OpenLibraryWorkId = storedWorkId }.ToResource();
+
+            result.OpenLibraryWorkId.Should().Be(workId);
+            result.MetadataSourceLabel.Should().Be(source);
+        }
+
         [Test]
         public void should_include_ebook_format_status_when_ebook_edition_exists()
         {
@@ -129,6 +160,31 @@ namespace NzbDrone.Api.Test.Books
             resource.FormatStatuses.Should().HaveCount(1);
             resource.FormatStatuses[0].FormatType.Should().Be(FormatType.Ebook);
             resource.FormatStatuses[0].Monitored.Should().BeTrue();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_not_infer_audiobook_availability_or_monitoring_from_a_print_edition(bool includeAudio)
+        {
+            var edits = new List<Edition> { new Edition { Format = "Print", Monitored = true } };
+            if (includeAudio)
+            {
+                edits.Add(new Edition { Format = "Audio CD", Monitored = false });
+            }
+
+            var book = new Book { Id = 1, Title = "Test Book", Monitored = true, Editions = edits };
+
+            var status = book.ToResource().FormatStatuses;
+
+            if (includeAudio)
+            {
+                status.Should().ContainSingle().Which.FormatType.Should().Be(FormatType.Audiobook);
+                status[0].Monitored.Should().BeFalse();
+            }
+            else
+            {
+                status.Should().BeEmpty();
+            }
         }
 
         [Test]

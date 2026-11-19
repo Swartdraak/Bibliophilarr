@@ -8,9 +8,11 @@ using Microsoft.AspNetCore.Routing.Internal;
 using NzbDrone.Common.Cloud;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Lifecycle;
+using NzbDrone.Core.Update;
 
 namespace Bibliophilarr.Api.V1.System
 {
@@ -29,6 +31,8 @@ namespace Bibliophilarr.Api.V1.System
         private readonly DfaGraphWriter _graphWriter;
         private readonly DuplicateEndpointDetector _detector;
         private readonly IBibliophilarrCloudRequestBuilder _cloudRequestBuilder;
+        private readonly IPublicReleaseDiscovery _publicReleaseDiscovery;
+        private readonly IMetadataCompletenessRepository _metadataCompletenessRepository;
 
         public SystemController(IAppFolderInfo appFolderInfo,
                                 IRuntimeInfo runtimeInfo,
@@ -41,7 +45,9 @@ namespace Bibliophilarr.Api.V1.System
                                 EndpointDataSource endpoints,
                                 DfaGraphWriter graphWriter,
                                 DuplicateEndpointDetector detector,
-                                IBibliophilarrCloudRequestBuilder cloudRequestBuilder)
+                                IBibliophilarrCloudRequestBuilder cloudRequestBuilder,
+                                IMetadataCompletenessRepository metadataCompletenessRepository,
+                                IPublicReleaseDiscovery publicReleaseDiscovery)
         {
             _appFolderInfo = appFolderInfo;
             _runtimeInfo = runtimeInfo;
@@ -55,6 +61,8 @@ namespace Bibliophilarr.Api.V1.System
             _graphWriter = graphWriter;
             _detector = detector;
             _cloudRequestBuilder = cloudRequestBuilder;
+            _metadataCompletenessRepository = metadataCompletenessRepository;
+            _publicReleaseDiscovery = publicReleaseDiscovery;
         }
 
         [HttpGet("status")]
@@ -93,7 +101,8 @@ namespace Bibliophilarr.Api.V1.System
                 PackageAuthor = _deploymentInfoProvider.PackageAuthor,
                 PackageUpdateMechanism = _deploymentInfoProvider.PackageUpdateMechanism,
                 PackageUpdateMechanismMessage = _deploymentInfoProvider.PackageUpdateMechanismMessage,
-                UpdatesEnabled = _cloudRequestBuilder.HasServices
+                UpdatesEnabled = _cloudRequestBuilder.HasServices,
+                PublicReleaseDiscovery = _publicReleaseDiscovery.Enabled
             };
         }
 
@@ -126,6 +135,12 @@ namespace Bibliophilarr.Api.V1.System
         {
             Task.Factory.StartNew(() => _lifecycleService.Restart());
             return new { Restarting = true };
+        }
+
+        [HttpGet("metadata-completeness")]
+        public MetadataCompletenessResource GetMetadataCompleteness()
+        {
+            return MetadataCompletenessResource.FromStats(_metadataCompletenessRepository.GetStats());
         }
     }
 }

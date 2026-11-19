@@ -42,7 +42,7 @@ const wikiPages = [
       {
         heading: 'Adding Your First Author',
         paragraphs: [
-          'Navigate to Library → Add New, then search for an author name or book title. You can also search by GoodReads ID, ISBN, or ASIN using the format shown in the search box.',
+          'Go to Library → Add New and search by author name or book title. The search box also shows examples of supported identifiers.',
           'Select the correct match from the metadata results. A configuration dialog will appear with these options:'
         ],
         list: [
@@ -128,6 +128,7 @@ const wikiPages = [
         ],
         list: [
           'Toggle monitoring for individual books or the entire author.',
+          'Use the Series tab to browse the books in each series and change monitoring for the books currently listed.',
           'Search for all missing books at once with the search button.',
           'Edit the author\'s metadata, quality profile, root folder, and tags.',
           'View the author\'s history of downloads, imports, renames, and retags.',
@@ -160,9 +161,9 @@ const wikiPages = [
         ],
         list: [
           'Author name or book title — Free text search against metadata providers.',
-          'GoodReads Author ID — Use the format "author:12345".',
-          'ISBN — Enter a 10 or 13-digit ISBN.',
-          'ASIN — Enter an Amazon Standard Identification Number.'
+          'Open Library author or work ID, such as "author:OL26320A" or "work:OL45804W".',
+          'ISBN, such as "isbn:067003469X".',
+          'ASIN, such as "asin:B00JCDK5ME".'
         ],
         note: 'When adding an individual book and selecting "None" for the metadata profile, only that specific book will appear under the author. Choose an appropriate metadata profile if you want the author\'s full catalog.'
       },
@@ -178,6 +179,13 @@ const wikiPages = [
           'Click the trash icon to delete the file.',
           'Use "Add Missing" at the top to attempt to automatically add all unmapped files to Bibliophilarr — note this can be time-intensive for large collections.'
         ]
+      },
+      {
+        heading: 'Import Lists',
+        paragraphs: [
+          'Under Settings → Import Lists, connect a supported list source such as another Bibliophilarr instance or LazyLibrarian. Choose the root folder and profiles for new entries, then use Test to verify the connection.',
+          'Enable Automatic Add to let list sync add entries to the library. The Monitor and Search for New Items settings control what happens after an entry is added.'
+        ]
       }
     ]
   },
@@ -190,7 +198,7 @@ const wikiPages = [
       {
         heading: 'What is Dual Format Tracking?',
         paragraphs: [
-          'Dual Format Tracking is a Bibliophilarr-exclusive feature that allows you to manage both ebook and audiobook versions of the same book simultaneously within a single instance. In the original Readarr, tracking both formats required running two separate instances. Bibliophilarr solves this natively.',
+          'Dual Format Tracking lets you manage ebook and audiobook versions of the same book in a single Bibliophilarr instance.',
           'This feature is enabled by default (since v1.1.0-dev.27).'
         ]
       },
@@ -229,7 +237,7 @@ const wikiPages = [
       {
         heading: 'Disabling Dual Format Tracking',
         paragraphs: [
-          'If you only need one format, disable this feature in Settings → Media Management → EnableDualFormatTracking. When disabled, Bibliophilarr behaves like standard Readarr — tracking a single format per book based on the author\'s assigned quality profile.'
+          'If you only need one format, disable this feature in Settings → Media Management → EnableDualFormatTracking. Bibliophilarr then tracks a single format per book based on the author\'s assigned quality profile.'
         ]
       }
     ]
@@ -298,7 +306,7 @@ const wikiPages = [
         heading: 'Metadata Profiles',
         paragraphs: [
           'Metadata profiles control which book editions and types appear in your library from the metadata source. They filter out unwanted entries such as foreign-language editions, box sets, or non-book products.',
-          'When you add an author, you choose a metadata profile. Selecting "None" means no filtering — all editions from the metadata source will appear. This can include unwanted foreign editions.'
+          'Choose Complete Bibliography to keep the works and editions returned by your metadata provider. Choose None to skip automatic book discovery for the author. You can still add books individually.'
         ],
         note: 'If you see unexpected foreign editions, create a metadata profile that filters by your preferred language and edition types.'
       },
@@ -379,7 +387,7 @@ const wikiPages = [
           'To set up Prowlarr integration:'
         ],
         list: [
-          'In Prowlarr, go to Settings → Apps → Add and select Bibliophilarr/Readarr.',
+          'In Prowlarr, go to Settings → Apps → Add and choose the legacy Readarr connector for Bibliophilarr.',
           'Enter your Bibliophilarr API URL and API key.',
           'Prowlarr will automatically push indexer configurations to Bibliophilarr.',
           'Prowlarr also provides unified search history across all your *arr applications.'
@@ -444,7 +452,7 @@ const wikiPages = [
           'Host — The hostname or IP address of your download client (usually 127.0.0.1 or localhost if on the same machine).',
           'Port — The web UI port of your client (e.g. 8080 for qBittorrent, 8085 for SABnzbd).',
           'Username/Password — Credentials for your client\'s web UI.',
-          'Category — A dedicated category for Bibliophilarr downloads (recommended: "bibliophilarr" or "readarr"). This keeps Bibliophilarr downloads separate from other downloads.',
+          'Category — A dedicated category for Bibliophilarr downloads (recommended: "bibliophilarr"). This keeps Bibliophilarr downloads separate from other downloads.',
           'Priority — Default priority for new downloads.',
           'Remove Completed — Whether to remove downloads from the client after successful import.'
         ],
@@ -989,9 +997,9 @@ const wikiPages = [
           'Access and download log files directly from the UI. Bibliophilarr uses rolling log files:'
         ],
         list: [
-          'readarr.txt — Current main log file (info, warn, error, fatal). Limited to 1MB, up to 51 rolling files.',
-          'readarr.debug.txt — Debug-level log (when Debug logging enabled). Contains info + debug entries. Usually covers ~40 hours.',
-          'readarr.trace.txt — Trace-level log (when Trace logging enabled). Most verbose, contains everything. Covers a few hours at most.',
+          'bibliophilarr.txt — Current main log file (info, warn, error, fatal). Rolls over at about 1 MB. Archive retention is configurable and defaults to 50.',
+          'bibliophilarr.debug.txt — Debug-level log. Includes info and debug entries when debug logging is enabled.',
+          'bibliophilarr.trace.txt — Trace-level log. Includes the most detail when trace logging is enabled.',
           'Update logs — Separate logs for the update process, accessible via the dropdown toggle.'
         ]
       },
@@ -1019,7 +1027,7 @@ const wikiPages = [
           '1. Enable Trace logging: Settings → General → Log Level → Trace.',
           '2. Clear existing logs: System → Logs → Clear Logs.',
           '3. Reproduce the issue (trigger the operation that\'s failing).',
-          '4. Check the trace log file (readarr.trace.txt) for error messages.',
+          '4. Check the trace log file (bibliophilarr.trace.txt) for error messages.',
           '5. Look for the relevant context — search for the book title, author, or operation.',
           '6. When sharing logs for help, use a pastebin service and share a relevant excerpt, not the entire file.'
         ]

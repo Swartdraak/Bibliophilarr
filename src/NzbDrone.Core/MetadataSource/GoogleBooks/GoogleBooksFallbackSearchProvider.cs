@@ -24,7 +24,6 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
         ISearchForNewEntity
     {
         private const int MaxGooglePageSize = 40;
-        private const int MaxAuthorVolumes = 400;
 
         private readonly IConfigService _configService;
         private readonly IHttpClient _httpClient;
@@ -46,6 +45,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
         public string ProviderName => "GoogleBooks";
         public int Priority => 3;
         public bool IsEnabled => _configService.EnableGoogleBooksProvider;
+        public bool IsFallbackEnabled => _configService.EnableGoogleBooksFallback;
         public bool SupportsAuthorSearch => true;
         public bool SupportsBookSearch => true;
         public bool SupportsIsbnLookup => true;
@@ -62,7 +62,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
         // ── IBookSearchFallbackProvider + ISearchForNewBook ───────────────
         public List<Book> Search(string title, string author)
         {
-            if (!_configService.EnableGoogleBooksFallback)
+            if (!IsFallbackEnabled)
             {
                 return new List<Book>();
             }
@@ -83,7 +83,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 return new List<Book>();
             }
 
-            return SearchVolumes(query, MaxGooglePageSize, 0)
+            return SearchVolumes(query, MaxGooglePageSize, 0, reportTransportFailure: true)
                 .Select(MapBook)
                 .Where(b => b != null)
                 .DistinctBy(x => x.ForeignBookId)
@@ -192,7 +192,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 throw new AuthorNotFoundException(foreignAuthorId);
             }
 
-            var volumes = SearchVolumes($"inauthor:{authorName}", MaxGooglePageSize, 0, MaxAuthorVolumes);
+            var volumes = SearchVolumes($"inauthor:{authorName}", MaxGooglePageSize, 0, bibliographyAuthorId: foreignAuthorId);
             var books = volumes
                 .Select(MapBook)
                 .Where(b => b != null)
@@ -288,7 +288,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             return queryParts.ConcatToString(" ").Trim();
         }
 
-        private List<GoogleBooksVolumeResource> SearchVolumes(string query, int maxResults, int startIndex, int maxItems = 200)
+        private List<GoogleBooksVolumeResource> SearchVolumes(string query, int maxResults, int startIndex, string bibliographyAuthorId = null, bool reportTransportFailure = false)
         {
             if (query.IsNullOrWhiteSpace())
             {
@@ -298,16 +298,23 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             var allItems = new List<GoogleBooksVolumeResource>();
             var pageStart = Math.Max(0, startIndex);
             var pageSize = Math.Max(1, Math.Min(MaxGooglePageSize, maxResults));
-            var safeMaxItems = Math.Max(pageSize, maxItems);
+            const int searchLimit = 200;
+            var isBibliography = bibliographyAuthorId != null;
+            var seenVolumeIds = new HashSet<string>(StringComparer.Ordinal);
+            var highestReportedTotal = 0;
 
-            while (allItems.Count < safeMaxItems)
+            while (isBibliography || allItems.Count < searchLimit)
             {
                 var request = _requestBuilder.Create()
                     .AddQueryParam("q", query)
-                    .AddQueryParam("langRestrict", "en")
                     .AddQueryParam("maxResults", pageSize.ToString())
                     .AddQueryParam("startIndex", pageStart.ToString())
                     .WithRateLimit(1);
+
+                if (!isBibliography)
+                {
+                    request.AddQueryParam("langRestrict", "en");
+                }
 
                 if (_configService.GoogleBooksApiKey.IsNotNullOrWhiteSpace())
                 {
@@ -323,32 +330,73 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
 
                 try
                 {
-                    response = _httpClient.Get<GoogleBooksSearchResponse>(httpRequest).Resource;
+                    var httpResponse = _httpClient.Get<GoogleBooksSearchResponse>(httpRequest);
+                    response = httpResponse?.Resource;
+                    if (isBibliography)
+                    {
+                        if (httpResponse == null || httpResponse.HasHttpError || response?.TotalItems == null)
+                        {
+                            throw new InvalidOperationException($"Google Books did not return a bibliography page at index {pageStart}.");
+                        }
+
+                        highestReportedTotal = Math.Max(highestReportedTotal, response.TotalItems.Value);
+                    }
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!(reportTransportFailure && MetadataProviderOrchestrator.IsTransportError(ex)))
                 {
+                    if (isBibliography)
+                    {
+                        throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, ex);
+                    }
+
                     _logger.Warn(ex, "GoogleBooks search failed for query '{0}'", query);
                     break;
                 }
 
                 var page = response?.Items ?? new List<GoogleBooksVolumeResource>();
 
-                if (!page.Any())
+                if (page.Count == 0)
                 {
+                    if (isBibliography && seenVolumeIds.Count < highestReportedTotal)
+                    {
+                        var failure = new InvalidOperationException(
+                            $"Google Books ended its bibliography at index {pageStart} with {seenVolumeIds.Count} distinct volumes, below its highest reported total {highestReportedTotal}.");
+                        throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, failure);
+                    }
+
                     break;
                 }
 
-                allItems.AddRange(page);
-
-                if (page.Count < pageSize)
+                if (isBibliography)
                 {
-                    break;
+                    var previousCount = seenVolumeIds.Count;
+                    foreach (var volume in page)
+                    {
+                        if (volume?.Id.IsNotNullOrWhiteSpace() == true && seenVolumeIds.Add(volume.Id))
+                        {
+                            allItems.Add(volume);
+                        }
+                    }
+
+                    if (seenVolumeIds.Count == previousCount)
+                    {
+                        var failure = new InvalidOperationException($"Google Books bibliography did not advance at index {pageStart}.");
+                        throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, failure);
+                    }
+                }
+                else
+                {
+                    allItems.AddRange(page);
+                    if (page.Count < pageSize)
+                    {
+                        break;
+                    }
                 }
 
                 pageStart += page.Count;
             }
 
-            return allItems.Take(safeMaxItems).ToList();
+            return isBibliography ? allItems : allItems.Take(searchLimit).ToList();
         }
 
         private GoogleBooksVolumeResource GetVolume(string token)
@@ -407,7 +455,6 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
                 SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant(),
-                Overview = volume.Description,
                 Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
@@ -596,7 +643,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
 
     public class GoogleBooksSearchResponse
     {
-        public int TotalItems { get; set; }
+        public int? TotalItems { get; set; }
         public List<GoogleBooksVolumeResource> Items { get; set; }
     }
 

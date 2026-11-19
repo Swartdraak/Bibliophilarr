@@ -1,6 +1,6 @@
 # bibliophilarr (npm launcher)
 
-This package installs a `bibliophilarr` command that downloads the matching platform binary from Bibliophilarr GitHub Releases and launches it.
+This package installs a `bibliophilarr` command that downloads the matching platform binary from Bibliophilarr GitHub Releases and verifies its SHA-256 checksum before extracting and launching it.
 
 ## Install
 
@@ -19,7 +19,7 @@ bibliophilarr
 Pass arguments directly to the Bibliophilarr binary:
 
 ```bash
-bibliophilarr --help
+bibliophilarr /data=/path/to/bibliophilarr-data
 ```
 
 ## Environment Variables
@@ -32,10 +32,10 @@ bibliophilarr --help
 
 ## Cache
 
-The launcher caches downloaded binaries under `~/.cache/bibliophilarr`. To force a fresh download, delete this directory:
+The launcher caches verified binaries under `~/.cache/bibliophilarr/verified-v1`. The first run with this launcher installs a verified copy even if an earlier launcher already cached that release. To force a fresh download, delete the verified cache:
 
 ```bash
-rm -rf ~/.cache/bibliophilarr
+rm -rf ~/.cache/bibliophilarr/verified-v1
 ```
 
 ## Troubleshooting
@@ -43,7 +43,8 @@ rm -rf ~/.cache/bibliophilarr
 - **Permission denied on Linux/macOS:** The launcher sets execute permissions automatically. If you see permission errors, verify the cache directory is writable: `ls -la ~/.cache/bibliophilarr`.
 - **Binary not found for your platform:** The launcher maps `process.platform` and `process.arch` to release asset names. If no match is found, check that a release asset exists for your platform at the [releases page](https://github.com/Swartdraak/Bibliophilarr/releases).
 - **Network errors:** The launcher downloads from GitHub Releases. Ensure you have internet access and are not behind a proxy that blocks GitHub. For private networks, set `https_proxy` as needed.
-- **Wrong version running:** Delete the cache directory and re-run to download the correct version.
+- **Checksum errors:** Verify the release provides a `SHA256SUMS.txt` entry for your exact platform archive. The launcher stops if the entry is missing or the archive differs from it.
+- **Wrong version running:** Remove the verified cache at `~/.cache/bibliophilarr/verified-v1` and rerun to download the correct version.
 
 ## Links
 

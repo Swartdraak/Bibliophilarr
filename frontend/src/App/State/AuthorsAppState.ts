@@ -5,9 +5,7 @@ import AppSectionState, {
 import Author from 'Author/Author';
 
 interface AuthorsAppState
-  extends AppSectionState<Author>,
-    AppSectionDeleteState,
-    AppSectionSaveState {
+  extends AppSectionState<Author>, AppSectionDeleteState, AppSectionSaveState {
   itemMap: Record<number, number>;
 
   deleteOptions: {

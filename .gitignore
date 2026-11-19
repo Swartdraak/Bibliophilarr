@@ -173,3 +173,4 @@ _temp_*/**/*
 __pycache__/
 *.pyc
 *.pyo
+coverage/

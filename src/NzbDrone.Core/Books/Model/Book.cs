@@ -40,6 +40,8 @@ namespace NzbDrone.Core.Books
         // These are Bibliophilarr generated/config
         public string CleanTitle { get; set; }
         public bool Monitored { get; set; }
+        public bool? EbookMonitoringOverride { get; set; }
+        public bool? AudiobookMonitoringOverride { get; set; }
         public bool AnyEditionOk { get; set; }
         public DateTime? LastInfoSync { get; set; }
         public DateTime Added { get; set; }
@@ -67,6 +69,11 @@ namespace NzbDrone.Core.Books
             set { Author.Value.Id = value; }
         }
 
+        public bool IsFormatMonitored(FormatType formatType)
+        {
+            return Monitored && (formatType == FormatType.Ebook ? EbookMonitoringOverride : AudiobookMonitoringOverride) != false;
+        }
+
         public override string ToString()
         {
             return string.Format("[{0}][{1}]", ForeignBookId, Title.NullSafe());
@@ -92,6 +99,8 @@ namespace NzbDrone.Core.Books
             Id = other.Id;
             AuthorMetadataId = other.AuthorMetadataId;
             Monitored = other.Monitored;
+            EbookMonitoringOverride = other.EbookMonitoringOverride;
+            AudiobookMonitoringOverride = other.AudiobookMonitoringOverride;
             AnyEditionOk = other.AnyEditionOk;
             LastInfoSync = other.LastInfoSync;
             LastSearchTime = other.LastSearchTime;

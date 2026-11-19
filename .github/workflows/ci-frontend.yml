@@ -6,6 +6,8 @@ on:
       - 'frontend/**'
       - 'package.json'
       - 'yarn.lock'
+      - 'npm/bibliophilarr-launcher/**'
+      - 'scripts/test_npm_launcher_cache_seed.sh'
       - '.github/workflows/ci-frontend.yml'
   push:
     branches:
@@ -16,6 +18,8 @@ on:
       - 'frontend/**'
       - 'package.json'
       - 'yarn.lock'
+      - 'npm/bibliophilarr-launcher/**'
+      - 'scripts/test_npm_launcher_cache_seed.sh'
       - '.github/workflows/ci-frontend.yml'
 
 permissions:
@@ -31,7 +35,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22.22.2'
           cache: yarn
@@ -48,3 +52,16 @@ jobs:
 
       - name: Build
         run: yarn build
+
+      - name: UI build-mode regression guard (issue #252)
+        run: ./scripts/ops/check_ui_build_mode.sh
+
+      - name: npm launcher smoke
+        run: |
+          npm --prefix npm/bibliophilarr-launcher test
+          bash scripts/test_npm_launcher_cache_seed.sh \
+            "$PWD/npm/bibliophilarr-launcher/bin/bibliophilarr.js" \
+            "v0.0.0-smoke.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" "$RUNNER_TEMP/npm-launcher.log"
+          bash scripts/test_npm_launcher_cache_seed.sh \
+            "$PWD/npm/bibliophilarr-launcher/bin/bibliophilarr.js" \
+            "v0.0.0-smoke.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" "$RUNNER_TEMP/npm-launcher-win-layout.log" windows-published

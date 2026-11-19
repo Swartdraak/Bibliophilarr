@@ -12,8 +12,20 @@
   flex: 4 0 400px;
 }
 
+.format {
+  composes: headerCell from '~Components/Table/VirtualTableHeaderCell.css';
+
+  flex: 0 0 100px;
+}
+
 .actions {
   composes: headerCell from '~Components/Table/VirtualTableHeaderCell.css';
 
   flex: 0 1 100px;
+}
+
+@media only screen and (max-width: $breakpointSmall) {
+  .path {
+    flex-basis: 285px;
+  }
 }

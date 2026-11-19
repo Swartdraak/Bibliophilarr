@@ -118,7 +118,22 @@ namespace NzbDrone.Core.Download
 
             if (importResults.Empty())
             {
-                trackedDownload.Warn("No files found are eligible for import in {0}", outputPath);
+                // The import pipeline derives format and work matching from the actual files on
+                // disk, so a stale queue formatType or a duplicate "(N)" filename suffix cannot by
+                // itself cause zero results. A completed download that yields no importable files
+                // means the expected file is not importable at the monitored path. Surface a
+                // clear, actionable diagnostic on every retry cycle (not only the terminal one)
+                // so a stuck download tells the operator which file is missing and what to check.
+                var diagnostic = BuildNoImportableFilesDiagnostic(trackedDownload, outputPath);
+                trackedDownload.Warn(diagnostic);
+
+                _logger.Warn(
+                    "No importable files found for '{0}' in {1} after {2}/{3} monitoring cycle(s): {4}",
+                    trackedDownload.DownloadItem.Title,
+                    outputPath,
+                    trackedDownload.ZeroFileRetryCount + 1,
+                    _configService.ZeroFileRetryThreshold,
+                    diagnostic);
 
                 trackedDownload.ZeroFileRetryCount++;
 
@@ -129,8 +144,14 @@ namespace NzbDrone.Core.Download
                     _eventAggregator.PublishEvent(new BookImportIncompleteEvent(trackedDownload));
 
                     throw new ImportException(
-                        "No importable files found after {0} monitoring cycles",
-                        trackedDownload.ZeroFileRetryCount);
+                        "No importable files found after {0} monitoring cycles in {1}. " +
+                        "Verify the completed file is on disk, uses a supported extension " +
+                        "(epub, mobi, azw3, pdf, m4b, mp3, flac, ...), and that the download " +
+                        "client output path is reachable by Bibliophilarr (a remote path mapping " +
+                        "may be required). Format is derived from the actual file extension, not " +
+                        "the queue format; duplicate '(N)' filename suffixes are normalized during matching.",
+                        trackedDownload.ZeroFileRetryCount,
+                        outputPath);
                 }
 
                 trackedDownload.State = TrackedDownloadState.ImportPending;
@@ -229,6 +250,21 @@ namespace NzbDrone.Core.Download
         private void SetImportItem(TrackedDownload trackedDownload)
         {
             trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+        }
+
+        private static string BuildNoImportableFilesDiagnostic(TrackedDownload trackedDownload, string outputPath)
+        {
+            var title = trackedDownload.DownloadItem.Title;
+            var suggestedFile = title.IsNullOrWhiteSpace()
+                ? string.Empty
+                : $"Expected file (from download title): {Path.GetFileNameWithoutExtension(title)}.<supported-extension>. ";
+
+            return $"No importable book files found in '{outputPath}'. Format and work matching are derived from the " +
+                   $"actual files on disk (the queue format and duplicate '(NN)' filename suffixes do not gate the import). " +
+                   $"Check that the completed file for '{title}' exists at that path with a supported extension " +
+                   $"(epub, mobi, azw3, pdf, m4b, mp3, flac, ...) and that the path is reachable by Bibliophilarr; " +
+                   $"if the download client stores on a remote host, configure a remote path mapping. " +
+                   $"{suggestedFile}Retrying on the next monitoring cycle.";
         }
 
         private bool IsAlreadyLinkedToLibrary(TrackedDownload trackedDownload)

@@ -6,8 +6,7 @@ import RestoreBackupModalContent from './RestoreBackupModalContent';
 function createMapStateToProps() {
   return createSelector(
     (state) => state.system.backups,
-    (state) => state.app.isRestarting,
-    (backups, isRestarting) => {
+    (backups) => {
       const {
         isRestoring,
         restoreError
@@ -15,8 +14,7 @@ function createMapStateToProps() {
 
       return {
         isRestoring,
-        restoreError,
-        isRestarting
+        restoreError
       };
     }
   );
@@ -29,7 +27,7 @@ function createMapDispatchToProps(dispatch, props) {
     },
 
     dispatchRestart() {
-      dispatch(restart());
+      dispatch(restart({ reloadOnRestart: true }));
     }
   };
 }

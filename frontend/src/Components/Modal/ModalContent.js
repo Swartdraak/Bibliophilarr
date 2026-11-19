@@ -3,6 +3,7 @@ import React from 'react';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import { icons } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import styles from './ModalContent.css';
 
 function ModalContent(props) {
@@ -23,6 +24,7 @@ function ModalContent(props) {
         showCloseButton &&
           <Link
             className={styles.closeButton}
+            aria-label={translate('Close')}
             onPress={onModalClose}
           >
             <Icon

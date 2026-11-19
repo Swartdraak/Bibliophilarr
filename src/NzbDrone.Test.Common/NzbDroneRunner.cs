@@ -11,7 +11,6 @@ using NUnit.Framework;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Processes;
-using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 
@@ -157,7 +156,7 @@ namespace NzbDrone.Test.Common
                 envVars.Add("Bibliophilarr__Postgres__LogDb", PostgresOptions.LogDb);
                 envVars.Add("Bibliophilarr__Postgres__CacheDb", PostgresOptions.CacheDb);
 
-                TestContext.Progress.WriteLine("Using env vars:\n{0}", envVars.ToJson());
+                TestContext.Progress.WriteLine("Using PostgreSQL for this integration run.");
             }
 
             TestContext.Progress.WriteLine("Starting instance from {0} on port {1}", outputNzbdroneConsoleExe, Port);

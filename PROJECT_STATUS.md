@@ -1,6 +1,6 @@
 # Project status summary
 
-**Last verified**: 2026-09-08
+**Last verified**: 2026-11-19
 **Verification scope**: branch topology, open issue queue, PR checks, release channels, dependency posture
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
@@ -27,25 +27,38 @@ The migration program remains open and intentionally tracked through these activ
 
 ## Governance and documentation tracks
 
-- #192 Documentation drift remediation for this file and cross-doc consistency.
 - #193 Naming convergence planning for legacy `NzbDrone.*` paths vs Bibliophilarr identity.
-- #194 Local tooling artifact ignore policy and contributor guidance.
-- #195 Rider inspection follow-up after promotion and cache refresh.
-- #197 Promotion checklist for `develop -> staging` validation cycle.
+- #194 Local tooling artifact ignore policy and contributor guidance, completed.
 
 ## Branch and promotion posture
 
-- `develop -> staging` promotion remains the next coordinated gate once open issue remediation and validation slices are complete.
-- `staging -> main` remains blocked until migration validation issues are closed (#103 through #107) and release checks are green.
+- `develop -> staging` is the next promotion. Validate installation, metadata,
+  full-library matching, and the release-entry evidence on the consolidated revision.
+- `staging -> main` follows exact staging checks and upgrade and rollback verification.
 
 ## Release and CI posture
 
-- Backend/frontend/docs/workflow lint validations remain branch-protected required contexts.
-- CodeQL and cross-platform build checks are active in current PR validation runs.
+- The latest stable release is [v1.1.0](https://github.com/Swartdraak/Bibliophilarr/releases/tag/v1.1.0).
+- The next planned stable release is [v2.0.0](https://github.com/Swartdraak/Bibliophilarr/milestone/4).
+  The major version reflects the move to .NET 10 for native installations and
+  the new database migrations. Validate upgrade and rollback with matching
+  backups before promotion.
+- Protected branches require backend CI, Markdown lint, PR metadata, Linux, Windows, macOS and RID portability, and metadata telemetry smoke. Frontend, workflow lint and CodeQL results also inform release readiness.
+- Native Windows and macOS startup and configuration round-trip passed after the
+  SQLite packaging fixes in [#413](https://github.com/Swartdraak/Bibliophilarr/pull/413).
+- The complete bibliography refresh landed in
+  [#456](https://github.com/Swartdraak/Bibliophilarr/pull/456). The live Hardcover
+  benchmark retained all 2,060 work IDs and 150 series.
+- The Open Library benchmark retained all 132 source works and the author’s
+  biography. Google Books returned inconsistent totals across pages for its
+  benchmark author, so full bibliography validation stays open in #455.
+- Use the live [issues](https://github.com/Swartdraak/Bibliophilarr/issues) and [pull requests](https://github.com/Swartdraak/Bibliophilarr/pulls) for the current queues.
 
-## Notes on historical content
+## Branch reconciliation
 
-Earlier entries in this file that described open Dependabot PR queues and pre-normalization branch states are now superseded by this verified status baseline.
+`develop` contains the current `staging` and `main` revisions in its ancestry
+after [#437](https://github.com/Swartdraak/Bibliophilarr/pull/437). Future
+promotions follow the protected pull-request sequence.
 
 ## Related references
 

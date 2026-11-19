@@ -78,7 +78,7 @@ export const fetchTranslations = createThunk(FETCH_TRANSLATIONS);
 //
 // Helpers
 
-function pingServerAfterTimeout(getState, dispatch) {
+function pingServerAfterTimeout({ reloadOnRestart, previousStartTime }, dispatch) {
   if (abortPingServer) {
     abortPingServer();
     abortPingServer = null;
@@ -90,10 +90,6 @@ function pingServerAfterTimeout(getState, dispatch) {
   }
 
   pingTimeout = setTimeout(() => {
-    if (!getState().isRestarting && getState().isConnected) {
-      return;
-    }
-
     const ajaxOptions = {
       url: '/system/status',
       method: 'GET',
@@ -104,13 +100,24 @@ function pingServerAfterTimeout(getState, dispatch) {
 
     abortPingServer = abortRequest;
 
-    request.done(() => {
+    const completeRestart = () => {
+      if (reloadOnRestart) {
+        window.location.reload();
+      } else {
+        dispatch(setAppValue({ isRestarting: false }));
+      }
+    };
+
+    request.done(({ startTime }) => {
       abortPingServer = null;
       pingTimeout = null;
 
-      dispatch(setAppValue({
-        isRestarting: false
-      }));
+      if (reloadOnRestart && startTime === previousStartTime) {
+        // SignalR can reconnect to the outgoing server before its shutdown.
+        pingServerAfterTimeout({ reloadOnRestart, previousStartTime }, dispatch);
+      } else {
+        completeRestart();
+      }
     });
 
     request.fail((xhr) => {
@@ -119,11 +126,9 @@ function pingServerAfterTimeout(getState, dispatch) {
 
       // Unauthorized, but back online
       if (xhr.status === 401) {
-        dispatch(setAppValue({
-          isRestarting: false
-        }));
+        completeRestart();
       } else {
-        pingServerAfterTimeout(getState, dispatch);
+        pingServerAfterTimeout({ reloadOnRestart, previousStartTime }, dispatch);
       }
     });
   }, 5000);
@@ -134,7 +139,7 @@ function pingServerAfterTimeout(getState, dispatch) {
 
 export const actionHandlers = handleThunks({
   [PING_SERVER]: function(getState, payload, dispatch) {
-    pingServerAfterTimeout(getState, dispatch);
+    pingServerAfterTimeout(payload, dispatch);
   },
   [FETCH_TRANSLATIONS]: async function(getState, payload, dispatch) {
     const isFetchingComplete = await fetchAppTranslations();

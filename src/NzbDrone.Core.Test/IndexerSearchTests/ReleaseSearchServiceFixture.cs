@@ -6,6 +6,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch;
@@ -65,6 +66,22 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
                 .Returns(Task.FromResult<IList<Parser.Model.ReleaseInfo>>(new List<Parser.Model.ReleaseInfo>()));
 
             return result;
+        }
+
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        public async Task should_honor_format_monitoring_for_non_interactive_book_search(bool interactiveSearch, bool monitoredBooksOnly)
+        {
+            var indexers = new List<IIndexer> { _mockIndexer.Object };
+            Mocker.GetMock<IIndexerFactory>().Setup(factory => factory.InteractiveSearchEnabled(true)).Returns(indexers);
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableDualFormatTracking).Returns(true);
+            Mocker.GetMock<IBookService>().Setup(service => service.GetBook(_firstBook.Id)).Returns(_firstBook);
+            var criteria = WatchForSearchCriteria();
+
+            await Subject.BookSearch(_firstBook.Id, false, true, interactiveSearch);
+
+            criteria.Should().ContainSingle();
+            criteria.Single().MonitoredBooksOnly.Should().Be(monitoredBooksOnly);
         }
 
         [Test]
