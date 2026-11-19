@@ -8,9 +8,14 @@ using NzbDrone.Core.Qualities;
 namespace NzbDrone.Integration.Test.ApiTests.WantedTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
-    public class CutoffUnmetFixture : IntegrationTest
+    public class CutoffUnmetFixture : CatalogueIntegrationTest
     {
+        [OneTimeSetUp]
+        public void SetMonitoringMode()
+        {
+            UseLegacyMonitoring();
+        }
+
         [SetUp]
         public void Setup()
         {
@@ -30,8 +35,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_have_monitored_items()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            SeedCatalogueBook(true, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPaged(0, 15, "releaseDate", "desc");
 
@@ -43,8 +47,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_not_have_unmonitored_items()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            SeedCatalogueBook(false, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPaged(0, 15, "releaseDate", "desc");
 
@@ -56,8 +59,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_have_author()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            SeedCatalogueBook(true, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPagedIncludeAuthor(0, 15, "releaseDate", "desc", includeAuthor: true);
 
@@ -70,8 +72,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_not_have_author()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            SeedCatalogueBook(true, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPagedIncludeAuthor(0, 15, "releaseDate", "desc", includeAuthor: false);
 
@@ -83,8 +84,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_have_unmonitored_items()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            SeedCatalogueBook(false, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPaged(0, 15, "releaseDate", "desc", "monitored", false);
 
