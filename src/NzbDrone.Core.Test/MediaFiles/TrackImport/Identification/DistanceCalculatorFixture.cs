@@ -130,6 +130,50 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             distance.Penalties["audio_format"].Should().Equal(1.0);
         }
 
+        [TestCase(" m4B ")]
+        [TestCase("MP3")]
+        [TestCase("FLAC")]
+        [TestCase("APE")]
+        [TestCase("WAVPACK")]
+        [TestCase("WAV")]
+        [TestCase("ALAC")]
+        [TestCase("MP2")]
+        [TestCase("WMA")]
+        [TestCase("M4A")]
+        [TestCase("M4P")]
+        [TestCase("AAC")]
+        [TestCase("MP4A")]
+        [TestCase("OGG")]
+        [TestCase("OGA")]
+        [TestCase("VORBIS")]
+        [TestCase("Audio CD")]
+        [TestCase("Audiobook")]
+        public void should_recognize_supported_native_audio_and_existing_audiobook_formats(string format)
+        {
+            var distance = GetFormatDistance(".m4b", format, false);
+
+            distance.Penalties["audio_format"].Should().Equal(0.0);
+        }
+
+        [TestCase("M4B")]
+        [TestCase("MP3")]
+        public void should_preserve_the_wrong_format_penalty_for_ebook_files_against_native_audio(string format)
+        {
+            var distance = GetFormatDistance(".epub", format, true);
+
+            distance.Penalties["wrong_format"].Should().Equal(1.0);
+        }
+
+        [TestCase("Digital Audio")]
+        [TestCase("MP3 Supplemental Material")]
+        [TestCase("Hardcover")]
+        public void should_not_treat_unknown_or_conflicting_format_labels_as_audiobooks(string format)
+        {
+            var distance = GetFormatDistance(".mp3", format, false);
+
+            distance.Penalties["audio_format"].Should().Equal(1.0);
+        }
+
         private static Distance GetFormatDistance(string extension, string format, bool isEbook)
         {
             var edition = new Edition
