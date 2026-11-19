@@ -44,7 +44,7 @@ rm -rf ~/.cache/bibliophilarr/verified-v1
 - **Binary not found for your platform:** The launcher maps `process.platform` and `process.arch` to release asset names. If no match is found, check that a release asset exists for your platform at the [releases page](https://github.com/Swartdraak/Bibliophilarr/releases).
 - **Network errors:** The launcher downloads from GitHub Releases. Ensure you have internet access and are not behind a proxy that blocks GitHub. For private networks, set `https_proxy` as needed.
 - **Checksum errors:** Verify the release provides a `SHA256SUMS.txt` entry for your exact platform archive. The launcher stops if the entry is missing or the archive differs from it.
-- **Wrong version running:** Delete the cache directory and re-run to download the correct version.
+- **Wrong version running:** Remove the verified cache at `~/.cache/bibliophilarr/verified-v1` and rerun to download the correct version.
 
 ## Links
 
