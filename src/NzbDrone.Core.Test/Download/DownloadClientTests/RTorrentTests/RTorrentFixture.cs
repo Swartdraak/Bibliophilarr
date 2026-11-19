@@ -122,6 +122,22 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.RTorrentTests
             VerifyCompleted(item);
         }
 
+        [TestCase(null, false)]
+        [TestCase("other", false)]
+        [TestCase("books", true)]
+        [TestCase("audiobooks", true)]
+        public void should_filter_torrents_when_categories_are_configured(string category, bool expected)
+        {
+            var settings = (RTorrentSettings)Subject.Definition.Settings;
+            settings.EbookCategory = "books";
+            settings.AudiobookCategory = "audiobooks";
+            _downloading.Category = category;
+
+            PrepareClientToReturnDownloadingItem();
+
+            Subject.GetItems().Any().Should().Be(expected);
+        }
+
         [Test]
         public async Task Download_should_return_unique_id()
         {

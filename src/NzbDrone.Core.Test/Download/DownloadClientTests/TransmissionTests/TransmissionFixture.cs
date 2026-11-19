@@ -280,7 +280,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
 
         [TestCase(-1)] // Infinite/Unknown
         [TestCase(-2)] // Magnet Downloading
-        public void should_ignore_negative_eta(long eta)
+        [TestCase(long.MaxValue)] // Not representable in seconds or milliseconds
+        public void should_ignore_unsupported_eta(long eta)
         {
             _completed.Eta = eta;
 

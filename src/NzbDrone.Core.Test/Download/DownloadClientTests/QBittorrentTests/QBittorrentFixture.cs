@@ -132,12 +132,14 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
                 torrents = new List<QBittorrentTorrent>();
             }
 
-            Mocker.GetMock<IQBittorrentProxy>()
-                .Setup(s => s.GetTorrents(It.IsAny<string>(), It.IsAny<QBittorrentSettings>()))
-                .Returns(torrents);
-
+            var ebookCategory = Subject.Definition.Settings.As<QBittorrentSettings>().EbookCategory;
             foreach (var torrent in torrents)
             {
+                if (string.IsNullOrWhiteSpace(torrent.Category) && string.IsNullOrWhiteSpace(torrent.Label))
+                {
+                    torrent.Category = ebookCategory;
+                }
+
                 Mocker.GetMock<IQBittorrentProxy>()
                     .Setup(s => s.GetTorrentProperties(torrent.Hash.ToLower(), It.IsAny<QBittorrentSettings>()))
                     .Returns(new QBittorrentTorrentProperties { SavePath = torrent.SavePath });
@@ -146,6 +148,13 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
                     .Setup(s => s.GetTorrentFiles(torrent.Hash.ToLower(), It.IsAny<QBittorrentSettings>()))
                     .Returns(new List<QBittorrentTorrentFile> { new QBittorrentTorrentFile { Name = torrent.Name } });
             }
+
+            Mocker.GetMock<IQBittorrentProxy>()
+                .Setup(s => s.GetTorrents(It.IsAny<string>(), It.IsAny<QBittorrentSettings>()))
+                .Returns<string, QBittorrentSettings>((category, _) => torrents
+                    .Where(torrent => string.IsNullOrWhiteSpace(category) ||
+                        (string.IsNullOrWhiteSpace(torrent.Category) ? torrent.Label : torrent.Category) == category)
+                    .ToList());
 
             Mocker.GetMock<IQBittorrentProxy>()
                 .Setup(s => s.IsTorrentLoaded(It.IsAny<string>(), It.IsAny<QBittorrentSettings>()))
@@ -157,6 +166,23 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
             Mocker.GetMock<IQBittorrentProxy>()
                 .Setup(s => s.GetTorrentFiles(hash.ToLower(), It.IsAny<QBittorrentSettings>()))
                 .Returns(files);
+        }
+
+        [Test]
+        public void GetItems_should_return_downloads_from_both_format_categories()
+        {
+            var settings = Subject.Definition.Settings.As<QBittorrentSettings>();
+            GivenTorrents(new List<QBittorrentTorrent>
+            {
+                new QBittorrentTorrent { Hash = "EBOOK", Name = "Ebook", Category = settings.EbookCategory, State = "queuedDL" },
+                new QBittorrentTorrent { Hash = "AUDIOBOOK", Name = "Audiobook", Category = settings.AudiobookCategory, State = "queuedDL" },
+                new QBittorrentTorrent { Hash = "UNRELATED", Name = "Other", Category = "other", State = "queuedDL" }
+            });
+
+            var items = Subject.GetItems().ToList();
+
+            items.Select(item => item.DownloadId).Should().BeEquivalentTo(new[] { "EBOOK", "AUDIOBOOK" });
+            items.Select(item => item.Category).Should().BeEquivalentTo(new[] { settings.EbookCategory, settings.AudiobookCategory });
         }
 
         [Test]
@@ -923,7 +949,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
         [TestCase("stoppedUP")]
         public void should_get_category_from_the_category_if_set(string state)
         {
-            const string category = "music-bibliophilarr";
+            var category = Subject.Definition.Settings.As<QBittorrentSettings>().EbookCategory;
             GivenGlobalSeedLimits(1.0f);
 
             var torrent = new QBittorrentTorrent
@@ -949,7 +975,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.QBittorrentTests
         [TestCase("stoppedUP")]
         public void should_get_category_from_the_label_if_the_category_is_not_available(string state)
         {
-            const string category = "music-bibliophilarr";
+            var category = Subject.Definition.Settings.As<QBittorrentSettings>().EbookCategory;
             GivenGlobalSeedLimits(1.0f);
 
             var torrent = new QBittorrentTorrent
