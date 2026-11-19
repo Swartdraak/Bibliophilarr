@@ -7,9 +7,14 @@ using NzbDrone.Core.Books;
 namespace NzbDrone.Integration.Test.ApiTests.WantedTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
-    public class MissingFixture : IntegrationTest
+    public class MissingFixture : CatalogueIntegrationTest
     {
+        [OneTimeSetUp]
+        public void SetMonitoringMode()
+        {
+            UseLegacyMonitoring();
+        }
+
         [SetUp]
         public void Setup()
         {
@@ -28,8 +33,6 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         [Order(0)]
         public void missing_should_be_empty()
         {
-            EnsureNoAuthor("14586394", "Andrew Hunter Murray");
-
             var result = WantedMissing.GetPaged(0, 15, "releaseDate", "desc");
 
             result.Records.Should().BeEmpty();
@@ -39,7 +42,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         [Order(1)]
         public void missing_should_have_monitored_items()
         {
-            EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
+            SeedCatalogueBook(true);
 
             var result = WantedMissing.GetPaged(0, 15, "releaseDate", "desc");
 
@@ -50,7 +53,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         [Order(1)]
         public void missing_should_have_author()
         {
-            EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
+            SeedCatalogueBook(true);
 
             var result = WantedMissing.GetPagedIncludeAuthor(0, 15, "releaseDate", "desc", includeAuthor: true);
 
@@ -62,7 +65,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         [Order(1)]
         public void missing_should_not_have_author()
         {
-            EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
+            SeedCatalogueBook(true);
 
             var result = WantedMissing.GetPagedIncludeAuthor(0, 15, "releaseDate", "desc", includeAuthor: false);
 
@@ -73,7 +76,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         [Order(1)]
         public void missing_should_not_have_unmonitored_items()
         {
-            EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
+            SeedCatalogueBook(false);
 
             var result = WantedMissing.GetPaged(0, 15, "releaseDate", "desc");
 
@@ -84,7 +87,7 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         [Order(2)]
         public void missing_should_have_unmonitored_items()
         {
-            EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
+            SeedCatalogueBook(false);
 
             var result = WantedMissing.GetPaged(0, 15, "releaseDate", "desc", "monitored", false);
 
