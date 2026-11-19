@@ -183,9 +183,9 @@ jobs:
           cd ..
           ./build.sh --backend -r linux-x64 -f net10.0
 
-      - name: Run metadata diagnostics integration fixture
+      - name: Run metadata diagnostics and API wire-contract fixtures
         run: >-
           dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
           --configuration Debug --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture'
+          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~RootFolderFixture|FullyQualifiedName~ConfigWireContractFixture'
