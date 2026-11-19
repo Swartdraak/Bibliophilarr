@@ -42,7 +42,9 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             var author = Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
 
+            author.Metadata.Value.Overview.Should().BeNull();
             author.Books.Value.Should().HaveCount(total);
+            author.Books.Value.First().Editions.Value.Single().Overview.Should().Be("Volume synopsis");
             author.Books.Value.Should().Contain(book => book.ForeignBookId == "googlebooks:work:volume-412");
             offsets.Should().Contain(405);
             offsets.Last().Should().Be(total);
@@ -103,7 +105,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 items = Enumerable.Range(offset, count).Select(index => new
                 {
                     id = $"volume-{index}",
-                    volumeInfo = new { title = $"Book {index}", authors = new[] { "Author Name" } }
+                    volumeInfo = new { title = $"Book {index}", authors = new[] { "Author Name" }, description = "Volume synopsis" }
                 })
             });
             return new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(

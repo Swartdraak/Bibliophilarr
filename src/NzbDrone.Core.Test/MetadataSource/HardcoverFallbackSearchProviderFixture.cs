@@ -275,7 +275,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var metadata = result.Item3[0];
             metadata.ForeignAuthorId.Should().Be("hardcover:author:Stephen%20King");
             metadata.Name.Should().Be("Stephen King");
-            metadata.Overview.Should().Be("A classic horror novel");
+            metadata.Overview.Should().BeNull();
             metadata.Ratings.Votes.Should().Be(0);
             metadata.Ratings.Value.Should().Be(0m);
 
@@ -445,7 +445,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         [TestCase(false)]
         public void should_keep_the_legacy_edition_and_add_typed_provider_editions(bool authorHydration)
         {
-            var source = InstallEditionResponse(JArray.Parse("""[{"id":50,"reading_format_id":1,"isbn_13":"9780306406157","pages":307,"language":{"language":"English"}}]"""));
+            var source = InstallEditionResponse(JArray.Parse("""[{"id":50,"reading_format_id":1,"edition_format":"Paperback","isbn_13":"9780306406157","pages":307,"language":{"language":"English"}}]"""));
 
             var book = authorHydration
                 ? Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single()
@@ -461,14 +461,14 @@ namespace NzbDrone.Core.Test.MetadataSource
             primary.MatchesFormat(FormatType.Audiobook).Should().BeFalse();
             book.GetPreferredEdition(FormatType.Ebook).Asin.Should().Be("EBOOKASIN");
             book.GetPreferredEdition(FormatType.Audiobook).Asin.Should().Be("AUDIOASIN");
-            book.GetPreferredEdition(FormatType.Audiobook).Format.Should().Be("Audio CD");
+            book.GetPreferredEdition(FormatType.Audiobook).Format.Should().Be("Audiobook");
             source.SelectToken("ebooks[0].id").Value<int>().Should().Be(60);
         }
 
         [Test]
         public void should_not_duplicate_the_legacy_edition_if_it_is_the_preferred_source_edition()
         {
-            InstallEditionResponse(JArray.Parse("""[{"id":60,"reading_format_id":2,"asin":"EBOOKASIN"}]"""));
+            InstallEditionResponse(JArray.Parse("""[{"id":60,"reading_format_id":4,"edition_format":"Kindle","asin":"EBOOKASIN"}]"""));
 
             var editions = Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single().Editions.Value;
 
@@ -480,13 +480,30 @@ namespace NzbDrone.Core.Test.MetadataSource
         [Test]
         public void should_not_advertise_an_audiobook_from_print_or_a_wrongly_typed_alias()
         {
-            var source = InstallEditionResponse(JArray.Parse("""[{"id":50,"reading_format_id":1}]"""));
+            var source = InstallEditionResponse(JArray.Parse("""[{"id":50,"reading_format_id":1,"edition_format":"Paperback"}]"""));
             source["ebooks"] = new JArray();
-            source["audiobooks"] = JArray.Parse("""[{"id":50,"reading_format_id":1},{"id":0,"reading_format_id":4}]""");
+            source["audiobooks"] = JArray.Parse("""[{"id":50,"reading_format_id":1,"edition_format":"Paperback"},{"id":0,"reading_format_id":2}]""");
 
             var book = Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single();
 
             book.Editions.Value.Should().ContainSingle();
+            book.GetPreferredEdition(FormatType.Ebook).Should().BeNull();
+            book.GetPreferredEdition(FormatType.Audiobook).Should().BeNull();
+        }
+
+        [TestCase("""{"id":50,"reading_format_id":1}""")]
+        [TestCase("""{"id":50,"reading_format_id":3}""")]
+        [TestCase("""{"id":50,"reading_format_id":2,"edition_format":"Paperback"}""")]
+        [TestCase("""{"id":50,"reading_format_id":4,"edition_format":"Kindle","physical_format":"Paperback"}""")]
+        public void should_leave_ambiguous_or_conflicting_edition_format_unclassified(string editionJson)
+        {
+            var source = InstallEditionResponse(new JArray(JObject.Parse(editionJson)));
+            source["ebooks"] = new JArray();
+            source["audiobooks"] = new JArray();
+
+            var book = Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single();
+
+            book.Editions.Value.Single().Format.Should().Be("Unclassified");
             book.GetPreferredEdition(FormatType.Ebook).Should().BeNull();
             book.GetPreferredEdition(FormatType.Audiobook).Should().BeNull();
         }
@@ -500,8 +517,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                   "pages": 302,
                   "cached_contributors": [{"author":{"id":123,"name":"Complete Author"}}],
                   "book_series": [{"position":1,"series":{"id":789,"name":"Variant Series"}}],
-                  "ebooks": [{"id":60,"reading_format_id":2,"asin":"EBOOKASIN","pages":288}],
-                  "audiobooks": [{"id":80,"reading_format_id":4,"asin":"AUDIOASIN","language":{"language":"English"}}]
+                  "ebooks": [{"id":60,"reading_format_id":4,"edition_format":"Kindle","asin":"EBOOKASIN","pages":288}],
+                  "audiobooks": [{"id":80,"reading_format_id":2,"edition_format":"Audiobook","asin":"AUDIOASIN","language":{"language":"English"}}]
                 }
                 """);
             book["editions"] = legacyEditions;
@@ -517,8 +534,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                         return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
                     }
 
-                    query.Should().Contain("ebooks: editions(where: {reading_format_id: {_eq: 2}}");
-                    query.Should().Contain("audiobooks: editions(where: {reading_format_id: {_in: [3, 4]}}");
+                    query.Should().Contain("ebooks: editions(where: {reading_format_id: {_eq: 4}}");
+                    query.Should().Contain("audiobooks: editions(where: {reading_format_id: {_eq: 2}}");
 
                     if (query.StartsWith("query GetBook", StringComparison.Ordinal))
                     {
@@ -535,6 +552,47 @@ namespace NzbDrone.Core.Test.MetadataSource
                 });
 
             return book;
+        }
+
+        [TestCase("Published author biography")]
+        [TestCase(null)]
+        public void author_hydration_should_map_the_queried_author_bio_without_using_coauthor_or_book_content(string biography)
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                    }
+
+                    query.Should().Contain("bio");
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    var payload = BuildAuthorPage(offset == 0 ? new[] { 1 } : Array.Empty<int>());
+                    payload.SelectToken("data.authors[0]")["bio"] = biography;
+                    if (offset == 0)
+                    {
+                        var book = payload.SelectToken("data.authors[0].contributions[0].book");
+                        book["description"] = "Synopsis of a coauthored book";
+                        book["ratings_count"] = 71;
+                        book["rating"] = 4.2;
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var author = Subject.GetAuthorInfo("hardcover:author:123");
+            var book = author.Books.Value.Single();
+
+            author.Metadata.Value.Name.Should().Be("Complete Author");
+            author.Metadata.Value.Overview.Should().Be(biography);
+            author.Metadata.Value.Ratings.Votes.Should().Be(0);
+            book.AuthorMetadata.Value.Should().BeSameAs(author.Metadata.Value);
+            book.Editions.Value.Single().Overview.Should().Be("Synopsis of a coauthored book");
+            book.Ratings.Votes.Should().Be(71);
         }
 
         private static HttpResponse<JObject> CreateJsonResponse(HttpRequest request, JObject body)

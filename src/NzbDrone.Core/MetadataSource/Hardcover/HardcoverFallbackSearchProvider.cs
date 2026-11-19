@@ -37,6 +37,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
     {
         internal const string ProviderEditionIdPrefix = "hardcover:source-edition:";
 
+        private const string EbookFormat = "Ebook";
+        private const string AudiobookFormat = "Audiobook";
+
         private const string Endpoint = "https://api.hardcover.app/v1/graphql";
         private const string HardcoverApiTokenEnvironmentVariable = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
 
@@ -225,12 +228,13 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             int hardcoverAuthorId;
             string authorSlug;
             string authorName;
+            string authorBiography;
 
             // If the ForeignAuthorId already contains a numeric Hardcover ID,
             // fetch directly by ID (skip the name search step).
             if (TryParseNumericHardcoverAuthorId(foreignAuthorId, out var parsedNumericId))
             {
-                books = FetchAuthorBooksById(parsedNumericId, out authorImageUrl, out authorSlug, out authorName);
+                books = FetchAuthorBooksById(parsedNumericId, out authorImageUrl, out authorSlug, out authorName, out authorBiography);
                 hardcoverAuthorId = parsedNumericId;
 
                 if (authorName.IsNullOrWhiteSpace())
@@ -247,7 +251,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
 
                 // Prefer author-specific search first (gets more books + author image)
-                books = FetchAuthorBooks(authorName, out authorImageUrl, out hardcoverAuthorId, out authorSlug);
+                books = FetchAuthorBooks(authorName, out authorImageUrl, out hardcoverAuthorId, out authorSlug, out authorBiography);
             }
 
             // Fallback to book search if author search returned nothing
@@ -268,7 +272,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 throw new AuthorNotFoundException(foreignAuthorId);
             }
 
-            var metadata = books.First().AuthorMetadata.Value;
+            var metadata = new AuthorMetadata { Overview = authorBiography };
 
             // Use numeric Hardcover author ID when available for stable identification
             metadata.ForeignAuthorId = hardcoverAuthorId > 0
@@ -927,22 +931,28 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             isbn_13
                             asin
                             reading_format_id
+                            edition_format
+                            physical_format
                             language { language }
                             pages
                         }
-                        ebooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
+                        ebooks: editions(where: {reading_format_id: {_eq: 4}}, order_by: {id: asc}, limit: 5) {
                             id
                             isbn_13
                             asin
                             reading_format_id
+                            edition_format
+                            physical_format
                             language { language }
                             pages
                         }
-                        audiobooks: editions(where: {reading_format_id: {_in: [3, 4]}}, order_by: {id: asc}, limit: 5) {
+                        audiobooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
                             id
                             isbn_13
                             asin
                             reading_format_id
+                            edition_format
+                            physical_format
                             language { language }
                             pages
                         }
@@ -978,11 +988,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
         }
 
-        private List<Book> FetchAuthorBooks(string authorName, out string authorImageUrl, out int authorIdResult, out string authorSlug)
+        private List<Book> FetchAuthorBooks(string authorName, out string authorImageUrl, out int authorIdResult, out string authorSlug, out string authorBiography)
         {
             authorImageUrl = null;
             authorIdResult = 0;
             authorSlug = null;
+            authorBiography = null;
 
             if (!_configService.EnableHardcoverFallback)
             {
@@ -1043,14 +1054,15 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
 
             // Keep a failed bibliography request out of the bounded text-search fallback.
-            return FetchAuthorBooksById(authorIdResult, out authorImageUrl, out authorSlug, out _);
+            return FetchAuthorBooksById(authorIdResult, out authorImageUrl, out authorSlug, out _, out authorBiography);
         }
 
-        private List<Book> FetchAuthorBooksById(int authorId, out string authorImageUrl, out string authorSlug, out string authorName)
+        private List<Book> FetchAuthorBooksById(int authorId, out string authorImageUrl, out string authorSlug, out string authorName, out string authorBiography)
         {
             authorImageUrl = null;
             authorSlug = null;
             authorName = null;
+            authorBiography = null;
 
             if (!_configService.EnableHardcoverFallback || !TryResolveToken(out var token, out var tokenSource))
             {
@@ -1088,6 +1100,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                 id
                                 name
                                 slug
+                                bio
                                 image { url }
                                 contributions(limit: $limit, offset: $offset, order_by: {id: asc}, where: {contributable_type: {_eq: ""Book""}}) {
                                     id
@@ -1117,22 +1130,28 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             isbn_13
                                             asin
                                             reading_format_id
+                                            edition_format
+                                            physical_format
                                             language { language }
                                             pages
                                         }
-                                        ebooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
+                                        ebooks: editions(where: {reading_format_id: {_eq: 4}}, order_by: {id: asc}, limit: 5) {
                                             id
                                             isbn_13
                                             asin
                                             reading_format_id
+                                            edition_format
+                                            physical_format
                                             language { language }
                                             pages
                                         }
-                                        audiobooks: editions(where: {reading_format_id: {_in: [3, 4]}}, order_by: {id: asc}, limit: 5) {
+                                        audiobooks: editions(where: {reading_format_id: {_eq: 2}}, order_by: {id: asc}, limit: 5) {
                                             id
                                             isbn_13
                                             asin
                                             reading_format_id
+                                            edition_format
+                                            physical_format
                                             language { language }
                                             pages
                                         }
@@ -1165,6 +1184,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         authorImageUrl = author.SelectToken("image.url")?.Value<string>();
                         authorSlug = author.Value<string>("slug");
                         authorName = author.Value<string>("name")?.Trim();
+                        authorBiography = author.Value<string>("bio")?.Trim();
                     }
 
                     if (contributions.Count == 0)
@@ -1419,13 +1439,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Name = authorName,
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
-                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant(),
-                Overview = description,
-                Ratings = new Ratings
-                {
-                    Votes = ratingsCount ?? 0,
-                    Value = (decimal)(rating ?? 0)
-                }
+                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant()
             };
 
             var author = new Author
@@ -1489,7 +1503,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             Edition CreateEdition(JToken source, string foreignEditionId, int? pageCount)
             {
-                var readingFormatId = source?.Value<int?>("reading_format_id");
+                var format = ResolveEditionFormat(source);
                 var edition = new Edition
                 {
                     ForeignEditionId = foreignEditionId,
@@ -1499,15 +1513,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     Language = source?.SelectToken("language.language")?.Value<string>(),
                     Isbn13 = source?.Value<string>("isbn_13"),
                     Asin = source?.Value<string>("asin"),
-                    Format = readingFormatId switch
-                    {
-                        1 => Edition.PrintFormat,
-                        2 => "Ebook",
-                        3 => "Audiobook",
-                        4 => "Audio CD",
-                        _ => null
-                    },
-                    IsEbook = readingFormatId == 2,
+                    Format = format,
+                    IsEbook = format == EbookFormat,
                     Book = book,
                     PageCount = pageCount ?? 0,
                     Overview = description,
@@ -1537,8 +1544,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             };
 
             var legacySourceId = bestEdition?.Value<long?>("id");
-            var ebookEdition = SelectBestSourceEdition(bookData["ebooks"] as JArray, 2);
-            var audiobookEdition = SelectBestSourceEdition(bookData["audiobooks"] as JArray, 3, 4);
+            var ebookEdition = SelectBestSourceEdition(bookData["ebooks"] as JArray, EbookFormat);
+            var audiobookEdition = SelectBestSourceEdition(bookData["audiobooks"] as JArray, AudiobookFormat);
 
             foreach (var source in new[] { ebookEdition, audiobookEdition }.Where(candidate => candidate != null))
             {
@@ -1554,12 +1561,49 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             return book;
         }
 
-        private static JToken SelectBestSourceEdition(JArray editions, params int[] readingFormatIds)
+        private static JToken SelectBestSourceEdition(JArray editions, string format)
         {
             return SelectBestEdition(editions?.Where(edition => edition.Type == JTokenType.Object)
-                .Where(edition => edition.Value<long?>("id") > 0 &&
-                                  readingFormatIds.Contains(edition.Value<int?>("reading_format_id") ?? 0))
+                .Where(edition => edition.Value<long?>("id") > 0 && ResolveEditionFormat(edition) == format)
                 .ToList());
+        }
+
+        private static string ResolveEditionFormat(JToken edition)
+        {
+            var editionFormat = ClassifyEditionLabel(edition?.Value<string>("edition_format"));
+            var physicalFormat = ClassifyEditionLabel(edition?.Value<string>("physical_format"));
+            if (editionFormat != null && physicalFormat != null && editionFormat != physicalFormat)
+            {
+                return Edition.UnclassifiedFormat;
+            }
+
+            // Hardcover reading_formats: 1 = Read, 2 = Listened, 3 = Both, 4 = Ebook.
+            // Read and Both need edition-level evidence to establish a format.
+            var readingFormat = edition?.Value<int?>("reading_format_id") switch
+            {
+                2 => AudiobookFormat,
+                4 => EbookFormat,
+                _ => null
+            };
+
+            var labelFormat = editionFormat ?? physicalFormat;
+            if (readingFormat != null && labelFormat != null && readingFormat != labelFormat)
+            {
+                return Edition.UnclassifiedFormat;
+            }
+
+            return readingFormat ?? labelFormat ?? Edition.UnclassifiedFormat;
+        }
+
+        private static string ClassifyEditionLabel(string label)
+        {
+            return label?.Trim().ToLowerInvariant() switch
+            {
+                "ebook" or "e-book" or "kindle" or "kindle edition" or "epub" or "mobi" or "azw3" or "pdf" => EbookFormat,
+                "audiobook" or "audio book" or "audio cd" or "audio cassette" or "audible audio" or "mp3 cd" or "m4b" => AudiobookFormat,
+                "paperback" or "hardcover" or "hardback" or "mass market paperback" or "trade paperback" or "board book" or "library binding" or "print" => Edition.PrintFormat,
+                _ => null
+            };
         }
 
         /// <summary>
@@ -1866,9 +1910,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Name = authorName,
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
-                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant(),
-                Overview = result.Description,
-                Ratings = new Ratings { Votes = 0, Value = 0 }
+                SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant()
             };
 
             var author = new Author

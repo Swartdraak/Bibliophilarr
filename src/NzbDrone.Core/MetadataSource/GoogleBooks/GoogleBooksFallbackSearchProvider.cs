@@ -448,7 +448,6 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 SortName = authorName.ToLowerInvariant(),
                 NameLastFirst = authorName.ToLastFirst(),
                 SortNameLastFirst = authorName.ToLastFirst().ToLowerInvariant(),
-                Overview = volume.Description,
                 Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 

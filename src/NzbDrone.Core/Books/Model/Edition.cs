@@ -11,6 +11,7 @@ namespace NzbDrone.Core.Books
     public class Edition : Entity<Edition>
     {
         internal const string PrintFormat = "Print";
+        internal const string UnclassifiedFormat = "Unclassified";
 
         public Edition()
         {
@@ -54,7 +55,12 @@ namespace NzbDrone.Core.Books
         {
             return format == FormatType.Ebook
                 ? IsEbook
-                : !IsEbook && Format != PrintFormat;
+                : !IsEbook && !HasUntrackedFormat();
+        }
+
+        internal bool HasUntrackedFormat()
+        {
+            return Format is PrintFormat or UnclassifiedFormat;
         }
 
         public override string ToString()
