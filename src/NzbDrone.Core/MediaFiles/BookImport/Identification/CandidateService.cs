@@ -324,7 +324,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     var preContextCount = seenCandidates.Count;
 
-                    foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides, localEdition))
+                    foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides))
                     {
                         yield return candidate;
                     }
@@ -564,7 +564,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             LogCandidateRejectionTelemetry(localEdition, "all-search-paths-exhausted", 0, 0, seenCandidates.Count);
         }
 
-        private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides, LocalEdition localEdition)
+        private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides)
         {
             var attemptLimit = _configService.IsbnContextFallbackLimit;
             var attempts = 0;
