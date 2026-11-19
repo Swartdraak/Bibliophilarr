@@ -26,10 +26,7 @@ const archiveName = `bibliophilarr-${tag.replace(/^v/, '')}-${target.file}`;
 
 const archivePath = join(CACHE_DIR, archiveName);
 const installDir = join(CACHE_DIR, `${tag}-${target.id}`);
-const executablePath = join(installDir, target.binaryPath);
-
-await ensureBinary();
-runBinary();
+runBinary(await ensureBinary());
 
 async function resolveLatestTag() {
   const url = `https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`;
@@ -60,7 +57,12 @@ function resolveTarget() {
   }
 
   if (platform() === 'win32' && arch() === 'x64') {
-    return { id: 'win-x64', file: 'win-x64.zip', binaryPath: 'Bibliophilarr/Bibliophilarr.exe' };
+    return {
+      id: 'win-x64',
+      file: 'win-x64.zip',
+      binaryPath: 'Bibliophilarr.exe',
+      legacyPaths: ['Bibliophilarr.Console.exe', 'Bibliophilarr/Bibliophilarr.exe', 'Bibliophilarr/Bibliophilarr.Console.exe']
+    };
   }
 
   return null;
@@ -69,7 +71,9 @@ function resolveTarget() {
 async function ensureBinary() {
   mkdirSync(CACHE_DIR, { recursive: true });
 
-  if (!existsSync(executablePath)) {
+  const paths = [target.binaryPath, ...(target.legacyPaths ?? [])].map(path => join(installDir, path));
+  let executablePath = paths.find(existsSync);
+  if (!executablePath) {
     if (!existsSync(archivePath)) {
       const url = `${releaseBase}/${basename(archiveName)}`;
       console.log(`Downloading ${url}`);
@@ -85,7 +89,12 @@ async function ensureBinary() {
     if (archivePath.endsWith('.tar.gz')) {
       await runCommand('tar', ['-xzf', archivePath, '-C', installDir]);
     } else {
-      await runCommand('unzip', ['-o', archivePath, '-d', installDir]);
+      await runCommand('tar.exe', ['-xf', archivePath, '-C', installDir]);
+    }
+
+    executablePath = paths.find(existsSync);
+    if (!executablePath) {
+      throw new Error(`No Bibliophilarr executable was found in ${archiveName}`);
     }
   }
 
@@ -94,9 +103,11 @@ async function ensureBinary() {
   } catch {
     // No-op on platforms that do not support chmod for the extracted file.
   }
+
+  return executablePath;
 }
 
-function runBinary() {
+function runBinary(executablePath) {
   const child = spawn(executablePath, process.argv.slice(2), {
     stdio: 'inherit',
     env: process.env

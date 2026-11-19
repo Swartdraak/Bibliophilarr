@@ -62,3 +62,6 @@ jobs:
           bash scripts/test_npm_launcher_cache_seed.sh \
             "$PWD/npm/bibliophilarr-launcher/bin/bibliophilarr.js" \
             "v0.0.0-smoke.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" "$RUNNER_TEMP/npm-launcher.log"
+          bash scripts/test_npm_launcher_cache_seed.sh \
+            "$PWD/npm/bibliophilarr-launcher/bin/bibliophilarr.js" \
+            "v0.0.0-smoke.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" "$RUNNER_TEMP/npm-launcher-win-layout.log" windows-published
