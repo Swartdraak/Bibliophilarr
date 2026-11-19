@@ -1,55 +1,77 @@
 .item {
-  border-left: 3px solid transparent;
-  color: var(--sidebarColor);
-  transition: border-left 0.3s ease-in-out;
+  margin-bottom: 2px;
 }
 
 .isActiveItem {
-  border-left: 3px solid var(--themeAlternateRed);
+  margin-bottom: 8px;
 }
 
 .link {
-  display: block;
-  padding: 12px 24px;
-  color: var(--sidebarColor);
+  display: flex;
+  align-items: center;
+  padding: 9px 10px;
+  min-height: 40px;
+  border-radius: 6px;
+  color: var(--sidebarNavigationColor);
+  font-weight: 500;
 
   &:hover,
-  &:focus {
-    color: var(--themeRed);
+  &:focus-visible {
+    background-color: var(--sidebarActiveBackgroundColor);
+    color: var(--sidebarActiveColor);
     text-decoration: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--sidebarActiveColor);
+    outline-offset: -2px;
   }
 }
 
 .childLink {
   composes: link;
 
-  padding: 10px 24px;
+  margin-left: 18px;
+  padding: 7px 10px;
+  min-height: 34px;
+  border-left: 1px solid var(--workspaceBorderColor);
+  border-radius: 0 6px 6px 0;
 }
 
 .isActiveLink {
-  color: var(--themeAlternateRed);
-
-  &:hover,
-  &:focus {
-    color: var(--white);
-  }
+  background-color: var(--sidebarActiveBackgroundColor);
+  color: var(--sidebarActiveColor);
+  font-weight: 700;
 }
 
 .isActiveParentLink {
   background-color: var(--sidebarActiveBackgroundColor);
+  color: var(--sidebarActiveColor);
+  font-weight: 700;
+}
+
+.childLink.isActiveLink {
+  border-left-color: var(--sidebarActiveColor);
+  background-color: transparent;
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--sidebarActiveBackgroundColor);
+  }
 }
 
 .iconContainer {
-  display: inline-block;
-  margin-right: 7px;
+  flex: 0 0 18px;
+  margin-right: 10px;
   width: 18px;
   text-align: center;
 }
 
 .noIcon {
-  margin-left: 25px;
+  margin-left: 8px;
 }
 
 .status {
-  float: right;
+  margin-left: auto;
+  padding-left: 6px;
 }

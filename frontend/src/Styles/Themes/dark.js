@@ -58,12 +58,18 @@ module.exports = {
 
   // Header
   pageHeaderBackgroundColor: '#0e1b2a',
+  headerControlColor: '#1a2e44',
+  headerOutlineColor: '#617d9c',
 
   // Sidebar
 
   sidebarColor: '#e1e2e3',
   sidebarBackgroundColor: '#0e1b2a',
+  sidebarNavigationColor: '#d3dfec',
+  sidebarActiveColor: '#eff6ff',
   sidebarActiveBackgroundColor: '#193555',
+  workspaceBorderColor: '#394c61',
+  workspacePrimaryBackgroundColor: '#325a85',
 
   // Toolbar
   toolbarColor: '#e1e2e3',

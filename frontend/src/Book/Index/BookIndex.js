@@ -320,8 +320,8 @@ class BookIndex extends Component {
     const searchWarningCount = isEditorActive && selectedBookIds.length > 0 ? selectedBookIds.length : items.length;
 
     return (
-      <PageContent>
-        <PageToolbar>
+      <PageContent title={translate('Books')} showTitle={true}>
+        <PageToolbar stackOnMobile={true}>
           <PageToolbarSection>
             <PageToolbarButton
               label={refreshLabel}

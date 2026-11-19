@@ -4,6 +4,7 @@ import keyboardShortcuts, { shortcuts } from 'Components/keyboardShortcuts';
 import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
 import { icons } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import AuthorSearchInputConnector from './AuthorSearchInputConnector';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import PageHeaderActionsMenuConnector from './PageHeaderActionsMenuConnector';
@@ -45,11 +46,12 @@ class PageHeader extends Component {
 
   render() {
     const {
+      isSidebarVisible,
       onSidebarToggle
     } = this.props;
 
     return (
-      <div className={styles.header}>
+      <header className={styles.header}>
         <div className={styles.logoContainer}>
           <Link
             className={styles.logoLink}
@@ -58,8 +60,9 @@ class PageHeader extends Component {
             <img
               className={styles.logo}
               src={`${window.Bibliophilarr.urlBase}/Content/Images/logo.svg`}
-              alt="Bibliophilarr Logo"
+              alt=""
             />
+            <span className={styles.wordmark}>Bibliophilarr</span>
           </Link>
         </div>
 
@@ -67,6 +70,10 @@ class PageHeader extends Component {
           <IconButton
             id="sidebar-toggle-button"
             name={icons.NAVBAR_COLLAPSE}
+            size={18}
+            aria-label={translate('PrimaryNavigation')}
+            aria-controls="primary-navigation"
+            aria-expanded={isSidebarVisible}
             onPress={onSidebarToggle}
           />
         </div>
@@ -90,12 +97,13 @@ class PageHeader extends Component {
           isOpen={this.state.isKeyboardShortcutsModalOpen}
           onModalClose={this.onKeyboardShortcutsModalClose}
         />
-      </div>
+      </header>
     );
   }
 }
 
 PageHeader.propTypes = {
+  isSidebarVisible: PropTypes.bool.isRequired,
   onSidebarToggle: PropTypes.func.isRequired,
   bindShortcut: PropTypes.func.isRequired
 };

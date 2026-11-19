@@ -4,6 +4,7 @@
   align-items: center;
   flex: 0 0 auto;
   height: $headerHeight;
+  border-bottom: 1px solid var(--headerOutlineColor);
   background-color: var(--pageHeaderBackgroundColor);
   color: var(--white);
 }
@@ -12,23 +13,63 @@
   display: flex;
   align-items: center;
   flex: 0 0 $sidebarWidth;
-  padding-left: 20px;
+  padding-left: $pageContentBodyPadding;
 }
 
 .logoLink {
-  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  color: var(--white);
+
+  &:hover,
+  &:focus-visible {
+    color: var(--white);
+    text-decoration: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--inputFocusBorderColor);
+    outline-offset: 3px;
+  }
 }
 
 .logo {
-  width: 40px;
-  height: 40px;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: var(--white);
+}
+
+.wordmark {
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  font-size: 18px;
 }
 
 .sidebarToggleContainer {
   display: none;
   justify-content: center;
-  flex: 0 0 45px;
-  margin-right: 14px;
+  flex: 0 0 36px;
+  margin-right: 8px;
+
+  & > button {
+    min-width: 36px;
+    min-height: 40px;
+    border-radius: 6px;
+    color: var(--white);
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--headerControlColor);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--inputFocusBorderColor);
+    }
+  }
 }
 
 .right {
@@ -40,19 +81,36 @@
 .donate {
   composes: link from '~Components/Link/Link.css';
 
-  width: 30px;
-  color: var(--themeRed);
+  align-self: center;
+  width: 40px;
+  border-radius: 6px;
+  color: var(--white);
   text-align: center;
-  line-height: 60px;
+  line-height: 40px;
 
-  &:hover {
-    color: var(--themeDarkColor);
+  &:hover,
+  &:focus-visible {
+    background-color: var(--headerControlColor);
+    color: var(--white);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--inputFocusBorderColor);
   }
 }
 
 @media only screen and (max-width: $breakpointSmall) {
   .logoContainer {
-    flex: 0 0 60px;
+    flex-basis: 52px;
+    padding-left: 10px;
+  }
+
+  .wordmark {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
   }
 
   .sidebarToggleContainer {

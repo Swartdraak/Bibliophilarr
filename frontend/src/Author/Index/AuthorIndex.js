@@ -331,8 +331,8 @@ class AuthorIndex extends Component {
     const refreshLabel = isEditorActive && selectedAuthorIds.length > 0 ? translate('UpdateSelected') : translate('UpdateAll');
 
     return (
-      <PageContent>
-        <PageToolbar>
+      <PageContent title={translate('Authors')} showTitle={true}>
+        <PageToolbar stackOnMobile={true}>
           <PageToolbarSection>
             <PageToolbarButton
               label={refreshLabel}

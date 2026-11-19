@@ -19,7 +19,7 @@ const SIDEBAR_WIDTH = parseInt(dimensions.sidebarWidth);
 
 const links = [
   {
-    iconName: icons.AUTHOR_CONTINUING,
+    iconName: icons.BOOK,
     title: () => translate('Library'),
     to: '/',
     alias: '/authors',
@@ -264,23 +264,36 @@ class PageSidebar extends Component {
 
   componentDidMount() {
     if (this.props.isSmallScreen) {
-      window.addEventListener('click', this.onWindowClick, { capture: true });
-      window.addEventListener('scroll', this.onWindowScroll);
-      window.addEventListener('touchstart', this.onTouchStart);
-      window.addEventListener('touchmove', this.onTouchMove);
-      window.addEventListener('touchend', this.onTouchEnd);
-      window.addEventListener('touchcancel', this.onTouchCancel);
+      this.addMobileListeners();
     }
   }
 
   componentDidUpdate(prevProps) {
     const {
-      isSidebarVisible
+      isSidebarVisible,
+      isSmallScreen
     } = this.props;
 
     const transform = this.state.transform;
 
+    if (prevProps.isSmallScreen !== isSmallScreen) {
+      if (isSmallScreen) {
+        this.addMobileListeners();
+        this.onWindowScroll();
+      } else {
+        this.removeMobileListeners();
+      }
+    }
+
     if (prevProps.isSidebarVisible !== isSidebarVisible) {
+      const toggleButton = document.getElementById('sidebar-toggle-button');
+
+      if (isSmallScreen && isSidebarVisible && document.activeElement === toggleButton) {
+        this._sidebarRef.querySelector('a')?.focus();
+      } else if (isSmallScreen && !isSidebarVisible && this._sidebarRef.contains(document.activeElement)) {
+        toggleButton?.focus();
+      }
+
       this._setSidebarTransform(isSidebarVisible);
     } else if (transform === 0 && !isSidebarVisible) {
       this.props.onSidebarVisibleChange(true);
@@ -291,17 +304,30 @@ class PageSidebar extends Component {
 
   componentWillUnmount() {
     if (this.props.isSmallScreen) {
-      window.removeEventListener('click', this.onWindowClick, { capture: true });
-      window.removeEventListener('scroll', this.onWindowScroll);
-      window.removeEventListener('touchstart', this.onTouchStart);
-      window.removeEventListener('touchmove', this.onTouchMove);
-      window.removeEventListener('touchend', this.onTouchEnd);
-      window.removeEventListener('touchcancel', this.onTouchCancel);
+      this.removeMobileListeners();
     }
   }
 
   //
   // Control
+
+  addMobileListeners() {
+    window.addEventListener('click', this.onWindowClick, { capture: true });
+    window.addEventListener('scroll', this.onWindowScroll);
+    window.addEventListener('touchstart', this.onTouchStart);
+    window.addEventListener('touchmove', this.onTouchMove);
+    window.addEventListener('touchend', this.onTouchEnd);
+    window.addEventListener('touchcancel', this.onTouchCancel);
+  }
+
+  removeMobileListeners() {
+    window.removeEventListener('click', this.onWindowClick, { capture: true });
+    window.removeEventListener('scroll', this.onWindowScroll);
+    window.removeEventListener('touchstart', this.onTouchStart);
+    window.removeEventListener('touchmove', this.onTouchMove);
+    window.removeEventListener('touchend', this.onTouchEnd);
+    window.removeEventListener('touchcancel', this.onTouchCancel);
+  }
 
   _setSidebarRef = (ref) => {
     this._sidebarRef = ref;
@@ -317,6 +343,14 @@ class PageSidebar extends Component {
   //
   // Listeners
 
+  onSidebarKeyDown = (event) => {
+    if (event.key === 'Escape' && this.props.isSmallScreen && this.props.isSidebarVisible) {
+      event.stopPropagation();
+      this.props.onSidebarVisibleChange(false);
+      document.getElementById('sidebar-toggle-button')?.focus();
+    }
+  };
+
   onWindowClick = (event) => {
     const sidebar = this._sidebarRef;
     const toggleButton = document.getElementById('sidebar-toggle-button');
@@ -327,7 +361,7 @@ class PageSidebar extends Component {
 
     if (
       !sidebar.contains(event.target) &&
-      !toggleButton.contains(event.target) &&
+      !toggleButton?.contains(event.target) &&
       this.props.isSidebarVisible
     ) {
       event.preventDefault();
@@ -350,7 +384,7 @@ class PageSidebar extends Component {
       return;
     }
 
-    if (isSidebarVisible && (touchStartX > 210 || touchStartX < 180)) {
+    if (isSidebarVisible && (touchStartX > SIDEBAR_WIDTH || touchStartX < SIDEBAR_WIDTH - 30)) {
       return;
     } else if (!isSidebarVisible && touchStartX > 40) {
       return;
@@ -419,6 +453,7 @@ class PageSidebar extends Component {
   onTouchCancel = (event) => {
     this._touchStartX = null;
     this._touchStartY = null;
+    this._setSidebarTransform(this.props.isSidebarVisible);
   };
 
   onItemPress = () => {
@@ -431,7 +466,8 @@ class PageSidebar extends Component {
   render() {
     const {
       location,
-      isSmallScreen
+      isSmallScreen,
+      isSidebarVisible
     } = this.props;
 
     const {
@@ -461,18 +497,26 @@ class PageSidebar extends Component {
     }
 
     const ScrollerComponent = isSmallScreen ? Scroller : OverlayScroller;
+    const isDrawerClosed = isSmallScreen && !isSidebarVisible;
 
     return (
-      <div
+      <nav
+        id="primary-navigation"
+        aria-label={translate('PrimaryNavigation')}
+        aria-hidden={isDrawerClosed || undefined}
+        inert={isDrawerClosed ? '' : undefined}
         ref={this._setSidebarRef}
         className={classNames(
-          styles.sidebarContainer
+          styles.sidebarContainer,
+          isDrawerClosed && transform === -SIDEBAR_WIDTH && styles.isClosed
         )}
         style={containerStyle}
+        onKeyDown={this.onSidebarKeyDown}
       >
         <ScrollerComponent
           className={styles.sidebar}
           style={sidebarStyle}
+          autoFocus={false}
         >
           <div>
             {
@@ -525,7 +569,7 @@ class PageSidebar extends Component {
 
           <MessagesConnector />
         </ScrollerComponent>
-      </div>
+      </nav>
     );
   }
 }
