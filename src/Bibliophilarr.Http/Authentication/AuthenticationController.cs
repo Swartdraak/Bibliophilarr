@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
@@ -19,6 +20,8 @@ namespace Bibliophilarr.Http.Authentication
     [ApiController]
     public class AuthenticationController : Controller
     {
+        private static readonly object FirstUserLock = new object();
+
         private readonly IAuthenticationService _authService;
         private readonly IConfigFileProvider _configFileProvider;
         private readonly IAppFolderInfo _appFolderInfo;
@@ -105,26 +108,71 @@ namespace Bibliophilarr.Http.Authentication
         [HttpPost("bootstrap")]
         public IActionResult Bootstrap([FromForm] BootstrapResource resource)
         {
-            var user = _authService.FindUser();
-            if (user != null)
+            // Browser setup uses the form endpoint and its anti-forgery token.
+            if (!FirstAccountSetup.IsDirectLocalRequest(HttpContext) ||
+                Request.Headers.ContainsKey("Origin") ||
+                Request.Headers.ContainsKey("Sec-Fetch-Site"))
             {
-                _logger?.Warn("Rejected initial setup because a user already exists");
-                return Conflict();
+                return StatusCode(StatusCodes.Status403Forbidden);
             }
 
-            if (string.IsNullOrWhiteSpace(resource.Username) || resource.Username.Length < 3 || resource.Username.Length > 32)
+            return CreateFirstUser(resource);
+        }
+
+        [HttpPost("login/setup")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Setup([FromForm] FirstAccountResource resource)
+        {
+            if (!FirstAccountSetup.IsDirectLocalRequest(HttpContext) ||
+                _configFileProvider.AuthenticationMethod != AuthenticationType.Forms ||
+                _configFileProvider.AuthenticationRequired != AuthenticationRequiredType.Enabled)
             {
-                return BadRequest("Username must be 3-32 characters.");
+                return StatusCode(StatusCodes.Status403Forbidden);
             }
 
-            if (string.IsNullOrWhiteSpace(resource.Password) || resource.Password.Length < 8)
+            var result = CreateFirstUser(resource);
+            if (result is BadRequestObjectResult)
             {
-                return BadRequest("Password must be at least 8 characters.");
+                return LocalRedirect(_configFileProvider.UrlBase + "/login?setupInvalid=true");
             }
 
-            _authService.AddUser(resource.Username, resource.Password);
-            _logger?.Info("Created the initial user through the setup endpoint");
-            return Ok(new { message = "First user created. You can now log in." });
+            if (result is OkObjectResult)
+            {
+                return await Login(new LoginResource { Username = resource.Username, Password = resource.Password });
+            }
+
+            return result;
+        }
+
+        private IActionResult CreateFirstUser(BootstrapResource resource)
+        {
+            lock (FirstUserLock)
+            {
+                if (_authService.FindUser() != null)
+                {
+                    _logger?.Warn("Rejected initial setup because a user already exists");
+                    return Conflict();
+                }
+
+                if (string.IsNullOrWhiteSpace(resource.Username) || resource.Username.Length < 3 || resource.Username.Length > 32)
+                {
+                    return BadRequest("Username must be 3-32 characters.");
+                }
+
+                if (string.IsNullOrWhiteSpace(resource.Password) || resource.Password.Length < 8)
+                {
+                    return BadRequest("Password must be at least 8 characters.");
+                }
+
+                if (resource is FirstAccountResource setup && setup.Password != setup.PasswordConfirmation)
+                {
+                    return BadRequest("Passwords must match.");
+                }
+
+                _authService.AddUser(resource.Username, resource.Password);
+                _logger?.Info("Created the initial user through the setup endpoint");
+                return Ok(new { message = "First user created. You can now log in." });
+            }
         }
     }
 }

@@ -162,6 +162,25 @@ namespace NzbDrone.Common.Test
         }
 
         [Test]
+        public void EnsureDefaultConfigFile_Enables_Forms_For_A_New_Profile()
+        {
+            Subject.EnsureDefaultConfigFile();
+
+            Subject.AuthenticationMethod.Should().Be(AuthenticationType.Forms);
+            _configFileContents.Should().Contain("<AuthenticationMethod>forms</AuthenticationMethod>");
+        }
+
+        [Test]
+        public void EnsureDefaultConfigFile_Preserves_An_Existing_Profile_Without_An_Auth_Setting()
+        {
+            _configFileContents = "<Config><Port>8787</Port></Config>";
+
+            Subject.EnsureDefaultConfigFile();
+
+            Subject.AuthenticationMethod.Should().Be(AuthenticationType.None);
+        }
+
+        [Test]
         public void SaveDictionary_should_save_proper_value()
         {
             var port = 20555;

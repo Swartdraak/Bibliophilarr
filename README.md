@@ -87,6 +87,9 @@ Download pre-built binaries for Linux (x64), macOS (ARM64), or Windows (x64)
 from the [Releases](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 page. Extract the archive and run the `Bibliophilarr` binary.
 
+On a fresh installation, open Bibliophilarr directly at
+`http://127.0.0.1:8787` to create the first account in your browser.
+
 On Windows x64, the setup program installs into `%ProgramFiles%\Bibliophilarr`.
 Open Bibliophilarr from the Start menu when you want it to run. Application data
 uses `%ProgramData%\Bibliophilarr` by default. Setup leaves this directory in place

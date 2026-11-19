@@ -357,8 +357,13 @@ namespace NzbDrone.Core.Configuration
 
         public void EnsureDefaultConfigFile()
         {
-            if (!File.Exists(_configFile))
+            if (!_diskProvider.FileExists(_configFile))
             {
+                if (string.IsNullOrWhiteSpace(_authOptions.Method) && !_authOptions.Enabled.HasValue)
+                {
+                    SetValue("AuthenticationMethod", AuthenticationType.Forms);
+                }
+
                 SaveConfigDictionary(GetConfigDictionary());
             }
         }
