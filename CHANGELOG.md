@@ -16,6 +16,8 @@ process.
 
 - Book and author lookups respect the enabled metadata providers and their
   configured order. They return an empty list when no provider returns a match.
+- Google Books author refresh keeps existing catalogue entries when overlapping
+  pages or a shrinking result count leave the bibliography incomplete.
 - Name, URL, credentials, and tags in connection forms have associated labels.
 - Connection and health help links open the maintained WebUI guides.
 - A malformed book or edition no longer interrupts the rest of a library

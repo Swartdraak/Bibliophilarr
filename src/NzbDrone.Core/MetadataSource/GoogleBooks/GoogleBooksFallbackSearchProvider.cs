@@ -301,6 +301,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             const int searchLimit = 200;
             var isBibliography = bibliographyAuthorId != null;
             var seenVolumeIds = new HashSet<string>(StringComparer.Ordinal);
+            var highestReportedTotal = 0;
 
             while (isBibliography || allItems.Count < searchLimit)
             {
@@ -331,9 +332,14 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 {
                     var httpResponse = _httpClient.Get<GoogleBooksSearchResponse>(httpRequest);
                     response = httpResponse?.Resource;
-                    if (isBibliography && (httpResponse == null || httpResponse.HasHttpError || response?.TotalItems == null))
+                    if (isBibliography)
                     {
-                        throw new InvalidOperationException($"Google Books did not return a bibliography page at index {pageStart}.");
+                        if (httpResponse == null || httpResponse.HasHttpError || response?.TotalItems == null)
+                        {
+                            throw new InvalidOperationException($"Google Books did not return a bibliography page at index {pageStart}.");
+                        }
+
+                        highestReportedTotal = Math.Max(highestReportedTotal, response.TotalItems.Value);
                     }
                 }
                 catch (Exception ex) when (!(reportTransportFailure && MetadataProviderOrchestrator.IsTransportError(ex)))
@@ -351,9 +357,10 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
 
                 if (page.Count == 0)
                 {
-                    if (isBibliography && response.TotalItems > pageStart)
+                    if (isBibliography && seenVolumeIds.Count < highestReportedTotal)
                     {
-                        var failure = new InvalidOperationException($"Google Books ended its bibliography at index {pageStart} before its reported total {response.TotalItems}.");
+                        var failure = new InvalidOperationException(
+                            $"Google Books ended its bibliography at index {pageStart} with {seenVolumeIds.Count} distinct volumes, below its highest reported total {highestReportedTotal}.");
                         throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, failure);
                     }
 
