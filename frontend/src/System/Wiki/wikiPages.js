@@ -229,7 +229,7 @@ const wikiPages = [
       {
         heading: 'Disabling Dual Format Tracking',
         paragraphs: [
-          'If you only need one format, disable this feature in Settings → Media Management → EnableDualFormatTracking. When disabled, Bibliophilarr behaves like standard Readarr — tracking a single format per book based on the author\'s assigned quality profile.'
+          'If you only need one format, disable this feature in Settings → Media Management → EnableDualFormatTracking. Bibliophilarr then tracks a single format per book based on the author\'s assigned quality profile.'
         ]
       }
     ]
@@ -379,7 +379,7 @@ const wikiPages = [
           'To set up Prowlarr integration:'
         ],
         list: [
-          'In Prowlarr, go to Settings → Apps → Add and select Bibliophilarr/Readarr.',
+          'In Prowlarr, go to Settings → Apps → Add and choose the legacy Readarr connector for Bibliophilarr.',
           'Enter your Bibliophilarr API URL and API key.',
           'Prowlarr will automatically push indexer configurations to Bibliophilarr.',
           'Prowlarr also provides unified search history across all your *arr applications.'
@@ -444,7 +444,7 @@ const wikiPages = [
           'Host — The hostname or IP address of your download client (usually 127.0.0.1 or localhost if on the same machine).',
           'Port — The web UI port of your client (e.g. 8080 for qBittorrent, 8085 for SABnzbd).',
           'Username/Password — Credentials for your client\'s web UI.',
-          'Category — A dedicated category for Bibliophilarr downloads (recommended: "bibliophilarr" or "readarr"). This keeps Bibliophilarr downloads separate from other downloads.',
+          'Category — A dedicated category for Bibliophilarr downloads (recommended: "bibliophilarr"). This keeps Bibliophilarr downloads separate from other downloads.',
           'Priority — Default priority for new downloads.',
           'Remove Completed — Whether to remove downloads from the client after successful import.'
         ],
@@ -989,9 +989,9 @@ const wikiPages = [
           'Access and download log files directly from the UI. Bibliophilarr uses rolling log files:'
         ],
         list: [
-          'readarr.txt — Current main log file (info, warn, error, fatal). Limited to 1MB, up to 51 rolling files.',
-          'readarr.debug.txt — Debug-level log (when Debug logging enabled). Contains info + debug entries. Usually covers ~40 hours.',
-          'readarr.trace.txt — Trace-level log (when Trace logging enabled). Most verbose, contains everything. Covers a few hours at most.',
+          'bibliophilarr.txt — Current main log file (info, warn, error, fatal). Rolls over at about 1 MB and retains up to five archives.',
+          'bibliophilarr.debug.txt — Debug-level log. Includes info and debug entries when debug logging is enabled.',
+          'bibliophilarr.trace.txt — Trace-level log. Includes the most detail when trace logging is enabled.',
           'Update logs — Separate logs for the update process, accessible via the dropdown toggle.'
         ]
       },
@@ -1019,7 +1019,7 @@ const wikiPages = [
           '1. Enable Trace logging: Settings → General → Log Level → Trace.',
           '2. Clear existing logs: System → Logs → Clear Logs.',
           '3. Reproduce the issue (trigger the operation that\'s failing).',
-          '4. Check the trace log file (readarr.trace.txt) for error messages.',
+          '4. Check the trace log file (bibliophilarr.trace.txt) for error messages.',
           '5. Look for the relevant context — search for the book title, author, or operation.',
           '6. When sharing logs for help, use a pastebin service and share a relevant excerpt, not the entire file.'
         ]
