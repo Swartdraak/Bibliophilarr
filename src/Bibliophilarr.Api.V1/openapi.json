@@ -8232,6 +8232,36 @@
         }
       }
     },
+    "/api/v1/update/check": {
+      "post": {
+        "tags": [
+          "Update"
+        ],
+        "summary": "Check the official public stable release when discovery is enabled.",
+        "responses": {
+          "200": {
+            "description": "Discovery result",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicReleaseCheck"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicReleaseCheck"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicReleaseCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/update": {
       "get": {
         "tags": [
@@ -13426,6 +13456,12 @@
           "packageUpdateMechanism": {
             "$ref": "#/components/schemas/UpdateMechanism"
           },
+          "updatesEnabled": {
+            "type": "boolean"
+          },
+          "publicReleaseDiscovery": {
+            "type": "boolean"
+          },
           "packageUpdateMechanismMessage": {
             "type": "string",
             "nullable": true
@@ -13683,6 +13719,40 @@
           "external",
           "apt",
           "docker"
+        ],
+        "type": "string"
+      },
+      "PublicReleaseCheck": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/PublicReleaseCheckStatus"
+          },
+          "installedVersion": {
+            "type": "string"
+          },
+          "latestVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "releaseNotesUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublicReleaseCheckStatus": {
+        "enum": [
+          "disabled",
+          "unavailable",
+          "upToDate",
+          "available"
         ],
         "type": "string"
       },

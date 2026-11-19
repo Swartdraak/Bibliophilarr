@@ -108,6 +108,22 @@ privacy-sensitive deployments. No internet access required.
 dotnet /opt/bibliophilarr/Bibliophilarr -nobrowser
 ```
 
+### Optional public release discovery
+
+Set `Bibliophilarr__Update__PublicReleaseDiscovery=true` on the application
+service and restart it to show **Check GitHub for updates** under **System >
+Updates**. Setting the option to `false` or leaving it unset keeps this public
+check disabled. The independently configured services endpoint continues to
+have its own controls.
+
+Selecting the button sends a single unauthenticated read request to the
+official repository’s GitHub Releases API. The result compares the installed
+version with the latest stable release and links to its release notes. If
+GitHub is unreachable or returns an invalid response, the page reports that
+the check could not be completed. This path has no schedule and never queues
+an installation. Use the deployment’s normal update mechanism and make a
+recoverable backup before upgrading.
+
 ### Pattern B — Self-hosted services endpoint
 
 Run a minimal JSON API at a URL of your choice and set the env var.
@@ -143,7 +159,7 @@ No architectural changes are required; the env var controls everything.
 
 | Symptom | Likely cause | Resolution |
 |---------|-------------|------------|
-| Update page always shows "No updates available" | `BIBLIOPHILARR_SERVICES_URL` not set | Set env var or accept local-only mode |
+| Public update check is disabled | `Bibliophilarr__Update__PublicReleaseDiscovery` is unset or false | Keep local-only mode, or explicitly enable the GitHub check and restart |
 | `SystemTimeCheck` stays OK even with wrong clock | Services not configured | Set `BIBLIOPHILARR_SERVICES_URL` to enable clock comparison |
 | Health check shows proxy error | `/v1/ping` unreachable through proxy | Verify proxy config and endpoint availability |
 | Notification endpoint 404 | Endpoint not yet implemented on server | Implement or return `[]` from `/v1/notification` |

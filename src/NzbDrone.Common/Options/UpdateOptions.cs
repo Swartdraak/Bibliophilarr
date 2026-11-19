@@ -6,4 +6,5 @@ public class UpdateOptions
     public bool? Automatically { get; set; }
     public string ScriptPath { get; set; }
     public string Branch { get; set; }
+    public bool PublicReleaseDiscovery { get; set; }
 }
