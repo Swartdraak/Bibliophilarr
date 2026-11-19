@@ -55,7 +55,7 @@ API = common.api_root()
 def main():
     api_key = common.fetch_api_key()
     if not api_key:
-        check('P0_api_key_available', False, 'initialize.json returned no API key')
+        check('P0_api_key_available', False, 'config.xml contains no API key')
         common.finish(failures)
     auth = common.auth_headers(api_key)
 

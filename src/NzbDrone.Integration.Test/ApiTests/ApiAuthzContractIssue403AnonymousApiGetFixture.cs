@@ -71,7 +71,7 @@ namespace NzbDrone.Integration.Test.ApiTests
             var request = new SimpleRestRequest("search");
             request.AddParameter("term", "probe");
 
-            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request);
+            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request, allowRedirects: false);
 
             var isChallenge = response.StatusCode == HttpStatusCode.Unauthorized
                 || response.StatusCode == HttpStatusCode.Forbidden;
@@ -100,7 +100,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         {
             var request = new SimpleRestRequest("config/host");
 
-            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request);
+            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request, allowRedirects: false);
 
             var isChallenge = response.StatusCode == HttpStatusCode.Unauthorized
                 || response.StatusCode == HttpStatusCode.Forbidden;
@@ -147,7 +147,7 @@ namespace NzbDrone.Integration.Test.ApiTests
             var request = new SimpleRestRequest("search");
             request.AddParameter("term", "probe");
 
-            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request);
+            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request, allowRedirects: false);
 
             var isChallenge = response.StatusCode == HttpStatusCode.Unauthorized
                 || response.StatusCode == HttpStatusCode.Forbidden;

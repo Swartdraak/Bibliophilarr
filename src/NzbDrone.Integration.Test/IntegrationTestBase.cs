@@ -130,9 +130,10 @@ namespace NzbDrone.Integration.Test
             return _rawClient.ExecuteRaw(request);
         }
 
-        protected SimpleRestResponse ExecuteAnonymousRequest(string baseUrl, SimpleRestRequest request)
+        protected SimpleRestResponse ExecuteAnonymousRequest(string baseUrl, SimpleRestRequest request, bool allowRedirects = true)
         {
-            using var anonymousClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            using var handler = new HttpClientHandler { AllowAutoRedirect = allowRedirects };
+            using var anonymousClient = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
             var rawClient = new ClientBase(anonymousClient, "", "");
             return rawClient.ExecuteRaw(request);
         }

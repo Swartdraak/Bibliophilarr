@@ -6,11 +6,11 @@ materialized runner plan binds. Secrets are read only through os.environ values
 that the runner's secret_env broker projects from the task-scoped credential file.
 Never prints secret values; emits named boolean assertions only.
 """
-import json
 import os
 import sys
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 
 sys.path.insert(0, '/opt/onyx-testkit')
 from onyx_http_check import request_json  # noqa: E402
@@ -45,9 +45,9 @@ def artifacts_dir():
     return os.environ.get('ONYX_CHECK_ARTIFACT_DIR', case_dir())
 
 
-def get(url, headers=None, timeout=30, max_bytes=2_000_000):
+def get(url, headers=None, timeout=30, max_bytes=2_000_000, opener=None):
     req = urllib.request.Request(url, headers=headers or {}, method='GET')
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(req, timeout=timeout) as r:
             raw = r.read(max_bytes + 1)
@@ -59,14 +59,14 @@ def get(url, headers=None, timeout=30, max_bytes=2_000_000):
         return 0, '', b''
 
 
-def get_form(url, data, timeout=60, headers=None):
+def get_form(url, data, timeout=60, headers=None, opener=None):
     """POST an application/x-www-form-urlencoded body. Returns (status, headers, raw)."""
     from urllib.parse import urlencode
     body = urlencode(data).encode()
     h = dict(headers or {})
     h['Content-Type'] = 'application/x-www-form-urlencoded'
     req = urllib.request.Request(url, data=body, headers=h, method='POST')
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(req, timeout=timeout) as r:
             return r.status, dict(r.headers), r.read(200_000)
@@ -91,13 +91,11 @@ def delete_json(url, headers=None, timeout=30, max_bytes=2_000_000):
 
 
 def fetch_api_key():
-    """Read the instance API key from /initialize.json (AllowAnonymous)."""
-    status, ctype, raw = get(app_url() + '/initialize.json', timeout=30)
-    if status != 200:
-        return None
+    """Read the API key from the case-owned app data directory."""
     try:
-        return json.loads(raw.decode('utf-8', 'replace')).get('apiKey')
-    except Exception:
+        root = ET.parse(os.path.join(data_dir(), 'config.xml')).getroot()
+        return root.findtext('ApiKey', '').strip()
+    except (OSError, ET.ParseError):
         return None
 
 

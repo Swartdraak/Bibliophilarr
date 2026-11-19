@@ -109,6 +109,64 @@ jobs:
           --filter
           'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture|FullyQualifiedName~WhereBuilder|FullyQualifiedName~HistoryRepositoryFixture'
 
+      - name: Set up Node for the browser package
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.22.2'
+
+      - name: Package the existing Linux runtime and production UI
+        working-directory: .
+        run: |
+          rm -f -- "$SIXLABORS_LICENSE_FILE"
+          corepack enable
+          ./build.sh --frontend --packages -r linux-x64 -f net10.0
+
+      - name: Set up Python for browser smoke
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned Playwright Chromium
+        working-directory: .
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/browser-smoke-chromium
+        run: |
+          python -m venv "$RUNNER_TEMP/browser-smoke-venv"
+          "$RUNNER_TEMP/browser-smoke-venv/bin/python" -m pip install -r tests/browser/requirements.txt
+          "$RUNNER_TEMP/browser-smoke-venv/bin/python" -m playwright install --with-deps --only-shell chromium
+
+      - name: Smoke-test the WebUI with loopback-only Chromium and app
+        working-directory: .
+        timeout-minutes: 5
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/browser-smoke-chromium
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/browser-smoke-evidence"
+          mkdir -m 700 "$evidence"
+          printf 'Candidate %s\n' "$GITHUB_SHA" > "$evidence/results.log"
+
+          # The private network namespace has only loopback. Run the app and
+          # Chromium as the runner user after bringing that interface up.
+          sudo --non-interactive --preserve-env=HOME,DOTNET_ROOT,DOTNET_ROOT_X64,PLAYWRIGHT_BROWSERS_PATH \
+            unshare --net --fork --kill-child bash -c '
+              set -euo pipefail
+              ip link set lo up
+              exec setpriv --reuid "$1" --regid "$2" --init-groups -- "${@:3}"
+            ' bash "$(id -u)" "$(id -g)" "$RUNNER_TEMP/browser-smoke-venv/bin/python" \
+              tests/browser/smoke.py \
+              --binary _artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr \
+              --evidence "$evidence" 2>&1 | tee -a "$evidence/results.log"
+
+      - name: Upload safe browser evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-webui-smoke
+          path: ${{ runner.temp }}/browser-smoke-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
   metadata-provider-fixtures:
     name: Metadata Provider Fixtures
     runs-on: ubuntu-latest
