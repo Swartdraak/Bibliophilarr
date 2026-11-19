@@ -1,14 +1,17 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using System.Threading;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -20,9 +23,15 @@ namespace NzbDrone.Core.MetadataSource
     /// </summary>
     public class MetadataProviderOrchestrator : IMetadataProviderOrchestrator, ISearchForNewBook, ISearchForNewAuthor
     {
+        private const string AuthorInfoOperation = "get-author-info";
+        private const string BookSearchOperation = "search-for-new-book";
+        private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(250);
+        private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(30);
+
         // Matches bare Open Library identifiers like OL123A (author), OL456W (work), OL789M (edition).
         private static readonly Regex BareOpenLibraryTokenRegex = new Regex("^OL\\d+[AWM]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        private readonly ConcurrentDictionary<string, long> _nextRetry = new ConcurrentDictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         private readonly IMetadataProviderRegistry _registry;
         private readonly IMetadataProviderTelemetryService _telemetry;
         private readonly Logger _logger;
@@ -38,7 +47,7 @@ namespace NzbDrone.Core.MetadataSource
         {
             return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
                 p => p.SearchForNewBook(title, author, getAllEditions),
-                "search-for-new-book",
+                BookSearchOperation,
                 p => p.SupportsBookSearch);
         }
 
@@ -107,7 +116,7 @@ namespace NzbDrone.Core.MetadataSource
         {
             var result = ExecuteFirst<IProvideAuthorInfo, Author>(
                 p => p.GetAuthorInfo(id, useCache),
-                "get-author-info",
+                AuthorInfoOperation,
                 p => p.SupportsAuthorSearch,
                 p => IsProviderCompatibleWithIdScope(p, id),
                 entityId: id,
@@ -159,10 +168,13 @@ namespace NzbDrone.Core.MetadataSource
                     // but no enabled provider is compatible with it. The compatible provider may be
                     // disabled, unregistered, or mismatched by name. Log a clear diagnostic so
                     // operators understand the observed condition (issue #214 / #215).
-                    _logger.Warn("No enabled metadata provider is compatible with the provider-scoped id for operation '{0}'. The lookup will fail with a not-found. Verify the expected provider is enabled and registered, or re-resolve the entity via an enabled provider.", operationName);
+                    _logger.Warn("No enabled metadata provider is compatible with the provider-scoped id for operation '{0}'. The lookup cannot confirm removal. Verify the expected provider is enabled and registered, or re-resolve the entity via an enabled provider.", operationName);
                 }
             }
 
+            var trackTransport = operationName is AuthorInfoOperation or BookSearchOperation;
+            var transportFailures = 0;
+            var receivedResponse = false;
             Exception lastError = null;
             var allFailuresWereTransport = true;
             var anyFailure = false;
@@ -174,7 +186,19 @@ namespace NzbDrone.Core.MetadataSource
 
                 try
                 {
-                    var result = operation((TContract)provider);
+                    T result;
+                    try
+                    {
+                        result = operation((TContract)provider);
+                    }
+                    catch (Exception ex) when (trackTransport && IsTransportError(ex) && TryReserveRetry(provider.ProviderName))
+                    {
+                        _logger.Debug("Retrying metadata provider '{0}' after a transport failure during {1}", provider.ProviderName, operationName);
+                        Thread.Sleep(RetryDelay);
+                        result = operation((TContract)provider);
+                    }
+
+                    receivedResponse |= result != null;
                     stopwatch.Stop();
 
                     var returnedNull = result == null;
@@ -212,15 +236,33 @@ namespace NzbDrone.Core.MetadataSource
 
                     if (!noData)
                     {
+                        if (trackTransport)
+                        {
+                            _telemetry.RecordTransportOutage(operationName, false);
+                        }
+
                         return result;
                     }
+                }
+                catch (AuthorNotFoundException ex) when (operationName == AuthorInfoOperation && ex.IsConfirmedMissing && IsConfirmedAuthorRemoval(provider, entityId, ex.ForeignAuthorId))
+                {
+                    stopwatch.Stop();
+                    _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, true, false);
+                    _telemetry.RecordTransportOutage(operationName, false);
+                    throw;
                 }
                 catch (Exception ex)
                 {
                     stopwatch.Stop();
                     _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, false, false);
                     _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operationName);
-                    if (throwOnTransportFailure && ex is MetadataProviderUnavailableException)
+                    var isTransport = IsTransportError(ex);
+                    if (isTransport)
+                    {
+                        transportFailures++;
+                    }
+
+                    if (throwOnTransportFailure && ex is MetadataProviderUnavailableException && (!trackTransport || !isTransport))
                     {
                         // A provider that explicitly reports incomplete metadata has not reported a removal.
                         throw;
@@ -229,7 +271,7 @@ namespace NzbDrone.Core.MetadataSource
                     lastError = ex;
 
                     anyFailure = true;
-                    if (!IsTransportError(ex))
+                    if (!isTransport)
                     {
                         // A non-transport failure (e.g. a genuine provider error) means we
                         // cannot conclude the whole operation was blocked by the network.
@@ -243,6 +285,18 @@ namespace NzbDrone.Core.MetadataSource
             if (lastError != null)
             {
                 _logger.Warn(lastError, "All providers failed for operation {0}", operationName);
+            }
+
+            if (trackTransport)
+            {
+                if (providers.Count > 0 && transportFailures == providers.Count)
+                {
+                    _telemetry.RecordTransportOutage(operationName, true);
+                }
+                else if (receivedResponse)
+                {
+                    _telemetry.RecordTransportOutage(operationName, false);
+                }
             }
 
             if (throwOnTransportFailure && anyFailure && allFailuresWereTransport)
@@ -262,13 +316,17 @@ namespace NzbDrone.Core.MetadataSource
         /// (host unreachable, DNS failure, timeout, connection reset, TLS handshake failure)
         /// as opposed to a definitive provider-level error such as a 404.
         /// </summary>
-        private static bool IsTransportError(Exception ex)
+        internal static bool IsTransportError(Exception ex)
         {
             for (var current = ex; current != null; current = current.InnerException)
             {
-                if (current is HttpRequestException ||
+                var failedWebConnection = current is WebException webException &&
+                    webException.Status is WebExceptionStatus.ConnectFailure or WebExceptionStatus.ConnectionClosed or
+                        WebExceptionStatus.NameResolutionFailure or WebExceptionStatus.ProxyNameResolutionFailure or
+                        WebExceptionStatus.ReceiveFailure or WebExceptionStatus.Timeout;
+                if ((current is HttpRequestException httpException && httpException.StatusCode == null) ||
                     current is System.Net.Sockets.SocketException ||
-                    current is WebException ||
+                    failedWebConnection ||
                     current is TimeoutException ||
                     current is System.Security.Authentication.AuthenticationException)
                 {
@@ -277,6 +335,23 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             return false;
+        }
+
+        private bool TryReserveRetry(string providerName)
+        {
+            // One extra attempt per provider across concurrent and bulk operations within this interval.
+            var now = Environment.TickCount64;
+            var after = now + (long)RetryInterval.TotalMilliseconds;
+            return _nextRetry.TryAdd(providerName, after) ||
+                   (_nextRetry.TryGetValue(providerName, out var nextRetry) && nextRetry <= now &&
+                    _nextRetry.TryUpdate(providerName, after, nextRetry));
+        }
+
+        private static bool IsConfirmedAuthorRemoval(IMetadataProvider provider, string requestedId, string missingId)
+        {
+            var requested = OpenLibraryIdNormalizer.NormalizeAuthorId(requestedId);
+            return string.Equals(provider.ProviderName, "OpenLibrary", StringComparison.OrdinalIgnoreCase) &&
+                   requested != null && requested == OpenLibraryIdNormalizer.NormalizeAuthorId(missingId);
         }
 
         private static bool IsProviderCompatibleWithIdScope(IMetadataProvider provider, string providerScopedId)

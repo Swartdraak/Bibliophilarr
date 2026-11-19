@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Books.Events;
@@ -91,12 +92,14 @@ namespace NzbDrone.Core.Books
             {
                 return _orchestrator.GetAuthorInfo(foreignId);
             }
+            catch (AuthorNotFoundException ex) when (ex.IsConfirmedMissing)
+            {
+                _logger.Warn("The metadata provider confirmed that author id '{0}' no longer exists.", LogSanitizer.Sanitize(foreignId));
+            }
             catch (AuthorNotFoundException)
             {
-                _logger.Warn("Metadata provider could not find author with id '{0}'. " +
-                             "The author will be kept with existing metadata. " +
-                             "This may occur when a provider removes an author entry.",
-                             foreignId);
+                _logger.Warn("Metadata lookup was inconclusive for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
+                throw;
             }
             catch (MetadataProviderUnavailableException ex)
             {
@@ -108,7 +111,7 @@ namespace NzbDrone.Core.Books
                     "Metadata provider unreachable for author id '{0}'. " +
                     "The author will be kept with existing metadata. " +
                     "This is a transient network condition, not a removal.",
-                    foreignId);
+                    LogSanitizer.Sanitize(foreignId));
                 throw;
             }
 
@@ -130,9 +133,9 @@ namespace NzbDrone.Core.Books
 
         protected override bool ShouldDelete(Author local)
         {
-            // A genuine not-found (foreign id no metadata provider can resolve) is only
-            // a safe deletion signal for provider-sourced authors: providers own those
-            // identifiers, so a genuine not-found is the documented provider-removed
+            // An authoritative not-found is only a safe deletion signal for
+            // provider-sourced authors: providers own those identifiers, so a
+            // confirmed absence is the documented provider-removed
             // condition (#204/#209). Locally created authors (synthetic/unmapped
             // foreign ids, e.g. a locally created author added via POST /api/v1/author)
             // were never provider-resolvable, so a not-found is expected, not a removal

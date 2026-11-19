@@ -304,6 +304,30 @@ namespace NzbDrone.Core.Test.MusicTests
             ExceptionVerification.ExpectedWarns(1);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_existing_provider_author_when_lookup_is_inconclusive(bool transportFailure)
+        {
+            _author.ForeignAuthorId = "hardcover:author:4821";
+            _author.AuthorMetadataId = 1;
+            Exception failure = transportFailure
+                ? new MetadataProviderUnavailableException("get-author-info", _author.ForeignAuthorId, new System.Net.Http.HttpRequestException("provider unreachable"))
+                : new AuthorNotFoundException(_author.ForeignAuthorId);
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(failure);
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IAuthorService>()
+                .Verify(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAuthorService>().Verify(x => x.UpdateAuthor(It.IsAny<Author>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
         [Test]
         public void should_still_delete_provider_sourced_author_when_remote_removed_and_no_files()
         {
@@ -327,6 +351,10 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IAuthorService>()
                 .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(new AuthorNotFoundException(_author.ForeignAuthorId, isConfirmedMissing: true));
 
             Subject.Execute(new RefreshAuthorCommand(_author.Id));
 
@@ -412,17 +440,10 @@ namespace NzbDrone.Core.Test.MusicTests
 
         [TestCase("openlibrary:author:OL87654A")]
         [TestCase("OL87654A")]
-        [TestCase("hardcover:author:12345")]
         public void should_still_delete_provider_sourced_author_by_provider_id_scope_when_remote_removed_and_no_files(string foreignId)
         {
             // Issue #325 no-regression guard: the deletion gate now keys on the
-            // provider id scope (openlibrary:author:... / bare OLxxxxA /
-            // hardcover:author:<positive-integer>), so provider-sourced authors keep
-            // the documented provider-removed deletion behavior (#204/#209) even
-            // though every added author now carries a positive AuthorMetadataId.
-            // Issue #404 narrows the hardcover: scope to the numeric author form only
-            // (the form the provider can actually resolve); "hardcover:author:12345"
-            // is that resolvable numeric form, so the deletion contract is preserved.
+            // Exact Open Library 404s are authoritative for both persisted ID spellings.
             _author.AuthorMetadataId = 1;
             _author.ForeignAuthorId = foreignId;
 
@@ -436,6 +457,10 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IAuthorService>()
                 .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(new AuthorNotFoundException(_author.ForeignAuthorId, isConfirmedMissing: true));
 
             Subject.Execute(new RefreshAuthorCommand(_author.Id));
 
@@ -497,16 +522,9 @@ namespace NzbDrone.Core.Test.MusicTests
 
         [TestCase("hardcover:author:4821")]
         [TestCase("hardcover:author:1")]
-        public void should_still_delete_provider_sourced_author_with_numeric_hardcover_author_id_when_remote_removed_and_no_files(string foreignId)
+        public void should_keep_numeric_hardcover_authors_when_lookup_returns_no_match(string foreignId)
         {
-            // Issue #404 negative (regression guard): a provider-sourced author with the
-            // resolvable numeric Hardcover-author id form ("hardcover:author:<n>")
-            // retains the documented #204/#209 provider-removed deletion behavior. When
-            // the provider genuinely no longer resolves that numeric id and the author
-            // has no local files, the post-create / periodic refresh must still delete
-            // the row. This pins the boundary the #404 fix draws: numeric hardcover
-            // author ids remain provider-owned; only non-numeric hardcover:-scoped ids
-            // are reclassified as locally-created (and protected).
+            // Hardcover can return empty results for a valid ID without confirming a removal.
             _author.AuthorMetadataId = 1;
             _author.ForeignAuthorId = foreignId;
 
@@ -521,12 +539,17 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
 
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(new AuthorNotFoundException(_author.ForeignAuthorId));
+
             Subject.Execute(new RefreshAuthorCommand(_author.Id));
 
             Mocker.GetMock<IAuthorService>()
-                .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Once());
+                .Verify(v => v.DeleteAuthor(_author.Id, false, false), Times.Never());
 
-            ExceptionVerification.ExpectedWarns(2);
+            ExceptionVerification.ExpectedWarns(1);
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
@@ -544,6 +567,10 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Mocker.GetMock<IAuthorService>()
                 .Setup(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()));
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true))
+                .Throws(new AuthorNotFoundException(_author.ForeignAuthorId, isConfirmedMissing: true));
 
             Subject.Execute(new RefreshAuthorCommand(_author.Id));
 

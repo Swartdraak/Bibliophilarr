@@ -385,6 +385,25 @@ namespace NzbDrone.Core.Test.MetadataSource
             author.Series.Value.Single().LinkItems.Value.Should().HaveCount(contributionCount - 1);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void get_author_info_should_treat_empty_graphql_results_as_inconclusive(bool authorExists)
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => CreateJsonResponse(
+                    request,
+                    authorExists ? BuildAuthorPage(Array.Empty<int>()) : JObject.Parse("{\"data\":{\"authors\":[]}}")));
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader(), "{\"data\":{\"search\":{\"results\":{\"found\":0,\"hits\":[]}}}}")));
+
+            var lookup = () => Subject.GetAuthorInfo("hardcover:author:123");
+            lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().BeFalse();
+        }
+
         [TestCase("hardcover:author:123", "transport")]
         [TestCase("hardcover:author:Complete%20Author", "partial")]
         [TestCase("hardcover:author:123", "missing")]
@@ -436,7 +455,7 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             act.Should().Throw<MetadataProviderUnavailableException>()
                 .Which.EntityId.Should().Be("hardcover:author:123");
-            ExceptionVerification.ExpectedWarns(1);
+            ExceptionVerification.ExpectedWarns(failure == "transport" ? 2 : 1);
             Mocker.GetMock<IHttpClient>()
                 .Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never);
         }

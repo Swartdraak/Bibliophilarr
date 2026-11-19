@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using DryIoc;
 using DryIoc.Microsoft.DependencyInjection;
 using FluentAssertions;
@@ -17,9 +18,13 @@ using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Extensions;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.HealthCheck;
+using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.Indexers;
+using NzbDrone.Core.Localization;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Host;
 using NzbDrone.SignalR;
 using NzbDrone.Test.Common;
@@ -31,6 +36,7 @@ namespace NzbDrone.App.Test
     public class ContainerFixture : TestBase
     {
         private IServiceProvider _container;
+        private IContainer _registrations;
 
         [SetUp]
         public void SetUp()
@@ -53,7 +59,35 @@ namespace NzbDrone.App.Test
             container.RegisterInstance<IOptions<UpdateOptions>>(new Mock<IOptions<UpdateOptions>>().Object);
             container.RegisterInstance<IOptions<LogOptions>>(new Mock<IOptions<LogOptions>>().Object);
 
+            _registrations = container;
             _container = container.GetServiceProvider();
+        }
+
+        [Test]
+        public void should_share_metadata_outage_state_through_host_registration()
+        {
+            var provider = new Mock<IMetadataProvider>();
+            provider.SetupGet(x => x.ProviderName).Returns("OpenLibrary");
+            provider.SetupGet(x => x.SupportsBookSearch).Returns(true);
+            provider.As<ISearchForNewBook>().Setup(x => x.SearchForNewBook("fixture", null, true))
+                .Throws(new HttpRequestException("Synthetic transport failure"));
+
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(x => x.GetProviders()).Returns(new[] { provider.Object });
+            _registrations.RegisterInstance(registry.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+            var events = new Mock<IEventAggregator>();
+            _registrations.RegisterInstance(events.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+            _registrations.RegisterInstance(Mock.Of<ILocalizationService>(), ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+
+            var orchestrator = _container.GetRequiredService<IMetadataProviderOrchestrator>();
+            var watcher = _container.GetServices<IProvideHealthCheck>().OfType<MetadataProviderConnectivityCheck>().Single();
+
+            watcher.Check().Type.Should().Be(HealthCheckResult.Ok);
+            orchestrator.SearchForNewBook("fixture", null);
+            watcher.Check().Type.Should().Be(HealthCheckResult.Warning);
+            events.Verify(x => x.PublishEvent(It.IsAny<MetadataProviderConnectivityChangedEvent>()), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]

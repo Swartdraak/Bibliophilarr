@@ -608,6 +608,7 @@
   "MetadataProfileIdHelpText": "Metadata Profile list items should be added with",
   "MetadataProfiles": "Metadata Profiles",
   "MetadataProviderSource": "Metadata Provider Source",
+  "MetadataProviderUnreachableHealthCheckMessage": "The metadata providers available for a recent lookup were unreachable. Check DNS, routing, and proxy or firewall settings, then try again.",
   "MetadataQueryNormalization": "Metadata Query Normalization",
   "MetadataSettings": "Metadata Settings",
   "MetadataSettingsSummary": "Create metadata files when books are imported or author are refreshed",

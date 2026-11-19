@@ -4,12 +4,17 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Sockets;
 using FluentAssertions;
+using Moq;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.HealthCheck;
+using NzbDrone.Core.HealthCheck.Checks;
+using NzbDrone.Core.Localization;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 
 namespace NzbDrone.Core.Test.MetadataSource
@@ -433,10 +438,8 @@ namespace NzbDrone.Core.Test.MetadataSource
         [Test]
         public void should_throw_metadata_provider_unavailable_when_all_providers_fail_with_transport_error()
         {
-            var registry = new TestRegistry(new IMetadataProvider[]
-            {
-                new TransportFailingAuthorInfoProvider()
-            });
+            var provider = new TransportFailingAuthorInfoProvider();
+            var registry = new TestRegistry(new IMetadataProvider[] { provider });
 
             var telemetry = new MetadataProviderTelemetryService();
             var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
@@ -445,6 +448,72 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             act.Should().Throw<MetadataProviderUnavailableException>()
                 .WithMessage("*get-author-info*");
+            provider.Attempts.Should().Be(2);
+        }
+
+        [Test]
+        public void should_retry_only_once_across_consecutive_operations_and_clear_health_after_recovery()
+        {
+            var provider = new Mock<IMetadataProvider>();
+            provider.SetupGet(x => x.ProviderName).Returns("Hardcover");
+            provider.SetupGet(x => x.SupportsAuthorSearch).Returns(true);
+            provider.SetupGet(x => x.SupportsBookSearch).Returns(true);
+            var search = provider.As<ISearchForNewBook>();
+            var author = provider.As<IProvideAuthorInfo>();
+            var outage = new HttpRequestException("No route to host");
+            search.SetupSequence(p => p.SearchForNewBook(It.IsAny<string>(), null, true))
+                .Throws(outage)
+                .Throws(outage)
+                .Returns(new List<Book>());
+            author.Setup(p => p.GetAuthorInfo("hardcover:author:4821", true)).Throws(outage);
+
+            var events = new Mock<IEventAggregator>();
+            var telemetry = new MetadataProviderTelemetryService(events.Object);
+            var orchestrator = new MetadataProviderOrchestrator(new TestRegistry(new[] { provider.Object }), telemetry, LogManager.GetCurrentClassLogger());
+            var health = new MetadataProviderConnectivityCheck(telemetry, Mock.Of<ILocalizationService>());
+
+            health.Check().Type.Should().Be(HealthCheckResult.Ok);
+            orchestrator.SearchForNewBook("outage", null).Should().BeNull();
+            search.Verify(p => p.SearchForNewBook("outage", null, true), Times.Exactly(2));
+            health.Check().Type.Should().Be(HealthCheckResult.Warning);
+
+            var lookup = () => orchestrator.GetAuthorInfo("hardcover:author:4821", true);
+            lookup.Should().Throw<MetadataProviderUnavailableException>();
+            author.Verify(p => p.GetAuthorInfo("hardcover:author:4821", true), Times.Once());
+
+            author.Setup(p => p.GetAuthorInfo("hardcover:author:4821", true)).Returns(new Author());
+            orchestrator.GetAuthorInfo("hardcover:author:4821", true).Should().NotBeNull();
+            orchestrator.SearchForNewBook("recovery", null).Should().BeNull();
+            health.Check().Type.Should().Be(HealthCheckResult.Ok);
+            events.Verify(e => e.PublishEvent(It.IsAny<MetadataProviderConnectivityChangedEvent>()), Times.Exactly(4));
+        }
+
+        [TestCase("OpenLibrary", "OL4821A", true)]
+        [TestCase("OpenLibrary", "OL9000A", false)]
+        [TestCase("Other", "OL4821A", false)]
+        public void should_require_authority_before_marking_author_missing(string providerName, string missingId, bool confirmed)
+        {
+            var provider = new Mock<IMetadataProvider>();
+            provider.SetupGet(x => x.ProviderName).Returns(providerName);
+            provider.SetupGet(x => x.SupportsAuthorSearch).Returns(true);
+            provider.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo("openlibrary:author:OL4821A", true))
+                .Throws(new AuthorNotFoundException(missingId, isConfirmedMissing: true));
+            var orchestrator = new MetadataProviderOrchestrator(
+                new TestRegistry(new[] { provider.Object }),
+                new MetadataProviderTelemetryService(),
+                LogManager.GetCurrentClassLogger());
+
+            var lookup = () => orchestrator.GetAuthorInfo("openlibrary:author:OL4821A", true);
+            lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().Be(confirmed);
+        }
+
+        [TestCase(System.Net.WebExceptionStatus.Timeout, true)]
+        [TestCase(System.Net.WebExceptionStatus.ReceiveFailure, true)]
+        [TestCase(System.Net.WebExceptionStatus.ProtocolError, false)]
+        public void should_recognize_dispatcher_timeout_and_body_read_failures(System.Net.WebExceptionStatus status, bool transport)
+        {
+            var failure = new System.Net.WebException("Synthetic dispatcher failure", new System.OperationCanceledException(), status, null);
+            MetadataProviderOrchestrator.IsTransportError(failure).Should().Be(transport);
         }
 
         [Test]
@@ -799,6 +868,7 @@ namespace NzbDrone.Core.Test.MetadataSource
 
         private class TransportFailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo
         {
+            public int Attempts { get; private set; }
             public string ProviderName => "Hardcover";
             public int Priority => 1;
             public bool IsEnabled => true;
@@ -810,6 +880,7 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             public Author GetAuthorInfo(string bibliophilarrId, bool useCache = true)
             {
+                Attempts++;
                 throw new HttpRequestException("Simulated network failure");
             }
 
