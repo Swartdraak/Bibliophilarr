@@ -106,16 +106,16 @@ describe('issue #376: exact new resolution pin present in package.json', () => {
 
 // --- 2. postcss-selector-parser 7.x lane: advisory floor in the lockfile ---
 describe('issue #376: postcss-selector-parser 7.x lane pinned at the advisory floor in yarn.lock', () => {
-  test('a lockfile entry keyed on the 7.x requirements (^7.0.0, ^7.1.0) exists', () => {
-    const keys = lockKeysForPackage('postcss-selector-parser');
-    let found = false;
-    keys.forEach((k) => {
-      const items = k.split(',').map((s) => s.trim());
-      if (items.includes('postcss-selector-parser@^7.0.0') && items.includes('postcss-selector-parser@^7.1.0')) {
-        found = true;
-      }
-    });
-    expect(found).toBe(true);
+  test.each(['stylelint', '@stylistic/stylelint-plugin'])('%s selector-parser requirement is in the lockfile', (consumer) => {
+    const manifestPath = path.join(REPO_ROOT, 'node_modules', consumer, 'package.json');
+    const consumerManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const dependency = 'postcss-selector-parser';
+    const range = consumerManifest.dependencies[dependency];
+    const descriptors = Array.from(lockKeysForPackage(dependency))
+      .flatMap((key) => key.split(',').map((item) => item.trim().replace(/^"|"$/g, '')));
+
+    expect(range).toBeDefined();
+    expect(descriptors).toContain(`${dependency}@${range}`);
   });
   test('all locked selector-parser versions satisfy the current 7.x consumers', () => {
     const locked = lockVersionsForPackage('postcss-selector-parser');
