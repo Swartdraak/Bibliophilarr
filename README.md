@@ -90,6 +90,17 @@ Download pre-built binaries for Linux (x64), macOS (ARM64), or Windows (x64)
 from the [Releases](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 page. Extract the archive and run the `Bibliophilarr` binary.
 
+On Windows x64, the setup program installs into `%ProgramFiles%\Bibliophilarr`.
+Open Bibliophilarr from the Start menu when you want it to run. Application data
+uses `%ProgramData%\Bibliophilarr` by default. Setup leaves this directory in place
+during reinstall and uninstall. Use the portable ZIP if you need another binary
+location.
+
+Setup stops before changing files if it finds an older Bibliophilarr Windows
+service or binaries under the application data directory. Back up the application
+data and have a Windows administrator retire the old service and binaries before
+running setup again.
+
 ### npm launcher
 
 ```bash

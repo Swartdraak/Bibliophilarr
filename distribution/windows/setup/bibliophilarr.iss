@@ -21,7 +21,15 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#ForumsURL}
 AppUpdatesURL={#AppURL}
-DefaultDirName={commonappdata}\Bibliophilarr
+DefaultDirName={autopf}\{#AppName}
+PrivilegesRequired=admin
+UsePreviousAppDir=no
+UsePreviousTasks=no
+RestartApplications=no
+#if Runtime == "win-x64"
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 DisableDirPage=yes
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -43,13 +51,7 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopIcon"; Description: "{cm:CreateDesktopIcon}"
-Name: "windowsService"; Description: "Install Windows Service (Starts when the computer starts as the LocalService user, you will need to change the user to access network shares)"; GroupDescription: "Start automatically"; Flags: exclusive
-Name: "startupShortcut"; Description: "Create shortcut in Startup folder (Starts when you log into Windows)"; GroupDescription: "Start automatically"; Flags: exclusive unchecked
-Name: "none"; Description: "Do not start automatically"; GroupDescription: "Start automatically"; Flags: exclusive unchecked
-
-[Dirs]
-Name: "{app}"; Permissions: users-modify
+Name: "desktopIcon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
 
 [Files]
 Source: "..\..\..\_artifacts\{#Runtime}\{#Framework}\Bibliophilarr\{#AppExeName}"; DestDir: "{app}\bin"; Flags: ignoreversion
@@ -57,28 +59,21 @@ Source: "..\..\..\_artifacts\{#Runtime}\{#Framework}\Bibliophilarr\*"; Excludes:
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; Parameters: "/icon"
-Name: "{commondesktop}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; Parameters: "/icon"; Tasks: desktopIcon
-Name: "{userstartup}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; WorkingDir: "{app}\bin"; Tasks: startupShortcut
+Name: "{group}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"
+Name: "{commondesktop}\{#AppName}"; Filename: "{app}\bin\{#AppExeName}"; Tasks: desktopIcon
 
 [InstallDelete]
 Name: "{app}\bin"; Type: filesandordirs
 
-[Run]
-Filename: "{app}\bin\{#AppExeName}"; StatusMsg: "Removing previous Windows Service"; Parameters: "/u /exitimmediately"; Flags: runhidden waituntilterminated;
-Filename: "{app}\bin\{#AppExeName}"; Description: "Enable Access from Other Devices"; StatusMsg: "Enabling Remote access"; Parameters: "/registerurl /exitimmediately"; Flags: postinstall runascurrentuser runhidden waituntilterminated; Tasks: startupShortcut none;
-Filename: "{app}\bin\{#AppExeName}"; StatusMsg: "Installing Windows Service"; Parameters: "/i /exitimmediately"; Flags: runhidden waituntilterminated; Tasks: windowsService
-Filename: "{app}\bin\{#AppExeName}"; Description: "Open Bibliophilarr Web UI"; Flags: postinstall skipifsilent nowait; Tasks: windowsService;
-Filename: "{app}\bin\{#AppExeName}"; Description: "Start Bibliophilarr"; Flags: postinstall skipifsilent nowait; Tasks: startupShortcut none;
-
-[UninstallRun]
-Filename: "{app}\bin\{#AppExeName}"; Parameters: "/u"; Flags: waituntilterminated skipifdoesntexist
-
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var
-  ResultCode: Integer;
 begin
-  Exec('net', 'stop bibliophilarr', '', 0, ewWaitUntilTerminated, ResultCode)
-  Exec('sc', 'delete bibliophilarr', '', 0, ewWaitUntilTerminated, ResultCode)
+  Result := '';
+  if CompareText(RemoveBackslashUnlessRoot(ExpandConstant('{app}')),
+                 ExpandConstant('{autopf}\{#AppName}')) <> 0 then
+    Result := 'Install Bibliophilarr in Program Files. Use the portable archive for a different location.'
+  else if RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\Bibliophilarr') then
+    Result := 'An existing Bibliophilarr Windows service is registered. Back up your application data and retire the existing service before installing.'
+  else if DirExists(ExpandConstant('{commonappdata}\{#AppName}\bin')) then
+    Result := 'A previous Bibliophilarr binary directory exists under ProgramData. Back up your application data and retire the old binaries before installing.';
 end;

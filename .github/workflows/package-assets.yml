@@ -119,6 +119,17 @@ jobs:
           cp "distribution/windows/setup/output/Bibliophilarr.$BIBLIOPHILARRVERSION.win-x64.exe" \
             "release/bibliophilarr-$RELEASE_VERSION-win-x64-setup.exe"
 
+      - name: Smoke-test Windows installer
+        timeout-minutes: 8
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          ./distribution/windows/setup/test-installer.ps1 `
+            -InstallerPath "release/bibliophilarr-${env:RELEASE_VERSION}-win-x64-setup.exe" `
+            -HostedRunner
+
       - name: Upload package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
