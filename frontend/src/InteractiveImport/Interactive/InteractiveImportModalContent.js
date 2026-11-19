@@ -28,6 +28,7 @@ import translate from 'Utilities/String/translate';
 import getSelectedIds from 'Utilities/Table/getSelectedIds';
 import selectAll from 'Utilities/Table/selectAll';
 import toggleSelected from 'Utilities/Table/toggleSelected';
+import hasConflictingEditions from './hasConflictingEditions';
 import InteractiveImportRow from './InteractiveImportRow';
 import styles from './InteractiveImportModalContent.css';
 
@@ -142,25 +143,8 @@ class InteractiveImportModalContent extends Component {
       selectModalOpen: null,
       booksImported: [],
       importQualities: [],
-      isConfirmImportModalOpen: false,
-      inconsistentBookReleases: false
+      isConfirmImportModalOpen: false
     };
-  }
-
-  componentDidUpdate(prevProps) {
-    const selectedIds = this.getSelectedIds();
-    const selectedItems = _.filter(this.props.items, (x) => _.includes(selectedIds, x.id));
-
-    const inconsistent = _(selectedItems)
-      .map((x) => ({ bookId: x.book ? x.book.id : 0, foreignEditionId: x.foreignEditionId }))
-      .groupBy('bookId')
-      .mapValues((book) => _(book).groupBy((x) => x.foreignEditionId).values().value().length)
-      .values()
-      .some((x) => x !== undefined && x > 1);
-
-    if (inconsistent !== this.state.inconsistentBookReleases) {
-      this.setState({ inconsistentBookReleases: inconsistent });
-    }
   }
 
   //
@@ -317,8 +301,7 @@ class InteractiveImportModalContent extends Component {
       selectModalOpen,
       booksImported,
       importQualities,
-      isConfirmImportModalOpen,
-      inconsistentBookReleases
+      isConfirmImportModalOpen
     } = this.state;
 
     const allColumns = _.cloneDeep(COLUMNS);
@@ -337,6 +320,8 @@ class InteractiveImportModalContent extends Component {
     });
 
     const selectedIds = this.getSelectedIds();
+    const selectedIdSet = new Set(selectedIds);
+    const inconsistentBookReleases = hasConflictingEditions(items.filter(({ id }) => selectedIdSet.has(id)));
     const selectedItem = selectedIds.length ? _.find(items, { id: selectedIds[0] }) : null;
     const importIdsByBook = _.chain(items).filter((x) => x.book).groupBy((x) => x.book.id).mapValues((x) => x.map((y) => y.id)).value();
     const editions = _.chain(items).filter((x) => x.book).keyBy((x) => x.book.id).mapValues((x) => ({ matchedEditionId: x.foreignEditionId, book: x.book })).values().value();

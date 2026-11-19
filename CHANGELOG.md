@@ -48,6 +48,8 @@ process.
 - Reject known ebook and audiobook format mismatches while identifying and
   importing files. Keep both editions when a batch contains both formats of
   the same work (#477).
+- Interactive Import accepts an ebook and audiobook of the same work in one
+  selection. It still blocks competing editions within a format (#478).
 - Save a new book's provider-verified author without a second synchronous
   author lookup. Expose stored work identifiers and source labels in the API
   for catalogue health checks.
