@@ -9,8 +9,11 @@ process.
 
 ### Fixed
 
-- The WebUI reloads the current page after the replacement app is ready when
-  Restart is selected from the app menu (#451).
+- General Settings saves unrelated changes for an already configured account
+  without requiring the existing password. Credential changes still require
+  password confirmation (#453).
+- The WebUI waits for the replacement app before reloading after a menu restart
+  or a backup restore (#451).
 - Book detail and list badges now reflect the effective monitoring state when a
   book or its author is unmonitored. Saved format preferences are preserved (#449).
 - Preserve the existing destination file and its tracking record when a manual import from a different source path would replace it and file replacement is disabled. With dual-format tracking, an ebook and an audiobook can still be added independently. (#426)

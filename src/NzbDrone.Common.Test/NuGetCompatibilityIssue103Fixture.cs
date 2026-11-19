@@ -43,15 +43,8 @@ namespace NzbDrone.Common.Test
     [TestFixture]
     public class NuGetCompatibilityIssue103Fixture
     {
-        // Common.Test build output (per Directory.Build.props OutputPath for Test projects) is
-        // <repo-root>/_tests/net10.0/. From that output dir the repo root is two levels up
-        // (verified against the actual _tests/net10.0 layout - same convention as
-        // NuGetAuditModeIssue103Fixture).
-        private static readonly string RepoRoot =
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", ".."));
-
         private static string DirectoryPackagesPropsPath =>
-            Path.Combine(RepoRoot, "src", "Directory.Packages.props");
+            Path.Combine(RepositorySource.Root, "src", "Directory.Packages.props");
 
         // (package id, exact pin version) - the post-migration residual-risk pins that must
         // remain explicitly tracked in the central package file.
@@ -166,7 +159,7 @@ namespace NzbDrone.Common.Test
             // The whole pin-drift analysis only holds if Central Package Management is on.
             // (NuGetAuditModeIssue103Fixture covers NuGetAuditMode + TreatWarningsAsErrors;
             // this closes the third gate property in the same file.)
-            var path = Path.Combine(RepoRoot, "src", "Directory.Build.props");
+            var path = Path.Combine(RepositorySource.Root, "src", "Directory.Build.props");
             File.Exists(path).Should().BeTrue($"src/Directory.Build.props must exist at {path}");
             var found = false;
             foreach (var raw in File.ReadAllLines(path))

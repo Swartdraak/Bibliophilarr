@@ -41,14 +41,8 @@ namespace NzbDrone.Common.Test
     [TestFixture]
     public class ConsoleMonoPublishIssue286Fixture
     {
-        // The Common.Test build output (per Directory.Build.props OutputPath for Test
-        // projects) is <repo-root>/_tests/net10.0/. From that output dir the repo root is
-        // two levels up. AppContext.BaseDirectory is the test assembly's own directory.
-        private static readonly string RepoRoot =
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", ".."));
-
         private static string ConsoleCsprojPath =>
-            Path.Combine(RepoRoot, "src", "NzbDrone.Console", "Bibliophilarr.Console.csproj");
+            Path.Combine(RepositorySource.Root, "src", "NzbDrone.Console", "Bibliophilarr.Console.csproj");
 
         private static string ReadCsproj()
         {
@@ -138,7 +132,7 @@ namespace NzbDrone.Common.Test
             // loads it by file path from the app base directory. The referenced assembly
             // must therefore be present in the published output for every RID it can
             // request (AC4: no behavior change beyond build composition).
-            var path = Path.Combine(RepoRoot, "src", "NzbDrone.Common", "Composition", "AssemblyLoader.cs");
+            var path = Path.Combine(RepositorySource.Root, "src", "NzbDrone.Common", "Composition", "AssemblyLoader.cs");
             File.Exists(path).Should().BeTrue($"src/NzbDrone.Common/Composition/AssemblyLoader.cs must exist at {path}");
             var text = File.ReadAllText(path);
 
