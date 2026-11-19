@@ -131,6 +131,31 @@ namespace NzbDrone.Api.Test.Books
             resource.FormatStatuses[0].Monitored.Should().BeTrue();
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_not_infer_audiobook_availability_or_monitoring_from_a_print_edition(bool includeAudio)
+        {
+            var edits = new List<Edition> { new Edition { Format = "Print", Monitored = true } };
+            if (includeAudio)
+            {
+                edits.Add(new Edition { Format = "Audio CD", Monitored = false });
+            }
+
+            var book = new Book { Id = 1, Title = "Test Book", Monitored = true, Editions = edits };
+
+            var status = book.ToResource().FormatStatuses;
+
+            if (includeAudio)
+            {
+                status.Should().ContainSingle().Which.FormatType.Should().Be(FormatType.Audiobook);
+                status[0].Monitored.Should().BeFalse();
+            }
+            else
+            {
+                status.Should().BeEmpty();
+            }
+        }
+
         [Test]
         public void should_include_both_format_statuses_for_dual_format_book()
         {

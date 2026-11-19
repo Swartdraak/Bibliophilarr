@@ -31,6 +31,8 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
 
         public string ProviderName => "Inventaire";
 
+        public bool IsFallbackEnabled => _configService.EnableInventaireFallback;
+
         public ProviderRateLimitInfo RateLimitInfo => new ProviderRateLimitInfo
         {
             MaxRequests = 40,
@@ -40,7 +42,7 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
 
         public List<Book> Search(string title, string author)
         {
-            if (!_configService.EnableInventaireFallback)
+            if (!IsFallbackEnabled)
             {
                 return new List<Book>();
             }

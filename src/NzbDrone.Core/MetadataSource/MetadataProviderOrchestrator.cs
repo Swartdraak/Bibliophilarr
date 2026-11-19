@@ -220,6 +220,12 @@ namespace NzbDrone.Core.MetadataSource
                     stopwatch.Stop();
                     _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, false, false);
                     _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operationName);
+                    if (throwOnTransportFailure && ex is MetadataProviderUnavailableException)
+                    {
+                        // A provider that explicitly reports incomplete metadata has not reported a removal.
+                        throw;
+                    }
+
                     lastError = ex;
 
                     anyFailure = true;
