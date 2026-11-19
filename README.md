@@ -1,7 +1,7 @@
 # Bibliophilarr
 
 [![Main SemVer](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=main%20semver&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
-[![Staging SemVer](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?include_prereleases&logo=github&label=staging%20semver&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases)
+[![Staging validation](https://img.shields.io/badge/staging-validation%20lane-7c5a19)](https://github.com/Swartdraak/Bibliophilarr/tree/staging)
 [![Develop Tracking](https://img.shields.io/badge/develop-tracks%20next%20promotion-6f42c1)](https://github.com/Swartdraak/Bibliophilarr/tree/develop)
 [![GitHub Release](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?logo=github&label=github%20release)](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 [![GitHub Downloads](https://img.shields.io/github/downloads/Swartdraak/Bibliophilarr/total?logo=github&label=github%20downloads)](https://github.com/Swartdraak/Bibliophilarr/releases)
@@ -10,9 +10,8 @@
 [![npm Downloads](https://img.shields.io/npm/dm/bibliophilarr?logo=npm&label=npm%20downloads%2Fmonth)](https://www.npmjs.com/package/bibliophilarr)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.md)
 
-Bibliophilarr is a community-maintained fork of Readarr focused on replacing
-fragile or proprietary metadata dependencies with sustainable FOSS providers
-while preserving reliable ebook and audiobook library automation.
+Bibliophilarr is a community-maintained application for ebook and audiobook
+library automation, with support for open metadata providers.
 
 ## Current status
 
@@ -37,10 +36,10 @@ Use the core docs as the authoritative set:
 | Branch | SemVer signal | Backend CI | Frontend CI | Docs CI | Workflow lint |
 |---|---|---|---|---|---|
 | `main` | [![main](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?label=main&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases/latest) | [![backend-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Amain) | [![frontend-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Amain) | [![docs-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Amain) | [![lint-main](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=main)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Amain) |
-| `staging` | [![staging](https://img.shields.io/github/v/release/Swartdraak/Bibliophilarr?include_prereleases&label=staging&sort=semver)](https://github.com/Swartdraak/Bibliophilarr/releases) | [![backend-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Astaging) | [![frontend-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Astaging) | [![docs-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Astaging) | [![lint-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Astaging) |
+| `staging` | [Staging branch](https://github.com/Swartdraak/Bibliophilarr/tree/staging) | [![backend-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Astaging) | [![frontend-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Astaging) | [![docs-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Astaging) | [![lint-staging](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=staging)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Astaging) |
 | `develop` | [![develop](https://img.shields.io/badge/develop-integration%20lane-6f42c1)](https://github.com/Swartdraak/Bibliophilarr/tree/develop) | [![backend-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-backend.yml?query=branch%3Adevelop) | [![frontend-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/ci-frontend.yml?query=branch%3Adevelop) | [![docs-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/docs-validation.yml?query=branch%3Adevelop) | [![lint-develop](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml/badge.svg?branch=develop)](https://github.com/Swartdraak/Bibliophilarr/actions/workflows/lint-workflows.yml?query=branch%3Adevelop) |
 
-SemVer is injected during CI/release via `BIBLIOPHILARRVERSION` (see `Directory.Build.props`), so release-derived badges are authoritative for `main` and `staging`, while `develop` remains an integration-lane signal until promotion/tagging.
+Release builds use the version from their Git tag. The stable release badge follows published GitHub Releases. The staging and develop links show the validation and integration branches.
 
 ## Publish pipeline health
 
@@ -60,8 +59,7 @@ Bibliophilarr monitors authors and books, searches across supported indexers,
 and automates download, import, organization, and metadata refresh for ebook
 and audiobook libraries.
 
-Key product capabilities inherited from the Readarr base and actively
-maintained here include:
+Bibliophilarr supports the following workflows.
 
 - automated search, import, and upgrade workflows
 - configurable renaming and organization

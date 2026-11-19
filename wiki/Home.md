@@ -13,7 +13,7 @@ Welcome to the Bibliophilarr wiki.
 
 ## Current priorities
 
-1. Execute remediation queue (176 items tracked in `PROJECT_STATUS.md`).
+1. Verify open issues and pull requests against the current integration build.
 2. Consolidate multi-provider metadata pipeline (Hardcover → OpenLibrary → Inventaire → Google Books).
 3. Harden provider resilience (timeouts, circuit breakers, fallback ordering).
 4. Improve identification accuracy on large ebook/audiobook libraries.

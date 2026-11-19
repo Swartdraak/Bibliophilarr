@@ -1,4 +1,7 @@
+using System;
 using System.Data;
+using System.Data.Common;
+using System.Data.SQLite;
 using FluentMigrator;
 using FluentMigrator.Builders.Create;
 using FluentMigrator.Builders.Create.Table;
@@ -10,6 +13,16 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace NzbDrone.Core.Datastore.Migration.Framework
 {
+    internal sealed class BibliophilarrSQLiteDbFactory : SQLiteDbFactory
+    {
+        public BibliophilarrSQLiteDbFactory(IServiceProvider serviceProvider)
+            : base(serviceProvider)
+        {
+        }
+
+        protected override DbProviderFactory CreateFactory() => SQLiteFactory.Instance;
+    }
+
     public static class MigrationExtension
     {
         public static ICreateTableColumnOptionOrWithColumnSyntax TableForModel(this ICreateExpressionRoot expressionRoot, string name)
@@ -37,7 +50,7 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
         {
             builder.Services
                 .AddTransient<SQLiteBatchParser>()
-                .AddScoped<SQLiteDbFactory>()
+                .AddScoped<SQLiteDbFactory, BibliophilarrSQLiteDbFactory>()
                 .AddScoped<NzbDroneSQLiteProcessor>()
                 .AddScoped<IMigrationProcessor>(sp => sp.GetRequiredService<NzbDroneSQLiteProcessor>())
                 .AddScoped<SQLiteQuoter>()
