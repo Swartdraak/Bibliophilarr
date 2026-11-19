@@ -102,16 +102,16 @@ const selectBookFiles = createSelector(
 
 function createMapStateToProps() {
   return createSelector(
-    (state, { titleSlug }) => titleSlug,
+    (state, { authorId }) => authorId,
     selectBooks,
     selectSeries,
     selectBookFiles,
     createAllAuthorSelector(),
     createCommandsSelector(),
     createDimensionsSelector(),
-    (titleSlug, books, series, bookFiles, allAuthors, commands, dimensions) => {
+    (authorId, books, series, bookFiles, allAuthors, commands, dimensions) => {
       const sortedAuthor = _.orderBy(allAuthors, 'sortNameLastFirst');
-      const authorIndex = _.findIndex(sortedAuthor, { titleSlug });
+      const authorIndex = sortedAuthor.findIndex((author) => author.id === authorId);
       const author = sortedAuthor[authorIndex];
 
       if (!author) {
@@ -351,7 +351,7 @@ class AuthorDetailsConnector extends Component {
 
 AuthorDetailsConnector.propTypes = {
   id: PropTypes.number.isRequired,
-  titleSlug: PropTypes.string.isRequired,
+  authorId: PropTypes.number.isRequired,
   isAuthorRefreshing: PropTypes.bool.isRequired,
   allAuthorRefreshing: PropTypes.bool.isRequired,
   isRefreshing: PropTypes.bool.isRequired,

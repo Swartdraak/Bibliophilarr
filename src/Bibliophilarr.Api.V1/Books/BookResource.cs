@@ -29,6 +29,7 @@ namespace Bibliophilarr.Api.V1.Books
         [SwaggerSchema(ReadOnly = true)]
         public string MetadataSourceLabel { get; set; }
         public string TitleSlug { get; set; }
+        public string CanonicalId { get; set; }
         public bool Monitored { get; set; }
         public bool AnyEditionOk { get; set; }
         public Ratings Ratings { get; set; }
@@ -149,6 +150,7 @@ namespace Bibliophilarr.Api.V1.Books
                 OpenLibraryWorkId = IsOpenLibraryWorkId(openLibraryWorkId) ? openLibraryWorkId : IsOpenLibraryWorkId(canonicalOpenLibraryId) ? canonicalOpenLibraryId : null,
                 MetadataSourceLabel = GetMetadataSourceLabel(model.ForeignBookId, canonicalOpenLibraryId),
                 TitleSlug = model.TitleSlug,
+                CanonicalId = model.CanonicalId,
                 Monitored = model.Monitored,
                 AnyEditionOk = model.AnyEditionOk,
                 ReleaseDate = model.ReleaseDate,

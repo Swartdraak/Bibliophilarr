@@ -308,6 +308,29 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
         }
 
+        [TestCase(true, 0, true, ImportResultType.Imported)]
+        [TestCase(true, 0, false, ImportResultType.Skipped)]
+        [TestCase(true, 30, true, ImportResultType.Skipped)]
+        [TestCase(false, 0, true, ImportResultType.Skipped)]
+        public void should_only_associate_a_tracked_unmapped_library_file_on_an_approved_retry(bool existingLibraryFile, int editionId, bool persistedLink, ImportResultType expectedResult)
+        {
+            GivenEbookImport();
+            var track = _approvedDecisions[0].Item;
+            track.ExistingFile = existingLibraryFile;
+            var stored = new BookFile { Id = 21, Path = track.Path, EditionId = editionId };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetFileWithPath(track.Path)).Returns(stored);
+            mediaFiles.Setup(service => service.TryLinkUnmappedFile(stored, _ebookEdition)).Returns(persistedLink);
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.Result == expectedResult);
+            mediaFiles.Verify(service => service.TryLinkUnmappedFile(stored, _ebookEdition), existingLibraryFile && editionId == 0 ? Times.Once() : Times.Never());
+            mediaFiles.Verify(service => service.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
+            mediaFiles.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+            Mocker.GetMock<IMetadataTagService>().Verify(service => service.WriteTags(It.IsAny<BookFile>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
         [Test]
         public void should_use_the_stored_edition_owner_after_provider_title_changes()
         {

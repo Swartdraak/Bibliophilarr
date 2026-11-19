@@ -9,6 +9,7 @@ import MonitorToggleButton from 'Components/MonitorToggleButton';
 import Table from 'Components/Table/Table';
 import TableBody from 'Components/Table/TableBody';
 import { icons, sortDirections } from 'Helpers/Props';
+import cataloguePath from 'Utilities/cataloguePath';
 import translate from 'Utilities/String/translate';
 import getToggledRange from 'Utilities/Table/getToggledRange';
 import BookRowConnector from './BookRowConnector';
@@ -110,6 +111,7 @@ class AuthorDetailsSeries extends Component {
   render() {
     const {
       label,
+      canonicalId,
       items,
       positionMap,
       columns,
@@ -147,6 +149,11 @@ class AuthorDetailsSeries extends Component {
             isSpinning={isSearching}
             onPress={this.onSearchPress}
           />
+
+          {
+            canonicalId &&
+              <Link to={cataloguePath('series', { canonicalId })}>{translate('OpenCatalogueSeries')}</Link>
+          }
 
           <Link
             className={styles.expandButton}
@@ -243,6 +250,7 @@ AuthorDetailsSeries.propTypes = {
   id: PropTypes.number.isRequired,
   authorId: PropTypes.number.isRequired,
   label: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   representativeCover: PropTypes.shape({
     bookTitle: PropTypes.string.isRequired,
     url: PropTypes.string.isRequired

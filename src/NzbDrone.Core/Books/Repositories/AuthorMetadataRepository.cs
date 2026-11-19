@@ -47,10 +47,10 @@ namespace NzbDrone.Core.Books
                 {
                     // populate Id in remote data
                     meta.UseDbFieldsFrom(existing);
-                    meta.Overview = meta.Overview.IsNullOrWhiteSpace() ? existing.Overview : meta.Overview;
+                    PreserveExistingAuthorMetadata(meta, existing);
 
                     // responses vary, so try adding remote to what we have
-                    if (!meta.Equals(existing))
+                    if (meta.PendingSourceAssociations.Count > 0 || !meta.Equals(existing))
                     {
                         updateMetadataList.Add(meta);
                     }
@@ -100,7 +100,7 @@ namespace NzbDrone.Core.Books
                             meta.ForeignAuthorId);
 
                         meta.UseDbFieldsFrom(nameMatch);
-                        meta.Overview = meta.Overview.IsNullOrWhiteSpace() ? nameMatch.Overview : meta.Overview;
+                        PreserveExistingAuthorMetadata(meta, nameMatch);
 
                         // Update the ForeignAuthorId to the new numeric format
                         updateMetadataList.Add(meta);
@@ -180,6 +180,17 @@ namespace NzbDrone.Core.Books
             _logger.Debug($"{upToDateMetadataCount} author metadata up to date; Updating {updateMetadataList.Count}, Adding {addMetadataList.Count} author metadata entries.");
 
             return updateMetadataList.Count > 0 || addMetadataList.Count > 0;
+        }
+
+        private static void PreserveExistingAuthorMetadata(AuthorMetadata incoming, AuthorMetadata existing)
+        {
+            incoming.Overview = incoming.Overview.IsNullOrWhiteSpace() ? existing.Overview : incoming.Overview;
+            incoming.Born ??= existing.Born;
+            incoming.Died ??= existing.Died;
+            if (incoming.Images?.Any() != true)
+            {
+                incoming.Images = existing.Images;
+            }
         }
 
         private static bool IsNumericHardcoverAuthorId(string foreignAuthorId)

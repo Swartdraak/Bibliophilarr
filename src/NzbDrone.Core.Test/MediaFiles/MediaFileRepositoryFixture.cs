@@ -80,6 +80,27 @@ namespace NzbDrone.Core.Test.MediaFiles
             unmappedfiles.Should().HaveCount(5);
         }
 
+        [Test]
+        public void should_link_the_original_row_only_when_its_path_is_still_unmapped_and_the_edition_has_the_expected_owner()
+        {
+            var file = Subject.GetUnmappedFiles().First();
+            var invalidOwner = new Edition { Id = _edition.Id, BookId = _book.Id + 1 };
+            var stalePath = new BookFile { Id = file.Id, Path = file.Path + ".moved" };
+
+            Subject.TryLinkUnmappedFile(file, invalidOwner).Should().BeFalse();
+            Subject.TryLinkUnmappedFile(stalePath, _edition).Should().BeFalse();
+            Subject.TryLinkUnmappedFile(file, _edition).Should().BeTrue();
+            Subject.TryLinkUnmappedFile(file, _edition).Should().BeFalse();
+
+            var stored = Subject.Get(file.Id);
+            stored.EditionId.Should().Be(_edition.Id);
+            stored.Path.Should().Be(file.Path);
+            stored.DateAdded.Should().Be(file.DateAdded);
+            stored.Modified.Should().Be(file.Modified);
+            stored.CalibreId.Should().Be(file.CalibreId);
+            Db.All<BookFile>().Should().HaveCount(10);
+        }
+
         [TestCase("C:\\Test\\Path")]
         [TestCase("C:\\Test\\Path\\")]
         public void get_files_by_base_path_should_cope_with_trailing_slash(string dir)

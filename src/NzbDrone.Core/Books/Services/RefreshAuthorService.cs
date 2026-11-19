@@ -47,6 +47,7 @@ namespace NzbDrone.Core.Books
         private readonly IMonitorNewBookService _monitorNewBookService;
         private readonly IConfigService _configService;
         private readonly IImportListExclusionService _importListExclusionService;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly Logger _logger;
 
         public RefreshAuthorService(IMetadataProviderOrchestrator orchestrator,
@@ -66,6 +67,7 @@ namespace NzbDrone.Core.Books
                                     IMonitorNewBookService monitorNewBookService,
                                     IConfigService configService,
                                     IImportListExclusionService importListExclusionService,
+                                    ICatalogueIdentityRepository catalogueIdentity,
                                     Logger logger)
         : base(logger, authorMetadataService)
         {
@@ -85,6 +87,7 @@ namespace NzbDrone.Core.Books
             _monitorNewBookService = monitorNewBookService;
             _configService = configService;
             _importListExclusionService = importListExclusionService;
+            _catalogueIdentity = catalogueIdentity;
             _logger = logger;
         }
 
@@ -116,11 +119,44 @@ namespace NzbDrone.Core.Books
 
             if (data != null)
             {
+                var incumbent = local.Metadata.Value;
+                var incoming = data.Metadata.Value;
+                if (incumbent.CanonicalId.IsNotNullOrWhiteSpace() && incumbent.ForeignAuthorId != incoming.ForeignAuthorId &&
+                    !PreserveCatalogueAuthor(incumbent, incoming))
+                {
+                    _logger.Warn("Holding an uncorroborated provider identity change for author {0}.", local.Id);
+                    return result;
+                }
+
                 result.Entity = data;
-                result.Metadata = new List<AuthorMetadata> { data.Metadata.Value };
+                result.Metadata = new List<AuthorMetadata> { incoming };
             }
 
             return result;
+        }
+
+        private bool PreserveCatalogueAuthor(AuthorMetadata incumbent, AuthorMetadata incoming)
+        {
+            const CatalogueEntityKind kind = CatalogueEntityKind.Author;
+            var proposed = CatalogueIdentityRepository.ParseLegacySource(kind, incoming.ForeignAuthorId, "corroborated-author-match");
+            if (proposed == null)
+            {
+                return false;
+            }
+
+            var owner = _catalogueIdentity.FindByProviderId(kind, proposed.Provider, proposed.ProviderId);
+            var incumbentLink = CatalogueIdentityRepository.NormalizeSource(kind, "OpenLibrary", incumbent.OpenLibraryAuthorId, null);
+            var incomingLink = CatalogueIdentityRepository.NormalizeSource(kind, "OpenLibrary", incoming.OpenLibraryAuthorId, null);
+            var linksAgree = incumbentLink != null && incumbentLink.ProviderId == incomingLink?.ProviderId;
+            if (owner != incumbent.Id && (owner.HasValue || !linksAgree))
+            {
+                return false;
+            }
+
+            incoming.PendingSourceAssociations.Add(proposed);
+            incoming.ForeignAuthorId = incumbent.ForeignAuthorId;
+            incoming.TitleSlug = incumbent.TitleSlug;
+            return true;
         }
 
         protected override bool ShouldDelete(Author local)
@@ -295,6 +331,7 @@ namespace NzbDrone.Core.Books
                         current.UseMetadataFrom(candidate);
                         current.ForeignBookId = stored.ForeignBookId;
                         current.TitleSlug = stored.TitleSlug;
+                        RecordWorkSource(current, stored, candidate);
                     }
 
                     current.OpenLibraryWorkId ??= BookWorkIdentity.GetOpenLibraryWorkId(candidate);
@@ -307,6 +344,7 @@ namespace NzbDrone.Core.Books
                 }
                 else
                 {
+                    RecordWorkSource(current, current, candidate);
                     current.OpenLibraryWorkId ??= BookWorkIdentity.GetOpenLibraryWorkId(candidate);
                     current.Editions = (current.Editions?.Value ?? new List<Edition>())
                         .Concat(candidate.Editions?.Value ?? new List<Edition>())
@@ -340,6 +378,20 @@ namespace NzbDrone.Core.Books
             }
 
             return canonical;
+        }
+
+        private static void RecordWorkSource(Book owner, Book corroboratingWork, Book candidate)
+        {
+            if (owner.ForeignBookId == candidate.ForeignBookId || !BookWorkIdentity.AreCorroboratedForSameAuthor(corroboratingWork, candidate))
+            {
+                return;
+            }
+
+            var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, candidate.ForeignBookId, "corroborated-work-match");
+            if (source != null)
+            {
+                owner.PendingSourceAssociations.Add(source);
+            }
         }
 
         protected override List<Book> GetLocalChildren(Author entity, List<Book> remoteChildren)

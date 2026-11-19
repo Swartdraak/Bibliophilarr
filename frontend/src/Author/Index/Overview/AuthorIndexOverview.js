@@ -12,6 +12,7 @@ import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
 import { icons } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
 import fonts from 'Styles/Variables/fonts';
+import cataloguePath from 'Utilities/cataloguePath';
 import stripHtml from 'Utilities/String/stripHtml';
 import translate from 'Utilities/String/translate';
 import AuthorIndexOverviewInfo from './AuthorIndexOverviewInfo';
@@ -89,6 +90,7 @@ class AuthorIndexOverview extends Component {
       monitored,
       status,
       titleSlug,
+      canonicalId,
       nextAiring,
       statistics = {},
       images,
@@ -125,7 +127,7 @@ class AuthorIndexOverview extends Component {
       isDeleteAuthorModalOpen
     } = this.state;
 
-    const link = `/author/${titleSlug}`;
+    const link = cataloguePath('author', { canonicalId, titleSlug });
 
     const elementStyle = {
       width: `${posterWidth}px`,
@@ -279,6 +281,7 @@ AuthorIndexOverview.propTypes = {
   monitored: PropTypes.bool.isRequired,
   status: PropTypes.string.isRequired,
   titleSlug: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   nextAiring: PropTypes.string,
   statistics: PropTypes.object.isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,

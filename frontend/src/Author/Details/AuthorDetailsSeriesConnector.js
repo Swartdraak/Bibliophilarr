@@ -98,6 +98,7 @@ function createMapStateToProps() {
 
       return {
         id: currentSeries.id,
+        canonicalId: currentSeries.canonicalId,
         label: currentSeries.title,
         representativeCover: getSeriesRepresentativeCover(booksInSeries, currentSeries.links, artworkBooks),
         items: sortedBooks,

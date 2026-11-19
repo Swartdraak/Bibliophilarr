@@ -9,10 +9,24 @@ process.
 
 ### Added
 
+- Give authors, works and series stable Bibliophilarr URLs. The catalogue
+  identity API exposes matched provider IDs. Existing author and book
+  bookmarks continue to resolve.
+
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
 
 ### Fixed
+
+- Reconcile reviewed duplicate works without changing edition or file IDs.
+  Preserve both formats, their monitoring settings, series membership and
+  links to the retired work.
+- Read explicitly tagged Audible identifiers from audiobooks. A successful
+  import retry can attach an existing unmapped library file to its edition
+  while preserving the file record.
+- Fetch edition publisher and publication dates from Hardcover. A unique
+  ISBN match can fill missing edition details, and verified Open Library
+  author records can supply missing biographies and portraits.
 
 - A fresh installation opens first-account setup in the browser when opened
   directly on localhost. Create an account and sign in without a terminal command.

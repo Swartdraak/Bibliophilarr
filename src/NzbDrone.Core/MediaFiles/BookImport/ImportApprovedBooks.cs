@@ -227,6 +227,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                         if (previousFile?.Id > 0)
                         {
+                            if (localTrack.ExistingFile && previousFile.EditionId == 0 &&
+                                _mediaFileService.TryLinkUnmappedFile(previousFile, localTrack.Edition))
+                            {
+                                previousFile.Author = localTrack.Author;
+                                allImportedTrackFiles.Add(previousFile);
+                                trackImportedEvents.Add(new TrackImportedEvent(localTrack, previousFile, oldFiles, false, downloadClientItem));
+                                importResults.Add(new ImportResult(importDecision));
+                                continue;
+                            }
+
                             var preservedId = previousFile.Id;
                             _logger.ProgressInfo(
                                 "Skipping duplicate import of {0} for {1}: existing book file {2} is preserved (replaceExistingFiles=false)",

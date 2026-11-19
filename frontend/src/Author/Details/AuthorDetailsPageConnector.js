@@ -1,118 +1,29 @@
-import { push } from 'connected-react-router';
-import _ from 'lodash';
 import PropTypes from 'prop-types';
-import React, { Component } from 'react';
-import { connect } from 'react-redux';
-import { createSelector } from 'reselect';
-import LoadingIndicator from 'Components/Loading/LoadingIndicator';
-import NotFound from 'Components/NotFound';
-import PageContent from 'Components/Page/PageContent';
-import PageContentBody from 'Components/Page/PageContentBody';
-import getErrorMessage from 'Utilities/Object/getErrorMessage';
+import React from 'react';
+import { useSelector } from 'react-redux';
+import CatalogueRecordRoute from 'Components/Router/CatalogueRecordRoute';
 import translate from 'Utilities/String/translate';
 import AuthorDetailsConnector from './AuthorDetailsConnector';
-import styles from './AuthorDetails.css';
 
-function createMapStateToProps() {
-  return createSelector(
-    (state, { match }) => match,
-    (state) => state.authors,
-    (match, authors) => {
-      const titleSlug = match.params.titleSlug;
-      const {
-        isFetching,
-        isPopulated,
-        error,
-        items
-      } = authors;
+function AuthorDetailsPageConnector({ match }) {
+  const { items, isPopulated, error } = useSelector((state) => state.authors);
 
-      const authorIndex = _.findIndex(items, { titleSlug });
-
-      if (authorIndex > -1) {
-        return {
-          isFetching,
-          isPopulated,
-          titleSlug
-        };
-      }
-
-      return {
-        isFetching,
-        isPopulated,
-        error
-      };
-    }
+  return (
+    <CatalogueRecordRoute
+      entity="author"
+      identifier={match.params.titleSlug}
+      items={items}
+      ready={isPopulated}
+      error={error}
+      notFound={translate('SorryThatAuthorCannotBeFound')}
+    >
+      {(author) => <AuthorDetailsConnector authorId={author.id} />}
+    </CatalogueRecordRoute>
   );
 }
 
-const mapDispatchToProps = {
-  push
-};
-
-class AuthorDetailsPageConnector extends Component {
-
-  //
-  // Lifecycle
-
-  componentDidUpdate(prevProps) {
-    if (!this.props.titleSlug) {
-      this.props.push(`${window.Bibliophilarr.urlBase}/`);
-      return;
-    }
-  }
-
-  //
-  // Render
-
-  render() {
-    const {
-      titleSlug,
-      isFetching,
-      isPopulated,
-      error
-    } = this.props;
-
-    if (isFetching && !isPopulated) {
-      return (
-        <PageContent title={translate('Loading')}>
-          <PageContentBody>
-            <LoadingIndicator />
-          </PageContentBody>
-        </PageContent>
-      );
-    }
-
-    if (!isFetching && !!error) {
-      return (
-        <div className={styles.errorMessage}>
-          {getErrorMessage(error, 'Failed to load author from API')}
-        </div>
-      );
-    }
-
-    if (!titleSlug) {
-      return (
-        <NotFound
-          message={translate('SorryThatAuthorCannotBeFound')}
-        />
-      );
-    }
-
-    return (
-      <AuthorDetailsConnector
-        titleSlug={titleSlug}
-      />
-    );
-  }
-}
-
 AuthorDetailsPageConnector.propTypes = {
-  titleSlug: PropTypes.string,
-  isFetching: PropTypes.bool.isRequired,
-  isPopulated: PropTypes.bool.isRequired,
-  error: PropTypes.object,
-  match: PropTypes.shape({ params: PropTypes.shape({ titleSlug: PropTypes.string.isRequired }).isRequired }).isRequired,
-  push: PropTypes.func.isRequired
+  match: PropTypes.shape({ params: PropTypes.shape({ titleSlug: PropTypes.string.isRequired }).isRequired }).isRequired
 };
 
-export default connect(createMapStateToProps, mapDispatchToProps)(AuthorDetailsPageConnector);
+export default AuthorDetailsPageConnector;

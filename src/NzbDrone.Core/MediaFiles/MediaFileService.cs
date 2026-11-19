@@ -4,6 +4,7 @@ using System.IO.Abstractions;
 using System.Linq;
 using NLog;
 using NzbDrone.Common;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.MediaFiles.Events;
@@ -31,6 +32,7 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFilesWithBasePath(string path);
         List<BookFile> GetFileWithPath(List<string> path);
         BookFile GetFileWithPath(string path);
+        bool TryLinkUnmappedFile(BookFile file, Edition edition);
         void UpdateMediaInfo(List<BookFile> bookFiles);
     }
 
@@ -102,6 +104,18 @@ namespace NzbDrone.Core.MediaFiles
         public void Update(BookFile bookFile)
         {
             _mediaFileRepository.Update(bookFile);
+        }
+
+        public bool TryLinkUnmappedFile(BookFile file, Edition edition)
+        {
+            if (!_mediaFileRepository.TryLinkUnmappedFile(file, edition))
+            {
+                return false;
+            }
+
+            file.EditionId = edition.Id;
+            file.Edition = edition;
+            return true;
         }
 
         public void Update(List<BookFile> bookFiles)

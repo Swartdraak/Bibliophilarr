@@ -27,6 +27,19 @@ namespace NzbDrone.Core.Books
             return MatchStrength(left, right) > 0;
         }
 
+        public static bool AreCorroborated(Book left, Book right)
+        {
+            return left.AuthorMetadataId > 0 && left.AuthorMetadataId == right.AuthorMetadataId &&
+                   AreCorroboratedForSameAuthor(left, right);
+        }
+
+        public static bool AreCorroboratedForSameAuthor(Book left, Book right)
+        {
+            var leftWorkId = GetOpenLibraryWorkId(left);
+            var rightWorkId = GetOpenLibraryWorkId(right);
+            return (leftWorkId == null || rightWorkId == null || leftWorkId == rightWorkId) && MatchStrength(left, right) >= 2;
+        }
+
         private static int MatchStrength(Book left, Book right)
         {
             if (!string.IsNullOrWhiteSpace(left.ForeignBookId) &&

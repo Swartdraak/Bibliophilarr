@@ -524,6 +524,30 @@ namespace NzbDrone.Core.Test.MetadataSource
             editions[0].IsEbook.Should().BeTrue();
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_map_edition_publisher_and_publication_date_without_changing_work_release_date(bool authorHydration)
+        {
+            var legacyEditions = JArray.Parse("""[{"id":50,"reading_format_id":1}]""");
+            var source = InstallEditionResponse(legacyEditions);
+            source["release_date"] = "1990-05-04";
+            var ebook = (JObject)source.SelectToken("ebooks[0]");
+            ebook["publisher"] = new JObject { ["name"] = "Fixture Ebook Publisher" };
+            ebook["release_date"] = "2001-02-03";
+            var audiobook = (JObject)source.SelectToken("audiobooks[0]");
+            audiobook["publisher"] = new JObject { ["name"] = "Fixture Audiobook Publisher" };
+            audiobook["release_date"] = "2003-11-12";
+
+            var author = authorHydration ? Subject.GetAuthorInfo("hardcover:author:123") : null;
+            var book = author?.Books.Value.Single() ?? Subject.GetBookInfo("hardcover:work:543").Item2;
+
+            book.ReleaseDate.Should().Be(new DateTime(1990, 5, 4));
+            book.GetPreferredEdition(FormatType.Ebook).Publisher.Should().Be("Fixture Ebook Publisher");
+            book.GetPreferredEdition(FormatType.Ebook).ReleaseDate.Should().Be(new DateTime(2001, 2, 3));
+            book.GetPreferredEdition(FormatType.Audiobook).Publisher.Should().Be("Fixture Audiobook Publisher");
+            book.GetPreferredEdition(FormatType.Audiobook).ReleaseDate.Should().Be(new DateTime(2003, 11, 12));
+        }
+
         [Test]
         public void should_not_advertise_an_audiobook_from_print_or_a_wrongly_typed_alias()
         {

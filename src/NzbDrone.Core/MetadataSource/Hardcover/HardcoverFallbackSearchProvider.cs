@@ -935,6 +935,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             edition_format
                             physical_format
                             language { language }
+                            publisher { name }
+                            release_date
+                            release_year
                             cached_image
                             pages
                         }
@@ -946,6 +949,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             edition_format
                             physical_format
                             language { language }
+                            publisher { name }
+                            release_date
+                            release_year
                             cached_image
                             pages
                         }
@@ -957,6 +963,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             edition_format
                             physical_format
                             language { language }
+                            publisher { name }
+                            release_date
+                            release_year
                             cached_image
                             pages
                         }
@@ -1138,6 +1147,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             edition_format
                                             physical_format
                                             language { language }
+                                            publisher { name }
+                                            release_date
+                                            release_year
                                             cached_image
                                             pages
                                         }
@@ -1149,6 +1161,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             edition_format
                                             physical_format
                                             language { language }
+                                            publisher { name }
+                                            release_date
+                                            release_year
                                             cached_image
                                             pages
                                         }
@@ -1160,6 +1175,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                             edition_format
                                             physical_format
                                             language { language }
+                                            publisher { name }
+                                            release_date
+                                            release_year
                                             cached_image
                                             pages
                                         }
@@ -1520,8 +1538,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     ForeignEditionId = foreignEditionId,
                     TitleSlug = foreignEditionId.ToUrlSlug(),
                     Title = title,
-                    ReleaseDate = publishedDate,
+                    ReleaseDate = ParseDate(source?.Value<string>("release_date"), source?.Value<int?>("release_year")) ?? publishedDate,
                     Language = source?.SelectToken("language.language")?.Value<string>(),
+                    Publisher = source?.SelectToken("publisher.name")?.Value<string>(),
                     Isbn13 = source?.Value<string>("isbn_13"),
                     Asin = source?.Value<string>("asin"),
                     Format = format,

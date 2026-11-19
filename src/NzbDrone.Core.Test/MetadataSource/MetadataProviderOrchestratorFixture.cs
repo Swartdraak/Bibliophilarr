@@ -402,8 +402,11 @@ namespace NzbDrone.Core.Test.MetadataSource
             };
             var matchedEdition = new Edition
             {
+                ForeignEditionId = "openlibrary:edition:OL123M",
                 Isbn13 = "0-14-143951-3",
                 PageCount = 500,
+                Publisher = "Verified publisher",
+                ReleaseDate = new DateTime(2001, 2, 3),
                 Overview = "Verified overview",
                 Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, "https://covers.example/match.jpg") }
             };
@@ -412,6 +415,10 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             edition.Overview.Should().Be("Verified overview");
             edition.Images.Should().ContainSingle().Which.Url.Should().Be("https://covers.example/match.jpg");
+            edition.Images[0].SourceProvider.Should().Be("OpenLibrary");
+            edition.Images[0].SourceId.Should().Be("openlibrary:edition:OL123M");
+            edition.Publisher.Should().Be("Verified publisher");
+            edition.ReleaseDate.Should().Be(new DateTime(2001, 2, 3));
             edition.ForeignEditionId.Should().Be("hardcover:edition:123");
             edition.PageCount.Should().Be(317);
         }
@@ -436,7 +443,92 @@ namespace NzbDrone.Core.Test.MetadataSource
             edition.Images.Should().BeEmpty();
         }
 
-        private static void EnrichFromIsbnFixture(Edition edition, params Edition[] supplementaryEditions)
+        [Test]
+        public void should_not_choose_one_of_multiple_provider_editions_claiming_the_same_isbn()
+        {
+            const string isbn = "9780141439518";
+            var edition = new Edition { Isbn13 = isbn };
+
+            EnrichFromIsbnFixture(
+                edition,
+                new Edition { ForeignEditionId = "openlibrary:edition:OL123M", Isbn13 = isbn, Publisher = "First publisher", PageCount = 1 },
+                new Edition { ForeignEditionId = "openlibrary:edition:OL456M", Isbn13 = isbn, Publisher = "Second publisher", PageCount = 2 });
+
+            edition.Publisher.Should().BeNull();
+            edition.PageCount.Should().Be(0);
+        }
+
+        [TestCase("Fixture Work", "Fixture Author", "OL123W", true)]
+        [TestCase("Different Work", "Fixture Author", "OL123W", false)]
+        [TestCase("Fixture Work", "Different Author", "OL123W", false)]
+        [TestCase("Fixture Work", "Fixture Author", "OL123M", false)]
+        public void should_stage_only_corroborated_work_sources(string sourceTitle, string sourceAuthor, string sourceId, bool expectSource)
+        {
+            const string isbn = "9780141439518";
+            var candidate = new Book
+            {
+                ForeignBookId = $"openlibrary:work:{sourceId}",
+                Title = sourceTitle,
+                AuthorMetadata = new AuthorMetadata { Name = sourceAuthor, OpenLibraryAuthorId = "OL1A" }
+            };
+            var matchedEdition = new Edition { Isbn13 = isbn, Book = candidate };
+            candidate.Editions = new List<Edition> { matchedEdition };
+            var book = EnrichFromIsbnFixture(new Edition { Isbn13 = isbn }, matchedEdition);
+
+            book.ForeignBookId.Should().Be("hardcover:work:123");
+            if (expectSource)
+            {
+                book.PendingSourceAssociations.Should().ContainSingle().Which
+                    .Should().BeEquivalentTo(new CatalogueSourceAssociation
+                    {
+                        Provider = "OpenLibrary",
+                        ProviderId = "OL123W",
+                        Evidence = "exact-isbn-and-title-and-author"
+                    });
+            }
+            else
+            {
+                book.PendingSourceAssociations.Should().BeEmpty();
+            }
+        }
+
+        [Test]
+        public void should_keep_the_series_description_from_a_previous_refresh_when_the_provider_omits_it()
+        {
+            var series = new Series { ForeignSeriesId = "hardcover:series:123", Description = "Existing description" };
+
+            series.UseMetadataFrom(new Series { ForeignSeriesId = series.ForeignSeriesId, Title = "Current series title" });
+
+            series.Title.Should().Be("Current series title");
+            series.Description.Should().Be("Existing description");
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_keep_enriched_fields_only_when_refresh_preserves_edition_identity(bool sameEdition)
+        {
+            var edition = new Edition
+            {
+                ForeignEditionId = "hardcover:edition:1",
+                Isbn13 = "9780141439518",
+                Asin = "B000000001",
+                Language = "eng",
+                Publisher = "Verified publisher",
+                PageCount = 317,
+                ReleaseDate = new DateTime(2001, 2, 3)
+            };
+
+            edition.UseMetadataFrom(new Edition { ForeignEditionId = sameEdition ? edition.ForeignEditionId : "hardcover:edition:2" });
+
+            edition.Isbn13.Should().Be(sameEdition ? "9780141439518" : null);
+            edition.Asin.Should().Be(sameEdition ? "B000000001" : null);
+            edition.Language.Should().Be(sameEdition ? "eng" : null);
+            edition.Publisher.Should().Be(sameEdition ? "Verified publisher" : null);
+            edition.PageCount.Should().Be(sameEdition ? 317 : 0);
+            edition.ReleaseDate.Should().Be(sameEdition ? new DateTime(2001, 2, 3) : null);
+        }
+
+        private static Book EnrichFromIsbnFixture(Edition edition, params Edition[] supplementaryEditions)
         {
             const string workId = "hardcover:work:123";
 
@@ -446,6 +538,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             var book = new Book
             {
                 ForeignBookId = workId,
+                Title = "Fixture Work",
+                AuthorMetadata = new AuthorMetadata { Name = "Fixture Author" },
                 ReleaseDate = new DateTime(2000, 1, 1),
                 Editions = new List<Edition> { edition }
             };
@@ -457,14 +551,14 @@ namespace NzbDrone.Core.Test.MetadataSource
             supplementary.SetupGet(provider => provider.SupportsIsbnLookup).Returns(true);
             supplementary.SetupGet(provider => provider.SupportsCoverImages).Returns(true);
             supplementary.As<ISearchForNewBook>().Setup(provider => provider.SearchByIsbn(edition.Isbn13))
-                .Returns(supplementaryEditions.Select(result => new Book
+                .Returns(supplementaryEditions.Select(result => result.Book?.Value ?? new Book
                 {
                     Editions = new List<Edition> { result }
                 }).ToList());
 
             var registry = new TestRegistry(new[] { primary.Object, supplementary.Object });
             var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
-            orchestrator.GetBookInfo(workId);
+            return orchestrator.GetBookInfo(workId).Item2;
         }
 
         [TestCase("Verified Author", null, "9780141439518", true)]
@@ -506,6 +600,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                         {
                             Name = matchedName,
                             OpenLibraryAuthorId = "OL1A",
+                            Overview = "Corroborated biography",
+                            Born = new DateTime(1875, 1, 13),
                             Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, portrait) }
                         }
                     }
@@ -521,10 +617,17 @@ namespace NzbDrone.Core.Test.MetadataSource
             if (expectPortrait)
             {
                 metadata.Images.Should().ContainSingle().Which.Url.Should().Be(portrait);
+                metadata.Images[0].SourceProvider.Should().Be("OpenLibrary");
+                metadata.Images[0].SourceId.Should().Be("OL1A");
+                metadata.Overview.Should().Be("Corroborated biography");
+                metadata.Born.Should().Be(new DateTime(1875, 1, 13));
+                metadata.PendingSourceAssociations.Should().ContainSingle().Which.ProviderId.Should().Be("OL1A");
             }
             else
             {
                 metadata.Images.Should().BeEmpty();
+                metadata.Overview.Should().BeNull();
+                metadata.PendingSourceAssociations.Should().BeEmpty();
             }
         }
 

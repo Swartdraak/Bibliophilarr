@@ -41,7 +41,7 @@ const selectBookFiles = createSelector(
 
 function createMapStateToProps() {
   return createSelector(
-    (state, { titleSlug }) => titleSlug,
+    (state, { bookId }) => bookId,
     selectBookFiles,
     (state) => state.books,
     (state) => state.editions,
@@ -49,16 +49,16 @@ function createMapStateToProps() {
     createCommandsSelector(),
     createUISettingsSelector(),
     createDimensionsSelector(),
-    (titleSlug, bookFiles, books, editions, authors, commands, uiSettings, dimensions) => {
-      const book = books.items.find((b) => b.titleSlug === titleSlug);
+    (bookId, bookFiles, books, editions, authors, commands, uiSettings, dimensions) => {
+      const book = books.items.find((b) => b.id === bookId);
+      if (!book) {
+        return {};
+      }
+
       const author = authors.find((a) => a.id === book.authorId);
       const sortedBooks = books.items.filter((b) => b.authorId === book.authorId);
       sortedBooks.sort((a, b) => ((a.releaseDate > b.releaseDate) ? 1 : -1));
       const bookIndex = sortedBooks.findIndex((b) => b.id === book.id);
-
-      if (!book) {
-        return {};
-      }
 
       const {
         isBookFilesFetching,
@@ -226,7 +226,7 @@ BookDetailsConnector.propTypes = {
   isRenamingAuthor: PropTypes.bool.isRequired,
   isBookFetching: PropTypes.bool,
   isBookPopulated: PropTypes.bool,
-  titleSlug: PropTypes.string.isRequired,
+  bookId: PropTypes.number.isRequired,
   fetchBookFiles: PropTypes.func.isRequired,
   clearBookFiles: PropTypes.func.isRequired,
   fetchEditions: PropTypes.func.isRequired,

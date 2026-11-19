@@ -24,6 +24,7 @@ namespace Bibliophilarr.Api.V1.Author
         public string AuthorNameLastFirst { get; set; }
         public string ForeignAuthorId { get; set; }
         public string TitleSlug { get; set; }
+        public string CanonicalId { get; set; }
         public string Overview { get; set; }
         public string Disambiguation { get; set; }
         public List<Links> Links { get; set; }
@@ -106,6 +107,7 @@ namespace Bibliophilarr.Api.V1.Author
                 CleanName = model.CleanName,
                 ForeignAuthorId = metadata?.ForeignAuthorId,
                 TitleSlug = metadata?.TitleSlug,
+                CanonicalId = metadata?.CanonicalId,
 
                 // Root folder path is now calculated from the author path
                 // RootFolderPath = model.RootFolderPath,

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Dapper;
 using NzbDrone.Common;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
@@ -18,6 +19,7 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFilesWithBasePath(string path);
         List<BookFile> GetFileWithPath(List<string> paths);
         BookFile GetFileWithPath(string path);
+        bool TryLinkUnmappedFile(BookFile file, Edition edition);
         void DeleteFilesByBook(int bookId);
         void UnlinkFilesByBook(int bookId);
     }
@@ -112,6 +114,17 @@ namespace NzbDrone.Core.MediaFiles
         public BookFile GetFileWithPath(string path)
         {
             return Query(x => x.Path == path).SingleOrDefault();
+        }
+
+        public bool TryLinkUnmappedFile(BookFile file, Edition edition)
+        {
+            using var connection = _database.OpenConnection();
+            return connection.Execute("""
+                UPDATE "BookFiles"
+                SET "EditionId" = @EditionId
+                WHERE "Id" = @FileId AND "Path" = @Path AND "EditionId" = 0
+                  AND EXISTS (SELECT 1 FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId)
+                """, new { FileId = file.Id, file.Path, EditionId = edition.Id, edition.BookId }) == 1;
         }
 
         public List<BookFile> GetFileWithPath(List<string> paths)

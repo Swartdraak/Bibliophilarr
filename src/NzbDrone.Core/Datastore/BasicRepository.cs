@@ -6,6 +6,8 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using Dapper;
+using NzbDrone.Common.Instrumentation;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.Messaging.Events;
 using static Dapper.SqlMapper;
@@ -44,8 +46,10 @@ namespace NzbDrone.Core.Datastore
         private readonly IEventAggregator _eventAggregator;
         private readonly PropertyInfo _keyProperty;
         private readonly List<PropertyInfo> _properties;
+        private readonly List<PropertyInfo> _updateProperties;
         private readonly string _updateSql;
         private readonly string _insertSql;
+        private readonly bool _hasCatalogueIdentity;
 
         protected readonly IDatabase _database;
         protected readonly string _table;
@@ -64,8 +68,12 @@ namespace NzbDrone.Core.Datastore
             excluded.Add(_keyProperty.Name);
             _properties = type.GetProperties().Where(x => x.IsMappableProperty() && !excluded.Contains(x.Name)).ToList();
 
+            _hasCatalogueIdentity = typeof(ICatalogueIdentityModel).IsAssignableFrom(type);
+            _updateProperties = _hasCatalogueIdentity
+                ? _properties.Where(property => property.Name != nameof(ICatalogueIdentityModel.CanonicalId)).ToList()
+                : _properties;
             _insertSql = GetInsertSql();
-            _updateSql = GetUpdateSql(_properties);
+            _updateSql = GetUpdateSql(_updateProperties);
         }
 
         protected virtual SqlBuilder Builder() => new SqlBuilder(_database.DatabaseType);
@@ -144,9 +152,17 @@ namespace NzbDrone.Core.Datastore
                 throw new InvalidOperationException("Can't insert model with existing ID " + model.Id);
             }
 
-            using (var conn = _database.OpenConnection())
+            try
             {
-                model = Insert(conn, null, model);
+                using var conn = _database.OpenConnection();
+                using var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(IsolationLevel.ReadCommitted) : null;
+                model = Insert(conn, transaction, model);
+                transaction?.Commit();
+            }
+            catch when (model is ICatalogueIdentityModel)
+            {
+                ResetCatalogueInsertion(model);
+                throw;
             }
 
             ModelCreated(model);
@@ -188,6 +204,11 @@ namespace NzbDrone.Core.Datastore
 
         private TModel Insert(IDbConnection connection, IDbTransaction transaction, TModel model)
         {
+            if (model is ICatalogueIdentityModel identity)
+            {
+                identity.CanonicalId = Guid.NewGuid().ToString("N");
+            }
+
             SqlBuilderExtensions.LogQuery(_insertSql, model);
 
             GridReader multi;
@@ -201,10 +222,14 @@ namespace NzbDrone.Core.Datastore
                 throw;
             }
 
-            var multiRead = multi.Read();
-            var id = (int)(multiRead.First().id ?? multiRead.First().Id);
-            _keyProperty.SetValue(model, id);
+            using (multi)
+            {
+                var multiRead = multi.Read().First();
+                var id = (int)(multiRead.id ?? multiRead.Id);
+                _keyProperty.SetValue(model, id);
+            }
 
+            StoreCatalogueIdentity(connection, transaction, model, true, null);
             return model;
         }
 
@@ -215,18 +240,32 @@ namespace NzbDrone.Core.Datastore
                 throw new InvalidOperationException("Can't insert model with existing ID != 0");
             }
 
-            using (var conn = _database.OpenConnection())
+            try
             {
-                using (var tran = conn.BeginTransaction(IsolationLevel.ReadCommitted))
+                using var conn = _database.OpenConnection();
+                using var transaction = conn.BeginTransaction(IsolationLevel.ReadCommitted);
+                foreach (var model in models)
                 {
-                    foreach (var model in models)
-                    {
-                        Insert(conn, tran, model);
-                    }
-
-                    tran.Commit();
+                    Insert(conn, transaction, model);
                 }
+
+                transaction.Commit();
             }
+            catch when (_hasCatalogueIdentity)
+            {
+                foreach (var model in models)
+                {
+                    ResetCatalogueInsertion(model);
+                }
+
+                throw;
+            }
+        }
+
+        private static void ResetCatalogueInsertion(TModel model)
+        {
+            model.Id = 0;
+            ((ICatalogueIdentityModel)model).CanonicalId = null;
         }
 
         public TModel Update(TModel model)
@@ -237,8 +276,12 @@ namespace NzbDrone.Core.Datastore
             }
 
             using (var conn = _database.OpenConnection())
+            using (var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(IsolationLevel.ReadCommitted) : null)
             {
-                UpdateFields(conn, null, model, _properties);
+                var previousId = ReadCataloguePrimaryId(conn, transaction, model);
+                UpdateFields(conn, transaction, model, _updateProperties);
+                StoreCatalogueIdentity(conn, transaction, model, false, previousId);
+                transaction?.Commit();
             }
 
             ModelUpdated(model);
@@ -254,8 +297,83 @@ namespace NzbDrone.Core.Datastore
             }
 
             using (var conn = _database.OpenConnection())
+            using (var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(IsolationLevel.ReadCommitted) : null)
             {
-                UpdateFields(conn, null, models, _properties);
+                if (_hasCatalogueIdentity)
+                {
+                    foreach (var model in models)
+                    {
+                        var previousId = ReadCataloguePrimaryId(conn, transaction, model);
+                        UpdateFields(conn, transaction, model, _updateProperties);
+                        StoreCatalogueIdentity(conn, transaction, model, false, previousId);
+                    }
+                }
+                else
+                {
+                    UpdateFields(conn, null, models, _updateProperties);
+                }
+
+                transaction?.Commit();
+            }
+        }
+
+        private static string ReadCataloguePrimaryId(IDbConnection connection, IDbTransaction transaction, TModel model)
+        {
+            if (model is not ICatalogueIdentityModel identity)
+            {
+                return null;
+            }
+
+            var tables = CatalogueIdentityRepository.Tables(identity.CatalogueKind);
+            var previous = connection.QuerySingleOrDefault<(string PrimaryId, string CanonicalId)>(
+                $"SELECT \"{tables.Primary}\", \"CanonicalId\" FROM \"{tables.Entity}\" WHERE \"Id\" = @Id",
+                new { model.Id },
+                transaction);
+            identity.CanonicalId = previous.CanonicalId;
+            return previous.PrimaryId;
+        }
+
+        private static void StoreCatalogueIdentity(IDbConnection connection, IDbTransaction transaction, TModel model, bool inserting, string previousId)
+        {
+            if (model is not ICatalogueIdentityModel identity)
+            {
+                return;
+            }
+
+            var primary = CatalogueIdentityRepository.ParseLegacySource(identity.CatalogueKind, identity.LegacyForeignId, CatalogueIdentityRepository.PrimaryProviderEvidence);
+            var previous = CatalogueIdentityRepository.ParseLegacySource(identity.CatalogueKind, previousId, null);
+            var changingPrimary = primary != null && (inserting || previous?.Provider != primary.Provider || previous.ProviderId != primary.ProviderId);
+            if (changingPrimary)
+            {
+                if (!CatalogueIdentityRepository.TryAddSource(connection, transaction, identity.CatalogueKind, model.Id, primary))
+                {
+                    throw new InvalidOperationException("The provider identity belongs to another catalogue record.");
+                }
+
+                CatalogueIdentityRepository.TryAddRouteAlias(connection, transaction, identity.CatalogueKind, model.Id, identity.LegacyForeignId);
+            }
+
+            CatalogueIdentityRepository.TryAddRouteAlias(connection, transaction, identity.CatalogueKind, model.Id, identity.LegacyTitleSlug);
+
+            foreach (var claim in identity.PendingSourceAssociations)
+            {
+                var source = CatalogueIdentityRepository.NormalizeSource(identity.CatalogueKind, claim.Provider, claim.ProviderId, claim.Evidence);
+                if (source == null || string.IsNullOrWhiteSpace(source.Evidence) ||
+                    CatalogueIdentityRepository.TryAddSource(connection, transaction, identity.CatalogueKind, model.Id, source))
+                {
+                    continue;
+                }
+
+                if (inserting)
+                {
+                    throw new InvalidOperationException("A corroborated provider identity belongs to another catalogue record.");
+                }
+
+                NzbDroneLogger.GetLogger(typeof(BasicRepository<TModel>)).Warn(
+                    "Kept the existing {0} source association. A conflicting claim for {1} catalogue record {2} was ignored.",
+                    source.Provider,
+                    identity.CatalogueKind,
+                    model.Id);
             }
         }
 
@@ -371,6 +489,11 @@ namespace NzbDrone.Core.Datastore
 
         private string GetUpdateSql(List<PropertyInfo> propertiesToUpdate)
         {
+            if (_hasCatalogueIdentity && propertiesToUpdate.Any(property => property.Name == nameof(ICatalogueIdentityModel.CanonicalId)))
+            {
+                throw new InvalidOperationException("Catalogue IDs cannot be changed.");
+            }
+
             var sb = new StringBuilder();
             sb.AppendFormat("UPDATE \"{0}\" SET ", _table);
 
@@ -391,7 +514,7 @@ namespace NzbDrone.Core.Datastore
 
         private void UpdateFields(IDbConnection connection, IDbTransaction transaction, TModel model, List<PropertyInfo> propertiesToUpdate)
         {
-            var sql = propertiesToUpdate == _properties ? _updateSql : GetUpdateSql(propertiesToUpdate);
+            var sql = propertiesToUpdate == _updateProperties ? _updateSql : GetUpdateSql(propertiesToUpdate);
 
             SqlBuilderExtensions.LogQuery(sql, model);
 
@@ -402,12 +525,16 @@ namespace NzbDrone.Core.Datastore
             catch (Exception e)
             {
                 e.Data.Add("SQL", SqlBuilderExtensions.GetSqlLogString(sql, model));
+                if (_hasCatalogueIdentity)
+                {
+                    throw;
+                }
             }
         }
 
         private void UpdateFields(IDbConnection connection, IDbTransaction transaction, IList<TModel> models, List<PropertyInfo> propertiesToUpdate)
         {
-            var sql = propertiesToUpdate == _properties ? _updateSql : GetUpdateSql(propertiesToUpdate);
+            var sql = propertiesToUpdate == _updateProperties ? _updateSql : GetUpdateSql(propertiesToUpdate);
 
             foreach (var model in models)
             {
@@ -421,6 +548,10 @@ namespace NzbDrone.Core.Datastore
             catch (Exception e)
             {
                 e.Data.Add("SQL", SqlBuilderExtensions.GetSqlLogString(sql, models));
+                if (_hasCatalogueIdentity)
+                {
+                    throw;
+                }
             }
         }
 

@@ -108,7 +108,7 @@ namespace NzbDrone.Core.MetadataSource
                 throw new BookNotFoundException(id);
             }
 
-            TryEnrichEditionMetadata(result.Item2, InferProviderFromScopedId(id));
+            TryEnrichEditionMetadata(result.Item2, InferProviderFromScopedId(result.Item2?.ForeignBookId) ?? InferProviderFromScopedId(id));
 
             return result;
         }
@@ -128,7 +128,7 @@ namespace NzbDrone.Core.MetadataSource
                 throw new AuthorNotFoundException(id);
             }
 
-            TryEnrichAuthorPortrait(result);
+            TryEnrichAuthorMetadata(result);
 
             return result;
         }
@@ -474,11 +474,17 @@ namespace NzbDrone.Core.MetadataSource
                     try
                     {
                         var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
-                        var (matchedBook, matchedEdition) = GetExactIsbnMatches(results, edition.Isbn13).FirstOrDefault();
-
-                        if (matchedEdition == null)
+                        var matches = GetExactIsbnMatches(results, edition.Isbn13).Take(2).ToList();
+                        if (matches.Count != 1)
                         {
                             continue;
+                        }
+
+                        var (matchedBook, matchedEdition) = matches[0];
+
+                        if (string.Equals(provider.ProviderName, "OpenLibrary", StringComparison.OrdinalIgnoreCase))
+                        {
+                            StageOpenLibraryWorkSource(book, matchedBook);
                         }
 
                         if (edition.Asin.IsNullOrWhiteSpace() && matchedEdition.Asin.IsNotNullOrWhiteSpace())
@@ -494,6 +500,12 @@ namespace NzbDrone.Core.MetadataSource
                         if (!book.ReleaseDate.HasValue && matchedBook.ReleaseDate.HasValue)
                         {
                             book.ReleaseDate = matchedBook.ReleaseDate;
+                        }
+
+                        edition.ReleaseDate ??= matchedEdition.ReleaseDate;
+                        if (edition.Publisher.IsNullOrWhiteSpace() && matchedEdition.Publisher.IsNotNullOrWhiteSpace())
+                        {
+                            edition.Publisher = matchedEdition.Publisher;
                         }
 
                         if (edition.Language.IsNullOrWhiteSpace() && matchedEdition.Language.IsNotNullOrWhiteSpace())
@@ -512,7 +524,7 @@ namespace NzbDrone.Core.MetadataSource
                             if (cover != null)
                             {
                                 edition.Images ??= new List<MediaCover.MediaCover>();
-                                edition.Images.Add(new MediaCover.MediaCover(cover.CoverType, cover.Url));
+                                edition.Images.Add(CopyImage(cover, provider.ProviderName, matchedEdition.ForeignEditionId));
                             }
                         }
                     }
@@ -528,12 +540,12 @@ namespace NzbDrone.Core.MetadataSource
             }
         }
 
-        private void TryEnrichAuthorPortrait(Author author)
+        private void TryEnrichAuthorMetadata(Author author)
         {
             var metadata = author.Metadata?.Value;
             if (metadata?.Name.IsNullOrWhiteSpace() != false ||
                 !string.Equals(InferProviderFromScopedId(metadata.ForeignAuthorId), "Hardcover", StringComparison.OrdinalIgnoreCase) ||
-                metadata.Images?.Any(IsPoster) == true)
+                !NeedsSupplementaryAuthorMetadata(metadata))
             {
                 return;
             }
@@ -572,18 +584,38 @@ namespace NzbDrone.Core.MetadataSource
                         continue;
                     }
 
-                    var portrait = candidates.SelectMany(candidate => candidate.Author.Images ?? new List<MediaCover.MediaCover>())
-                        .FirstOrDefault(IsPoster);
-                    if (portrait != null)
+                    // Once a match corroborates the identity, another ISBN must
+                    // resolve to the same author before it may fill remaining fields.
+                    knownAuthorId = candidateIds[0];
+                    StageOpenLibrarySource(metadata.PendingSourceAssociations, knownAuthorId, "exact-isbn-and-author");
+                    var source = candidates[0].Author;
+                    if (metadata.Overview.IsNullOrWhiteSpace() && source.Overview.IsNotNullOrWhiteSpace())
                     {
-                        metadata.Images ??= new List<MediaCover.MediaCover>();
-                        metadata.Images.Add(new MediaCover.MediaCover(portrait.CoverType, portrait.Url));
+                        metadata.Overview = source.Overview;
+                    }
+
+                    metadata.Born ??= source.Born;
+                    metadata.Died ??= source.Died;
+
+                    if (metadata.Images?.Any(IsPoster) != true)
+                    {
+                        var portrait = candidates.SelectMany(candidate => candidate.Author.Images ?? Enumerable.Empty<MediaCover.MediaCover>())
+                            .FirstOrDefault(IsPoster);
+                        if (portrait != null)
+                        {
+                            metadata.Images ??= new List<MediaCover.MediaCover>();
+                            metadata.Images.Add(CopyImage(portrait, "OpenLibrary", knownAuthorId));
+                        }
+                    }
+
+                    if (!NeedsSupplementaryAuthorMetadata(metadata))
+                    {
                         return;
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, "Author portrait enrichment from Open Library failed for ISBN '{0}'", isbn);
+                    _logger.Debug(ex, "Author metadata enrichment from Open Library failed for ISBN '{0}'", isbn);
                     return;
                 }
             }
@@ -597,14 +629,67 @@ namespace NzbDrone.Core.MetadataSource
                 .Where(match => Isbn.AreEquivalent(isbn, match.Edition?.Isbn13));
         }
 
+        private static void StageOpenLibraryWorkSource(Book book, Book source)
+        {
+            var sourceId = BookWorkIdentity.GetOpenLibraryWorkId(source);
+            var knownId = BookWorkIdentity.GetOpenLibraryWorkId(book);
+            var bookAuthor = book.AuthorMetadata?.Value;
+            var sourceAuthor = source.AuthorMetadata?.Value;
+            var knownAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(bookAuthor?.OpenLibraryAuthorId);
+            var sourceAuthorId = OpenLibraryIdNormalizer.NormalizeAuthorId(sourceAuthor?.OpenLibraryAuthorId);
+
+            if (sourceId != null && (knownId == null || sourceId == knownId) &&
+                (knownAuthorId == null || knownAuthorId == sourceAuthorId) &&
+                HaveEqualNonEmptyText(book.Title, source.Title) &&
+                HaveEqualNonEmptyText(bookAuthor?.Name, sourceAuthor?.Name))
+            {
+                StageOpenLibrarySource(book.PendingSourceAssociations, sourceId, "exact-isbn-and-title-and-author");
+            }
+        }
+
+        private static void StageOpenLibrarySource(List<CatalogueSourceAssociation> sources, string sourceId, string evidence)
+        {
+            if (!sources.Any(source => string.Equals(source.Provider, "OpenLibrary", StringComparison.OrdinalIgnoreCase) && source.ProviderId == sourceId))
+            {
+                sources.Add(new CatalogueSourceAssociation
+                {
+                    Provider = "OpenLibrary",
+                    ProviderId = sourceId,
+                    Evidence = evidence
+                });
+            }
+        }
+
+        private static bool HaveEqualNonEmptyText(string first, string second)
+        {
+            return first.IsNotNullOrWhiteSpace() && string.Equals(first.Trim(), second?.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool NeedsSupplementaryMetadata(Book book, Edition edition)
         {
             return edition.Asin.IsNullOrWhiteSpace() ||
                    edition.PageCount == 0 ||
                    !book.ReleaseDate.HasValue ||
+                   !edition.ReleaseDate.HasValue ||
+                   edition.Publisher.IsNullOrWhiteSpace() ||
                    edition.Language.IsNullOrWhiteSpace() ||
                    edition.Overview.IsNullOrWhiteSpace() ||
                    edition.Images?.Any(IsCover) != true;
+        }
+
+        private static bool NeedsSupplementaryAuthorMetadata(AuthorMetadata metadata)
+        {
+            return metadata.Overview.IsNullOrWhiteSpace() || metadata.Images?.Any(IsPoster) != true;
+        }
+
+        private static MediaCover.MediaCover CopyImage(MediaCover.MediaCover image, string sourceProvider, string sourceId)
+        {
+            var hasSource = image.SourceProvider.IsNotNullOrWhiteSpace();
+            return new MediaCover.MediaCover(image.CoverType, image.Url)
+            {
+                SourceProvider = hasSource ? image.SourceProvider : sourceProvider,
+                SourceId = hasSource ? image.SourceId : sourceId
+            };
         }
 
         private static bool IsCover(MediaCover.MediaCover image)
