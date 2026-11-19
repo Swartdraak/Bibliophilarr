@@ -105,8 +105,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 decision.Reject(new Rejection("Missing author, book, or edition for import", RejectionType.Temporary));
             }
 
+            RejectIncompatibleFormats(decisions);
+
             var bookDecisions = decisions.Where(e => e.Approved)
-                .GroupBy(e => e.Item.Book.ForeignBookId).ToList();
+                .GroupBy(e => new
+                {
+                    ForeignBookId = e.Item.Book.ForeignBookId,
+                    ForeignEditionId = e.Item.Edition.ForeignEditionId,
+                    LocalBookId = e.Item.Book.ForeignBookId.IsNullOrWhiteSpace() ? e.Item.Book.Id : 0,
+                    LocalEditionId = e.Item.Edition.ForeignEditionId.IsNullOrWhiteSpace() ? e.Item.Edition.Id : 0
+                })
+                .ToList();
 
             var iDecision = 1;
             foreach (var bookDecision in bookDecisions)
@@ -128,6 +137,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         continue;
                     }
 
+                    RejectIncompatibleFormats(decisionList);
+                    decisionList = decisionList.Where(d => d.Approved).ToList();
+                    if (decisionList.Count == 0)
+                    {
+                        continue;
+                    }
+
                     // if (replaceExisting)
                     // {
                     //     RemoveExistingTrackFiles(author, book);
@@ -145,7 +161,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
 
                     // set the correct release to be monitored before importing the new files
-                    var newRelease = bookDecision.First().Item.Edition;
+                    var newRelease = decisionList[0].Item.Edition;
                     _logger.Debug("Updating release to {0}", newRelease);
 
                     if (_configService.EnableDualFormatTracking)
@@ -416,6 +432,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return importResults;
         }
 
+        private static void RejectIncompatibleFormats(IEnumerable<ImportDecision<LocalBook>> decisions)
+        {
+            foreach (var decision in decisions.Where(d => d.Approved && !ImportFormat.IsCompatible(d.Item.Path, d.Item.Edition)))
+            {
+                decision.Reject(new Rejection("File format does not match the selected edition", RejectionType.Permanent));
+            }
+        }
+
         private Author EnsureAuthorAdded(List<ImportDecision<LocalBook>> decisions, List<Author> addedAuthors)
         {
             var author = decisions.First().Item.Author;
@@ -611,18 +635,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
                 }
 
-                var edition = dbBook.Editions.Value.ExclusiveOrDefault(x => x.ForeignEditionId == decisions.First().Item.Edition.ForeignEditionId);
-                if (edition == null)
+                var selectedEdition = decisions[0].Item.Edition;
+                var edition = dbBook.Editions.Value.ExclusiveOrDefault(x =>
+                    selectedEdition.ForeignEditionId.IsNotNullOrWhiteSpace()
+                        ? x.ForeignEditionId == selectedEdition.ForeignEditionId
+                        : selectedEdition.Id > 0 && x.Id == selectedEdition.Id);
+
+                if (edition == null && selectedEdition.ForeignEditionId.IsNullOrWhiteSpace())
                 {
                     RejectBook(decisions);
                     return null;
                 }
 
-                // Populate the new DB book
+                // Another format can be prepared first. Defer a missing selected
+                // edition to EnsureEditionAdded on the same persisted work.
                 foreach (var decision in decisions)
                 {
                     decision.Item.Book = dbBook;
-                    decision.Item.Edition = edition;
+                    decision.Item.Edition = edition ?? selectedEdition;
                 }
 
                 book = dbBook;
@@ -660,15 +690,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                         return null;
                     }
-
-                    // Populate the new DB book
-                    foreach (var decision in decisions)
-                    {
-                        decision.Item.Edition = dbEdition;
-                    }
-
-                    edition = dbEdition;
                 }
+
+                edition = dbEdition;
+            }
+
+            foreach (var decision in decisions)
+            {
+                decision.Item.Edition = edition;
             }
 
             return edition;

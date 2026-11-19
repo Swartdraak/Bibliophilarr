@@ -45,6 +45,9 @@ process.
 - Recognize native audio format labels during automatic matching. Keep a single
   audiobook for review when its filename and embedded metadata identify
   different known works by the same author.
+- Reject known ebook and audiobook format mismatches while identifying and
+  importing files. Keep both editions when a batch contains both formats of
+  the same work (#477).
 - Save a new book's provider-verified author without a second synchronous
   author lookup. Expose stored work identifiers and source labels in the API
   for catalogue health checks.

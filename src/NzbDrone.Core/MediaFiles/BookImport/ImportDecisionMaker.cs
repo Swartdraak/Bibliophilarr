@@ -312,11 +312,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     return;
                 }
 
-                var bestEdition = books
-                    .Where(b => b?.Editions?.Value != null && b.Editions.Value.Any())
-                    .SelectMany(b => b.Editions.Value)
-                    .Where(e => e != null && e.ForeignEditionId.IsNotNullOrWhiteSpace())
-                    .FirstOrDefault();
+                // Keep the catalogue's work ranking. Format can refine edition selection
+                // within the first eligible work but is insufficient to identify another work.
+                var match = books
+                    .Where(book => book?.Editions?.Value != null)
+                    .Select(book => (Book: book, Editions: book.Editions.Value
+                        .Where(edition => edition?.ForeignEditionId.IsNotNullOrWhiteSpace() == true)
+                        .ToList()))
+                    .FirstOrDefault(candidate => candidate.Editions.Count > 0);
+
+                var bestEdition = match.Editions?.FirstOrDefault(edition =>
+                    release.LocalBooks.All(file => ImportFormat.IsCompatible(file.Path, edition)));
 
                 if (bestEdition == null)
                 {
@@ -325,13 +331,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 if (bestEdition.Book == null || !bestEdition.Book.IsLoaded)
                 {
-                    var matchedBook = books.FirstOrDefault(b => b.Editions.Value.Contains(bestEdition));
-                    if (matchedBook == null)
-                    {
-                        return;
-                    }
-
-                    bestEdition.Book = matchedBook;
+                    bestEdition.Book = match.Book;
                 }
 
                 release.Edition = bestEdition;

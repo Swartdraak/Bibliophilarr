@@ -39,9 +39,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
         [SetUp]
         public void Setup()
         {
-            _filePath = @"C:\Test\Unsorted\Dark Crime.epub".AsOsAgnostic();
-            FileSystem.AddFile(_filePath, new MockFileData(string.Empty));
-            _fileInfos = new List<IFileInfo> { DiskProvider.GetFileInfo(_filePath) };
+            SetFiles(".epub");
 
             _idConfig = new ImportDecisionMakerConfig
             {
@@ -100,6 +98,18 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             Mocker.GetMock<IImportDecisionEngineSpecification<LocalBook>>()
                 .Setup(c => c.IsSatisfiedBy(It.IsAny<LocalBook>(), It.IsAny<DownloadClientItem>()))
                 .Returns(Decision.Accept());
+        }
+
+        private void SetFiles(params string[] extensions)
+        {
+            _fileInfos = new List<IFileInfo>();
+
+            foreach (var extension in extensions)
+            {
+                _filePath = $@"C:\Test\Unsorted\Dark Crime{extension}".AsOsAgnostic();
+                FileSystem.AddFile(_filePath, new MockFileData(string.Empty));
+                _fileInfos.Add(DiskProvider.GetFileInfo(_filePath));
+            }
         }
 
         private ImportDecision<LocalBook> GetSingleDecision()
@@ -163,6 +173,68 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Item.Edition.ForeignEditionId.Should().Be("OL321M");
             decision.Item.Author.Should().NotBeNull();
             decision.Item.Author.Id.Should().Be(42);
+        }
+
+        [Test]
+        public void should_use_a_compatible_edition_of_the_same_work()
+        {
+            SetFiles(".m4b");
+            var (book, _) = BuildMatch();
+            var audiobook = new Edition
+            {
+                ForeignEditionId = "OL456M",
+                Format = "Audiobook",
+                Book = book
+            };
+            book.Editions.Value.Add(audiobook);
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(o => o.SearchForNewBook("Dark Crime", "Christine Feehan", true))
+                .Returns(new List<Book> { book });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Book.Should().BeSameAs(book);
+            decision.Item.Edition.Should().BeSameAs(audiobook);
+        }
+
+        [Test]
+        public void should_leave_audiobook_unmapped_when_only_a_different_work_has_a_compatible_edition()
+        {
+            SetFiles(".m4b");
+            var (book, _) = BuildMatch();
+            var (unrelatedBook, unrelatedEdition) = BuildMatch();
+            unrelatedBook.ForeignBookId = "OL789W";
+            unrelatedBook.Title = "Dark Song";
+            unrelatedEdition.ForeignEditionId = "OL789M";
+            unrelatedEdition.IsEbook = false;
+            unrelatedEdition.Format = "Audiobook";
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(o => o.SearchForNewBook("Dark Crime", "Christine Feehan", true))
+                .Returns(new List<Book> { book, unrelatedBook });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Item.Book.Should().BeNull();
+            decision.Item.Edition.Should().BeNull();
+        }
+
+        [Test]
+        public void should_reject_a_candidate_that_only_matches_some_release_paths()
+        {
+            SetFiles(".epub", ".m4b");
+            var (book, _) = BuildMatch();
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(o => o.SearchForNewBook("Dark Crime", "Christine Feehan", true))
+                .Returns(new List<Book> { book });
+
+            var decisions = Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            decisions.Should().HaveCount(2).And.OnlyContain(decision => !decision.Approved && decision.Item.Edition == null);
         }
 
         [Test]

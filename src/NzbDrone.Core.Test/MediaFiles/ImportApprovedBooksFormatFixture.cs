@@ -159,6 +159,112 @@ namespace NzbDrone.Core.Test.MediaFiles
 
         [TestCase(true)]
         [TestCase(false)]
+        public void should_reject_incompatible_files_before_preparing_or_moving_them(bool audiobook)
+        {
+            _ebookEdition.Format = "Ebook";
+            _audiobookEdition.Format = "Audiobook";
+            if (audiobook)
+            {
+                GivenAudiobookImport();
+                _approvedDecisions[0].Item.Edition = _ebookEdition;
+            }
+            else
+            {
+                GivenEbookImport();
+                _approvedDecisions[0].Item.Edition = _audiobookEdition;
+            }
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.Result == ImportResultType.Rejected);
+            Mocker.GetMock<IEditionService>().Verify(s => s.SetMonitored(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IUpgradeMediaFiles>().Verify(s => s.UpgradeBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+        }
+
+        [Test]
+        public void should_prepare_and_persist_both_formats_of_one_work()
+        {
+            Mocker.GetMock<IConfigService>().Setup(s => s.EnableDualFormatTracking).Returns(true);
+            _ebookEdition.ForeignEditionId = "ebook-edition";
+            _ebookEdition.Format = "Ebook";
+            _audiobookEdition.ForeignEditionId = "audiobook-edition";
+            _audiobookEdition.Format = "Audiobook";
+            GivenEbookImport();
+            var ebookDecision = _approvedDecisions[0];
+            GivenAudiobookImport();
+            var audiobookDecision = _approvedDecisions[0];
+            _approvedDecisions.Insert(0, ebookDecision);
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().OnlyContain(result => result.Result == ImportResultType.Imported).And.HaveCount(2);
+            Mocker.GetMock<IEditionService>().Verify(s => s.SetMonitoredByFormat(_ebookEdition), Times.Once());
+            Mocker.GetMock<IEditionService>().Verify(s => s.SetMonitoredByFormat(_audiobookEdition), Times.Once());
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 2 &&
+                files.Exists(file => file.Path == ebookDecision.Item.Path && file.EditionId == _ebookEdition.Id) &&
+                files.Exists(file => file.Path == audiobookDecision.Item.Path && file.EditionId == _audiobookEdition.Id))), Times.Once());
+        }
+
+        [Test]
+        public void should_add_the_selected_edition_when_the_work_already_has_a_different_format()
+        {
+            _ebookEdition.ForeignEditionId = "ebook-edition";
+            _ebookEdition.Format = "Ebook";
+            _audiobookEdition.ForeignEditionId = "audiobook-edition";
+            _audiobookEdition.Format = "Audiobook";
+            _book.Editions = new List<Edition> { _ebookEdition };
+
+            GivenAudiobookImport();
+            var remoteEdition = new Edition { ForeignEditionId = _audiobookEdition.ForeignEditionId, Format = "Audiobook" };
+            var remoteBook = new Book
+            {
+                ForeignBookId = _book.ForeignBookId,
+                Author = _author,
+                Editions = new List<Edition> { remoteEdition }
+            };
+            _approvedDecisions[0].Item.Book = remoteBook;
+            _approvedDecisions[0].Item.Edition = remoteEdition;
+
+            Mocker.GetMock<IBookService>().Setup(s => s.FindById(_book.ForeignBookId)).Returns(_book);
+            Mocker.GetMock<IEditionService>().SetupSequence(s => s.GetEditionByForeignEditionId(remoteEdition.ForeignEditionId))
+                .Returns((Edition)null)
+                .Returns(_audiobookEdition);
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.Result == ImportResultType.Imported);
+            Mocker.GetMock<IEditionService>().Verify(s => s.InsertMany(It.Is<List<Edition>>(editions =>
+                editions.Count == 1 && editions[0].ForeignEditionId == remoteEdition.ForeignEditionId && editions[0].BookId == _book.Id)), Times.Once());
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].EditionId == _audiobookEdition.Id)), Times.Once());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_validate_and_use_the_stored_edition_when_resolving_a_remote_edition(bool compatible)
+        {
+            GivenAudiobookImport();
+            var storedEdition = compatible ? _audiobookEdition : _ebookEdition;
+            _ebookEdition.Format = "Ebook";
+            _audiobookEdition.Format = "Audiobook";
+            var remoteEdition = new Edition { BookId = _book.Id, ForeignEditionId = "same-edition", Format = "Audiobook" };
+            _approvedDecisions[0].Item.Edition = remoteEdition;
+            storedEdition.ForeignEditionId = remoteEdition.ForeignEditionId;
+            Mocker.GetMock<IEditionService>().Setup(s => s.GetEditionByForeignEditionId(remoteEdition.ForeignEditionId)).Returns(storedEdition);
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.Result == (compatible ? ImportResultType.Imported : ImportResultType.Rejected));
+            Mocker.GetMock<IEditionService>()
+                .Verify(s => s.SetMonitored(storedEdition), compatible ? Times.Once() : Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].EditionId == storedEdition.Id)), compatible ? Times.Once() : Times.Never());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
         public void should_persist_later_files_when_one_approved_book_cannot_be_prepared(bool missingAuthor)
         {
             GivenAudiobookImport();
