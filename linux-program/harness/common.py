@@ -6,6 +6,8 @@ materialized runner plan binds. Secrets are read only through os.environ values
 that the runner's secret_env broker projects from the task-scoped credential file.
 Never prints secret values; emits named boolean assertions only.
 """
+import http.cookiejar
+import json
 import os
 import sys
 import urllib.error
@@ -74,6 +76,29 @@ def get_form(url, data, timeout=60, headers=None, opener=None):
         return e.code, dict(e.headers), (e.read(200_000) if e.fp else b'')
     except urllib.error.URLError:
         return 0, {}, b''
+
+
+def bootstrap_first_user(username, password, timeout=60):
+    """Provision a first user through the local terminal's cookie/token handshake."""
+    url = app_url().rstrip('/') + '/bootstrap'
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()),
+    )
+    status, _, raw = get(url, timeout=timeout, opener=opener)
+    if status != 200:
+        return status
+    try:
+        tokens = json.loads(raw)
+        header = tokens['headerName']
+        token = tokens['requestToken']
+        if not isinstance(header, str) or not isinstance(token, str) or not header or not token:
+            return 0
+    except (ValueError, TypeError, KeyError):
+        return 0
+    status, _, _ = get_form(url, {'username': username, 'password': password},
+                            timeout=timeout, headers={header: token}, opener=opener)
+    return status
 
 
 def post_json(url, payload, headers=None, timeout=30, max_bytes=2_000_000):
