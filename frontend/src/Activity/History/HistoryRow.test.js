@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import HistoryRow from './HistoryRow';
 
+jest.mock('Utilities/String/translate', () => (key) => ({
+  HistoryEventDetails: 'View history details'
+})[key] ?? key);
+
 test('names the event details control and opens the details of the selected row', () => {
   const portal = document.createElement('div');
   portal.id = 'portal-root';
@@ -30,7 +34,7 @@ test('names the event details control and opens the details of the selected row'
   );
 
   try {
-    fireEvent.click(screen.getByRole('button', { name: 'HistoryEventDetails' }));
+    fireEvent.click(screen.getByRole('button', { name: 'View history details' }));
     expect(screen.getByRole('dialog', { name: 'Book Imported' })).toBeInTheDocument();
     expect(screen.getByText('/fixture/library/book.epub')).toBeInTheDocument();
   } finally {
