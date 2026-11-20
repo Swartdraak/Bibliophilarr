@@ -459,7 +459,13 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("The Primal Hunter: Book 7", "The Primal Hunter 3: A LitRPG Adventure", false)]
         [TestCase("The Primal Hunter 7: A LitRPG Adventure", "The Primal Hunter: Volume 3", false)]
         [TestCase("The Primal Hunter: Book 7", "The Primal Hunter 7: A LitRPG Adventure", true)]
+        [TestCase("Starling Almanac: Book 3", "Starling Almanac 7: An Adventure", false)]
+        [TestCase("Starling Almanac 3 - An Adventure", "Starling Almanac: Book 7", false)]
+        [TestCase("Starling Almanac: Book 3", "Starling Almanac 3: An Adventure", true)]
+        [TestCase("Starling: Almanac: Book 3", "Starling: Almanac 7: An Adventure: Illustrated", false)]
         [TestCase("The Archive: Book 7", "The Archive 2021", true)]
+        [TestCase("The Archive: Book 7", "The Archive 2021: A History", true)]
+        [TestCase("The Archive 3", "The Archive 7: A History", true)]
         [TestCase("The Primal Hunter: Book 7", "Another Series 3", true)]
         public void should_skip_a_different_series_volume_without_a_full_filename_when_either_title_names_the_volume(
             string embeddedTitle, string candidateTitle, bool shouldMatch)

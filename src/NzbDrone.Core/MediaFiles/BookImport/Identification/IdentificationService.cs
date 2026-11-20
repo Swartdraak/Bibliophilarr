@@ -346,7 +346,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return tagPosition > 0 && filePosition > 0 && tagPosition != filePosition && tagSeries == fileSeries;
         }
 
-        private static (string Series, int Position, bool IsExplicit) ReadWorkOrdinal(string title)
+        private static (string Series, int Position, bool IsExplicit) ReadWorkOrdinal(string title, string explicitSeries = null)
         {
             if (title == null)
             {
@@ -354,6 +354,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             var work = NormalizeSubtitleNotation(TrackTitleSuffix.Replace(title, string.Empty));
+
+            // The other title already names this series and explicitly labels an installment.
+            // Only then can text after the installment be treated as a subtitle.
+            if (explicitSeries != null && work.Length > explicitSeries.Length && work.StartsWith(explicitSeries, StringComparison.Ordinal))
+            {
+                var subtitleStart = work.IndexOf(": ", explicitSeries.Length + 1, StringComparison.Ordinal);
+                if (subtitleStart >= 0)
+                {
+                    work = work[..subtitleStart];
+                }
+            }
+
             var explicitlyNumbered = ExplicitSeriesVolume.Match(work);
             if (explicitlyNumbered.Success && int.TryParse(explicitlyNumbered.Groups[2].Value, out var explicitPosition))
             {
@@ -476,7 +488,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var workTitle = ImportDecisionMaker.NormalizeLibraryIdentity(book?.Title);
             var editionTitle = ImportDecisionMaker.NormalizeLibraryIdentity(edition?.Title);
             var ordinal = ReadWorkOrdinal(taggedTitle);
-            if (ordinal.Position > 0 && (HasDifferentVolume(workTitle, ordinal) || HasDifferentVolume(editionTitle, ordinal)))
+            if (HasDifferentVolume(workTitle, taggedTitle, ordinal) || HasDifferentVolume(editionTitle, taggedTitle, ordinal))
             {
                 _logger.Debug("Skipping library scan candidate {0} because it names a different volume of the same series", edition);
                 return false;
@@ -495,10 +507,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return true;
         }
 
-        private static bool HasDifferentVolume(string title, (string Series, int Position, bool IsExplicit) ordinal)
+        private static bool HasDifferentVolume(string title, string taggedTitle, (string Series, int Position, bool IsExplicit) ordinal)
         {
-            var other = ReadWorkOrdinal(title);
-            return (ordinal.IsExplicit || other.IsExplicit) && other.Position > 0 &&
+            var other = ReadWorkOrdinal(title, ordinal.IsExplicit ? ordinal.Series : null);
+            if (other.IsExplicit && !ordinal.IsExplicit)
+            {
+                ordinal = ReadWorkOrdinal(taggedTitle, other.Series);
+            }
+
+            return (ordinal.IsExplicit || other.IsExplicit) && ordinal.Position > 0 && other.Position > 0 &&
                 other.Position != ordinal.Position && other.Series == ordinal.Series;
         }
 
