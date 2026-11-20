@@ -70,7 +70,7 @@ class ImportListExclusion extends Component {
 
         <div className={styles.actions}>
           <Link
-            ariaLabel={translate('EditNamedImportListExclusion', { name: authorName })}
+            aria-label={translate('EditNamedImportListExclusion', { name: authorName })}
             onPress={this.onEditImportListExclusionPress}
           >
             <Icon name={icons.EDIT} />
