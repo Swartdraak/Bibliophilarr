@@ -145,7 +145,7 @@ def running_app(binary, app_data, log_path, port, evidence, credentials):
                 raise TimeoutError("application did not stop after SIGTERM")
 
 
-def login(page, username, password, *, rejected):
+def login(page, username, password, *, rejected, return_path="/authors"):
     print(f"Checking {'rejected' if rejected else 'successful'} Forms submission", flush=True)
     page.get_by_placeholder("Username").fill(username)
     page.get_by_placeholder("Password").fill(password)
@@ -161,8 +161,8 @@ def login(page, username, password, *, rejected):
         assert "loginFailed=true" in location and "BibliophilarrAuth=" not in cookie
         page.wait_for_url(re.compile(r"loginFailed=true"))
     else:
-        assert urlsplit(location).path == "/authors" and "BibliophilarrAuth=" in cookie
-        page.wait_for_url(re.compile(r"/authors$"))
+        assert urlsplit(location).path == return_path and "BibliophilarrAuth=" in cookie
+        page.wait_for_url(re.compile(re.escape(return_path) + r"$"))
 
     assert any(item["name"] == "BibliophilarrAuth" for item in page.context.cookies()) != rejected
 
@@ -267,6 +267,35 @@ def check_routes(page, base, api, evidence):
         page.keyboard.press("Escape")
         expect(toggle).to_have_attribute("aria-expanded", "false")
         expect(toggle).to_be_focused()
+
+
+def check_metadata_settings(page, base, api):
+    page.set_viewport_size({"width": 1366, "height": 900})
+    check_status(page.goto(base + "/settings"), 200, "Authenticated Settings")
+    main = page.get_by_role("main")
+    metadata_link = main.get_by_role("link", name="Metadata", exact=True)
+    expect(metadata_link).to_have_attribute("href", "/settings/metadata")
+    metadata_link.click()
+    expect(page).to_have_url(base + "/settings/metadata")
+
+    timeout_input = main.get_by_role("spinbutton", name="Provider Timeout (seconds)")
+    expect(timeout_input).to_be_visible()
+    timeout = 41 if timeout_input.input_value() != "41" else 43
+    timeout_input.fill(str(timeout))
+    with page.expect_response(
+        lambda response: response.request.method == "PUT"
+        and urlsplit(response.url).path.lower() == "/api/v1/config/metadataprovider"
+    ) as saved:
+        main.get_by_role("button", name="Save Changes", exact=True).click()
+    check_status(saved.value, 202, "Metadata settings save from the browser")
+    expect(main.get_by_role("button", name="No Changes", exact=True)).to_be_disabled()
+
+    check_status(page.reload(), 200, "Reload authenticated Metadata settings")
+    expect(timeout_input).to_have_value(str(timeout))
+    config = check_status(api.get("/api/v1/config/metadataprovider"), 200, "Read back browser metadata setting").json()
+    assert config["metadataProviderTimeoutSeconds"] == timeout, "browser metadata change did not persist"
+    print("Metadata settings persisted after browser reload", flush=True)
+    return timeout
 
 
 def run(binary, evidence, *, live_provider=False):
@@ -381,6 +410,7 @@ def run(binary, evidence, *, live_provider=False):
             initializer = check_status(page.request.get(base + "/initialize.json"), 200, "Forms initializer")
             assert initializer.json()["apiKey"] == key and "no-store" in initializer.headers["cache-control"]
             check_routes(page, base, api, evidence)
+            timeout = check_metadata_settings(page, base, api)
             catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
             assert app.poll() is None, "native app exited before the planned restart"
 
@@ -410,9 +440,13 @@ def run(binary, evidence, *, live_provider=False):
             page.get_by_role("button", name="Logout", exact=True).click()
             expect(page.get_by_placeholder("Username")).to_be_visible()
             check_status(page.request.get(base + "/initialize.json"), 401, "Logged-out initializer")
-            page.goto(base + "/authors")
+            check_status(page.request.get(base + "/settings/metadata", max_redirects=0), 401,
+                         "Logged-out Metadata settings")
+            page.goto(base + "/settings/metadata")
             expect(page).to_have_url(re.compile(r"/login\?.*returnUrl="))
-            login(page, username, password, rejected=False)
+            login(page, username, password, rejected=False, return_path="/settings/metadata")
+            expect(page.get_by_role("spinbutton", name="Provider Timeout (seconds)")).to_have_value(str(timeout))
+            print("Signed-in browser returned to the saved Metadata settings", flush=True)
             check_status(page.request.get(base + "/", max_redirects=0), 200, "New Forms session after restart opens the root")
             main = page.get_by_role("main")
             for route, label, locator in (
