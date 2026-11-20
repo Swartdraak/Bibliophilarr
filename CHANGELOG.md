@@ -30,10 +30,9 @@ process.
 
 ### Fixed
 
-- Library scans try the next enabled metadata provider when an author and title
-  search returns only incompatible editions or conflicts with file identity.
-- Continue metadata lookup when an earlier result conflicts with the file's
-  title, series volume, or author.
+- Library scans try the next enabled provider when an author-and-title search
+  returns only incompatible formats or conflicts with the file's title, series
+  volume, or author.
 - Explain in Unmapped Files when provider results conflict with the book's
   identity. A later valid match clears the reason.
 - Wanted searches with an ebook or audiobook filter target only that format.
@@ -43,6 +42,7 @@ process.
   Its filtered row and bulk searches look for upgrades in that format.
 - Batch author canonicalization previews duplicate candidates. Apply a
   confirmed merge through the reviewed reconciliation command.
+- Name the event details button in Activity History for screen readers.
 - Calendar subscription links authenticate with their API key and open in
   calendar clients without a Bibliophilarr browser session.
 - Calendar subscriptions apply author tags from generated links and retain
