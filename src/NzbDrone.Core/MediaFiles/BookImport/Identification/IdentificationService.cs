@@ -530,7 +530,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             var suffix = longerTitle.AsSpan(title.Length).TrimStart();
-            return suffix.Length > 1 && suffix[0] is '(' or ':' && !DistinctWorkScope.IsMatch(suffix[1..].TrimStart());
+            return suffix.Length > 1 && suffix[0] is '(' or ':' &&
+                !GuideSuffix.IsMatch(suffix) && !DistinctWorkScope.IsMatch(suffix[1..].TrimStart());
         }
 
         private static bool HasNonconflictingEditionIdentifier(LocalEdition release, Edition edition)

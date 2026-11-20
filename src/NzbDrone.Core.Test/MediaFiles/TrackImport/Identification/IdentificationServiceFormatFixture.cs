@@ -440,6 +440,21 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(_audiobookEdition);
         }
 
+        [TestCase("Study Guide", false)]
+        [TestCase("Teacher’s Guide, with Poster", false)]
+        [TestCase("Reading Guide", false)]
+        [TestCase("A Novel", true)]
+        public void should_distinguish_an_embedded_guide_from_its_original_work_across_subtitle_separators(string subtitle, bool shouldMatch)
+        {
+            GivenRetryCandidate("Test Book");
+            _config.Filter = FilterFilesType.None;
+            var tracks = CreateRetryTracks($"Test Book - {subtitle}", $"Test Author - Test Book - {subtitle}");
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (result == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
         [Test]
         public void should_skip_a_different_explicit_series_volume_without_a_full_filename()
         {
