@@ -56,6 +56,12 @@ sign-in upgrades the account's legacy password record. Retain a matching
 app-data backup when upgrading. To roll back after a password record changes,
 restore the matching backup with the earlier application.
 
+Terminal first-account setup accepts direct loopback requests. Fetch an
+antiforgery cookie and request token with `GET /bootstrap`, then submit
+`POST /bootstrap` with that cookie and the returned token header. The server
+still permits creation of only the first user. See [Quick start](QUICKSTART.md#create-the-first-account-from-a-terminal)
+for the terminal example.
+
 After changing authentication or proxy settings, verify first-account setup,
 sign-in, an authenticated API write and sign-out on a disposable instance.
 
