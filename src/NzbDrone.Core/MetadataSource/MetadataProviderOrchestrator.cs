@@ -67,6 +67,16 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.SupportsBookSearch);
         }
 
+        public void SearchForLibraryImport(string title, string author, Func<List<Book>, bool> stopAfter)
+        {
+            ExecuteFirst<ISearchForNewBook, List<Book>>(
+                provider => provider.SearchForNewBook(title, author, true),
+                BookSearchOperation,
+                provider => provider.SupportsBookSearch,
+                treatEmptyListAsNoData: true,
+                acceptResult: stopAfter);
+        }
+
         private static List<Book> GetExplicitIsbnResults(ISearchForNewBook provider, string isbn)
         {
             var books = provider.SearchByIsbn(isbn);
@@ -201,7 +211,8 @@ namespace NzbDrone.Core.MetadataSource
                                              Func<IMetadataProvider, bool> compatibility = null,
                                              string entityId = null,
                                              bool throwOnTransportFailure = false,
-                                             bool treatEmptyListAsNoData = false)
+                                             bool treatEmptyListAsNoData = false,
+                                             Func<T, bool> acceptResult = null)
             where TContract : class
             where T : class
         {
@@ -268,7 +279,8 @@ namespace NzbDrone.Core.MetadataSource
                     // but returned zero items, so it must not mask a later provider that has
                     // data. Entity lookups (single-object results) only ever see null, so
                     // treatEmptyListAsNoData is false there and behavior is unchanged.
-                    var noData = returnedNull || (treatEmptyListAsNoData && IsNoData(result));
+                    var noData = returnedNull || (treatEmptyListAsNoData && IsNoData(result)) ||
+                        (acceptResult != null && !acceptResult(result));
 
                     // Issue #277: record the result count so an HTTP-200-with-empty-body
                     // (provider reachable, returned zero data) is distinguishable in telemetry

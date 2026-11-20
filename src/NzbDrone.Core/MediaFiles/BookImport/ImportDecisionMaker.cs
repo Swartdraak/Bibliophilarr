@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -309,20 +310,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     bookTitle,
                     authorName);
 
-                var books = _metadataOrchestrator.SearchForNewBook(bookTitle, authorName, true);
-
-                // Issue #340: when no metadata provider is configured the orchestrator
-                // returns null. Guard before books.Where(...) so the fallback degrades
-                // to "no match" (release keeps its original rejection) instead of
-                // crashing and leaving the release with Edition=null.
-                if (books == null)
-                {
-                    return;
-                }
-
                 var (book, bestEdition) = config.NewDownload
-                    ? SelectRequestedFallback(books, release)
-                    : SelectLibraryFallback(books, release, bookTitle, authorName, config.AddNewAuthors);
+                    ? SelectRequestedFallback(_metadataOrchestrator.SearchForNewBook(bookTitle, authorName, true), release)
+                    : FindLibraryFallback(release, bookTitle, authorName, config.AddNewAuthors);
 
                 if (bestEdition == null)
                 {
@@ -359,7 +349,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private static (Book Book, Edition Edition) SelectRequestedFallback(List<Book> books, LocalEdition release)
         {
             // Preserve requested manual/download ranking. Format only refines the first work.
-            var match = books
+            var match = (books ?? new List<Book>())
                 .Where(book => book?.Editions?.Value != null)
                 .Select(book => (Book: book, Editions: book.Editions.Value
                     .Where(edition => edition?.ForeignEditionId.IsNotNullOrWhiteSpace() == true)
@@ -372,24 +362,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 !IdentificationService.ConflictsWithGuideTitle(taggedBookTitle, edition, match.Book)));
         }
 
-        private (Book Book, Edition Edition) SelectLibraryFallback(List<Book> books, LocalEdition release, string title, string author, bool addNewAuthors)
+        private (Book Book, Edition Edition) FindLibraryFallback(LocalEdition release, string title, string author, bool addNewAuthors)
         {
             var exactTitle = NormalizeLibraryIdentity(title);
-            var exactAuthor = NormalizeLibraryIdentity(author);
+            var exactAuthor = NormalizeLibraryAuthor(author);
             if (exactTitle == null || exactAuthor == null ||
                 release.LocalBooks.Any(file => ConflictsWithLibraryIdentity(file.FileTrackInfo, exactTitle, exactAuthor)))
-            {
-                return default;
-            }
-
-            // Resolve work ambiguity before consulting editions, so a matching format
-            // cannot select one of two independently plausible work identities.
-            var works = books.Where(book => book != null &&
-                    NormalizeLibraryIdentity(book.Title) == exactTitle &&
-                    NormalizeLibraryIdentity(book.AuthorMetadata?.Value?.Name ?? book.Author?.Value?.Name) == exactAuthor)
-                .GroupBy(GetLibraryWorkIdentity).Take(2).ToList();
-            if (works.Count != 1 || works[0].Key == null ||
-                works[0].Where(book => book.Id > 0).Select(book => book.Id).Distinct().Take(2).Count() > 1)
             {
                 return default;
             }
@@ -400,7 +378,39 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 return default;
             }
 
-            var format = formats[0].Value;
+            (Book Book, Edition Edition, bool Hold) selection = default;
+            _metadataOrchestrator.SearchForLibraryImport(title, author, books =>
+            {
+                selection = SelectLibraryFallback(books, release, exactTitle, exactAuthor, formats[0].Value, addNewAuthors);
+                return selection.Edition != null || selection.Hold;
+            });
+            return (selection.Book, selection.Edition);
+        }
+
+        private (Book Book, Edition Edition, bool Hold) SelectLibraryFallback(
+            List<Book> books, LocalEdition release, string exactTitle, string exactAuthor, FormatType format, bool addNewAuthors)
+        {
+            // Resolve work ambiguity before consulting editions, so a matching format
+            // cannot select one of two independently plausible work identities.
+            var works = books.Where(book => book != null &&
+                    NormalizeLibraryIdentity(book.Title) == exactTitle &&
+                    NormalizeLibraryAuthor(book.AuthorMetadata?.Value?.Name ?? book.Author?.Value?.Name) == exactAuthor)
+                .GroupBy(GetLibraryWorkIdentity).Take(2).ToList();
+            if (works.Count == 0)
+            {
+                return default;
+            }
+
+            if (works.Count > 1 || works[0].Where(book => book.Id > 0).Select(book => book.Id).Distinct().Take(2).Count() > 1)
+            {
+                return (null, null, true);
+            }
+
+            if (works[0].Key == null)
+            {
+                return default;
+            }
+
             var taggedBookTitle = IdentificationService.GetReliableTaggedBookTitle(release);
             var editions = works[0].SelectMany(book => (book.Editions?.Value ?? new List<Edition>())
                     .Where(edition => edition?.ForeignEditionId.IsNotNullOrWhiteSpace() == true &&
@@ -409,6 +419,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         !IdentificationService.ConflictsWithGuideTitle(taggedBookTitle, edition, book))
                     .Select(edition => (Book: book, Edition: edition)))
                 .Where(item => ImportFormat.ForEdition(item.Edition) == format || ImportFormat.NeedsDigitalEdition(item.Edition))
+                .Where(item => !HasConflictingFileIdentifiers(item.Edition, release.LocalBooks))
                 .OrderByDescending(item => ImportFormat.ForEdition(item.Edition) == format)
                 .ThenByDescending(item => CountMatchingFileIdentifiers(item.Edition, release.LocalBooks))
                 .ThenByDescending(item => item.Book.Id > 0);
@@ -420,7 +431,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 var localAuthor = ResolveLibraryAuthor(candidate, scopedAuthor, authorId);
                 if (localAuthor != null)
                 {
-                    if (NormalizeLibraryIdentity(localAuthor.Name) != exactAuthor)
+                    if (NormalizeLibraryAuthor(localAuthor.Name) != exactAuthor)
                     {
                         continue;
                     }
@@ -428,24 +439,42 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     candidate.Author = localAuthor;
                     candidate.AuthorMetadata = localAuthor.Metadata.Value;
                     candidate.AuthorMetadataId = localAuthor.AuthorMetadataId;
-                    return (candidate, edition);
+                    return (candidate, edition, false);
                 }
 
-                if (addNewAuthors && scopedAuthor && NormalizeLibraryIdentity(candidate.Author?.Value?.Name) == exactAuthor)
+                if (addNewAuthors && scopedAuthor && NormalizeLibraryAuthor(candidate.Author?.Value?.Name) == exactAuthor)
                 {
-                    return (candidate, edition);
+                    return (candidate, edition, false);
                 }
             }
 
             return default;
         }
 
+        private static bool HasConflictingFileIdentifiers(Edition edition, List<LocalBook> files)
+        {
+            var isbn = Isbn.AsIsbn13(edition.Isbn13);
+            var asin = NormalizeLibraryAsin(edition.Asin);
+            return files.Any(file =>
+            {
+                var tags = file.FileTrackInfo;
+                return (isbn != null && tags?.IsbnConfidence >= 0.9 && Isbn.AsIsbn13(tags.Isbn) is { } fileIsbn && fileIsbn != isbn) ||
+                    (asin != null && tags?.AsinConfidence >= 0.9 && NormalizeLibraryAsin(tags.Asin) is { } fileAsin && fileAsin != asin);
+            });
+        }
+
         private static int CountMatchingFileIdentifiers(Edition edition, List<LocalBook> files)
         {
+            var asin = NormalizeLibraryAsin(edition.Asin);
             return files.Count(file =>
                 (file.FileTrackInfo?.IsbnConfidence >= 0.9 && Isbn.AreEquivalent(file.FileTrackInfo.Isbn, edition.Isbn13)) ||
-                (file.FileTrackInfo?.AsinConfidence >= 0.9 && file.FileTrackInfo.Asin?.Length == 10 &&
-                 string.Equals(file.FileTrackInfo.Asin, edition.Asin, StringComparison.OrdinalIgnoreCase)));
+                (asin != null && file.FileTrackInfo?.AsinConfidence >= 0.9 && NormalizeLibraryAsin(file.FileTrackInfo.Asin) == asin));
+        }
+
+        private static string NormalizeLibraryAsin(string value)
+        {
+            var asin = value?.Trim();
+            return asin?.Length == 10 && asin.All(char.IsAsciiLetterOrDigit) ? asin.ToUpperInvariant() : null;
         }
 
         private Author ResolveLibraryAuthor(Book candidate, bool scopedAuthor, string authorId)
@@ -478,8 +507,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private static bool ConflictsWithLibraryIdentity(ParsedTrackInfo tags, string title, string author)
         {
             var tagTitle = NormalizeLibraryIdentity(tags?.BookTitle);
-            var names = (tags?.Authors ?? new List<string>()).Select(NormalizeLibraryIdentity).Where(name => name != null).ToList();
+            var names = (tags?.Authors ?? new List<string>()).Select(NormalizeLibraryAuthor).Where(name => name != null).ToList();
             return (tagTitle != null && tagTitle != title) || (names.Count > 0 && !names.Contains(author));
+        }
+
+        private static string NormalizeLibraryAuthor(string value)
+        {
+            var normalized = NormalizeLibraryIdentity(value);
+            return normalized == null ? null : Regex.Replace(normalized, @"(?<=\b\p{L}\.) (?=\p{L}\.)", string.Empty);
         }
 
         internal static string NormalizeLibraryIdentity(string value)

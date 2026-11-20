@@ -12,6 +12,7 @@ using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 
@@ -30,6 +31,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private const double AutoAddAuthorDistanceThreshold = 0.25;
 
         private static readonly Regex GuideSuffix = new Regex(@"^(?:\s*[:(,–—]\s*|\s+-\s+|\s+)(?:TEACHER(?:['’]S)?|TEACHERS['’]|TEACHING|STUDY|READING) GUIDE\b", RegexOptions.CultureInvariant);
+        private static readonly Regex ExplicitSeriesVolume = new Regex(@"^(.+?)[\s:,(–—-]+(?:BOOK|VOL(?:UME)?\.?)[\s#]+([0-9]+)\)?$", RegexOptions.CultureInvariant);
+        private static readonly Regex TrackTitleSuffix = new Regex(@"(?:^|[\s:,(–—-]+)(?:CHAPTERS?|DISCS?|PARTS?|TRACKS?)\s*[-#]?\s*[0-9]+(?:\s*[/–-]\s*[0-9]+)?\)?$", RegexOptions.CultureInvariant);
 
         private readonly ITrackGroupingService _trackGroupingService;
         private readonly IMetadataTagService _metadataTagService;
@@ -100,6 +103,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             _logger.Debug("Starting book identification");
 
+            // Preserve the independent tag author before release augmentation can fill it from the filename.
+            var retryAuthors = !config.NewDownload && config.Filter == FilterFilesType.Matched && idOverrides.Edition == null
+                ? localTracks.Distinct().ToDictionary(track => track, ReadCorroboratedFilenameAuthor)
+                : null;
             var releases = GetLocalBookReleases(localTracks, config.SingleRelease);
 
             if (runSummary != null)
@@ -123,7 +130,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 try
                 {
-                    IdentifyRelease(localRelease, idOverrides, config, runSummary);
+                    IdentifyRelease(localRelease, idOverrides, config, runSummary, retryAuthors);
                 }
                 catch (Exception e)
                 {
@@ -178,15 +185,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return localTracks;
         }
 
-        private void IdentifyRelease(LocalEdition localBookRelease, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary runSummary)
+        private void IdentifyRelease(LocalEdition localBookRelease, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary runSummary, IReadOnlyDictionary<LocalBook, string> retryAuthors)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var usedRemote = false;
             var taggedBookTitle = GetReliableTaggedBookTitle(localBookRelease);
+            var corroboratedAuthors = retryAuthors == null || taggedBookTitle == null
+                ? null
+                : localBookRelease.LocalBooks.Select(track => retryAuthors.GetValueOrDefault(track)).Where(author => author != null).ToHashSet();
+
+            bool AllowsCandidate(CandidateEdition candidate) =>
+                AllowsGuideMatch(taggedBookTitle, candidate.Edition, idOverrides.Edition) &&
+                (corroboratedAuthors == null || AllowsMatchedRetry(localBookRelease, taggedBookTitle, corroboratedAuthors, candidate.Edition));
 
             IEnumerable<CandidateEdition> candidateReleases = _candidateService.GetDbCandidatesFromTags(localBookRelease, idOverrides, config.IncludeExisting)
                 .Where(candidate => localBookRelease.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, candidate.Edition)))
-                .Where(candidate => AllowsGuideMatch(taggedBookTitle, candidate.Edition, idOverrides.Edition))
+                .Where(AllowsCandidate)
                 .ToList();
 
             // Read companion tracks only for eligible editions.
@@ -204,7 +218,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 _logger.Debug("No local candidates found, trying remote");
                 candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides)
-                    .Where(candidate => AllowsGuideMatch(taggedBookTitle, candidate.Edition, idOverrides.Edition));
+                    .Where(AllowsCandidate);
                 if (!config.AddNewAuthors)
                 {
                     candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition, config.NewDownload));
@@ -236,7 +250,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 _logger.Debug("Match not good enough, trying remote candidates");
                 candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides)
-                    .Where(candidate => AllowsGuideMatch(taggedBookTitle, candidate.Edition, idOverrides.Edition));
+                    .Where(AllowsCandidate);
 
                 if (!config.AddNewAuthors)
                 {
@@ -331,6 +345,114 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return true;
+        }
+
+        private static string ReadCorroboratedFilenameAuthor(LocalBook track)
+        {
+            var tags = track.FileTrackInfo;
+            if (track.ReliableTaggedBookTitle == null || tags == null || tags.AuthorConfidence < 0.9 || track.CalibreId != 0)
+            {
+                return null;
+            }
+
+            var filename = Path.GetFileNameWithoutExtension(track.Path);
+            var split = filename?.IndexOf(" - ", StringComparison.Ordinal) ?? -1;
+            if (split <= 0 || ImportDecisionMaker.NormalizeLibraryIdentity(filename.Substring(split + 3)) != track.ReliableTaggedBookTitle)
+            {
+                return null;
+            }
+
+            var author = filename[..split].CleanAuthorName();
+            return author.Length > 0 && tags.Authors?.Any(name => name.CleanAuthorName() == author) == true ? author : null;
+        }
+
+        private bool AllowsMatchedRetry(LocalEdition release, string taggedTitle, IReadOnlySet<string> corroboratedAuthors, Edition edition)
+        {
+            var book = edition?.Book?.Value;
+            var workTitle = ImportDecisionMaker.NormalizeLibraryIdentity(book?.Title);
+            var editionTitle = ImportDecisionMaker.NormalizeLibraryIdentity(edition?.Title);
+            var (series, position) = ReadExplicitSeriesVolume(taggedTitle);
+            if (position > 0 && (HasDifferentVolume(workTitle, series, position) || HasDifferentVolume(editionTitle, series, position)))
+            {
+                _logger.Debug("Skipping matched-retry candidate {0} because it names a different volume of the same series", edition);
+                return false;
+            }
+
+            var author = (book?.AuthorMetadata?.Value?.Name ?? book?.Author?.Value?.Name).CleanAuthorName();
+            var confirmed = TrackTitleSuffix.Replace(taggedTitle, string.Empty);
+            if (confirmed.Length > 0 && corroboratedAuthors.Contains(author) &&
+                !TitlesAgree(confirmed, workTitle) && !TitlesAgree(confirmed, editionTitle) &&
+                !HasNonconflictingEditionIdentifier(release, edition))
+            {
+                _logger.Debug("Skipping matched-retry candidate {0} because its title contradicts the embedded title and filename", edition);
+                return false;
+            }
+
+            return true;
+        }
+
+        private static (string Series, int Position) ReadExplicitSeriesVolume(string title)
+        {
+            var match = ExplicitSeriesVolume.Match(title ?? string.Empty);
+            return match.Success && int.TryParse(match.Groups[2].Value, out var position)
+                ? (match.Groups[1].Value, position)
+                : default;
+        }
+
+        private static bool HasDifferentVolume(string title, string series, int position)
+        {
+            var (otherSeries, otherPosition) = ReadExplicitSeriesVolume(title);
+            return otherPosition > 0 && otherPosition != position && otherSeries == series;
+        }
+
+        private static bool TitlesAgree(string taggedTitle, string candidateTitle)
+        {
+            if (candidateTitle == null)
+            {
+                return false;
+            }
+
+            candidateTitle = TrackTitleSuffix.Replace(candidateTitle, string.Empty);
+            return candidateTitle.Length > 0 &&
+                (candidateTitle == taggedTitle || HasSubtitle(taggedTitle, candidateTitle) || HasSubtitle(candidateTitle, taggedTitle));
+        }
+
+        private static bool HasSubtitle(string title, string longerTitle)
+        {
+            if (!longerTitle.StartsWith(title, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var suffix = longerTitle.AsSpan(title.Length).TrimStart();
+            return suffix.Length > 1 && suffix[0] is '(' or ':';
+        }
+
+        private static bool HasNonconflictingEditionIdentifier(LocalEdition release, Edition edition)
+        {
+            var editionIsbn = Isbn.AsIsbn13(edition?.Isbn13);
+            var editionAsin = NormalizeAsin(edition?.Asin);
+            var match = false;
+            foreach (var track in release.LocalBooks)
+            {
+                var tags = track.FileTrackInfo;
+                var isbn = tags?.IsbnConfidence >= 0.9 ? Isbn.AsIsbn13(tags.Isbn) : null;
+                var asin = tags?.AsinConfidence >= 0.9 ? NormalizeAsin(tags.Asin) : null;
+                if ((isbn != null && editionIsbn != null && isbn != editionIsbn) ||
+                    (asin != null && editionAsin != null && asin != editionAsin))
+                {
+                    return false;
+                }
+
+                match |= (isbn != null && isbn == editionIsbn) || (asin != null && asin == editionAsin);
+            }
+
+            return match;
+        }
+
+        private static string NormalizeAsin(string value)
+        {
+            return value?.Length == 10 && value.All(char.IsAsciiLetterOrDigit) ? value.ToUpperInvariant() : null;
         }
 
         private void GetBestRelease(LocalEdition localBookRelease, IEnumerable<CandidateEdition> candidateReleases, List<LocalBook> extraTracksOnDisk, out bool seenCandidate, FormatType? preferredFormat = null)

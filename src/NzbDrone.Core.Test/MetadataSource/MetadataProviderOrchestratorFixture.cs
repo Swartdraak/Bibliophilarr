@@ -241,6 +241,32 @@ namespace NzbDrone.Core.Test.MetadataSource
             second.CallCount.Should().Be(0);
         }
 
+        [Test]
+        public void library_import_should_try_the_next_provider_while_recording_nonempty_provider_responses()
+        {
+            var first = new OrderedSearchProvider("First", 1, "First Hit");
+            var second = new OrderedSearchProvider("Second", 2, "Second Hit");
+            var third = new OrderedSearchProvider("Third", 3, "Third Hit");
+            var registry = new TestRegistry(new IMetadataProvider[] { first, second, third });
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
+            var inspected = new List<string>();
+
+            orchestrator.SearchForLibraryImport("target", "author", books =>
+            {
+                var title = books.Single().Title;
+                inspected.Add(title);
+                return title == "Second Hit";
+            });
+
+            inspected.Should().Equal("First Hit", "Second Hit");
+            third.CallCount.Should().Be(0);
+            telemetry.GetOperationSnapshots().Should().ContainSingle(snapshot => snapshot.ProviderName == "First" &&
+                snapshot.Successes == 1 && snapshot.FallbackHits == 0 && snapshot.TotalResultCount == 1);
+            telemetry.GetOperationSnapshots().Should().ContainSingle(snapshot => snapshot.ProviderName == "Second" &&
+                snapshot.Successes == 1 && snapshot.FallbackHits == 1 && snapshot.TotalResultCount == 1);
+        }
+
         [TestCase("isbn:9781442482890")]
         [TestCase(" ISBN:1-4424-8289-3 ")]
         public void explicit_isbn_search_should_skip_work_summaries_and_nonmatching_editions(string term)

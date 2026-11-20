@@ -13,6 +13,11 @@ namespace NzbDrone.Core.MetadataSource
     public interface IMetadataProviderOrchestrator
     {
         List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true);
+
+        // A nonempty result can be irrelevant to an unattended import. The caller
+        // stops the search when it finds a match or must hold an ambiguous identity.
+        void SearchForLibraryImport(string title, string author, Func<List<Book>, bool> stopAfter);
+
         List<Book> SearchByIsbn(string isbn);
         List<Book> SearchByAsin(string asin);
         List<Book> SearchByExternalId(string idType, string id);
