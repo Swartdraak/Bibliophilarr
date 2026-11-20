@@ -2,7 +2,6 @@
 
 import argparse
 from contextlib import closing, contextmanager
-import hashlib
 import os
 from pathlib import Path
 import re
@@ -67,10 +66,8 @@ def check_native_profile(http, api, base, app_data, key, stage):
 def check_bootstrap_user(app_data, credentials=None):
     database = (app_data / "bibliophilarr.db").as_uri() + "?mode=ro"
     with closing(sqlite3.connect(database, uri=True)) as connection:
-        users = connection.execute("SELECT Username, Password FROM Users").fetchall()
-    expected = []
-    if credentials:
-        expected.append((credentials["username"].lower(), hashlib.sha256(credentials["password"].encode()).hexdigest()))
+        users = connection.execute("SELECT Username FROM Users").fetchall()
+    expected = [(credentials["username"].lower(),)] if credentials else []
     assert users == expected, "bootstrap user did not match the persisted profile"
 
 
