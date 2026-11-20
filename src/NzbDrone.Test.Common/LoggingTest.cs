@@ -15,6 +15,11 @@ namespace NzbDrone.Test.Common
     {
         protected static readonly Logger TestLogger = NzbDroneLogger.GetLogger("TestLogger");
 
+        static LoggingTest()
+        {
+            // Initialize NzbDroneLogger before InitLogging installs the test targets.
+        }
+
         protected static void InitLogging()
         {
             new StartupContext();
