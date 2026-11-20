@@ -171,7 +171,7 @@
   "ChownGroupHelpTextWarning": "This only works if the user running {appName} is the owner of the file. It's better to ensure the download client uses the same group as {appName}.",
   "Clear": "Clear",
   "ClearBlocklist": "Clear Blocklist",
-  "ClearBlocklistMessage": "Remove all blocklist entries? Bibliophilarr may download these releases again.",
+  "ClearBlocklistMessage": "Remove all blocklist entries? {appName} may download these releases again.",
   "ClearFilters": "Clear filters",
   "ClickToChangeIndexerFlags": "Click to change indexer flags",
   "ClickToChangeQuality": "Click to change quality",

@@ -69,12 +69,17 @@ class Blocklist extends Component {
     const {
       isFetching,
       isPopulated,
+      isAuthorFetching,
+      isAuthorPopulated,
       error,
       totalRecords,
       isClearingBlocklistExecuting
     } = this.props;
 
-    return isPopulated && !isFetching && !error && totalRecords > 0 && !isClearingBlocklistExecuting;
+    const isAllPopulated = isPopulated && isAuthorPopulated;
+    const isAnyFetching = isFetching || isAuthorFetching;
+
+    return isAllPopulated && !isAnyFetching && !error && totalRecords > 0 && !isClearingBlocklistExecuting;
   };
 
   //

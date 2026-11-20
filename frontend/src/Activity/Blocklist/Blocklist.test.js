@@ -19,6 +19,7 @@ function renderBlocklist(overrides = {}) {
       columns={[]}
       totalRecords={2}
       onRemoveSelected={jest.fn()}
+      onTableOptionChange={jest.fn()}
       onClearBlocklistPress={onClearBlocklistPress}
       {...overrides}
     />
@@ -59,6 +60,8 @@ test.each([
   { totalRecords: 0 },
   { isFetching: true },
   { isPopulated: false },
+  { isAuthorFetching: true },
+  { isAuthorPopulated: false },
   { error: { message: 'Fixture error' } },
   { isClearingBlocklistExecuting: true }
 ])('prevents clearing when the blocklist is unavailable (%j)', (overrides) => {
