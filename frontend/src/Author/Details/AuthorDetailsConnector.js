@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
+import isBookFileFor from 'BookFile/isBookFileFor';
 import * as commandNames from 'Commands/commandNames';
 import { toggleAuthorMonitored } from 'Store/Actions/authorActions';
 import { clearBookFiles, fetchBookFiles } from 'Store/Actions/bookFileActions';
@@ -89,13 +90,11 @@ const selectBookFiles = createSelector(
       error
     } = bookFiles;
 
-    const hasBookFiles = !!items.length;
-
     return {
       isBookFilesFetching: isFetching,
       isBookFilesPopulated: isPopulated,
       bookFilesError: error,
-      hasBookFiles
+      items
     };
   }
 );
@@ -142,8 +141,9 @@ function createMapStateToProps() {
         isBookFilesFetching,
         isBookFilesPopulated,
         bookFilesError,
-        hasBookFiles
+        items
       } = bookFiles;
+      const hasBookFiles = items.some((file) => isBookFileFor(file, undefined, author.id));
 
       const previousAuthor = sortedAuthor[authorIndex - 1] || _.last(sortedAuthor);
       const nextAuthor = sortedAuthor[authorIndex + 1] || _.first(sortedAuthor);
