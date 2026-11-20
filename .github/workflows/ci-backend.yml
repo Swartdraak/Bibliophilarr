@@ -266,4 +266,4 @@ jobs:
           dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
           --configuration Debug --no-build --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~AuthorEditorFixture|FullyQualifiedName~CalendarFixture|FullyQualifiedName~CutoffUnmetFixture|FullyQualifiedName~MissingFixture|FullyQualifiedName~OpenLibraryRefreshBaselineFixture'
+          'FullyQualifiedName~AuthorEditorFixture|FullyQualifiedName~CalendarFixture|FullyQualifiedName~CutoffUnmetFixture|FullyQualifiedName~MissingFixture|FullyQualifiedName~OpenLibraryRefreshBaselineFixture|FullyQualifiedName~AuthorReresolutionFixture'
