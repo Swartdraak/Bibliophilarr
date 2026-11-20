@@ -87,11 +87,14 @@ def exercise_manual_backup(api, app_data):
         raise TimeoutError("manual backup command did not complete")
 
     backups = check_status(api.get("/api/v1/system/backup"), 200, "Discover manual backup").json()
-    backup, = (entry for entry in backups if entry["type"] == "manual")
+    manual_backups = [entry for entry in backups if entry["type"] == "manual"]
+    assert len(manual_backups) == 1, f"one fresh manual backup expected after command completion, found {len(manual_backups)}"
+    backup = manual_backups[0]
     backup_root = app_data / "Backups"
-    assert backup_root.name in {path.name for path in app_data.iterdir()}
     target = backup_root / "manual" / backup["name"]
-    assert target.parent.name in {path.name for path in backup_root.iterdir()}
+    # Read actual names so a casing regression also fails on Windows.
+    assert backup_root.is_dir() and any(path.name == "Backups" for path in app_data.iterdir()), "expected an exact Backups directory"
+    assert target.parent.is_dir() and any(path.name == "manual" for path in backup_root.iterdir()), "expected the exact Backups/manual directory"
     assert backup["path"] == f"/backup/manual/{target.name}"
     assert target.is_file() and target.stat().st_size == backup["size"]
     with ZipFile(target) as archive:
@@ -101,7 +104,8 @@ def exercise_manual_backup(api, app_data):
     witness = check_status(api.post("/api/v1/tag", data={"label": "after-backup-witness"}), 201, "Create post-backup tag").json()
     check_status(api.get(f"/api/v1/tag/{witness['id']}"), 200, "Read post-backup tag")
     staged = check_status(api.post(f"/api/v1/system/backup/restore/{backup['id']}"), 200, "Stage restore by manual backup ID").json()
-    assert staged["restartRequired"] is True and (app_data / "bibliophilarr.restore").is_file()
+    assert staged["restartRequired"] is True, "restore did not request a restart"
+    assert (app_data / "bibliophilarr.restore").is_file(), "restore returned before staging the database"
     print("manual_backup: PASS (exact Backups/manual path and restore by API ID)", flush=True)
     return witness["id"]
 
