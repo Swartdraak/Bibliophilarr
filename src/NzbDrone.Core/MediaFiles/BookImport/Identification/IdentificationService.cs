@@ -340,13 +340,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             var (_, filename) = ReadFilenameIdentity(track);
-            var (tagSeries, tagPosition) = ReadWorkOrdinal(track.ReliableTaggedBookTitle);
+            var (tagSeries, tagPosition, _) = ReadWorkOrdinal(track.ReliableTaggedBookTitle);
             var title = ImportDecisionMaker.NormalizeLibraryIdentity(filename);
-            var (fileSeries, filePosition) = ReadWorkOrdinal(title == null ? null : FileCopySuffix.Replace(title, string.Empty));
+            var (fileSeries, filePosition, _) = ReadWorkOrdinal(title == null ? null : FileCopySuffix.Replace(title, string.Empty));
             return tagPosition > 0 && filePosition > 0 && tagPosition != filePosition && tagSeries == fileSeries;
         }
 
-        private static (string Series, int Position) ReadWorkOrdinal(string title)
+        private static (string Series, int Position, bool IsExplicit) ReadWorkOrdinal(string title)
         {
             if (title == null)
             {
@@ -354,16 +354,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             var work = NormalizeSubtitleNotation(TrackTitleSuffix.Replace(title, string.Empty));
-            var explicitlyNumbered = ReadExplicitSeriesVolume(work);
-            if (explicitlyNumbered.Position > 0)
+            var explicitlyNumbered = ExplicitSeriesVolume.Match(work);
+            if (explicitlyNumbered.Success && int.TryParse(explicitlyNumbered.Groups[2].Value, out var explicitPosition))
             {
-                return explicitlyNumbered;
+                return (explicitlyNumbered.Groups[1].Value, explicitPosition, true);
             }
 
             // Require a complete common stem. Four-digit bare suffixes can be publication years.
             var bare = BareSeriesVolume.Match(work);
             return bare.Success && int.TryParse(bare.Groups[2].Value, out var position)
-                ? (bare.Groups[1].Value, position)
+                ? (bare.Groups[1].Value, position, false)
                 : default;
         }
 
@@ -475,8 +475,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var book = edition?.Book?.Value;
             var workTitle = ImportDecisionMaker.NormalizeLibraryIdentity(book?.Title);
             var editionTitle = ImportDecisionMaker.NormalizeLibraryIdentity(edition?.Title);
-            var (series, position) = ReadExplicitSeriesVolume(taggedTitle);
-            if (position > 0 && (HasDifferentVolume(workTitle, series, position) || HasDifferentVolume(editionTitle, series, position)))
+            var ordinal = ReadWorkOrdinal(taggedTitle);
+            if (ordinal.Position > 0 && (HasDifferentVolume(workTitle, ordinal) || HasDifferentVolume(editionTitle, ordinal)))
             {
                 _logger.Debug("Skipping library scan candidate {0} because it names a different volume of the same series", edition);
                 return false;
@@ -495,18 +495,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return true;
         }
 
-        private static (string Series, int Position) ReadExplicitSeriesVolume(string title)
+        private static bool HasDifferentVolume(string title, (string Series, int Position, bool IsExplicit) ordinal)
         {
-            var match = ExplicitSeriesVolume.Match(title ?? string.Empty);
-            return match.Success && int.TryParse(match.Groups[2].Value, out var position)
-                ? (match.Groups[1].Value, position)
-                : default;
-        }
-
-        private static bool HasDifferentVolume(string title, string series, int position)
-        {
-            var (otherSeries, otherPosition) = ReadExplicitSeriesVolume(title);
-            return otherPosition > 0 && otherPosition != position && otherSeries == series;
+            var other = ReadWorkOrdinal(title);
+            return (ordinal.IsExplicit || other.IsExplicit) && other.Position > 0 &&
+                other.Position != ordinal.Position && other.Series == ordinal.Series;
         }
 
         private static bool TitlesAgree(string taggedTitle, string candidateTitle)

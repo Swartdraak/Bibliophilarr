@@ -31,6 +31,8 @@ process.
   as unsuccessful when a folder is skipped or an import execution fails.
 - Show the full Hardcover retry window in provider health. Keep existing
   author metadata and series when Hardcover limits the bibliography refresh.
+- Reject a different numbered volume of the same series when either the
+  audiobook's reliable tags or the candidate title explicitly names its volume.
 
 - Reconcile reviewed duplicate works without changing edition or file IDs.
   Preserve both formats, their monitoring settings, series membership and

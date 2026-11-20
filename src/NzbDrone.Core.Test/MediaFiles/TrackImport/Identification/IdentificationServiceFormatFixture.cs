@@ -455,13 +455,21 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             (result == _audiobookEdition).Should().Be(shouldMatch);
         }
 
-        [Test]
-        public void should_skip_a_different_explicit_series_volume_without_a_full_filename()
+        [TestCase("The Primal Hunter: Book 7", "The Primal Hunter: Volume 3", false)]
+        [TestCase("The Primal Hunter: Book 7", "The Primal Hunter 3: A LitRPG Adventure", false)]
+        [TestCase("The Primal Hunter 7: A LitRPG Adventure", "The Primal Hunter: Volume 3", false)]
+        [TestCase("The Primal Hunter: Book 7", "The Primal Hunter 7: A LitRPG Adventure", true)]
+        [TestCase("The Archive: Book 7", "The Archive 2021", true)]
+        [TestCase("The Primal Hunter: Book 7", "Another Series 3", true)]
+        public void should_skip_a_different_series_volume_without_a_full_filename_when_either_title_names_the_volume(
+            string embeddedTitle, string candidateTitle, bool shouldMatch)
         {
-            GivenRetryCandidate("The Primal Hunter: Volume 3");
-            var tracks = CreateRetryTracks("The Primal Hunter: Book 7", "Chapter 01");
+            GivenRetryCandidate(candidateTitle);
+            var tracks = CreateRetryTracks(embeddedTitle, "Chapter 01");
 
-            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeNull();
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (result == _audiobookEdition).Should().Be(shouldMatch);
         }
 
         [Test]
