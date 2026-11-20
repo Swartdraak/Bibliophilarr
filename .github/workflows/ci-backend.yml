@@ -220,7 +220,7 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~DiskScanServiceTests.ScanFixture|FullyQualifiedName~EbookTagServiceFixture|FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~RefreshBookDeletionGuardFixture|FullyQualifiedName~RefreshEditionFormatFixture|FullyQualifiedName~BookSearchServiceMissingFormatFixture|FullyQualifiedName~QueueSpecificationFixture|FullyQualifiedName~ScopedCutoffRepositoryFixture'
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~DiskScanServiceTests.ScanFixture|FullyQualifiedName~EbookTagServiceFixture|FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~RefreshBookDeletionGuardFixture|FullyQualifiedName~RefreshEditionFormatFixture|FullyQualifiedName~BookSearchServiceMissingFormatFixture|FullyQualifiedName~QueueSpecificationFixture|FullyQualifiedName~ScopedCutoffRepositoryFixture|FullyQualifiedName~BookCutoffServiceFormatFixture'
 
       - name: Run metadata, format monitoring and host configuration API fixtures
         run: >-

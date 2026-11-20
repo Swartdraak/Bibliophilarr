@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
@@ -138,13 +139,32 @@ namespace NzbDrone.Core.Test.BooksTests
         [Test]
         public void should_pass_audiobook_format_to_repository()
         {
+            _profile.Cutoff = Quality.M4B.Id;
+            _profile.Items = new List<QualityProfileQualityItem>
+            {
+                new QualityProfileQualityItem { Quality = Quality.EPUB, Allowed = true },
+                new QualityProfileQualityItem { Quality = Quality.MP3, Allowed = true },
+                new QualityProfileQualityItem { Quality = Quality.M4B, Allowed = true }
+            };
+
             Subject.BooksWhereCutoffUnmet(_pagingSpec, FormatType.Audiobook);
 
             Mocker.GetMock<IBookRepository>()
                 .Verify(r => r.BooksWhereCutoffUnmet(
                     _pagingSpec,
-                    It.IsAny<List<QualitiesBelowCutoff>>(),
+                    It.Is<List<QualitiesBelowCutoff>>(cutoffs => cutoffs.Count == 1 &&
+                        cutoffs[0].QualityIds.SequenceEqual(new[] { Quality.MP3.Id })),
                     FormatType.Audiobook), Times.Once());
+        }
+
+        [Test]
+        public void should_ignore_ebook_only_profiles_for_an_audiobook_cutoff()
+        {
+            var result = Subject.BooksWhereCutoffUnmet(_pagingSpec, FormatType.Audiobook);
+
+            result.Records.Should().BeEmpty();
+            result.TotalRecords.Should().Be(0);
+            Mocker.GetMock<IBookRepository>().VerifyNoOtherCalls();
         }
 
         [Test]
