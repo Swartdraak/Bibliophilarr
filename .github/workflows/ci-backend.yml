@@ -209,6 +209,12 @@ jobs:
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture'
 
+      - name: Verify persistent user password storage
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~UserServicePasswordFixture'
+
       - name: Verify author identity and path handling
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
