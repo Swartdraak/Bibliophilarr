@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.IO;
 using System.Linq;
 using FluentAssertions;
@@ -27,6 +28,43 @@ namespace NzbDrone.Core.Test.MediaFiles
             var samples = ReadWaveChunk(path, "data"u8);
             samples.Should().HaveCount(16000);
 
+            RewriteTitle(path);
+
+            File.ReadAllBytes(path).SequenceEqual(before).Should().BeFalse();
+            ReadWaveChunk(path, "fmt "u8).Should().Equal(format);
+            ReadWaveChunk(path, "data"u8).Should().Equal(samples);
+        }
+
+        [Test]
+        public void should_preserve_aac_payload_when_rewriting_m4b_tags()
+        {
+            var path = Path.Combine(TempFolder, "compressed-chapter.m4b");
+            var fixture = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "Media", "nin.m4a");
+            File.Copy(fixture, path);
+            new AudioTag { Title = "Before rewrite" }.Write(path);
+            var before = File.ReadAllBytes(path);
+            var samples = ReadMpeg4MediaData(path);
+            samples.Length.Should().BeGreaterThan(0);
+            TimeSpan duration;
+            using (var original = TagLib.File.Create(path))
+            {
+                original.Properties.AudioSampleRate.Should().Be(44100);
+                original.Properties.AudioChannels.Should().Be(2);
+                duration = original.Properties.Duration;
+            }
+
+            RewriteTitle(path);
+
+            File.ReadAllBytes(path).SequenceEqual(before).Should().BeFalse();
+            ReadMpeg4MediaData(path).Should().Equal(samples);
+            using var rewritten = TagLib.File.Create(path);
+            rewritten.Properties.AudioSampleRate.Should().Be(44100);
+            rewritten.Properties.AudioChannels.Should().Be(2);
+            rewritten.Properties.Duration.Should().Be(duration);
+        }
+
+        private void RewriteTitle(string path)
+        {
             Mocker.SetConstant(Mocker.Resolve<IDiskProvider>(FileSystemType.Actual));
             Mocker.GetMock<IConfigService>().SetupGet(config => config.WriteAudioTags).Returns(WriteAudioTagsType.Sync);
             Mocker.GetMock<IConfigService>().SetupGet(config => config.ScrubAudioTags).Returns(true);
@@ -40,10 +78,30 @@ namespace NzbDrone.Core.Test.MediaFiles
             Subject.WriteTags(file, newDownload: false);
 
             Subject.ReadAudioTag(path).Title.Should().Be("After rewrite");
-            File.ReadAllBytes(path).SequenceEqual(before).Should().BeFalse();
-            ReadWaveChunk(path, "fmt "u8).Should().Equal(format);
-            ReadWaveChunk(path, "data"u8).Should().Equal(samples);
             VerifyEventPublished<BookFileRetaggedEvent>();
+        }
+
+        private static byte[] ReadMpeg4MediaData(string path)
+        {
+            using var stream = File.OpenRead(path);
+            Span<byte> header = stackalloc byte[8];
+            while (stream.Length - stream.Position >= header.Length)
+            {
+                stream.ReadExactly(header);
+                var boxSize = BinaryPrimitives.ReadInt32BigEndian(header);
+                var payloadSize = boxSize - header.Length;
+                ((long)payloadSize).Should().BeInRange(0, stream.Length - stream.Position);
+                if (header[4..].SequenceEqual("mdat"u8))
+                {
+                    var payload = new byte[payloadSize];
+                    stream.ReadExactly(payload);
+                    return payload;
+                }
+
+                stream.Seek(payloadSize, SeekOrigin.Current);
+            }
+
+            throw new AssertionException("Expected MPEG-4 media data was not found");
         }
 
         private static void WriteSyntheticWave(string path)
