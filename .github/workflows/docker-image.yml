@@ -90,6 +90,17 @@ jobs:
             cosign sign --yes "${tag}@${DIGEST}"
           done
 
+      - name: Verify the published image signature
+        if: github.event_name == 'push' || inputs.push
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+        run: |
+          repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bibliophilarr"
+          cosign verify \
+            --certificate-identity "https://github.com/${GITHUB_WORKFLOW_REF}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${repository}@${DIGEST}"
+
       - name: Smoke test image locally
         if: github.event_name == 'workflow_dispatch' && !inputs.push
         env:

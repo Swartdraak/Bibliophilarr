@@ -60,6 +60,18 @@ for the terminal example.
 After changing authentication or proxy settings, verify first-account setup,
 sign-in, an authenticated API write and sign-out on a disposable instance.
 
+## Container image signatures
+
+The Docker release workflow uses keyless Cosign signing and verifies the
+published image digest against its exact GitHub workflow identity and OIDC
+issuer. A failed signature verification fails the workflow.
+
+When verifying a public image, use its immutable digest and the
+`Swartdraak/Bibliophilarr/.github/workflows/docker-image.yml` identity at the
+approved tag ref. A manual publish from an approved main commit uses the
+`refs/heads/main` workflow identity. Follow the identity and issuer options
+in the [Sigstore verification guide](https://docs.sigstore.dev/quickstart/verification-cheat-sheet/).
+
 ## Disclosure
 
 Public disclosure should wait until maintainers confirm a fix or an acceptable
