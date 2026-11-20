@@ -59,7 +59,7 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
     .sort((left, right) => right.id - left.id).slice(0, 12);
   let emptyMessage = attentionOnly ? 'NoTasksNeedAttention' : 'NoRecentTasks';
   if (isFetching) {
-    emptyMessage = 'Loading';
+    emptyMessage = 'TaskNotificationsLoading';
   } else if (hasError) {
     emptyMessage = 'ErrorLoadingContent';
   }
