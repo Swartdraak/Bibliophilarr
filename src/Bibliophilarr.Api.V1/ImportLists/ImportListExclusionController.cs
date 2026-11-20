@@ -12,16 +12,37 @@ namespace Bibliophilarr.Api.V1.ImportLists
     [V1ApiController]
     public class ImportListExclusionController : RestController<ImportListExclusionResource>
     {
+        private const string DuplicateMessage = "This exclusion has already been added.";
         private readonly IImportListExclusionService _importListExclusionService;
 
         public ImportListExclusionController(IImportListExclusionService importListExclusionService,
-                                         ImportListExclusionExistsValidator importListExclusionExistsValidator,
-                                         GuidValidator guidValidator)
+                                             GuidValidator guidValidator)
         {
             _importListExclusionService = importListExclusionService;
 
-            SharedValidator.RuleFor(c => c.ForeignId).NotEmpty().SetValidator(guidValidator).SetValidator(importListExclusionExistsValidator);
+            SharedValidator.RuleFor(c => c.ForeignId).NotEmpty();
             SharedValidator.RuleFor(c => c.AuthorName).NotEmpty();
+
+            PostValidator.RuleFor(c => c.ForeignId).SetValidator(guidValidator)
+                .Must(foreignId => IsForeignIdAvailable(foreignId)).WithMessage(DuplicateMessage);
+
+            // Automatically created exclusions can already have a provider-specific ID.
+            PutValidator.RuleFor(c => c.ForeignId).SetValidator(guidValidator)
+                .When(resource => FindExclusion(resource.ForeignId)?.Id != resource.Id);
+            PutValidator.RuleFor(c => c.ForeignId)
+                .Must((resource, foreignId) => IsForeignIdAvailable(foreignId, resource.Id))
+                .WithMessage(DuplicateMessage);
+        }
+
+        private bool IsForeignIdAvailable(string foreignId, int? currentId = null)
+        {
+            var existing = FindExclusion(foreignId);
+            return existing == null || existing.Id == currentId;
+        }
+
+        private ImportListExclusion FindExclusion(string foreignId)
+        {
+            return string.IsNullOrWhiteSpace(foreignId) ? null : _importListExclusionService.FindByForeignId(foreignId);
         }
 
         protected override ImportListExclusionResource GetResourceById(int id)
