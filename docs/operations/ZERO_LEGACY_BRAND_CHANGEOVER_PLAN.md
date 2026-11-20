@@ -178,6 +178,10 @@ The `develop` tree at `2fe71a264bbdd43ab0ec73b450b254611f62139a` has 25 C# proje
 
 The per-project inventory uses the evaluated MSBuild assembly and root namespace properties. The console entry shows its Linux build name. The console assembly is `Bibliophilarr.Console` when targeting Windows. Source files can use explicit namespaces independent of the root property. A folder divergence takes precedence in the status when both the path and root namespace use legacy names.
 
+- `folder-diverged` means the project lives under a legacy `src/NzbDrone*` folder.
+- `namespace-diverged` means the folder is current and MSBuild still evaluates a legacy root namespace.
+- `aligned` means the folder and evaluated root namespace use current naming.
+
 | Folder | Project file | Assembly | MSBuild root namespace | Status |
 | --- | --- | --- | --- | --- |
 | `src/Bibliophilarr.Api.V1` | `Bibliophilarr.Api.V1.csproj` | `Bibliophilarr.Api.V1` | `NzbDrone.Api.V1` | namespace-diverged |
