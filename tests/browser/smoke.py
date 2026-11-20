@@ -73,7 +73,8 @@ def check_bootstrap_user(app_data, credentials=None):
 
 def bootstrap_headers(http, base):
     response = check_status(http.get(base + "/bootstrap", max_redirects=0), 200, "Read terminal setup token")
-    assert "no-store" in response.headers.get("cache-control", ""), "terminal setup token can be cached"
+    cache_control = response.headers.get("cache-control", "")
+    assert "no-store" in cache_control and "max-age" not in cache_control, "terminal setup token can be cached"
     token = response.json()
     header_name = token.get("headerName")
     request_token = token.get("requestToken")

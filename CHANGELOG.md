@@ -92,6 +92,10 @@ process.
   rest of a bulk book refresh continue.
 - Acquire SQLite catalogue write locks before reading identity state so
   simultaneous library scans and refreshes can commit safely.
+- Keep rejected media in Unmapped Files with the recorded reason. Live updates
+  only show linked files in their book and author Files tabs.
+- Keep the low-confidence reason when an initial scan cannot reliably select a
+  new author and the fallback finds no verified match.
 
 - A fresh installation opens first-account setup in the browser when opened
   directly on localhost. Create an account and sign in without a terminal command.

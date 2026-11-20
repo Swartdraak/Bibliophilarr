@@ -107,6 +107,7 @@ namespace Bibliophilarr.Http.Authentication
 
         [HttpGet("bootstrap")]
         [DirectTerminalBootstrap]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult GetBootstrapToken([FromServices] IAntiforgery antiforgery)
         {
             var tokens = antiforgery.GetAndStoreTokens(HttpContext);
