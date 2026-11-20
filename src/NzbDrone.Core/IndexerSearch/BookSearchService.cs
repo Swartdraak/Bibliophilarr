@@ -10,6 +10,7 @@ using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Queue;
 
 namespace NzbDrone.Core.IndexerSearch
@@ -24,6 +25,7 @@ namespace NzbDrone.Core.IndexerSearch
         private readonly IQueueService _queueService;
         private readonly IProcessDownloadDecisions _processDownloadDecisions;
         private readonly IConfigService _configService;
+        private readonly IAuthorFormatProfileService _formatProfileService;
         private readonly Logger _logger;
 
         public BookSearchService(ISearchForReleases releaseSearchService,
@@ -32,6 +34,7 @@ namespace NzbDrone.Core.IndexerSearch
             IQueueService queueService,
             IProcessDownloadDecisions processDownloadDecisions,
             IConfigService configService,
+            IAuthorFormatProfileService formatProfileService,
             Logger logger)
         {
             _releaseSearchService = releaseSearchService;
@@ -40,6 +43,7 @@ namespace NzbDrone.Core.IndexerSearch
             _queueService = queueService;
             _processDownloadDecisions = processDownloadDecisions;
             _configService = configService;
+            _formatProfileService = formatProfileService;
             _logger = logger;
         }
 
@@ -72,6 +76,12 @@ namespace NzbDrone.Core.IndexerSearch
 
         public void Execute(BookSearchCommand message)
         {
+            if (message.MissingFormat is FormatType format)
+            {
+                SearchMissingFormat(message, format).GetAwaiter().GetResult();
+                return;
+            }
+
             foreach (var bookId in message.BookIds)
             {
                 var decisions = _releaseSearchService.BookSearch(bookId, false, message.Trigger == CommandTrigger.Manual, false).GetAwaiter().GetResult();
@@ -79,6 +89,77 @@ namespace NzbDrone.Core.IndexerSearch
 
                 _logger.ProgressInfo("Book search completed. {0} reports downloaded.", processed.Grabbed.Count);
             }
+        }
+
+        private async Task SearchMissingFormat(BookSearchCommand message, FormatType format)
+        {
+            if (format != FormatType.Ebook && format != FormatType.Audiobook)
+            {
+                throw new ArgumentOutOfRangeException(nameof(message.MissingFormat), format, "Unsupported book format.");
+            }
+
+            var downloadedCount = 0;
+
+            foreach (var bookId in message.BookIds?.Distinct() ?? Enumerable.Empty<int>())
+            {
+                List<DownloadDecision> matching;
+
+                try
+                {
+                    if (!IsMissingMonitoredFormat(bookId, format))
+                    {
+                        continue;
+                    }
+
+                    var decisions = await _releaseSearchService.BookSearch(
+                        bookId,
+                        missingOnly: true,
+                        userInvokedSearch: message.Trigger == CommandTrigger.Manual,
+                        interactiveSearch: false,
+                        monitoredBooksOnly: true);
+                    matching = decisions.Where(decision => MatchesFormat(decision, format)).ToList();
+
+                    // A file may have arrived, or monitoring may have changed, during the indexer search.
+                    if (matching.Count == 0 || !IsMissingMonitoredFormat(bookId, format))
+                    {
+                        continue;
+                    }
+                }
+                catch (ModelNotFoundException)
+                {
+                    _logger.Debug("Skipping missing-format search for removed book {0}.", bookId);
+                    continue;
+                }
+
+                var processed = await _processDownloadDecisions.ProcessDecisions(matching);
+                downloadedCount += processed.Grabbed.Count;
+            }
+
+            _logger.ProgressInfo("Missing {0} search completed. {1} reports downloaded.", format, downloadedCount);
+        }
+
+        private bool IsMissingMonitoredFormat(int bookId, FormatType format)
+        {
+            if (!_configService.EnableDualFormatTracking)
+            {
+                return false;
+            }
+
+            var book = _bookService.GetBook(bookId);
+            return book.IsFormatMonitored(format) &&
+                   book.Author?.Value is { Monitored: true } author &&
+                   _formatProfileService.GetByAuthorIdAndFormat(author.Id, format)?.Monitored == true &&
+                   book.BookFiles?.Value is { } files &&
+                   !files.Any(file => Quality.GetFormatType(file.Quality?.Quality) == format);
+        }
+
+        private static bool MatchesFormat(DownloadDecision decision, FormatType format)
+        {
+            var remoteBook = decision.RemoteBook;
+            var quality = remoteBook?.ParsedBookInfo?.Quality?.Quality;
+            var parsedFormat = quality == null ? (FormatType?)null : Quality.GetFormatType(quality);
+            return (remoteBook?.ResolvedFormatType ?? parsedFormat) == format &&
+                   (parsedFormat == null || parsedFormat == format);
         }
 
         public void Execute(MissingBookSearchCommand message)

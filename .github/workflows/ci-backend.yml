@@ -209,12 +209,12 @@ jobs:
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter 'FullyQualifiedName~ContainerFixture'
 
-      - name: Run library import format fixtures
+      - name: Run library import and book format search fixtures
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture'
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~BookSearchServiceMissingFormatFixture'
 
       - name: Run metadata, format monitoring and host configuration API fixtures
         run: >-
