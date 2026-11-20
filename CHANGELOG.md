@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Continue metadata lookup when an earlier result conflicts with the file's
+  title, series volume, or author.
 - Wanted searches with an ebook or audiobook filter target only that format.
   A queued copy of the other format no longer blocks a wanted release when
   independent format tracking is enabled.

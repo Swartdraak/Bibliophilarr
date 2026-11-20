@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -10,6 +11,7 @@ using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
@@ -216,9 +218,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Mocker.GetMock<ICandidateService>()
                 .Setup(s => s.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
                 .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _ebookEdition, ExistingFiles = new List<BookFile>() } });
-            Mocker.GetMock<ICandidateService>()
-                .Setup(s => s.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
-                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+            GivenRemoteCandidates(new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() });
 
             var results = Subject.Identify(localBooks, _overrides, _config);
 
@@ -240,9 +240,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Mocker.GetMock<ICandidateService>()
                 .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
                 .Returns(new List<CandidateEdition>());
-            Mocker.GetMock<ICandidateService>()
-                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
-                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+            GivenRemoteCandidates(new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() });
 
             var tracks = CreateAudiobookLocalBooks();
             tracks.Single().FileTrackInfo.BookTitle = "Test Book";
@@ -269,9 +267,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Mocker.GetMock<ICandidateService>()
                 .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
                 .Returns(new List<CandidateEdition>());
-            Mocker.GetMock<ICandidateService>()
-                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
-                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+            GivenRemoteCandidates(new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() });
 
             var tracks = CreateAudiobookLocalBooks();
             tracks.Single().FileTrackInfo.BookTitle = "Test Book";
@@ -308,9 +304,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Mocker.GetMock<ICandidateService>()
                 .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
                 .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _ebookEdition, ExistingFiles = new List<BookFile>() } });
-            Mocker.GetMock<ICandidateService>()
-                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
-                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+            GivenRemoteCandidates(new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() });
 
             IdentifyAudioTitle("Test Book").Edition.Should().BeSameAs(_audiobookEdition);
         }
@@ -441,7 +435,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                 Mocker.GetMock<ICandidateService>().Verify(
                     service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()), Times.Never());
                 Mocker.GetMock<ICandidateService>().Verify(
-                    service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()), Times.Never());
+                    service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<Func<Edition, bool>>()), Times.Never());
             }
         }
 
@@ -524,9 +518,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                 AuthorMetadata = _book.AuthorMetadata
             };
             var remoteEdition = new Edition { Book = remoteBook, Title = remoteBook.Title, Format = "Audiobook" };
-            Mocker.GetMock<ICandidateService>()
-                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
-                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = remoteEdition, ExistingFiles = new List<BookFile>() } });
+            GivenRemoteCandidates(new CandidateEdition { Edition = remoteEdition, ExistingFiles = new List<BookFile>() });
             var tracks = CreateRetryTracks("Elven Star", "Test Author - Elven Star");
 
             Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(remoteEdition);
@@ -599,6 +591,76 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             GivenGuideCandidate(findRemotely);
         }
 
+        [TestCase(true, true, false)]
+        [TestCase(false, true, false)]
+        [TestCase(false, false, false)]
+        [TestCase(false, true, true)]
+        public void should_continue_remote_search_after_rejecting_an_ineligible_edition(bool rejectPrimary, bool laterMatch, bool requireLocalAuthor)
+        {
+            const string title = "Fixture Series Book 2";
+            _config.NewDownload = false;
+            _config.KeepAllEditions = true;
+            _config.Filter = FilterFilesType.Matched;
+            var tracks = CreateRetryTracks(title, "Test Author - " + title);
+            tracks[0].FileTrackInfo.AuthorConfidence = 0.98;
+            var wrong = RemoteWork(requireLocalAuthor ? title : "Fixture Series Book 1");
+            var expected = RemoteWork(title);
+            var authors = Mocker.GetMock<IAuthorService>();
+            authors.Setup(service => service.GetCandidates(It.IsAny<string>())).Returns(new List<Author>());
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile>());
+            if (requireLocalAuthor)
+            {
+                const string missingAuthor = "openlibrary:author:OL999A";
+                wrong.Author = new Author { Name = _author.Name, ForeignAuthorId = missingAuthor };
+                wrong.AuthorMetadata = new AuthorMetadata { Name = _author.Name, ForeignAuthorId = missingAuthor };
+                authors.Setup(service => service.FindById(missingAuthor)).Returns((Author)null);
+            }
+
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(service => service.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
+                .Returns(rejectPrimary ? new List<Book> { wrong } : new List<Book>());
+
+            var first = new Mock<IBookSearchFallbackProvider>();
+            first.SetupGet(provider => provider.ProviderName).Returns("Inventaire");
+            var second = new Mock<IBookSearchFallbackProvider>();
+            second.SetupGet(provider => provider.ProviderName).Returns("GoogleBooks");
+            var last = new Mock<IBookSearchFallbackProvider>();
+            last.SetupGet(provider => provider.ProviderName).Returns("Hardcover");
+            Mocker.SetConstant<IEnumerable<IBookSearchFallbackProvider>>(new[] { last.Object, second.Object, first.Object });
+
+            var search = Mocker.GetMock<IBookSearchFallbackExecutionService>();
+            search.Setup(service => service.Search(first.Object, It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(new List<Book> { wrong });
+            search.Setup(service => service.Search(second.Object, It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(laterMatch ? new List<Book> { expected } : new List<Book> { wrong });
+            search.Setup(service => service.Search(last.Object, It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(new List<Book>());
+            Mocker.SetConstant<ICandidateService>(Mocker.Resolve<CandidateService>());
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            result.Edition.Should().BeSameAs(laterMatch ? expected.Editions.Value.Single() : null);
+            search.Verify(service => service.Search(first.Object, It.IsAny<string>(), It.IsAny<string>()), Times.AtLeastOnce());
+            search.Verify(service => service.Search(second.Object, It.IsAny<string>(), It.IsAny<string>()), Times.AtLeastOnce());
+            search.Verify(service => service.Search(last.Object, It.IsAny<string>(), It.IsAny<string>()),
+                laterMatch ? Times.Never() : Times.AtLeastOnce());
+        }
+
+        private Book RemoteWork(string title)
+        {
+            return new Book
+            {
+                Author = _author,
+                AuthorMetadata = _book.AuthorMetadata,
+                ForeignBookId = "openlibrary:work:OL531W",
+                Title = title,
+                Editions = new List<Edition>
+                {
+                    new Edition { ForeignEditionId = "openlibrary:edition:OL531M", Title = title, Format = "Audiobook" }
+                }
+            };
+        }
+
         private List<LocalBook> CreateRetryTracks(string title, string filename, double confidence = 0.98)
         {
             var tracks = CreateAudiobookLocalBooks();
@@ -616,9 +678,15 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Mocker.GetMock<ICandidateService>()
                 .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
                 .Returns(findRemotely ? new List<CandidateEdition>() : candidates);
+            GivenRemoteCandidates(findRemotely ? candidates.ToArray() : Array.Empty<CandidateEdition>());
+        }
+
+        private void GivenRemoteCandidates(params CandidateEdition[] candidates)
+        {
             Mocker.GetMock<ICandidateService>()
-                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
-                .Returns(findRemotely ? candidates : new List<CandidateEdition>());
+                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<Func<Edition, bool>>()))
+                .Returns((LocalEdition release, IdentificationOverrides overrides, Func<Edition, bool> allowsEdition) =>
+                    candidates.Where(candidate => allowsEdition(candidate.Edition)));
         }
 
         private LocalEdition IdentifyAudioTitle(string title, double confidence = 0.98)
