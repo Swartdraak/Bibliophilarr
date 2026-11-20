@@ -22,6 +22,8 @@ process.
   editions are monitored or none is selected.
 - Enter activates the focused confirmation button once. Confirm closes the
   dialog and Cancel dismisses it without submitting the action.
+- Confirm before clearing all Blocklist entries and disable the action when the
+  list is empty or unavailable.
 
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
