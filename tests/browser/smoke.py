@@ -76,6 +76,7 @@ def check_bootstrap_user(app_data, credentials=None):
 
 def bootstrap_headers(http, base):
     response = check_status(http.get(base + "/bootstrap", max_redirects=0), 200, "Read terminal setup token")
+    assert "no-store" in response.headers.get("cache-control", ""), "terminal setup token can be cached"
     token = response.json()
     header_name = token.get("headerName")
     request_token = token.get("requestToken")
@@ -287,6 +288,7 @@ def run(binary, evidence, *, live_provider=False):
                 400,
                 "Fresh user with weak password",
             )
+            check_bootstrap_user(weak_data)
 
         onboarding = work / "onboarding"
         with running_app(binary, onboarding, work / "onboarding.log", free_port(), evidence, credentials) as (app, base):
