@@ -284,7 +284,9 @@ def check_metadata_settings(page, base, api):
     timeout_input.fill(str(timeout))
     with page.expect_response(
         lambda response: response.request.method == "PUT"
-        and urlsplit(response.url).path.lower() == "/api/v1/config/metadataprovider"
+        and urlsplit(response.url).path.lower() in {
+            "/api/v1/config/metadataprovider", "/api/v1/config/metadataprovider/1"
+        }
     ) as saved:
         main.get_by_role("button", name="Save Changes", exact=True).click()
     check_status(saved.value, 202, "Metadata settings save from the browser")
