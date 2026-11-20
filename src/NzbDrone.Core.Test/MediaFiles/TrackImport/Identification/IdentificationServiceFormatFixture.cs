@@ -661,11 +661,11 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             release.LocalBooks.Should().ContainSingle().Which.Should().BeSameAs(tracks.Single());
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void should_choose_the_physical_ebook_subformat_for_the_same_work_and_isbn(bool reverseOrder)
+        [TestCase(false, FilterFilesType.None)]
+        [TestCase(true, FilterFilesType.Known)]
+        public void should_choose_the_physical_ebook_subformat_for_the_same_work_and_isbn(bool reverseOrder, FilterFilesType filter)
         {
-            var tracks = GivenEbookSubformatScan();
+            var tracks = GivenEbookSubformatScan(filter);
             var azw3 = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
             GivenEbookSubformatCandidates(reverseOrder ? new[] { azw3, _ebookEdition } : new[] { _ebookEdition, azw3 });
 
@@ -678,6 +678,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("extension-only format")]
         [TestCase("already linked")]
         [TestCase("explicit edition")]
+        [TestCase("new download")]
+        [TestCase("existing library excluded")]
         public void should_keep_the_identified_edition_without_matching_trusted_same_work_evidence(string condition)
         {
             var tracks = GivenEbookSubformatScan();
@@ -699,6 +701,14 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             {
                 Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
                     .Returns(new List<BookFile> { new BookFile { Path = track.Path, EditionId = _ebookEdition.Id } });
+            }
+            else if (condition == "new download")
+            {
+                _config.NewDownload = true;
+            }
+            else if (condition == "existing library excluded")
+            {
+                _config.IncludeExisting = false;
             }
 
             var overrides = new IdentificationOverrides
@@ -735,10 +745,10 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(azw3);
         }
 
-        private List<LocalBook> GivenEbookSubformatScan()
+        private List<LocalBook> GivenEbookSubformatScan(FilterFilesType filter = FilterFilesType.None)
         {
             _config.NewDownload = false;
-            _config.Filter = FilterFilesType.Known;
+            _config.Filter = filter;
             _config.IncludeExisting = true;
             _config.KeepAllEditions = true;
             _book.CanonicalId = "test-canonical-work";
@@ -779,7 +789,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         private void GivenEbookSubformatCandidates(params Edition[] editions)
         {
             Mocker.GetMock<ICandidateService>()
-                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), true))
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), _config.IncludeExisting))
                 .Returns(editions.Select(edition => new CandidateEdition(edition)).ToList());
         }
 

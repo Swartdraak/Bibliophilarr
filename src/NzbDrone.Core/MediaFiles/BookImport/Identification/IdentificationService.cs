@@ -280,7 +280,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out _, preferredFormat);
             }
 
-            if (!config.NewDownload && config.Filter != FilterFilesType.None && idOverrides.Edition == null)
+            if (!config.NewDownload && config.IncludeExisting && idOverrides.Edition == null)
             {
                 RefineLocalEbookEdition(localBookRelease, localCandidates, allLocalTracks);
             }
