@@ -641,6 +641,8 @@
   "MissingBooks": "Missing Books",
   "MissingBooksAuthorMonitored": "Missing Books (Author monitored)",
   "MissingBooksAuthorNotMonitored": "Missing Books (Author not monitored)",
+  "MissingFormatMonitorRequiresDualTracking": "Enable dual-format tracking to change monitoring for an individual format",
+  "MissingFormatOnDisk": "On disk",
   "MissingFromDisk": "{appName} was unable to find the file on disk so the file was unlinked from the book in the database",
   "Mode": "Mode",
   "Monitor": "Monitor",

@@ -56,6 +56,14 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                     continue;
                 }
 
+                if (_configService.EnableDualFormatTracking &&
+                    RemoteBook.GetReleaseFormat(remoteBook, queueItem.Quality?.Quality) is { } queuedFormat &&
+                    RemoteBook.GetReleaseFormat(subject) is { } requestedFormat &&
+                    queuedFormat != requestedFormat)
+                {
+                    continue;
+                }
+
                 _logger.Debug("Checking if existing release in queue meets cutoff. Queued quality is: {0}", remoteBook.ParsedBookInfo.Quality);
 
                 var queuedItemCustomFormats = _formatService.ParseCustomFormat(remoteBook, (long)queueItem.Size);

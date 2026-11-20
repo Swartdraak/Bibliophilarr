@@ -30,6 +30,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
         private Mock<IProcessDownloadDecisions> _downloads;
         private Mock<IConfigService> _config;
         private Mock<IAuthorFormatProfileService> _profiles;
+        private Mock<IQueueService> _queue;
         private Book _book;
         private AuthorFormatProfile _profile;
         private BookSearchService _subject;
@@ -42,6 +43,8 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             _downloads = new Mock<IProcessDownloadDecisions>(MockBehavior.Strict);
             _config = new Mock<IConfigService>();
             _profiles = new Mock<IAuthorFormatProfileService>();
+            _queue = new Mock<IQueueService>();
+            _queue.Setup(service => service.GetQueue()).Returns(new List<Queue.Queue>());
 
             _profile = new AuthorFormatProfile { Monitored = true };
             _book = new Book
@@ -60,7 +63,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
                 _search.Object,
                 _books.Object,
                 Mock.Of<IBookCutoffService>(),
-                Mock.Of<IQueueService>(),
+                _queue.Object,
                 _downloads.Object,
                 _config.Object,
                 _profiles.Object,
@@ -196,15 +199,105 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
         }
 
         [Test]
-        public void should_not_search_when_dual_format_tracking_is_disabled()
+        public void should_not_search_without_a_matching_monitored_legacy_edition()
         {
             _config.SetupGet(config => config.EnableDualFormatTracking).Returns(false);
+            _book.Editions = new List<Edition> { new Edition { Id = 8, Monitored = false } };
 
             _subject.Execute(AudioSearch());
 
-            _books.VerifyNoOtherCalls();
+            _books.Verify(service => service.GetBook(BookId), Times.Once);
             _search.VerifyNoOtherCalls();
             _downloads.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_search_a_missing_monitored_legacy_edition_without_format_profiles()
+        {
+            _config.SetupGet(config => config.EnableDualFormatTracking).Returns(false);
+            _book.Editions = new List<Edition> { new Edition { Id = 8, Monitored = true } };
+            _book.BookFiles.Value.Add(new BookFile { EditionId = 9, Quality = new QualityModel(Quality.EPUB) });
+            var audio = Decision(FormatType.Audiobook, Quality.M4B);
+            _search.Setup(service => service.BookSearch(BookId, true, true, false, false))
+                .ReturnsAsync(new List<DownloadDecision> { Decision(FormatType.Ebook, Quality.EPUB), audio });
+            _downloads.Setup(service => service.ProcessDecisions(It.IsAny<List<DownloadDecision>>())).ReturnsAsync(EmptyResult());
+
+            _subject.Execute(AudioSearch());
+
+            _search.Verify(service => service.BookSearch(BookId, true, true, false, false), Times.Once);
+            _downloads.Verify(service => service.ProcessDecisions(It.Is<List<DownloadDecision>>(items =>
+                items.SequenceEqual(new[] { audio }))), Times.Once);
+            _profiles.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_scope_all_missing_books_and_ignore_other_formats_in_the_queue()
+        {
+            const int audioQueuedBookId = 42;
+            var audioQueuedBook = new Book { Id = audioQueuedBookId, Author = _book.Author, Monitored = true };
+            _books.Setup(service => service.BooksWithoutFiles(It.IsAny<PagingSpec<Book>>(), FormatType.Audiobook, true))
+                .Returns((PagingSpec<Book> paging, FormatType? _, bool _) =>
+                {
+                    paging.Records = new List<Book> { _book, audioQueuedBook };
+                    paging.TotalRecords = paging.Records.Count;
+                    return paging;
+                });
+            _queue.Setup(service => service.GetQueue()).Returns(new List<Queue.Queue>
+            {
+                new Queue.Queue { Book = _book, Quality = new QualityModel(Quality.EPUB) },
+                new Queue.Queue { Book = audioQueuedBook, Quality = new QualityModel(Quality.M4B) }
+            });
+            var audio = Decision(FormatType.Audiobook, Quality.M4B);
+            _search.Setup(service => service.BookSearch(BookId, true, true, false, true))
+                .ReturnsAsync(new List<DownloadDecision> { Decision(FormatType.Ebook, Quality.EPUB), audio });
+            _downloads.Setup(service => service.ProcessDecisions(It.IsAny<List<DownloadDecision>>())).ReturnsAsync(EmptyResult());
+            var command = STJson.Deserialize<MissingBookSearchCommand>("""{"missingFormat":"audiobook"}""");
+            command.Trigger = CommandTrigger.Manual;
+
+            _subject.Execute(command);
+
+            _books.Verify(service => service.BooksWithoutFiles(It.IsAny<PagingSpec<Book>>(), FormatType.Audiobook, true), Times.Once);
+            _search.Verify(service => service.BookSearch(BookId, true, true, false, true), Times.Once);
+            _search.VerifyNoOtherCalls();
+            _downloads.Verify(service => service.ProcessDecisions(It.Is<List<DownloadDecision>>(items =>
+                items.SequenceEqual(new[] { audio }))), Times.Once);
+        }
+
+        [Test]
+        public void should_continue_after_a_full_page_with_no_eligible_downloads()
+        {
+            var unrelatedAuthor = new Author { Id = AuthorId + 1, Monitored = true };
+            var candidates = Enumerable.Range(1, 500)
+                .Select(id => new Book { Id = id, Author = _book.Author, Monitored = true })
+                .Append(new Book { Id = 501, Author = unrelatedAuthor, Monitored = true })
+                .Append(new Book { Id = 502, Author = _book.Author, Monitored = true })
+                .ToList();
+            _book.Id = 502;
+            _books.Setup(service => service.GetBook(It.IsAny<int>())).Returns((int id) =>
+                id == _book.Id ? _book : throw new ModelNotFoundException(typeof(Book), id));
+            _books.Setup(service => service.BooksWithoutFiles(It.IsAny<PagingSpec<Book>>(), FormatType.Audiobook, true))
+                .Returns((PagingSpec<Book> paging, FormatType? _, bool _) =>
+                {
+                    var filters = paging.FilterExpressions.Select(filter => filter.Compile()).ToList();
+                    paging.Records = candidates.Where(book => filters.All(filter => filter(book)))
+                        .Take(paging.PageSize).ToList();
+                    return paging;
+                });
+            var audio = Decision(FormatType.Audiobook, Quality.M4B);
+            _search.Setup(service => service.BookSearch(502, true, true, false, true))
+                .ReturnsAsync(new List<DownloadDecision> { audio });
+            _downloads.Setup(service => service.ProcessDecisions(It.IsAny<List<DownloadDecision>>())).ReturnsAsync(EmptyResult());
+
+            _subject.Execute(new MissingBookSearchCommand(AuthorId)
+            {
+                Trigger = CommandTrigger.Manual,
+                MissingFormat = FormatType.Audiobook
+            });
+
+            _books.Verify(service => service.BooksWithoutFiles(It.IsAny<PagingSpec<Book>>(), FormatType.Audiobook, true), Times.Exactly(2));
+            _books.Verify(service => service.GetBook(501), Times.Never);
+            _search.Verify(service => service.BookSearch(502, true, true, false, true), Times.Once);
+            _search.VerifyNoOtherCalls();
         }
 
         [Test]

@@ -14,6 +14,7 @@ function BookInteractiveSearchModalContent(props) {
     bookId,
     bookTitle,
     authorName,
+    formatType,
     onModalClose
   } = props;
 
@@ -30,7 +31,8 @@ function BookInteractiveSearchModalContent(props) {
         <InteractiveSearchConnector
           type="book"
           searchPayload={{
-            bookId
+            bookId,
+            ...(formatType && { formatType })
           }}
         />
       </ModalBody>
@@ -48,6 +50,7 @@ BookInteractiveSearchModalContent.propTypes = {
   bookId: PropTypes.number.isRequired,
   bookTitle: PropTypes.string.isRequired,
   authorName: PropTypes.string.isRequired,
+  formatType: PropTypes.oneOf(['ebook', 'audiobook']),
   onModalClose: PropTypes.func.isRequired
 };
 

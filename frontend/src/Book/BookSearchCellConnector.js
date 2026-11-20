@@ -39,7 +39,8 @@ function createMapDispatchToProps(dispatch, props) {
     onSearchPress(name, path) {
       dispatch(executeCommand({
         name: commandNames.BOOK_SEARCH,
-        bookIds: [props.bookId]
+        bookIds: [props.bookId],
+        ...(props.formatType && { missingFormat: props.formatType })
       }));
     }
   };

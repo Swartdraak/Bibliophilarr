@@ -10,6 +10,7 @@ using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Queue;
 
@@ -78,7 +79,8 @@ namespace NzbDrone.Core.IndexerSearch
         {
             if (message.MissingFormat is FormatType format)
             {
-                SearchMissingFormat(message, format).GetAwaiter().GetResult();
+                ValidateMissingFormat(format);
+                SearchMissingFormat(message.BookIds, message.Trigger, format).GetAwaiter().GetResult();
                 return;
             }
 
@@ -91,16 +93,11 @@ namespace NzbDrone.Core.IndexerSearch
             }
         }
 
-        private async Task SearchMissingFormat(BookSearchCommand message, FormatType format)
+        private async Task SearchMissingFormat(IEnumerable<int> bookIds, CommandTrigger trigger, FormatType format)
         {
-            if (format != FormatType.Ebook && format != FormatType.Audiobook)
-            {
-                throw new ArgumentOutOfRangeException(nameof(message.MissingFormat), format, "Unsupported book format.");
-            }
-
             var downloadedCount = 0;
 
-            foreach (var bookId in message.BookIds?.Distinct() ?? Enumerable.Empty<int>())
+            foreach (var bookId in bookIds?.Distinct() ?? Enumerable.Empty<int>())
             {
                 List<DownloadDecision> matching;
 
@@ -114,10 +111,10 @@ namespace NzbDrone.Core.IndexerSearch
                     var decisions = await _releaseSearchService.BookSearch(
                         bookId,
                         missingOnly: true,
-                        userInvokedSearch: message.Trigger == CommandTrigger.Manual,
+                        userInvokedSearch: trigger == CommandTrigger.Manual,
                         interactiveSearch: false,
-                        monitoredBooksOnly: true);
-                    matching = decisions.Where(decision => MatchesFormat(decision, format)).ToList();
+                        monitoredBooksOnly: _configService.EnableDualFormatTracking);
+                    matching = decisions.Where(decision => RemoteBook.GetReleaseFormat(decision.RemoteBook) == format).ToList();
 
                     // A file may have arrived, or monitoring may have changed, during the indexer search.
                     if (matching.Count == 0 || !IsMissingMonitoredFormat(bookId, format))
@@ -140,30 +137,41 @@ namespace NzbDrone.Core.IndexerSearch
 
         private bool IsMissingMonitoredFormat(int bookId, FormatType format)
         {
-            if (!_configService.EnableDualFormatTracking)
+            var book = _bookService.GetBook(bookId);
+            if (!book.Monitored || book.Author?.Value is not { Monitored: true } author || book.BookFiles?.Value is not { } files)
             {
                 return false;
             }
 
-            var book = _bookService.GetBook(bookId);
+            if (!_configService.EnableDualFormatTracking)
+            {
+                return book.Editions?.Value?.Any(edition => edition.Monitored &&
+                    edition.MatchesFormat(format) && files.All(file => file.EditionId != edition.Id)) == true;
+            }
+
             return book.IsFormatMonitored(format) &&
-                   book.Author?.Value is { Monitored: true } author &&
                    _formatProfileService.GetByAuthorIdAndFormat(author.Id, format)?.Monitored == true &&
-                   book.BookFiles?.Value is { } files &&
                    !files.Any(file => Quality.GetFormatType(file.Quality?.Quality) == format);
         }
 
-        private static bool MatchesFormat(DownloadDecision decision, FormatType format)
+        private static void ValidateMissingFormat(FormatType format)
         {
-            var remoteBook = decision.RemoteBook;
-            var quality = remoteBook?.ParsedBookInfo?.Quality?.Quality;
-            var parsedFormat = quality == null ? (FormatType?)null : Quality.GetFormatType(quality);
-            return (remoteBook?.ResolvedFormatType ?? parsedFormat) == format &&
-                   (parsedFormat == null || parsedFormat == format);
+            if (format != FormatType.Ebook && format != FormatType.Audiobook)
+            {
+                throw new ArgumentOutOfRangeException(nameof(BookSearchCommand.MissingFormat), format, "Unsupported book format.");
+            }
         }
 
         public void Execute(MissingBookSearchCommand message)
         {
+            if (message.MissingFormat is FormatType format)
+            {
+                ValidateMissingFormat(format);
+                var missingIds = GetMissingFormatBookIds(format, message.AuthorId);
+                SearchMissingFormat(missingIds, message.Trigger, format).GetAwaiter().GetResult();
+                return;
+            }
+
             List<Book> books;
             var dualFormatEnabled = _configService.EnableDualFormatTracking;
 
@@ -202,6 +210,43 @@ namespace NzbDrone.Core.IndexerSearch
             var missing = books.Where(e => !queue.Contains(e.Id)).ToList();
 
             SearchForBulkBooks(missing, message.Trigger == CommandTrigger.Manual).GetAwaiter().GetResult();
+        }
+
+        private IEnumerable<int> GetMissingFormatBookIds(FormatType format, int? authorId)
+        {
+            var queued = _queueService.GetQueue()
+                .Where(item => item.Book != null && RemoteBook.GetReleaseFormat(item.RemoteBook, item.Quality?.Quality) == format)
+                .Select(item => item.Book.Id)
+                .ToHashSet();
+            var paging = new PagingSpec<Book>
+            {
+                Page = 1,
+                PageSize = 500,
+                SortDirection = SortDirection.Ascending,
+                SortKey = "Id"
+            };
+            AddMonitoredFilter(paging);
+
+            if (authorId is int id)
+            {
+                paging.FilterExpressions.Add(book => book.Author.Value.Id == id);
+            }
+
+            var lastId = 0;
+            paging.FilterExpressions.Add(book => book.Id > lastId);
+            var dualFormatEnabled = _configService.EnableDualFormatTracking;
+            var missing = new List<Book>();
+            List<Book> page;
+
+            do
+            {
+                page = _bookService.BooksWithoutFiles(paging, format, dualFormatEnabled).Records;
+                missing.AddRange(page.Where(book => !queued.Contains(book.Id)));
+                lastId = page.LastOrDefault()?.Id ?? lastId;
+            }
+            while (page.Count == paging.PageSize);
+
+            return missing.OrderBy(book => book.LastSearchTime ?? DateTime.MinValue).Select(book => book.Id);
         }
 
         public void Execute(CutoffUnmetBookSearchCommand message)

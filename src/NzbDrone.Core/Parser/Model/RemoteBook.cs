@@ -5,6 +5,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Download.Clients;
 using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.Parser.Model
 {
@@ -33,6 +34,20 @@ namespace NzbDrone.Core.Parser.Model
         public bool IsRecentBook()
         {
             return Books.Any(e => e.ReleaseDate >= DateTime.UtcNow.Date.AddDays(-14));
+        }
+
+        public static FormatType? GetReleaseFormat(RemoteBook book, Quality fallbackQuality = null)
+        {
+            var quality = book?.ParsedBookInfo?.Quality?.Quality ?? fallbackQuality;
+            var parsedFormat = quality == null ? (FormatType?)null : Quality.GetFormatType(quality);
+            var resolvedFormat = book?.ResolvedFormatType;
+
+            if (resolvedFormat.HasValue && parsedFormat.HasValue && resolvedFormat != parsedFormat)
+            {
+                return null;
+            }
+
+            return resolvedFormat ?? parsedFormat;
         }
 
         public override string ToString()
