@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
@@ -68,7 +71,11 @@ namespace Bibliophilarr.Http.Authentication
             // persisted key could never authenticate until a restart (issue #309).
             var currentApiKey = _config.ApiKey;
 
-            if (!string.IsNullOrWhiteSpace(currentApiKey) && currentApiKey == providedApiKey)
+            // Keep exact string equality without revealing where equal-length keys differ.
+            if (!string.IsNullOrWhiteSpace(currentApiKey) &&
+                CryptographicOperations.FixedTimeEquals(
+                    MemoryMarshal.AsBytes(currentApiKey.AsSpan()),
+                    MemoryMarshal.AsBytes(providedApiKey.AsSpan())))
             {
                 var claims = new List<Claim>
                 {
