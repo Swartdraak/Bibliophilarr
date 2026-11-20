@@ -209,6 +209,12 @@ jobs:
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture'
 
+      - name: Verify persistent user password storage
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~UserServicePasswordFixture'
+
       - name: Verify author identity and path handling
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
@@ -220,14 +226,14 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~DiskScanServiceTests.ScanFixture|FullyQualifiedName~EbookTagServiceFixture|FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~RefreshBookDeletionGuardFixture|FullyQualifiedName~RefreshEditionFormatFixture|FullyQualifiedName~BookSearchServiceMissingFormatFixture|FullyQualifiedName~QueueSpecificationFixture|FullyQualifiedName~ScopedCutoffRepositoryFixture|FullyQualifiedName~BookCutoffServiceFormatFixture|FullyQualifiedName~MediaFileRepositoryFixture.should_persist_updated_reasons_only_while_the_same_file_is_unmapped'
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~DiskScanServiceTests.ScanFixture|FullyQualifiedName~EbookTagServiceFixture|FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~RefreshBookDeletionGuardFixture|FullyQualifiedName~RefreshEditionFormatFixture|FullyQualifiedName~BookSearchServiceMissingFormatFixture|FullyQualifiedName~QueueSpecificationFixture|FullyQualifiedName~ScopedCutoffRepositoryFixture|FullyQualifiedName~BookCutoffServiceFormatFixture|FullyQualifiedName~MediaFileRepositoryFixture.should_persist_updated_reasons_only_while_the_same_file_is_unmapped|FullyQualifiedName~CandidateServiceIssue340Fixture|FullyQualifiedName~ManualImportServiceExecute'
 
-      - name: Run metadata, format monitoring and host configuration API fixtures
+      - name: Run metadata, format monitoring, manual import and host configuration API fixtures
         run: >-
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~BookFileResourceFixture|FullyQualifiedName~HostConfigCredentialValidationFixture|FullyQualifiedName~BootstrapControllerIssue313Fixture|FullyQualifiedName~AuthenticationServiceIssue369Fixture|FullyQualifiedName~ApiKeyAuthenticationHandlerFixture|FullyQualifiedName~ApiWriteAuthenticationMiddlewareFixture|FullyQualifiedName~BookReleaseFormatFixture|FullyQualifiedName~CalendarFeedControllerFixture'
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~BookFileResourceFixture|FullyQualifiedName~HostConfigCredentialValidationFixture|FullyQualifiedName~BootstrapControllerIssue313Fixture|FullyQualifiedName~AuthenticationServiceIssue369Fixture|FullyQualifiedName~ApiKeyAuthenticationHandlerFixture|FullyQualifiedName~ApiWriteAuthenticationMiddlewareFixture|FullyQualifiedName~BookReleaseFormatFixture|FullyQualifiedName~CalendarFeedControllerFixture|FullyQualifiedName~ManualImportControllerFixture|FullyQualifiedName~AuthorEditorControllerIssue236Fixture'
 
   metadata-diagnostics-integration:
     name: Metadata Diagnostics Integration

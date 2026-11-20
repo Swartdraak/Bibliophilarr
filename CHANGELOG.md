@@ -44,6 +44,8 @@ process.
   Its filtered row and bulk searches look for upgrades in that format.
 - Batch author canonicalization previews duplicate candidates. Apply a
   confirmed merge through the reviewed reconciliation command.
+- Rename an import list exclusion while retaining its existing ID. The Add and
+  Edit controls and form fields have accessible names.
 - Name the event details button in Activity History for screen readers.
 - Calendar subscription links authenticate with their API key and open in
   calendar clients without a Bibliophilarr browser session.
@@ -261,6 +263,9 @@ process.
 - Require an API credential for versioned API writes and protect Forms
   sign-in and sign-out with browser verification tokens.
 - Keep Calibre connection settings and library lookup terms out of scan logs.
+- New and changed account passwords use salted PBKDF2. Existing accounts
+  upgrade when they next sign in successfully with a password. Rollback to an
+  earlier version requires its matching app-data backup after a password upgrade.
 - API keys supplied in the Authorization header must use the Bearer scheme.
   The X-Api-Key header and existing API key query parameter are still accepted.
 
