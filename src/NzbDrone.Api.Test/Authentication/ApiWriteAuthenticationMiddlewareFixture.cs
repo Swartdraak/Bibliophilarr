@@ -1,8 +1,17 @@
+using System;
 using System.Linq;
 using System.Reflection;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Bibliophilarr.Api.V1.Books;
+using Bibliophilarr.Api.V1.Bookshelf;
+using Bibliophilarr.Api.V1.History;
+using Bibliophilarr.Api.V1.Indexers;
+using Bibliophilarr.Api.V1.ManualImport;
+using Bibliophilarr.Api.V1.Queue;
 using Bibliophilarr.Api.V1.System;
+using Bibliophilarr.Api.V1.System.Backup;
+using Bibliophilarr.Api.V1.Update;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.Authentication;
 using FluentAssertions;
@@ -15,6 +24,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Core.Configuration;
 using AspNetAuthenticationService = Microsoft.AspNetCore.Authentication.IAuthenticationService;
 
 namespace NzbDrone.Api.Test.Authentication
@@ -49,6 +59,49 @@ namespace NzbDrone.Api.Test.Authentication
 
             called.Should().BeTrue();
             auth.Verify(service => service.AuthenticateAsync(context, "API"), Times.Once());
+        }
+
+        [TestCase("X-Api-Key")]
+        [TestCase("Authorization")]
+        [TestCase("apikey")]
+        public async Task should_preserve_supported_credentials_on_a_versioned_write(string credentialSource)
+        {
+            const string key = "local-fixture-key";
+            var registrations = new ServiceCollection();
+            registrations.AddLogging();
+            registrations.AddSingleton(Mock.Of<IConfigFileProvider>(config => config.ApiKey == key));
+            registrations.AddAuthentication().AddApiKey("API", options =>
+            {
+                options.HeaderName = "X-Api-Key";
+                options.QueryName = "apikey";
+            });
+
+            using var services = registrations.BuildServiceProvider();
+            using var scope = services.CreateScope();
+            var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+            context.Request.Method = HttpMethods.Post;
+            context.SetEndpoint(new Endpoint(_ => Task.CompletedTask,
+                new EndpointMetadataCollection(new V1ApiControllerAttribute()),
+                "API action"));
+            if (credentialSource == "apikey")
+            {
+                context.Request.QueryString = QueryString.Create(credentialSource, key);
+            }
+            else
+            {
+                context.Request.Headers[credentialSource] = credentialSource == "Authorization" ? $"Bearer {key}" : key;
+            }
+
+            var called = false;
+            var middleware = new ApiWriteAuthenticationMiddleware(_ =>
+            {
+                called = true;
+                return Task.CompletedTask;
+            });
+
+            await middleware.InvokeAsync(context);
+
+            called.Should().BeTrue();
         }
 
         [TestCase("GET", true)]
@@ -88,19 +141,43 @@ namespace NzbDrone.Api.Test.Authentication
         }
 
         [Test]
-        public async Task should_discover_the_version_marker_on_a_real_mutating_api_route()
+        public async Task should_discover_the_version_marker_on_the_reviewed_post_routes()
         {
+            var reviewedActions = new (Type Controller, string Method, int Posts)[]
+            {
+                (typeof(BookshelfController), nameof(BookshelfController.UpdateAll), 1),
+                (typeof(RenameBookController), nameof(RenameBookController.RenameFiles), 1),
+                (typeof(RenameBookController), nameof(RenameBookController.RenameAuthor), 1),
+                (typeof(HistoryController), nameof(HistoryController.MarkAsFailed), 1),
+                (typeof(ReleaseController), nameof(ReleaseController.DownloadRelease), 1),
+                (typeof(ReleasePushController), nameof(ReleasePushController.Create), 1),
+                (typeof(ManualImportController), nameof(ManualImportController.UpdateItems), 1),
+                (typeof(QueueActionController), nameof(QueueActionController.Grab), 2),
+                (typeof(BackupController), nameof(BackupController.Restore), 1),
+                (typeof(BackupController), nameof(BackupController.UploadAndRestore), 1),
+                (typeof(SystemController), nameof(SystemController.Shutdown), 1),
+                (typeof(SystemController), nameof(SystemController.Restart), 1),
+                (typeof(UpdateController), nameof(UpdateController.CheckPublicRelease), 1)
+            };
             var builder = WebApplication.CreateBuilder();
             builder.Services.AddControllers().AddApplicationPart(typeof(SystemController).Assembly);
             await using var app = builder.Build();
             app.MapControllers();
 
-            var action = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
-                .Single(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is { } descriptor &&
-                    descriptor.ControllerTypeInfo == typeof(SystemController) && descriptor.ActionName == nameof(SystemController.Shutdown));
-
-            action.Metadata.GetMetadata<VersionedApiControllerAttribute>().Should().NotBeNull();
-            action.Metadata.GetMetadata<HttpMethodMetadata>().HttpMethods.Should().ContainSingle().Which.Should().Be("POST");
+            var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).ToArray();
+            foreach (var (controller, method, posts) in reviewedActions)
+            {
+                var actions = endpoints.Where(endpoint =>
+                    endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is { } descriptor &&
+                    descriptor.ControllerTypeInfo == controller && descriptor.MethodInfo.Name == method);
+                actions.Should().HaveCount(posts, "{0}.{1} has this many reviewed POST routes", controller.Name, method);
+                foreach (var action in actions)
+                {
+                    action.Metadata.GetMetadata<VersionedApiControllerAttribute>().Should().NotBeNull(
+                        "{0} requires the explicit API credential", action.DisplayName);
+                    action.Metadata.GetMetadata<HttpMethodMetadata>().HttpMethods.Should().Equal(HttpMethods.Post);
+                }
+            }
         }
     }
 }
