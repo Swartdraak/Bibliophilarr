@@ -16,6 +16,7 @@ process.
 
 - Provider telemetry distinguishes failed Open Library text searches from
   successful searches with no matches.
+- Preserve completed task results in command history after restart.
 - Rename an import list exclusion while retaining its existing ID. The Add and
   Edit controls and form fields have accessible names.
 - Name the event details button in Activity History for screen readers.
