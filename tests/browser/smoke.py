@@ -1,12 +1,14 @@
 """Verify the production WebUI against a disposable, loopback-only Linux app."""
 
 import argparse
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
+import hashlib
 import os
 from pathlib import Path
 import re
 import secrets
 import socket
+import sqlite3
 import subprocess
 from tempfile import TemporaryDirectory
 import time
@@ -46,6 +48,30 @@ def wait_ready(process, http, base, app_data):
         time.sleep(0.2)
 
     raise TimeoutError("fresh startup did not produce ping, config and database")
+
+
+def check_native_profile(http, api, base, app_data, key, stage):
+    ping = check_status(http.get(base + "/ping", max_redirects=0), 200, f"{stage} ping")
+    assert ping.headers["content-type"].split(";", 1)[0] == "application/json"
+    assert ping.json().get("status") == "OK"
+    config = ElementTree.parse(app_data / "config.xml").getroot()
+    assert config.tag == "Config", f"{stage} config has the wrong root element"
+    assert key and config.findtext("ApiKey") == key, f"{stage} config key did not match"
+    assert (app_data / "bibliophilarr.db").is_file(), f"{stage} main database missing"
+    check_status(http.get(base + "/", max_redirects=0), 401, f"{stage} anonymous root")
+    system = check_status(api.get("/api/v1/system/status", max_redirects=0), 200, f"{stage} keyed system status").json()
+    assert Path(system["appData"]).resolve() == app_data.resolve(), f"{stage} system profile did not match"
+    print(f"{stage} native profile verified (config, API key and database)", flush=True)
+
+
+def check_bootstrap_user(app_data, credentials=None):
+    database = (app_data / "bibliophilarr.db").as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(database, uri=True)) as connection:
+        users = connection.execute("SELECT Username, Password FROM Users").fetchall()
+    expected = []
+    if credentials:
+        expected.append((credentials["username"].lower(), hashlib.sha256(credentials["password"].encode()).hexdigest()))
+    assert users == expected, "bootstrap user did not match the persisted profile"
 
 
 def free_port():
@@ -285,15 +311,24 @@ def run(binary, evidence, *, live_provider=False):
         port = free_port()
         with running_app(binary, data, log, port, evidence, credentials) as (app, base):
             key = wait_ready(app, http, base, data)
+            api = playwright.request.new_context(base_url=base, extra_http_headers={"X-Api-Key": key})
+            check_native_profile(http, api, base, data, key, "Startup")
             check_status(http.get(base + "/authors", max_redirects=0), 401, "Anonymous library")
             check_status(http.get(base + "/api/v1/search?term=fixture", max_redirects=0), 401, "Anonymous API search")
             denied = check_status(http.get(base + "/initialize.json", max_redirects=0), 401, "Anonymous initializer")
             assert key.encode() not in denied.body()
-            check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 200, "First user")
+            for invalid_username in ("ab", "a" * 33):
+                invalid = {**credentials, "username": invalid_username}
+                check_status(http.post(base + "/bootstrap", form=invalid, max_redirects=0), 400, "Invalid first username")
+            check_bootstrap_user(data)
+            initial_user = {**credentials, "username": username.upper()}
+            check_status(http.post(base + "/bootstrap", form=initial_user, max_redirects=0), 200, "First user")
+            check_bootstrap_user(data, credentials)
             check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 409, "Duplicate bootstrap")
+            check_bootstrap_user(data, credentials)
 
-            api = playwright.request.new_context(base_url=base, extra_http_headers={"X-Api-Key": key})
             host = check_status(api.get("/api/v1/config/host"), 200, "Read host config").json()
+            assert host["port"] == port
             host.update(
                 authenticationRequired="enabled",
                 authenticationMethod="forms",
@@ -328,16 +363,22 @@ def run(binary, evidence, *, live_provider=False):
             assert initializer.json()["apiKey"] == key and "no-store" in initializer.headers["cache-control"]
             check_routes(page, base, api, evidence)
             catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
+            assert app.poll() is None, "native app exited before the planned restart"
+
+        assert app.returncode == 0, "native app did not exit cleanly after SIGTERM"
 
         with running_app(binary, data, log, port, evidence, credentials) as (app, base):
-            assert wait_ready(app, http, base, data) == key
+            wait_ready(app, http, base, data)
+            check_native_profile(http, api, base, data, key, "After restart")
             host = check_status(api.get("/api/v1/config/host"), 200, "Persisted API key").json()
-            assert host["username"] == username and host["password"] == ""
+            assert host["username"] == username and host["password"] == "" and host["port"] == port
             ui_settings = check_status(api.get("/api/v1/config/ui"), 200, "Persisted UI settings").json()
             assert ui_settings["theme"] == "dark"
             metadata = check_status(api.get(metadata_path), 200, "Persisted metadata settings").json()
             assert metadata["metadataProviderTimeoutSeconds"] == timeout
             check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 409, "Persisted user")
+            check_bootstrap_user(data, credentials)
+            print("Bootstrap user verified in SQLite after restart", flush=True)
             check_status(page.request.get(base + "/initialize.json"), 200, "Persisted Forms session")
             page.set_viewport_size({"width": 1366, "height": 900})
             check_status(page.goto(base + "/authors"), 200, "Library after restart")
