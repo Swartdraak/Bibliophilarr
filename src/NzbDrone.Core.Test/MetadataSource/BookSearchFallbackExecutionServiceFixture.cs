@@ -248,5 +248,36 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             health.RateLimitRemaining.Should().BeLessThanOrEqualTo(1);
         }
+
+        [TestCase("Hardcover", 72096)]
+        [TestCase("GoogleBooks", 900)]
+        public void should_report_and_skip_until_the_same_retry_after_deadline(string providerName, int expectedCooldownSeconds)
+        {
+            var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
+            provider.SetupGet(x => x.ProviderName).Returns(providerName);
+
+            var request = new HttpRequest("https://example.test");
+            var headers = new HttpHeader { ["Retry-After"] = "72096" };
+            var response = new HttpResponse(request, headers, string.Empty, HttpStatusCode.TooManyRequests);
+            provider.Setup(x => x.Search(It.IsAny<string>(), It.IsAny<string>()))
+                .Throws(new TooManyRequestsException(request, response));
+
+            var registry = Mocker.Resolve<IMetadataProviderRegistry>();
+            var started = DateTime.UtcNow;
+            Subject.Search(provider.Object, "Title", "Author").Should().BeEmpty();
+            ExceptionVerification.IgnoreWarns();
+
+            var deadline = registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc;
+            deadline.Should().BeOnOrAfter(started.AddSeconds(expectedCooldownSeconds));
+            deadline.Should().BeOnOrBefore(DateTime.UtcNow.AddSeconds(expectedCooldownSeconds));
+
+            Subject.Search(provider.Object, "Title", "Author").Should().BeEmpty();
+
+            registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc.Should().Be(deadline);
+            provider.Verify(x => x.Search(It.IsAny<string>(), It.IsAny<string>()), Times.Once());
+            Mocker.GetMock<IRateLimitService>()
+                .Verify(x => x.WaitAndPulse("metadata-fallback", providerName, It.IsAny<TimeSpan>()), Times.Once());
+        }
     }
 }
