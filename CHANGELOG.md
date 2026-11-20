@@ -14,6 +14,13 @@ process.
 
 ### Fixed
 
+- Calendar subscription links authenticate with their API key and open in
+  calendar clients without a Bibliophilarr browser session.
+- Calendar subscriptions apply author tags from generated links and retain
+  support for existing `tagList` filters.
+- Calendar subscriptions display one release event per book when several
+  editions are monitored or none is selected.
+
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
   the setup form.
