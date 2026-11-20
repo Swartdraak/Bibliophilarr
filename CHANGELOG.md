@@ -14,6 +14,10 @@ process.
 
 ### Fixed
 
+- Terminal first-account setup now requires a request token and its cookie
+  before submitting credentials. Browser first-account setup continues through
+  the setup form.
+
 - A fresh installation opens first-account setup in the browser when opened
   directly on localhost. Create an account and sign in without a terminal command.
 
