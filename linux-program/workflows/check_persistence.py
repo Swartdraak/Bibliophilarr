@@ -50,8 +50,7 @@ def main():
           f'status={status} id={data.get("id") if isinstance(data, dict) else None}')
 
     # P3 first user persists: bootstrap endpoint still returns 409 (user exists)
-    status, headers, raw = common.get_form(API + '/bootstrap',
-                                           {'username': USERNAME, 'password': PASSWORD}, timeout=60)
+    status = common.bootstrap_first_user(USERNAME, PASSWORD)
     check('P3_user_persists_after_restart', status == 409, f'status={status}')
 
     common.finish(failures)
