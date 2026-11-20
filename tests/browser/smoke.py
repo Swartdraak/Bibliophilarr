@@ -13,6 +13,7 @@ from tempfile import TemporaryDirectory
 import time
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
+from zipfile import ZipFile
 
 from playwright.sync_api import Error as PlaywrightError, expect, sync_playwright
 
@@ -69,6 +70,40 @@ def check_bootstrap_user(app_data, credentials=None):
         users = connection.execute("SELECT Username FROM Users").fetchall()
     expected = [(credentials["username"].lower(),)] if credentials else []
     assert users == expected, "bootstrap user did not match the persisted profile"
+
+
+def exercise_manual_backup(api, app_data):
+    command = check_status(api.post("/api/v1/command", data={"name": "Backup"}), 201, "Queue manual backup").json()
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        response = api.get(f"/api/v1/command/{command['id']}")
+        assert response.status == 200, "read manual backup command"
+        status = response.json()["status"]
+        if status == "completed":
+            break
+        assert status not in ("failed", "aborted", "orphaned"), f"manual backup command {status}"
+        time.sleep(0.25)
+    else:
+        raise TimeoutError("manual backup command did not complete")
+
+    backups = check_status(api.get("/api/v1/system/backup"), 200, "Discover manual backup").json()
+    backup, = (entry for entry in backups if entry["type"] == "manual")
+    backup_root = app_data / "Backups"
+    assert backup_root.name in {path.name for path in app_data.iterdir()}
+    target = backup_root / "manual" / backup["name"]
+    assert target.parent.name in {path.name for path in backup_root.iterdir()}
+    assert backup["path"] == f"/backup/manual/{target.name}"
+    assert target.is_file() and target.stat().st_size == backup["size"]
+    with ZipFile(target) as archive:
+        assert {"config.xml", "bibliophilarr.db"}.issubset(archive.namelist())
+        assert archive.testzip() is None
+
+    witness = check_status(api.post("/api/v1/tag", data={"label": "after-backup-witness"}), 201, "Create post-backup tag").json()
+    check_status(api.get(f"/api/v1/tag/{witness['id']}"), 200, "Read post-backup tag")
+    staged = check_status(api.post(f"/api/v1/system/backup/restore/{backup['id']}"), 200, "Stage restore by manual backup ID").json()
+    assert staged["restartRequired"] is True and (app_data / "bibliophilarr.restore").is_file()
+    print("manual_backup: PASS (exact Backups/manual path and restore by API ID)", flush=True)
+    return witness["id"]
 
 
 def bootstrap_headers(http, base):
@@ -382,6 +417,7 @@ def run(binary, evidence, *, live_provider=False):
             assert initializer.json()["apiKey"] == key and "no-store" in initializer.headers["cache-control"]
             check_routes(page, base, api, evidence)
             catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
+            backup_witness = exercise_manual_backup(api, data)
             assert app.poll() is None, "native app exited before the planned restart"
 
         assert app.returncode == 0, "native app did not exit cleanly after SIGTERM"
@@ -405,6 +441,8 @@ def run(binary, evidence, *, live_provider=False):
             check_status(page.goto(base + "/authors"), 200, "Library after restart")
             expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
             verify_catalogue_after_restart(page, api, base, catalogue)
+            assert not (data / "bibliophilarr.restore").exists(), "manual backup restore was not applied at startup"
+            check_status(api.get(f"/api/v1/tag/{backup_witness}"), 404, "Post-backup tag absent after restore")
             assert not errors, f"{len(errors)} uncaught browser page errors"
             page.get_by_role("button", name="Menu Button").click()
             page.get_by_role("button", name="Logout", exact=True).click()
