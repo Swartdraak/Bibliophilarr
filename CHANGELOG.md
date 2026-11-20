@@ -23,6 +23,8 @@ process.
   that need attention. The Auto theme updates when the system palette changes.
 - Show verified shared works in an author's bibliography while keeping each
   work's catalogue owner, editions and format status.
+- A book-search command can target a single monitored format that is still
+  missing. Scoped searches skip releases with conflicting format information.
 
 ### Fixed
 
@@ -227,6 +229,8 @@ process.
 - Require an API credential for versioned API writes and protect Forms
   sign-in and sign-out with browser verification tokens.
 - Keep Calibre connection settings and library lookup terms out of scan logs.
+- API keys supplied in the Authorization header must use the Bearer scheme.
+  The X-Api-Key header and existing API key query parameter are still accepted.
 
 - Update the frontend dependency graph to patched qs, PostCSS and picomatch versions. Keep each selector-parser consumer on a compatible release.
 

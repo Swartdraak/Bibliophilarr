@@ -16,6 +16,7 @@ namespace NzbDrone.Api.Test.Authentication
     public class ApiKeyAuthenticationHandlerFixture
     {
         private const string HeaderName = "X-Api-Key";
+        private const string QueryName = "apikey";
 
         [Test]
         public async Task persisted_key_should_authenticate_after_cold_boot_finalization()
@@ -84,38 +85,66 @@ namespace NzbDrone.Api.Test.Authentication
             result.Succeeded.Should().BeFalse();
         }
 
-        [Test]
-        public async Task key_via_bearer_authorization_header_should_authenticate()
+        [TestCase(HeaderName)]
+        [TestCase(QueryName)]
+        [TestCase("Bearer")]
+        [TestCase("bEaReR")]
+        public async Task supported_api_key_transport_should_authenticate(string source)
         {
             const string persistedKey = "persisted-key-finalized-during-startup";
-
-            var config = new Mock<IConfigFileProvider>();
-            config.SetupGet(c => c.ApiKey).Returns(persistedKey);
-
-            var handler = CreateHandler(config.Object, persistedKey, viaAuthorizationHeader: true);
+            var config = Mock.Of<IConfigFileProvider>(c => c.ApiKey == persistedKey);
+            var handler = source switch
+            {
+                HeaderName => CreateHandler(config, persistedKey),
+                QueryName => CreateHandler(config, null, presentedQueryKey: persistedKey),
+                _ => CreateHandler(config, null, authorizationHeader: $"{source} {persistedKey}")
+            };
 
             var result = await handler.AuthenticateAsync();
 
             result.Succeeded.Should().BeTrue();
         }
 
-        private static ApiKeyAuthenticationHandler CreateHandler(IConfigFileProvider config, string presentedKey, bool viaAuthorizationHeader = false)
+        [TestCase("opaque-fixture-key")]
+        [TestCase("Basic fixture-value")]
+        [TestCase("Digest fixture-value")]
+        public async Task unsupported_authorization_format_should_not_authenticate(string authorizationHeader)
+        {
+            var config = Mock.Of<IConfigFileProvider>(c => c.ApiKey == authorizationHeader);
+            var handler = CreateHandler(config, null, authorizationHeader: authorizationHeader);
+
+            var result = await handler.AuthenticateAsync();
+
+            result.Succeeded.Should().BeFalse();
+        }
+
+        private static ApiKeyAuthenticationHandler CreateHandler(
+            IConfigFileProvider config,
+            string presentedKey,
+            string authorizationHeader = null,
+            string presentedQueryKey = null)
         {
             var context = new DefaultHttpContext();
 
-            if (viaAuthorizationHeader)
-            {
-                context.Request.Headers["Authorization"] = $"Bearer {presentedKey}";
-            }
-            else if (presentedKey != null)
+            if (presentedKey != null)
             {
                 context.Request.Headers[HeaderName] = presentedKey;
+            }
+
+            if (authorizationHeader != null)
+            {
+                context.Request.Headers["Authorization"] = authorizationHeader;
+            }
+
+            if (presentedQueryKey != null)
+            {
+                context.Request.QueryString = QueryString.Create(QueryName, presentedQueryKey);
             }
 
             var options = new ApiKeyAuthenticationOptions
             {
                 HeaderName = HeaderName,
-                QueryName = "apikey"
+                QueryName = QueryName
             };
 
             var handler = new ApiKeyAuthenticationHandler(
