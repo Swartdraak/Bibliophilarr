@@ -55,6 +55,23 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_reuse_the_exact_foreign_author_id_without_writing_a_second_author()
+        {
+            var incoming = new Author { ForeignAuthorId = _primary.ForeignAuthorId, Name = "Unrelated placeholder" };
+            var authors = Mocker.GetMock<IAuthorService>();
+            authors.Setup(service => service.FindById(incoming.ForeignAuthorId)).Returns(_primary);
+
+            var match = Subject.TryFindCanonicalMatch(incoming, out var confidence, out var reason);
+
+            match.Should().BeSameAs(_primary);
+            confidence.Should().Be(1.0);
+            reason.Should().Be("foreign-author-id match");
+            authors.Verify(service => service.FindById(incoming.ForeignAuthorId), Times.Once());
+            authors.Verify(service => service.AddAuthor(It.IsAny<Author>(), It.IsAny<bool>()), Times.Never());
+            authors.Verify(service => service.UpdateAuthor(It.IsAny<Author>()), Times.Never());
+        }
+
+        [Test]
         public void should_rewire_books_history_and_exclusions_when_merging_duplicate_author()
         {
             var books = new List<Book>
