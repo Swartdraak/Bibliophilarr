@@ -8,6 +8,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using NUnit.Framework;
+using NzbDrone.Common.Extensions;
 using NzbDrone.SignalR;
 
 namespace NzbDrone.Integration.Test.ApiTests
@@ -81,11 +82,17 @@ namespace NzbDrone.Integration.Test.ApiTests
                     ready.TrySetResult();
                 }
 
-                if (message.Name == "rootfolder" && message.Body is JsonElement body &&
-                    body.GetProperty("action").GetString() == "created" &&
-                    body.GetProperty("resource").GetProperty("path").GetString() == path)
+                if (message.Name == "rootfolder" &&
+                    message.Body is JsonElement { ValueKind: JsonValueKind.Object } body &&
+                    body.TryGetProperty("action", out var action) && action.ValueKind == JsonValueKind.String &&
+                    action.GetString() == "created" &&
+                    body.TryGetProperty("resource", out var resource) && resource.ValueKind == JsonValueKind.Object &&
+                    resource.TryGetProperty("path", out var resourcePath) && resourcePath.ValueKind == JsonValueKind.String &&
+                    path.PathEquals(resourcePath.GetString()) &&
+                    resource.TryGetProperty("id", out var resourceId) && resourceId.ValueKind == JsonValueKind.Number &&
+                    resourceId.TryGetInt32(out var id))
                 {
-                    broadcast.TrySetResult(body.GetProperty("resource").GetProperty("id").GetInt32());
+                    broadcast.TrySetResult(id);
                 }
             });
 
