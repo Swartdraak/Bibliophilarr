@@ -215,9 +215,11 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Item.Edition.Should().BeSameAs(edition);
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void should_preserve_new_author_confidence_hold_until_fallback_finds_a_match(bool fallbackMatches)
+        [TestCase(LibraryImportHoldReason.LowConfidence, false)]
+        [TestCase(LibraryImportHoldReason.LowConfidence, true)]
+        [TestCase(LibraryImportHoldReason.ProviderIdentityConflict, false)]
+        [TestCase(LibraryImportHoldReason.ProviderIdentityConflict, true)]
+        public void should_preserve_identification_hold_until_fallback_finds_a_match(LibraryImportHoldReason reason, bool fallbackMatches)
         {
             _idConfig.NewDownload = false;
             LocalEdition release = null;
@@ -225,7 +227,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
                 .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
                 .Returns((List<LocalBook> tracks, IdentificationOverrides overrides, ImportDecisionMakerConfig config, ImportRunSummary summary) =>
                 {
-                    release = new LocalEdition(tracks) { IdentificationHoldReason = LibraryImportHoldReason.LowConfidence };
+                    release = new LocalEdition(tracks) { IdentificationHoldReason = reason };
                     return new List<LocalEdition> { release };
                 });
 
@@ -242,7 +244,13 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             }
             else
             {
-                decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.LowConfidence);
+                var rejection = decision.Rejections.Should().ContainSingle().Which;
+                rejection.HoldReason.Should().Be(reason);
+                if (reason == LibraryImportHoldReason.ProviderIdentityConflict)
+                {
+                    rejection.Reason.Should().Be("Metadata provider results conflict with this file's book identity. Select the intended work manually.");
+                }
+
                 decision.Item.Edition.Should().BeNull();
             }
         }

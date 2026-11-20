@@ -9,6 +9,7 @@ jest.mock('Components/Modal/ConfirmModal', () => () => null);
 test.each([
   ['sameSizeAsExisting', 'UnmappedReasonSameSizeAsExisting'],
   ['conflictingIdentity', 'UnmappedReasonConflictingIdentity'],
+  ['providerIdentityConflict', 'UnmappedReasonProviderIdentityConflict'],
   [undefined, 'UnmappedReasonNotRecorded']
 ])('shows the recorded reason %s beside the file', (unmappedReason, expectedLabel) => {
   render(

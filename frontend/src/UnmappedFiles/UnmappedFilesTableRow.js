@@ -24,6 +24,7 @@ const unmappedReasonLabels = {
   readError: 'UnmappedReasonReadError',
   duplicateInScan: 'UnmappedReasonDuplicateInScan',
   conflictingIdentity: 'UnmappedReasonConflictingIdentity',
+  providerIdentityConflict: 'UnmappedReasonProviderIdentityConflict',
   importFailed: 'UnmappedReasonImportFailed'
 };
 

@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Bibliophilarr.Api.V1.BookFiles;
 using NUnit.Framework;
+using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
@@ -23,6 +25,15 @@ namespace NzbDrone.Api.Test.Books
 
             Assert.That(resource.BookId, Is.Zero);
             Assert.That(resource.UnmappedReason, Is.EqualTo(LibraryImportHoldReason.LowConfidence));
+        }
+
+        [Test]
+        public void should_serialize_provider_identity_conflict_as_a_named_reason()
+        {
+            var file = new BookFile { UnmappedReason = LibraryImportHoldReason.ProviderIdentityConflict };
+            using var response = JsonDocument.Parse(STJson.ToJson(file.ToResource()));
+
+            Assert.That(response.RootElement.GetProperty("unmappedReason").GetString(), Is.EqualTo("providerIdentityConflict"));
         }
 
         [Test]

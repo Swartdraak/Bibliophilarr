@@ -331,7 +331,12 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             GivenRetryCandidate(candidateTitle, findRemotely);
             var tracks = CreateRetryTracks(observedTitle, $"Test Author - {observedTitle}");
 
-            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeNull();
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            release.Edition.Should().BeNull();
+            release.IdentificationHoldReason.Should().Be(findRemotely
+                ? LibraryImportHoldReason.ProviderIdentityConflict
+                : null);
         }
 
         [TestCase(FilterFilesType.None, false, 1.0, false)]
@@ -595,6 +600,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase(false, true, false)]
         [TestCase(false, false, false)]
         [TestCase(false, true, true)]
+        [TestCase(false, false, true)]
         public void should_continue_remote_search_after_rejecting_an_ineligible_edition(bool rejectPrimary, bool laterMatch, bool requireLocalAuthor)
         {
             const string title = "Fixture Series Book 2";
@@ -640,10 +646,36 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
 
             result.Edition.Should().BeSameAs(laterMatch ? expected.Editions.Value.Single() : null);
+            result.IdentificationHoldReason.Should().Be(laterMatch || requireLocalAuthor
+                ? null
+                : LibraryImportHoldReason.ProviderIdentityConflict);
             search.Verify(service => service.Search(first.Object, It.IsAny<string>(), It.IsAny<string>()), Times.AtLeastOnce());
             search.Verify(service => service.Search(second.Object, It.IsAny<string>(), It.IsAny<string>()), Times.AtLeastOnce());
             search.Verify(service => service.Search(last.Object, It.IsAny<string>(), It.IsAny<string>()),
                 laterMatch ? Times.Never() : Times.AtLeastOnce());
+        }
+
+        [Test]
+        public void should_leave_author_policy_distinct_when_an_identity_compatible_provider_result_has_no_local_author()
+        {
+            const string title = "Fixture Series Book 2";
+            GivenRetryCandidate("Fixture Series Book 1", findRemotely: true);
+            var tracks = CreateRetryTracks(title, "Test Author - " + title);
+            var compatible = RemoteWork(title);
+            const string missingAuthor = "openlibrary:author:OL999A";
+            compatible.Author = new Author { Name = _author.Name, ForeignAuthorId = missingAuthor };
+            compatible.AuthorMetadata = new AuthorMetadata { Name = _author.Name, ForeignAuthorId = missingAuthor };
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(missingAuthor)).Returns((Author)null);
+            var compatibleEdition = compatible.Editions.Value.Single();
+            compatibleEdition.Book = compatible;
+            GivenRemoteCandidates(
+                new CandidateEdition { Edition = _audiobookEdition },
+                new CandidateEdition { Edition = compatibleEdition });
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            result.Edition.Should().BeNull();
+            result.IdentificationHoldReason.Should().BeNull();
         }
 
         private Book RemoteWork(string title)
@@ -705,10 +737,16 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         {
             _audiobookEdition.Format = "M4B";
             _overrides.Edition = _audiobookEdition;
+            GivenGuideCandidate(false);
             var tracks = CreateEbookLocalBooks();
+            var summary = new ImportRunSummary();
 
-            Subject.Identify(tracks, _overrides, _config).Single().Edition.Should().BeNull();
+            var release = Subject.Identify(tracks, _overrides, _config, summary).Single();
+
+            release.Edition.Should().BeNull();
+            release.IdentificationHoldReason.Should().BeNull();
             tracks.Single().Edition.Should().BeNull();
+            summary.Errors.Should().Be(0);
         }
 
         [Test]

@@ -215,8 +215,25 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 AllowsGuideMatch(taggedBookTitle, edition, idOverrides.Edition) &&
                 (corroboratedAuthors == null || AllowsLibraryScanMatch(localBookRelease, taggedBookTitle, corroboratedAuthors, edition));
 
-            bool AllowsRemoteEdition(Edition edition) =>
-                AllowsEdition(edition) && (config.AddNewAuthors || AuthorExistsLocally(edition, config.NewDownload));
+            var providerIdentityConflict = false;
+            var providerAuthorUnavailable = false;
+
+            bool AllowsRemoteEdition(Edition edition)
+            {
+                if (!AllowsEdition(edition))
+                {
+                    providerIdentityConflict = true;
+                    return false;
+                }
+
+                if (!config.AddNewAuthors && !AuthorExistsLocally(edition, config.NewDownload))
+                {
+                    providerAuthorUnavailable = true;
+                    return false;
+                }
+
+                return true;
+            }
 
             var localCandidates = _candidateService.GetDbCandidatesFromTags(localBookRelease, idOverrides, config.IncludeExisting)
                 .Where(candidate => localBookRelease.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, candidate.Edition)))
@@ -249,6 +266,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             if (!seenCandidate)
             {
+                if (providerIdentityConflict && !providerAuthorUnavailable && !config.NewDownload &&
+                    idOverrides.Author == null && idOverrides.Book == null && idOverrides.Edition == null)
+                {
+                    localBookRelease.IdentificationHoldReason = LibraryImportHoldReason.ProviderIdentityConflict;
+                }
+
                 // can't find any candidates even after using remote search
                 // populate the overrides and return
                 foreach (var localTrack in localBookRelease.LocalBooks)

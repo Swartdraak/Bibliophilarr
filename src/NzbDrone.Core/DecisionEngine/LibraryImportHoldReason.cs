@@ -11,6 +11,7 @@ namespace NzbDrone.Core.DecisionEngine
         ReadError = 7,
         DuplicateInScan = 8,
         ConflictingIdentity = 9,
-        ImportFailed = 10
+        ImportFailed = 10,
+        ProviderIdentityConflict = 11
     }
 }

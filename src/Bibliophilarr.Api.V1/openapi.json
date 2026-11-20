@@ -9324,6 +9324,26 @@
           "qualityCutoffNotMet": {
             "type": "boolean"
           },
+          "unmappedReason": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true,
+            "description": "Reason the library scan held an unlinked file. Cleared after a successful link.",
+            "enum": [
+              "reviewRequired",
+              "noAcceptedWork",
+              "lowConfidence",
+              "existingFilePreferred",
+              "sameSizeAsExisting",
+              "competingEditions",
+              "readError",
+              "duplicateInScan",
+              "conflictingIdentity",
+              "importFailed",
+              "providerIdentityConflict",
+              null
+            ]
+          },
           "audioTags": {
             "$ref": "#/components/schemas/ParsedTrackInfo"
           }

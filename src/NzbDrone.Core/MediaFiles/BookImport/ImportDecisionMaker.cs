@@ -601,6 +601,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 {
                     LibraryImportHoldReason.LowConfidence => "The match could not confidently identify a new author. Select the intended author manually.",
                     LibraryImportHoldReason.CompetingEditions => "More than one edition matches this file's ISBN and format. Select the intended edition manually.",
+                    LibraryImportHoldReason.ProviderIdentityConflict => "Metadata provider results conflict with this file's book identity. Select the intended work manually.",
                     _ => $"Couldn't find similar book for {localEdition}"
                 };
                 decision = new ImportDecision<LocalEdition>(localEdition, new Rejection(message, holdReason: reason));

@@ -82,18 +82,19 @@ namespace NzbDrone.Core.Test.MediaFiles
             unmappedfiles.Should().HaveCount(5);
         }
 
-        [Test]
-        public void should_persist_updated_reasons_only_while_the_same_file_is_unmapped()
+        [TestCase(LibraryImportHoldReason.NoAcceptedWork)]
+        [TestCase(LibraryImportHoldReason.ProviderIdentityConflict)]
+        public void should_persist_updated_reasons_only_while_the_same_file_is_unmapped(LibraryImportHoldReason initialReason)
         {
             var files = Subject.GetUnmappedFiles();
             var file = files.First();
             var untouched = files.Last();
             file.UnmappedReason.Should().BeNull();
 
-            file.UnmappedReason = LibraryImportHoldReason.NoAcceptedWork;
+            file.UnmappedReason = initialReason;
             untouched.UnmappedReason = LibraryImportHoldReason.SameSizeAsExisting;
             Subject.SetUnmappedReasons(new List<BookFile> { file, untouched });
-            Subject.Get(file.Id).UnmappedReason.Should().Be(LibraryImportHoldReason.NoAcceptedWork);
+            Subject.Get(file.Id).UnmappedReason.Should().Be(initialReason);
 
             file.UnmappedReason = LibraryImportHoldReason.LowConfidence;
             Subject.SetUnmappedReasons(new List<BookFile> { file });

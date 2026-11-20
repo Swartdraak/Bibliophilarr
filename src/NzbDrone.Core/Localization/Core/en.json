@@ -1170,6 +1170,7 @@
   "UnmappedReasonReadError": "The scan could not read the file metadata",
   "UnmappedReasonDuplicateInScan": "The scan already linked another file for this edition and part",
   "UnmappedReasonConflictingIdentity": "Embedded metadata and the filename identify different books",
+  "UnmappedReasonProviderIdentityConflict": "Metadata provider results conflict with this file’s book identity",
   "UnmappedReasonImportFailed": "File import failed. See System Logs for details.",
   "UnmappedReasonNotRecorded": "No reason recorded. Rescan to check this file.",
   "NoMatchingUnmappedFiles": "No files match the current filters.",
