@@ -327,6 +327,119 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             (identifiedEdition == _audiobookEdition).Should().Be(shouldMatch);
         }
 
+        [TestCase("Abiding in Mindfulness, Volume 2: On Feeling, the Mind & Dhamma", "Abiding in Mindfulness, Volume 2 - On Feeling, the Mind & Dhamma", "The Experience Of Insight: A Simple & Direct Guide To Buddhist Meditation")]
+        [TestCase("City of Bones: The Little Book of Quotes", "City of Bones - The Little Book of Quotes", "City of Bones Movie postcards Mortal Instruments Paperback")]
+        [TestCase("City of Bones: The Little Book of Quotes", "City of Bones - The Little Book of Quotes", "City of Bones")]
+        [TestCase("Mistress of Dragons", "Mistress of Dragons (1)", "Master of Dragons")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff The Griffin Rider 3")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff The Griffin Rider")]
+        [TestCase("The World of Ice and Fire: The Untold History of Westeros and the Game of Thrones", "The World of Ice and Fire - The Untold History of Westeros and the Game of Thrones", "Selections from Dreamsongs 3")]
+        public void should_hold_a_wrong_work_when_the_native_filename_differs_only_in_presentation(string tagTitle, string filenameTitle, string wrongTitle)
+        {
+            GivenRetryCandidate(wrongTitle);
+            _config.Filter = FilterFilesType.None;
+            var tracks = CreateRetryTracks(tagTitle, $"Test Author - {filenameTitle}");
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeNull();
+        }
+
+        [TestCase(7, "B0C6W5XQNW", "The Primal Hunter 3: A LitRPG Adventure", false)]
+        [TestCase(8, "B0CHSJVWL7", "The Primal Hunter 3: A LitRPG Adventure", false)]
+        [TestCase(7, "B0C6W5XQNW", "The Primal Hunter 7", true)]
+        public void should_corroborate_a_numbered_work_when_the_filename_omits_its_generic_genre_line(int volume, string asin, string candidateTitle, bool shouldMatch)
+        {
+            GivenRetryCandidate(candidateTitle);
+            _book.AuthorMetadata.Value.Name = "Zogarth";
+            _audiobookEdition.Format = "Ebook";
+            _audiobookEdition.IsEbook = true;
+            var title = $"The Primal Hunter {volume}";
+            var tracks = CreateRetryTracks($"{title}: A LitRPG Adventure", $"Zogarth - {title}", 0.92);
+            tracks[0].Path = $"/media/ebooks/Zogarth - {title}.epub";
+            tracks[0].Quality = new QualityModel(Quality.EPUB);
+            tracks[0].FileTrackInfo.Authors = new List<string> { "Zogarth" };
+            tracks[0].FileTrackInfo.Asin = asin;
+            tracks[0].FileTrackInfo.AsinConfidence = 0.95;
+
+            var identified = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (identified == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
+        [Test]
+        public void should_not_select_other_chapters_just_because_the_chapter_range_agrees()
+        {
+            GivenRetryCandidate("Cress: Chapters 1-5");
+            _book.AuthorMetadata.Value.Name = "Marissa Meyer";
+            var tracks = CreateRetryTracks("Cinder: Chapters 1-5", "Marissa Meyer - Cinder - Chapters 1-5", 1.0);
+            tracks[0].FileTrackInfo.Title = "Cinder: Chapters 1-5";
+            tracks[0].FileTrackInfo.Authors = new List<string> { "Marissa Meyer" };
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeNull();
+        }
+
+        [TestCase("The Primal Hunter 15: A LitRPG Adventure", "The Primal Hunter 7 (1).mobi", 0.9, false, false, false)]
+        [TestCase("The Primal Hunter 7: A LitRPG Adventure", "The Primal Hunter 7 (1).mobi", 0.9, false, false, true)]
+        [TestCase("The Primal Hunter 15: A LitRPG Adventure", "Another Series 7 (1).mobi", 0.9, false, false, true)]
+        [TestCase("The Primal Hunter Book 7", "The Primal Hunter Book 7 - Disc 15.mobi", 0.9, false, false, true)]
+        [TestCase("The Primal Hunter Book 15", "The Primal Hunter Volume 7 (1).mobi", 0.9, false, false, false)]
+        [TestCase("The Primal Hunter 15", "The Primal Hunter 7 (1).mobi", 0.6, false, false, true)]
+        [TestCase("The Primal Hunter 15", "The Primal Hunter 7 (1).mobi", 0.9, true, false, true)]
+        [TestCase("The Primal Hunter 15", "The Primal Hunter 7 (1).mobi", 0.9, false, true, true)]
+        [TestCase("The Archive 2021", "The Archive 2019.mobi", 0.9, false, false, true)]
+        public void should_hold_disagreeing_numbered_file_evidence_before_querying_automatic_candidates(
+            string tagTitle, string filename, double confidence, bool requested, bool explicitEdition, bool shouldMatch)
+        {
+            GivenRetryCandidate(tagTitle);
+            _config.Filter = FilterFilesType.None;
+            _config.NewDownload = requested;
+            _book.AuthorMetadata.Value.Name = "Zogarth";
+            _audiobookEdition.Format = "Ebook";
+            _audiobookEdition.IsEbook = true;
+            var tracks = CreateRetryTracks(tagTitle, filename, confidence);
+            tracks[0].Path = $"/media/ebooks/Zogarth - {filename}";
+            tracks[0].Quality = new QualityModel(Quality.MOBI);
+            tracks[0].FileTrackInfo.Authors = new List<string> { "Zogarth" };
+            var overrides = new IdentificationOverrides { Edition = explicitEdition ? _audiobookEdition : null };
+
+            var result = Subject.Identify(tracks, overrides, _config).Single();
+
+            (result.Edition == _audiobookEdition).Should().Be(shouldMatch);
+            if (!shouldMatch)
+            {
+                Mocker.GetMock<ICandidateService>().Verify(
+                    service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()), Times.Never());
+                Mocker.GetMock<ICandidateService>().Verify(
+                    service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()), Times.Never());
+            }
+        }
+
+        [TestCase("Sheepfarmer's Daughter (The Deed of Paksenarrion)", false)]
+        [TestCase("Surrender None", true)]
+        public void should_read_an_exact_work_suffix_after_numbered_series_and_agreeing_inverted_author(string candidateTitle, bool shouldMatch)
+        {
+            GivenRetryCandidate(candidateTitle);
+            _config.Filter = FilterFilesType.None;
+            _book.AuthorMetadata.Value.Name = "Elizabeth Moon";
+            var tracks = CreateRetryTracks("Paksenarrion 04 - Surrender None", "Elizabeth Moon - Surrender None", 0.9);
+            tracks[0].FileTrackInfo.Authors = new List<string> { "Moon, Elizabeth" };
+
+            var identified = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (identified == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
+        [TestCase("The Untold Story: A Novel", "The Untold Story - A Novel", "The Untold Story")]
+        [TestCase("The Untold Story: A Novel", "The Untold Story - A Novel", "The Untold Story - A Novel")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1 - 5")]
+        [TestCase("A Story About Number 2", "A Different Novel", "A Story")]
+        public void should_preserve_matching_work_scope_and_ordinary_title_variants(string tagTitle, string filenameTitle, string candidateTitle)
+        {
+            GivenRetryCandidate(candidateTitle);
+            var tracks = CreateRetryTracks(tagTitle, $"Test Author - {filenameTitle}");
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
         [Test]
         public void should_skip_a_different_explicit_series_volume_without_a_full_filename()
         {

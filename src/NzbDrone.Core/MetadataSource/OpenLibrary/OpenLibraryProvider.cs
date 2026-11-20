@@ -16,6 +16,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     public class OpenLibraryProvider :
         IMetadataProvider,
         IProvideAuthorInfo,
+        IVerifyAuthorWork,
         IProvideBookInfo,
         ISearchForNewBook,
         ISearchForNewAuthor,
@@ -588,6 +589,37 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 _logger.Warn(ex, "OpenLibrary search failed for '{0}'", title);
                 return new List<Book>();
             }
+        }
+
+        public string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn)
+        {
+            var author = CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null);
+            var work = GetIsbnLookupWorkId(workId);
+            var canonicalIsbn = Isbn.AsIsbn13(isbn);
+            if (author == null || work == null || canonicalIsbn == null)
+            {
+                return null;
+            }
+
+            var edition = _client.GetEditionByIsbn(canonicalIsbn);
+            var editionKey = OpenLibraryIdNormalizer.NormalizeWorkId(edition?.Key);
+            if (editionKey == null || !editionKey.EndsWith("M", StringComparison.Ordinal) ||
+                editionKey.Length <= 3 || !editionKey[2..^1].All(char.IsAsciiDigit) ||
+                (!ContainsExactIsbn(edition.Isbn13, canonicalIsbn) && !ContainsExactIsbn(edition.Isbn10, canonicalIsbn)) ||
+                edition.Works?.Count != 1 || GetIsbnLookupWorkId(edition.Works[0]?.Key) != work)
+            {
+                return null;
+            }
+
+            var source = _client.GetWork(work);
+            var credit = source?.Authors?.Count == 1 ? source.Authors[0] : null;
+            var creditPath = credit?.Author?.Key;
+            return GetIsbnLookupWorkId(source?.Key) == work &&
+                   credit?.Type?.Key == "/type/author_role" &&
+                   creditPath?.StartsWith("/authors/", StringComparison.Ordinal) == true &&
+                   creditPath[9..] == author.ProviderId
+                ? source.Title
+                : null;
         }
 
         public List<Book> SearchByIsbn(string isbn)

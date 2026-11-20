@@ -16,6 +16,7 @@ using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.RootFolders;
@@ -158,7 +159,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
                 catch (AugmentingFailedException)
                 {
-                    decisionResults[index] = new ImportDecision<LocalBook>(localTrack, new Rejection("Unable to parse file"));
+                    decisionResults[index] = new ImportDecision<LocalBook>(localTrack, new Rejection("Unable to parse file", holdReason: LibraryImportHoldReason.ReadError));
                 }
                 catch (Exception e)
                 {
@@ -208,23 +209,53 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             foreach (var release in releases)
             {
-                // make sure the appropriate quality profile is set for the release author
-                // in case it's a new author
-                EnsureData(release);
-
-                // Issue #275: when the identification step left a release without a
-                // catalogue edition (no usable identity in the file tags for the
-                // candidate service to match on), attempt a bounded direct remote
-                // lookup from the file's own book/author metadata so the item is not
-                // permanently rejected with "Couldn't find similar book".
-                if (release.Edition == null)
+                var conflictingOrdinal = IdentificationService.HasConflictingWorkOrdinal(release, idOverrides, config);
+                var authorNeedsReview = false;
+                if (!conflictingOrdinal)
                 {
-                    IdentifyReleaseFallback(release, config);
+                    EnsureData(release);
+
+                    // Issue #275: only search directly when identification found no edition
+                    // and the file's own work identity is sufficiently consistent.
+                    if (release.Edition == null)
+                    {
+                        IdentifyReleaseFallback(release, config);
+                    }
+
+                    authorNeedsReview = NeedsReviewForNewSyntheticAuthor(release, idOverrides, config);
+                    if (authorNeedsReview)
+                    {
+                        var trustedIsbns = release.LocalBooks.Select(file => file.FileTrackInfo)
+                            .Where(tags => tags?.IsbnConfidence >= 0.9)
+                            .Select(tags => Isbn.AsIsbn13(tags.Isbn))
+                            .Where(isbn => isbn != null).Distinct().Take(2).ToList();
+                        if (trustedIsbns.Count == 1)
+                        {
+                            IdentifyReleaseFallback(release, config, trustedIsbns[0]);
+                            authorNeedsReview = NeedsReviewForNewSyntheticAuthor(release, idOverrides, config);
+                        }
+                    }
                 }
 
                 release.NewDownload = config.NewDownload;
 
-                var releaseDecision = GetDecision(release, itemInfo.DownloadClientItem);
+                ImportDecision<LocalEdition> releaseDecision;
+                if (conflictingOrdinal)
+                {
+                    releaseDecision = new ImportDecision<LocalEdition>(release, new Rejection(
+                        "The filename and embedded title name different volumes of the same series. Select the intended work manually.",
+                        holdReason: LibraryImportHoldReason.ConflictingIdentity));
+                }
+                else if (authorNeedsReview)
+                {
+                    releaseDecision = new ImportDecision<LocalEdition>(release, new Rejection(
+                        "A different catalogue author has the same name. Select the intended author manually.",
+                        holdReason: LibraryImportHoldReason.ReviewRequired));
+                }
+                else
+                {
+                    releaseDecision = GetDecision(release, itemInfo.DownloadClientItem);
+                }
 
                 foreach (var localTrack in release.LocalBooks)
                 {
@@ -276,6 +307,25 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
         }
 
+        private bool NeedsReviewForNewSyntheticAuthor(LocalEdition release, IdentificationOverrides overrides, ImportDecisionMakerConfig config)
+        {
+            if (config.NewDownload || !config.AddNewAuthors || overrides?.Author != null || overrides?.Book != null || overrides?.Edition != null)
+            {
+                return false;
+            }
+
+            var author = release.Edition?.Book?.Value?.Author?.Value;
+            if (author == null || author.Id > 0 || author.Name.IsNullOrWhiteSpace() ||
+                author.ForeignAuthorId?.StartsWith("googlebooks:author:", StringComparison.OrdinalIgnoreCase) != true ||
+                _authorService.FindById(author.ForeignAuthorId) != null)
+            {
+                return false;
+            }
+
+            return _authorService.GetAuthorsByCleanName(author.Name.CleanAuthorName())?.Any(candidate =>
+                CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, candidate.ForeignAuthorId, null) != null) == true;
+        }
+
         // Issue #275: bounded fallback for releases whose identification left the
         // catalogue Edition null. The regular candidate path (local DB candidates +
         // CandidateService remote search) requires a usable identity in the file tags
@@ -285,7 +335,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         // title and an author, look the catalogue up directly and adopt the best
         // candidate edition so the scan/import can proceed. Genuinely unresolvable
         // items (no title, no author, or no remote hit) keep the original rejection.
-        private void IdentifyReleaseFallback(LocalEdition release, ImportDecisionMakerConfig config)
+        private void IdentifyReleaseFallback(LocalEdition release, ImportDecisionMakerConfig config, string requiredIsbn = null)
         {
             try
             {
@@ -305,14 +355,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     return;
                 }
 
-                _logger.Debug("Issue #275: identification left no edition for {0}; attempting direct catalogue lookup for '{1}' by '{2}'",
+                _logger.Debug("Attempting direct catalogue lookup for {0}: '{1}' by '{2}'",
                     release,
                     bookTitle,
                     authorName);
 
                 var (book, bestEdition) = config.NewDownload
                     ? SelectRequestedFallback(_metadataOrchestrator.SearchForNewBook(bookTitle, authorName, true), release)
-                    : FindLibraryFallback(release, bookTitle, authorName, config.AddNewAuthors);
+                    : FindLibraryFallback(release, bookTitle, authorName, config.AddNewAuthors, requiredIsbn);
 
                 if (bestEdition == null)
                 {
@@ -362,7 +412,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 !IdentificationService.ConflictsWithGuideTitle(taggedBookTitle, edition, match.Book)));
         }
 
-        private (Book Book, Edition Edition) FindLibraryFallback(LocalEdition release, string title, string author, bool addNewAuthors)
+        private (Book Book, Edition Edition) FindLibraryFallback(LocalEdition release, string title, string author, bool addNewAuthors, string requiredIsbn)
         {
             var exactTitle = NormalizeLibraryIdentity(title);
             var exactAuthor = NormalizeLibraryAuthor(author);
@@ -379,16 +429,26 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             (Book Book, Edition Edition, bool Hold) selection = default;
-            _metadataOrchestrator.SearchForLibraryImport(title, author, books =>
+            bool Select(List<Book> books)
             {
-                selection = SelectLibraryFallback(books, release, exactTitle, exactAuthor, formats[0].Value, addNewAuthors);
+                selection = SelectLibraryFallback(books, release, exactTitle, exactAuthor, formats[0].Value, addNewAuthors, requiredIsbn);
                 return selection.Edition != null || selection.Hold;
-            });
+            }
+
+            if (requiredIsbn == null)
+            {
+                _metadataOrchestrator.SearchForLibraryImport(title, author, Select);
+            }
+            else
+            {
+                _metadataOrchestrator.SearchForLibraryImportByIsbn(requiredIsbn, Select);
+            }
+
             return (selection.Book, selection.Edition);
         }
 
         private (Book Book, Edition Edition, bool Hold) SelectLibraryFallback(
-            List<Book> books, LocalEdition release, string exactTitle, string exactAuthor, FormatType format, bool addNewAuthors)
+            List<Book> books, LocalEdition release, string exactTitle, string exactAuthor, FormatType format, bool addNewAuthors, string requiredIsbn)
         {
             // Resolve work ambiguity before consulting editions, so a matching format
             // cannot select one of two independently plausible work identities.
@@ -415,6 +475,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var editions = works[0].SelectMany(book => (book.Editions?.Value ?? new List<Edition>())
                     .Where(edition => edition?.ForeignEditionId.IsNotNullOrWhiteSpace() == true &&
                         edition.Title.IsNotNullOrWhiteSpace() &&
+                        (requiredIsbn == null || Isbn.AreEquivalent(edition.Isbn13, requiredIsbn)) &&
                         (book.Id <= 0 || edition.BookId <= 0 || edition.BookId == book.Id) &&
                         !IdentificationService.ConflictsWithGuideTitle(taggedBookTitle, edition, book))
                     .Select(edition => (Book: book, Edition: edition)))
@@ -431,7 +492,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 var localAuthor = ResolveLibraryAuthor(candidate, scopedAuthor, authorId);
                 if (localAuthor != null)
                 {
-                    if (NormalizeLibraryAuthor(localAuthor.Name) != exactAuthor)
+                    if (NormalizeLibraryAuthor(localAuthor.Name) != exactAuthor ||
+                        (requiredIsbn != null && CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, localAuthor.ForeignAuthorId, null) == null))
                     {
                         continue;
                     }
@@ -442,7 +504,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     return (candidate, edition, false);
                 }
 
-                if (addNewAuthors && scopedAuthor && NormalizeLibraryAuthor(candidate.Author?.Value?.Name) == exactAuthor)
+                if (requiredIsbn == null && addNewAuthors && scopedAuthor && NormalizeLibraryAuthor(candidate.Author?.Value?.Name) == exactAuthor)
                 {
                     return (candidate, edition, false);
                 }
@@ -529,7 +591,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (localEdition.Edition == null)
             {
-                decision = new ImportDecision<LocalEdition>(localEdition, new Rejection($"Couldn't find similar book for {localEdition}"));
+                decision = new ImportDecision<LocalEdition>(localEdition, new Rejection($"Couldn't find similar book for {localEdition}", holdReason: LibraryImportHoldReason.NoAcceptedWork));
             }
             else
             {
@@ -561,7 +623,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (localBook.Book == null)
             {
-                decision = new ImportDecision<LocalBook>(localBook, new Rejection($"Couldn't parse book from: {localBook.FileTrackInfo}"));
+                decision = new ImportDecision<LocalBook>(localBook, new Rejection($"Couldn't parse book from: {localBook.FileTrackInfo}", holdReason: LibraryImportHoldReason.NoAcceptedWork));
             }
             else
             {
@@ -595,7 +657,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 if (!result.Accepted)
                 {
-                    return new Rejection(result.Reason);
+                    return new Rejection(result.Reason, holdReason: result.HoldReason);
                 }
             }
             catch (Exception e)

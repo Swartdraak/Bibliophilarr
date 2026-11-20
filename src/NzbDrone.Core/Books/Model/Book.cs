@@ -95,12 +95,13 @@ namespace NzbDrone.Core.Books
                 PendingSourceAssociations.AddRange(other.PendingSourceAssociations);
             }
 
+            var sameWork = ForeignBookId.IsNotNullOrWhiteSpace() && ForeignBookId == other.ForeignBookId;
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
-            OpenLibraryWorkId = other.OpenLibraryWorkId;
+            OpenLibraryWorkId = sameWork && other.OpenLibraryWorkId.IsNullOrWhiteSpace() ? OpenLibraryWorkId : other.OpenLibraryWorkId;
             TitleSlug = other.TitleSlug;
             Title = other.Title;
-            ReleaseDate = other.ReleaseDate;
+            ReleaseDate = sameWork ? other.ReleaseDate ?? ReleaseDate : other.ReleaseDate;
             Links = other.Links;
             Genres = other.Genres;
             RelatedBooks = other.RelatedBooks;

@@ -14,6 +14,7 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
+using NzbDrone.Core.Parser;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -73,6 +74,22 @@ namespace NzbDrone.Core.MetadataSource
                 provider => provider.SearchForNewBook(title, author, true),
                 BookSearchOperation,
                 provider => provider.SupportsBookSearch,
+                treatEmptyListAsNoData: true,
+                acceptResult: stopAfter);
+        }
+
+        public void SearchForLibraryImportByIsbn(string isbn, Func<List<Book>, bool> stopAfter)
+        {
+            var canonicalIsbn = Isbn.AsIsbn13(isbn);
+            if (canonicalIsbn == null)
+            {
+                return;
+            }
+
+            ExecuteFirst<ISearchForNewBook, List<Book>>(
+                provider => GetExplicitIsbnResults(provider, canonicalIsbn),
+                "search-by-isbn",
+                provider => provider.SupportsIsbnLookup && (provider.ProviderName is "Hardcover" or "OpenLibrary"),
                 treatEmptyListAsNoData: true,
                 acceptResult: stopAfter);
         }
@@ -203,6 +220,21 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.GetChangedAuthors(startTime),
                 "get-changed-authors",
                 p => p.SupportsAuthorSearch);
+        }
+
+        public string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn)
+        {
+            var author = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, authorId, null);
+            var work = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, workId, null);
+            var canonicalIsbn = Isbn.AsIsbn13(isbn);
+            if (author == null || author.Provider != work?.Provider || canonicalIsbn == null)
+            {
+                return null;
+            }
+
+            var provider = _registry.GetProviders().FirstOrDefault(candidate =>
+                string.Equals(candidate.ProviderName, author.Provider, StringComparison.OrdinalIgnoreCase)) as IVerifyAuthorWork;
+            return provider?.GetVerifiedAuthorWorkTitle(authorId, workId, canonicalIsbn);
         }
 
         private T ExecuteFirst<TContract, T>(Func<TContract, T> operation,
@@ -547,6 +579,11 @@ namespace NzbDrone.Core.MetadataSource
                         }
 
                         var (matchedBook, matchedEdition) = matches[0];
+                        if (ContradictsKnownMetadata(book.Title, matchedBook.Title) ||
+                            ContradictsKnownMetadata(book.AuthorMetadata?.Value?.Name, matchedBook.AuthorMetadata?.Value?.Name))
+                        {
+                            continue;
+                        }
 
                         if (string.Equals(provider.ProviderName, "OpenLibrary", StringComparison.OrdinalIgnoreCase))
                         {
@@ -653,7 +690,6 @@ namespace NzbDrone.Core.MetadataSource
                     // Once a match corroborates the identity, another ISBN must
                     // resolve to the same author before it may fill remaining fields.
                     knownAuthorId = candidateIds[0];
-                    StageOpenLibrarySource(metadata.PendingSourceAssociations, knownAuthorId, "exact-isbn-and-author");
                     var source = candidates[0].Author;
                     if (metadata.Overview.IsNullOrWhiteSpace() && source.Overview.IsNotNullOrWhiteSpace())
                     {
@@ -729,6 +765,12 @@ namespace NzbDrone.Core.MetadataSource
         private static bool HaveEqualNonEmptyText(string first, string second)
         {
             return first.IsNotNullOrWhiteSpace() && string.Equals(first.Trim(), second?.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool ContradictsKnownMetadata(string first, string second)
+        {
+            return first.IsNotNullOrWhiteSpace() && second.IsNotNullOrWhiteSpace() &&
+                   first.CleanAuthorName() != second.CleanAuthorName();
         }
 
         private static bool NeedsSupplementaryMetadata(Book book, Edition edition)

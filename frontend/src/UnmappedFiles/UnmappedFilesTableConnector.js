@@ -84,6 +84,12 @@ class UnmappedFilesTableConnector extends Component {
     this.repopulate();
   }
 
+  componentDidUpdate(previousProps) {
+    if (previousProps.isScanningFolders && !this.props.isScanningFolders) {
+      this.repopulate();
+    }
+  }
+
   componentWillUnmount() {
     unregisterPagePopulator(this.repopulate);
   }
@@ -108,6 +114,7 @@ class UnmappedFilesTableConnector extends Component {
 }
 
 UnmappedFilesTableConnector.propTypes = {
+  isScanningFolders: PropTypes.bool.isRequired,
   isSmallScreen: PropTypes.bool.isRequired,
   onSortPress: PropTypes.func.isRequired,
   onTableOptionChange: PropTypes.func.isRequired,

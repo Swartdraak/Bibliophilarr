@@ -15,6 +15,8 @@ process.
 
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
+- See the last recorded import hold reason next to each unmapped file, such as
+  an uncertain match, a preferred existing file, or a file of the same size.
 
 ### Fixed
 
@@ -53,6 +55,15 @@ process.
   and hold genuinely ambiguous matches for review.
 - On the initial library scan and automatic retries, skip a candidate when
   reliable file evidence contradicts its title or identifies a different volume.
+- Distinguish numbered works from guidebooks, excerpts, and omnibus editions.
+  When a filename and reliable embedded title name different volumes of the
+  same series, hold the file for review.
+- Reuse an author across Hardcover and Open Library after both sources verify
+  two distinct works. Hold ambiguous Google Books name matches during
+  unattended imports, and allow reviewed reconciliation of existing authors
+  with compatible library paths and format settings.
+- Honor Hardcover's retry window across search, lookup, and author bibliography
+  requests within the same app session.
 - Keep a novel's file away from a companion guide when its embedded title
   identifies the original work. Explicit edition selections still apply.
 - Save the unaffected works in an author's bibliography when one incoming
@@ -96,6 +107,12 @@ process.
 - Use verified alternate sources for missing edition details and author
   portraits. Display an available cover from the same work, and show a
   representative member cover alongside a series when available.
+- Show a synopsis from another edition of the same work when the preferred
+  edition has none. Try distinct same-work artwork if the preferred cover fails.
+- Try the next verified Open Library portrait or cover when the first image
+  is missing. Series artwork can fall back to another member's cover.
+- Keep verified alternate source identifiers and series descriptions when
+  the primary provider returns an incomplete refresh.
 - Open Library and Google Books read all available author pages and preserve
   the current catalogue when a later provider page fails.
 - Hardcover tracks representative ebook and audiobook editions where available.

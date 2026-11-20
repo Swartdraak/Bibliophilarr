@@ -20,6 +20,7 @@ namespace NzbDrone.Core.MediaFiles
         void AddMany(List<BookFile> bookFiles);
         void Update(BookFile bookFile);
         void Update(List<BookFile> bookFiles);
+        void UpdateScannedFileInfo(List<BookFile> bookFiles);
         void Delete(BookFile bookFile, DeleteMediaFileReason reason);
         void DeleteMany(List<BookFile> bookFiles, DeleteMediaFileReason reason);
         List<BookFile> GetFilesByAuthor(int authorId);
@@ -34,6 +35,7 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFileWithPath(List<string> path);
         BookFile GetFileWithPath(string path);
         bool TryLinkUnmappedFile(BookFile file, Edition edition);
+        void SetUnmappedReasons(List<BookFile> files);
         bool TryRepairUnsupportedEditionLink(BookFile file, Edition edition);
         void UpdateMediaInfo(List<BookFile> bookFiles);
     }
@@ -117,7 +119,13 @@ namespace NzbDrone.Core.MediaFiles
 
             file.EditionId = edition.Id;
             file.Edition = edition;
+            file.UnmappedReason = null;
             return true;
+        }
+
+        public void SetUnmappedReasons(List<BookFile> files)
+        {
+            _mediaFileRepository.SetUnmappedReasons(files);
         }
 
         public bool TryRepairUnsupportedEditionLink(BookFile file, Edition edition)
@@ -140,6 +148,11 @@ namespace NzbDrone.Core.MediaFiles
         public void Update(List<BookFile> bookFiles)
         {
             _mediaFileRepository.UpdateMany(bookFiles);
+        }
+
+        public void UpdateScannedFileInfo(List<BookFile> bookFiles)
+        {
+            _mediaFileRepository.SetFields(bookFiles, file => file.Size, file => file.Modified, file => file.MediaInfo, file => file.Quality);
         }
 
         public void Delete(BookFile bookFile, DeleteMediaFileReason reason)

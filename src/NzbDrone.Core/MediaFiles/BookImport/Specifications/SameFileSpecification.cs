@@ -46,7 +46,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                 }
 
                 _logger.Debug("'{0}' Has the same filesize as existing file", localBook.Path);
-                return Decision.Reject("Has the same filesize as existing file");
+                return Decision.RejectWithHoldReason("Has the same filesize as existing file", LibraryImportHoldReason.SameSizeAsExisting);
             }
 
             return Decision.Accept();

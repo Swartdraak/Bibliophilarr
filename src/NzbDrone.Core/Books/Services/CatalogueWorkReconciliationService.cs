@@ -35,6 +35,19 @@ namespace NzbDrone.Core.Books
                 return;
             }
 
+            Reconcile(connection, transaction, source, target, command.DryRun);
+            if (command.DryRun)
+            {
+                _logger.Info("Works {0} and {1} have corroborated identity. The source has {2} editions to transfer.", source.Id, target.Id, source.Editions.Value.Count);
+                return;
+            }
+
+            transaction.Commit();
+            _logger.Info("Reconciled work {0} into {1}, retaining both formats and existing edition and file IDs.", source.Id, target.Id);
+        }
+
+        internal static void Reconcile(IDbConnection connection, IDbTransaction transaction, Book source, Book target, bool dryRun)
+        {
             if (source == null || target == null || source.Id == target.Id ||
                 !BookWorkIdentity.AreCorroborated(source, target))
             {
@@ -50,9 +63,8 @@ namespace NzbDrone.Core.Books
                 throw new InvalidOperationException("The selected works have conflicting series positions.");
             }
 
-            if (command.DryRun)
+            if (dryRun)
             {
-                _logger.Info("Works {0} and {1} have corroborated identity. The source has {2} editions to transfer.", source.Id, target.Id, source.Editions.Value.Count);
                 return;
             }
 
@@ -90,11 +102,9 @@ namespace NzbDrone.Core.Books
                 transaction);
             RewriteBookReferences(connection, transaction, source.Id, target.Id);
             connection.Execute("DELETE FROM \"Books\" WHERE \"Id\" = @Source", ids, transaction);
-            transaction.Commit();
-            _logger.Info("Reconciled work {0} into {1}, retaining both formats and existing edition and file IDs.", source.Id, target.Id);
         }
 
-        private static Book ReadWork(IDbConnection connection, IDbTransaction transaction, int id)
+        internal static Book ReadWork(IDbConnection connection, IDbTransaction transaction, int id)
         {
             var book = connection.QuerySingleOrDefault<Book>("SELECT * FROM \"Books\" WHERE \"Id\" = @Id", new { Id = id }, transaction);
             if (book == null)

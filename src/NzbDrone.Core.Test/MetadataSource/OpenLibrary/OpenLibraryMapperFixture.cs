@@ -31,6 +31,22 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
         // ── MapSearchDocToBook ────────────────────────────────────────────────
         [Test]
+        public void should_map_distinct_author_photo_candidates_and_expose_missing_images_as_failures()
+        {
+            var profile = OpenLibraryMapper.MapAuthorToMetadata(new OlAuthorResource
+            {
+                Key = "/authors/OL1A",
+                Name = "Fixture Author",
+                Photos = new List<long> { -1, 12, 12, 34 }
+            });
+
+            profile.Images.Should().HaveCount(2).And.OnlyContain(image =>
+                image.SourceProvider == "OpenLibrary" && image.SourceId == "OL1A");
+            profile.Images[0].Url.Should().Be("https://covers.openlibrary.org/a/id/12-L.jpg?default=false");
+            profile.Images[1].Url.Should().Be("https://covers.openlibrary.org/a/id/34-L.jpg?default=false");
+        }
+
+        [Test]
         public void map_search_doc_produces_valid_book()
         {
             var json = LoadFixture("search_tolkien.json");

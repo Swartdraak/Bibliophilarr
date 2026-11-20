@@ -119,6 +119,7 @@ namespace NzbDrone.Core.MediaCover
             }
             else
             {
+                var cachedTypes = new HashSet<MediaCoverTypes>();
                 foreach (var mediaCover in covers)
                 {
                     if (mediaCover.CoverType == MediaCoverTypes.Unknown)
@@ -129,6 +130,11 @@ namespace NzbDrone.Core.MediaCover
                     var filePath = GetCoverPath(entityId, coverEntity, mediaCover.CoverType, mediaCover.Extension, null);
 
                     mediaCover.RemoteUrl = mediaCover.Url;
+                    if (!cachedTypes.Add(mediaCover.CoverType))
+                    {
+                        mediaCover.Url = _mediaCoverProxy.RegisterUrl(mediaCover.RemoteUrl);
+                        continue;
+                    }
 
                     if (coverEntity == MediaCoverEntity.Book)
                     {
@@ -167,7 +173,7 @@ namespace NzbDrone.Core.MediaCover
         {
             var toResize = new List<Tuple<MediaCover, bool>>();
 
-            foreach (var cover in author.Metadata.Value.Images)
+            foreach (var cover in author.Metadata.Value.Images.DistinctBy(image => image.CoverType))
             {
                 if (cover.CoverType == MediaCoverTypes.Unknown)
                 {
@@ -434,7 +440,7 @@ namespace NzbDrone.Core.MediaCover
 
         private static IEnumerable<MediaCover> GetBookCovers(Book book)
         {
-            return (book.Editions?.Value).GetBookImages().Where(image => image.CoverType == MediaCoverTypes.Cover);
+            return (book.Editions?.Value).GetBookImages().Where(image => image.CoverType == MediaCoverTypes.Cover).Take(1);
         }
 
         public void HandleAsync(AuthorDeletedEvent message)

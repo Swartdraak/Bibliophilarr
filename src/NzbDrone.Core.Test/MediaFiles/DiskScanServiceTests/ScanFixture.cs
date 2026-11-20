@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -586,12 +587,8 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
 
         private IDatabase CreateInMemoryDatabase()
         {
-            // Ensure the table mappers are registered exactly once (normally done at startup
-            // by DbFactory). Guard with a type marker so repeated calls are a no-op.
-            if (TableMapping.Mapper.TableMap.Count == 0)
-            {
-                TableMapping.Map();
-            }
+            // Use the same one-time table mapping as the normal database factory.
+            RuntimeHelpers.RunClassConstructor(typeof(DbFactory).TypeHandle);
 
             // Use the same cached migrated test database that the DbTest harness uses
             // (TestContext.CurrentContext.TestDirectory is the test output directory, which
@@ -638,12 +635,26 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IMediaFileService>()
-                .Verify(x => x.Update(It.Is<List<BookFile>>(l => l.Count == 0)),
+                .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(l => l.Count == 0)),
                         Times.Once());
 
             Mocker.GetMock<IMediaFileService>()
-                .Verify(x => x.Update(It.Is<List<BookFile>>(l => l.Count > 0)),
+                .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(l => l.Count > 0)),
                         Times.Never());
+        }
+
+        [Test]
+        public void should_record_why_new_files_remain_unmapped()
+        {
+            GivenAuthorFolder();
+            GivenFiles(new[] { Path.Combine(_author.Path, "unmatched.epub") });
+            GivenRejections();
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                    files.Count == 1 && files[0].UnmappedReason == LibraryImportHoldReason.ReviewRequired)));
         }
 
         [Test]
@@ -664,7 +675,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IMediaFileService>()
-                .Verify(x => x.Update(It.Is<List<BookFile>>(l => l.Count == 2)),
+                .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(l => l.Count == 2)),
                         Times.Once());
         }
 
@@ -698,7 +709,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IMediaFileService>()
-                .Verify(x => x.Update(It.Is<List<BookFile>>(
+                .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(
                                           l => l.Count == 1 &&
                                           l[0].Path == localTrack.Path &&
                                           l[0].Modified == localTrack.Modified &&

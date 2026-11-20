@@ -9,6 +9,7 @@ using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
@@ -113,7 +114,20 @@ namespace Bibliophilarr.Api.V1.Author
 
         protected override AuthorResource GetResourceById(int id)
         {
-            var author = _authorService.GetAuthor(id);
+            NzbDrone.Core.Books.Author author;
+            try
+            {
+                author = _authorService.GetAuthor(id);
+            }
+            catch (ModelNotFoundException)
+            {
+                author = _authorService.FindByRetiredId(id);
+                if (author == null)
+                {
+                    throw;
+                }
+            }
+
             return GetAuthorResource(author);
         }
 

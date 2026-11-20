@@ -1,10 +1,12 @@
 using System;
 using System.Linq;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Bibliophilarr.Api.V1.BookFiles
 {
@@ -22,6 +24,8 @@ namespace Bibliophilarr.Api.V1.BookFiles
 
         public bool QualityCutoffNotMet { get; set; }
         public ParsedTrackInfo AudioTags { get; set; }
+        [SwaggerSchema(ReadOnly = true)]
+        public LibraryImportHoldReason? UnmappedReason { get; set; }
     }
 
     public static class BookFileResourceMapper
@@ -55,7 +59,8 @@ namespace Bibliophilarr.Api.V1.BookFiles
                 DateAdded = model.DateAdded,
                 Quality = model.Quality,
                 QualityWeight = QualityWeight(model.Quality),
-                MediaInfo = model.MediaInfo.ToResource()
+                MediaInfo = model.MediaInfo.ToResource(),
+                UnmappedReason = model.EditionId == 0 ? model.UnmappedReason : null
             };
         }
 

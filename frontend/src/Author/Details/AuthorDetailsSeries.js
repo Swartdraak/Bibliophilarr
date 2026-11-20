@@ -13,6 +13,7 @@ import cataloguePath from 'Utilities/cataloguePath';
 import translate from 'Utilities/String/translate';
 import getToggledRange from 'Utilities/Table/getToggledRange';
 import BookRowConnector from './BookRowConnector';
+import SeriesRepresentativeCover from './SeriesRepresentativeCover';
 import styles from './AuthorDetailsSeries.css';
 
 class AuthorDetailsSeries extends Component {
@@ -123,7 +124,7 @@ class AuthorDetailsSeries extends Component {
       onTableOptionChange,
       authorMonitored,
       searchBookIds,
-      representativeCover,
+      representativeCovers,
       isSearching
     } = this.props;
 
@@ -161,16 +162,10 @@ class AuthorDetailsSeries extends Component {
           >
             <div className={styles.header}>
               <div className={styles.left}>
-                {
-                  representativeCover &&
-                    <img
-                      className={styles.seriesCover}
-                      src={representativeCover.url}
-                      alt={translate('SeriesRepresentativeCover', [representativeCover.bookTitle])}
-                      title={translate('SeriesRepresentativeCover', [representativeCover.bookTitle])}
-                      loading="lazy"
-                    />
-                }
+                <SeriesRepresentativeCover
+                  covers={representativeCovers}
+                  className={styles.seriesCover}
+                />
                 {
                   <div>
                     <span className={styles.bookTypeLabel}>
@@ -251,10 +246,10 @@ AuthorDetailsSeries.propTypes = {
   authorId: PropTypes.number.isRequired,
   label: PropTypes.string.isRequired,
   canonicalId: PropTypes.string,
-  representativeCover: PropTypes.shape({
+  representativeCovers: PropTypes.arrayOf(PropTypes.shape({
     bookTitle: PropTypes.string.isRequired,
     url: PropTypes.string.isRequired
-  }),
+  })),
   sortKey: PropTypes.string,
   sortDirection: PropTypes.oneOf(sortDirections.all),
   items: PropTypes.arrayOf(PropTypes.object).isRequired,

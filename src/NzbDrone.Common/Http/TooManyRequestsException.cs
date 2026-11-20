@@ -23,5 +23,11 @@ namespace NzbDrone.Common.Http
                 }
             }
         }
+
+        internal TooManyRequestsException(HttpRequest request, HttpResponse response, TimeSpan retryAfter)
+            : base(request, response)
+        {
+            RetryAfter = retryAfter;
+        }
     }
 }

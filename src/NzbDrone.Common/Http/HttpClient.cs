@@ -44,6 +44,7 @@ namespace NzbDrone.Common.Http
         private readonly Logger _logger;
         private readonly IRateLimitService _rateLimitService;
         private readonly ICached<CookieContainer> _cookieContainerCache;
+        private readonly HardcoverRateLimitGate _hardcoverRateLimitGate;
         private readonly List<IHttpRequestInterceptor> _requestInterceptors;
         private readonly IHttpDispatcher _httpDispatcher;
 
@@ -62,6 +63,8 @@ namespace NzbDrone.Common.Http
             ServicePointManager.DefaultConnectionLimit = 12;
 #pragma warning restore SYSLIB0014
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
+            _hardcoverRateLimitGate = cacheManager.GetCache<HardcoverRateLimitGate>(typeof(HardcoverRateLimitGate))
+                .Get("graphql", () => new HardcoverRateLimitGate());
         }
 
         public virtual async Task<HttpResponse> ExecuteAsync(HttpRequest request)
@@ -113,6 +116,11 @@ namespace NzbDrone.Common.Http
 
                 if ((int)response.StatusCode == 429)
                 {
+                    if (HardcoverRateLimitGate.AppliesTo(response.Request))
+                    {
+                        throw new TooManyRequestsException(request, response, _hardcoverRateLimitGate.Remaining);
+                    }
+
                     throw new TooManyRequestsException(request, response);
                 }
                 else
@@ -146,22 +154,16 @@ namespace NzbDrone.Common.Http
                 request = interceptor.PreRequest(request);
             }
 
-            if (request.RateLimit != TimeSpan.Zero)
+            var hardcoverGate = HardcoverRateLimitGate.AppliesTo(request) ? _hardcoverRateLimitGate : null;
+            var held = hardcoverGate?.GetHeldResponse(request);
+            if (held != null)
             {
-                await _rateLimitService.WaitAndPulseAsync(request.Url.Host, request.RateLimitKey, request.RateLimit);
+                return held;
             }
 
-            _logger.Trace(request);
-
-            var stopWatch = Stopwatch.StartNew();
-
-            var response = await _httpDispatcher.GetResponseAsync(request, cookieContainer);
-
-            HandleResponseCookies(response, cookieContainer);
-
-            stopWatch.Stop();
-
-            _logger.Trace("{0} ({1} ms)", response, stopWatch.ElapsedMilliseconds);
+            var response = hardcoverGate == null
+                ? await DispatchRateLimitedRequestAsync(request, cookieContainer)
+                : await hardcoverGate.DispatchAsync(request, () => DispatchRateLimitedRequestAsync(request, cookieContainer));
 
             foreach (var interceptor in _requestInterceptors)
             {
@@ -173,6 +175,25 @@ namespace NzbDrone.Common.Http
                 _logger.Trace("Response content ({0} bytes): {1}", response.ResponseData.Length, response.Content);
             }
 
+            return response;
+        }
+
+        private async Task<HttpResponse> DispatchRateLimitedRequestAsync(HttpRequest request, CookieContainer cookieContainer)
+        {
+            if (request.RateLimit != TimeSpan.Zero)
+            {
+                await _rateLimitService.WaitAndPulseAsync(request.Url.Host, request.RateLimitKey, request.RateLimit);
+            }
+
+            _logger.Trace(request);
+
+            var stopWatch = Stopwatch.StartNew();
+            var response = await _httpDispatcher.GetResponseAsync(request, cookieContainer);
+
+            HandleResponseCookies(response, cookieContainer);
+
+            stopWatch.Stop();
+            _logger.Trace("{0} ({1} ms)", response, stopWatch.ElapsedMilliseconds);
             return response;
         }
 

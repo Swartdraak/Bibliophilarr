@@ -39,6 +39,27 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Returns(0);
         }
 
+        [TestCase("Author", "Narrator", true)]
+        [TestCase("Author", "Author", false)]
+        [TestCase("Narrator", "Author", false)]
+        public void author_work_witness_requires_the_expected_sole_author_role(string firstRole, string secondRole, bool expected)
+        {
+            var payload = JObject.Parse("""
+                {"data":{"books":[{"id":124036,"title":"Fixture","editions":[{"id":7287,"isbn_13":"9781442482890"}],
+                "contributions":[{"author_id":196108,"contributor_role":{"name":"first"}},{"author_id":22,"contributor_role":{"name":"second"}}]}]}}
+                """);
+            payload.SelectToken("data.books[0].contributions[0].contributor_role")["name"] = firstRole;
+            payload.SelectToken("data.books[0].contributions[1].contributor_role")["name"] = secondRole;
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<JObject>(new HttpResponse(
+                    request,
+                    new HttpHeader { ContentType = "application/json" },
+                    payload.ToString())));
+
+            Subject.GetVerifiedAuthorWorkTitle("hardcover:author:196108", "hardcover:work:124036", "9781442482890")
+                .Should().Be(expected ? "Fixture" : null);
+        }
+
         [Test]
         public void should_preserve_timestamp_offset_in_stringified_search_results()
         {

@@ -68,7 +68,7 @@ namespace NzbDrone.Core.Books
                              (ForeignAuthorId.IsNotNullOrWhiteSpace() && ForeignAuthorId == other.ForeignAuthorId);
 
             ForeignAuthorId = other.ForeignAuthorId;
-            OpenLibraryAuthorId = other.OpenLibraryAuthorId;
+            OpenLibraryAuthorId = sameAuthor && other.OpenLibraryAuthorId.IsNullOrWhiteSpace() ? OpenLibraryAuthorId : other.OpenLibraryAuthorId;
             TitleSlug = other.TitleSlug;
             Name = other.Name;
             NameLastFirst = other.NameLastFirst;

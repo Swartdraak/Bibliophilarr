@@ -36,7 +36,7 @@ export function compareSeriesBookPositions(left, right, direction) {
   return direction === 'descending' ? -order : order;
 }
 
-export function getSeriesRepresentativeCover(books, links, artworkBooks = books) {
+export function getSeriesRepresentativeCovers(books, links, artworkBooks = books) {
   const booksById = new Map(artworkBooks.map((book) => [book.id, book]));
   const orderedLinks = [...links].sort((left, right) => {
     const leftPosition = left.position || String(left.seriesPosition || '');
@@ -47,14 +47,17 @@ export function getSeriesRepresentativeCover(books, links, artworkBooks = books)
     return order || left.bookId - right.bookId;
   });
 
-  for (const link of orderedLinks) {
+  const urls = new Set();
+  return orderedLinks.flatMap((link) => {
     const book = booksById.get(link.bookId);
-    const cover = book?.images?.find((image) => image.coverType === 'cover' && image.url);
-
-    if (cover) {
-      return { bookTitle: book.title, url: cover.url };
-    }
-  }
+    return (book?.images ?? []).filter((image) => {
+      if (image.coverType !== 'cover' || !image.url || urls.has(image.url)) {
+        return false;
+      }
+      urls.add(image.url);
+      return true;
+    }).map(({ url }) => ({ url, bookTitle: book.title }));
+  }).slice(0, 8);
 }
 
 function createMapStateToProps() {
@@ -100,7 +103,7 @@ function createMapStateToProps() {
         id: currentSeries.id,
         canonicalId: currentSeries.canonicalId,
         label: currentSeries.title,
-        representativeCover: getSeriesRepresentativeCover(booksInSeries, currentSeries.links, artworkBooks),
+        representativeCovers: getSeriesRepresentativeCovers(booksInSeries, currentSeries.links, artworkBooks),
         items: sortedBooks,
         positionMap,
         columns: series.columns,

@@ -160,6 +160,7 @@ namespace Bibliophilarr.Api.V1.Books
                 AuthorTitle = authorTitle,
                 SeriesTitle = seriesTitle,
                 Disambiguation = selectedEdition?.Disambiguation,
+                Overview = editionsValue.GetBookOverview(),
                 Images = editionsValue.GetBookImages().JsonClone(),
                 Links = model.Links.Concat(selectedEdition?.Links ?? new List<Links>()).GroupBy(l => l.Url).Select(g => g.First()).ToList(),
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NzbDrone.Common.Extensions;
@@ -26,25 +27,37 @@ namespace NzbDrone.Core.Books
         public static List<MediaCover.MediaCover> GetBookImages(this IList<Edition> editions)
         {
             var preferred = editions.GetPreferredEdition();
-            var images = preferred?.Images?.Where(image => image != null && image.Url.IsNotNullOrWhiteSpace()).ToList()
+            var images = preferred?.Images?.Where(image => image != null && image.Url.IsNotNullOrWhiteSpace())
+                         .DistinctBy(image => (image.CoverType, image.Url)).ToList()
                          ?? new List<MediaCover.MediaCover>();
 
-            if (editions == null || images.Any(image => image.CoverType == MediaCoverTypes.Cover))
+            if (editions == null)
             {
                 return images;
             }
 
+            var coverUrls = images.Where(image => image.CoverType == MediaCoverTypes.Cover)
+                .Select(image => image.Url)
+                .ToHashSet(StringComparer.Ordinal);
+            const int maxCoverCandidates = 3;
             var fallback = editions
                 .Where(edition => edition != preferred && edition?.Images != null)
                 .SelectMany(edition => edition.Images)
-                .FirstOrDefault(image => image?.CoverType == MediaCoverTypes.Cover && image.Url.IsNotNullOrWhiteSpace());
-
-            if (fallback != null)
-            {
-                images.Add(fallback);
-            }
+                .Where(image => image?.CoverType == MediaCoverTypes.Cover &&
+                    Uri.TryCreate(image.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https" &&
+                    coverUrls.Add(image.Url))
+                .Take(maxCoverCandidates - coverUrls.Count);
+            images.AddRange(fallback);
 
             return images;
+        }
+
+        public static string GetBookOverview(this IList<Edition> editions)
+        {
+            var preferredOverview = editions.GetPreferredEdition()?.Overview;
+            return preferredOverview.IsNotNullOrWhiteSpace()
+                ? preferredOverview
+                : editions?.Select(edition => edition?.Overview).FirstOrDefault(overview => overview.IsNotNullOrWhiteSpace());
         }
 
         public static Edition GetPreferredEdition(this Book book, FormatType formatType)

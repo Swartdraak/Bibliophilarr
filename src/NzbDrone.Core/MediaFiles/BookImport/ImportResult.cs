@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using NzbDrone.Common.EnsureThat;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.MediaFiles.BookImport
@@ -9,6 +10,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
     {
         public ImportDecision<LocalBook> ImportDecision { get; private set; }
         public List<string> Errors { get; private set; }
+
+        internal LibraryImportHoldReason? HoldReason { get; }
 
         public ImportResultType Result
         {
@@ -29,11 +32,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         }
 
         public ImportResult(ImportDecision<LocalBook> importDecision, params string[] errors)
+            : this(importDecision, null, errors)
+        {
+        }
+
+        internal ImportResult(ImportDecision<LocalBook> importDecision, LibraryImportHoldReason? holdReason, params string[] errors)
         {
             Ensure.That(importDecision, () => importDecision).IsNotNull();
 
             ImportDecision = importDecision;
             Errors = errors.ToList();
+            HoldReason = holdReason;
         }
     }
 }

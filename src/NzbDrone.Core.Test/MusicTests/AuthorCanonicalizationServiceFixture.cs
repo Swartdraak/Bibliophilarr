@@ -7,6 +7,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MusicTests
@@ -16,6 +17,75 @@ namespace NzbDrone.Core.Test.MusicTests
     {
         private Author _primary;
         private Author _duplicate;
+
+        [TestCase(0, false, false, false)]
+        [TestCase(1, false, false, false)]
+        [TestCase(2, false, false, true)]
+        [TestCase(2, true, false, false)]
+        [TestCase(2, false, true, true)]
+        public void should_reuse_incumbent_with_two_independent_verified_works(int confirmedWorks, bool repeatedTitle, bool staged, bool reuse)
+        {
+            var primary = _primary.Metadata.Value.ForeignAuthorId;
+            var incoming = _duplicate.Metadata.Value.ForeignAuthorId;
+            var secondTitle = repeatedTitle ? "A Fixture Work" : "Another Fixture Work";
+            var primaryWorks = new List<Book>
+            {
+                Work("openlibrary:work:OL10W", "A Fixture Work", "9781442482890"),
+                Work("openlibrary:work:OL11W", secondTitle, "9781455546176")
+            };
+            var incomingWorks = new List<Book>
+            {
+                Work("hardcover:work:20", "A Fixture Work", "1-4424-8289-3"),
+                Work("hardcover:work:21", secondTitle, "9781455546176")
+            };
+            var pending = new List<(Author, IReadOnlyList<Book>)>();
+            if (staged)
+            {
+                _primary.Id = 0;
+                pending.Add((_primary, primaryWorks));
+            }
+
+            Mocker.GetMock<IAuthorService>().Setup(service => service.GetAuthorsByCleanName(It.IsAny<string>()))
+                .Returns(staged ? new List<Author>() : new List<Author> { _primary });
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(service => service.GetAuthorInfo(primary, true))
+                .Returns(new Author { ForeignAuthorId = primary, Books = primaryWorks });
+            for (var index = 0; index < confirmedWorks; index++)
+            {
+                var counterpart = primaryWorks[index];
+                var edition = counterpart.Editions.Value[0];
+                var candidate = incomingWorks[index];
+                orchestrator.Setup(service => service.GetVerifiedAuthorWorkTitle(primary, counterpart.ForeignBookId, edition.Isbn13))
+                    .Returns(counterpart.Title);
+                orchestrator.Setup(service => service.GetVerifiedAuthorWorkTitle(incoming, candidate.ForeignBookId, edition.Isbn13))
+                    .Returns(candidate.Title);
+            }
+
+            var identity = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identity.Setup(service => service.TryAddSource(CatalogueEntityKind.Author, _primary.AuthorMetadataId, "Hardcover", "11", "two-isbn-title-author-work-witnesses"))
+                .Returns(true);
+
+            var result = Subject.TryReuseAuthorOnAdd(_duplicate, incomingWorks, pending);
+
+            result.Should().BeSameAs(reuse ? _primary : null);
+            identity.Verify(service => service.TryAddSource(CatalogueEntityKind.Author, _primary.AuthorMetadataId, "Hardcover", "11", "two-isbn-title-author-work-witnesses"),
+                reuse && !staged ? Times.Once() : Times.Never());
+            if (staged)
+            {
+                _primary.Metadata.Value.PendingSourceAssociations.Should().ContainSingle()
+                    .Which.ProviderId.Should().Be("11");
+            }
+        }
+
+        private static Book Work(string id, string title, string isbn)
+        {
+            return new Book
+            {
+                ForeignBookId = id,
+                Title = title,
+                Editions = new List<Edition> { new Edition { Isbn13 = isbn } }
+            };
+        }
 
         [SetUp]
         public void Setup()

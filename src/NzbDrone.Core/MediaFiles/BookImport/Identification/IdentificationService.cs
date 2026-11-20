@@ -32,7 +32,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
         private static readonly Regex GuideSuffix = new Regex(@"^(?:\s*[:(,–—]\s*|\s+-\s+|\s+)(?:TEACHER(?:['’]S)?|TEACHERS['’]|TEACHING|STUDY|READING) GUIDE\b", RegexOptions.CultureInvariant);
         private static readonly Regex ExplicitSeriesVolume = new Regex(@"^(.+?)[\s:,(–—-]+(?:BOOK|VOL(?:UME)?\.?)[\s#]+([0-9]+)\)?$", RegexOptions.CultureInvariant);
+        private static readonly Regex BareSeriesVolume = new Regex(@"^(.+\p{L})\s+([0-9]{1,3})$", RegexOptions.CultureInvariant);
         private static readonly Regex TrackTitleSuffix = new Regex(@"(?:^|[\s:,(–—-]+)(?:CHAPTERS?|DISCS?|PARTS?|TRACKS?)\s*[-#]?\s*[0-9]+(?:\s*[/–-]\s*[0-9]+)?\)?$", RegexOptions.CultureInvariant);
+        private static readonly Regex SubtitleDelimiter = new Regex(@"\s*:\s*|\s+[-–—]\s+", RegexOptions.CultureInvariant);
+        private static readonly Regex GenreLine = new Regex(@"(?:: | \()A LITRPG ADVENTURE\)?$", RegexOptions.CultureInvariant);
+        private static readonly Regex FileCopySuffix = new Regex(@"\s+\([1-9][0-9]*\)$", RegexOptions.CultureInvariant);
+        private static readonly Regex NumberedSeriesWork = new Regex(@"^[^:]+\s+(?:(?:BOOK|VOLUME|VOL\.?)\s+[0-9]+|0[0-9]{1,2}): (.+)$", RegexOptions.CultureInvariant);
+        private static readonly Regex DistinctWorkScope = new Regex(@"^(?:(?:THE )?(?:LITTLE )?BOOK OF QUOTES|OMNIBUS|BOX(?:ED)? SET|BOOKS? [0-9]+(?:\s*[:–-]\s*| TO )[0-9]+)\b", RegexOptions.CultureInvariant);
 
         private readonly ITrackGroupingService _trackGroupingService;
         private readonly IMetadataTagService _metadataTagService;
@@ -187,6 +193,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
         private void IdentifyRelease(LocalEdition localBookRelease, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary runSummary, IReadOnlyDictionary<LocalBook, string> libraryAuthors)
         {
+            if (HasConflictingWorkOrdinal(localBookRelease, idOverrides, config))
+            {
+                _logger.Debug("Holding {0} because the filename and embedded title give different numbers for the same series", localBookRelease);
+                return;
+            }
+
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var usedRemote = false;
             var taggedBookTitle = GetReliableTaggedBookTitle(localBookRelease);
@@ -315,6 +327,46 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return titles.Count == 1 ? titles[0] : null;
         }
 
+        internal static bool HasConflictingWorkOrdinal(LocalEdition release, IdentificationOverrides overrides, ImportDecisionMakerConfig config)
+        {
+            return !config.NewDownload && overrides.Edition == null && release.LocalBooks.Any(HasConflictingWorkOrdinal);
+        }
+
+        private static bool HasConflictingWorkOrdinal(LocalBook track)
+        {
+            if (track.ReliableTaggedBookTitle == null)
+            {
+                return false;
+            }
+
+            var (_, filename) = ReadFilenameIdentity(track);
+            var (tagSeries, tagPosition) = ReadWorkOrdinal(track.ReliableTaggedBookTitle);
+            var title = ImportDecisionMaker.NormalizeLibraryIdentity(filename);
+            var (fileSeries, filePosition) = ReadWorkOrdinal(title == null ? null : FileCopySuffix.Replace(title, string.Empty));
+            return tagPosition > 0 && filePosition > 0 && tagPosition != filePosition && tagSeries == fileSeries;
+        }
+
+        private static (string Series, int Position) ReadWorkOrdinal(string title)
+        {
+            if (title == null)
+            {
+                return default;
+            }
+
+            var work = NormalizeSubtitleNotation(TrackTitleSuffix.Replace(title, string.Empty));
+            var explicitlyNumbered = ReadExplicitSeriesVolume(work);
+            if (explicitlyNumbered.Position > 0)
+            {
+                return explicitlyNumbered;
+            }
+
+            // Require a complete common stem. Four-digit bare suffixes can be publication years.
+            var bare = BareSeriesVolume.Match(work);
+            return bare.Success && int.TryParse(bare.Groups[2].Value, out var position)
+                ? (bare.Groups[1].Value, position)
+                : default;
+        }
+
         internal static bool ConflictsWithGuideTitle(string taggedBookTitle, Edition edition, Book book = null)
         {
             return taggedBookTitle != null &&
@@ -355,15 +407,67 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 return null;
             }
 
-            var filename = Path.GetFileNameWithoutExtension(track.Path);
-            var split = filename?.IndexOf(" - ", StringComparison.Ordinal) ?? -1;
-            if (split <= 0 || ImportDecisionMaker.NormalizeLibraryIdentity(filename.Substring(split + 3)) != track.ReliableTaggedBookTitle)
+            var (author, title) = ReadFilenameIdentity(track);
+            if (author == null)
             {
                 return null;
             }
 
+            var embeddedTitle = NormalizeSubtitleNotation(track.ReliableTaggedBookTitle);
+            var filenameTitle = NormalizeSubtitleNotation(ImportDecisionMaker.NormalizeLibraryIdentity(title));
+            if (filenameTitle == null ||
+                (!IsFullWorkTitle(embeddedTitle, filenameTitle) &&
+                 !IsFullWorkTitle(embeddedTitle, FileCopySuffix.Replace(filenameTitle, string.Empty))))
+            {
+                return null;
+            }
+
+            return author;
+        }
+
+        private static (string Author, string Title) ReadFilenameIdentity(LocalBook track)
+        {
+            var filename = Path.GetFileNameWithoutExtension(track.Path);
+            var split = filename?.IndexOf(" - ", StringComparison.Ordinal) ?? -1;
+            if (split <= 0)
+            {
+                return (null, filename);
+            }
+
             var author = filename[..split].CleanAuthorName();
-            return author.Length > 0 && tags.Authors?.Any(name => name.CleanAuthorName() == author) == true ? author : null;
+            return author.Length > 0 && track.FileTrackInfo?.Authors?.Any(name => AuthorNameMatches(name, author)) == true
+                ? (author, filename.Substring(split + 3))
+                : (null, filename);
+        }
+
+        private static bool AuthorNameMatches(string name, string normalizedAuthor)
+        {
+            if (name.CleanAuthorName() == normalizedAuthor)
+            {
+                return true;
+            }
+
+            var components = name?.Split(',');
+            return components is { Length: 2 } && components.All(component => component.IsNotNullOrWhiteSpace()) &&
+                $"{components[1]} {components[0]}".CleanAuthorName() == normalizedAuthor;
+        }
+
+        private static string NormalizeSubtitleNotation(string title)
+        {
+            // This generic genre label does not identify the work. Preserve every numeral
+            // in the remaining title so similarly named installments cannot corroborate one another.
+            return title == null ? null : GenreLine.Replace(SubtitleDelimiter.Replace(title, ": "), string.Empty);
+        }
+
+        private static bool IsFullWorkTitle(string title, string workTitle)
+        {
+            if (title == workTitle)
+            {
+                return true;
+            }
+
+            var series = NumberedSeriesWork.Match(title);
+            return series.Success && series.Groups[1].Value == workTitle;
         }
 
         private bool AllowsLibraryScanMatch(LocalEdition release, string taggedTitle, IReadOnlySet<string> corroboratedAuthors, Edition edition)
@@ -378,9 +482,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 return false;
             }
 
-            var author = (book?.AuthorMetadata?.Value?.Name ?? book?.Author?.Value?.Name).CleanAuthorName();
-            var confirmed = TrackTitleSuffix.Replace(taggedTitle, string.Empty);
-            if (confirmed.Length > 0 && corroboratedAuthors.Contains(author) &&
+            var author = book?.AuthorMetadata?.Value?.Name ?? book?.Author?.Value?.Name;
+            var confirmed = NormalizeSubtitleNotation(TrackTitleSuffix.Replace(taggedTitle, string.Empty));
+            if (confirmed.Length > 0 && corroboratedAuthors.Any(knownAuthor => AuthorNameMatches(author, knownAuthor)) &&
                 !TitlesAgree(confirmed, workTitle) && !TitlesAgree(confirmed, editionTitle) &&
                 !HasNonconflictingEditionIdentifier(release, edition))
             {
@@ -412,9 +516,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 return false;
             }
 
-            candidateTitle = TrackTitleSuffix.Replace(candidateTitle, string.Empty);
+            candidateTitle = NormalizeSubtitleNotation(TrackTitleSuffix.Replace(candidateTitle, string.Empty));
             return candidateTitle.Length > 0 &&
-                (candidateTitle == taggedTitle || HasSubtitle(taggedTitle, candidateTitle) || HasSubtitle(candidateTitle, taggedTitle));
+                (IsFullWorkTitle(taggedTitle, candidateTitle) || IsFullWorkTitle(candidateTitle, taggedTitle) ||
+                 HasSubtitle(taggedTitle, candidateTitle) || HasSubtitle(candidateTitle, taggedTitle));
         }
 
         private static bool HasSubtitle(string title, string longerTitle)
@@ -425,7 +530,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             var suffix = longerTitle.AsSpan(title.Length).TrimStart();
-            return suffix.Length > 1 && suffix[0] is '(' or ':';
+            return suffix.Length > 1 && suffix[0] is '(' or ':' && !DistinctWorkScope.IsMatch(suffix[1..].TrimStart());
         }
 
         private static bool HasNonconflictingEditionIdentifier(LocalEdition release, Edition edition)

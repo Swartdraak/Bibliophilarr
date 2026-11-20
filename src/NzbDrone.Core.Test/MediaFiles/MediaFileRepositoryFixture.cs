@@ -4,6 +4,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
@@ -47,6 +48,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             var files = Builder<BookFile>.CreateListOfSize(10)
                 .All()
                 .With(c => c.Id = 0)
+                .With(c => c.UnmappedReason = null)
                 .With(c => c.Quality = new QualityModel(Quality.MP3))
                 .TheFirst(5)
                 .With(c => c.EditionId = _edition.Id)
@@ -78,6 +80,33 @@ namespace NzbDrone.Core.Test.MediaFiles
             VerifyUnmapped(unmappedfiles);
 
             unmappedfiles.Should().HaveCount(5);
+        }
+
+        [Test]
+        public void should_persist_updated_reasons_only_while_the_same_file_is_unmapped()
+        {
+            var files = Subject.GetUnmappedFiles();
+            var file = files.First();
+            var untouched = files.Last();
+            file.UnmappedReason.Should().BeNull();
+
+            file.UnmappedReason = LibraryImportHoldReason.NoAcceptedWork;
+            untouched.UnmappedReason = LibraryImportHoldReason.SameSizeAsExisting;
+            Subject.SetUnmappedReasons(new List<BookFile> { file, untouched });
+            Subject.Get(file.Id).UnmappedReason.Should().Be(LibraryImportHoldReason.NoAcceptedWork);
+
+            file.UnmappedReason = LibraryImportHoldReason.LowConfidence;
+            Subject.SetUnmappedReasons(new List<BookFile> { file });
+            Subject.Get(file.Id).UnmappedReason.Should().Be(LibraryImportHoldReason.LowConfidence);
+            Subject.Get(untouched.Id).UnmappedReason.Should().Be(LibraryImportHoldReason.SameSizeAsExisting);
+
+            Subject.TryLinkUnmappedFile(file, _edition).Should().BeTrue();
+            Subject.SetUnmappedReasons(new List<BookFile> { file });
+            file.Size = 1024;
+            Subject.SetFields(new List<BookFile> { file }, stored => stored.Size);
+            Subject.Get(file.Id).UnmappedReason.Should().BeNull();
+            Subject.Get(file.Id).EditionId.Should().Be(_edition.Id);
+            Subject.Get(file.Id).Size.Should().Be(1024);
         }
 
         [Test]

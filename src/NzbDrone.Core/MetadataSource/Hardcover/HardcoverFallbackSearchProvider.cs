@@ -31,6 +31,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         IMetadataProvider,
         IProvideBookInfo,
         IProvideAuthorInfo,
+        IVerifyAuthorWork,
         ISearchForNewBook,
         ISearchForNewAuthor,
         ISearchForNewEntity
@@ -124,6 +125,68 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             _logger.Trace("HardcoverProvider.SearchForNewBook: title='{0}', author='{1}', getAllEditions={2}", title, author, getAllEditions);
             return SearchBooks(queryText, SearchPageSize);
+        }
+
+        public string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn)
+        {
+            var work = CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Work, "Hardcover", workId, null);
+            var canonicalIsbn = Isbn.AsIsbn13(isbn);
+            if (!TryParseNumericHardcoverAuthorId(authorId, out var authority) ||
+                !int.TryParse(work?.ProviderId, out var workNumber) ||
+                canonicalIsbn == null || !_configService.EnableHardcoverFallback || !TryResolveToken(out var token, out _))
+            {
+                return null;
+            }
+
+            var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
+            var request = new HttpRequest(Endpoint, HttpAccept.Json)
+            {
+                Method = HttpMethod.Post,
+                RateLimit = TimeSpan.FromMilliseconds(1250),
+                RateLimitKey = ProviderName,
+                RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : Math.Max(5, _configService.MetadataProviderTimeoutSeconds))
+            };
+            request.Headers.ContentType = "application/json; charset=utf-8";
+            request.Headers["authorization"] = $"Bearer {token}";
+            request.SetContent(new
+            {
+                query = @"query AuthorWorkIdentity($work: Int!, $isbn: String!) {
+                    books(where: {id: {_eq: $work}}) {
+                        id title
+                        editions(where: {isbn_13: {_eq: $isbn}}, limit: 2) { id isbn_13 }
+                        contributions(where: {contributable_type: {_eq: ""Book""}}, limit: 16, order_by: {id: asc}) {
+                            author_id contribution contributor_role { name }
+                        }
+                    }
+                }",
+                variables = new { work = workNumber, isbn = canonicalIsbn }
+            }.ToJson());
+
+            var data = _httpClient.Post<JObject>(request)?.Resource;
+            var books = data?.SelectToken("data.books") as JArray;
+            var book = books?.Count == 1 ? books[0] : null;
+            var editions = book?["editions"] as JArray;
+            var credits = book?["contributions"] as JArray;
+            if (data?["errors"]?.HasValues == true || book?.Value<int?>("id") != workNumber ||
+                editions?.Count != 1 || editions[0]?.Value<int?>("id") is not > 0 ||
+                !Isbn.AreEquivalent(editions[0].Value<string>("isbn_13"), canonicalIsbn) ||
+                credits == null || credits.Count == 0 || credits.Count >= 16)
+            {
+                return null;
+            }
+
+            // Contributor lists can include translators, narrators, and cover artists. Do
+            // not use the requested author or the first cached credit as proof of authorship.
+            var roles = credits.Select(credit => (Author: credit.Value<int?>("author_id"),
+                Role: credit.SelectToken("contributor_role.name")?.Value<string>() ?? credit.Value<string>("contribution"))).ToList();
+            if (roles.Any(role => role.Author is not > 0 || role.Role.IsNullOrWhiteSpace()))
+            {
+                return null;
+            }
+
+            var authors = roles.Where(role => string.Equals(role.Role.Trim(), "Author", StringComparison.OrdinalIgnoreCase))
+                .Select(role => role.Author).Distinct().ToList();
+            return authors.Count == 1 && authors[0] == authority ? book.Value<string>("title") : null;
         }
 
         public List<Book> SearchByIsbn(string isbn)

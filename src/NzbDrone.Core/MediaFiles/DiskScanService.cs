@@ -15,6 +15,7 @@ using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.MediaFiles.Events;
@@ -176,6 +177,14 @@ namespace NzbDrone.Core.MediaFiles
             var knownFiles = new List<BookFile>();
             folders.ForEach(x => knownFiles.AddRange(_mediaFileService.GetFilesWithBasePath(x)));
 
+            knownFiles = knownFiles.DistinctBy(file => file.Path, PathEqualityComparer.Instance).ToList();
+            var unlinkedDecisions = decisions.ExceptBy(
+                decision => decision.Item.Path,
+                knownFiles.Where(file => file.EditionId > 0),
+                file => file.Path,
+                PathEqualityComparer.Instance);
+            var unmappedReasons = GetUnmappedReasons(unlinkedDecisions, importResults);
+
             var newFiles = decisions
                 .ExceptBy(x => x.Item.Path, knownFiles, x => x.Path, PathEqualityComparer.Instance)
                 .DistinctBy(x => x.Item.Path, PathEqualityComparer.Instance)
@@ -189,14 +198,14 @@ namespace NzbDrone.Core.MediaFiles
                     Modified = decision.Item.Modified,
                     DateAdded = DateTime.UtcNow,
                     Quality = decision.Item.Quality,
-                    MediaInfo = decision.Item.FileTrackInfo.MediaInfo,
-                    Edition = decision.Item.Edition
+                    MediaInfo = decision.Item.FileTrackInfo?.MediaInfo,
+                    Edition = decision.Item.Edition,
+                    UnmappedReason = unmappedReasons[decision.Item.Path]
                 })
                 .ToList();
             _mediaFileService.AddMany(newFiles);
 
             _logger.Debug($"Inserted {newFiles.Count} new unmatched trackfiles");
-            ReportUnmappedFiles(decisions, importResults, knownFiles.Concat(newFiles));
 
             // finally update info on size/modified for existing files
             var updatedFiles = knownFiles
@@ -215,13 +224,18 @@ namespace NzbDrone.Core.MediaFiles
                 {
                     x.File.Size = x.Item.Size;
                     x.File.Modified = x.Item.Modified;
-                    x.File.MediaInfo = x.Item.FileTrackInfo.MediaInfo;
+                    x.File.MediaInfo = x.Item.FileTrackInfo?.MediaInfo;
                     x.File.Quality = x.Item.Quality;
                     return x.File;
                 })
                 .ToList();
 
-            _mediaFileService.Update(updatedFiles);
+            _mediaFileService.UpdateScannedFileInfo(updatedFiles);
+
+            var changedReasons = knownFiles.Where(file => file.EditionId == 0 &&
+                unmappedReasons.TryGetValue(file.Path, out var reason) && file.UnmappedReason != reason).ToList();
+            changedReasons.ForEach(file => file.UnmappedReason = unmappedReasons[file.Path]);
+            _mediaFileService.SetUnmappedReasons(changedReasons);
 
             _logger.Debug($"Updated info for {updatedFiles.Count} known files");
 
@@ -235,30 +249,32 @@ namespace NzbDrone.Core.MediaFiles
             _logger.Debug("Book import complete for:\n{0} [{1}]", folders.ConcatToString("\n"), importStopwatch.Elapsed);
         }
 
-        private void ReportUnmappedFiles(List<ImportDecision<LocalBook>> decisions, List<ImportResult> importResults, IEnumerable<BookFile> files)
+        private Dictionary<string, LibraryImportHoldReason> GetUnmappedReasons(IEnumerable<ImportDecision<LocalBook>> decisions, List<ImportResult> importResults)
         {
-            var unlinkedPaths = files.Where(file => file.EditionId == 0)
-                .Select(file => file.Path).ToHashSet(PathEqualityComparer.Instance);
-            var unresolved = decisions.Where(decision => unlinkedPaths.Contains(decision.Item.Path))
-                .DistinctBy(decision => decision.Item.Path, PathEqualityComparer.Instance).ToList();
-            if (unresolved.Count == 0)
-            {
-                return;
-            }
-
-            _logger.Info("Library scan left {0} evaluated files unmapped.", unresolved.Count);
+            var reasons = new Dictionary<string, LibraryImportHoldReason>(PathEqualityComparer.Instance);
             var importErrors = (importResults ?? new List<ImportResult>())
                 .ToLookup(result => result.ImportDecision.Item.Path, PathEqualityComparer.Instance);
-            foreach (var decision in unresolved)
+            foreach (var decision in decisions.DistinctBy(decision => decision.Item.Path, PathEqualityComparer.Instance))
             {
+                var results = importErrors[decision.Item.Path];
                 var reason = decision.Approved
-                    ? string.Join(", ", importErrors[decision.Item.Path].SelectMany(result => result.Errors).Distinct())
+                    ? string.Join(", ", results.SelectMany(result => result.Errors).Distinct())
                     : string.Join(", ", decision.Rejections);
+                reasons.Add(decision.Item.Path, decision.Rejections.Select(rejection => rejection.HoldReason)
+                    .Concat(results.Select(result => result.HoldReason))
+                    .FirstOrDefault(code => code.HasValue) ?? LibraryImportHoldReason.ReviewRequired);
                 _logger.Debug(
                     "Unmapped library file {0}: {1}",
                     LogSanitizer.Sanitize(decision.Item.Path),
                     reason.IsNullOrWhiteSpace() ? "import did not persist an edition link" : LogSanitizer.Sanitize(reason));
             }
+
+            if (reasons.Count > 0)
+            {
+                _logger.Info("Library scan left {0} evaluated files unmapped.", reasons.Count);
+            }
+
+            return reasons;
         }
 
         private void CleanMediaFiles(string folder, List<string> mediaFileList)

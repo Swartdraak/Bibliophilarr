@@ -580,6 +580,7 @@ namespace NzbDrone.Core.Books
                     ForeignSeriesId = first.ForeignSeriesId,
                     ForeignAuthorId = entity.ForeignAuthorId,
                     Title = first.Title,
+                    Description = group.Select(link => link.Series.Value.Description).FirstOrDefault(description => description.IsNotNullOrWhiteSpace()),
                     Numbered = dedupedLinks.Any(x => x.Position.IsNotNullOrWhiteSpace()),
                     WorkCount = dedupedLinks.Count,
                     PrimaryWorkCount = dedupedLinks.Count(x => x.IsPrimary),

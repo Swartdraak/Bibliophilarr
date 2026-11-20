@@ -79,14 +79,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                 if (qualityCompare < 0)
                 {
                     _logger.Debug("This file isn't a quality upgrade for all books. Skipping {0}", item.Path);
-                    return Decision.Reject("Not an upgrade for existing book file(s)");
+                    return Decision.RejectWithHoldReason("Not an upgrade for existing book file(s)", LibraryImportHoldReason.ExistingFilePreferred);
                 }
 
                 if (qualityCompare == 0 && downloadPropersAndRepacks != ProperDownloadTypes.DoNotPrefer &&
                     item.Quality.Revision.CompareTo(bookFile.Quality.Revision) < 0)
                 {
                     _logger.Debug("This file isn't a quality upgrade for all books. Skipping {0}", item.Path);
-                    return Decision.Reject("Not an upgrade for existing book file(s)");
+                    return Decision.RejectWithHoldReason("Not an upgrade for existing book file(s)", LibraryImportHoldReason.ExistingFilePreferred);
                 }
             }
 

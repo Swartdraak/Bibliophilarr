@@ -70,8 +70,8 @@ namespace NzbDrone.Core.Books
             var leftEditions = left.Editions?.Value;
             var rightEditions = right.Editions?.Value;
             if (leftEditions != null && rightEditions != null &&
-                (ShareIdentifier(leftEditions, rightEditions, edition => edition.Isbn13, 13) ||
-                 ShareIdentifier(leftEditions, rightEditions, edition => edition.Asin, 10)))
+                (ShareIdentifier(leftEditions, rightEditions, edition => Isbn.AsIsbn13(edition.Isbn13)) ||
+                 ShareIdentifier(leftEditions, rightEditions, edition => edition.Asin?.Length == 10 ? edition.Asin : null)))
             {
                 return 3;
             }
@@ -116,9 +116,9 @@ namespace NzbDrone.Core.Books
             return token?.EndsWith("W", StringComparison.OrdinalIgnoreCase) == true ? token.ToUpperInvariant() : null;
         }
 
-        private static bool ShareIdentifier(List<Edition> left, List<Edition> right, Func<Edition, string> select, int length)
+        private static bool ShareIdentifier(List<Edition> left, List<Edition> right, Func<Edition, string> select)
         {
-            var identifiers = left.Select(select).Where(value => value?.Length == length);
+            var identifiers = left.Select(select).Where(value => value != null);
             return identifiers.Intersect(right.Select(select), StringComparer.OrdinalIgnoreCase).Any();
         }
 

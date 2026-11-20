@@ -17,6 +17,7 @@ namespace NzbDrone.Core.MetadataSource
         // A nonempty result can be irrelevant to an unattended import. The caller
         // stops the search when it finds a match or must hold an ambiguous identity.
         void SearchForLibraryImport(string title, string author, Func<List<Book>, bool> stopAfter);
+        void SearchForLibraryImportByIsbn(string isbn, Func<List<Book>, bool> stopAfter);
 
         List<Book> SearchByIsbn(string isbn);
         List<Book> SearchByAsin(string asin);
@@ -25,6 +26,7 @@ namespace NzbDrone.Core.MetadataSource
         List<object> SearchForNewEntity(string title);
         System.Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id);
         Author GetAuthorInfo(string id, bool useCache = true);
+        string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn);
         HashSet<string> GetChangedAuthors(DateTime startTime);
     }
 }

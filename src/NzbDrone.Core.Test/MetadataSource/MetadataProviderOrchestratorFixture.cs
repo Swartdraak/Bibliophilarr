@@ -613,11 +613,13 @@ namespace NzbDrone.Core.Test.MetadataSource
                 Title = sourceTitle,
                 AuthorMetadata = new AuthorMetadata { Name = sourceAuthor, OpenLibraryAuthorId = "OL1A" }
             };
-            var matchedEdition = new Edition { Isbn13 = isbn, Book = candidate };
+            var matchedEdition = new Edition { Isbn13 = isbn, Book = candidate, Publisher = "Supplementary publisher" };
             candidate.Editions = new List<Edition> { matchedEdition };
             var book = EnrichFromIsbnFixture(new Edition { Isbn13 = isbn }, matchedEdition);
 
             book.ForeignBookId.Should().Be("hardcover:work:123");
+            book.Editions.Value.Single().Publisher.Should().Be(
+                sourceTitle == "Fixture Work" && sourceAuthor == "Fixture Author" ? matchedEdition.Publisher : null);
             if (expectSource)
             {
                 book.PendingSourceAssociations.Should().ContainSingle().Which
@@ -643,6 +645,21 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             series.Title.Should().Be("Current series title");
             series.Description.Should().Be("Existing description");
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_retain_alternate_source_metadata_when_the_refresh_has_the_same_identity(bool sameIdentity)
+        {
+            var author = new AuthorMetadata { ForeignAuthorId = "hardcover:author:1", OpenLibraryAuthorId = "OL1A" };
+            var book = new Book { ForeignBookId = "hardcover:work:1", OpenLibraryWorkId = "OL1W", ReleaseDate = new DateTime(2000, 1, 1) };
+
+            author.UseMetadataFrom(new AuthorMetadata { ForeignAuthorId = sameIdentity ? author.ForeignAuthorId : "hardcover:author:2" });
+            book.UseMetadataFrom(new Book { ForeignBookId = sameIdentity ? book.ForeignBookId : "hardcover:work:2" });
+
+            author.OpenLibraryAuthorId.Should().Be(sameIdentity ? "OL1A" : null);
+            book.OpenLibraryWorkId.Should().Be(sameIdentity ? "OL1W" : null);
+            book.ReleaseDate.Should().Be(sameIdentity ? new DateTime(2000, 1, 1) : null);
         }
 
         [TestCase(true)]
@@ -763,7 +780,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 metadata.Images[0].SourceId.Should().Be("OL1A");
                 metadata.Overview.Should().Be("Corroborated biography");
                 metadata.Born.Should().Be(new DateTime(1875, 1, 13));
-                metadata.PendingSourceAssociations.Should().ContainSingle().Which.ProviderId.Should().Be("OL1A");
+                metadata.PendingSourceAssociations.Should().BeEmpty();
             }
             else
             {

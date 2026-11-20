@@ -180,7 +180,7 @@ namespace Bibliophilarr.Api.V1.Books
         [HttpGet("{id:int}/overview")]
         public object Overview(int id)
         {
-            var overview = _editionService.GetEditionsByBook(id).Single(x => x.Monitored).Overview;
+            var overview = _editionService.GetEditionsByBook(id).GetBookOverview();
             return new
             {
                 id,

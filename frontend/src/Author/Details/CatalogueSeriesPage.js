@@ -8,7 +8,8 @@ import CatalogueRecordRoute from 'Components/Router/CatalogueRecordRoute';
 import cataloguePath from 'Utilities/cataloguePath';
 import createAjaxRequest from 'Utilities/createAjaxRequest';
 import translate from 'Utilities/String/translate';
-import { compareSeriesBookPositions, getSeriesRepresentativeCover } from './AuthorDetailsSeriesConnector';
+import { compareSeriesBookPositions, getSeriesRepresentativeCovers } from './AuthorDetailsSeriesConnector';
+import SeriesRepresentativeCover from './SeriesRepresentativeCover';
 import styles from './AuthorDetailsSeries.css';
 
 function getLibraryStatus(hasFile, monitored) {
@@ -59,19 +60,16 @@ function CatalogueSeriesDetails({ series }) {
     compareSeriesBookPositions(left.position || '', right.position || '', 'ascending') ||
     left.bookId - right.bookId
   );
-  const cover = getSeriesRepresentativeCover([...indexedBooks.values()], ordered);
+  const covers = getSeriesRepresentativeCovers([...indexedBooks.values()], ordered);
 
   return (
     <PageContent title={series.title}>
       <PageContentBody>
         <h1>{series.title}</h1>
-        {cover &&
-          <img
-            className={styles.seriesCover}
-            src={cover.url}
-            alt={translate('SeriesRepresentativeCover', [cover.bookTitle])}
-          />
-        }
+        <SeriesRepresentativeCover
+          covers={covers}
+          className={styles.seriesCover}
+        />
         {series.description && <p>{series.description}</p>}
         <ul>
           {

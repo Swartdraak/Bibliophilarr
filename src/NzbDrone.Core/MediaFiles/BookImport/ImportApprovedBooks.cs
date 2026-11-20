@@ -224,7 +224,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         result.ImportDecision.Item.Part == localTrack.Part &&
                         Quality.GetFormatType(result.ImportDecision.Item.Quality?.Quality) == format))
                     {
-                        importResults.Add(new ImportResult(importDecision, "Book has already been imported"));
+                        importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.DuplicateInScan, "Book has already been imported"));
                         continue;
                     }
 
@@ -706,7 +706,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             {
                 foreach (var item in tagged.Where(item => !item.Identity.HasIdentifier && IsCompleteFile(item.Decision.Item)))
                 {
-                    item.Decision.Reject(new Rejection("Competing complete ebook files require verified edition identifiers", RejectionType.Temporary));
+                    item.Decision.Reject(new Rejection("Competing complete ebook files require verified edition identifiers", RejectionType.Temporary, LibraryImportHoldReason.CompetingEditions));
                 }
 
                 tagged.RemoveAll(item => !item.Decision.Approved);
@@ -741,7 +741,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
                 else
                 {
-                    item.Decision.Reject(new Rejection("The file does not identify one of the competing digital editions", RejectionType.Temporary));
+                    item.Decision.Reject(new Rejection("The file does not identify one of the competing digital editions", RejectionType.Temporary, LibraryImportHoldReason.CompetingEditions));
                 }
             }
 
@@ -789,7 +789,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             {
                 foreach (var decision in decisions)
                 {
-                    decision.Reject(new Rejection("More than one compatible digital edition requires file identity evidence", RejectionType.Temporary));
+                    decision.Reject(new Rejection("More than one compatible digital edition requires file identity evidence", RejectionType.Temporary, LibraryImportHoldReason.CompetingEditions));
                 }
 
                 return null;

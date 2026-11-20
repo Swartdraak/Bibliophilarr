@@ -30,6 +30,41 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Returns(new OlSearchResponse());
         }
 
+        [TestCase("OL1482659A", false, true)]
+        [TestCase("OL1482659A", true, false)]
+        [TestCase("OL1482660A", false, false)]
+        public void exact_author_work_witness_requires_one_raw_author_credit(string creditedAuthor, bool hasAnotherCredit, bool expected)
+        {
+            _clientMock.Setup(client => client.GetEditionByIsbn("9781442482890")).Returns(new OlEditionResource
+            {
+                Key = "/books/OL33516062M",
+                Isbn13 = new List<string> { "9781442482890" },
+                Works = new List<OlKeyRef> { new OlKeyRef { Key = "/works/OL16342401W" } }
+            });
+            var contributors = new List<OlWorkAuthorEntry>
+            {
+                new OlWorkAuthorEntry
+                {
+                    Author = new OlKeyRef { Key = $"/authors/{creditedAuthor}" },
+                    Type = new OlKeyRef { Key = "/type/author_role" }
+                }
+            };
+            if (hasAnotherCredit)
+            {
+                contributors.Add(new OlWorkAuthorEntry { Author = new OlKeyRef { Key = "/authors/OL2A" } });
+            }
+
+            _clientMock.Setup(client => client.GetWork("OL16342401W")).Returns(new OlWorkResource
+            {
+                Key = "/works/OL16342401W",
+                Title = "Fixture",
+                Authors = contributors
+            });
+
+            Subject.GetVerifiedAuthorWorkTitle("openlibrary:author:OL1482659A", "openlibrary:work:OL16342401W", "1-4424-8289-3")
+                .Should().Be(expected ? "Fixture" : null);
+        }
+
         // ── SearchForNewBook ──────────────────────────────────────────────────
         [Test]
         public void search_returns_mapped_books()

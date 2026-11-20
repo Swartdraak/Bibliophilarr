@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using FluentAssertions;
@@ -149,6 +150,41 @@ namespace NzbDrone.Api.Test.Books
             resource.ForeignEditionId.Should().Be("preferred");
             resource.Images.Should().ContainSingle().Which.Url.Should().Be(cover.Url);
             resource.Images[0].Should().NotBeSameAs(cover);
+        }
+
+        [Test]
+        public void should_expose_the_synopsis_from_another_edition_of_the_same_work()
+        {
+            var book = new Book
+            {
+                Editions = new List<Edition>
+                {
+                    new Edition { ForeignEditionId = "preferred", Monitored = true, Overview = " " },
+                    new Edition { ForeignEditionId = "other-format", Monitored = true, Overview = "A known synopsis." }
+                }
+            };
+
+            var resource = book.ToResource();
+
+            resource.ForeignEditionId.Should().Be("preferred");
+            resource.Overview.Should().Be("A known synopsis.");
+        }
+
+        [Test]
+        public void should_include_a_distinct_cover_alt_when_the_preferred_edition_has_a_cover()
+        {
+            var preferredCover = new MediaCover(MediaCoverTypes.Cover, "https://covers.example/preferred.jpg");
+            var otherCover = new MediaCover(MediaCoverTypes.Cover, "https://covers.example/other.jpg");
+            var book = new Book
+            {
+                Editions = new List<Edition>
+                {
+                    new Edition { Monitored = true, Images = new List<MediaCover> { preferredCover } },
+                    new Edition { Images = new List<MediaCover> { preferredCover, otherCover } }
+                }
+            };
+
+            book.ToResource().Images.Select(image => image.Url).Should().Equal(preferredCover.Url, otherCover.Url);
         }
 
         [Test]

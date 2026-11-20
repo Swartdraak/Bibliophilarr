@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Dapper;
 using NzbDrone.Common.Extensions;
@@ -11,7 +12,9 @@ namespace NzbDrone.Core.Books
     {
         bool AuthorPathExists(string path);
         Author FindByName(string cleanName);
+        List<Author> GetByCleanName(string cleanName);
         Author FindById(string foreignAuthorId);
+        Author FindByRetiredId(int authorId);
         Author FindByTitleSlug(string titleSlug);
         Dictionary<int, string> AllAuthorPaths();
         Dictionary<int, List<int>> AllAuthorTags();
@@ -61,6 +64,17 @@ namespace NzbDrone.Core.Books
             return owner.HasValue ? GetAuthorByMetadataId(owner.Value) : null;
         }
 
+        public Author FindByRetiredId(int authorId)
+        {
+            var owner = CatalogueIdentityRepository.FindByRoute(_database, CatalogueEntityKind.Author, RetiredRoute(authorId));
+            return owner.HasValue ? GetAuthorByMetadataId(owner.Value) : null;
+        }
+
+        internal static string RetiredRoute(int authorId)
+        {
+            return $"author-id:{authorId.ToString(CultureInfo.InvariantCulture)}";
+        }
+
         public Author FindByTitleSlug(string titleSlug)
         {
             return Query(Builder().Where<AuthorMetadata>(m => m.TitleSlug == titleSlug)).SingleOrDefault();
@@ -68,9 +82,13 @@ namespace NzbDrone.Core.Books
 
         public Author FindByName(string cleanName)
         {
-            cleanName = cleanName.ToLowerInvariant();
+            return GetByCleanName(cleanName).ExclusiveOrDefault();
+        }
 
-            return Query(s => s.CleanName == cleanName).ExclusiveOrDefault();
+        public List<Author> GetByCleanName(string cleanName)
+        {
+            cleanName = cleanName.ToLowerInvariant();
+            return Query(s => s.CleanName == cleanName);
         }
 
         public Dictionary<int, string> AllAuthorPaths()

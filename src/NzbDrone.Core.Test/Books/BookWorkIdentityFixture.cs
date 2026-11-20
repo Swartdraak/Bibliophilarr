@@ -40,6 +40,28 @@ namespace NzbDrone.Core.Test.BooksTests
             BookWorkIdentity.AreCorroborated(canonical, retired).Should().BeFalse();
         }
 
+        [TestCase("9780141439518", "0141439513", true)]
+        [TestCase("9780141439510", "9780141439510", false)]
+        public void requires_a_valid_edition_isbn_to_match_works(string leftIsbn, string rightIsbn, bool equivalent)
+        {
+            var left = new Book
+            {
+                AuthorMetadataId = 77,
+                Title = "Same title",
+                ForeignBookId = "hardcover:work:1",
+                Editions = new List<Edition> { new Edition { Isbn13 = leftIsbn } }
+            };
+            var right = new Book
+            {
+                AuthorMetadataId = 77,
+                Title = "Same title",
+                ForeignBookId = "openlibrary:work:OL1W",
+                Editions = new List<Edition> { new Edition { Isbn13 = rightIsbn } }
+            };
+
+            BookWorkIdentity.AreCorroborated(left, right).Should().Be(equivalent);
+        }
+
         private static Book BuildWork(string title, string position, string providerId)
         {
             return new Book
