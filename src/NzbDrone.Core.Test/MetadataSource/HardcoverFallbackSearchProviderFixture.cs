@@ -9,8 +9,13 @@ using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.HealthCheck;
+using NzbDrone.Core.HealthCheck.Checks;
+using NzbDrone.Core.Localization;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.Test.Framework;
@@ -37,6 +42,46 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IConfigService>()
                 .SetupGet(x => x.HardcoverRequestTimeoutSeconds)
                 .Returns(0);
+        }
+
+        [Test]
+        public void should_keep_existing_author_when_bibliography_transport_fails()
+        {
+            const string authorId = "hardcover:author:123";
+            const string biography = "Existing biography";
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Throws(new HttpRequestException("No route to host."));
+            Mocker.GetMock<IMetadataProviderRegistry>()
+                .Setup(registry => registry.GetProviders()).Returns(new IMetadataProvider[] { Subject });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            Mocker.SetConstant<IMetadataProviderTelemetryService>(telemetry);
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(Mocker.Resolve<MetadataProviderOrchestrator>());
+
+            var stored = new Author { Id = 12, Metadata = new AuthorMetadata { ForeignAuthorId = authorId, Overview = biography } };
+            var authors = Mocker.GetMock<IAuthorService>();
+            authors.Setup(service => service.GetAuthors(new[] { stored.Id })).Returns(new List<Author> { stored });
+
+            Mocker.Resolve<RefreshAuthorService>().Execute(new RefreshAuthorCommand(stored.Id));
+
+            http.Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(2));
+            http.VerifyNoOtherCalls();
+            authors.Verify(service => service.GetAuthors(new[] { stored.Id }), Times.Once);
+            authors.VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
+            stored.Metadata.Value.Overview.Should().Be(biography);
+            Mocker.GetMock<ICommandResultReporter>()
+                .Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+
+            var localization = Mock.Of<ILocalizationService>(service =>
+                service.GetLocalizedString("MetadataProviderUnreachableHealthCheckMessage") == "Metadata provider unreachable");
+            var result = new MetadataProviderConnectivityCheck(telemetry, localization).Check();
+            result.Type.Should().Be(HealthCheckResult.Warning);
+            result.Message.Should().Be("Metadata provider unreachable");
+            ExceptionVerification.ExpectedWarns(3);
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
