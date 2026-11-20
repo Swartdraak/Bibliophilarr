@@ -35,18 +35,18 @@ namespace Bibliophilarr.Http.Frontend
                                        [FromServices] IAntiforgery antiforgery,
                                        [FromQuery] bool setupInvalid = false)
         {
-            if (FirstAccountSetup.IsDirectLocalRequest(HttpContext) &&
-                config.AuthenticationMethod == AuthenticationType.Forms &&
-                config.AuthenticationRequired == AuthenticationRequiredType.Enabled &&
-                authenticationService.FindUser() == null &&
-                _requestMappers.OfType<LoginHtmlMapper>().SingleOrDefault() is { } mapper)
+            if (_requestMappers.OfType<LoginHtmlMapper>().SingleOrDefault() is not { } mapper)
             {
-                var tokens = antiforgery.GetAndStoreTokens(HttpContext);
-                Response.Headers.DisableCache();
-                return mapper.GetSetupResponse(tokens.RequestToken, setupInvalid);
+                return MapResource("login");
             }
 
-            return MapResource("login");
+            var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+            Response.Headers.DisableCache();
+            var showSetup = FirstAccountSetup.IsDirectLocalRequest(HttpContext) &&
+                config.AuthenticationMethod == AuthenticationType.Forms &&
+                config.AuthenticationRequired == AuthenticationRequiredType.Enabled &&
+                authenticationService.FindUser() == null;
+            return showSetup ? mapper.GetSetupResponse(tokens.RequestToken, setupInvalid) : mapper.GetLoginResponse(tokens.RequestToken);
         }
 
         [EnableCors("AllowGet")]

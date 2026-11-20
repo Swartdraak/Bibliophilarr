@@ -11,6 +11,8 @@ namespace Bibliophilarr.Http.Frontend.Mappers
 {
     public class LoginHtmlMapper : HtmlMapperBase
     {
+        private readonly IDiskProvider _diskProvider;
+
         public LoginHtmlMapper(IAppFolderInfo appFolderInfo,
                                IDiskProvider diskProvider,
                                Lazy<ICacheBreakerProvider> cacheBreakProviderFactory,
@@ -18,6 +20,7 @@ namespace Bibliophilarr.Http.Frontend.Mappers
                                Logger logger)
             : base(diskProvider, cacheBreakProviderFactory, logger)
         {
+            _diskProvider = diskProvider;
             HtmlPath = Path.Combine(appFolderInfo.StartUpFolder, configFileProvider.UiFolder, "login.html");
             UrlBase = configFileProvider.UrlBase;
         }
@@ -40,6 +43,17 @@ namespace Bibliophilarr.Http.Frontend.Mappers
                 .Replace("__FIRST_ACCOUNT_TOKEN__", HtmlEncoder.Default.Encode(token))
                 .Replace("__FIRST_ACCOUNT_ERROR_CLASS__", invalid ? "login-failed" : "login-failed hidden");
 
+            return new ContentResult { Content = html, ContentType = "text/html; charset=utf-8" };
+        }
+
+        public IActionResult GetLoginResponse(string token)
+        {
+            if (!_diskProvider.FileExists(HtmlPath))
+            {
+                return new NotFoundResult();
+            }
+
+            var html = GetHtmlText().Replace("__LOGIN_TOKEN__", HtmlEncoder.Default.Encode(token));
             return new ContentResult { Content = html, ContentType = "text/html; charset=utf-8" };
         }
     }

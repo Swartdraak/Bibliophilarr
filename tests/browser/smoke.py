@@ -256,7 +256,8 @@ def run(binary, evidence, *, live_provider=False):
                 page.get_by_role("button", name="Create account").click()
                 expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
                 check_status(page.request.get(base + "/initialize.json"), 200, "First account can access the WebUI")
-                page.goto(base + "/logout")
+                page.get_by_role("button", name="Menu Button").click()
+                page.get_by_role("button", name="Logout", exact=True).click()
                 expect(page.get_by_role("button", name="Login", exact=True)).to_be_visible()
                 expect(page.get_by_role("heading", name="Create your account")).to_have_count(0)
 
@@ -325,7 +326,7 @@ def run(binary, evidence, *, live_provider=False):
             verify_catalogue_after_restart(page, api, base, catalogue)
             assert not errors, f"{len(errors)} uncaught browser page errors"
             page.get_by_role("button", name="Menu Button").click()
-            page.get_by_role("link", name="Logout").click()
+            page.get_by_role("button", name="Logout", exact=True).click()
             expect(page.get_by_placeholder("Username")).to_be_visible()
             check_status(page.request.get(base + "/initialize.json"), 401, "Logged-out initializer")
             page.goto(base + "/authors")

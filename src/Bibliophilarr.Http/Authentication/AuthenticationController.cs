@@ -36,6 +36,7 @@ namespace Bibliophilarr.Http.Authentication
         }
 
         [HttpPost("login")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login([FromForm] LoginResource resource, [FromQuery] string returnUrl = null)
         {
             var user = _authService.Login(HttpContext.Request, resource.Username, resource.Password);
@@ -89,6 +90,13 @@ namespace Bibliophilarr.Http.Authentication
         }
 
         [HttpGet("logout")]
+        public IActionResult LogoutPage()
+        {
+            return Redirect(_configFileProvider.UrlBase + "/");
+        }
+
+        [HttpPost("logout")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
             _authService.Logout(HttpContext);
