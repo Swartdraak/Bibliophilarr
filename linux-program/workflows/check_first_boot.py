@@ -3,8 +3,8 @@
 
 Flow (source-verified):
   * On a fresh install the v1 API is reachable with the generated API key.
-  * POST /bootstrap creates the first user (issue #313 bootstrap path); after that the
-    endpoint returns 409 (idempotency boundary) and the UI login route is served.
+  * A local token exchange and POST /bootstrap create the first user (issue #313);
+    subsequent valid submissions return 409 and the UI login route is served.
   * Before the primary "find" workflow runs, the harness enables the keyless OpenLibrary
     provider (and the hardcover fallback) through PUT /api/v1/config/metadataprovider,
     because on first boot no live search provider is enabled by default (source:
@@ -56,23 +56,18 @@ def main():
     check('W1_api_config_authenticated', status == 200 and isinstance(data, dict) and data.get('id') == 1,
           f'status={status} id={data.get("id") if isinstance(data, dict) else None}')
 
-    # W2 first-user bootstrap: POST /bootstrap (form) -> 200
-    status, headers, raw = common.get_form(API + '/bootstrap',
-                                           {'username': USERNAME, 'password': PASSWORD}, timeout=60)
-    check('W2_bootstrap_first_user_created', status == 200, f'status={status}')
-
-    # W3 bootstrap idempotency boundary: second POST -> 409 Conflict
-    status, headers, raw = common.get_form(API + '/bootstrap',
-                                           {'username': USERNAME, 'password': PASSWORD}, timeout=60)
-    check('W3_bootstrap_second_call_409', status == 409, f'status={status}')
-
-    # W4 bootstrap input boundary: short username -> 400
-    status, headers, raw = common.get_form(API + '/bootstrap',
-                                           {'username': 'ab', 'password': PASSWORD}, timeout=60)
+    # Check invalid input while no user exists. Once created, any repeat is a conflict.
+    status = common.bootstrap_first_user('ab', PASSWORD)
     check('W4_bootstrap_short_username_400', status == 400, f'status={status}')
 
+    status = common.bootstrap_first_user(USERNAME, PASSWORD)
+    check('W2_bootstrap_first_user_created', status == 200, f'status={status}')
+
+    status = common.bootstrap_first_user(USERNAME, PASSWORD)
+    check('W3_bootstrap_second_call_409', status == 409, f'status={status}')
+
     # W5 UI login route is served (200, HTML)
-    status, ctype, raw = common.get(API + '/login', timeout=30)
+    status, ctype, raw = common.get(common.app_url().rstrip('/') + '/login', timeout=30)
     ok = status in (200, 302)
     is_html = 'html' in (ctype or '').lower()
     check('W5_ui_login_route_served', ok, f'status={status} content_type={ctype} html={is_html}')
