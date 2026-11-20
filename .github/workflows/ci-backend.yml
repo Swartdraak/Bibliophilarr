@@ -209,6 +209,12 @@ jobs:
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter 'FullyQualifiedName~ContainerFixture'
 
+      - name: Verify author identity and path handling
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~AuthorPathValidatorFixture|FullyQualifiedName~AuthorCanonicalizationServiceFixture|FullyQualifiedName~AddAuthorPersistenceFixture'
+
       - name: Run library import format fixtures
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
