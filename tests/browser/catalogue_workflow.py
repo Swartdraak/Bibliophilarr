@@ -244,6 +244,9 @@ def verify_poor_local_import_selection(api, work, book):
         assert any(rejection["reason"].startswith("Book match is not close enough")
                    for rejection in result.get("rejections") or []), "Poor local match was not explicitly rejected"
         assert not files_for_book(api, book["id"])
+        unmapped = checked(api.get("/api/v1/bookfile", params={"unmapped": "true"}),
+                           200, "read_unmapped_after_rejected_import")
+        assert all(Path(row["path"]) != source for row in unmapped), "Rejected file was tracked as unmapped"
         assert sha256(source.read_bytes()).hexdigest() == original_digest
 
         deadline = time.monotonic() + 10
