@@ -17,7 +17,8 @@ namespace NzbDrone.Test.Common
 
         static LoggingTest()
         {
-            // Initialize NzbDroneLogger before InitLogging installs the test targets.
+            // Suppress beforefieldinit so TestLogger initializes NzbDroneLogger
+            // before InitLogging installs the test targets.
         }
 
         protected static void InitLogging()
