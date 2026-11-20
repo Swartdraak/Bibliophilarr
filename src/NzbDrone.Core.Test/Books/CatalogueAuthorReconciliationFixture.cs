@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
@@ -64,6 +65,25 @@ namespace NzbDrone.Core.Test.BooksTests
 
             action.Should().Throw<InvalidOperationException>().WithMessage("*paths*");
             AllStoredModels.Should().HaveCount(2);
+        }
+
+        [Test]
+        public void should_preserve_a_retired_authors_credit_for_a_work_owned_elsewhere()
+        {
+            var target = AddAuthor("openlibrary:author:OL5A", "/library/author", "prior");
+            var source = AddAuthor("hardcover:author:5", "/library/author", "alias");
+            var owner = AddAuthor("hardcover:author:8", "/library/other", "owner");
+            var work = AddWork(owner, "hardcover:work:43", "OL43W");
+            var repository = Mocker.Resolve<BookRepository>();
+            repository.RecordHardcoverAuthorCredits(source.AuthorMetadataId, 5, new List<string> { work.ForeignBookId });
+            Mocker.GetMock<IAuthorCanonicalizationService>().Setup(service => service.VerifyDistinctAuthorities(source, target)).Returns(true);
+
+            Subject.Execute(new ReconcileCatalogueAuthorsCommand { SourceAuthorId = source.Id, TargetAuthorId = target.Id, DryRun = false });
+
+            repository.GetSharedBooksByAuthorMetadataId(source.AuthorMetadataId).Should().BeEmpty();
+            var credited = repository.GetSharedBooksByAuthorMetadataId(target.AuthorMetadataId).Should().ContainSingle().Which;
+            credited.Id.Should().Be(work.Id);
+            credited.AuthorMetadataId.Should().Be(owner.AuthorMetadataId);
         }
 
         [Test]

@@ -101,6 +101,7 @@ namespace NzbDrone.Core.Books
                 },
                 transaction);
             RewriteBookReferences(connection, transaction, source.Id, target.Id);
+            BookRepository.TransferAuthorCredits(connection, transaction, source.Id, target.Id, transferWork: true);
             connection.Execute("DELETE FROM \"Books\" WHERE \"Id\" = @Source", ids, transaction);
         }
 

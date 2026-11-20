@@ -21,6 +21,9 @@ namespace NzbDrone.Core.Test.BooksTests
             var author = AddAuthor(400);
             var target = AddWork(author.Id, 111, "OL411W");
             var source = AddWork(author.Id, 112, "OL411W");
+            var contributor = AddAuthor(401);
+            var repository = Mocker.Resolve<BookRepository>();
+            repository.RecordHardcoverAuthorCredits(contributor.Id, 401, new List<string> { source.ForeignBookId });
             var related = AddWork(author.Id, 113, "OL413W");
             related.RelatedBooks = new List<int> { source.Id, target.Id };
             Db.Update(related);
@@ -65,6 +68,7 @@ namespace NzbDrone.Core.Test.BooksTests
             identity.FindByRoute(CatalogueEntityKind.Work, source.CanonicalId).Should().Be(target.Id);
             identity.FindByRoute(CatalogueEntityKind.Work, source.TitleSlug).Should().Be(target.Id);
             identity.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "112").Should().Be(target.Id);
+            repository.GetSharedBooksByAuthorMetadataId(contributor.Id).Should().ContainSingle().Which.Id.Should().Be(target.Id);
         }
 
         [Test]

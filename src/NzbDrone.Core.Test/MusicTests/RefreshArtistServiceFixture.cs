@@ -124,6 +124,43 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_record_a_verified_shared_credit_without_refreshing_another_authors_work()
+        {
+            _author.ForeignAuthorId = "hardcover:author:99";
+            _book1.ForeignBookId = "hardcover:work:456";
+            _book1.AuthorMetadataId = _author.AuthorMetadataId + 1;
+            _book2.ForeignBookId = "hardcover:work:789";
+            _book2.AuthorMetadataId = _author.AuthorMetadataId + 2;
+            _remoteBooks[0].ForeignBookId = _book1.ForeignBookId;
+            _remoteBooks[0].CreditedHardcoverAuthorId = 99;
+            _remoteBooks[1].ForeignBookId = _book2.ForeignBookId;
+            var metadata = _author.JsonClone();
+            metadata.Metadata = _author.Metadata.Value.JsonClone();
+            metadata.Books = _remoteBooks;
+            GivenNewAuthorInfo(metadata);
+            GivenBooksForRefresh(new List<Book> { _book1, _book2 });
+            AllowAuthorUpdate();
+            var books = Mocker.GetMock<IBookService>();
+            books.Setup(service => service.RecordHardcoverAuthorCredits(_author.AuthorMetadataId, 99, It.IsAny<List<string>>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            books.Verify(service => service.RecordHardcoverAuthorCredits(
+                _author.AuthorMetadataId,
+                99,
+                It.Is<List<string>>(ids => ids.Count == 1 && ids[0] == "hardcover:work:456")), Times.Once());
+            books.Verify(service => service.InsertBibliographyWorks(It.Is<List<Book>>(added => added.Count == 0)), Times.Once());
+            Mocker.GetMock<IRefreshBookService>().Verify(service => service.RefreshBookInfo(
+                It.Is<List<Book>>(list => list.Count == 0),
+                It.IsAny<List<Book>>(),
+                It.IsAny<Author>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<DateTime?>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(2);
+        }
+
+        [Test]
         public void should_refresh_an_existing_work_with_editions_from_provider_aliases()
         {
             _book1.Title = "Example Work";

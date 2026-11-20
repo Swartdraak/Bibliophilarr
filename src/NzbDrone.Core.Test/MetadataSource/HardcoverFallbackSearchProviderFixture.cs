@@ -690,6 +690,37 @@ namespace NzbDrone.Core.Test.MetadataSource
             book.Ratings.Votes.Should().Be(71);
         }
 
+        [TestCase(123, "Author", true)]
+        [TestCase(123, "Narrator", false)]
+        [TestCase(456, "Author", false)]
+        public void author_bibliography_should_project_only_positive_author_credit(int creditedAuthor, string role, bool creditExpected)
+        {
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                    }
+
+                    query.Should().Contain("author_id").And.Contain("contributor_role");
+                    var payload = BuildAuthorPage(body.SelectToken("variables.offset").Value<int>() == 0 ? new[] { 1 } : Array.Empty<int>());
+                    if (payload.SelectToken("data.authors[0].contributions[0]") is JObject credit)
+                    {
+                        credit["author_id"] = creditedAuthor;
+                        credit["contributor_role"] = new JObject { ["name"] = role };
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var work = Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single();
+
+            work.CreditedHardcoverAuthorId.Should().Be(creditExpected ? 123 : null);
+        }
+
         private static HttpResponse<JObject> CreateJsonResponse(HttpRequest request, JObject body)
         {
             return new HttpResponse<JObject>(

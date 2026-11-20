@@ -115,6 +115,7 @@ namespace NzbDrone.Core.Books
             }
 
             connection.Execute("DELETE FROM \"AuthorFormatProfiles\" WHERE \"AuthorId\" = @Source", ids, transaction);
+            BookRepository.TransferAuthorCredits(connection, transaction, source.AuthorMetadataId, target.AuthorMetadataId, transferWork: false);
             connection.Execute("UPDATE \"AuthorSourceAssociations\" SET \"AuthorMetadataId\" = @TargetMetadata WHERE \"AuthorMetadataId\" = @SourceMetadata", ids, transaction);
             var sourceIdentity = CatalogueIdentityRepository.ParseLegacySource(
                 CatalogueEntityKind.Author,

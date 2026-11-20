@@ -18,6 +18,8 @@ namespace NzbDrone.Core.Books
         List<Book> GetNextBooksByAuthorMetadataId(IEnumerable<int> authorMetadataIds);
         List<Book> GetLastBooksByAuthorMetadataId(IEnumerable<int> authorMetadataIds);
         List<Book> GetBooksByAuthorMetadataId(int authorMetadataId);
+        List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId);
+        void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds);
         List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds);
         List<Book> GetBooksByFileIds(IEnumerable<int> fileIds);
         Book AddBook(Book newBook, bool doRefresh = true);
@@ -208,6 +210,16 @@ namespace NzbDrone.Core.Books
         public List<Book> GetBooksByAuthorMetadataId(int authorMetadataId)
         {
             return _bookRepository.GetBooksByAuthorMetadataId(authorMetadataId).ToList();
+        }
+
+        public List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId)
+        {
+            return _bookRepository.GetSharedBooksByAuthorMetadataId(authorMetadataId);
+        }
+
+        public void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds)
+        {
+            _bookRepository.RecordHardcoverAuthorCredits(authorMetadataId, providerAuthorId, foreignBookIds);
         }
 
         public List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds)

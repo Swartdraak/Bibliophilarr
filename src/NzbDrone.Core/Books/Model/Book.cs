@@ -30,6 +30,9 @@ namespace NzbDrone.Core.Books
         [MemberwiseEqualityIgnore]
         public List<CatalogueSourceAssociation> PendingSourceAssociations { get; } = new List<CatalogueSourceAssociation>();
 
+        [MemberwiseEqualityIgnore]
+        internal int? CreditedHardcoverAuthorId { get; set; }
+
         CatalogueEntityKind ICatalogueIdentityModel.CatalogueKind => CatalogueEntityKind.Work;
         string ICatalogueIdentityModel.LegacyForeignId => ForeignBookId;
         string ICatalogueIdentityModel.LegacyTitleSlug => TitleSlug;

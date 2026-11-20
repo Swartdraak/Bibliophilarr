@@ -292,6 +292,13 @@ namespace NzbDrone.Core.Books
                 .Select(x => x.ForeignBookId)
                 .ToHashSet(StringComparer.Ordinal);
 
+            var sharedCredits = candidates.Where(book => book.CreditedHardcoverAuthorId.HasValue && foreignOwnedIds.Contains(book.ForeignBookId))
+                .GroupBy(book => book.CreditedHardcoverAuthorId.Value);
+            foreach (var credits in sharedCredits)
+            {
+                _bookService.RecordHardcoverAuthorCredits(local.AuthorMetadataId, credits.Key, credits.Select(book => book.ForeignBookId).ToList());
+            }
+
             // Cross-author exact hits are evidence of a conflict, never editable children.
             localBooks.RemoveAll(x => x.AuthorMetadataId != local.AuthorMetadataId);
             var existing = localBooks;

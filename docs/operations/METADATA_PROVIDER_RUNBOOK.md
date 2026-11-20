@@ -145,6 +145,10 @@ SELECT
 If both counts remain zero after refresh, treat this as a metadata ingestion defect and escalate to
 the metadata migration backlog.
 
+## Shared bibliography credits
+
+Refresh a tracked Hardcover author whose provider bibliography credits them as an author of a work already owned by another tracked author. Compare `GET /api/v1/book?authorId=<id>` with `GET /api/v1/book?authorId=<id>&includeShared=true`. The second response also includes the shared canonical work with its original owner, work ID, editions and monitoring policy. Bibliography membership requires an explicit author credit.
+
 ## Rename no-op diagnosis (forced rename)
 
 Forced rename can execute correctly but still produce no filesystem changes when generated destination

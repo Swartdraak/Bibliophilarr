@@ -177,8 +177,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             // Contributor lists can include translators, narrators, and cover artists. Do
             // not use the requested author or the first cached credit as proof of authorship.
-            var roles = credits.Select(credit => (Author: credit.Value<int?>("author_id"),
-                Role: credit.SelectToken("contributor_role.name")?.Value<string>() ?? credit.Value<string>("contribution"))).ToList();
+            var roles = credits.Select(credit => (Author: credit.Value<int?>("author_id"), Role: ReadContributionRole(credit))).ToList();
             if (roles.Any(role => role.Author is not > 0 || role.Role.IsNullOrWhiteSpace()))
             {
                 return null;
@@ -187,6 +186,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var authors = roles.Where(role => string.Equals(role.Role.Trim(), "Author", StringComparison.OrdinalIgnoreCase))
                 .Select(role => role.Author).Distinct().ToList();
             return authors.Count == 1 && authors[0] == authority ? book.Value<string>("title") : null;
+        }
+
+        private static string ReadContributionRole(JToken credit)
+        {
+            return (credit.SelectToken("contributor_role.name")?.Value<string>() ?? credit.Value<string>("contribution"))?.Trim();
         }
 
         public List<Book> SearchByIsbn(string isbn)
@@ -1183,6 +1187,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                 image { url }
                                 contributions(limit: $limit, offset: $offset, order_by: {id: asc}, where: {contributable_type: {_eq: ""Book""}}) {
                                     id
+                                    author_id
+                                    contribution
+                                    contributor_role { name }
                                     book {
                                         id
                                         title
@@ -1317,6 +1324,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         {
                             OverrideBookAuthor(book, authorId, authorName);
                             books.Add(book);
+                        }
+
+                        if (contribution.Value<int?>("author_id") == authorId &&
+                            string.Equals(ReadContributionRole(contribution), "Author", StringComparison.OrdinalIgnoreCase))
+                        {
+                            booksById[bookId].CreditedHardcoverAuthorId = authorId;
                         }
 
                         if (bookData["cached_contributors"] is JArray contributors)

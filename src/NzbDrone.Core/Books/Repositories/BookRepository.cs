@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Globalization;
 using System.Linq;
+using Dapper;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MediaFiles;
@@ -15,6 +18,8 @@ namespace NzbDrone.Core.Books
         List<Book> GetLastBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetNextBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetBooksByAuthorMetadataId(int authorMetadataId);
+        List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId);
+        void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds);
         List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds);
         List<Book> InsertBibliographyWorks(List<Book> books);
         List<Book> GetBooksByFileIds(IEnumerable<int> fileIds);
@@ -83,6 +88,76 @@ namespace NzbDrone.Core.Books
         public List<Book> GetBooksByAuthorMetadataId(int authorMetadataId)
         {
             return Query(s => s.AuthorMetadataId == authorMetadataId);
+        }
+
+        public List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId)
+        {
+            return Query(Builder().Where(
+                """
+                "Books"."AuthorMetadataId" <> @AuthorMetadataId AND EXISTS (
+                    SELECT 1 FROM "BookAuthorCredits" credit
+                    WHERE credit."BookId" = "Books"."Id" AND credit."AuthorMetadataId" = @AuthorMetadataId
+                )
+                """,
+                new { AuthorMetadataId = authorMetadataId }));
+        }
+
+        public void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds)
+        {
+            if (authorMetadataId <= 0 || providerAuthorId <= 0 || foreignBookIds.Count == 0)
+            {
+                return;
+            }
+
+            var authorKey = providerAuthorId.ToString(CultureInfo.InvariantCulture);
+            var source = foreignBookIds.Select(id => CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, id, null))
+                .Where(work => work?.Provider == "Hardcover")
+                .DistinctBy(work => work.ProviderId)
+                .Select(work => new
+                {
+                    AuthorMetadataId = authorMetadataId,
+                    ProviderAuthorId = authorKey,
+                    ProviderWorkId = work.ProviderId,
+                    ForeignAuthorId = $"hardcover:author:{authorKey}",
+                    ForeignWorkId = $"hardcover:work:{work.ProviderId}"
+                })
+                .ToList();
+            using var connection = _database.OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            connection.Execute(
+                """
+                INSERT INTO "BookAuthorCredits" ("BookId", "AuthorMetadataId", "Provider", "ProviderAuthorId", "ProviderWorkId")
+                SELECT b."Id", a."Id", 'Hardcover', @ProviderAuthorId, @ProviderWorkId
+                FROM "Books" b JOIN "WorkSourceAssociations" ws ON ws."BookId" = b."Id"
+                CROSS JOIN "AuthorMetadata" a
+                JOIN "AuthorSourceAssociations" aus ON aus."AuthorMetadataId" = a."Id"
+                WHERE b."ForeignBookId" = @ForeignWorkId AND b."AuthorMetadataId" <> a."Id"
+                    AND a."Id" = @AuthorMetadataId AND a."ForeignAuthorId" = @ForeignAuthorId
+                    AND ws."Provider" = 'Hardcover' AND ws."ProviderId" = @ProviderWorkId
+                    AND aus."Provider" = 'Hardcover' AND aus."ProviderId" = @ProviderAuthorId
+                ON CONFLICT ("BookId", "AuthorMetadataId", "Provider", "ProviderAuthorId", "ProviderWorkId") DO NOTHING
+                """,
+                source,
+                transaction);
+            transaction.Commit();
+        }
+
+        internal static void TransferAuthorCredits(IDbConnection connection, IDbTransaction transaction, int source, int target, bool transferWork)
+        {
+            var column = transferWork ? "\"BookId\"" : "\"AuthorMetadataId\"";
+            var book = transferWork ? "@Target" : "\"BookId\"";
+            var author = transferWork ? "\"AuthorMetadataId\"" : "@Target";
+            var ids = new { Source = source, Target = target };
+            connection.Execute(
+                $"""
+                INSERT INTO "BookAuthorCredits" ("BookId", "AuthorMetadataId", "Provider", "ProviderAuthorId", "ProviderWorkId")
+                SELECT {book}, {author}, "Provider", "ProviderAuthorId", "ProviderWorkId"
+                FROM "BookAuthorCredits" WHERE {column} = @Source
+                ON CONFLICT ("BookId", "AuthorMetadataId", "Provider", "ProviderAuthorId", "ProviderWorkId") DO NOTHING
+                """,
+                ids,
+                transaction);
+            connection.Execute($"DELETE FROM \"BookAuthorCredits\" WHERE {column} = @Source", ids, transaction);
         }
 
         public List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds)
