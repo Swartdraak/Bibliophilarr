@@ -207,7 +207,7 @@ jobs:
         run: >-
           dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
-          --filter 'FullyQualifiedName~ContainerFixture'
+          --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture'
 
       - name: Verify author identity and path handling
         run: >-
