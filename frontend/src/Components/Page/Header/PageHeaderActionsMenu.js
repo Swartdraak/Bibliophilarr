@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, { useRef } from 'react';
 import Icon from 'Components/Icon';
 import Menu from 'Components/Menu/Menu';
 import MenuButton from 'Components/Menu/MenuButton';
@@ -10,6 +10,7 @@ import { align, icons, kinds } from 'Helpers/Props';
 import styles from './PageHeaderActionsMenu.css';
 
 function PageHeaderActionsMenu(props) {
+  const logoutForm = useRef(null);
   const {
     formsAuth,
     onKeyboardShortcutsPress,
@@ -19,6 +20,21 @@ function PageHeaderActionsMenu(props) {
 
   return (
     <div>
+      {
+        formsAuth &&
+          <form
+            ref={logoutForm}
+            method="POST"
+            action={`${window.Bibliophilarr.urlBase}/logout`}
+            hidden={true}
+          >
+            <input
+              type="hidden"
+              name="__RequestVerificationToken"
+              value={window.Bibliophilarr.requestVerificationToken}
+            />
+          </form>
+      }
       <Menu alignMenu={align.RIGHT}>
         <MenuButton className={styles.menuButton} aria-label="Menu Button">
           <Icon
@@ -62,8 +78,7 @@ function PageHeaderActionsMenu(props) {
           {
             formsAuth &&
               <MenuItem
-                to={`${window.Bibliophilarr.urlBase}/logout`}
-                noRouter={true}
+                onPress={() => logoutForm.current.requestSubmit()}
               >
                 <Icon
                   className={styles.itemIcon}

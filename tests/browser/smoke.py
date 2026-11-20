@@ -256,7 +256,8 @@ def run(binary, evidence, *, live_provider=False):
                 page.get_by_role("button", name="Create account").click()
                 expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
                 check_status(page.request.get(base + "/initialize.json"), 200, "First account can access the WebUI")
-                page.goto(base + "/logout")
+                page.get_by_role("button", name="Menu Button").click()
+                page.get_by_text("Logout", exact=True).click()
                 expect(page.get_by_role("button", name="Login", exact=True)).to_be_visible()
                 expect(page.get_by_role("heading", name="Create your account")).to_have_count(0)
 

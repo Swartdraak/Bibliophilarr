@@ -227,13 +227,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     authorNeedsReview = NeedsReviewForNewSyntheticAuthor(release, idOverrides, config);
                     if (authorNeedsReview)
                     {
-                        var trustedIsbns = release.LocalBooks.Select(file => file.FileTrackInfo)
+                        var fileIsbns = release.LocalBooks.Select(file => file.FileTrackInfo)
                             .Where(tags => tags?.IsbnConfidence >= 0.9)
                             .Select(tags => Isbn.AsIsbn13(tags.Isbn))
                             .Where(isbn => isbn != null).Distinct().Take(2).ToList();
-                        if (trustedIsbns.Count == 1)
+                        if (fileIsbns.Count == 1)
                         {
-                            IdentifyReleaseFallback(release, config, trustedIsbns[0]);
+                            IdentifyReleaseFallback(release, config, fileIsbns[0]);
                             authorNeedsReview = NeedsReviewForNewSyntheticAuthor(release, idOverrides, config);
                         }
                     }
@@ -361,10 +361,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     return;
                 }
 
-                _logger.Debug("Attempting direct catalogue lookup for {0}: '{1}' by '{2}'",
-                    release,
-                    bookTitle,
-                    authorName);
+                _logger.Debug("Attempting direct catalogue lookup for an import release");
 
                 var (book, bestEdition) = config.NewDownload
                     ? SelectRequestedFallback(_metadataOrchestrator.SearchForNewBook(bookTitle, authorName, true), release)
@@ -394,11 +391,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 release.PopulateMatch(config.KeepAllEditions);
 
-                _logger.Debug("Issue #275: direct catalogue lookup matched edition {0} for {1}", bestEdition, release);
+                _logger.Debug("Direct catalogue lookup matched an edition");
             }
             catch (Exception e)
             {
-                _logger.Warn(e, "Issue #275: direct catalogue lookup failed for {0}", release);
+                _logger.Warn("Direct catalogue lookup failed ({0})", e.GetType().Name);
             }
         }
 

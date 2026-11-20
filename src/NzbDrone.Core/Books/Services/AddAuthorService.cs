@@ -105,7 +105,7 @@ namespace NzbDrone.Core.Books
                     return canonical;
                 }
 
-                _logger.Info("Adding Author {0} Path: [{1}]", newAuthor, newAuthor.Path);
+                _logger.Info("Adding catalogue author");
 
                 _authorMetadataService.Upsert(newAuthor.Metadata.Value);
                 newAuthor.AuthorMetadataId = newAuthor.Metadata.Value.Id;
@@ -113,7 +113,7 @@ namespace NzbDrone.Core.Books
                 var existingAuthor = _authorService.GetAuthorByMetadataId(newAuthor.AuthorMetadataId);
                 if (existingAuthor != null)
                 {
-                    _logger.Info("Author already exists for metadata {0}; returning existing author {1}", newAuthor.AuthorMetadataId, existingAuthor);
+                    _logger.Info("Author already exists for metadata {0}; returning existing author {1}", newAuthor.AuthorMetadataId, existingAuthor.Id);
                     return existingAuthor;
                 }
 
