@@ -41,6 +41,8 @@ process.
 - Keep the requested ISBN when Open Library confirms it on an edition with
   multiple identifiers. Follow its verified edition redirect once, and ignore
   ambiguous fallback work matches.
+- An explicit `isbn:` search returns verified editions for that ISBN, using
+  the configured provider order.
 - Require corroboration before matching authors across providers or adding
   Open Library work and author links. Keep two people with the same name
   distinct.

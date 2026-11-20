@@ -241,6 +241,122 @@ namespace NzbDrone.Core.Test.MetadataSource
             second.CallCount.Should().Be(0);
         }
 
+        [TestCase("isbn:9781442482890")]
+        [TestCase(" ISBN:1-4424-8289-3 ")]
+        public void explicit_isbn_search_should_skip_work_summaries_and_nonmatching_editions(string term)
+        {
+            const string isbn = "9781442482890";
+            var hardcover = CreateIsbnProvider("Hardcover", out var hardcoverSearch);
+            hardcoverSearch.Setup(provider => provider.SearchByIsbn(isbn))
+                .Returns(new List<Book> { IsbnLookupBook("hardcover:work:292650", "hardcover:edition:292650", isbn) });
+            var openLibrary = CreateIsbnProvider("OpenLibrary", out var openLibrarySearch);
+            var exact = IsbnLookupBook("openlibrary:work:OL21108361W", "openlibrary:edition:OL33516062M", isbn);
+            exact.Editions.Value.Insert(0, new Edition { ForeignEditionId = exact.ForeignBookId, Isbn13 = isbn, Monitored = true });
+            openLibrarySearch.Setup(provider => provider.SearchByIsbn(isbn))
+                .Returns(new List<Book>
+                {
+                    IsbnLookupBook("openlibrary:work:OL21108361W", "openlibrary:work:OL21108361W", isbn),
+                    IsbnLookupBook("openlibrary:work:OL2W", "openlibrary:edition:OL2M", "9781442482883"),
+                    IsbnLookupBook("openlibrary:work:OL3W", "openlibrary:edition:", isbn),
+                    exact
+                });
+            var googleBooks = CreateIsbnProvider("GoogleBooks", out var googleBooksSearch);
+            var registry = new TestRegistry(new[] { hardcover, openLibrary, googleBooks });
+            var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
+
+            var result = orchestrator.SearchForNewBook(term, null);
+
+            var match = result.Should().ContainSingle().Which;
+            match.Should().NotBeSameAs(exact);
+            match.Author.Should().BeSameAs(exact.Author);
+            match.Editions.Value.Should().ContainSingle().Which.ForeignEditionId.Should().Be("openlibrary:edition:OL33516062M");
+            exact.Editions.Value.Select(edition => edition.ForeignEditionId)
+                .Should().Equal("openlibrary:work:OL21108361W", "openlibrary:edition:OL33516062M");
+            hardcoverSearch.Verify(provider => provider.SearchByIsbn(isbn), Times.Once);
+            openLibrarySearch.Verify(provider => provider.SearchByIsbn(isbn), Times.Once);
+            googleBooksSearch.Verify(provider => provider.SearchByIsbn(It.IsAny<string>()), Times.Never);
+            hardcoverSearch.Verify(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
+        }
+
+        [Test]
+        public void explicit_isbn_search_should_accept_a_real_hardcover_edition_with_the_same_numeric_work_id()
+        {
+            const string isbn = "9781442482890";
+            var hardcover = CreateIsbnProvider("Hardcover", out var hardcoverSearch);
+            var exact = IsbnLookupBook("hardcover:work:42", "hardcover:source-edition:42", isbn);
+            hardcoverSearch.Setup(provider => provider.SearchByIsbn(isbn)).Returns(new List<Book> { exact });
+            var registry = new TestRegistry(new[] { hardcover });
+            var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
+
+            orchestrator.SearchForNewBook($"isbn:{isbn}", null).Should().ContainSingle()
+                .Which.Editions.Value.Should().ContainSingle().Which.ForeignEditionId.Should().Be("hardcover:source-edition:42");
+        }
+
+        [TestCase("isbn:9781442482891")]
+        [TestCase("isbn:")]
+        public void explicit_isbn_search_should_stop_on_invalid_identifiers_without_querying_providers(string term)
+        {
+            var provider = CreateIsbnProvider("Hardcover", out var search);
+            var registry = new TestRegistry(new[] { provider });
+            var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
+
+            orchestrator.SearchForNewBook(term, null).Should().BeEmpty();
+
+            search.Verify(provider => provider.SearchByIsbn(It.IsAny<string>()), Times.Never);
+            search.Verify(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
+        }
+
+        [TestCase("isbn:9781442482890", "Ellen Hopkins")]
+        [TestCase("Traffick", null)]
+        [TestCase("9781442482890", null)]
+        [TestCase("asin:B0171WIS9Y", null)]
+        [TestCase(null, null)]
+        [TestCase("", null)]
+        public void normal_book_search_should_keep_existing_routing(string term, string author)
+        {
+            var provider = CreateIsbnProvider("Hardcover", out var search);
+            var existing = IsbnLookupBook("hardcover:work:42", "hardcover:edition:42", "9781442482890");
+            search.Setup(candidate => candidate.SearchForNewBook(term, author, false)).Returns(new List<Book> { existing });
+            var registry = new TestRegistry(new[] { provider });
+            var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
+
+            orchestrator.SearchForNewBook(term, author, false).Should().ContainSingle().Which.Should().BeSameAs(existing);
+
+            search.Verify(candidate => candidate.SearchByIsbn(It.IsAny<string>()), Times.Never);
+        }
+
+        [Test]
+        public void direct_isbn_search_should_keep_existing_provider_routing()
+        {
+            const string isbn = "9781442482890";
+            var provider = CreateIsbnProvider("Hardcover", out var search);
+            var existing = IsbnLookupBook("hardcover:work:42", "hardcover:edition:42", isbn);
+            search.Setup(candidate => candidate.SearchByIsbn(isbn)).Returns(new List<Book> { existing });
+            var registry = new TestRegistry(new[] { provider });
+            var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
+
+            orchestrator.SearchByIsbn(isbn).Should().ContainSingle().Which.Should().BeSameAs(existing);
+        }
+
+        private static IMetadataProvider CreateIsbnProvider(string name, out Mock<ISearchForNewBook> search)
+        {
+            var provider = new Mock<IMetadataProvider>();
+            provider.SetupGet(candidate => candidate.ProviderName).Returns(name);
+            provider.SetupGet(candidate => candidate.SupportsBookSearch).Returns(true);
+            provider.SetupGet(candidate => candidate.SupportsIsbnLookup).Returns(true);
+            search = provider.As<ISearchForNewBook>();
+            return provider.Object;
+        }
+
+        private static Book IsbnLookupBook(string workId, string editionId, string isbn)
+        {
+            return new Book
+            {
+                ForeignBookId = workId,
+                Editions = new List<Edition> { new Edition { ForeignEditionId = editionId, Isbn13 = isbn } }
+            };
+        }
+
         [Test]
         public void should_query_hardcover_first_and_not_call_openlibrary_when_hardcover_returns_results()
         {

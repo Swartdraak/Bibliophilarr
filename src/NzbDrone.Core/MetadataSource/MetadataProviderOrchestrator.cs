@@ -12,6 +12,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.MetadataSource
@@ -47,10 +48,63 @@ namespace NzbDrone.Core.MetadataSource
 
         public List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true)
         {
+            const string isbnPrefix = "isbn:";
+            var term = title?.TrimStart();
+            if (author.IsNullOrWhiteSpace() && term?.StartsWith(isbnPrefix, StringComparison.OrdinalIgnoreCase) == true)
+            {
+                var isbn = Isbn.AsIsbn13(term[isbnPrefix.Length..]);
+                return isbn == null
+                    ? new List<Book>()
+                    : ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
+                        provider => GetExplicitIsbnResults(provider, isbn),
+                        "search-by-isbn",
+                        provider => provider.SupportsIsbnLookup);
+            }
+
             return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
                 p => p.SearchForNewBook(title, author, getAllEditions),
                 BookSearchOperation,
                 p => p.SupportsBookSearch);
+        }
+
+        private static List<Book> GetExplicitIsbnResults(ISearchForNewBook provider, string isbn)
+        {
+            var books = provider.SearchByIsbn(isbn);
+            if (books == null)
+            {
+                return null;
+            }
+
+            return GetExactIsbnMatches(books, isbn)
+                .Where(match => IsSourceEdition(match.Edition.ForeignEditionId))
+                .GroupBy(match => match.Book, (IEqualityComparer<Book>)ReferenceEqualityComparer.Instance)
+                .Select(matches =>
+                {
+                    var source = matches.Key;
+                    var book = new Book
+                    {
+                        Author = source.Author,
+                        AuthorMetadata = source.AuthorMetadata,
+                        BookFiles = source.BookFiles,
+                        SeriesLinks = source.SeriesLinks,
+                        Editions = matches.Select(match => match.Edition).ToList()
+                    };
+                    book.UseMetadataFrom(source);
+                    book.UseDbFieldsFrom(source);
+                    return book;
+                })
+                .ToList();
+        }
+
+        private static bool IsSourceEdition(string id)
+        {
+            // Hardcover's legacy hardcover:edition: ID identifies a work projection.
+            // Its source-edition namespace identifies an actual edition.
+            var tokenStart = (id?.LastIndexOf(':') ?? -1) + 1;
+            return id != null && !string.IsNullOrWhiteSpace(id[tokenStart..]) &&
+                   (id.StartsWith("openlibrary:edition:", StringComparison.Ordinal) ||
+                    id.StartsWith("googlebooks:edition:", StringComparison.Ordinal) ||
+                    id.StartsWith(HardcoverFallbackSearchProvider.ProviderEditionIdPrefix, StringComparison.Ordinal));
         }
 
         public List<Book> SearchByIsbn(string isbn)
