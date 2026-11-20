@@ -118,7 +118,8 @@ namespace NzbDrone.Core.Test.Datastore.Migration
         {
             var expectedVersions = typeof(InitialSetup).Assembly.GetTypes()
                 .Where(type => type.Namespace == typeof(InitialSetup).Namespace && !type.IsAbstract && type.IsSubclassOf(typeof(NzbDroneMigrationBase)))
-                .Select(type => type.GetCustomAttribute<MigrationAttribute>().Version)
+                .Select(type => type.GetCustomAttribute<MigrationAttribute>()?.Version
+                    ?? throw new AssertionException($"Migration type {type.FullName} is missing {nameof(MigrationAttribute)}"))
                 .OrderBy(version => version)
                 .ToArray();
 

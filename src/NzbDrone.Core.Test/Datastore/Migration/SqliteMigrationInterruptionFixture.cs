@@ -101,6 +101,8 @@ namespace NzbDrone.Core.Test.Datastore.Migration
             {
                 BeforeMigration = migration =>
                 {
+                    // Migration 1 creates Config. Interrupt migration 2 to check that the committed schema survives
+                    // while the marker written in the next transaction rolls back.
                     if (migration.Version == 2)
                     {
                         migration.Execute.WithConnection((connection, transaction) =>
@@ -112,7 +114,7 @@ namespace NzbDrone.Core.Test.Datastore.Migration
                                 transaction);
                             Assert.That(inserted, Is.EqualTo(1));
                             File.WriteAllText(Path.Combine(profile.FullName, TransactionMarkerFile), string.Empty);
-                            Thread.Sleep(TimeSpan.FromSeconds(60));
+                            Thread.Sleep(TimeSpan.FromSeconds(15));
                             Assert.Fail("The parent did not interrupt the open migration transaction");
                         });
                     }
