@@ -178,13 +178,33 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
         public void should_clean_if_folder_does_not_exist()
         {
             GivenRootFolder(_otherAuthorFolder);
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, false))
+                .Throws(new DirectoryNotFoundException());
 
             Subject.Scan(new List<string> { _author.Path });
 
             DiskProvider.FolderExists(_author.Path).Should().BeFalse();
 
             Mocker.GetMock<IMediaFileTableCleanupService>()
-                  .Verify(v => v.Clean(It.IsAny<string>(), It.IsAny<List<string>>()), Times.Once());
+                  .Verify(v => v.Clean(_author.Path, It.Is<List<string>>(paths => paths.Count == 0)), Times.Once());
+        }
+
+        [Test]
+        public void should_keep_tracked_files_if_an_explicit_folder_has_an_unreadable_ancestor()
+        {
+            GivenRootFolder(_otherAuthorFolder);
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, false))
+                .Throws(new UnauthorizedAccessException());
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<IMediaFileTableCleanupService>()
+                .Verify(cleanup => cleanup.Clean(_author.Path, It.IsAny<List<string>>()), Times.Never());
+            Mocker.GetMock<ICommandResultReporter>()
+                .Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

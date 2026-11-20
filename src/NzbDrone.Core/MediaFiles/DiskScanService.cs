@@ -130,15 +130,6 @@ namespace NzbDrone.Core.MediaFiles
                     }
                 }
 
-                if (!folderExists)
-                {
-                    _logger.Debug("Specified scan folder ({0}) doesn't exist.", loggedFolder);
-
-                    CleanMediaFiles(folder, new List<string>());
-                    scannedFolders.Add(folder);
-                    continue;
-                }
-
                 _logger.ProgressInfo("Scanning {0}", loggedFolder);
 
                 List<IFileInfo> files;
@@ -146,6 +137,14 @@ namespace NzbDrone.Core.MediaFiles
                 {
                     // Cleanup needs a complete view of this scope, including nested folders.
                     files = FilterFiles(folder, GetBookFiles(folder, allDirectories: true, ignoreInaccessible: false));
+                }
+                catch (DirectoryNotFoundException) when (!folderExists)
+                {
+                    // FolderExists also returns false for permission failures.
+                    _logger.Debug("Specified scan folder ({0}) doesn't exist.", loggedFolder);
+                    CleanMediaFiles(folder, new List<string>());
+                    scannedFolders.Add(folder);
+                    continue;
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException)
                 {

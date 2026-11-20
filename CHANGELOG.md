@@ -33,7 +33,8 @@ process.
 - Continue scanning accessible folders when another root is unavailable.
   Preserve existing file records for unreadable folders and report the scan
   as unsuccessful when a folder is skipped or an import execution fails.
-- Keep tracked file records when a nested library folder cannot be read.
+- Keep tracked file records when a nested library folder or its parent cannot
+  be read.
 - Show the full Hardcover retry window in provider health. Keep existing
   author metadata and series when Hardcover limits the bibliography refresh.
 - Reject a different numbered volume of the same series when either the
