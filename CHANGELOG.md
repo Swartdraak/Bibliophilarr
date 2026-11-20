@@ -14,6 +14,8 @@ process.
 
 ### Fixed
 
+- Name the event details button in Activity History for screen readers.
+
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
   the setup form.
