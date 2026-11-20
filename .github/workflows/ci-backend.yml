@@ -228,6 +228,12 @@ jobs:
           --filter
           'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~CandidateServiceIssue340Fixture|FullyQualifiedName~ManualImportServiceExecute'
 
+      - name: Verify stored command results
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --no-restore --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~CommandRepositoryFixture'
+
       - name: Run metadata, format monitoring, manual import and host configuration API fixtures
         run: >-
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
