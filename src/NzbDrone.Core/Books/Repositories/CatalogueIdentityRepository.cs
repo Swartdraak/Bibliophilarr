@@ -24,6 +24,7 @@ namespace NzbDrone.Core.Books
         internal const string LegacyProviderEvidence = "legacy-provider-id";
         internal const string LegacyLinkedEvidence = "legacy-linked-id";
         internal const string PrimaryProviderEvidence = "primary-provider-id";
+        internal const string HardcoverWorkMappingEvidence = "hardcover-original-book-mapping";
 
         private readonly IMainDatabase _database;
 
@@ -66,13 +67,18 @@ namespace NzbDrone.Core.Books
 
         public int? FindByLegacyProviderId(CatalogueEntityKind kind, string identifier)
         {
+            return FindByLegacyProviderId(_database, kind, identifier);
+        }
+
+        internal static int? FindByLegacyProviderId(IDatabase database, CatalogueEntityKind kind, string identifier)
+        {
             var association = ParseLegacySource(kind, identifier, null);
             if (association == null)
             {
                 return null;
             }
 
-            using var connection = _database.OpenConnection();
+            using var connection = database.OpenConnection();
             return FindByProviderId(connection, null, kind, association);
         }
 
@@ -87,13 +93,18 @@ namespace NzbDrone.Core.Books
 
         public int? FindByRoute(CatalogueEntityKind kind, string identifier)
         {
+            return FindByRoute(_database, kind, identifier);
+        }
+
+        internal static int? FindByRoute(IDatabase database, CatalogueEntityKind kind, string identifier)
+        {
             if (string.IsNullOrWhiteSpace(identifier))
             {
                 return null;
             }
 
             var tables = Tables(kind);
-            using var connection = _database.OpenConnection();
+            using var connection = database.OpenConnection();
             var owner = FindCanonicalOwner(connection, null, kind, identifier);
             if (owner.HasValue)
             {

@@ -17,6 +17,7 @@ function MissingRow(props) {
     id,
     author,
     releaseDate,
+    canonicalId,
     titleSlug,
     title,
     lastSearchTime,
@@ -54,6 +55,7 @@ function MissingRow(props) {
             return (
               <TableRowCell key={name}>
                 <AuthorNameLink
+                  canonicalId={author.canonicalId}
                   titleSlug={author.titleSlug}
                   authorName={author.authorName}
                 />
@@ -65,6 +67,7 @@ function MissingRow(props) {
             return (
               <TableRowCell key={name}>
                 <BookTitleLink
+                  canonicalId={canonicalId}
                   titleSlug={titleSlug}
                   title={title}
                   disambiguation={disambiguation}
@@ -155,6 +158,7 @@ MissingRow.propTypes = {
   id: PropTypes.number.isRequired,
   author: PropTypes.object.isRequired,
   releaseDate: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   lastSearchTime: PropTypes.string,

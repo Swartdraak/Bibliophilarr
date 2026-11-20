@@ -104,6 +104,7 @@ class HistoryRow extends Component {
               return (
                 <TableRowCell key={name}>
                   <AuthorNameLink
+                    canonicalId={author.canonicalId}
                     titleSlug={author.titleSlug}
                     authorName={author.authorName}
                   />
@@ -115,6 +116,7 @@ class HistoryRow extends Component {
               return (
                 <TableRowCell key={name}>
                   <BookTitleLink
+                    canonicalId={book.canonicalId}
                     titleSlug={book.titleSlug}
                     title={book.title}
                     disambiguation={book.disambiguation}

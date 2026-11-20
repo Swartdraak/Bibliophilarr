@@ -40,7 +40,6 @@ namespace NzbDrone.Core.Books
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly ICommandResultReporter _commandResultReporter;
-        private readonly IMediaFileService _mediaFileService;
         private readonly IHistoryService _historyService;
         private readonly IRootFolderService _rootFolderService;
         private readonly ICheckIfAuthorShouldBeRefreshed _checkIfAuthorShouldBeRefreshed;
@@ -60,7 +59,6 @@ namespace NzbDrone.Core.Books
                                     IEventAggregator eventAggregator,
                                     IManageCommandQueue commandQueueManager,
                                     ICommandResultReporter commandResultReporter,
-                                    IMediaFileService mediaFileService,
                                     IHistoryService historyService,
                                     IRootFolderService rootFolderService,
                                     ICheckIfAuthorShouldBeRefreshed checkIfAuthorShouldBeRefreshed,
@@ -80,7 +78,6 @@ namespace NzbDrone.Core.Books
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
             _commandResultReporter = commandResultReporter;
-            _mediaFileService = mediaFileService;
             _historyService = historyService;
             _rootFolderService = rootFolderService;
             _checkIfAuthorShouldBeRefreshed = checkIfAuthorShouldBeRefreshed;
@@ -121,7 +118,7 @@ namespace NzbDrone.Core.Books
             {
                 var incumbent = local.Metadata.Value;
                 var incoming = data.Metadata.Value;
-                if (incumbent.CanonicalId.IsNotNullOrWhiteSpace() && incumbent.ForeignAuthorId != incoming.ForeignAuthorId &&
+                if (Guid.TryParseExact(incumbent.CanonicalId, "N", out _) && incumbent.ForeignAuthorId != incoming.ForeignAuthorId &&
                     !PreserveCatalogueAuthor(incumbent, incoming))
                 {
                     _logger.Warn("Holding an uncorroborated provider identity change for author {0}.", local.Id);
@@ -154,6 +151,7 @@ namespace NzbDrone.Core.Books
             }
 
             incoming.PendingSourceAssociations.Add(proposed);
+            incoming.UseDbFieldsFrom(incumbent);
             incoming.ForeignAuthorId = incumbent.ForeignAuthorId;
             incoming.TitleSlug = incumbent.TitleSlug;
             return true;
@@ -297,6 +295,7 @@ namespace NzbDrone.Core.Books
             var canonical = new List<Book>();
             var aliases = new Dictionary<string, Book>();
             foreach (var candidate in candidates.OrderByDescending(x => existingIds.Contains(x.ForeignBookId))
+                         .ThenByDescending(x => x.PendingSourceAssociations.Any(source => source.Evidence == CatalogueIdentityRepository.HardcoverWorkMappingEvidence))
                          .ThenByDescending(x => MetadataQualityScorer.GetBookScoreBreakdown(x).Values.Sum())
                          .ThenBy(x => x.ForeignBookId, StringComparer.Ordinal))
             {
@@ -345,6 +344,7 @@ namespace NzbDrone.Core.Books
                 else
                 {
                     RecordWorkSource(current, current, candidate);
+                    current.PendingSourceAssociations.AddRange(candidate.PendingSourceAssociations);
                     current.OpenLibraryWorkId ??= BookWorkIdentity.GetOpenLibraryWorkId(candidate);
                     current.Editions = (current.Editions?.Value ?? new List<Edition>())
                         .Concat(candidate.Editions?.Value ?? new List<Edition>())
@@ -441,43 +441,10 @@ namespace NzbDrone.Core.Books
 
         protected override bool RefreshChildren(SortedChildren localChildren, List<Book> remoteChildren, Author remoteData, bool forceChildRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
-            // Refresh and reparent known editions before considering removal of any old work.
+            // A bibliography can omit works. Retire an alias through explicit reconciliation
+            // so its canonical URL and local catalogue state can be transferred atomically.
             var updated = _refreshBookService.RefreshBookInfo(localChildren.Future, remoteChildren, remoteData, forceChildRefresh, forceUpdateFileTags, lastUpdate);
-
-            // A bibliography is not proof that omitted works ceased to exist.
-            // Only an identified alias with no remaining library state can be retired.
-            var retired = new List<Book>();
-            foreach (var deleted in localChildren.Deleted)
-            {
-                if (deleted.AddOptions?.AddType == BookAddType.Manual)
-                {
-                    _logger.Debug("Keeping manually-added book {0} despite remote removal", deleted);
-                    continue;
-                }
-
-                if (_mediaFileService.GetFilesByBook(deleted.Id).Any())
-                {
-                    _logger.Debug("Keeping book {0} with local files despite remote removal", deleted);
-                    continue;
-                }
-
-                var canonical = BookWorkIdentity.FindUniqueMatch(deleted, remoteChildren, out _);
-                if (canonical == null ||
-                    deleted.EbookMonitoringOverride.HasValue ||
-                    deleted.AudiobookMonitoringOverride.HasValue ||
-                    _historyService.GetByBook(deleted.Id, null)?.Any() == true ||
-                    _bookService.GetBook(deleted.Id)?.Editions?.Value?.Any() != false)
-                {
-                    _logger.Debug("Keeping work {0}: it still has state or has no unique canonical match", deleted);
-                    continue;
-                }
-
-                _logger.Info("Retiring empty work alias {0} in favor of {1}", deleted.Id, canonical.ForeignBookId);
-                _bookService.DeleteBook(deleted.Id, false);
-                retired.Add(deleted);
-            }
-
-            localChildren.Deleted = retired;
+            localChildren.Deleted.Clear();
             return updated;
         }
 

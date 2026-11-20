@@ -6,12 +6,14 @@ using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Datastore.Migration.Framework;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
@@ -582,7 +584,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             ex.Should().BeNull();
         }
 
-        private static IDatabase CreateInMemoryDatabase()
+        private IDatabase CreateInMemoryDatabase()
         {
             // Ensure the table mappers are registered exactly once (normally done at startup
             // by DbFactory). Guard with a type marker so repeated calls are a no-op.
@@ -599,11 +601,23 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             var cachedDb = Path.Combine(TestContext.CurrentContext.TestDirectory, "cached_Main.db");
             var dbPath = Path.Combine(Path.GetTempPath(), $"issue383-{Guid.NewGuid():N}.db");
 
-            File.Copy(cachedDb, dbPath, true);
+            if (File.Exists(cachedDb))
+            {
+                File.Copy(cachedDb, dbPath, true);
+            }
+
+            var connectionString = $"Data Source={dbPath};Version=3;";
+            var migrationController = new MigrationController(TestLogger, NullLoggerProvider.Instance);
+            migrationController.Migrate(connectionString, new MigrationContext(MigrationType.Main), DatabaseType.SQLite);
 
             // The real Database implementation: each OpenConnection returns a fresh connection
             // to the same file, exactly like production.
-            return new Database(dbPath, () => new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"));
+            return new Database(dbPath, () =>
+            {
+                var connection = new System.Data.SQLite.SQLiteConnection(connectionString);
+                connection.Open();
+                return connection;
+            });
         }
 
         [Test]

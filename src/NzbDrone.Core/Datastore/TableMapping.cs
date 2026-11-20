@@ -126,6 +126,7 @@ namespace NzbDrone.Core.Datastore
 
             Mapper.Entity<Series>("Series").RegisterModel()
                 .Ignore(s => s.PendingSourceAssociations)
+                .Ignore(s => s.PendingAliases)
                 .Ignore(s => s.ForeignAuthorId)
                 .LazyLoad(s => s.LinkItems,
                           (db, series) => db.Query<SeriesBookLink>(new SqlBuilder(db.DatabaseType).Where<SeriesBookLink>(s => s.SeriesId == series.Id)).ToList(),

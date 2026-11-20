@@ -13,8 +13,11 @@ namespace NzbDrone.Core.Books
         public string CanonicalId { get; set; }
         [MemberwiseEqualityIgnore]
         public List<CatalogueSourceAssociation> PendingSourceAssociations { get; } = new List<CatalogueSourceAssociation>();
+        [MemberwiseEqualityIgnore]
+        public List<string> PendingAliases { get; } = new List<string>();
 
         CatalogueEntityKind ICatalogueIdentityModel.CatalogueKind => CatalogueEntityKind.Series;
+        IEnumerable<string> ICatalogueIdentityModel.PendingRouteAliases => PendingAliases;
         string ICatalogueIdentityModel.LegacyForeignId => ForeignSeriesId;
         string ICatalogueIdentityModel.LegacyTitleSlug => null;
 
@@ -44,6 +47,7 @@ namespace NzbDrone.Core.Books
             if (!ReferenceEquals(this, other))
             {
                 PendingSourceAssociations.AddRange(other.PendingSourceAssociations);
+                PendingAliases.AddRange(other.PendingAliases);
             }
 
             var sameSeries = (CanonicalId.IsNotNullOrWhiteSpace() && CanonicalId == other.CanonicalId) ||

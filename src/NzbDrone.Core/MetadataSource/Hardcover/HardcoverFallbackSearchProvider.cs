@@ -47,6 +47,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         private const int SearchPageSize = 20;
         private const int AuthorPageSize = 40;
         private const int AuthorContributionsPageSize = 100;
+        private const int OriginalBookMappingLimit = 21;
 
         // After this many consecutive deterministic errors (e.g. 400 Bad Request from
         // malformed queries), suppress further searches for the cooldown period to avoid
@@ -1088,7 +1089,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
             var timeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
             var books = new List<Book>();
-            var seenBookIds = new HashSet<string>();
+            var booksById = new Dictionary<int, Book>();
+            var conflictingAuthorIds = new HashSet<int>();
+            var mappingClaims = new List<(int OriginalId, int OwnerId, bool ContradictsOwner, bool Verified)>();
             long lastContributionId = 0;
             var offset = 0;
 
@@ -1108,7 +1111,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     request.Headers["authorization"] = $"Bearer {token}";
                     request.SetContent(new
                     {
-                        query = @"query GetAuthorBooks($id: Int!, $limit: Int!, $offset: Int!) {
+                        query = @"query GetAuthorBooks($id: Int!, $limit: Int!, $offset: Int!, $mappingLimit: Int!) {
                             authors(where: {id: {_eq: $id}}) {
                                 id
                                 name
@@ -1129,6 +1132,14 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                         cached_contributors
                                         rating
                                         ratings_count
+                                        book_mappings(where: {original_book_id: {_is_null: false}}, order_by: {id: asc}, limit: $mappingLimit) {
+                                            original_book_id
+                                            book_id
+                                            edition_id
+                                            edition { id book_id }
+                                            state
+                                            verified
+                                        }
                                         book_series {
                                             position
                                             series {
@@ -1185,7 +1196,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                                 }
                             }
                         }",
-                        variables = new { id = authorId, limit = AuthorContributionsPageSize, offset }
+                        variables = new { id = authorId, limit = AuthorContributionsPageSize, offset, mappingLimit = OriginalBookMappingLimit }
                     }.ToJson());
 
                     var data = _httpClient.Post<JObject>(request)?.Resource;
@@ -1234,11 +1245,29 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         }
 
                         var book = MapDirectBookResult(bookData);
-                        if (book != null && seenBookIds.Add(book.ForeignBookId))
+                        if (book == null || bookData.Value<int?>("id") is not int bookId || bookId <= 0)
+                        {
+                            continue;
+                        }
+
+                        if (booksById.TryAdd(bookId, book))
                         {
                             OverrideBookAuthor(book, authorId, authorName);
                             books.Add(book);
                         }
+
+                        if (bookData["cached_contributors"] is JArray contributors)
+                        {
+                            var contributorIds = contributors.OfType<JObject>().Select(contributor => contributor.SelectToken("author.id")?.Value<int?>())
+                                .Where(id => id > 0)
+                                .ToList();
+                            if (contributorIds.Count > 0 && !contributorIds.Contains(authorId))
+                            {
+                                conflictingAuthorIds.Add(bookId);
+                            }
+                        }
+
+                        mappingClaims.AddRange(ReadOriginalBookMappings(bookData, bookId));
                     }
 
                     // Use the rows actually received in case the provider applies its own cap.
@@ -1251,8 +1280,61 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 throw new MetadataProviderUnavailableException("get-author-info", BuildHardcoverAuthorId(authorId), ex);
             }
 
+            StageOriginalBookMappings(booksById, conflictingAuthorIds, mappingClaims);
             _logger.Debug("Hardcover returned {0} distinct work IDs for author ID {1}.", books.Count, authorId);
             return books;
+        }
+
+        private static IEnumerable<(int OriginalId, int OwnerId, bool ContradictsOwner, bool Verified)> ReadOriginalBookMappings(JToken book, int bookId)
+        {
+            if (book["book_mappings"] is not JArray mappings)
+            {
+                yield break;
+            }
+
+            foreach (var mapping in mappings.OfType<JObject>())
+            {
+                var originalId = mapping.Value<int?>("original_book_id");
+                var ownerId = mapping.Value<int?>("book_id");
+                if (originalId is not > 0 || ownerId is not > 0 || originalId == ownerId)
+                {
+                    continue;
+                }
+
+                var editionId = mapping.Value<int?>("edition_id");
+                var edition = mapping["edition"] as JObject;
+                var contradictoryEdition = editionId.HasValue &&
+                    (editionId <= 0 || edition?.Value<int?>("id") != editionId || edition?.Value<int?>("book_id") != ownerId);
+                var verified = mapping.Value<bool?>("verified") == true || mapping.Value<string>("state") == "normalized";
+
+                yield return (originalId.Value, ownerId.Value, ownerId != bookId || contradictoryEdition || mappings.Count >= OriginalBookMappingLimit, verified);
+            }
+        }
+
+        private void StageOriginalBookMappings(
+            IReadOnlyDictionary<int, Book> books,
+            HashSet<int> conflictingAuthorIds,
+            List<(int OriginalId, int OwnerId, bool ContradictsOwner, bool Verified)> mappingClaims)
+        {
+            foreach (var claims in mappingClaims.GroupBy(claim => claim.OriginalId))
+            {
+                var ownerIds = claims.Select(claim => claim.OwnerId).Distinct().Take(2).ToList();
+                if (ownerIds.Count != 1 || claims.Any(claim => claim.ContradictsOwner) || !claims.Any(claim => claim.Verified) ||
+                    conflictingAuthorIds.Contains(claims.Key) || conflictingAuthorIds.Contains(ownerIds[0]) ||
+                    !books.TryGetValue(ownerIds[0], out var owner) ||
+                    (books.TryGetValue(claims.Key, out var original) && !string.Equals(original.Title?.Trim(), owner.Title?.Trim(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    _logger.Debug("Held Hardcover original book {0} for review because it has no unambiguous supported mapping.", claims.Key);
+                    continue;
+                }
+
+                owner.PendingSourceAssociations.Add(new CatalogueSourceAssociation
+                {
+                    Provider = ProviderName,
+                    ProviderId = claims.Key.ToString(CultureInfo.InvariantCulture),
+                    Evidence = CatalogueIdentityRepository.HardcoverWorkMappingEvidence
+                });
+            }
         }
 
         private List<Series> FetchAuthorSeries(int authorId)

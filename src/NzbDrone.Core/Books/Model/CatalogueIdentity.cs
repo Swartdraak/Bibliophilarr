@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace NzbDrone.Core.Books
@@ -23,5 +24,6 @@ namespace NzbDrone.Core.Books
         string LegacyForeignId { get; }
         string LegacyTitleSlug { get; }
         List<CatalogueSourceAssociation> PendingSourceAssociations { get; }
+        IEnumerable<string> PendingRouteAliases => Array.Empty<string>();
     }
 }

@@ -91,6 +91,7 @@ class BookIndexRow extends Component {
       monitored,
       title,
       author,
+      canonicalId,
       titleSlug,
       releaseDate,
       added,
@@ -168,6 +169,7 @@ class BookIndexRow extends Component {
                   )}
                 >
                   <BookNameLink
+                    canonicalId={canonicalId}
                     titleSlug={titleSlug}
                     title={title}
                   />
@@ -184,6 +186,7 @@ class BookIndexRow extends Component {
                   )}
                 >
                   <AuthorNameLink
+                    canonicalId={author.canonicalId}
                     titleSlug={author.titleSlug}
                     authorName={author.authorName}
                   />
@@ -410,6 +413,7 @@ BookIndexRow.propTypes = {
   authorId: PropTypes.number.isRequired,
   monitored: PropTypes.bool.isRequired,
   title: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   author: PropTypes.object.isRequired,
   qualityProfile: PropTypes.object.isRequired,

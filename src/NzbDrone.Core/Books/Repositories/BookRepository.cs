@@ -101,7 +101,14 @@ namespace NzbDrone.Core.Books
 
         public Book FindById(string foreignBookId)
         {
-            return Query(s => s.ForeignBookId == foreignBookId).SingleOrDefault();
+            var exact = Query(s => s.ForeignBookId == foreignBookId);
+            if (exact.Count == 1)
+            {
+                return exact[0];
+            }
+
+            var owner = CatalogueIdentityRepository.FindByLegacyProviderId(_database, CatalogueEntityKind.Work, foreignBookId);
+            return owner.HasValue ? Find(owner.Value) : null;
         }
 
         public Book FindBySlug(string titleSlug)

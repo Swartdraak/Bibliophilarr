@@ -355,6 +355,14 @@ namespace NzbDrone.Core.Datastore
 
             CatalogueIdentityRepository.TryAddRouteAlias(connection, transaction, identity.CatalogueKind, model.Id, identity.LegacyTitleSlug);
 
+            foreach (var alias in identity.PendingRouteAliases.Distinct(StringComparer.Ordinal))
+            {
+                if (!CatalogueIdentityRepository.TryAddRouteAlias(connection, transaction, identity.CatalogueKind, model.Id, alias))
+                {
+                    throw new InvalidOperationException("A corroborated catalogue route belongs to another record.");
+                }
+            }
+
             foreach (var claim in identity.PendingSourceAssociations)
             {
                 var source = CatalogueIdentityRepository.NormalizeSource(identity.CatalogueKind, claim.Provider, claim.ProviderId, claim.Evidence);

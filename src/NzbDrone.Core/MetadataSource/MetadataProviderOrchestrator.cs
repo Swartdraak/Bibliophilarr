@@ -621,7 +621,7 @@ namespace NzbDrone.Core.MetadataSource
             }
         }
 
-        private static IEnumerable<(Book Book, Edition Edition)> GetExactIsbnMatches(IEnumerable<Book> books, string isbn)
+        internal static IEnumerable<(Book Book, Edition Edition)> GetExactIsbnMatches(IEnumerable<Book> books, string isbn)
         {
             return (books ?? Enumerable.Empty<Book>())
                 .Where(book => book?.Editions?.Value != null)

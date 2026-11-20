@@ -165,6 +165,7 @@ class QueueRow extends Component {
                   {
                     author ?
                       <AuthorNameLink
+                        canonicalId={author.canonicalId}
                         titleSlug={author.titleSlug}
                         authorName={author.authorName}
                       /> :
@@ -180,6 +181,7 @@ class QueueRow extends Component {
                   {
                     book ?
                       <BookTitleLink
+                        canonicalId={book.canonicalId}
                         titleSlug={book.titleSlug}
                         title={book.title}
                         disambiguation={book.disambiguation}

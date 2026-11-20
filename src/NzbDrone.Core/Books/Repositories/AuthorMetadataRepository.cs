@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
@@ -35,144 +36,52 @@ namespace NzbDrone.Core.Books
             var addMetadataList = new List<AuthorMetadata>();
             var upToDateMetadataCount = 0;
 
-            // For Hardcover numeric ID migration: collect unmatched entries that
-            // use numeric IDs so we can try matching them by name against existing
-            // name-based records.
-            var unmatchedNumericEntries = new List<AuthorMetadata>();
-
             foreach (var meta in data)
             {
                 var existing = existingMetadata.SingleOrDefault(x => x.ForeignAuthorId == meta.ForeignAuthorId);
-                if (existing != null)
+                if (existing == null)
                 {
-                    // populate Id in remote data
-                    meta.UseDbFieldsFrom(existing);
-                    PreserveExistingAuthorMetadata(meta, existing);
-
-                    // responses vary, so try adding remote to what we have
-                    if (meta.PendingSourceAssociations.Count > 0 || !meta.Equals(existing))
+                    var linkedOwner = CatalogueIdentityRepository.FindByLegacyProviderId(_database, CatalogueEntityKind.Author, meta.ForeignAuthorId);
+                    if (linkedOwner.HasValue)
                     {
-                        updateMetadataList.Add(meta);
-                    }
-                    else
-                    {
-                        upToDateMetadataCount++;
+                        existing = Find(linkedOwner.Value);
+                        if (existing != null)
+                        {
+                            // An accepted alias hydrates the same author without changing their primary ID or route.
+                            meta.ForeignAuthorId = existing.ForeignAuthorId;
+                            meta.TitleSlug = existing.TitleSlug;
+                        }
                     }
                 }
-                else if (IsNumericHardcoverAuthorId(meta.ForeignAuthorId) && meta.Name.IsNotNullOrWhiteSpace())
+
+                if (existing == null)
                 {
-                    // Numeric Hardcover ID not found by direct lookup — may be a
-                    // migration from a name-based ID. Defer for name-based matching.
-                    unmatchedNumericEntries.Add(meta);
+                    existing = FindCorroboratedLegacyHardcoverAuthor(meta);
                 }
-                else
+
+                if (existing == null)
                 {
-                    addMetadataList.Add(meta);
-                }
-            }
-
-            // Try to match unmatched numeric Hardcover entries by author name
-            // against existing name-based records (handles the ID format migration).
-            if (unmatchedNumericEntries.Any())
-            {
-                var names = unmatchedNumericEntries
-                    .Select(x => x.Name)
-                    .Where(x => x.IsNotNullOrWhiteSpace())
-                    .Distinct(System.StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                var existingByName = names.Any()
-                    ? Query(x => Enumerable.Contains(names, x.Name))
-                    : new List<AuthorMetadata>();
-
-                foreach (var meta in unmatchedNumericEntries)
-                {
-                    var nameMatch = existingByName.FirstOrDefault(x =>
-                        string.Equals(x.Name, meta.Name, System.StringComparison.OrdinalIgnoreCase) &&
-                        x.ForeignAuthorId.StartsWith("hardcover:", System.StringComparison.OrdinalIgnoreCase));
-
-                    if (nameMatch != null)
-                    {
-                        _logger.Info(
-                            "Migrating author '{0}' ForeignAuthorId from '{1}' to numeric '{2}'",
-                            meta.Name,
-                            nameMatch.ForeignAuthorId,
-                            meta.ForeignAuthorId);
-
-                        meta.UseDbFieldsFrom(nameMatch);
-                        PreserveExistingAuthorMetadata(meta, nameMatch);
-
-                        // Update the ForeignAuthorId to the new numeric format
-                        updateMetadataList.Add(meta);
-                    }
-                    else
+                    if (meta.Id == 0)
                     {
                         addMetadataList.Add(meta);
                     }
-                }
-            }
 
-            // Safety net: ensure TitleSlug is never null before database insert
-            foreach (var meta in addMetadataList)
-            {
-                if (meta.TitleSlug.IsNullOrWhiteSpace())
+                    continue;
+                }
+
+                meta.UseDbFieldsFrom(existing);
+                PreserveExistingAuthorMetadata(meta, existing);
+                if (meta.PendingSourceAssociations.Count > 0 || !meta.Equals(existing))
                 {
-                    meta.TitleSlug = meta.ForeignAuthorId.IsNotNullOrWhiteSpace()
-                        ? meta.ForeignAuthorId.ToUrlSlug()
-                        : meta.Name?.ToUrlSlug() ?? "unknown";
-                    _logger.Warn("Auto-generated TitleSlug for author '{0}' (ForeignId: {1})", meta.Name, meta.ForeignAuthorId);
+                    updateMetadataList.Add(meta);
                 }
-            }
-
-            // Resolve TitleSlug UNIQUE collisions against existing DB records and within the batch
-            var slugsToInsert = addMetadataList.Select(x => x.TitleSlug).Distinct().ToList();
-            var existingBySlug = slugsToInsert.Any()
-                ? Query(x => Enumerable.Contains(slugsToInsert, x.TitleSlug))
-                : new List<AuthorMetadata>();
-            var usedSlugs = new HashSet<string>(existingBySlug.Select(x => x.TitleSlug));
-
-            // Also include slugs from update list to avoid intra-batch collisions
-            foreach (var meta in updateMetadataList)
-            {
-                usedSlugs.Add(meta.TitleSlug);
-            }
-
-            foreach (var meta in addMetadataList)
-            {
-                if (usedSlugs.Contains(meta.TitleSlug))
+                else
                 {
-                    // Check if this is actually the same author (already in DB with same slug)
-                    var existingWithSlug = existingBySlug.FirstOrDefault(x => x.TitleSlug == meta.TitleSlug);
-                    if (existingWithSlug != null)
-                    {
-                        // Reuse the existing record instead of inserting a duplicate
-                        _logger.Info(
-                            "Author '{0}' (ForeignId: {1}) maps to existing slug '{2}' (ForeignId: {3}); reusing existing metadata record",
-                            meta.Name,
-                            meta.ForeignAuthorId,
-                            meta.TitleSlug,
-                            existingWithSlug.ForeignAuthorId);
-                        meta.UseDbFieldsFrom(existingWithSlug);
-                        continue;
-                    }
-
-                    // Intra-batch collision: disambiguate with numeric suffix
-                    var baseSlug = meta.TitleSlug;
-                    var counter = 2;
-                    while (usedSlugs.Contains(meta.TitleSlug))
-                    {
-                        meta.TitleSlug = $"{baseSlug}-{counter}";
-                        counter++;
-                    }
-
-                    _logger.Warn("Disambiguated TitleSlug for author '{0}' from '{1}' to '{2}'", meta.Name, baseSlug, meta.TitleSlug);
+                    upToDateMetadataCount++;
                 }
-
-                usedSlugs.Add(meta.TitleSlug);
             }
 
-            // Remove entries that were remapped to existing records (they now have an Id)
-            addMetadataList.RemoveAll(x => x.Id > 0);
+            AssignUniqueSlugs(addMetadataList, updateMetadataList.Select(meta => meta.TitleSlug));
 
             UpdateMany(updateMetadataList);
             InsertMany(addMetadataList);
@@ -182,34 +91,71 @@ namespace NzbDrone.Core.Books
             return updateMetadataList.Count > 0 || addMetadataList.Count > 0;
         }
 
+        private void AssignUniqueSlugs(List<AuthorMetadata> incoming, IEnumerable<string> pendingSlugs)
+        {
+            var used = new HashSet<string>(pendingSlugs, StringComparer.Ordinal);
+            foreach (var meta in incoming)
+            {
+                var baseSlug = meta.TitleSlug ?? meta.ForeignAuthorId?.ToUrlSlug() ?? meta.Name?.ToUrlSlug();
+                if (baseSlug.IsNullOrWhiteSpace())
+                {
+                    baseSlug = "unknown";
+                }
+
+                var slug = baseSlug;
+                var suffix = 2;
+                while (used.Contains(slug) || Query(current => current.TitleSlug == slug).Any() ||
+                       CatalogueIdentityRepository.FindByRoute(_database, CatalogueEntityKind.Author, slug).HasValue)
+                {
+                    slug = $"{baseSlug}-{suffix}";
+                    suffix++;
+                }
+
+                meta.TitleSlug = slug;
+                used.Add(slug);
+            }
+        }
+
+        private AuthorMetadata FindCorroboratedLegacyHardcoverAuthor(AuthorMetadata incoming)
+        {
+            var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, incoming.ForeignAuthorId, null);
+            if (source?.Provider != "Hardcover" || incoming.Name.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var nameBasedId = $"hardcover:author:{Uri.EscapeDataString(incoming.Name.Trim())}";
+            var previous = Query(author => author.ForeignAuthorId == nameBasedId).SingleOrDefault();
+            if (previous == null ||
+                !string.Equals(previous.Name, incoming.Name, StringComparison.OrdinalIgnoreCase) ||
+                CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, previous.ForeignAuthorId, null) != null)
+            {
+                return null;
+            }
+
+            var previousOpenLibrary = CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", previous.OpenLibraryAuthorId, null);
+            var incomingOpenLibrary = CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", incoming.OpenLibraryAuthorId, null);
+            if (previousOpenLibrary != null && incomingOpenLibrary != null)
+            {
+                return previousOpenLibrary.ProviderId == incomingOpenLibrary.ProviderId ? previous : null;
+            }
+
+            var born = incoming.Born?.Date;
+            return born.HasValue && (born.Value.Month != 1 || born.Value.Day != 1) && born == previous.Born?.Date
+                ? previous
+                : null;
+        }
+
         private static void PreserveExistingAuthorMetadata(AuthorMetadata incoming, AuthorMetadata existing)
         {
             incoming.Overview = incoming.Overview.IsNullOrWhiteSpace() ? existing.Overview : incoming.Overview;
+            incoming.OpenLibraryAuthorId ??= existing.OpenLibraryAuthorId;
             incoming.Born ??= existing.Born;
             incoming.Died ??= existing.Died;
             if (incoming.Images?.Any() != true)
             {
                 incoming.Images = existing.Images;
             }
-        }
-
-        private static bool IsNumericHardcoverAuthorId(string foreignAuthorId)
-        {
-            if (foreignAuthorId.IsNullOrWhiteSpace())
-            {
-                return false;
-            }
-
-            const string prefix = "hardcover:author:";
-            var raw = foreignAuthorId.Trim();
-
-            if (!raw.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            var token = raw.Substring(prefix.Length);
-            return int.TryParse(token, out var id) && id > 0;
         }
     }
 }

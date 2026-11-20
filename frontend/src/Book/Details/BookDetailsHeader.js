@@ -138,6 +138,7 @@ class BookDetailsHeader extends Component {
               <div>
                 <AuthorNameLink
                   className={styles.authorLink}
+                  canonicalId={author.canonicalId}
                   titleSlug={author.titleSlug}
                   authorName={author.authorName}
                 />

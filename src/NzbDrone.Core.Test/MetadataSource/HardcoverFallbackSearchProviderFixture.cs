@@ -675,6 +675,95 @@ namespace NzbDrone.Core.Test.MetadataSource
                 new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, body.ToString()));
         }
 
+        [TestCase("supported", true)]
+        [TestCase("competing-owner", false)]
+        [TestCase("wrong-edition-owner", false)]
+        [TestCase("missing-edition-owner", false)]
+        [TestCase("wrong-original-author", false)]
+        [TestCase("different-title", false)]
+        [TestCase("unsupported", false)]
+        [TestCase("truncated", false)]
+        public void author_bibliography_should_only_stage_supported_original_work_mappings(string scenario, bool expectMapping)
+        {
+            var original = JObject.Parse("""
+                {"id":101,"title":"Fixture Work","canonical_id":444,"cached_contributors":[{"author":{"id":123}}]}
+                """);
+            var target = JObject.Parse("""
+                {"id":202,"title":"Fixture Work","cached_contributors":[{"author":{"id":123}}],
+                 "book_mappings":[
+                    {"original_book_id":101,"book_id":202,"edition_id":987,"edition":{"id":987,"book_id":202},"state":"normalized"},
+                    {"original_book_id":101,"book_id":202,"edition_id":987,"edition":{"id":987,"book_id":202},"state":"cannot_load"},
+                    {"original_book_id":202,"book_id":202,"state":"normalized"}]}
+                """);
+            var mapping = (JObject)target.SelectToken("book_mappings[0]");
+            var competitor = JObject.Parse("""{"id":303,"title":"Fixture Work"}""");
+
+            switch (scenario)
+            {
+                case "competing-owner":
+                    competitor["book_mappings"] = JArray.Parse("""[{"original_book_id":101,"book_id":303,"state":"normalized"}]""");
+                    break;
+                case "wrong-edition-owner":
+                    ((JObject)mapping["edition"])["book_id"] = 303;
+                    break;
+                case "missing-edition-owner":
+                    mapping["edition"] = JValue.CreateNull();
+                    break;
+                case "wrong-original-author":
+                    original["cached_contributors"] = JArray.Parse("""[{"author":{"id":456}}]""");
+                    break;
+                case "different-title":
+                    original["title"] = "Different work";
+                    break;
+                case "unsupported":
+                    mapping["state"] = "cannot_load";
+                    break;
+                case "truncated":
+                    target["book_mappings"] = new JArray(Enumerable.Range(0, 21).Select(_ => mapping.DeepClone()));
+                    break;
+            }
+
+            var pages = new[] { target, original, competitor };
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                    }
+
+                    query.Should().Contain("book_mappings").And.Contain("edition { id book_id }");
+                    body.SelectToken("variables.mappingLimit").Value<int>().Should().Be(21);
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    var payload = BuildAuthorPage(offset < pages.Length ? new[] { offset + 1 } : Array.Empty<int>());
+                    if (payload.SelectToken("data.authors[0].contributions[0]") is JObject contribution)
+                    {
+                        contribution["book"] = pages[offset];
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var books = Subject.GetAuthorInfo("hardcover:author:123").Books.Value;
+
+            books.Select(book => book.ForeignBookId).Should().Equal("hardcover:work:202", "hardcover:work:101", "hardcover:work:303");
+            var pending = books.SelectMany(book => book.PendingSourceAssociations).ToList();
+            if (expectMapping)
+            {
+                var alias = books.First().PendingSourceAssociations.Should().ContainSingle().Which;
+                alias.Provider.Should().Be("Hardcover");
+                alias.ProviderId.Should().Be("101");
+                alias.Evidence.Should().Be(CatalogueIdentityRepository.HardcoverWorkMappingEvidence);
+                pending.Should().ContainSingle();
+            }
+            else
+            {
+                pending.Should().BeEmpty();
+            }
+        }
+
         private static JObject BuildAuthorPage(IEnumerable<int> contributionIds)
         {
             return JObject.FromObject(new

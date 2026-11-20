@@ -25,7 +25,8 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
                 NameLastFirst = "Name, Author",
                 SortNameLastFirst = "name, author",
                 TitleSlug = "author-name",
-                Overview = "Biographical data previously supplied by an author source"
+                Overview = "Biographical data previously supplied by an author source",
+                OpenLibraryAuthorId = "OL123A"
             };
             Db.Insert(prior);
             var remote = new AuthorMetadata
@@ -36,7 +37,8 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
                 NameLastFirst = prior.NameLastFirst,
                 SortNameLastFirst = prior.SortNameLastFirst,
                 TitleSlug = prior.TitleSlug,
-                Overview = providerBiography
+                Overview = providerBiography,
+                OpenLibraryAuthorId = prior.OpenLibraryAuthorId
             };
 
             Subject.UpsertMany(new List<AuthorMetadata> { remote });

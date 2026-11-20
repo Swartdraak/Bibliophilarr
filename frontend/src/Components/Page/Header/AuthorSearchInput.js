@@ -125,15 +125,12 @@ class AuthorSearchInput extends Component {
 
     this.setState({ value: '' });
 
-    const {
-      type,
-      titleSlug
-    } = item.item;
+    const result = item.item;
 
-    if (type === 'author') {
-      onGoToAuthor(titleSlug);
-    } else if (type === 'book') {
-      onGoToBook(titleSlug);
+    if (result.type === 'author') {
+      onGoToAuthor(result);
+    } else if (result.type === 'book') {
+      onGoToBook(result);
     }
   }
 

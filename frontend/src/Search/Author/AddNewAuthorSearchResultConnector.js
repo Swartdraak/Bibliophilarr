@@ -8,9 +8,9 @@ function createMapStateToProps() {
   return createSelector(
     createExistingAuthorSelector(),
     createDimensionsSelector(),
-    (isExistingAuthor, dimensions) => {
+    (existingAuthor, dimensions) => {
       return {
-        isExistingAuthor,
+        existingAuthor,
         isSmallScreen: dimensions.isSmallScreen
       };
     }

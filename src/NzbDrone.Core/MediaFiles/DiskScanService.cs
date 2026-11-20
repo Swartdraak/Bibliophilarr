@@ -9,6 +9,7 @@ using NLog;
 using NzbDrone.Common;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Books;
@@ -19,6 +20,7 @@ using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.MediaFiles
@@ -166,7 +168,7 @@ namespace NzbDrone.Core.MediaFiles
             _logger.Debug("Import decisions complete [{0}]", decisionsStopwatch.Elapsed);
 
             var importStopwatch = Stopwatch.StartNew();
-            _importApprovedTracks.Import(decisions, false);
+            var importResults = _importApprovedTracks.Import(decisions, false);
 
             // decisions may have been filtered to just new files.  Anything new and approved will have been inserted.
             // Now we need to make sure anything new but not approved gets inserted
@@ -194,6 +196,7 @@ namespace NzbDrone.Core.MediaFiles
             _mediaFileService.AddMany(newFiles);
 
             _logger.Debug($"Inserted {newFiles.Count} new unmatched trackfiles");
+            ReportUnmappedFiles(decisions, importResults, knownFiles.Concat(newFiles));
 
             // finally update info on size/modified for existing files
             var updatedFiles = knownFiles
@@ -230,6 +233,32 @@ namespace NzbDrone.Core.MediaFiles
 
             importStopwatch.Stop();
             _logger.Debug("Book import complete for:\n{0} [{1}]", folders.ConcatToString("\n"), importStopwatch.Elapsed);
+        }
+
+        private void ReportUnmappedFiles(List<ImportDecision<LocalBook>> decisions, List<ImportResult> importResults, IEnumerable<BookFile> files)
+        {
+            var unlinkedPaths = files.Where(file => file.EditionId == 0)
+                .Select(file => file.Path).ToHashSet(PathEqualityComparer.Instance);
+            var unresolved = decisions.Where(decision => unlinkedPaths.Contains(decision.Item.Path))
+                .DistinctBy(decision => decision.Item.Path, PathEqualityComparer.Instance).ToList();
+            if (unresolved.Count == 0)
+            {
+                return;
+            }
+
+            _logger.Info("Library scan left {0} evaluated files unmapped.", unresolved.Count);
+            var importErrors = (importResults ?? new List<ImportResult>())
+                .ToLookup(result => result.ImportDecision.Item.Path, PathEqualityComparer.Instance);
+            foreach (var decision in unresolved)
+            {
+                var reason = decision.Approved
+                    ? string.Join(", ", importErrors[decision.Item.Path].SelectMany(result => result.Errors).Distinct())
+                    : string.Join(", ", decision.Rejections);
+                _logger.Debug(
+                    "Unmapped library file {0}: {1}",
+                    LogSanitizer.Sanitize(decision.Item.Path),
+                    reason.IsNullOrWhiteSpace() ? "import did not persist an edition link" : LogSanitizer.Sanitize(reason));
+            }
         }
 
         private void CleanMediaFiles(string folder, List<string> mediaFileList)

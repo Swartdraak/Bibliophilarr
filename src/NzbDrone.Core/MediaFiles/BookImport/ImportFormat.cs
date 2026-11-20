@@ -24,9 +24,20 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return !fileFormat.HasValue || !editionFormat.HasValue || fileFormat == editionFormat;
         }
 
-        private static FormatType? ForEdition(Edition edition)
+        public static bool CanLink(string path, Edition edition)
         {
-            if (edition == null)
+            return !ForPath(path).HasValue || (!NeedsDigitalEdition(edition) && IsCompatible(path, edition));
+        }
+
+        public static bool NeedsDigitalEdition(Edition edition)
+        {
+            return edition?.Format?.Trim().ToLowerInvariant() is "print" or "hardcover" or "hardback" or "paperback" or
+                "mass market paperback" or "trade paperback" or "board book" or "unclassified" or "book";
+        }
+
+        public static FormatType? ForEdition(Edition edition)
+        {
+            if (edition == null || NeedsDigitalEdition(edition))
             {
                 return null;
             }

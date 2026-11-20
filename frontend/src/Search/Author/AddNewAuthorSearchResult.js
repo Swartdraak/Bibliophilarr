@@ -9,6 +9,7 @@ import Link from 'Components/Link/Link';
 import { icons, kinds, sizes } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
 import fonts from 'Styles/Variables/fonts';
+import cataloguePath from 'Utilities/cataloguePath';
 import stripHtml from 'Utilities/String/stripHtml';
 import translate from 'Utilities/String/translate';
 import AddNewAuthorModal from './AddNewAuthorModal';
@@ -45,7 +46,7 @@ class AddNewAuthorSearchResult extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (!prevProps.isExistingAuthor && this.props.isExistingAuthor) {
+    if (!prevProps.existingAuthor && this.props.existingAuthor) {
       this.onAddAuthorModalClose();
     }
   }
@@ -71,7 +72,6 @@ class AddNewAuthorSearchResult extends Component {
   render() {
     const {
       foreignAuthorId,
-      titleSlug,
       authorName,
       year,
       disambiguation,
@@ -80,7 +80,7 @@ class AddNewAuthorSearchResult extends Component {
       ratings,
       folder,
       images,
-      isExistingAuthor,
+      existingAuthor,
       isSmallScreen
     } = this.props;
 
@@ -88,7 +88,7 @@ class AddNewAuthorSearchResult extends Component {
       isNewAddAuthorModalOpen
     } = this.state;
 
-    const linkProps = isExistingAuthor ? { to: `/author/${titleSlug}` } : { onPress: this.onPress };
+    const linkProps = existingAuthor ? { to: cataloguePath('author', existingAuthor) } : { onPress: this.onPress };
 
     const endedString = 'Deceased';
 
@@ -136,7 +136,7 @@ class AddNewAuthorSearchResult extends Component {
 
               <div className={styles.icons}>
                 {
-                  isExistingAuthor ?
+                  existingAuthor ?
                     <Icon
                       className={styles.alreadyExistsIcon}
                       name={icons.CHECK_CIRCLE}
@@ -189,7 +189,7 @@ class AddNewAuthorSearchResult extends Component {
         </div>
 
         <AddNewAuthorModal
-          isOpen={isNewAddAuthorModalOpen && !isExistingAuthor}
+          isOpen={isNewAddAuthorModalOpen && !existingAuthor}
           foreignAuthorId={foreignAuthorId}
           authorName={authorName}
           disambiguation={disambiguation}
@@ -206,7 +206,6 @@ class AddNewAuthorSearchResult extends Component {
 
 AddNewAuthorSearchResult.propTypes = {
   foreignAuthorId: PropTypes.string.isRequired,
-  titleSlug: PropTypes.string.isRequired,
   authorName: PropTypes.string.isRequired,
   year: PropTypes.number,
   disambiguation: PropTypes.string,
@@ -215,7 +214,7 @@ AddNewAuthorSearchResult.propTypes = {
   ratings: PropTypes.object.isRequired,
   folder: PropTypes.string.isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
-  isExistingAuthor: PropTypes.bool.isRequired,
+  existingAuthor: PropTypes.object,
   isSmallScreen: PropTypes.bool.isRequired
 };
 

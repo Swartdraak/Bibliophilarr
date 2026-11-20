@@ -51,7 +51,14 @@ namespace NzbDrone.Core.Books
 
         public Author FindById(string foreignAuthorId)
         {
-            return Query(Builder().Where<AuthorMetadata>(m => m.ForeignAuthorId == foreignAuthorId)).SingleOrDefault();
+            var exact = Query(Builder().Where<AuthorMetadata>(m => m.ForeignAuthorId == foreignAuthorId)).SingleOrDefault();
+            if (exact != null)
+            {
+                return exact;
+            }
+
+            var owner = CatalogueIdentityRepository.FindByLegacyProviderId(_database, CatalogueEntityKind.Author, foreignAuthorId);
+            return owner.HasValue ? GetAuthorByMetadataId(owner.Value) : null;
         }
 
         public Author FindByTitleSlug(string titleSlug)

@@ -94,6 +94,21 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_reject_a_provider_alias_that_would_reparent_an_existing_work()
+        {
+            var incoming = BookToAdd("edition", "book", "author");
+            GivenValidBook("book", "edition");
+            var stored = new Book { Id = 20, AuthorMetadataId = _fakeAuthor.AuthorMetadataId + 1, ForeignBookId = "hardcover:work:8" };
+            Mocker.GetMock<IBookService>().Setup(service => service.FindById(_fakeBook.ForeignBookId)).Returns(stored);
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(_fakeAuthor.ForeignAuthorId)).Returns(_fakeAuthor);
+
+            Assert.Throws<ValidationException>(() => Subject.AddBook(incoming));
+
+            Mocker.GetMock<IBookService>().Verify(service => service.AddBook(It.IsAny<Book>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAddAuthorService>().Verify(service => service.AddAuthorWithMetadata(It.IsAny<Author>(), It.IsAny<AuthorMetadata>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
         public void should_throw_if_book_cannot_be_found()
         {
             var newBook = BookToAdd("edition", "book", "author");

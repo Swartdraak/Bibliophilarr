@@ -43,7 +43,8 @@ namespace NzbDrone.Core.Test.MusicTests
                 .With(x => x.Metadata = new AuthorMetadata
                 {
                     Id = 101,
-                    ForeignAuthorId = "openlibrary:author:OL11A",
+                    ForeignAuthorId = "hardcover:author:11",
+                    OpenLibraryAuthorId = "OL10A",
                     Name = "Ursula Le Guin"
                 })
                 .With(x => x.Books = new List<Book>())
@@ -52,6 +53,29 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<IAuthorService>()
                 .Setup(x => x.GetAllAuthors())
                 .Returns(new List<Author> { _primary, _duplicate });
+        }
+
+        [Test]
+        public void should_preserve_distinct_authors_with_the_same_name_even_with_low_threshold()
+        {
+            _duplicate.Metadata.Value.OpenLibraryAuthorId = "OL11A";
+            var incoming = new Author
+            {
+                Metadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = "hardcover:author:12",
+                    OpenLibraryAuthorId = "OL12A",
+                    Name = "Ursula Le Guin"
+                }
+            };
+
+            var match = Subject.TryFindCanonicalMatch(incoming, out _, out _, 0.1);
+            match.Should().BeNull();
+
+            var summary = Subject.CanonicalizeDuplicates(false, 0, 10);
+            summary.MergesPerformed.Should().Be(0);
+            summary.MergesSkipped.Should().Be(1);
+            Mocker.GetMock<IAuthorService>().Verify(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
         }
 
         [Test]

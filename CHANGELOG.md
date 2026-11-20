@@ -23,10 +23,20 @@ process.
   links to the retired work.
 - Read explicitly tagged Audible identifiers from audiobooks. A successful
   import retry can attach an existing unmapped library file to its edition
-  while preserving the file record.
+  while preserving the file record. Scan logs record why evaluated files remain
+  unmapped.
+- Use an ebook or audiobook edition for a confirmed work when a provider only
+  supplies a print or unclassified edition. Keep the provider edition and
+  preserve digital links if a later refresh reclassifies that edition.
+- Recognize matching book and volume suffixes when both work records share the
+  same author, series and primary position. Keep works with other subtitles
+  separate.
 - Fetch edition publisher and publication dates from Hardcover. A unique
   ISBN match can fill missing edition details, and verified Open Library
   author records can supply missing biographies and portraits.
+- Require corroboration before matching authors across providers or adding
+  Open Library work and author links. Keep two people with the same name
+  distinct.
 
 - A fresh installation opens first-account setup in the browser when opened
   directly on localhost. Create an account and sign in without a terminal command.

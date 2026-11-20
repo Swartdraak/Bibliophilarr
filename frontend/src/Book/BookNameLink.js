@@ -1,9 +1,10 @@
 import PropTypes from 'prop-types';
 import React from 'react';
 import Link from 'Components/Link/Link';
+import cataloguePath from 'Utilities/cataloguePath';
 
-function BookNameLink({ titleSlug, title }) {
-  const link = `/book/${titleSlug}`;
+function BookNameLink({ canonicalId, titleSlug, title }) {
+  const link = cataloguePath('book', { canonicalId, titleSlug });
 
   return (
     <Link to={link}>
@@ -13,6 +14,7 @@ function BookNameLink({ titleSlug, title }) {
 }
 
 BookNameLink.propTypes = {
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired
 };

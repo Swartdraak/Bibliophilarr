@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -247,6 +248,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         {
             _book.ForeignBookId = "hardcover:work:43";
             _book.Title = "The Example";
+            _book.OpenLibraryWorkId = "OL1W";
             _book.ReleaseDate = new DateTime(2022, 1, 25);
             _book.AuthorMetadataId = _author.AuthorMetadataId = 5;
             _ebookEdition.Format = "Ebook";
@@ -291,14 +293,15 @@ namespace NzbDrone.Core.Test.MediaFiles
             {
                 Title = "Example Work",
                 ForeignBookId = "hardcover:work:100",
+                OpenLibraryWorkId = "OL100W",
                 AuthorMetadataId = 5,
                 ReleaseDate = new DateTime(2022, 1, 25)
             };
             _approvedDecisions[0].Item.Book = incoming;
             Mocker.GetMock<IBookService>().Setup(s => s.GetBooksByAuthorMetadataId(5)).Returns(new List<Book>
             {
-                new Book { Id = 11, ForeignBookId = "hardcover:work:11", Title = incoming.Title, ReleaseDate = incoming.ReleaseDate },
-                new Book { Id = 12, ForeignBookId = "hardcover:work:12", Title = incoming.Title, ReleaseDate = incoming.ReleaseDate }
+                new Book { Id = 11, ForeignBookId = "hardcover:work:11", Title = incoming.Title, OpenLibraryWorkId = "OL100W" },
+                new Book { Id = 12, ForeignBookId = "hardcover:work:12", Title = incoming.Title, OpenLibraryWorkId = "OL100W" }
             });
 
             var results = Subject.Import(_approvedDecisions, false);
@@ -306,6 +309,207 @@ namespace NzbDrone.Core.Test.MediaFiles
             results.Should().ContainSingle(result => result.Result == ImportResultType.Rejected);
             Mocker.GetMock<IBookService>().Verify(s => s.InsertMany(It.IsAny<List<Book>>()), Times.Never());
             Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+        }
+
+        [TestCase("Print")]
+        [TestCase("Unclassified")]
+        [TestCase("BOOK")]
+        public void should_record_a_local_ebook_without_claiming_the_provider_edition(string providerFormat)
+        {
+            GivenEbookImport();
+            var selected = _ebookEdition;
+            selected.ForeignEditionId = "hardcover:source-edition:33";
+            selected.Format = providerFormat;
+            selected.IsEbook = false;
+            selected.Isbn13 = "9781455546176";
+            selected.Asin = "B00EXAMPLE";
+            var inserted = GivenLocalDigitalEditionStorage();
+
+            var result = Subject.Import(_approvedDecisions, false);
+
+            result.Should().ContainSingle(item => item.Result == ImportResultType.Imported);
+            var edition = inserted.Should().ContainSingle().Which;
+            edition.ForeignEditionId.Should().StartWith("bibliophilarr:edition:");
+            edition.BookId.Should().Be(_book.Id);
+            edition.Format.Should().Be("Ebook");
+            edition.IsEbook.Should().BeTrue();
+            edition.Isbn13.Should().BeNull();
+            edition.Asin.Should().BeNull();
+            edition.Images.Should().BeEmpty();
+            _approvedDecisions[0].Item.Edition.Should().BeSameAs(edition);
+            selected.Isbn13.Should().Be("9781455546176");
+            selected.Asin.Should().Be("B00EXAMPLE");
+            selected.Format.Should().Be(providerFormat);
+
+            _approvedDecisions[0].Item.Edition = selected;
+            Subject.Import(_approvedDecisions, false).Should().ContainSingle(item => item.Result == ImportResultType.Imported);
+            inserted.Should().ContainSingle();
+            _approvedDecisions[0].Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [Test]
+        public void should_separate_both_file_formats_when_the_same_print_edition_identified_the_work()
+        {
+            GivenEbookImport();
+            var ebook = _approvedDecisions.Single();
+            GivenAudiobookImport();
+            var audio = _approvedDecisions.Single();
+            var print = _ebookEdition;
+            print.Format = "Print";
+            print.IsEbook = false;
+            print.ForeignEditionId = "hardcover:source-edition:33";
+            ebook.Item.Edition = print;
+            audio.Item.Edition = print;
+            _approvedDecisions.Add(ebook);
+            var inserted = GivenLocalDigitalEditionStorage();
+
+            Subject.Import(_approvedDecisions, false).Should().OnlyContain(item => item.Result == ImportResultType.Imported);
+
+            inserted.Select(edition => edition.Format).Should().BeEquivalentTo(new[] { "Audiobook", "Ebook" });
+            ebook.Item.Edition.IsEbook.Should().BeTrue();
+            audio.Item.Edition.IsEbook.Should().BeFalse();
+            ebook.Item.Edition.Id.Should().NotBe(audio.Item.Edition.Id);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_only_replace_the_print_match_with_a_digital_provider_edition_on_high_confidence_file_evidence(bool exactEvidence)
+        {
+            GivenEbookImport();
+            var print = _ebookEdition;
+            print.Format = "Print";
+            print.IsEbook = false;
+            var verified = new Edition { Id = 70, BookId = _book.Id, Format = "Ebook", IsEbook = true, Asin = "B00EXAMPLE" };
+            _audiobookEdition.Format = "Audiobook";
+            _audiobookEdition.Asin = verified.Asin;
+            _approvedDecisions[0].Item.FileTrackInfo.Asin = verified.Asin;
+            _approvedDecisions[0].Item.FileTrackInfo.AsinConfidence = exactEvidence ? 0.9 : 0.5;
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(_book.Id))
+                .Returns(new List<Edition> { print, _audiobookEdition, verified });
+            var inserted = GivenLocalDigitalEditionStorage();
+
+            Subject.Import(_approvedDecisions, false).Should().ContainSingle(item => item.Result == ImportResultType.Imported);
+
+            if (exactEvidence)
+            {
+                inserted.Should().BeEmpty();
+                _approvedDecisions[0].Item.Edition.Should().BeSameAs(verified);
+            }
+            else
+            {
+                inserted.Should().ContainSingle();
+                _approvedDecisions[0].Item.Edition.Should().BeSameAs(inserted.Single());
+            }
+        }
+
+        [Test]
+        public void should_capture_separate_verified_ebook_variants_and_hold_an_untagged_file_for_review()
+        {
+            GivenEbookImport();
+            var first = _approvedDecisions.Single();
+            _ebookEdition.Format = "Print";
+            _ebookEdition.IsEbook = false;
+            first.Item.Part = 0;
+            first.Item.FileTrackInfo.Asin = "B00FIRST01";
+            first.Item.FileTrackInfo.AsinConfidence = 0.95;
+            var untagged = AddDigitalFallbackFile(first, "untagged.epub", new ParsedTrackInfo());
+            var second = AddDigitalFallbackFile(first, "second.epub", new ParsedTrackInfo { Asin = "b00second2", AsinConfidence = 0.95 });
+            var inserted = GivenLocalDigitalEditionStorage();
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.ImportDecision == untagged && result.Result == ImportResultType.Rejected);
+            results.Count(result => result.Result == ImportResultType.Imported).Should().Be(2);
+            inserted.Should().HaveCount(2).And.OnlyContain(edition => edition.Asin == null && edition.Isbn13 == null);
+            inserted.Select(edition => edition.ForeignEditionId).Should().OnlyHaveUniqueItems();
+            first.Item.Edition.Id.Should().NotBe(second.Item.Edition.Id);
+        }
+
+        [Test]
+        public void should_hold_competing_complete_ebooks_without_file_identifiers()
+        {
+            GivenEbookImport();
+            _ebookEdition.Format = "Print";
+            AddDigitalFallbackFile(_approvedDecisions.Single(), "other.epub", new ParsedTrackInfo());
+            var inserted = GivenLocalDigitalEditionStorage();
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().HaveCount(2).And.OnlyContain(result => result.Result == ImportResultType.Rejected &&
+                result.Errors.Contains("Competing complete ebook files require verified edition identifiers"));
+            inserted.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_import_untagged_parts_as_part_of_one_identified_audiobook()
+        {
+            GivenAudiobookImport();
+            var first = _approvedDecisions.Single();
+            _audiobookEdition.Format = "Print";
+            first.Item.Part = 0;
+            first.Item.FileTrackInfo.Asin = "B00FIRST01";
+            first.Item.FileTrackInfo.AsinConfidence = 0.95;
+            var second = AddDigitalFallbackFile(first, "Book Title - Part 02.m4b", new ParsedTrackInfo());
+            var inserted = GivenLocalDigitalEditionStorage();
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().HaveCount(2).And.OnlyContain(result => result.Result == ImportResultType.Imported);
+            inserted.Should().ContainSingle();
+            first.Item.Edition.Id.Should().Be(second.Item.Edition.Id);
+            first.Item.Part.Should().Be(1);
+            second.Item.Part.Should().Be(2);
+        }
+
+        [Test]
+        public void should_hold_untagged_files_when_several_complete_editions_match_the_work_and_format()
+        {
+            GivenEbookImport();
+            _ebookEdition.Format = "Print";
+            var candidates = new List<Edition>
+            {
+                new Edition { Id = 72, BookId = _book.Id, Format = "Ebook", IsEbook = true, Asin = "B00FIRST01" },
+                new Edition { Id = 73, BookId = _book.Id, Format = "Ebook", IsEbook = true, Asin = "B00SECOND2" }
+            };
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(_book.Id)).Returns(candidates);
+            var inserted = GivenLocalDigitalEditionStorage();
+
+            Subject.Import(_approvedDecisions, false).Should().ContainSingle(result => result.Result == ImportResultType.Rejected);
+
+            inserted.Should().BeEmpty();
+        }
+
+        private ImportDecision<LocalBook> AddDigitalFallbackFile(ImportDecision<LocalBook> template, string fileName, ParsedTrackInfo tags)
+        {
+            var decision = new ImportDecision<LocalBook>(new LocalBook
+            {
+                Author = template.Item.Author,
+                Book = template.Item.Book,
+                Edition = template.Item.Edition,
+                Part = template.Item.Part,
+                Path = Path.Combine(_author.Path, fileName),
+                Quality = template.Item.Quality,
+                FileTrackInfo = tags
+            });
+            _approvedDecisions.Add(decision);
+            return decision;
+        }
+
+        private List<Edition> GivenLocalDigitalEditionStorage()
+        {
+            var inserted = new List<Edition>();
+            var editions = Mocker.GetMock<IEditionService>();
+            editions.Setup(service => service.InsertMany(It.IsAny<List<Edition>>())).Callback<List<Edition>>(items =>
+            {
+                foreach (var edition in items)
+                {
+                    edition.Id = 100 + inserted.Count;
+                    inserted.Add(edition);
+                }
+            });
+            editions.Setup(service => service.GetEditionByForeignEditionId(It.IsAny<string>()))
+                .Returns((string identity) => inserted.SingleOrDefault(edition => edition.ForeignEditionId == identity));
+            return inserted;
         }
 
         [TestCase(true, 0, true, ImportResultType.Imported)]

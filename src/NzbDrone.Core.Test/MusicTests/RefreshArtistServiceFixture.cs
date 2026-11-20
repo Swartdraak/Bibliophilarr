@@ -127,6 +127,7 @@ namespace NzbDrone.Core.Test.MusicTests
         {
             _book1.Title = "Example Work";
             _book1.ReleaseDate = new DateTime(2022, 1, 25);
+            _book1.OpenLibraryWorkId = "OL4242W";
             _book1.AuthorMetadataId = _author.AuthorMetadataId;
             var ebook = new Edition { ForeignEditionId = "hardcover:edition:123", Format = "Ebook" };
             var audiobook = new Edition { ForeignEditionId = "hardcover:edition:456", Format = "Audiobook" };
@@ -135,6 +136,7 @@ namespace NzbDrone.Core.Test.MusicTests
             {
                 ForeignBookId = "hardcover:work:45",
                 Title = _book1.Title,
+                OpenLibraryWorkId = "OL4242W",
                 ReleaseDate = _book1.ReleaseDate,
                 Editions = new List<Edition> { ebook }
             });
@@ -142,6 +144,7 @@ namespace NzbDrone.Core.Test.MusicTests
             {
                 ForeignBookId = "hardcover:work:54",
                 Title = _book1.Title,
+                OpenLibraryWorkId = "OL4242W",
                 ReleaseDate = _book1.ReleaseDate,
                 Editions = new List<Edition> { audiobook }
             });
@@ -205,15 +208,14 @@ namespace NzbDrone.Core.Test.MusicTests
             Subject.Execute(new RefreshAuthorCommand(_author.Id));
 
             Mocker.GetMock<IRefreshBookService>().Verify(s => s.RefreshBookInfo(
-                It.Is<List<Book>>(books => books.Count == 2 && books.Contains(_book1) && books.Contains(_book2)),
-                It.Is<List<Book>>(books => books.Count == 2 && books.Exists(x => x.ForeignBookId == _book1.ForeignBookId) &&
-                    books.Exists(x => x.ForeignBookId == _book2.ForeignBookId)),
+                It.Is<List<Book>>(books => books.Count == 3 && books.Contains(_book1) && books.Contains(_book2)),
+                It.Is<List<Book>>(books => books.Count == 3 && books.Exists(x => x.ForeignBookId == _book1.ForeignBookId) &&
+                    books.Exists(x => x.ForeignBookId == _book2.ForeignBookId) && books.Exists(x => x.ForeignBookId == "hardcover:work:300")),
                 It.IsAny<Author>(),
                 It.IsAny<bool>(),
                 It.IsAny<bool>(),
                 It.IsAny<DateTime?>()), Times.Once());
             Mocker.GetMock<IBookService>().Verify(s => s.DeleteBook(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
-            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -667,6 +669,34 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_preserve_the_canonical_author_when_an_alternate_source_is_verified()
+        {
+            _author.ForeignAuthorId = "hardcover:author:42";
+            _author.Metadata.Value.CanonicalId = Guid.NewGuid().ToString("N");
+            _author.AuthorMetadataId = _author.Metadata.Value.Id;
+            var incumbentKey = _author.Metadata.Value.CanonicalId;
+            var alternate = _author.JsonClone();
+            alternate.Metadata = _author.Metadata.Value.JsonClone();
+            alternate.ForeignAuthorId = "openlibrary:author:OL42A";
+            alternate.Metadata.Value.Id = 99;
+            alternate.Metadata.Value.Overview = "A verified biography";
+            alternate.Books = _remoteBooks;
+            GivenNewAuthorInfo(alternate);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+            Mocker.GetMock<ICatalogueIdentityRepository>()
+                .Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL42A"))
+                .Returns(_author.AuthorMetadataId);
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Assert.That(_author.Metadata.Value.CanonicalId, Is.EqualTo(incumbentKey));
+            Assert.That(_author.ForeignAuthorId, Is.EqualTo("hardcover:author:42"));
+            Assert.That(_author.Metadata.Value.PendingSourceAssociations, Has.Exactly(1).Matches<CatalogueSourceAssociation>(source => source.ProviderId == "OL42A"));
+            Assert.That(_author.Metadata.Value.Overview, Is.EqualTo("A verified biography"));
         }
 
         [Test]

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Parser;
 
 namespace NzbDrone.Core.Books
 {
@@ -47,16 +48,20 @@ namespace NzbDrone.Core.Books
             return local.ForeignSeriesId != remote.ForeignSeriesId;
         }
 
+        protected override bool ShouldDelete(Series local)
+        {
+            return false;
+        }
+
         protected override UpdateResult UpdateEntity(Series local, Series remote)
         {
-            if (local.Equals(remote))
+            var changed = !local.Equals(remote);
+            if (changed || remote.PendingAliases.Count > 0 || remote.PendingSourceAssociations.Count > 0)
             {
-                return UpdateResult.None;
+                local.UseMetadataFrom(remote);
             }
 
-            local.UseMetadataFrom(remote);
-
-            return UpdateResult.UpdateTags;
+            return changed ? UpdateResult.UpdateTags : UpdateResult.None;
         }
 
         protected override Series GetEntityByForeignId(Series local)
@@ -159,7 +164,8 @@ namespace NzbDrone.Core.Books
                 s.LinkItems = matchedLinks;
             }
 
-            remoteSeries = remoteData.Series.Value;
+            remoteSeries = ReconcileSeriesSources(remoteData.Series.Value, existing, books.Select(book => book.Id).ToHashSet());
+            remoteData.Series = remoteSeries;
 
             var toAdd = remoteSeries.ExceptBy(x => x.ForeignSeriesId, existing, x => x.ForeignSeriesId, StringComparer.Ordinal).ToList();
             var all = toAdd.Union(existing).ToList();
@@ -173,6 +179,97 @@ namespace NzbDrone.Core.Books
             }
 
             return updated;
+        }
+
+        private List<Series> ReconcileSeriesSources(List<Series> incoming, List<Series> existing, HashSet<int> authorBookIds)
+        {
+            var reconciled = new Dictionary<string, Series>(StringComparer.Ordinal);
+            var incomingIds = incoming.Select(series => series.ForeignSeriesId).ToHashSet(StringComparer.Ordinal);
+            var existingIds = existing.Select(series => series.ForeignSeriesId).ToHashSet(StringComparer.Ordinal);
+            foreach (var candidate in incoming.OrderByDescending(series => existingIds.Contains(series.ForeignSeriesId)))
+            {
+                var alias = candidate.ForeignSeriesId;
+                if (!existingIds.Contains(alias))
+                {
+                    var canonical = _seriesService.FindById(alias);
+                    if (canonical == null)
+                    {
+                        var equivalent = existing.Where(series => !incomingIds.Contains(series.ForeignSeriesId) &&
+                                                                  SeriesIdentityMatches(series, candidate)).Take(2).ToList();
+                        if (equivalent.Count == 1)
+                        {
+                            canonical = equivalent[0];
+                        }
+                    }
+
+                    if (canonical != null)
+                    {
+                        if (reconciled.ContainsKey(canonical.ForeignSeriesId))
+                        {
+                            continue;
+                        }
+
+                        if (existingIds.Add(canonical.ForeignSeriesId))
+                        {
+                            existing.Add(canonical);
+                        }
+
+                        ReuseCatalogueSeries(candidate, canonical, authorBookIds);
+                    }
+                }
+
+                reconciled.TryAdd(candidate.ForeignSeriesId, candidate);
+            }
+
+            return reconciled.Values.ToList();
+        }
+
+        private static void ReuseCatalogueSeries(Series candidate, Series canonical, HashSet<int> authorBookIds)
+        {
+            var alias = candidate.ForeignSeriesId;
+            if (alias != canonical.ForeignSeriesId)
+            {
+                candidate.PendingAliases.Add(alias);
+                var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Series, alias, "corroborated-series-membership");
+                if (source != null)
+                {
+                    candidate.PendingSourceAssociations.Add(source);
+                }
+            }
+
+            candidate.UseDbFieldsFrom(canonical);
+            candidate.ForeignSeriesId = canonical.ForeignSeriesId;
+            var retainedLinks = canonical.LinkItems.Value.Where(link => authorBookIds.Contains(link.BookId)).ToList();
+            candidate.LinkItems = retainedLinks.Concat(candidate.LinkItems.Value)
+                .GroupBy(link => link.Book.Value.Id)
+                .Select(group => group.FirstOrDefault(link => link.Position.IsNotNullOrWhiteSpace()) ?? group.First())
+                .ToList();
+        }
+
+        internal static bool SeriesIdentityMatches(Series existing, Series incoming)
+        {
+            var existingProvider = existing.ForeignSeriesId?.Split(':', 2)[0];
+            var incomingProvider = incoming.ForeignSeriesId?.Split(':', 2)[0];
+            var title = existing.Title.CleanAuthorName();
+            if (existingProvider.IsNullOrWhiteSpace() || incomingProvider.IsNullOrWhiteSpace() ||
+                existingProvider.Equals(incomingProvider, StringComparison.OrdinalIgnoreCase) ||
+                title.Length == 0 || title != incoming.Title.CleanAuthorName())
+            {
+                return false;
+            }
+
+            var existingLinks = existing.LinkItems?.Value ?? new List<SeriesBookLink>();
+            var incomingLinks = incoming.LinkItems?.Value ?? new List<SeriesBookLink>();
+            var comparisons = existingLinks.Where(link => link.IsPrimary && link.BookId > 0)
+                .Join(incomingLinks.Where(link => link.IsPrimary && link.Book?.Value?.Id > 0),
+                    link => link.BookId,
+                    link => link.Book.Value.Id,
+                    (left, right) => (Id: left.BookId, Left: left.Position, Right: right.Position))
+                .Where(match => match.Left.IsNotNullOrWhiteSpace() && match.Right.IsNotNullOrWhiteSpace())
+                .ToList();
+
+            return comparisons.Select(match => match.Id).Distinct().Count() >= 2 &&
+                   comparisons.All(match => match.Left == match.Right);
         }
     }
 }

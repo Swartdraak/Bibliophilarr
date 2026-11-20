@@ -84,6 +84,7 @@ class BlocklistRow extends Component {
               return (
                 <TableRowCell key={name}>
                   <AuthorNameLink
+                    canonicalId={author.canonicalId}
                     titleSlug={author.titleSlug}
                     authorName={author.authorName}
                   />

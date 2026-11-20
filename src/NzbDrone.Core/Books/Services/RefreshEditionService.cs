@@ -79,7 +79,7 @@ namespace NzbDrone.Core.Books
         internal static bool HasLinkedFileFormatConflict(Edition edition, Edition remoteEdition, IMediaFileService mediaFileService)
         {
             return (edition.Format != remoteEdition.Format || edition.IsEbook != remoteEdition.IsEbook) &&
-                   mediaFileService.GetFilesByEdition(edition.Id).Any(file => !ImportFormat.IsCompatible(file.Path, remoteEdition));
+                   mediaFileService.GetFilesByEdition(edition.Id).Any(file => !ImportFormat.CanLink(file.Path, remoteEdition));
         }
     }
 }

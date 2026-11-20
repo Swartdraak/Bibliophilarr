@@ -55,8 +55,14 @@ namespace NzbDrone.Core.Books
                 return leftWorkId == rightWorkId ? 4 : 0;
             }
 
+            if (HasHardcoverWorkMapping(left, right) || HasHardcoverWorkMapping(right, left))
+            {
+                return 4;
+            }
+
             var title = left.Title.CleanAuthorName();
-            if (title.Length == 0 || title != right.Title.CleanAuthorName())
+            if (title.Length == 0 || (title != right.Title.CleanAuthorName() &&
+                !HasNumberedSeriesSubtitle(left, right) && !HasNumberedSeriesSubtitle(right, left)))
             {
                 return 0;
             }
@@ -82,15 +88,26 @@ namespace NzbDrone.Core.Books
                 return sharedSeries.All(matches => matches) ? 2 : 0;
             }
 
-            // January 1 is frequently a provider's placeholder for year-only data.
-            // A title match plus a placeholder date is not work identity.
-            var date = left.ReleaseDate?.Date;
-            return date.HasValue && (date.Value.Month != 1 || date.Value.Day != 1) && date == right.ReleaseDate?.Date ? 1 : 0;
+            // Matching titles and dates alone cannot establish work identity.
+            return 0;
         }
 
         public static string GetOpenLibraryWorkId(Book book)
         {
             return NormalizeWorkId(book.OpenLibraryWorkId) ?? NormalizeWorkId(book.ForeignBookId);
+        }
+
+        private static bool HasHardcoverWorkMapping(Book owner, Book alias)
+        {
+            if (owner.PendingSourceAssociations.Count == 0)
+            {
+                return false;
+            }
+
+            var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, alias.ForeignBookId, null);
+            return source?.Provider == "Hardcover" && owner.PendingSourceAssociations.Any(claim =>
+                claim.Provider == source.Provider && claim.ProviderId == source.ProviderId &&
+                claim.Evidence == CatalogueIdentityRepository.HardcoverWorkMappingEvidence);
         }
 
         private static string NormalizeWorkId(string value)
@@ -105,11 +122,54 @@ namespace NzbDrone.Core.Books
             return identifiers.Intersect(right.Select(select), StringComparer.OrdinalIgnoreCase).Any();
         }
 
-        private static IEnumerable<(string SeriesId, string Position)> GetNumberedSeries(Book book)
+        private static bool HasNumberedSeriesSubtitle(Book subtitleWork, Book plainWork)
+        {
+            var parts = subtitleWork.Title?.Split(':', 2);
+            if (parts?.Length != 2 || parts[0].CleanAuthorName() != plainWork.Title.CleanAuthorName())
+            {
+                return false;
+            }
+
+            var suffix = parts[1].Trim();
+            const string bookMarker = " Book ";
+            const string volumeMarker = " Volume ";
+            var marker = suffix.Contains(bookMarker, StringComparison.OrdinalIgnoreCase) ? bookMarker : volumeMarker;
+            var markerAt = suffix.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerAt < 0)
+            {
+                return false;
+            }
+
+            var seriesName = NormalizeSeriesName(suffix[..markerAt]);
+            var numberStart = markerAt + marker.Length;
+            var position = suffix[numberStart..].Trim();
+            return seriesName.Length > 0 && GetNumberedSeries(subtitleWork).Any(left =>
+                left.Position == position && seriesName == NormalizeSeriesName(left.SeriesTitle) &&
+                GetNumberedSeries(plainWork).Any(right => left.SeriesId == right.SeriesId && left.Position == right.Position));
+        }
+
+        private static string NormalizeSeriesName(string value)
+        {
+            var title = value?.Trim(' ', ',', '-') ?? string.Empty;
+            if (title.StartsWith("The ", StringComparison.OrdinalIgnoreCase))
+            {
+                title = title[4..];
+            }
+
+            if (title.EndsWith(" Series", StringComparison.OrdinalIgnoreCase))
+            {
+                title = title[..^7];
+            }
+
+            return title.CleanAuthorName();
+        }
+
+        private static IEnumerable<(string SeriesId, string Position, string SeriesTitle)> GetNumberedSeries(Book book)
         {
             return (book.SeriesLinks?.Value ?? new List<SeriesBookLink>())
                 .Where(link => link.IsPrimary && !string.IsNullOrWhiteSpace(link.Position))
-                .Select(link => (SeriesId: link.Series?.Value?.ForeignSeriesId, Position: link.Position))
+                .Select(link => (Series: link.Series?.Value, link.Position))
+                .Select(link => (SeriesId: link.Series?.ForeignSeriesId, link.Position, SeriesTitle: link.Series?.Title))
                 .Where(link => !string.IsNullOrWhiteSpace(link.SeriesId));
         }
     }

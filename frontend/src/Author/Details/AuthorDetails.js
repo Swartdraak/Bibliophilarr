@@ -23,6 +23,7 @@ import InteractiveSearchFilterMenuConnector from 'InteractiveSearch/InteractiveS
 import InteractiveSearchTable from 'InteractiveSearch/InteractiveSearchTable';
 import OrganizePreviewModalConnector from 'Organize/OrganizePreviewModalConnector';
 import RetagPreviewModalConnector from 'Retag/RetagPreviewModalConnector';
+import cataloguePath from 'Utilities/cataloguePath';
 import translate from 'Utilities/String/translate';
 import getSelectedIds from 'Utilities/Table/getSelectedIds';
 import selectAll from 'Utilities/Table/selectAll';
@@ -378,9 +379,9 @@ class AuthorDetails extends Component {
         <PageContentBody innerClassName={styles.innerContentBody}>
           <SwipeHeaderConnector
             className={styles.header}
-            nextLink={`/author/${nextAuthor.titleSlug}`}
+            nextLink={cataloguePath('author', nextAuthor)}
             nextComponent={(width) => <AuthorDetailsHeaderConnector authorId={nextAuthor.id} width={width} />}
-            prevLink={`/author/${previousAuthor.titleSlug}`}
+            prevLink={cataloguePath('author', previousAuthor)}
             prevComponent={(width) => <AuthorDetailsHeaderConnector authorId={previousAuthor.id} width={width} />}
             currentComponent={(width) => <AuthorDetailsHeaderConnector authorId={id} width={width} />}
           >
@@ -390,7 +391,7 @@ class AuthorDetails extends Component {
                 name={icons.ARROW_LEFT}
                 size={30}
                 title={translate('GoToInterp', [previousAuthor.authorName])}
-                to={`/author/${previousAuthor.titleSlug}`}
+                to={cataloguePath('author', previousAuthor)}
               />
 
               <IconButton
@@ -406,7 +407,7 @@ class AuthorDetails extends Component {
                 name={icons.ARROW_RIGHT}
                 size={30}
                 title={translate('GoToInterp', [nextAuthor.authorName])}
-                to={`/author/${nextAuthor.titleSlug}`}
+                to={cataloguePath('author', nextAuthor)}
               />
             </div>
           </SwipeHeaderConnector>

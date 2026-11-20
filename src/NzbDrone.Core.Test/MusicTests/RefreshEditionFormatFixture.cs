@@ -14,6 +14,8 @@ namespace NzbDrone.Core.Test.MusicTests
     {
         [TestCase("book.epub", "Ebook", true, "Audiobook", false)]
         [TestCase("book.m4b", "Audiobook", false, "Ebook", true)]
+        [TestCase("book.epub", "Ebook", true, "Print", false)]
+        [TestCase("book.m4b", "Audiobook", false, "Print", false)]
         public void should_preserve_linked_edition_metadata_when_provider_format_conflicts(
             string filePath, string localFormat, bool localIsEbook, string remoteFormat, bool remoteIsEbook)
         {

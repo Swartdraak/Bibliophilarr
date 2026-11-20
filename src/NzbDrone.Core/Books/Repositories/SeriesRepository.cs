@@ -22,7 +22,16 @@ namespace NzbDrone.Core.Books
 
         public Series FindById(string foreignSeriesId)
         {
-            return Query(x => x.ForeignSeriesId == foreignSeriesId).SingleOrDefault();
+            var direct = Query(x => x.ForeignSeriesId == foreignSeriesId).SingleOrDefault();
+            if (direct != null)
+            {
+                return direct;
+            }
+
+            const CatalogueEntityKind kind = CatalogueEntityKind.Series;
+            var owner = CatalogueIdentityRepository.FindByRoute(_database, kind, foreignSeriesId) ??
+                        CatalogueIdentityRepository.FindByLegacyProviderId(_database, kind, foreignSeriesId);
+            return owner.HasValue ? Find(owner.Value) : null;
         }
 
         public List<Series> FindById(List<string> foreignSeriesId)

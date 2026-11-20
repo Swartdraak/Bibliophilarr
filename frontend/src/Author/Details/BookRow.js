@@ -72,6 +72,7 @@ class BookRow extends Component {
       formatStatuses,
       isSaving,
       authorMonitored,
+      canonicalId,
       titleSlug,
       bookFiles,
       indexerFlags,
@@ -132,6 +133,7 @@ class BookRow extends Component {
                   className={styles.title}
                 >
                   <BookTitleLink
+                    canonicalId={canonicalId}
                     titleSlug={titleSlug}
                     title={title}
                   />
@@ -311,6 +313,7 @@ BookRow.propTypes = {
   ratings: PropTypes.object.isRequired,
   formatStatuses: PropTypes.arrayOf(PropTypes.object),
   indexerFlags: PropTypes.number.isRequired,
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   isSaving: PropTypes.bool,
   authorMonitored: PropTypes.bool.isRequired,

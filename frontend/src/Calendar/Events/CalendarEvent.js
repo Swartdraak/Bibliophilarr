@@ -6,6 +6,7 @@ import getStatusStyle from 'Calendar/getStatusStyle';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import { icons } from 'Helpers/Props';
+import cataloguePath from 'Utilities/cataloguePath';
 import translate from 'Utilities/String/translate';
 import CalendarEventQueueDetails from './CalendarEventQueueDetails';
 import styles from './CalendarEvent.css';
@@ -46,6 +47,7 @@ class CalendarEvent extends Component {
       id,
       author,
       title,
+      canonicalId,
       titleSlug,
       releaseDate,
       monitored,
@@ -79,7 +81,7 @@ class CalendarEvent extends Component {
         >
           <div className={styles.info}>
             <div className={styles.authorName}>
-              <Link to={`/author/${author.titleSlug}`}>
+              <Link to={cataloguePath('author', author)}>
                 {author.authorName}
               </Link>
             </div>
@@ -105,7 +107,7 @@ class CalendarEvent extends Component {
 
           <div className={styles.bookInfo}>
             <div className={styles.bookTitle}>
-              <Link to={`/book/${titleSlug}`}>
+              <Link to={cataloguePath('book', { canonicalId, titleSlug })}>
                 {title}
               </Link>
             </div>
@@ -120,6 +122,7 @@ CalendarEvent.propTypes = {
   id: PropTypes.number.isRequired,
   author: PropTypes.object.isRequired,
   title: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   statistics: PropTypes.object.isRequired,
   releaseDate: PropTypes.string.isRequired,

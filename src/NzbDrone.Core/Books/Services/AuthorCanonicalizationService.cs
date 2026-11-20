@@ -84,6 +84,10 @@ namespace NzbDrone.Core.Books
                     best = candidate;
                     bestReason = scoreReason;
                 }
+                else if (score == bestScore)
+                {
+                    best = null;
+                }
             }
 
             if (best != null && bestScore >= minConfidence)
@@ -122,7 +126,7 @@ namespace NzbDrone.Core.Books
                     summary.CandidatesConsidered++;
 
                     var score = ComputeConfidence(primary.Metadata.Value, duplicate.Metadata.Value, out var reason);
-                    if (score < minConfidence)
+                    if (score <= 0 || score < minConfidence)
                     {
                         summary.MergesSkipped++;
                         continue;
@@ -230,79 +234,36 @@ namespace NzbDrone.Core.Books
                 return 0;
             }
 
-            if (incoming.ForeignAuthorId.IsNotNullOrWhiteSpace() &&
-                existing.ForeignAuthorId.IsNotNullOrWhiteSpace() &&
-                incoming.ForeignAuthorId.Equals(existing.ForeignAuthorId, StringComparison.OrdinalIgnoreCase))
+            const CatalogueEntityKind kind = CatalogueEntityKind.Author;
+            var incomingSource = CatalogueIdentityRepository.ParseLegacySource(kind, incoming.ForeignAuthorId, null);
+            var existingSource = CatalogueIdentityRepository.ParseLegacySource(kind, existing.ForeignAuthorId, null);
+            if (incomingSource != null && incomingSource.Provider == existingSource?.Provider)
             {
-                reason = "foreign-author-id";
-                return 1.0;
-            }
+                if (incomingSource.ProviderId == existingSource.ProviderId)
+                {
+                    reason = "provider-author-id";
+                    return 1.0;
+                }
 
-            var incomingName = NormalizeName(incoming.Name);
-            var existingName = NormalizeName(existing.Name);
-
-            if (incomingName.IsNullOrWhiteSpace() || existingName.IsNullOrWhiteSpace())
-            {
                 return 0;
             }
 
-            var score = 0d;
-
-            if (incomingName == existingName)
+            var incomingLink = GetOpenLibraryIdentity(incoming, incomingSource);
+            var existingLink = GetOpenLibraryIdentity(existing, existingSource);
+            if (incomingLink != null && incomingLink == existingLink && NormalizeName(incoming.Name) == NormalizeName(existing.Name))
             {
-                score += 0.72;
-                reason = "normalized-name-equal";
+                reason = "shared-openlibrary-author-id";
+                return 1.0;
             }
 
-            var fuzzy = incomingName.FuzzyMatch(existingName);
-            if (fuzzy >= 0.98)
-            {
-                score += 0.20;
-                reason += "+fuzzy-0.98";
-            }
-            else if (fuzzy >= 0.94)
-            {
-                score += 0.12;
-                reason += "+fuzzy-0.94";
-            }
-
-            var incomingAliases = NormalizeAliasSet(incoming);
-            var existingAliases = NormalizeAliasSet(existing);
-
-            if (incomingAliases.Overlaps(existingAliases))
-            {
-                score += 0.12;
-                reason += "+alias-overlap";
-            }
-
-            if (incoming.Disambiguation.IsNotNullOrWhiteSpace() &&
-                existing.Disambiguation.IsNotNullOrWhiteSpace() &&
-                incoming.Disambiguation.Equals(existing.Disambiguation, StringComparison.OrdinalIgnoreCase))
-            {
-                score += 0.06;
-                reason += "+disambiguation";
-            }
-
-            return Math.Min(1.0, score);
+            return 0;
         }
 
-        private static HashSet<string> NormalizeAliasSet(AuthorMetadata metadata)
+        private static string GetOpenLibraryIdentity(AuthorMetadata metadata, CatalogueSourceAssociation source)
         {
-            var aliases = new HashSet<string>(StringComparer.Ordinal);
-
-            if (metadata == null)
-            {
-                return aliases;
-            }
-
-            aliases.Add(NormalizeName(metadata.Name));
-
-            foreach (var alias in metadata.Aliases ?? new List<string>())
-            {
-                aliases.Add(NormalizeName(alias));
-            }
-
-            return new HashSet<string>(aliases.Where(a => a.IsNotNullOrWhiteSpace()), StringComparer.Ordinal);
+            return source?.Provider == "OpenLibrary"
+                ? source.ProviderId
+                : CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", metadata.OpenLibraryAuthorId, null)?.ProviderId;
         }
 
         private static string NormalizeName(string value)
