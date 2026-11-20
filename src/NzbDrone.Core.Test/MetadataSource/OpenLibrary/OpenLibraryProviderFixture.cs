@@ -280,6 +280,32 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             _clientMock.Verify(c => c.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()), Times.Once);
         }
 
+        [TestCase("/authors/OL26320A", "/type/author_role", false, "OL26320A")]
+        [TestCase("/authors/OL999A", "/type/author_role", false, null)]
+        [TestCase("/authors/OL26320A", "/type/editor_role", false, null)]
+        [TestCase("/authors/OL26320A", "/type/author_role", true, null)]
+        public void get_author_info_should_verify_only_an_exclusive_author_credit(
+            string creditedPath, string role, bool multipleCredits, string expectedCredit)
+        {
+            var work = BuildWork();
+            work.Authors[0].Author.Key = creditedPath;
+            work.Authors[0].Type.Key = role;
+            if (multipleCredits)
+            {
+                work.Authors.Add(new OlWorkAuthorEntry { Author = new OlKeyRef { Key = "/authors/OL99A" } });
+            }
+
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 0))
+                .Returns(new OlAuthorWorksResponse { Size = 1, Entries = new List<OlWorkResource> { work } });
+            _clientMock.Setup(client => client.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()))
+                .Returns(new OlSearchResponse { Docs = new List<OlSearchDoc>() });
+
+            var book = Subject.GetAuthorInfo("openlibrary:author:OL26320A").Books.Value.Should().ContainSingle().Which;
+
+            book.VerifiedOpenLibraryAuthorId.Should().Be(expectedCredit);
+        }
+
         [Test]
         public void get_author_info_should_page_author_bibliography_results()
         {

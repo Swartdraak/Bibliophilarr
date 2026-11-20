@@ -392,6 +392,20 @@ namespace NzbDrone.Core.Books
             return _editionService.GetEditionsForRefresh(entity.Id, remoteChildren.Select(x => x.ForeignEditionId).ToList());
         }
 
+        protected override List<Edition> ReconcileRemoteChildren(Book local, List<Edition> candidates, List<Edition> localEditions)
+        {
+            if (local.VerifiedOpenLibraryAuthorId == null ||
+                CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, local.AuthorMetadata?.Value?.ForeignAuthorId, null)?.Provider != "Hardcover")
+            {
+                return candidates;
+            }
+
+            var foreignIds = localEditions.Where(edition => edition.BookId != local.Id)
+                .Select(edition => edition.ForeignEditionId).ToHashSet(StringComparer.Ordinal);
+            localEditions.RemoveAll(edition => edition.BookId != local.Id);
+            return candidates.Where(edition => !foreignIds.Contains(edition.ForeignEditionId)).ToList();
+        }
+
         protected override Tuple<Edition, List<Edition>> GetMatchingExistingChildren(List<Edition> existingChildren, Edition remote)
         {
             var existingChild = existingChildren.SingleOrDefault(x => x.ForeignEditionId == remote.ForeignEditionId);

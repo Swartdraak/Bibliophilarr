@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Add distinct works from a verified Open Library bibliography for Hardcover
+  authors. Keep existing work ownership and hold conflicting works and editions.
 - Fill missing author biographies and portraits from a verified Open Library
   author profile without changing the primary identity or bibliography.
 - Library scans try the next enabled provider when an author-and-title search

@@ -287,6 +287,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             // Contract: works feed is the identity source; search docs are enrichment.
             ApplyWorksIdentityContract(book, workBook);
             EnrichBookFromWork(book, workBook);
+            if (HasExclusiveAuthorCredit(work, metadata.OpenLibraryAuthorId))
+            {
+                book.VerifiedOpenLibraryAuthorId = metadata.OpenLibraryAuthorId;
+            }
 
             book.AuthorMetadata = metadata;
             if (book.Author?.Value != null)
@@ -630,14 +634,18 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             var source = _client.GetWork(work);
-            var credit = source?.Authors?.Count == 1 ? source.Authors[0] : null;
-            var creditPath = credit?.Author?.Key;
             return GetIsbnLookupWorkId(source?.Key) == work &&
-                   credit?.Type?.Key == "/type/author_role" &&
-                   creditPath?.StartsWith("/authors/", StringComparison.Ordinal) == true &&
-                   creditPath[9..] == author.ProviderId
+                   HasExclusiveAuthorCredit(source, author.ProviderId)
                 ? source.Title
                 : null;
+        }
+
+        private static bool HasExclusiveAuthorCredit(OlWorkResource work, string authorId)
+        {
+            var credit = work?.Authors?.Count == 1 ? work.Authors[0] : null;
+            return authorId.IsNotNullOrWhiteSpace() &&
+                   credit?.Type?.Key == "/type/author_role" &&
+                   credit.Author?.Key == $"/authors/{authorId}";
         }
 
         public List<Book> SearchByIsbn(string isbn)

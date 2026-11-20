@@ -738,6 +738,75 @@ namespace NzbDrone.Core.Test.MusicTests
             Assert.That(_author.Metadata.Value.Overview, Is.EqualTo("A verified biography"));
         }
 
+        [TestCase("OL42A", "OL42A", true, false, false, true)]
+        [TestCase("OL42A", "OL42A", false, false, false, false)]
+        [TestCase("OL84A", "OL42A", true, false, false, false)]
+        [TestCase("OL42A", null, true, false, false, false)]
+        [TestCase("OL42A", "OL42A", true, true, false, false)]
+        [TestCase("OL42A", "OL42A", true, false, true, false)]
+        public void should_add_only_an_unclaimed_work_from_a_verified_alternate_bibliography(
+            string returnedAuthor, string creditedAuthor, bool ownsSource, bool existingWork, bool existingEdition, bool shouldAdd)
+        {
+            _author.ForeignAuthorId = "hardcover:author:42";
+            var metadata = _author.Metadata.Value;
+            metadata.Overview = "Primary profile";
+            metadata.OpenLibraryAuthorId = null;
+            metadata.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, "https://example.net/portrait.jpg") };
+            _author.AuthorMetadataId = metadata.Id;
+
+            var primary = _author.JsonClone();
+            primary.Metadata = metadata.JsonClone();
+            primary.Books = _remoteBooks;
+            GivenNewAuthorInfo(primary);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            const string alternateWorkId = "openlibrary:work:OL100W";
+            const string alternateEditionId = "openlibrary:edition:OL101M";
+            var alternate = new Author
+            {
+                Metadata = new AuthorMetadata { ForeignAuthorId = $"openlibrary:author:{returnedAuthor}", OpenLibraryAuthorId = returnedAuthor },
+                Books = new List<Book>
+                {
+                    new Book
+                    {
+                        ForeignBookId = alternateWorkId,
+                        Title = "A distinct work",
+                        VerifiedOpenLibraryAuthorId = creditedAuthor,
+                        Editions = new List<Edition> { new Edition { ForeignEditionId = alternateEditionId } }
+                    }
+                },
+                Series = new List<Series>()
+            };
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, metadata.Id))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL42A", Evidence = AuthorCanonicalizationService.BibliographyEvidence } });
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL42A"))
+                .Returns(ownsSource ? metadata.Id : metadata.Id + 1);
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()))
+                .Returns(alternate);
+            Mocker.GetMock<IMetadataProfileService>()
+                .Setup(service => service.FilterBooks(alternate, _author.MetadataProfileId))
+                .Returns(alternate.Books.Value);
+            var service = Mocker.GetMock<IBookService>();
+            service.Setup(books => books.GetBooksByAuthorMetadataId(metadata.Id)).Returns(_books);
+            service.Setup(books => books.FindById(alternateWorkId))
+                .Returns(existingWork ? new Book { ForeignBookId = alternateWorkId, AuthorMetadataId = metadata.Id + 1 } : null);
+            Mocker.GetMock<IEditionService>()
+                .Setup(editions => editions.GetEditionsForRefresh(0, It.Is<List<string>>(ids => ids.Contains(alternateEditionId))))
+                .Returns(existingEdition ? new List<Edition> { new Edition { ForeignEditionId = alternateEditionId, BookId = 15 } } : new List<Edition>());
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()), ownsSource ? Times.Once() : Times.Never());
+            service.Verify(books => books.InsertBibliographyWorks(It.Is<List<Book>>(items =>
+                items.Exists(book => book.ForeignBookId == alternateWorkId && book.AuthorMetadataId == metadata.Id))),
+                shouldAdd ? Times.Once() : Times.Never());
+            Assert.That(_author.ForeignAuthorId, Is.EqualTo("hardcover:author:42"));
+        }
+
         [TestCase(AuthorCanonicalizationService.BibliographyEvidence, null, "OL42A", true, true, true)]
         [TestCase(AuthorCanonicalizationService.BibliographyEvidence, "OL84A", "OL42A", false, false, true)]
         [TestCase(AuthorCanonicalizationService.BibliographyEvidence, null, "OL84A", true, false, true)]
@@ -807,7 +876,8 @@ namespace NzbDrone.Core.Test.MusicTests
             }
 
             orchestrator.Verify(provider => provider.GetAuthorProfileMetadata("OpenLibrary", "OL42A"), readsProfile ? Times.Once() : Times.Never());
-            orchestrator.Verify(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()), Times.Never());
+            orchestrator.Verify(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()),
+                readsProfile && stillOwnsSource ? Times.Once() : Times.Never());
         }
 
         [Test]

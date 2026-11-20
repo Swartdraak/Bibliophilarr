@@ -33,6 +33,9 @@ namespace NzbDrone.Core.Books
         [MemberwiseEqualityIgnore]
         internal int? CreditedHardcoverAuthorId { get; set; }
 
+        [MemberwiseEqualityIgnore]
+        internal string VerifiedOpenLibraryAuthorId { get; set; }
+
         CatalogueEntityKind ICatalogueIdentityModel.CatalogueKind => CatalogueEntityKind.Work;
         string ICatalogueIdentityModel.LegacyForeignId => ForeignBookId;
         string ICatalogueIdentityModel.LegacyTitleSlug => TitleSlug;
