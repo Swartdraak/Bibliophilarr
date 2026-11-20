@@ -171,6 +171,7 @@ def check_routes(page, base, api, evidence):
     expect(main.get_by_text("Root Folders", exact=True)).to_be_visible()
     page.goto(base + "/settings/general", wait_until="domcontentloaded")
     expect(main.get_by_text("Authentication", exact=True).first).to_be_visible()
+    expect(main.get_by_role("button", name="Forms (Login Page)", exact=True)).to_be_visible()
     page.get_by_text("Show Advanced", exact=True).click()
     name = main.locator('input[name="instanceName"]')
     original = name.input_value()
@@ -189,6 +190,24 @@ def check_routes(page, base, api, evidence):
         path=str(evidence / "desktop-general-settings.png"),
         mask=[main.locator('input[name="apiKey"]')],
     )
+    host_config_route = re.compile(r"/api/v1/config/host(?:/1)?(?:\?.*)?$")
+
+    def fail_host_settings(route):
+        if route.request.method == "GET":
+            route.fulfill(status=503, json={"message": "Fixture service unavailable"})
+        else:
+            route.fallback()
+
+    page.route(host_config_route, fail_host_settings)
+    try:
+        page.reload(wait_until="domcontentloaded")
+        expect(main.get_by_text("Unable to load General settings", exact=True)).to_be_visible()
+    finally:
+        page.unroute(host_config_route, fail_host_settings)
+    page.reload(wait_until="domcontentloaded")
+    expect(main.get_by_role("button", name="Forms (Login Page)", exact=True)).to_be_visible()
+    expect(main.locator('input[name="instanceName"]')).to_be_visible()
+    print("General settings recovery: PASS (visible error and restored Forms controls)", flush=True)
     nav.get_by_role("link", name="UI", exact=True).click()
     expect(page).to_have_url(base + "/settings/ui")
     main.get_by_role("button", name="Auto", exact=True).click()
@@ -333,6 +352,15 @@ def run(binary, evidence, *, live_provider=False):
             expect(page).to_have_url(re.compile(r"/login\?.*returnUrl="))
             login(page, username, password, rejected=False)
             check_status(page.request.get(base + "/", max_redirects=0), 200, "New Forms session after restart opens the root")
+            main = page.get_by_role("main")
+            for route, label, locator in (
+                ("/library", "Library", main.get_by_role("heading", name="Authors", exact=True)),
+                ("/search", "Search", main.locator('input[placeholder*="War and Peace"]')),
+                ("/settings", "Settings", main.get_by_role("link", name="Media Management", exact=False).first),
+            ):
+                check_status(page.goto(base + route), 200, f"New Forms session after restart opens {label}")
+                expect(locator).to_be_visible()
+            assert not errors, f"{len(errors)} uncaught browser page errors"
             browser.close()
 
     print("Browser smoke passed", flush=True)
