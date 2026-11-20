@@ -207,7 +207,13 @@ jobs:
         run: >-
           dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
-          --filter 'FullyQualifiedName~ContainerFixture'
+          --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture'
+
+      - name: Verify author identity and path handling
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --no-restore --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~AuthorPathValidatorFixture|FullyQualifiedName~AuthorCanonicalizationServiceFixture|FullyQualifiedName~AddAuthorPersistenceFixture'
 
       - name: Run library import format fixtures
         run: >-
@@ -221,7 +227,7 @@ jobs:
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~HostConfigCredentialValidationFixture|FullyQualifiedName~BootstrapControllerIssue313Fixture|FullyQualifiedName~AuthenticationServiceIssue369Fixture'
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~HostConfigCredentialValidationFixture|FullyQualifiedName~BootstrapControllerIssue313Fixture|FullyQualifiedName~AuthenticationServiceIssue369Fixture|FullyQualifiedName~ApiKeyAuthenticationHandlerFixture|FullyQualifiedName~ApiWriteAuthenticationMiddlewareFixture'
 
   metadata-diagnostics-integration:
     name: Metadata Diagnostics Integration
