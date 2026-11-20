@@ -14,6 +14,8 @@ process.
 
 ### Fixed
 
+- Coordinate overlapping author refreshes so they share the stored series and
+  keep its book links.
 - Name the event details button in Activity History for screen readers.
 - Calendar subscription links authenticate with their API key and open in
   calendar clients without a Bibliophilarr browser session.

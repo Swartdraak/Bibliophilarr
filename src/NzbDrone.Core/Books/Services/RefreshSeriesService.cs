@@ -13,6 +13,8 @@ namespace NzbDrone.Core.Books
 
     public class RefreshSeriesService : RefreshEntityServiceBase<Series, SeriesBookLink>, IRefreshSeriesService
     {
+        private static readonly object RefreshGate = new object();
+
         private readonly IBookService _bookService;
         private readonly ISeriesService _seriesService;
         private readonly ISeriesBookLinkService _linkService;
@@ -128,6 +130,15 @@ namespace NzbDrone.Core.Books
         }
 
         public bool RefreshSeriesInfo(int authorMetadataId, List<Series> remoteSeries, Author remoteData, bool forceBookRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
+        {
+            // Series can be shared by authors, so protect the lookup and link updates together.
+            lock (RefreshGate)
+            {
+                return ReconcileSeries(authorMetadataId, remoteSeries, remoteData, forceUpdateFileTags);
+            }
+        }
+
+        private bool ReconcileSeries(int authorMetadataId, List<Series> remoteSeries, Author remoteData, bool forceUpdateFileTags)
         {
             var updated = false;
 
