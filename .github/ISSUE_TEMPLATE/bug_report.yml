@@ -1,7 +1,11 @@
 name: Bug Report
-description: 'Report a new bug, if you are not 100% certain this is a bug please go to our Discord first'
+description: Report a reproducible Bibliophilarr bug
 labels: ['type:bug']
 body:
+- type: markdown
+  attributes:
+    value: |
+      For setup and usage questions, use [Bibliophilarr Discussions](https://github.com/Swartdraak/Bibliophilarr/discussions).
 - type: checkboxes
   attributes:
     label: Is there an existing issue for this?

@@ -216,6 +216,62 @@ def write_epub(path, title, author, identifier):
         )
 
 
+def verify_poor_local_import_selection(api, work, book):
+    """An explicitly selected work can have a poor local match without a provider."""
+    source = work / "poor-local-match.epub"
+    write_epub(source, "The Unrelated Intermediate Spectrometer", "Unrelated Synthetic Writer",
+               "urn:test:bibliophilarr-poor-match")
+    original_digest = sha256(source.read_bytes()).hexdigest()
+    config_route = "/api/v1/config/metadataprovider"
+    settings = checked(api.get(config_route), 200, "read_poor_match_threshold")
+
+    def events():
+        response = api.get("/api/v1/log", params={
+            "page": 1, "pageSize": 100, "sortKey": "time", "sortDirection": "descending"
+        })
+        assert response.status == 200, "read_manual_import_events"
+        return response.json()["records"]
+
+    try:
+        saved = checked(api.put(config_route + "/1", data={**settings, "bookImportMatchThresholdPercent": 100}),
+                        202, "require_exact_import_match")
+        assert saved["bookImportMatchThresholdPercent"] == 100
+        before = max((event["id"] for event in events()), default=0)
+        result, = checked(api.post("/api/v1/manualimport", data=[{
+            "path": str(source), "name": source.stem, "authorId": book["authorId"],
+            "bookId": book["id"], "replaceExistingFiles": False,
+        }], timeout=90000), 202, "poor_match_preview_without_providers")
+
+        assert result["path"] == str(source) and result["book"]["id"] == book["id"]
+        assert any(rejection["reason"].startswith("Book match is not close enough")
+                   for rejection in result.get("rejections") or []), "Poor local match was not explicitly rejected"
+        assert not files_for_book(api, book["id"])
+        unmapped = checked(api.get("/api/v1/bookfile", params={"unmapped": "true"}),
+                           200, "read_unmapped_after_rejected_import")
+        assert all(Path(row["path"]) != source for row in unmapped), "Rejected file was tracked as unmapped"
+        assert sha256(source.read_bytes()).hexdigest() == original_digest
+
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            recent = [event for event in events() if event["id"] > before]
+            summary = next((event["message"] for event in recent
+                            if event["logger"] == "ImportDecisionMaker" and
+                            event["message"].startswith("Import run complete: files=1 ")), None)
+            if summary is not None:
+                break
+            time.sleep(0.15)
+        else:
+            raise AssertionError("Missing one-file import summary for the poor-match fixture")
+
+        assert "poor=1," in summary and "remote_searches=1," in summary, summary
+        assert not any((event.get("exceptionType") or "").endswith("ArgumentNullException") or
+                       event["message"].startswith("Error identifying release")
+                       for event in recent if event["logger"] in ("IdentificationService", "ImportDecisionMaker"))
+        print("poor_local_import_without_providers: PASS (remote fallback and explicit per-file rejection)", flush=True)
+    finally:
+        checked(api.put(config_route + "/1", data=settings), 202, "restore_poor_match_threshold")
+
+
 def render_library_and_detail(page, base, title, slug):
     main = page.get_by_role("main")
     page.goto(base + "/books", wait_until="domcontentloaded")
@@ -321,6 +377,7 @@ def exercise_catalogue(page, api, base, work, app_data, *, live_provider=False):
     else:
         configure_providers(api, False)
         book, author = seed_local_catalogue(page, api, base, root, app_data)
+        verify_poor_local_import_selection(api, work, book)
     readback = checked(api.get(f"/api/v1/book/{book['id']}"), 200, "retrievable_book_identity")
     assert readback["foreignBookId"] == book["foreignBookId"] and readback["titleSlug"] == book["titleSlug"]
     if live_provider:
