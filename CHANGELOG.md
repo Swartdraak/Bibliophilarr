@@ -16,6 +16,8 @@ process.
 
 - Provider telemetry distinguishes failed Open Library text searches from
   successful searches with no matches.
+- Rename an import list exclusion while retaining its existing ID. The Add and
+  Edit controls and form fields have accessible names.
 - Name the event details button in Activity History for screen readers.
 - Calendar subscription links authenticate with their API key and open in
   calendar clients without a Bibliophilarr browser session.
