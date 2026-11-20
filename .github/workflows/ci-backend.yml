@@ -214,7 +214,7 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture'
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~AudioTagPayloadFixture'
 
       - name: Run metadata, format monitoring and host configuration API fixtures
         run: >-
