@@ -39,7 +39,9 @@ export class BookDetailsHeaderConnector extends Component {
   state = { bookDetails: null };
 
   componentDidMount() {
-    this.fetchMissingDetails();
+    if (!this.detailsRequest) {
+      this.fetchMissingDetails();
+    }
   }
 
   componentDidUpdate(previousProps) {

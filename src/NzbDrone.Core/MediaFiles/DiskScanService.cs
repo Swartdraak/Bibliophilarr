@@ -164,6 +164,7 @@ namespace NzbDrone.Core.MediaFiles
             };
 
             var decisions = _importDecisionMaker.GetImportDecisions(mediaFileList, null, null, config);
+            decisions.ForEach(decision => decision.Item.IsUnattendedLibraryImport = addNewAuthors);
 
             decisionsStopwatch.Stop();
             _logger.Debug("Import decisions complete [{0}]", decisionsStopwatch.Elapsed);

@@ -31,6 +31,7 @@ namespace NzbDrone.Core.Parser.Model
         public string SceneName { get; set; }
 
         internal string ReliableTaggedBookTitle { get; set; }
+        internal bool IsUnattendedLibraryImport { get; set; }
 
         public override string ToString()
         {

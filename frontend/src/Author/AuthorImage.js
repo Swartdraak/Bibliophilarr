@@ -52,7 +52,6 @@ class AuthorImage extends Component {
     const {
       images,
       coverType,
-      placeholder,
       size,
       onError
     } = this.props;
@@ -77,7 +76,7 @@ class AuthorImage extends Component {
     } else if (!nextImage && image && !findImage(images, coverType)) {
       this.setState({
         image: nextImage,
-        url: placeholder,
+        url: null,
         failedUrls: [],
         hasError: false
       });
@@ -123,7 +122,7 @@ class AuthorImage extends Component {
 
   onLoad = (event) => {
     const { naturalWidth, naturalHeight } = event.currentTarget;
-    if (naturalWidth === 1 && naturalHeight === 1) {
+    if (event.currentTarget.getAttribute('src') === this.state.url && naturalWidth === 1 && naturalHeight === 1) {
       this.onError(event);
       return;
     }

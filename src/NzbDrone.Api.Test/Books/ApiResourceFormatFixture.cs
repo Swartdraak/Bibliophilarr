@@ -157,9 +157,10 @@ namespace NzbDrone.Api.Test.Books
         {
             var book = new Book
             {
+                Title = "Canonical title",
                 Editions = new List<Edition>
                 {
-                    new Edition { ForeignEditionId = "preferred", Monitored = true, Overview = " " },
+                    new Edition { ForeignEditionId = "preferred", Title = "Alternate cover title", Monitored = true, Overview = " " },
                     new Edition { ForeignEditionId = "other-format", Monitored = true, Overview = "A known synopsis." }
                 }
             };
@@ -167,6 +168,7 @@ namespace NzbDrone.Api.Test.Books
             var resource = book.ToResource();
 
             resource.ForeignEditionId.Should().Be("preferred");
+            resource.Title.Should().Be("Canonical title");
             resource.Overview.Should().Be("A known synopsis.");
         }
 

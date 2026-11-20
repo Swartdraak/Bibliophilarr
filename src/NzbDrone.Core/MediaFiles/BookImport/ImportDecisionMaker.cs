@@ -53,6 +53,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
     public class ImportDecisionMaker : IMakeImportDecision
     {
+        internal const string UnverifiedAuthorReviewMessage = "A different catalogue author has the same name. Select the intended author manually.";
+
         private readonly IEnumerable<IImportDecisionEngineSpecification<LocalBook>> _trackSpecifications;
         private readonly IEnumerable<IImportDecisionEngineSpecification<LocalEdition>> _bookSpecifications;
         private readonly IMediaFileService _mediaFileService;
@@ -249,7 +251,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 else if (authorNeedsReview)
                 {
                     releaseDecision = new ImportDecision<LocalEdition>(release, new Rejection(
-                        "A different catalogue author has the same name. Select the intended author manually.",
+                        UnverifiedAuthorReviewMessage,
                         holdReason: LibraryImportHoldReason.ReviewRequired));
                 }
                 else
@@ -314,15 +316,19 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 return false;
             }
 
-            var author = release.Edition?.Book?.Value?.Author?.Value;
+            return NeedsReviewForNewSyntheticAuthor(release.Edition?.Book?.Value?.Author?.Value, _authorService);
+        }
+
+        internal static bool NeedsReviewForNewSyntheticAuthor(Author author, IAuthorService authorService)
+        {
             if (author == null || author.Id > 0 || author.Name.IsNullOrWhiteSpace() ||
                 author.ForeignAuthorId?.StartsWith("googlebooks:author:", StringComparison.OrdinalIgnoreCase) != true ||
-                _authorService.FindById(author.ForeignAuthorId) != null)
+                authorService.FindById(author.ForeignAuthorId) != null)
             {
                 return false;
             }
 
-            return _authorService.GetAuthorsByCleanName(author.Name.CleanAuthorName())?.Any(candidate =>
+            return authorService.GetAuthorsByCleanName(author.Name.CleanAuthorName())?.Any(candidate =>
                 CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, candidate.ForeignAuthorId, null) != null) == true;
         }
 

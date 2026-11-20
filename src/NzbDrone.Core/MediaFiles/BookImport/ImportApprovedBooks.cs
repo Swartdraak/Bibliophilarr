@@ -479,6 +479,19 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 if (dbAuthor == null)
                 {
+                    if (decisions.Any(decision => decision.Item.IsUnattendedLibraryImport) &&
+                        ImportDecisionMaker.NeedsReviewForNewSyntheticAuthor(author, _authorService))
+                    {
+                        foreach (var decision in decisions)
+                        {
+                            decision.Reject(new Rejection(
+                                ImportDecisionMaker.UnverifiedAuthorReviewMessage,
+                                holdReason: LibraryImportHoldReason.ReviewRequired));
+                        }
+
+                        return null;
+                    }
+
                     _logger.Debug("Adding remote author {0}", author);
 
                     var path = decisions.First().Item.Path;

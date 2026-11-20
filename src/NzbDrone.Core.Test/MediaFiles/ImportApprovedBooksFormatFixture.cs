@@ -8,6 +8,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Parser.Model;
@@ -125,6 +126,73 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IEditionService>()
                 .Setup(s => s.SetMonitored(_ebookEdition))
                 .Returns(new List<Edition> { _ebookEdition, _audiobookEdition });
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_recheck_new_synthetic_author_after_an_authority_is_added_in_the_same_batch(bool unattended)
+        {
+            GivenEbookImport();
+            const string authorityId = "openlibrary:author:OL1A";
+            const string syntheticId = "googlebooks:author:Fixture%20Author";
+            _author.Id = 0;
+            _author.Name = "Fixture Author";
+            _author.ForeignAuthorId = authorityId;
+            _approvedDecisions[0].Item.IsUnattendedLibraryImport = unattended;
+            var synthetic = new Author { Name = _author.Name, ForeignAuthorId = syntheticId, Path = _author.Path, QualityProfile = _author.QualityProfile };
+            var otherWork = new Book
+            {
+                Id = _book.Id + 1,
+                ForeignBookId = "googlebooks:work:fixture",
+                Author = synthetic,
+                Title = "Other Work"
+            };
+            var otherEdition = new Edition
+            {
+                Id = _ebookEdition.Id + 1,
+                ForeignEditionId = "googlebooks:edition:fixture",
+                BookId = otherWork.Id,
+                Book = otherWork,
+                IsEbook = true,
+                Format = "Ebook",
+                Monitored = true
+            };
+            var later = new ImportDecision<LocalBook>(new LocalBook
+            {
+                Path = Path.Combine(_author.Path, "Other Work.epub"),
+                Author = synthetic,
+                Book = otherWork,
+                Edition = otherEdition,
+                Quality = new QualityModel(Quality.EPUB),
+                FileTrackInfo = new ParsedTrackInfo(),
+                IsUnattendedLibraryImport = unattended
+            });
+            _approvedDecisions.Add(later);
+            var incumbent = new Author { Id = 50, AuthorMetadataId = 50, Metadata = _author.Metadata, QualityProfile = _author.QualityProfile, Path = _author.Path };
+            var addedSynthetic = new Author { Id = 60, AuthorMetadataId = 60, Metadata = synthetic.Metadata, QualityProfile = _author.QualityProfile, Path = _author.Path };
+            var authorityAdded = false;
+            var authors = Mocker.GetMock<IAuthorService>();
+            authors.Setup(service => service.GetAuthorsByCleanName(It.IsAny<string>()))
+                .Returns(() => authorityAdded ? new List<Author> { incumbent } : new List<Author>());
+            authors.Setup(service => service.GetAuthor(incumbent.Id)).Returns(incumbent);
+            authors.Setup(service => service.GetAuthor(addedSynthetic.Id)).Returns(addedSynthetic);
+            var additions = Mocker.GetMock<IAddAuthorService>();
+            additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == authorityId), false))
+                .Returns(() =>
+                {
+                    authorityAdded = true;
+                    return incumbent;
+                });
+            additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == syntheticId), false))
+                .Returns(addedSynthetic);
+            Mocker.GetMock<IEditionService>().Setup(service => service.SetMonitored(otherEdition)).Returns(new List<Edition> { otherEdition });
+
+            Subject.Import(_approvedDecisions, false);
+
+            authorityAdded.Should().BeTrue();
+            additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == syntheticId), false),
+                unattended ? Times.Never() : Times.Once());
+            later.Rejections.Any(rejection => rejection.HoldReason == LibraryImportHoldReason.ReviewRequired).Should().Be(unattended);
         }
 
         [Test]

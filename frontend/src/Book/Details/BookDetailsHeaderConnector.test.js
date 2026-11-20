@@ -11,9 +11,21 @@ jest.mock('./BookDetailsHeader', () => {
 
     return (
       <>
-        {cover ? <img alt="Book cover" src={cover.url} onError={onCoverError} /> : <span>No cover</span>}
+        {cover ? (
+          <img
+            alt="Book cover"
+            src={cover.url}
+            onError={onCoverError}
+          />
+        ) : <span>No cover</span>}
         {overview && <p>{overview}</p>}
-        {images.slice(1).map(({ url }) => <img key={url} alt="Alternate cover" src={url} />)}
+        {images.slice(1).map(({ url }) => (
+          <img
+            key={url}
+            alt="Alternate cover"
+            src={url}
+          />
+        ))}
       </>
     );
   };

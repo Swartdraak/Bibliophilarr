@@ -107,8 +107,9 @@ process.
 - Use verified alternate sources for missing edition details and author
   portraits. Display an available cover from the same work, and show a
   representative member cover alongside a series when available.
-- Show a synopsis from another edition of the same work when the preferred
-  edition has none. Try distinct same-work artwork if the preferred cover fails.
+- Display the canonical work title and show a synopsis from another edition
+  when the preferred edition has none. Try distinct same-work artwork if the
+  preferred cover fails.
 - Try the next verified Open Library portrait or cover when the first image
   is missing. Series artwork can fall back to another member's cover.
 - Keep verified alternate source identifiers and series descriptions when
