@@ -14,6 +14,8 @@ process.
 
 ### Fixed
 
+- Label the backup upload field and show restore errors in the dialog. Choosing
+  another file clears the previous error.
 - Rename an import list exclusion while retaining its existing ID. The Add and
   Edit controls and form fields have accessible names.
 - Name the event details button in Activity History for screen readers.
