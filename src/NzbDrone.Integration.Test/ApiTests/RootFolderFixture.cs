@@ -1,8 +1,14 @@
 using System;
 using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Bibliophilarr.Api.V1.RootFolders;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR.Client;
 using NUnit.Framework;
+using NzbDrone.SignalR;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
@@ -54,28 +60,58 @@ namespace NzbDrone.Integration.Test.ApiTests
         }
 
         [Test]
-        [Ignore("SignalR on CI seems unstable")]
-        public void should_add_and_delete_root_folders()
+        public async Task should_publish_the_created_root_folder_over_authenticated_signalr()
         {
-            ConnectSignalR().Wait();
+            var path = GetTempDirectory("signalr-library");
+            var hubUrl = new Uri(new Uri(RootUrl), "signalr/messages");
+            await using var connection = new HubConnectionBuilder()
+                .WithUrl(hubUrl, options =>
+                {
+                    options.Headers["X-Api-Key"] = ApiKey;
+                    options.Transports = HttpTransportType.WebSockets;
+                })
+                .Build();
+            var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var broadcast = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            var rootFolder = new RootFolderResource
+            using var subscription = connection.On<SignalRMessage>("receiveMessage", message =>
             {
-                Path = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
-            };
+                if (message.Name == "version")
+                {
+                    ready.TrySetResult();
+                }
 
-            var postResponse = RootFolders.Post(rootFolder);
+                if (message.Name == "rootfolder" && message.Body is JsonElement body &&
+                    body.GetProperty("action").GetString() == "created" &&
+                    body.GetProperty("resource").GetProperty("path").GetString() == path)
+                {
+                    broadcast.TrySetResult(body.GetProperty("resource").GetProperty("id").GetInt32());
+                }
+            });
 
-            postResponse.Id.Should().NotBe(0);
-            postResponse.FreeSpace.Should().NotBe(0);
+            using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+            {
+                await connection.StartAsync(timeout.Token);
+                await ready.Task.WaitAsync(timeout.Token);
+            }
 
-            RootFolders.All().Should().OnlyContain(c => c.Id == postResponse.Id);
+            var created = RootFolders.Post(new RootFolderResource
+            {
+                Name = "SignalR Test Library",
+                Path = path,
+                DefaultMetadataProfileId = 1,
+                DefaultQualityProfileId = 1,
+                OutputProfile = "default"
+            });
 
-            RootFolders.Delete(postResponse.Id);
-
-            RootFolders.All().Should().BeEmpty();
-
-            SignalRMessages.Should().Contain(c => c.Name == "rootfolder");
+            try
+            {
+                (await broadcast.Task.WaitAsync(TimeSpan.FromSeconds(10))).Should().Be(created.Id);
+            }
+            finally
+            {
+                RootFolders.Delete(created.Id);
+            }
         }
 
         [Test]
