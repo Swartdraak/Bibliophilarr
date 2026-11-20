@@ -1,7 +1,7 @@
 """Catalogue checks for the disposable production browser smoke app."""
 
-from dataclasses import dataclass
 from contextlib import closing
+from dataclasses import dataclass
 from hashlib import sha256
 import os
 from pathlib import Path
@@ -233,7 +233,9 @@ def files_for_book(api, book_id):
 def verify_file_edition(app_data, file_id, edition_id):
     database = (app_data / "bibliophilarr.db").as_uri() + "?mode=ro"
     with closing(sqlite3.connect(database, uri=True)) as db:
-        assert db.execute("SELECT EditionId FROM BookFiles WHERE Id = ?", (file_id,)).fetchone() == (edition_id,)
+        row = db.execute("SELECT EditionId FROM BookFiles WHERE Id = ?", (file_id,)).fetchone()
+    assert row is not None, f"file {file_id} is missing from SQLite"
+    assert row[0] == edition_id, f"file {file_id} links to edition {row[0]}, expected {edition_id}"
 
 
 def import_fixture(api, work, app_data, root, book, author):
