@@ -84,6 +84,21 @@
   width: 30px;
 }
 
+.formatActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+
+  padding: 8px 15px 12px;
+}
+
+.formatActionsRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .books {
   padding-top: 15px;
   border-top: 1px solid var(--borderColor);

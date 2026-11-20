@@ -1,53 +1,31 @@
 import PropTypes from 'prop-types';
-import React, { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import Link from 'Components/Link/Link';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import CatalogueRecordRoute from 'Components/Router/CatalogueRecordRoute';
+import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import cataloguePath from 'Utilities/cataloguePath';
-import createAjaxRequest from 'Utilities/createAjaxRequest';
-import getCatalogueFormatStatus from 'Utilities/getCatalogueFormatStatus';
 import translate from 'Utilities/String/translate';
 import { compareSeriesBookPositions, getSeriesRepresentativeCovers } from './AuthorDetailsSeriesConnector';
+import SeriesFormatActions, { getSeriesMemberFormatStatus, seriesFormats } from './SeriesFormatActions';
 import SeriesRepresentativeCover from './SeriesRepresentativeCover';
+import useSeriesBookDetails from './useSeriesBookDetails';
 import styles from './AuthorDetailsSeries.css';
 
-function CatalogueSeriesDetails({ series }) {
+export function CatalogueSeriesDetails({ series }) {
+  const dispatch = useDispatch();
   const books = useSelector((state) => state.books.items);
-  const [details, setDetails] = useState(null);
+  const dualFormatTracking = useSelector((state) => state.settings.mediaManagement.item?.enableDualFormatTracking);
   const { links } = series;
+  const details = useSeriesBookDetails(links);
+
   useEffect(() => {
-    if (!links.length) {
-      return;
-    }
+    dispatch(fetchMediaManagementSettings());
+  }, [dispatch]);
 
-    const bookIds = [...new Set(links.map((link) => link.bookId))];
-    const requests = [];
-    for (let index = 0; index < bookIds.length; index += 100) {
-      requests.push(createAjaxRequest({
-        url: '/book',
-        data: { bookIds: bookIds.slice(index, index + 100) },
-        traditional: true
-      }));
-    }
-
-    let active = true;
-    Promise.allSettled(requests.map(({ request }) => Promise.resolve(request))).then((responses) => {
-      if (active) {
-        const members = responses.filter((response) => response.status === 'fulfilled').flatMap((response) => response.value);
-        setDetails({ links, members });
-      }
-    });
-
-    return () => {
-      active = false;
-      requests.forEach(({ abortRequest }) => abortRequest());
-    };
-  }, [links]);
-
-  const hydrated = details?.links === links ? details.members : [];
-  const indexedBooks = new Map([...books, ...hydrated].map((book) => [book.id, book]));
+  const indexedBooks = new Map([...books, ...details.books].map((book) => [book.id, book]));
   const ordered = [...links].sort((left, right) =>
     Number(!left.position) - Number(!right.position) ||
     compareSeriesBookPositions(left.position || '', right.position || '', 'ascending') ||
@@ -64,6 +42,12 @@ function CatalogueSeriesDetails({ series }) {
           className={styles.seriesCover}
         />
         {series.description && <p>{series.description}</p>}
+        <SeriesFormatActions
+          key={series.id}
+          title={series.title}
+          details={details}
+          dualFormatTracking={dualFormatTracking}
+        />
         <ul>
           {
             ordered.map((link) => {
@@ -72,12 +56,12 @@ function CatalogueSeriesDetails({ series }) {
                 <li key={link.id}>
                   {link.position && `#${link.position} `}
                   <Link to={cataloguePath('book', book)}>{book.title}</Link>
-                  {book.formatStatuses?.map(({ formatType, hasFile, monitored }) => (
-                    <span key={formatType}>
+                  {details.ready && dualFormatTracking && seriesFormats.map(({ type, label }) => (
+                    <span key={type}>
                       {' · '}
-                      {translate(formatType === 'ebook' ? 'Ebook' : 'Audiobook')}
+                      {translate(label)}
                       {' '}
-                      {translate(getCatalogueFormatStatus(hasFile, monitored))}
+                      {translate(getSeriesMemberFormatStatus(book, type))}
                     </span>
                   ))}
                 </li>
@@ -92,6 +76,7 @@ function CatalogueSeriesDetails({ series }) {
 
 CatalogueSeriesDetails.propTypes = {
   series: PropTypes.shape({
+    id: PropTypes.number,
     title: PropTypes.string.isRequired,
     description: PropTypes.string,
     links: PropTypes.arrayOf(PropTypes.object).isRequired

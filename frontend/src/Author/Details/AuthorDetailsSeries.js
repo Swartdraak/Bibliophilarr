@@ -59,7 +59,7 @@ class AuthorDetailsSeries extends Component {
   }
 
   isSeriesMonitored(series) {
-    return series.items.every((book) => book.monitored);
+    return (series.seriesBooks ?? series.items).every((book) => book.monitored);
   }
 
   isSeriesSaving(series) {
@@ -97,7 +97,7 @@ class AuthorDetailsSeries extends Component {
   };
 
   onMonitorSeriesPress = (monitored) => {
-    const bookIds = this.props.items.map((book) => book.id);
+    const bookIds = (this.props.seriesBooks ?? this.props.items).map((book) => book.id);
 
     this.props.onMonitorBookPress(_.uniq(bookIds), monitored);
   };
@@ -124,6 +124,8 @@ class AuthorDetailsSeries extends Component {
       onTableOptionChange,
       authorMonitored,
       searchBookIds,
+      seriesBooks,
+      formatActions,
       representativeCovers,
       isSearching
     } = this.props;
@@ -136,7 +138,7 @@ class AuthorDetailsSeries extends Component {
           <MonitorToggleButton
             size={24}
             monitored={this.isSeriesMonitored(this.props)}
-            isDisabled={!authorMonitored}
+            isDisabled={!authorMonitored || seriesBooks?.length === 0}
             isSaving={this.isSeriesSaving(this.props)}
             onPress={this.onMonitorSeriesPress}
           />
@@ -195,6 +197,8 @@ class AuthorDetailsSeries extends Component {
             </div>
           </Link>
         </div>
+
+        {formatActions}
 
         <div>
           {
@@ -264,6 +268,8 @@ AuthorDetailsSeries.propTypes = {
   uiSettings: PropTypes.object.isRequired,
   authorMonitored: PropTypes.bool.isRequired,
   searchBookIds: PropTypes.arrayOf(PropTypes.number).isRequired,
+  seriesBooks: PropTypes.arrayOf(PropTypes.object),
+  formatActions: PropTypes.node,
   isSearching: PropTypes.bool.isRequired,
   onSearchPress: PropTypes.func.isRequired
 };

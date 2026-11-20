@@ -15,6 +15,8 @@ interface CssExports {
   'episodeCountTooltip': string;
   'expandButton': string;
   'expandButtonIcon': string;
+  'formatActions': string;
+  'formatActionsRow': string;
   'header': string;
   'left': string;
   'noBooks': string;

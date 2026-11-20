@@ -13,6 +13,8 @@ import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
 import createExecutingCommandsSelector from 'Store/Selectors/createExecutingCommandsSelector';
 import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
 import AuthorDetailsSeries from './AuthorDetailsSeries';
+import SeriesFormatActions from './SeriesFormatActions';
+import useSeriesBookDetails from './useSeriesBookDetails';
 
 export function getSeriesSearchBookIds(books, authorMonitored) {
   if (!authorMonitored) {
@@ -67,10 +69,11 @@ function createMapStateToProps() {
     (state) => state.books,
     createAuthorSelector(),
     (state) => state.series,
+    (state) => state.settings.mediaManagement.item?.enableDualFormatTracking,
     createExecutingCommandsSelector(),
     createDimensionsSelector(),
     createUISettingsSelector(),
-    (seriesId, artworkBooks, books, author, series, executingCommands, dimensions, uiSettings) => {
+    (seriesId, artworkBooks, books, author, series, dualFormatTracking, executingCommands, dimensions, uiSettings) => {
 
       const currentSeries = _.find(series.items, { id: seriesId });
 
@@ -101,6 +104,8 @@ function createMapStateToProps() {
 
       return {
         id: currentSeries.id,
+        links: currentSeries.links,
+        dualFormatTracking,
         canonicalId: currentSeries.canonicalId,
         label: currentSeries.title,
         representativeCovers: getSeriesRepresentativeCovers(booksInSeries, currentSeries.links, artworkBooks),
@@ -110,7 +115,6 @@ function createMapStateToProps() {
         sortKey: series.sortKey,
         sortDirection: series.sortDirection,
         authorMonitored: author.monitored,
-        searchBookIds: getSeriesSearchBookIds(sortedBooks, author.monitored),
         isSearching: executingCommands.some((command) => {
           return command.name === commandNames.BOOK_SEARCH &&
             command.body?.bookIds?.some((id) => bookIds.includes(id));
@@ -129,7 +133,43 @@ const mapDispatchToProps = {
   executeCommand
 };
 
-class AuthorDetailsSeasonConnector extends Component {
+function AuthorDetailsSeriesWithFormats(props) {
+  const {
+    artworkBooks,
+    links,
+    label,
+    authorMonitored,
+    dualFormatTracking
+  } = props;
+  const details = useSeriesBookDetails(links, artworkBooks, true);
+  const seriesBooks = details.ready ? details.books : [];
+
+  return (
+    <AuthorDetailsSeries
+      {...props}
+      seriesBooks={seriesBooks}
+      searchBookIds={getSeriesSearchBookIds(seriesBooks, authorMonitored)}
+      formatActions={
+        <SeriesFormatActions
+          title={label}
+          details={details}
+          authorMonitored={authorMonitored}
+          dualFormatTracking={dualFormatTracking}
+        />
+      }
+    />
+  );
+}
+
+AuthorDetailsSeriesWithFormats.propTypes = {
+  artworkBooks: PropTypes.arrayOf(PropTypes.object),
+  links: PropTypes.arrayOf(PropTypes.object).isRequired,
+  label: PropTypes.string.isRequired,
+  authorMonitored: PropTypes.bool.isRequired,
+  dualFormatTracking: PropTypes.bool
+};
+
+class AuthorDetailsSeriesConnector extends Component {
 
   //
   // Listeners
@@ -161,7 +201,7 @@ class AuthorDetailsSeasonConnector extends Component {
 
   render() {
     return (
-      <AuthorDetailsSeries
+      <AuthorDetailsSeriesWithFormats
         {...this.props}
         onSortPress={this.onSortPress}
         onTableOptionChange={this.onTableOptionChange}
@@ -172,7 +212,7 @@ class AuthorDetailsSeasonConnector extends Component {
   }
 }
 
-AuthorDetailsSeasonConnector.propTypes = {
+AuthorDetailsSeriesConnector.propTypes = {
   authorId: PropTypes.number.isRequired,
   toggleBooksMonitored: PropTypes.func.isRequired,
   setSeriesTableOption: PropTypes.func.isRequired,
@@ -180,4 +220,4 @@ AuthorDetailsSeasonConnector.propTypes = {
   executeCommand: PropTypes.func.isRequired
 };
 
-export default connect(createMapStateToProps, mapDispatchToProps)(AuthorDetailsSeasonConnector);
+export default connect(createMapStateToProps, mapDispatchToProps)(AuthorDetailsSeriesConnector);

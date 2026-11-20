@@ -168,7 +168,7 @@ export const actionHandlers = handleThunks({
   [FETCH_COMMANDS]: createFetchHandler('commands', '/command'),
 
   [EXECUTE_COMMAND]: function(getState, payload, dispatch) {
-    executeCommandHelper(payload, dispatch);
+    return executeCommandHelper(payload, dispatch);
   },
 
   [CANCEL_COMMAND]: createRemoveItemHandler(section, '/command'),

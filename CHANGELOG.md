@@ -25,9 +25,13 @@ process.
   work's catalogue owner, editions and format status.
 - A book-search command can target a single monitored format that is still
   missing. Scoped searches skip releases with conflicting format information.
+- Monitor ebooks and audiobooks independently in the series views. Search for
+  missing files of one format while preserving the work-wide monitoring controls.
 
 ### Fixed
 
+- Batch author canonicalization previews duplicate candidates. Apply a
+  confirmed merge through the reviewed reconciliation command.
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
   the setup form.

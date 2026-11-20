@@ -434,6 +434,7 @@ export const actionHandlers = handleThunks({
     const {
       bookIds,
       bookEntity = bookEntities.BOOKS,
+      formatType,
       monitored
     } = payload;
 
@@ -450,7 +451,7 @@ export const actionHandlers = handleThunks({
     const promise = createAjaxRequest({
       url: '/book/monitor',
       method: 'PUT',
-      data: JSON.stringify({ bookIds, monitored }),
+      data: JSON.stringify({ bookIds, monitored, formatType }),
       dataType: 'json'
     }).request;
 
@@ -460,19 +461,20 @@ export const actionHandlers = handleThunks({
       dispatch(batchActions(
         bookIds.map((bookId) => {
           const book = booksById[bookId];
+          const nextMonitored = book?.monitored ?? (formatType == null ? monitored : undefined);
 
           return updateItem({
             id: bookId,
             section: bookEntity,
             isSaving: false,
-            monitored: book?.monitored ?? monitored,
+            ...(typeof nextMonitored === 'boolean' && { monitored: nextMonitored }),
             ...(Array.isArray(book?.formatStatuses) && { formatStatuses: book.formatStatuses })
           });
         })
       ));
     });
 
-    promise.fail((xhr) => {
+    promise.fail(() => {
       dispatch(batchActions(
         bookIds.map((bookId) => {
           return updateItem({
@@ -483,6 +485,8 @@ export const actionHandlers = handleThunks({
         })
       ));
     });
+
+    return promise;
   },
 
   [TOGGLE_BOOK_FORMAT_MONITORED]: function(getState, payload, dispatch) {

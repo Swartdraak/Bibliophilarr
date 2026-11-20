@@ -13,6 +13,7 @@ import { executeCommand } from 'Store/Actions/commandActions';
 import { clearQueueDetails, fetchQueueDetails } from 'Store/Actions/queueActions';
 import { cancelFetchReleases, clearReleases } from 'Store/Actions/releaseActions';
 import { clearSeries, fetchSeries } from 'Store/Actions/seriesActions';
+import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import createAllAuthorSelector from 'Store/Selectors/createAllAuthorsSelector';
 import createCommandsSelector from 'Store/Selectors/createCommandsSelector';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
@@ -207,6 +208,7 @@ function createMapStateToProps() {
 
 const mapDispatchToProps = {
   fetchSeries,
+  fetchMediaManagementSettings,
   clearSeries,
   saveBookEditor,
   fetchBookFiles,
@@ -270,6 +272,7 @@ class AuthorDetailsConnector extends Component {
     const authorId = this.props.id;
 
     this.props.fetchSeries({ authorId });
+    this.props.fetchMediaManagementSettings();
     this.props.fetchBookFiles({ authorId });
     this.props.fetchQueueDetails({ authorId });
     this.populateSeriesArtwork(authorId);
@@ -289,6 +292,13 @@ class AuthorDetailsConnector extends Component {
             books
           }
         });
+      }
+    });
+
+    load.request.fail(() => {
+      if (this.seriesArtworkRequest === load) {
+        // The individual series can still load its members by ID.
+        this.setState({ seriesArtwork: { authorId, books: [] } });
       }
     });
   };
@@ -361,6 +371,7 @@ AuthorDetailsConnector.propTypes = {
   isRenamingFiles: PropTypes.bool.isRequired,
   isRenamingAuthor: PropTypes.bool.isRequired,
   fetchSeries: PropTypes.func.isRequired,
+  fetchMediaManagementSettings: PropTypes.func.isRequired,
   clearSeries: PropTypes.func.isRequired,
   saveBookEditor: PropTypes.func.isRequired,
   fetchBookFiles: PropTypes.func.isRequired,
