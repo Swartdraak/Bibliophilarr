@@ -25,6 +25,8 @@ process.
   import retry can attach an existing unmapped library file to its edition
   while preserving the file record. Scan logs record why evaluated files remain
   unmapped.
+- Use validated ISBNs embedded in AZW3 and MOBI ebooks when identifying a
+  work and edition during import.
 - Use an ebook or audiobook edition for a confirmed work when a provider only
   supplies a print or unclassified edition. An approved full rescan can
   repair an old link to an unclassified edition on the same work without
@@ -36,6 +38,8 @@ process.
 - Fetch edition publisher and publication dates from Hardcover. A unique
   ISBN match can fill missing edition details, and verified Open Library
   author records can supply missing biographies and portraits.
+- Keep the requested ISBN when Open Library confirms it on an edition with
+  multiple identifiers. Ignore ambiguous fallback work matches.
 - Require corroboration before matching authors across providers or adding
   Open Library work and author links. Keep two people with the same name
   distinct.

@@ -1,9 +1,12 @@
+using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -78,6 +81,52 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
             result.Should().NotBeNull();
             result.Quality.Quality.Should().Be(Quality.AZW3);
             result.Quality.QualityDetectionSource.Should().Be(QualityDetectionSource.Extension);
+        }
+
+        [TestCase(".azw3", 8, "9781442482890", "9781442482890", 0.97)]
+        [TestCase(".mobi", 6, "1-4424-8289-3", "9781442482890", 0.97)]
+        [TestCase(".azw3", 8, "4006381333931", "9781455546176", 0.55)]
+        public void should_use_valid_exth_isbn_before_the_filename_isbn(string extension, int version, string embeddedIsbn, string expectedIsbn, double confidence)
+        {
+            var directory = Directory.CreateTempSubdirectory();
+            try
+            {
+                const int sectionStart = 96;
+                const int mobiHeaderLength = 132;
+                const int exthStart = sectionStart + 16 + mobiHeaderLength;
+                var exthLength = 12 + 8 + embeddedIsbn.Length;
+                var fileContent = new byte[exthStart + exthLength];
+
+                "BOOKMOBI"u8.CopyTo(fileContent.AsSpan(60));
+                BinaryPrimitives.WriteUInt16BigEndian(fileContent.AsSpan(76), 1);
+                WriteNumber(78, sectionStart);
+                WriteNumber(86, fileContent.Length);
+                "MOBI"u8.CopyTo(fileContent.AsSpan(sectionStart + 16));
+                WriteNumber(sectionStart + 20, mobiHeaderLength);
+                WriteNumber(sectionStart + 28, 65001);
+                WriteNumber(sectionStart + 36, version);
+                WriteNumber(sectionStart + 128, 64);
+                "EXTH"u8.CopyTo(fileContent.AsSpan(exthStart));
+                WriteNumber(exthStart + 4, exthLength);
+                WriteNumber(exthStart + 8, 1);
+                WriteNumber(exthStart + 12, 104);
+                WriteNumber(exthStart + 16, 8 + embeddedIsbn.Length);
+                Encoding.ASCII.GetBytes(embeddedIsbn).CopyTo(fileContent, exthStart + 20);
+
+                var path = Path.Combine(directory.FullName, "Traffick - Ellen Hopkins [9781455546176]" + extension);
+                File.WriteAllBytes(path, fileContent);
+
+                var result = Subject.ReadTags(new FileInfoWrapper(new FileSystem(), new FileInfo(path)));
+
+                result.Isbn.Should().Be(expectedIsbn);
+                result.IsbnConfidence.Should().Be(confidence);
+
+                void WriteNumber(int offset, int value) => BinaryPrimitives.WriteInt32BigEndian(fileContent.AsSpan(offset), value);
+            }
+            finally
+            {
+                directory.Delete(true);
+            }
         }
 
         [Test]

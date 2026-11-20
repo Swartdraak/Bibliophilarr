@@ -122,6 +122,63 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             results.Should().HaveCount(1);
         }
 
+        [TestCase("9781442423596")]
+        [TestCase("1-4424-2359-5")]
+        public void search_by_isbn_should_project_the_queried_identifier_when_it_is_not_first(string queriedIsbn)
+        {
+            var edition = BuildEdition();
+            edition.Isbn13 = new List<string> { "9781416983309", "9781442423596" };
+            _clientMock.Setup(c => c.GetEditionByIsbn(queriedIsbn)).Returns(edition);
+            _clientMock.Setup(c => c.GetWork("OL45883W")).Returns(BuildWork());
+            _clientMock.Setup(c => c.GetAuthor(It.IsAny<string>())).Returns(BuildAuthor());
+
+            var found = Subject.SearchByIsbn(queriedIsbn).Should().ContainSingle().Which;
+
+            found.Editions.Value.Should().ContainSingle(item => item.ForeignEditionId == "openlibrary:edition:OL7353617M")
+                .Which.Isbn13.Should().Be("9781442423596");
+            edition.Isbn13.Should().Equal("9781416983309", "9781442423596");
+        }
+
+        [Test]
+        public void search_by_isbn_should_reject_an_edition_returned_without_the_queried_isbn()
+        {
+            const string queriedIsbn = "9781442423596";
+            _clientMock.Setup(c => c.GetEditionByIsbn(queriedIsbn)).Returns(BuildEdition());
+            _clientMock.Setup(c => c.GetWork(It.IsAny<string>())).Returns(BuildWork());
+
+            Subject.SearchByIsbn(queriedIsbn).Should().BeEmpty();
+
+            _clientMock.Verify(c => c.GetWork(It.IsAny<string>()), Times.Never);
+        }
+
+        [TestCase("unrelated")]
+        [TestCase("ambiguous")]
+        public void search_by_isbn_should_not_attach_the_edition_to_unproven_search_work_results(string scenario)
+        {
+            const string queriedIsbn = "9781442423596";
+            var edition = BuildEdition();
+            edition.Works = new List<OlKeyRef>();
+            edition.Isbn13 = new List<string> { queriedIsbn };
+            var docs = scenario == "ambiguous"
+                ? new List<OlSearchDoc>
+                {
+                    new OlSearchDoc { Key = "/works/OL1W", Title = edition.Title, Isbn = new List<string> { queriedIsbn } },
+                    new OlSearchDoc { Key = "/works/OL2W", Title = edition.Title, Isbn = new List<string> { queriedIsbn } }
+                }
+                : new List<OlSearchDoc>
+                {
+                    new OlSearchDoc { Key = "/works/OL1W", Title = "Unrelated title", Isbn = new List<string> { queriedIsbn } },
+                    new OlSearchDoc { Key = "/works/OL2W", Title = edition.Title, Isbn = new List<string> { "9781416983309" } }
+                };
+            _clientMock.Setup(c => c.GetEditionByIsbn(queriedIsbn)).Returns(edition);
+            _clientMock.Setup(c => c.Search(queriedIsbn, It.IsAny<int>(), It.IsAny<int>())).Returns(new OlSearchResponse { Docs = docs });
+
+            var found = Subject.SearchByIsbn(queriedIsbn).Should().ContainSingle().Which;
+            found.ForeignBookId.Should().Be("openlibrary:edition:OL7353617M");
+            found.OpenLibraryWorkId.Should().BeNull();
+            found.Editions.Value.Should().ContainSingle().Which.Isbn13.Should().Be(queriedIsbn);
+        }
+
         [Test]
         public void search_by_isbn_miss_returns_empty()
         {

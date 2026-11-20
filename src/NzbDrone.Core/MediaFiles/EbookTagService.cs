@@ -343,6 +343,7 @@ namespace NzbDrone.Core.MediaFiles
                 var book = new Azw3File(file);
                 result.Authors = book.Authors;
                 result.BookTitle = book.Title;
+                result.Isbn = Isbn.AsIsbn13(book.Isbn);
                 result.Asin = book.Asin;
                 result.Language = book.Language;
                 result.Disambiguation = book.Description;
@@ -352,6 +353,7 @@ namespace NzbDrone.Core.MediaFiles
 
                 result.BookTitleConfidence = result.BookTitle.IsNotNullOrWhiteSpace() ? 0.9 : 0.0;
                 result.AuthorConfidence = result.Authors?.Any() == true ? 0.9 : 0.0;
+                result.IsbnConfidence = result.Isbn.IsNotNullOrWhiteSpace() ? 0.97 : 0.0;
                 result.AsinConfidence = result.Asin.IsNotNullOrWhiteSpace() ? 0.92 : 0.0;
                 result.PublisherConfidence = result.Publisher.IsNotNullOrWhiteSpace() ? 0.7 : 0.0;
                 result.LanguageConfidence = result.Language.IsNotNullOrWhiteSpace() ? 0.7 : 0.0;
