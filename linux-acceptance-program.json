@@ -37,7 +37,7 @@
     },
     {
       "path": "linux-program/build/durabilize_output.sh",
-      "sha256": "d3fda6d6cc3685bf16f84b72e4124f21dc91e14910d63a99d2974296054ed233"
+      "sha256": "48cea8ef2def9ebf17a136e4623e123a9e1d52115953b23a7da9fbab8c22e219"
     },
     {
       "path": "linux-program/build/preflight_build.sh",

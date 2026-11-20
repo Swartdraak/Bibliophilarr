@@ -10,7 +10,7 @@ UI=/workspace/repo/_output/UI
 SNAP=/workspace/tmp/linux-program-build-output
 [ -x "$PUB/Bibliophilarr" ] || fail "published launcher missing: $PUB/Bibliophilarr"
 [ -s "$UI/index.html" ] || fail "UI entry page missing or empty: $UI/index.html"
-HEAD=$(git -C /workspace/repo rev-parse --verify HEAD)
+HEAD=$(git -C /workspace/repo rev-parse --verify HEAD) || fail "could not verify the Git HEAD in /workspace/repo"
 rm -rf "$PUB/UI"
 cp -r "$UI" "$PUB/UI"
 echo "DURABILIZE-OK: UI copied to $PUB/UI ($(find "$PUB/UI" -type f | wc -l) files)"
