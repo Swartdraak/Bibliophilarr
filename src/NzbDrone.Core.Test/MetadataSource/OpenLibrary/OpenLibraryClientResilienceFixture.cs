@@ -29,12 +29,14 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Mocker.GetMock<IConfigService>().SetupGet(x => x.OpenLibraryWorkRetryBudget).Returns(-1);
         }
 
-        [TestCase(false, HttpStatusCode.OK, 1, 0)]
-        [TestCase(false, HttpStatusCode.ServiceUnavailable, 0, 1)]
-        [TestCase(true, HttpStatusCode.OK, 1, 0)]
-        [TestCase(true, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("Test Book", false, HttpStatusCode.OK, 1, 0)]
+        [TestCase("Test Book", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("Test Author", true, HttpStatusCode.OK, 1, 0)]
+        [TestCase("Test Author", true, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("isbn:9780140328720", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("asin:B000000001", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
         public void text_search_telemetry_should_distinguish_empty_results_from_http_failures(
-            bool searchAuthors, HttpStatusCode status, int expectedSuccesses, int expectedFailures)
+            string term, bool searchAuthors, HttpStatusCode status, int expectedSuccesses, int expectedFailures)
         {
             var config = Mocker.GetMock<IConfigService>();
             config.SetupGet(provider => provider.EnableOpenLibraryProvider).Returns(true);
@@ -54,11 +56,11 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             if (searchAuthors)
             {
-                orchestrator.SearchForNewAuthor("Test Author");
+                orchestrator.SearchForNewAuthor(term);
             }
             else
             {
-                orchestrator.SearchForNewBook("Test Book", null);
+                orchestrator.SearchForNewBook(term, null);
             }
 
             var entry = telemetry.GetOperationSnapshots().Should().ContainSingle().Which;

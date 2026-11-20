@@ -579,7 +579,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                         return SearchByOpenLibraryEditionId(normalizedId, getAllEditions);
                     }
 
-                    return Search(slug, getAllEditions);
+                    query = slug;
                 }
 
                 return MapSearchDocsToBooks(SearchText(query, getAllEditions ? 20 : 10)?.Docs);
