@@ -19,6 +19,7 @@ namespace Bibliophilarr.Api.V1.Calendar
     [Authorize(Policy = "API")]
     public class CalendarFeedController : Controller
     {
+        private const string InvalidTagMessage = "The calendar subscription includes an unknown tag.";
         private readonly IBookService _bookService;
         private readonly IAuthorService _authorService;
         private readonly ITagService _tagService;
@@ -40,15 +41,21 @@ namespace Bibliophilarr.Api.V1.Calendar
 
             if (requestedTags.IsNotNullOrWhiteSpace())
             {
+                var tokens = requestedTags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (tokens.Length == 0)
+                {
+                    return BadRequest(InvalidTagMessage);
+                }
+
                 var availableTags = _tagService.All();
-                foreach (var requestedTag in requestedTags.Split(',', StringSplitOptions.TrimEntries))
+                foreach (var requestedTag in tokens)
                 {
                     var tag = int.TryParse(requestedTag, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
                         ? availableTags.Find(candidate => candidate.Id == id)
                         : availableTags.Find(candidate => candidate.Label == requestedTag);
                     if (tag == null)
                     {
-                        return BadRequest("The calendar subscription includes an unknown tag.");
+                        return BadRequest(InvalidTagMessage);
                     }
 
                     tagIds.Add(tag.Id);

@@ -151,7 +151,14 @@ namespace NzbDrone.Api.Test.Calendar
                 Assert.That(new Uri(client.BaseAddress, ui.Headers.Location).AbsolutePath, Is.EqualTo(urlBase + "/login"));
             }
 
-            foreach (var query in new[] { "tags=7", "tagList=selected", "tagList=selected&tags=9" })
+            foreach (var query in new[]
+            {
+                "tags=7",
+                "tags=%20,%207,%20",
+                "tagList=selected",
+                "tagList=selected&tags=9",
+                "tagList=,selected,,&tags=9"
+            })
             {
                 using var filtered = await client.GetAsync(route + "?" + query + "&apikey=" + Uri.EscapeDataString(key));
                 Assert.That(filtered.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -159,9 +166,13 @@ namespace NzbDrone.Api.Test.Calendar
                 Assert.That(calendar.Events.Select(item => item.Summary), Is.EqualTo(new[] { "Included Author - Included Book" }));
             }
 
-            using var unknown = await client.GetAsync(route + "?tags=99&apikey=" + Uri.EscapeDataString(key));
-            Assert.That(unknown.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-            books.Verify(service => service.BooksBetweenDates(It.IsAny<DateTime>(), It.IsAny<DateTime>(), false), Times.Exactly(6));
+            foreach (var query in new[] { "tags=99", "tags=,%20,," })
+            {
+                using var invalid = await client.GetAsync(route + "?" + query + "&apikey=" + Uri.EscapeDataString(key));
+                Assert.That(invalid.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            }
+
+            books.Verify(service => service.BooksBetweenDates(It.IsAny<DateTime>(), It.IsAny<DateTime>(), false), Times.Exactly(8));
         }
 
         [TestCase(0)]
