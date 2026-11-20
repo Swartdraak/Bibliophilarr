@@ -14,6 +14,21 @@ process.
 
 ### Fixed
 
+- Preserve completed task results in command history after restart.
+- Rename an import list exclusion while retaining its existing ID. The Add and
+  Edit controls and form fields have accessible names.
+- Name the event details button in Activity History for screen readers.
+- Calendar subscription links authenticate with their API key and open in
+  calendar clients without a Bibliophilarr browser session.
+- Calendar subscriptions apply author tags from generated links and retain
+  support for existing `tagList` filters.
+- Calendar subscriptions display one release event per book when several
+  editions are monitored or none is selected.
+- Enter activates the focused confirmation button once. Confirm closes the
+  dialog and Cancel dismisses it without submitting the action.
+- Confirm before clearing all Blocklist entries and disable the action when the
+  list is empty or unavailable.
+
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
   the setup form.
@@ -126,6 +141,9 @@ process.
 
 ### Security
 
+- New and changed account passwords use salted PBKDF2. Existing accounts
+  upgrade when they next sign in successfully with a password. Rollback to an
+  earlier version requires its matching app-data backup after a password upgrade.
 - API keys supplied in the Authorization header must use the Bearer scheme.
   The X-Api-Key header and existing API key query parameter are still accepted.
 
