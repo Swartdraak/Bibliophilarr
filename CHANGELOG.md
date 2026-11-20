@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Fill missing author biographies and portraits from a verified Open Library
+  author profile without changing the primary identity or bibliography.
 - Library scans try the next enabled provider when an author-and-title search
   returns only incompatible formats or conflicts with the file's title, series
   volume, or author.

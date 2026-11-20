@@ -11,6 +11,7 @@ using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
@@ -735,6 +736,78 @@ namespace NzbDrone.Core.Test.MusicTests
             Assert.That(_author.ForeignAuthorId, Is.EqualTo("hardcover:author:42"));
             Assert.That(_author.Metadata.Value.PendingSourceAssociations, Has.Exactly(1).Matches<CatalogueSourceAssociation>(source => source.ProviderId == "OL42A"));
             Assert.That(_author.Metadata.Value.Overview, Is.EqualTo("A verified biography"));
+        }
+
+        [TestCase(AuthorCanonicalizationService.BibliographyEvidence, null, "OL42A", true, true, true)]
+        [TestCase(AuthorCanonicalizationService.BibliographyEvidence, "OL84A", "OL42A", false, false, true)]
+        [TestCase(AuthorCanonicalizationService.BibliographyEvidence, null, "OL84A", true, false, true)]
+        [TestCase(AuthorCanonicalizationService.BibliographyEvidence, null, "OL42A", true, false, false)]
+        [TestCase(CatalogueIdentityRepository.LegacyLinkedEvidence, null, "OL42A", false, false, true)]
+        public void should_fill_missing_author_profile_fields_only_from_one_corroborated_source(
+            string evidence, string linkedId, string returnedId, bool readsProfile, bool acceptsProfile, bool stillOwnsSource)
+        {
+            _author.ForeignAuthorId = "hardcover:author:42";
+            var incumbent = _author.Metadata.Value;
+            incumbent.CanonicalId = Guid.NewGuid().ToString("N");
+            incumbent.TitleSlug = "primary-author-slug";
+            incumbent.OpenLibraryAuthorId = linkedId;
+            incumbent.Overview = null;
+            incumbent.Images = new List<MediaCover.MediaCover>();
+            _author.AuthorMetadataId = incumbent.Id;
+            var canonicalId = incumbent.CanonicalId;
+            var authorName = incumbent.Name;
+
+            var primary = _author.JsonClone();
+            primary.Metadata = incumbent.JsonClone();
+            primary.Books = _remoteBooks;
+            GivenNewAuthorInfo(primary);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities
+                .Setup(repository => repository.GetSources(CatalogueEntityKind.Author, incumbent.Id))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL42A", Evidence = evidence } });
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL42A"))
+                .Returns(stillOwnsSource ? incumbent.Id : incumbent.Id + 1);
+
+            var portrait = new MediaCover.MediaCover(MediaCoverTypes.Poster, "https://covers.openlibrary.org/a/id/42-L.jpg")
+            {
+                SourceProvider = "OpenLibrary",
+                SourceId = returnedId
+            };
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(provider => provider.GetAuthorProfileMetadata("OpenLibrary", "OL42A"))
+                .Returns(new AuthorMetadata
+                {
+                    Name = "Alternate provider spelling",
+                    Overview = "The alternate author biography",
+                    OpenLibraryAuthorId = returnedId,
+                    Images = new List<MediaCover.MediaCover> { portrait }
+                });
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            var refreshed = _author.Metadata.Value;
+            Assert.That(refreshed.CanonicalId, Is.EqualTo(canonicalId));
+            Assert.That(refreshed.ForeignAuthorId, Is.EqualTo("hardcover:author:42"));
+            Assert.That(refreshed.TitleSlug, Is.EqualTo("primary-author-slug"));
+            Assert.That(refreshed.Name, Is.EqualTo(authorName));
+            Assert.That(refreshed.OpenLibraryAuthorId, Is.EqualTo(linkedId));
+            if (acceptsProfile)
+            {
+                Assert.That(refreshed.Overview, Is.EqualTo("The alternate author biography"));
+                Assert.That(refreshed.Images, Has.Exactly(1).Matches<MediaCover.MediaCover>(image =>
+                    image.SourceProvider == "OpenLibrary" && image.SourceId == "OL42A"));
+            }
+            else
+            {
+                Assert.That(refreshed.Overview, Is.Null);
+                Assert.That(refreshed.Images, Is.Empty);
+            }
+
+            orchestrator.Verify(provider => provider.GetAuthorProfileMetadata("OpenLibrary", "OL42A"), readsProfile ? Times.Once() : Times.Never());
+            orchestrator.Verify(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()), Times.Never());
         }
 
         [Test]

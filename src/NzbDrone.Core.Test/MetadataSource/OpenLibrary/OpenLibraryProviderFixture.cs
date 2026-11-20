@@ -30,6 +30,41 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Returns(new OlSearchResponse());
         }
 
+        [TestCase("/authors/OL42A", true)]
+        [TestCase("/authors/OL84A", false)]
+        [TestCase(null, false)]
+        public void should_fetch_only_the_exact_author_profile_without_paging_works(string responseKey, bool matches)
+        {
+            _clientMock.Setup(client => client.GetAuthor("OL42A", false))
+                .Returns(new OlAuthorResource
+                {
+                    Key = responseKey,
+                    Name = "Profile author",
+                    Bio = "Profile biography",
+                    Photos = new List<long> { -1, 123 }
+                });
+
+            var profile = Subject.GetAuthorProfileMetadata("OL42A");
+
+            if (matches)
+            {
+                profile.Should().NotBeNull();
+                profile.OpenLibraryAuthorId.Should().Be("OL42A");
+                profile.Overview.Should().Be("Profile biography");
+                var poster = profile.Images.Should().ContainSingle().Which;
+                poster.SourceId.Should().Be("OL42A");
+                poster.SourceProvider.Should().Be("OpenLibrary");
+            }
+            else
+            {
+                profile.Should().BeNull();
+            }
+
+            _clientMock.Verify(client => client.GetAuthor("OL42A", false), Times.Once());
+            _clientMock.Verify(client => client.GetAuthorWorks(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never());
+            _clientMock.Verify(client => client.Search(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never());
+        }
+
         [TestCase("OL1482659A", false, true)]
         [TestCase("OL1482659A", true, false)]
         [TestCase("OL1482660A", false, false)]

@@ -12,11 +12,13 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.RootFolders;
 
@@ -118,6 +120,7 @@ namespace NzbDrone.Core.Books
             {
                 var incumbent = local.Metadata.Value;
                 var incoming = data.Metadata.Value;
+                var primaryProviderAuthorId = incoming.ForeignAuthorId;
                 if (Guid.TryParseExact(incumbent.CanonicalId, "N", out _) && incumbent.ForeignAuthorId != incoming.ForeignAuthorId &&
                     !PreserveCatalogueAuthor(incumbent, incoming))
                 {
@@ -125,12 +128,64 @@ namespace NzbDrone.Core.Books
                     return result;
                 }
 
+                EnrichFromVerifiedAuthorProfile(incumbent, incoming, primaryProviderAuthorId);
                 result.Entity = data;
                 result.Metadata = new List<AuthorMetadata> { incoming };
             }
 
             return result;
         }
+
+        private void EnrichFromVerifiedAuthorProfile(AuthorMetadata incumbent, AuthorMetadata incoming, string primaryProviderAuthorId)
+        {
+            const CatalogueEntityKind kind = CatalogueEntityKind.Author;
+            const string provider = "OpenLibrary";
+            var missingBiography = string.IsNullOrWhiteSpace(incumbent.Overview) && string.IsNullOrWhiteSpace(incoming.Overview);
+            var missingPortrait = incumbent.Images?.Any(IsPortrait) != true && incoming.Images?.Any(IsPortrait) != true;
+            if (incumbent.Id <= 0 || (!missingBiography && !missingPortrait) ||
+                CatalogueIdentityRepository.ParseLegacySource(kind, primaryProviderAuthorId, null)?.Provider == provider)
+            {
+                return;
+            }
+
+            var sources = _catalogueIdentity.GetSources(kind, incumbent.Id)?
+                .Where(source => source.Provider == provider)
+                .ToList();
+            if (sources?.Count != 1 || sources[0].Evidence != AuthorCanonicalizationService.BibliographyEvidence)
+            {
+                return;
+            }
+
+            var verifiedId = OpenLibraryIdNormalizer.NormalizeAuthorId(sources[0].ProviderId);
+            if (verifiedId == null || ConflictsWithVerifiedId(incumbent.OpenLibraryAuthorId) || ConflictsWithVerifiedId(incoming.OpenLibraryAuthorId))
+            {
+                return;
+            }
+
+            var profile = _orchestrator.GetAuthorProfileMetadata(provider, verifiedId);
+            if (profile == null || OpenLibraryIdNormalizer.NormalizeAuthorId(profile.OpenLibraryAuthorId) != verifiedId ||
+                _catalogueIdentity.FindByProviderId(kind, provider, verifiedId) != incumbent.Id)
+            {
+                return;
+            }
+
+            if (missingBiography && !string.IsNullOrWhiteSpace(profile.Overview))
+            {
+                incoming.Overview = profile.Overview;
+            }
+
+            if (missingPortrait && profile.Images != null)
+            {
+                incoming.Images ??= new List<MediaCover.MediaCover>();
+                incoming.Images.AddRange(profile.Images.Where(IsPortrait));
+            }
+
+            bool ConflictsWithVerifiedId(string existingId) =>
+                !string.IsNullOrWhiteSpace(existingId) && OpenLibraryIdNormalizer.NormalizeAuthorId(existingId) != verifiedId;
+        }
+
+        private static bool IsPortrait(MediaCover.MediaCover image) =>
+            image?.CoverType == MediaCoverTypes.Poster && !string.IsNullOrWhiteSpace(image.Url);
 
         private bool PreserveCatalogueAuthor(AuthorMetadata incumbent, AuthorMetadata incoming)
         {

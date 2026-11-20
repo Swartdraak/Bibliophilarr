@@ -15,6 +15,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     /// </summary>
     public class OpenLibraryProvider :
         IMetadataProvider,
+        IProvideAuthorProfileMetadata,
         IProvideAuthorInfo,
         IVerifyAuthorWork,
         IProvideBookInfo,
@@ -41,6 +42,23 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             _client = client;
             _configService = configService;
             _logger = logger;
+        }
+
+        public AuthorMetadata GetAuthorProfileMetadata(string authorId)
+        {
+            const string authorPath = "/authors/";
+            var expectedId = OpenLibraryIdNormalizer.NormalizeAuthorId(authorId);
+            if (expectedId == null)
+            {
+                return null;
+            }
+
+            var resource = _client.GetAuthor(expectedId, confirmNotFound: false);
+            var key = resource?.Key;
+            var returnedId = key?.StartsWith(authorPath, StringComparison.OrdinalIgnoreCase) == true ? key[authorPath.Length..] : key;
+            return OpenLibraryIdNormalizer.NormalizeAuthorId(returnedId) == expectedId
+                ? OpenLibraryMapper.MapAuthorToMetadata(resource)
+                : null;
         }
 
         // ── IProvideAuthorInfo ───────────────────────────────────────────────

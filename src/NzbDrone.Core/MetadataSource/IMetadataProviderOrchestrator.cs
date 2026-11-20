@@ -26,6 +26,7 @@ namespace NzbDrone.Core.MetadataSource
         List<object> SearchForNewEntity(string title);
         System.Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id);
         Author GetAuthorInfo(string id, bool useCache = true);
+        AuthorMetadata GetAuthorProfileMetadata(string provider, string authorId);
         string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn);
         HashSet<string> GetChangedAuthors(DateTime startTime);
     }

@@ -214,6 +214,14 @@ namespace NzbDrone.Core.MetadataSource
             return result;
         }
 
+        public AuthorMetadata GetAuthorProfileMetadata(string provider, string authorId)
+        {
+            return ExecuteFirst<IProvideAuthorProfileMetadata, AuthorMetadata>(
+                profile => profile.GetAuthorProfileMetadata(authorId),
+                "get-author-profile-metadata",
+                candidate => string.Equals(candidate.ProviderName, provider, StringComparison.OrdinalIgnoreCase));
+        }
+
         public HashSet<string> GetChangedAuthors(DateTime startTime)
         {
             return ExecuteFirst<IProvideAuthorInfo, HashSet<string>>(

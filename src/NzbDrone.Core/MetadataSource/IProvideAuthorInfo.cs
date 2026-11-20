@@ -9,6 +9,11 @@ namespace NzbDrone.Core.MetadataSource
         string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn);
     }
 
+    internal interface IProvideAuthorProfileMetadata
+    {
+        AuthorMetadata GetAuthorProfileMetadata(string authorId);
+    }
+
     public interface IProvideAuthorInfo
     {
         Author GetAuthorInfo(string bibliophilarrId, bool useCache = true);
