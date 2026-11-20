@@ -1,10 +1,13 @@
 using System;
+using System.Net;
 using FluentAssertions;
 using Moq;
+using NLog;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -24,6 +27,49 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Mocker.GetMock<IConfigService>().SetupGet(x => x.OpenLibrarySearchRetryBudget).Returns(-1);
             Mocker.GetMock<IConfigService>().SetupGet(x => x.OpenLibraryIsbnRetryBudget).Returns(-1);
             Mocker.GetMock<IConfigService>().SetupGet(x => x.OpenLibraryWorkRetryBudget).Returns(-1);
+        }
+
+        [TestCase(false, HttpStatusCode.OK, 1, 0)]
+        [TestCase(false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase(true, HttpStatusCode.OK, 1, 0)]
+        [TestCase(true, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        public void text_search_telemetry_should_distinguish_empty_results_from_http_failures(
+            bool searchAuthors, HttpStatusCode status, int expectedSuccesses, int expectedFailures)
+        {
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(provider => provider.EnableOpenLibraryProvider).Returns(true);
+            var request = new HttpRequest("https://openlibrary.org/search.json");
+            var response = new HttpResponse(request, new HttpHeader(), "{\"docs\":[]}", status);
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns(response);
+
+            var logger = LogManager.GetCurrentClassLogger();
+            var provider = new OpenLibraryProvider(Subject, config.Object, logger);
+            var registry = new MetadataProviderRegistry(new[] { provider });
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, logger);
+            if (status != HttpStatusCode.OK)
+            {
+                ExceptionVerification.IgnoreWarns();
+            }
+
+            if (searchAuthors)
+            {
+                orchestrator.SearchForNewAuthor("Test Author");
+            }
+            else
+            {
+                orchestrator.SearchForNewBook("Test Book", null);
+            }
+
+            var entry = telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            entry.ProviderName.Should().Be("OpenLibrary");
+            entry.OperationName.Should().Be(searchAuthors ? "search-for-new-author" : "search-for-new-book");
+            entry.Calls.Should().Be(1);
+            entry.Successes.Should().Be(expectedSuccesses);
+            entry.Failures.Should().Be(expectedFailures);
+            entry.NullResults.Should().Be(0);
+            entry.TotalResultCount.Should().Be(0);
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
         }
 
         [Test]

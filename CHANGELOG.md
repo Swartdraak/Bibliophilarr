@@ -14,6 +14,8 @@ process.
 
 ### Fixed
 
+- Provider telemetry distinguishes failed Open Library text searches from
+  successful searches with no matches.
 - Name the event details button in Activity History for screen readers.
 - Calendar subscription links authenticate with their API key and open in
   calendar clients without a Bibliophilarr browser session.
