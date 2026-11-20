@@ -342,7 +342,7 @@ def run(binary, evidence, *, live_provider=False):
             page.set_viewport_size({"width": 1366, "height": 900})
             check_status(page.goto(base + "/authors"), 200, "Library after restart")
             expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
-            verify_catalogue_after_restart(page, api, base, catalogue)
+            verify_catalogue_after_restart(page, api, base, data, catalogue)
             assert not errors, f"{len(errors)} uncaught browser page errors"
             page.get_by_role("button", name="Menu Button").click()
             page.get_by_role("button", name="Logout", exact=True).click()
