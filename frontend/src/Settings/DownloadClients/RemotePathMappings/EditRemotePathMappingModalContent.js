@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, { useState } from 'react';
 import Form from 'Components/Form/Form';
 import FormGroup from 'Components/Form/FormGroup';
 import FormInputGroup from 'Components/Form/FormInputGroup';
@@ -13,10 +13,16 @@ import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { inputTypes, kinds } from 'Helpers/Props';
 import { numberSettingShape, stringSettingShape } from 'Helpers/Props/Shapes/settingShape';
+import getUniqueElementId from 'Utilities/getUniqueElementId';
 import translate from 'Utilities/String/translate';
 import styles from './EditRemotePathMappingModalContent.css';
 
 function EditRemotePathMappingModalContent(props) {
+  const [formId] = useState(getUniqueElementId);
+  const hostId = `${formId}-host`;
+  const remotePathId = `${formId}-remote-path`;
+  const localPathId = `${formId}-local-path`;
+  const formatTypeId = `${formId}-format-type`;
   const {
     id,
     isFetching,
@@ -62,13 +68,15 @@ function EditRemotePathMappingModalContent(props) {
           !isFetching && !error &&
             <Form {...otherProps}>
               <FormGroup>
-                <FormLabel>
+                <FormLabel id={`${hostId}-label`} name={hostId}>
                   {translate('Host')}
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.SELECT}
                   name="host"
+                  inputId={hostId}
+                  labelId={`${hostId}-label`}
                   helpText={translate('HostHelpText')}
                   {...host}
                   values={downloadClientHosts}
@@ -77,13 +85,14 @@ function EditRemotePathMappingModalContent(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name={remotePathId}>
                   {translate('SettingsRemotePathMappingRemotePath')}
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.TEXT}
                   name="remotePath"
+                  inputId={remotePathId}
                   helpText={translate('SettingsRemotePathMappingRemotePathHelpText')}
                   {...remotePath}
                   onChange={onInputChange}
@@ -91,13 +100,14 @@ function EditRemotePathMappingModalContent(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel name={localPathId}>
                   {translate('SettingsRemotePathMappingLocalPath')}
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.PATH}
                   name="localPath"
+                  inputId={localPathId}
                   helpText={translate('SettingsRemotePathMappingLocalPathHelpText')}
                   {...localPath}
                   onChange={onInputChange}
@@ -105,13 +115,15 @@ function EditRemotePathMappingModalContent(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>
+                <FormLabel id={`${formatTypeId}-label`} name={formatTypeId}>
                   Format Type
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.SELECT}
                   name="formatType"
+                  inputId={formatTypeId}
+                  labelId={`${formatTypeId}-label`}
                   helpText="Optional: restrict this mapping to a specific format. Leave as 'All' to apply to both ebooks and audiobooks."
                   {...formatType}
                   values={[
