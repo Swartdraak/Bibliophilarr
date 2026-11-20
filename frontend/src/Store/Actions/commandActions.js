@@ -62,7 +62,8 @@ function showCommandMessage(payload, dispatch) {
     trigger,
     message,
     body = {},
-    status
+    status,
+    result
   } = payload;
 
   const {
@@ -77,12 +78,12 @@ function showCommandMessage(payload, dispatch) {
   let type = messageTypes.INFO;
   let hideAfter = 0;
 
-  if (status === 'completed') {
-    type = messageTypes.SUCCESS;
-    hideAfter = 4;
-  } else if (status === 'failed') {
+  if (status === 'failed' || result === 'unsuccessful') {
     type = messageTypes.ERROR;
     hideAfter = trigger === 'manual' ? 10 : 4;
+  } else if (status === 'completed') {
+    type = messageTypes.SUCCESS;
+    hideAfter = 4;
   }
 
   dispatch(showMessage({

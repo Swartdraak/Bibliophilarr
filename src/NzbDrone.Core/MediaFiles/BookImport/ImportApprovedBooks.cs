@@ -371,37 +371,37 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     _logger.Warn(e, "Couldn't import book " + localTrack);
                     _eventAggregator.PublishEvent(new TrackImportFailedEvent(e, localTrack, !localTrack.ExistingFile, downloadClientItem));
 
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, root folder missing."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, root folder missing."));
                 }
                 catch (DestinationAlreadyExistsException e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, destination already exists."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, destination already exists."));
                 }
                 catch (UnauthorizedAccessException e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
                     _eventAggregator.PublishEvent(new TrackImportFailedEvent(e, localTrack, !localTrack.ExistingFile, downloadClientItem));
 
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, permissions error"));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, permissions error"));
                 }
                 catch (RecycleBinException e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
                     _eventAggregator.PublishEvent(new TrackImportFailedEvent(e, localTrack, !localTrack.ExistingFile, downloadClientItem));
 
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, unable to move existing file to the Recycle Bin."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, unable to move existing file to the Recycle Bin."));
                 }
                 catch (CalibreException e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
 
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, error communicating with Calibre.  Check log for details."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, error communicating with Calibre.  Check log for details."));
                 }
                 catch (Exception e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book."));
                 }
             }
 

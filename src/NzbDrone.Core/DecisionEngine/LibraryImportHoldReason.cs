@@ -10,6 +10,7 @@ namespace NzbDrone.Core.DecisionEngine
         CompetingEditions = 6,
         ReadError = 7,
         DuplicateInScan = 8,
-        ConflictingIdentity = 9
+        ConflictingIdentity = 9,
+        ImportFailed = 10
     }
 }

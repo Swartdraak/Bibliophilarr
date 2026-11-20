@@ -59,6 +59,11 @@ module.exports = {
   // Header
   pageHeaderBackgroundColor: '#14283d',
   headerControlColor: '#203951',
+  headerPlaceholderColor: '#c5d5e6',
+  statusWarningTextColor: '#815512',
+  notificationPanelBackgroundColor: '#fff',
+  notificationIconBackgroundColor: '#eaf1f8',
+  notificationDetailColor: '#4d5b6c',
   headerOutlineColor: '#7d98b4',
 
   // Sidebar

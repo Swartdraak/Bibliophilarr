@@ -23,7 +23,8 @@ const unmappedReasonLabels = {
   competingEditions: 'UnmappedReasonCompetingEditions',
   readError: 'UnmappedReasonReadError',
   duplicateInScan: 'UnmappedReasonDuplicateInScan',
-  conflictingIdentity: 'UnmappedReasonConflictingIdentity'
+  conflictingIdentity: 'UnmappedReasonConflictingIdentity',
+  importFailed: 'UnmappedReasonImportFailed'
 };
 
 class UnmappedFilesTableRow extends Component {

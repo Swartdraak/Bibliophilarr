@@ -7,18 +7,11 @@ import PageContentBody from 'Components/Page/PageContentBody';
 import CatalogueRecordRoute from 'Components/Router/CatalogueRecordRoute';
 import cataloguePath from 'Utilities/cataloguePath';
 import createAjaxRequest from 'Utilities/createAjaxRequest';
+import getCatalogueFormatStatus from 'Utilities/getCatalogueFormatStatus';
 import translate from 'Utilities/String/translate';
 import { compareSeriesBookPositions, getSeriesRepresentativeCovers } from './AuthorDetailsSeriesConnector';
 import SeriesRepresentativeCover from './SeriesRepresentativeCover';
 import styles from './AuthorDetailsSeries.css';
-
-function getLibraryStatus(hasFile, monitored) {
-  if (hasFile) {
-    return 'CatalogueFormatInLibrary';
-  }
-
-  return monitored ? 'Missing' : 'Unmonitored';
-}
 
 function CatalogueSeriesDetails({ series }) {
   const books = useSelector((state) => state.books.items);
@@ -84,7 +77,7 @@ function CatalogueSeriesDetails({ series }) {
                       {' · '}
                       {translate(formatType === 'ebook' ? 'Ebook' : 'Audiobook')}
                       {' '}
-                      {translate(getLibraryStatus(hasFile, monitored))}
+                      {translate(getCatalogueFormatStatus(hasFile, monitored))}
                     </span>
                   ))}
                 </li>

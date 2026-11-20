@@ -18,6 +18,8 @@ using NzbDrone.Core.Datastore.Migration.Framework;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
+using NzbDrone.Core.MediaFiles.Commands;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
@@ -641,6 +643,73 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Mocker.GetMock<IMediaFileService>()
                 .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(l => l.Count > 0)),
                         Times.Never());
+        }
+
+        [Test]
+        public void should_report_an_unavailable_root_and_still_import_files_from_the_other_root()
+        {
+            GivenAuthorFolder();
+            var availableFile = Path.Combine(_author.Path, "available.epub");
+            var unavailableRoot = @"C:\OtherLibrary".AsOsAgnostic();
+            GivenFiles(new[] { availableFile });
+            GivenRejections();
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(service => service.GetBestRootFolder(unavailableRoot))
+                .Returns(new RootFolder { Path = unavailableRoot });
+
+            Subject.Execute(new RescanFoldersCommand(
+                new List<string> { unavailableRoot, _author.Path },
+                FilterFilesType.Matched,
+                false,
+                null));
+
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].Path == availableFile)), Times.Once);
+        }
+
+        [Test]
+        public void should_keep_records_for_an_unreadable_folder_and_still_scan_other_folders()
+        {
+            var unreadable = Path.Combine(_rootFolder, "Unreadable");
+            GivenRootFolder(_author.Path, unreadable);
+            var readableFile = Path.Combine(_author.Path, "available.epub");
+            GivenFiles(new[] { readableFile });
+            GivenRejections();
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(unreadable, true))
+                .Throws(new UnauthorizedAccessException());
+
+            Subject.Scan(new List<string> { unreadable, _author.Path });
+
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            Mocker.GetMock<IMediaFileTableCleanupService>().Verify(cleanup => cleanup.Clean(unreadable, It.IsAny<List<string>>()), Times.Never);
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].Path == readableFile)), Times.Once);
+        }
+
+        [Test]
+        public void should_record_an_import_execution_failure_on_an_unlinked_file()
+        {
+            GivenAuthorFolder();
+            var file = Path.Combine(_author.Path, "failed.epub");
+            GivenFiles(new[] { file });
+            var decision = new ImportDecision<LocalBook>(new LocalBook { Path = file, FileTrackInfo = new ParsedTrackInfo() });
+            var decisions = new List<ImportDecision<LocalBook>> { decision };
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(service => service.GetImportDecisions(It.IsAny<List<IFileInfo>>(), null, null, It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(decisions);
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(service => service.Import(decisions, false, null, ImportMode.Auto))
+                .Returns(new List<ImportResult> { new ImportResult(decision, LibraryImportHoldReason.ImportFailed, "I/O failed") });
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].UnmappedReason == LibraryImportHoldReason.ImportFailed)), Times.Once);
         }
 
         [Test]

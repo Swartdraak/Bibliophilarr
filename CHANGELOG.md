@@ -17,8 +17,18 @@ process.
   counts. A bulk action targets selected files in the current results.
 - See the last recorded import hold reason next to each unmapped file, such as
   an uncertain match, a preferred existing file, or a file of the same size.
+- Show import execution failures separately from uncertain matches and
+  summarize unmapped reasons in scan progress.
+- Open recent background tasks from the WebUI header and filter for tasks
+  that need attention. The Auto theme updates when the system palette changes.
+- Show verified shared works in an author's bibliography while keeping each
+  work's catalogue owner, editions and format status.
 
 ### Fixed
+
+- Continue scanning accessible folders when another root is unavailable.
+  Preserve existing file records for unreadable folders and report the scan
+  as unsuccessful when a folder is skipped or an import execution fails.
 
 - Reconcile reviewed duplicate works without changing edition or file IDs.
   Preserve both formats, their monitoring settings, series membership and
@@ -196,6 +206,10 @@ process.
 
 ### Security
 
+- Require an API credential for versioned API writes and protect Forms
+  sign-in and sign-out with browser verification tokens.
+- Keep Calibre connection settings and library lookup terms out of scan logs.
+
 - Update the frontend dependency graph to patched qs, PostCSS and picomatch versions. Keep each selector-parser consumer on a compatible release.
 
 - **Direct frontend dependency bumps** (Issue #237): `lodash` `4.17.23 -> 4.18.1` closes GHSA-r5fr-rjxr-66jc (code injection via `_.template` imports, high) and GHSA-f23m-r3pf-42rh (prototype pollution via array path bypass in `_.unset`/`_.omit`, moderate). Direct and transitive `qs` now resolve to `6.17.1`, which closes GHSA-q8mj-m7cp-5q26 (remotely triggerable `qs.stringify` DoS, moderate), GHSA-x5fp-wj9c-mxmx (array-limit bypass via bracket-key comma parsing, moderate) and GHSA-4mjr-xmp4-gh2g (DoS via attacker-controlled `isBuffer`, moderate). The lockfile no longer contains the affected older versions.
@@ -204,6 +218,9 @@ process.
 - Honor Basic authentication on the WebUI when authentication is required and return HTTP 401 for anonymous API calls.
 
 ### Operations
+
+- Fail build smoke checks when a settings update is rejected or a telemetry
+  response has the wrong shape. Fail branding audits when the search fails.
 
 - Release workflows verify the SemVer tag and promotion branch before
   publishing a GitHub release, npm package, or container image.

@@ -10,6 +10,7 @@ interface CssExports {
   'innerContentBody': string;
   'metadataMessage': string;
   'selectedTab': string;
+  'sharedBibliography': string;
   'tab': string;
   'tabContent': string;
   'tabList': string;

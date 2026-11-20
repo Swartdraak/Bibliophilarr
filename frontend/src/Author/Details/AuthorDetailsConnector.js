@@ -278,7 +278,7 @@ class AuthorDetailsConnector extends Component {
   populateSeriesArtwork = (authorId) => {
     this.seriesArtworkRequest?.abortRequest();
 
-    const load = createAjaxRequest({ url: '/book', data: { authorId } });
+    const load = createAjaxRequest({ url: '/book', data: { authorId, includeShared: true } });
     this.seriesArtworkRequest = load;
 
     load.request.done((books) => {
@@ -286,7 +286,7 @@ class AuthorDetailsConnector extends Component {
         this.setState({
           seriesArtwork: {
             authorId,
-            books: books.map(({ id, title, images }) => ({ id, title, images }))
+            books
           }
         });
       }
@@ -336,10 +336,13 @@ class AuthorDetailsConnector extends Component {
 
   render() {
     const { seriesArtwork } = this.state;
+    const authorId = this.props.id;
+    const catalogue = seriesArtwork?.authorId === authorId ? seriesArtwork.books : undefined;
     return (
       <AuthorDetails
         {...this.props}
-        seriesArtworkBooks={seriesArtwork?.authorId === this.props.id ? seriesArtwork.books : undefined}
+        seriesArtworkBooks={catalogue}
+        sharedBooks={catalogue?.filter((book) => book.authorId > 0 && book.authorId !== authorId)}
         onMonitorTogglePress={this.onMonitorTogglePress}
         onRefreshPress={this.onRefreshPress}
         onSearchPress={this.onSearchPress}

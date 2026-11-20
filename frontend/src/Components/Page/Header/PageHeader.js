@@ -6,6 +6,7 @@ import Link from 'Components/Link/Link';
 import { icons } from 'Helpers/Props';
 import translate from 'Utilities/String/translate';
 import AuthorSearchInputConnector from './AuthorSearchInputConnector';
+import CommandNotifications from './CommandNotifications';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import PageHeaderActionsMenuConnector from './PageHeaderActionsMenuConnector';
 import styles from './PageHeader.css';
@@ -81,6 +82,7 @@ class PageHeader extends Component {
         <AuthorSearchInputConnector />
 
         <div className={styles.right}>
+          <CommandNotifications />
           <IconButton
             className={styles.donate}
             name={icons.HEART}

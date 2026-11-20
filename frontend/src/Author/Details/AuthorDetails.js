@@ -32,6 +32,7 @@ import InteractiveImportModal from '../../InteractiveImport/InteractiveImportMod
 import AuthorDetailsHeaderConnector from './AuthorDetailsHeaderConnector';
 import AuthorDetailsSeasonConnector from './AuthorDetailsSeasonConnector';
 import AuthorDetailsSeriesConnector from './AuthorDetailsSeriesConnector';
+import SharedBibliography from './SharedBibliography';
 import styles from './AuthorDetails.css';
 
 function getExpandedState(newState) {
@@ -232,6 +233,7 @@ class AuthorDetails extends Component {
       hasSeries,
       series,
       seriesArtworkBooks,
+      sharedBooks,
       hasBookFiles,
       previousAuthor,
       nextAuthor,
@@ -487,6 +489,7 @@ class AuthorDetails extends Component {
                   </TabList>
 
                   <TabPanel>
+                    <SharedBibliography books={sharedBooks} />
                     <AuthorDetailsSeasonConnector
                       authorId={id}
                       isExpanded={true}
@@ -634,6 +637,7 @@ AuthorDetails.propTypes = {
   hasSeries: PropTypes.bool.isRequired,
   series: PropTypes.arrayOf(PropTypes.object).isRequired,
   seriesArtworkBooks: PropTypes.arrayOf(PropTypes.object),
+  sharedBooks: PropTypes.arrayOf(PropTypes.object),
   hasBookFiles: PropTypes.bool.isRequired,
   previousAuthor: PropTypes.object.isRequired,
   nextAuthor: PropTypes.object.isRequired,

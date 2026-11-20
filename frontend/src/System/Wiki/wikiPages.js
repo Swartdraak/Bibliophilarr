@@ -8,7 +8,7 @@ const wikiPages = [
       {
         heading: 'Welcome to Bibliophilarr',
         paragraphs: [
-          'Bibliophilarr is a book library management tool for ebook and audiobook enthusiasts. It monitors your favorite authors, automatically downloads new releases, and organizes your library. It is a community-driven fork of the retired Readarr project, focused on sustainable FOSS metadata providers and native dual-format (ebook + audiobook) tracking.',
+          'Bibliophilarr manages ebook and audiobook libraries. It monitors your favorite authors, automatically downloads new releases, and organizes both formats. It uses open metadata providers and tracks ebooks and audiobooks independently.',
           'This guide walks you through initial setup after your first launch.'
         ]
       },
@@ -387,7 +387,7 @@ const wikiPages = [
           'To set up Prowlarr integration:'
         ],
         list: [
-          'In Prowlarr, go to Settings → Apps → Add and choose the legacy Readarr connector for Bibliophilarr.',
+          'In Prowlarr, go to Settings → Apps → Add. Choose Bibliophilarr if available, or select the compatible legacy connector for book libraries.',
           'Enter your Bibliophilarr API URL and API key.',
           'Prowlarr will automatically push indexer configurations to Bibliophilarr.',
           'Prowlarr also provides unified search history across all your *arr applications.'
@@ -1222,8 +1222,7 @@ const wikiPages = [
       {
         heading: 'Can I monitor both ebook and audiobook for the same book?',
         paragraphs: [
-          'Yes. Bibliophilarr is the only *arr application that supports this natively. With Dual Format Tracking enabled (the default since v1.1.0-dev.27), each book can have independent ebook and audiobook monitoring with separate quality profiles.',
-          'In the original Readarr, this required running two separate instances. Bibliophilarr eliminates that complexity.'
+          'Yes. With Dual Format Tracking enabled, each book can have independent ebook and audiobook monitoring with separate quality profiles.'
         ]
       },
       {
