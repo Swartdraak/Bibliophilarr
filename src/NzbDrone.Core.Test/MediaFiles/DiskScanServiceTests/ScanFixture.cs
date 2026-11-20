@@ -117,7 +117,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             }
 
             Mocker.GetMock<IDiskProvider>()
-                .Setup(s => s.GetFileInfos(It.IsAny<string>(), true))
+                .Setup(s => s.GetFileInfos(It.IsAny<string>(), true, false))
                 .Returns(files.Select(x => DiskProvider.GetFileInfo(x)).ToList());
         }
 
@@ -221,7 +221,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IDiskProvider>()
-                .Verify(v => v.GetFileInfos(It.IsAny<string>(), It.IsAny<bool>()), Times.Once());
+                .Verify(v => v.GetFileInfos(It.IsAny<string>(), true, false), Times.Once());
 
             Mocker.GetMock<IMakeImportDecision>()
                 .Verify(v => v.GetImportDecisions(It.Is<List<IFileInfo>>(l => l.Count == 1), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()), Times.Once());
@@ -690,22 +690,32 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
         }
 
         [Test]
-        public void should_keep_records_for_an_unreadable_folder_and_still_scan_other_folders()
+        public void should_keep_records_for_a_partially_readable_folder_and_still_scan_other_folders()
         {
             var unreadable = Path.Combine(_rootFolder, "Unreadable");
             GivenRootFolder(_author.Path, unreadable);
             var readableFile = Path.Combine(_author.Path, "available.epub");
-            GivenFiles(new[] { readableFile });
+            var partialFile = Path.Combine(unreadable, "sibling.epub");
+            GivenFiles(new[] { readableFile, partialFile });
             GivenRejections();
             Mocker.GetMock<IDiskProvider>()
-                .Setup(provider => provider.GetFileInfos(unreadable, true))
+                .Setup(provider => provider.GetFileInfos(unreadable, true, true))
+                .Returns(new List<IFileInfo> { DiskProvider.GetFileInfo(partialFile) });
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, true))
+                .Returns(new List<IFileInfo> { DiskProvider.GetFileInfo(readableFile) });
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, false))
+                .Returns(new List<IFileInfo> { DiskProvider.GetFileInfo(readableFile) });
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(unreadable, true, false))
                 .Throws(new UnauthorizedAccessException());
 
             Subject.Scan(new List<string> { unreadable, _author.Path });
 
+            Mocker.GetMock<IMediaFileTableCleanupService>().Verify(cleanup => cleanup.Clean(unreadable, It.IsAny<List<string>>()), Times.Never);
             ExceptionVerification.ExpectedWarns(1);
             Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
-            Mocker.GetMock<IMediaFileTableCleanupService>().Verify(cleanup => cleanup.Clean(unreadable, It.IsAny<List<string>>()), Times.Never);
             Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
                 files.Count == 1 && files[0].Path == readableFile)), Times.Once);
         }
@@ -772,6 +782,8 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
         [Test]
         public void should_update_fields_for_updated_files()
         {
+            GivenAuthorFolder();
+
             var files = new List<string>
             {
                 Path.Combine(_author.Path, "Season 1", "file1.mobi"),
@@ -780,6 +792,9 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             GivenKnownFiles(files);
 
             FileSystem.AddFile(files[0], new MockFileData("".PadRight(100)) { LastWriteTime = new DateTime(2019, 2, 1) });
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, false))
+                .Returns(new List<IFileInfo> { DiskProvider.GetFileInfo(files[0]) });
 
             var localTrack = Builder<LocalBook>.CreateNew()
                 .With(x => x.Path = files[0])

@@ -144,7 +144,8 @@ namespace NzbDrone.Core.MediaFiles
                 List<IFileInfo> files;
                 try
                 {
-                    files = FilterFiles(folder, GetBookFiles(folder));
+                    // Cleanup needs a complete view of this scope, including nested folders.
+                    files = FilterFiles(folder, GetBookFiles(folder, allDirectories: true, ignoreInaccessible: false));
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException)
                 {
@@ -327,6 +328,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public IFileInfo[] GetBookFiles(string path, bool allDirectories = true)
         {
+            return GetBookFiles(path, allDirectories, ignoreInaccessible: true);
+        }
+
+        private IFileInfo[] GetBookFiles(string path, bool allDirectories, bool ignoreInaccessible)
+        {
             IEnumerable<IFileInfo> filesOnDisk;
 
             var rootFolder = _rootFolderService.GetBestRootFolder(path);
@@ -343,7 +349,7 @@ namespace NzbDrone.Core.MediaFiles
             {
                 _logger.Debug("Scanning '{0}' for supported media files", LogSanitizer.Sanitize(path));
 
-                filesOnDisk = _diskProvider.GetFileInfos(path, allDirectories);
+                filesOnDisk = _diskProvider.GetFileInfos(path, allDirectories, ignoreInaccessible);
 
                 _logger.Trace("{0} files were found in {1}", filesOnDisk.Count(), path);
             }
