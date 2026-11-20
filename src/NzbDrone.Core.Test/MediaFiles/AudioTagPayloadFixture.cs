@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.IO;
 using System.Linq;
+using System.Text;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
@@ -25,14 +26,14 @@ namespace NzbDrone.Core.Test.MediaFiles
             new AudioTag { Title = "Before rewrite" }.Write(path);
             var before = File.ReadAllBytes(path);
             var format = ReadWaveChunk(path, "fmt "u8);
-            var samples = ReadWaveChunk(path, "data"u8);
-            samples.Should().HaveCount(16000);
+            var pcmData = ReadWaveChunk(path, "data"u8);
+            pcmData.Should().HaveCount(16000);
 
             RewriteTitle(path);
 
             File.ReadAllBytes(path).SequenceEqual(before).Should().BeFalse();
             ReadWaveChunk(path, "fmt "u8).Should().Equal(format);
-            ReadWaveChunk(path, "data"u8).Should().Equal(samples);
+            ReadWaveChunk(path, "data"u8).Should().Equal(pcmData);
         }
 
         [Test]
@@ -43,8 +44,8 @@ namespace NzbDrone.Core.Test.MediaFiles
             File.Copy(fixture, path);
             new AudioTag { Title = "Before rewrite" }.Write(path);
             var before = File.ReadAllBytes(path);
-            var samples = ReadMpeg4MediaData(path);
-            samples.Length.Should().BeGreaterThan(0);
+            var aacData = ReadMpeg4MediaData(path);
+            aacData.Length.Should().BeGreaterThan(0);
             TimeSpan duration;
             using (var original = TagLib.File.Create(path))
             {
@@ -56,7 +57,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             RewriteTitle(path);
 
             File.ReadAllBytes(path).SequenceEqual(before).Should().BeFalse();
-            ReadMpeg4MediaData(path).Should().Equal(samples);
+            ReadMpeg4MediaData(path).Should().Equal(aacData);
             using var rewritten = TagLib.File.Create(path);
             rewritten.Properties.AudioSampleRate.Should().Be(44100);
             rewritten.Properties.AudioChannels.Should().Be(2);
@@ -101,26 +102,31 @@ namespace NzbDrone.Core.Test.MediaFiles
                 stream.Seek(payloadSize, SeekOrigin.Current);
             }
 
-            throw new AssertionException("Expected MPEG-4 media data was not found");
+            throw new AssertionException($"Expected MPEG-4 mdat box in {path}");
         }
 
         private static void WriteSyntheticWave(string path)
         {
-            var samples = Enumerable.Range(0, 16000).Select(index => (byte)(index % 251)).ToArray();
+            const int sampleRate = 8000;
+            const int sampleCount = sampleRate;
+            const int dataSize = sampleCount * sizeof(short);
             using var writer = new BinaryWriter(File.Create(path));
             writer.Write("RIFF"u8);
-            writer.Write(36 + samples.Length);
+            writer.Write(36 + dataSize);
             writer.Write("WAVEfmt "u8);
             writer.Write(16);
             writer.Write((short)1); // PCM
             writer.Write((short)1); // mono
-            writer.Write(8000); // sample rate
-            writer.Write(16000); // bytes per second
-            writer.Write((short)2); // bytes per sample
+            writer.Write(sampleRate);
+            writer.Write(sampleRate * sizeof(short)); // bytes per second
+            writer.Write((short)sizeof(short)); // bytes per sample
             writer.Write((short)16); // bits per sample
             writer.Write("data"u8);
-            writer.Write(samples.Length);
-            writer.Write(samples);
+            writer.Write(dataSize);
+            for (var index = 0; index < sampleCount; index++)
+            {
+                writer.Write((short)(((index * 31) % 10000) - 5000));
+            }
         }
 
         private static byte[] ReadWaveChunk(string path, ReadOnlySpan<byte> expectedName)
@@ -142,7 +148,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                 stream.Seek(size + (size & 1), SeekOrigin.Current);
             }
 
-            throw new AssertionException("Expected WAVE chunk was not found");
+            throw new AssertionException($"Expected WAVE chunk '{Encoding.ASCII.GetString(expectedName)}' in {path}");
         }
     }
 }
