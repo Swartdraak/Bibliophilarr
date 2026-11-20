@@ -732,18 +732,19 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 files.Count == 1 && files[0].UnmappedReason == LibraryImportHoldReason.ImportFailed)), Times.Once);
         }
 
-        [Test]
-        public void should_record_why_new_files_remain_unmapped()
+        [TestCase(null, LibraryImportHoldReason.ReviewRequired)]
+        [TestCase(LibraryImportHoldReason.LowConfidence, LibraryImportHoldReason.LowConfidence)]
+        public void should_record_why_new_files_remain_unmapped(LibraryImportHoldReason? holdReason, LibraryImportHoldReason expectedReason)
         {
             GivenAuthorFolder();
             GivenFiles(new[] { Path.Combine(_author.Path, "unmatched.epub") });
-            GivenRejections();
+            GivenRejections(holdReason: holdReason);
 
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IMediaFileService>()
                 .Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
-                    files.Count == 1 && files[0].UnmappedReason == LibraryImportHoldReason.ReviewRequired)));
+                    files.Count == 1 && files[0].UnmappedReason == expectedReason)));
         }
 
         [Test]

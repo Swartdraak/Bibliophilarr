@@ -390,6 +390,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
 
                 release.PopulateMatch(config.KeepAllEditions);
+                release.IdentificationHoldReason = null;
 
                 _logger.Debug("Direct catalogue lookup matched an edition");
             }
@@ -595,7 +596,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (localEdition.Edition == null)
             {
-                decision = new ImportDecision<LocalEdition>(localEdition, new Rejection($"Couldn't find similar book for {localEdition}", holdReason: LibraryImportHoldReason.NoAcceptedWork));
+                var reason = localEdition.IdentificationHoldReason ?? LibraryImportHoldReason.NoAcceptedWork;
+                var message = reason == LibraryImportHoldReason.LowConfidence
+                    ? "The match could not confidently identify a new author. Select the intended author manually."
+                    : $"Couldn't find similar book for {localEdition}";
+                decision = new ImportDecision<LocalEdition>(localEdition, new Rejection(message, holdReason: reason));
             }
             else
             {

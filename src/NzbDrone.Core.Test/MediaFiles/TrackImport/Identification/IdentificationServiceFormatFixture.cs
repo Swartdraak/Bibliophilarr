@@ -5,6 +5,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
@@ -223,6 +224,35 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
 
             results.Single().Edition.Should().BeSameAs(_audiobookEdition);
             localBooks.Single().Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
+        [Test]
+        public void should_retain_low_confidence_reason_when_holding_a_new_author_match()
+        {
+            _config.NewDownload = false;
+            _config.AddNewAuthors = true;
+            _book.Id = 0;
+            _author.Id = 0;
+            _audiobookEdition.Title = "Test Book";
+            _audiobookEdition.Format = "Audio Book";
+            _audiobookEdition.Language = "spa";
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(It.IsAny<string>())).Returns((Author)null);
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(new List<CandidateEdition>());
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+
+            var tracks = CreateAudiobookLocalBooks();
+            tracks.Single().FileTrackInfo.BookTitle = "Test Book";
+            tracks.Single().FileTrackInfo.Authors = new List<string> { "Test Author" };
+            tracks.Single().FileTrackInfo.Language = "eng";
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            result.Edition.Should().BeNull();
+            result.IdentificationHoldReason.Should().Be(LibraryImportHoldReason.LowConfidence);
         }
 
         [TestCase(false, false)]

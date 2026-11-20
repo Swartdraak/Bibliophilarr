@@ -11,6 +11,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -291,6 +292,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                              AutoAddAuthorDistanceThreshold);
 
                 // Clear the match to prevent auto-adding a low-confidence author
+                localBookRelease.IdentificationHoldReason = LibraryImportHoldReason.LowConfidence;
                 localBookRelease.Edition = null;
                 localBookRelease.Distance = new Distance();
                 localBookRelease.ExistingTracks = new List<LocalBook>();

@@ -198,6 +198,38 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Item.Edition.Should().BeSameAs(edition);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_preserve_new_author_confidence_hold_until_fallback_finds_a_match(bool fallbackMatches)
+        {
+            _idConfig.NewDownload = false;
+            LocalEdition release = null;
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides overrides, ImportDecisionMakerConfig config, ImportRunSummary summary) =>
+                {
+                    release = new LocalEdition(tracks) { IdentificationHoldReason = LibraryImportHoldReason.LowConfidence };
+                    return new List<LocalEdition> { release };
+                });
+
+            var (book, edition) = BuildMatch();
+            GivenFallbackWorks(fallbackMatches ? new[] { book } : Array.Empty<Book>());
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().Be(fallbackMatches);
+            if (fallbackMatches)
+            {
+                decision.Item.Edition.Should().BeSameAs(edition);
+                release.IdentificationHoldReason.Should().BeNull();
+            }
+            else
+            {
+                decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.LowConfidence);
+                decision.Item.Edition.Should().BeNull();
+            }
+        }
+
         [TestCase(false, "Starling Almanac 7: An Adventure", false)]
         [TestCase(false, "Starling Almanac 3: An Adventure", true)]
         [TestCase(false, "Starling Almanac", true)]
