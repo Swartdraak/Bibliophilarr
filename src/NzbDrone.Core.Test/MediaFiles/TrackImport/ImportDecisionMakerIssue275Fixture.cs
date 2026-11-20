@@ -15,6 +15,7 @@ using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
+using NzbDrone.Core.MediaFiles.BookImport.Specifications;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
@@ -151,6 +152,204 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
 
             book.Editions.Value.Add(edition);
             return (book, edition);
+        }
+
+        [Test]
+        public void should_select_only_the_exact_work_for_a_background_library_fallback()
+        {
+            _idConfig.NewDownload = false;
+            var (wrong, _) = BuildMatch();
+            wrong.Title = "A Different Story";
+            wrong.ForeignBookId = "OL456W";
+            var (right, edition) = BuildMatch();
+            GivenFallbackWorks(wrong, right);
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [Test]
+        public void should_reject_an_exact_title_with_a_different_author_on_background_fallback()
+        {
+            _idConfig.NewDownload = false;
+            var (book, _) = BuildMatch();
+            book.AuthorMetadata.Value.Name = "A Different Author";
+            book.Author.Value.Metadata.Value.Name = "A Different Author";
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Approved.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_hold_distinct_corroborated_works_even_if_only_one_has_the_file_format()
+        {
+            _idConfig.NewDownload = false;
+            var (first, _) = BuildMatch();
+            var (second, otherEdition) = BuildMatch();
+            second.Id = 8;
+            second.ForeignBookId = "OL456W";
+            otherEdition.Format = "Audiobook";
+            otherEdition.IsEbook = false;
+            GivenFallbackWorks(first, second);
+
+            GetSingleDecision().Approved.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_deduplicate_one_authoritative_work_before_choosing_a_compatible_edition()
+        {
+            _idConfig.NewDownload = false;
+            var (first, otherEdition) = BuildMatch();
+            otherEdition.Format = "Audiobook";
+            otherEdition.IsEbook = false;
+            var (second, edition) = BuildMatch();
+            second.ForeignBookId = "openlibrary:work:OL123W";
+            GivenFallbackWorks(first, second);
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void should_require_existing_author_identity_instead_of_a_matching_display_name_on_background_fallback(
+            bool verifiedAuthorAlias, bool allowNewAuthors)
+        {
+            _idConfig.NewDownload = false;
+            _idConfig.AddNewAuthors = allowNewAuthors;
+            var (book, _) = BuildMatch();
+            book.Id = 0;
+            book.Author.Value.Id = 0;
+            var localAuthor = new Author { Id = 42, Name = "Christine Feehan", ForeignAuthorId = "openlibrary:author:OL1A" };
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindByName(localAuthor.Name)).Returns(localAuthor);
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById("OL1A"))
+                .Returns(verifiedAuthorAlias ? localAuthor : null);
+            GivenFallbackWorks(book);
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().Be(verifiedAuthorAlias);
+            if (verifiedAuthorAlias)
+            {
+                decision.Item.Author.Should().BeSameAs(localAuthor);
+            }
+        }
+
+        [Test]
+        public void should_not_auto_add_a_provider_author_identified_only_by_name_on_background_fallback()
+        {
+            _idConfig.NewDownload = false;
+            _idConfig.AddNewAuthors = true;
+            var (book, _) = BuildMatch();
+            book.Id = 0;
+            book.Author.Value.Id = 0;
+            book.Author.Value.ForeignAuthorId = "googlebooks:author:Christine%20Feehan";
+            book.AuthorMetadata.Value.ForeignAuthorId = book.Author.Value.ForeignAuthorId;
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Approved.Should().BeFalse();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_score_exact_background_fallback_on_the_real_match_policy(bool printOnly)
+        {
+            _idConfig.NewDownload = false;
+            var (book, edition) = BuildMatch();
+            edition.Title = book.Title;
+            edition.Format = printOnly ? "Print" : "Ebook";
+            edition.IsEbook = !printOnly;
+            GivenFallbackWorks(book);
+            GivenRealBookMatchPolicy();
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [Test]
+        public void should_reject_conflicting_edition_isbn_instead_of_using_a_cleared_distance()
+        {
+            _idConfig.NewDownload = false;
+            GivenReliableFileIsbn();
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides _, ImportDecisionMakerConfig _, ImportRunSummary _) =>
+                    new List<LocalEdition> { new LocalEdition(tracks) { Distance = new Distance() } });
+            var (book, edition) = BuildMatch();
+            edition.Title = book.Title;
+            edition.Isbn13 = "9781455546176";
+            GivenFallbackWorks(book);
+            GivenRealBookMatchPolicy();
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Rejections.Should().Contain(rejection => rejection.Reason.Contains("isbn", StringComparison.Ordinal));
+        }
+
+        [Test]
+        public void should_prefer_a_compatible_edition_matching_the_files_verified_isbn()
+        {
+            _idConfig.NewDownload = false;
+            GivenReliableFileIsbn();
+            var (book, edition) = BuildMatch();
+            edition.Title = book.Title;
+            edition.Isbn13 = "9781455546176";
+            var matching = new Edition
+            {
+                Book = book,
+                BookId = book.Id,
+                ForeignEditionId = "OL456M",
+                Title = book.Title,
+                IsEbook = true,
+                Isbn13 = "9781442482890"
+            };
+            book.Editions.Value.Add(matching);
+            GivenFallbackWorks(book);
+            GivenRealBookMatchPolicy();
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(matching);
+        }
+
+        private void GivenReliableFileIsbn()
+        {
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo
+                {
+                    BookTitle = "Dark Crime",
+                    BookTitleConfidence = 0.9,
+                    Authors = new List<string> { "Christine Feehan" },
+                    AuthorConfidence = 0.9,
+                    Isbn = "9781442482890",
+                    IsbnConfidence = 0.97
+                });
+        }
+
+        private void GivenRealBookMatchPolicy()
+        {
+            var settings = Mocker.GetMock<IConfigService>();
+            settings.SetupGet(config => config.BookImportMatchThresholdPercent).Returns(70);
+            var specification = new CloseBookMatchSpecification(settings.Object, Mocker.GetMock<IBookService>().Object, TestLogger);
+            Mocker.GetMock<IImportDecisionEngineSpecification<LocalEdition>>()
+                .Setup(service => service.IsSatisfiedBy(It.IsAny<LocalEdition>(), It.IsAny<DownloadClientItem>()))
+                .Returns((LocalEdition release, DownloadClientItem download) => specification.IsSatisfiedBy(release, download));
+        }
+
+        private void GivenFallbackWorks(params Book[] books)
+        {
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(orchestrator => orchestrator.SearchForNewBook("Dark Crime", "Christine Feehan", true))
+                .Returns(books.ToList());
         }
 
         [Test]

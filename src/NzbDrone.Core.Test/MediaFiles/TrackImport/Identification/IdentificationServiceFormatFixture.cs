@@ -225,6 +225,33 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             localBooks.Single().Edition.Should().BeSameAs(_audiobookEdition);
         }
 
+        [TestCase(false, false)]
+        [TestCase(true, true)]
+        public void should_only_allow_name_based_existing_author_lookup_for_requested_imports(bool newDownload, bool expectedMatch)
+        {
+            _config.NewDownload = newDownload;
+            _config.KeepAllEditions = true;
+            _book.Id = 0;
+            _author.Id = 0;
+            _audiobookEdition.Format = "Audio Book";
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(It.IsAny<string>())).Returns((Author)null);
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindByName("Test Author")).Returns(new Author { Id = 42 });
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(new List<CandidateEdition>());
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+
+            var tracks = CreateAudiobookLocalBooks();
+            tracks.Single().FileTrackInfo.BookTitle = "Test Book";
+            tracks.Single().FileTrackInfo.Authors = new List<string> { "Test Author" };
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            (result.Edition != null).Should().Be(expectedMatch);
+            Mocker.GetMock<IAuthorService>().Verify(service => service.FindByName("Test Author"), newDownload ? Times.Once() : Times.Never());
+        }
+
         [Test]
         public void should_leave_ebook_unmapped_when_an_incompatible_edition_is_explicitly_selected()
         {

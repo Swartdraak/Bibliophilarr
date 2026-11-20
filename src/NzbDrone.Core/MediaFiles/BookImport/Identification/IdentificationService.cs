@@ -201,7 +201,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides);
                 if (!config.AddNewAuthors)
                 {
-                    candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition));
+                    candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition, config.NewDownload));
                 }
 
                 usedRemote = true;
@@ -233,7 +233,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 if (!config.AddNewAuthors)
                 {
-                    candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition));
+                    candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition, config.NewDownload));
                 }
 
                 _importRunTracker.IncrementRemoteSearches(runSummary);
@@ -247,7 +247,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             // This prevents adding authors based on poorly-tagged or misidentified files.
             if (config.AddNewAuthors &&
                 localBookRelease.Edition != null &&
-                !AuthorExistsLocally(localBookRelease.Edition) &&
+                !AuthorExistsLocally(localBookRelease.Edition, config.NewDownload) &&
                 localBookRelease.Distance.NormalizedDistance() > AutoAddAuthorDistanceThreshold)
             {
                 var authorName = localBookRelease.Edition.Book?.Value?.AuthorMetadata?.Value?.Name ?? "Unknown";
@@ -363,17 +363,25 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             });
         }
 
-        private bool AuthorExistsLocally(Edition edition)
+        private bool AuthorExistsLocally(Edition edition, bool newDownload)
         {
-            // Allow candidates where the book is already in the local DB
-            if (edition.Book.Value.Id > 0)
+            var book = edition?.Book?.Value;
+
+            // Allow candidates already under a persisted work or author.
+            if (book?.Id > 0 || (!newDownload && book?.Author?.Value?.Id > 0))
             {
                 return true;
             }
 
             // Allow candidates whose author already exists in the local library,
             // even if this specific book hasn't been added to the bibliography yet.
-            var foreignAuthorId = edition.Book?.Value?.Author?.Value?.ForeignAuthorId;
+            var foreignAuthorId = newDownload ? book?.Author?.Value?.ForeignAuthorId : ImportDecisionMaker.GetLibraryAuthorId(book);
+            if (!newDownload)
+            {
+                return CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, foreignAuthorId, null) != null &&
+                       _authorService.FindById(foreignAuthorId) is { Id: > 0 };
+            }
+
             if (foreignAuthorId.IsNotNullOrWhiteSpace())
             {
                 var localAuthor = _authorService.FindById(foreignAuthorId);
@@ -384,7 +392,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             // Also try matching by author name for providers that may not set ForeignAuthorId
-            var authorName = edition.Book?.Value?.Author?.Value?.Name;
+            var authorName = book?.Author?.Value?.Name;
             if (authorName.IsNotNullOrWhiteSpace())
             {
                 var localAuthor = _authorService.FindByName(authorName);

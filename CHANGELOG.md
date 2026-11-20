@@ -44,6 +44,10 @@ process.
 - Require corroboration before matching authors across providers or adding
   Open Library work and author links. Keep two people with the same name
   distinct.
+- During a background scan, require a unique matching title and author for a
+  fallback work. Use edition identity and file format to select an edition
+  within that work. A scan that disables new authors requires a verified
+  local author or work.
 - Reuse verified author metadata already returned by a work lookup. A partial
   or unavailable provider response leaves stored metadata intact and lets the
   rest of a bulk book refresh continue.
