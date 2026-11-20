@@ -48,6 +48,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .With(e => e.BookId = _book.Id)
                 .With(e => e.Monitored = true)
                 .With(e => e.IsEbook = true)
+                .With(e => e.Format = "Ebook")
                 .Build();
 
             _audiobookEdition = Builder<Edition>.CreateNew()
@@ -56,6 +57,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .With(e => e.BookId = _book.Id)
                 .With(e => e.Monitored = true)
                 .With(e => e.IsEbook = false)
+                .With(e => e.Format = "Audiobook")
                 .Build();
 
             _book.Editions = new List<Edition> { _ebookEdition, _audiobookEdition };
@@ -314,6 +316,8 @@ namespace NzbDrone.Core.Test.MediaFiles
         [TestCase("Print")]
         [TestCase("Unclassified")]
         [TestCase("BOOK")]
+        [TestCase(null)]
+        [TestCase("Unknown")]
         public void should_record_a_local_ebook_without_claiming_the_provider_edition(string providerFormat)
         {
             GivenEbookImport();
@@ -512,11 +516,13 @@ namespace NzbDrone.Core.Test.MediaFiles
             return inserted;
         }
 
-        [TestCase(true, 0, true, ImportResultType.Imported)]
-        [TestCase(true, 0, false, ImportResultType.Skipped)]
-        [TestCase(true, 30, true, ImportResultType.Skipped)]
-        [TestCase(false, 0, true, ImportResultType.Skipped)]
-        public void should_only_associate_a_tracked_unmapped_library_file_on_an_approved_retry(bool existingLibraryFile, int editionId, bool persistedLink, ImportResultType expectedResult)
+        [TestCase(true, 0, true, false, ImportResultType.Imported)]
+        [TestCase(true, 0, false, false, ImportResultType.Skipped)]
+        [TestCase(true, 30, true, false, ImportResultType.Skipped)]
+        [TestCase(true, 30, false, true, ImportResultType.Imported)]
+        [TestCase(false, 30, false, true, ImportResultType.Skipped)]
+        [TestCase(false, 0, true, false, ImportResultType.Skipped)]
+        public void should_preserve_the_tracked_library_row_on_an_approved_retry(bool existingLibraryFile, int editionId, bool persistedLink, bool repairedLink, ImportResultType expectedResult)
         {
             GivenEbookImport();
             var track = _approvedDecisions[0].Item;
@@ -525,11 +531,13 @@ namespace NzbDrone.Core.Test.MediaFiles
             var mediaFiles = Mocker.GetMock<IMediaFileService>();
             mediaFiles.Setup(service => service.GetFileWithPath(track.Path)).Returns(stored);
             mediaFiles.Setup(service => service.TryLinkUnmappedFile(stored, _ebookEdition)).Returns(persistedLink);
+            mediaFiles.Setup(service => service.TryRepairUnsupportedEditionLink(stored, _ebookEdition)).Returns(repairedLink);
 
             var results = Subject.Import(_approvedDecisions, false);
 
             results.Should().ContainSingle(result => result.Result == expectedResult);
             mediaFiles.Verify(service => service.TryLinkUnmappedFile(stored, _ebookEdition), existingLibraryFile && editionId == 0 ? Times.Once() : Times.Never());
+            mediaFiles.Verify(service => service.TryRepairUnsupportedEditionLink(stored, _ebookEdition), existingLibraryFile && editionId > 0 ? Times.Once() : Times.Never());
             mediaFiles.Verify(service => service.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
             mediaFiles.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
             Mocker.GetMock<IMetadataTagService>().Verify(service => service.WriteTags(It.IsAny<BookFile>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
@@ -590,7 +598,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IConfigService>().Setup(s => s.EnableDualFormatTracking).Returns(true);
             _book.ForeignBookId = "valid-work";
             var brokenBook = new Book { Id = 2, ForeignBookId = "broken-work", Title = "Broken Book" };
-            var brokenEdition = new Edition { Id = 30, BookId = brokenBook.Id };
+            var brokenEdition = new Edition { Id = 30, BookId = brokenBook.Id, Format = "Ebook", IsEbook = true };
             var brokenDecision = new ImportDecision<LocalBook>(new LocalBook
             {
                 Author = missingAuthor ? null : _author,

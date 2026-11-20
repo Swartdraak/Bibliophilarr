@@ -101,6 +101,42 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.All<BookFile>().Should().HaveCount(10);
         }
 
+        [TestCase("Print")]
+        [TestCase(null)]
+        public void should_repair_only_the_unchanged_file_and_edition_in_the_same_work(string previousFormat)
+        {
+            var previous = Db.Insert(new Edition
+            {
+                BookId = _book.Id,
+                ForeignEditionId = "previous-edition",
+                Title = "Previous",
+                TitleSlug = "previous-edition",
+                Format = previousFormat
+            });
+            var digital = Db.Insert(new Edition
+            {
+                BookId = _book.Id,
+                ForeignEditionId = "digital-edition",
+                Title = "Digital",
+                TitleSlug = "digital-edition",
+                Format = "Ebook",
+                IsEbook = true
+            });
+            var tracked = Db.Insert(new BookFile { Path = "/library/actual.epub", EditionId = previous.Id, Quality = new QualityModel(Quality.EPUB) });
+            var wrongWork = new Edition { Id = digital.Id, BookId = _book.Id + 1, Format = digital.Format, IsEbook = true };
+            var changedPrevious = new Edition { Id = previous.Id, BookId = _book.Id, Format = "Audiobook" };
+
+            Subject.TryRepairUnsupportedEditionLink(tracked, previous, wrongWork).Should().BeFalse();
+            Subject.TryRepairUnsupportedEditionLink(tracked, changedPrevious, digital).Should().BeFalse();
+            Subject.TryRepairUnsupportedEditionLink(tracked, previous, digital).Should().BeTrue();
+            Subject.TryRepairUnsupportedEditionLink(tracked, previous, digital).Should().BeFalse();
+
+            var repaired = Subject.Get(tracked.Id);
+            repaired.EditionId.Should().Be(digital.Id);
+            repaired.DateAdded.Should().Be(tracked.DateAdded);
+            repaired.Path.Should().Be(tracked.Path);
+        }
+
         [TestCase("C:\\Test\\Path")]
         [TestCase("C:\\Test\\Path\\")]
         public void get_files_by_base_path_should_cope_with_trailing_slash(string dir)

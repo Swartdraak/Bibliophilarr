@@ -237,8 +237,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                         if (previousFile?.Id > 0)
                         {
-                            if (localTrack.ExistingFile && previousFile.EditionId == 0 &&
-                                _mediaFileService.TryLinkUnmappedFile(previousFile, localTrack.Edition))
+                            if (localTrack.ExistingFile &&
+                                (previousFile.EditionId == 0
+                                    ? _mediaFileService.TryLinkUnmappedFile(previousFile, localTrack.Edition)
+                                    : _mediaFileService.TryRepairUnsupportedEditionLink(previousFile, localTrack.Edition)))
                             {
                                 previousFile.Author = localTrack.Author;
                                 allImportedTrackFiles.Add(previousFile);

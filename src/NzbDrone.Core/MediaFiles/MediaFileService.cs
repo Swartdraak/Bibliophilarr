@@ -7,6 +7,7 @@ using NzbDrone.Common;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Datastore.Events;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.RootFolders;
@@ -33,6 +34,7 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFileWithPath(List<string> path);
         BookFile GetFileWithPath(string path);
         bool TryLinkUnmappedFile(BookFile file, Edition edition);
+        bool TryRepairUnsupportedEditionLink(BookFile file, Edition edition);
         void UpdateMediaInfo(List<BookFile> bookFiles);
     }
 
@@ -109,6 +111,23 @@ namespace NzbDrone.Core.MediaFiles
         public bool TryLinkUnmappedFile(BookFile file, Edition edition)
         {
             if (!_mediaFileRepository.TryLinkUnmappedFile(file, edition))
+            {
+                return false;
+            }
+
+            file.EditionId = edition.Id;
+            file.Edition = edition;
+            return true;
+        }
+
+        public bool TryRepairUnsupportedEditionLink(BookFile file, Edition edition)
+        {
+            var previous = file.Edition?.Value;
+            var format = ImportFormat.ForPath(file.Path);
+            if (previous == null || previous.Id <= 0 || previous.Id == edition.Id ||
+                previous.BookId == 0 || previous.BookId != edition.BookId ||
+                !ImportFormat.NeedsDigitalEdition(previous) || !format.HasValue || ImportFormat.ForEdition(edition) != format ||
+                !_mediaFileRepository.TryRepairUnsupportedEditionLink(file, previous, edition))
             {
                 return false;
             }

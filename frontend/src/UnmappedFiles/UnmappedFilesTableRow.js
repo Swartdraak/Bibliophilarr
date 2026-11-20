@@ -181,16 +181,19 @@ class UnmappedFilesTableRow extends Component {
                 >
                   <IconButton
                     name={icons.INFO}
+                    title={translate('FileDetails')}
                     onPress={this.onDetailsPress}
                   />
 
                   <IconButton
                     name={icons.INTERACTIVE}
+                    title={translate('ManualImport')}
                     onPress={this.onInteractiveImportPress}
                   />
 
                   <IconButton
                     name={icons.DELETE}
+                    title={translate('DeleteBookFile')}
                     onPress={this.onDeleteFilePress}
                   />
 

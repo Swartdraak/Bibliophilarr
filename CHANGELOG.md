@@ -26,8 +26,9 @@ process.
   while preserving the file record. Scan logs record why evaluated files remain
   unmapped.
 - Use an ebook or audiobook edition for a confirmed work when a provider only
-  supplies a print or unclassified edition. Keep the provider edition and
-  preserve digital links if a later refresh reclassifies that edition.
+  supplies a print or unclassified edition. An approved full rescan can
+  repair an old link to an unclassified edition on the same work without
+  replacing the file record or touching the file.
 - Recognize matching book and volume suffixes when both work records share the
   same author, series and primary position. Keep works with other subtitles
   separate.

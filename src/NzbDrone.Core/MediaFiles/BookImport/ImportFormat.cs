@@ -26,10 +26,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
         public static bool CanLink(string path, Edition edition)
         {
-            return !ForPath(path).HasValue || (!NeedsDigitalEdition(edition) && IsCompatible(path, edition));
+            var format = ForPath(path);
+            return !format.HasValue || ForEdition(edition) == format;
         }
 
         public static bool NeedsDigitalEdition(Edition edition)
+        {
+            return edition != null && !ForEdition(edition).HasValue;
+        }
+
+        private static bool IsExplicitlyUntracked(Edition edition)
         {
             return edition?.Format?.Trim().ToLowerInvariant() is "print" or "hardcover" or "hardback" or "paperback" or
                 "mass market paperback" or "trade paperback" or "board book" or "unclassified" or "book";
@@ -37,7 +43,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
         public static FormatType? ForEdition(Edition edition)
         {
-            if (edition == null || NeedsDigitalEdition(edition))
+            if (edition == null || IsExplicitlyUntracked(edition))
             {
                 return null;
             }
@@ -45,7 +51,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var label = edition.Format?.Trim().TrimStart('.').ToLowerInvariant();
             var format = label switch
             {
-                "audiobook" or "audio book" or "audio cd" or "audio cassette" or "audible audio" or "mp3 cd" => FormatType.Audiobook,
+                "audiobook" or "audio" or "audio book" or "audio cd" or "audio cassette" or "audible audio" or "mp3 cd" => FormatType.Audiobook,
                 "ebook" or "e-book" or "electronic book" or "kindle edition" or "nook" => FormatType.Ebook,
                 null or "" => null,
                 _ => ForPath("." + label)
