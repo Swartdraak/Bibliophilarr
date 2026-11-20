@@ -155,6 +155,23 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
         }
 
         [Test]
+        public void should_preserve_competing_ebook_editions_hold_without_direct_catalogue_fallback()
+        {
+            _idConfig.NewDownload = false;
+            _idConfig.Filter = FilterFilesType.Known;
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides overrides, ImportDecisionMakerConfig config, ImportRunSummary summary) =>
+                    new List<LocalEdition> { new LocalEdition(tracks) { IdentificationHoldReason = LibraryImportHoldReason.CompetingEditions } });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Rejections.Single().HoldReason.Should().Be(LibraryImportHoldReason.CompetingEditions);
+            Mocker.GetMock<IMetadataProviderOrchestrator>().VerifyNoOtherCalls();
+        }
+
+        [Test]
         public void should_hold_conflicting_numbered_mobi_identity_without_direct_catalogue_fallback()
         {
             const string title = "The Primal Hunter 15: A LitRPG Adventure";

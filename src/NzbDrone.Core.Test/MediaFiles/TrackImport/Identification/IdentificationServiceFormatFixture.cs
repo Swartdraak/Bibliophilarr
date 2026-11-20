@@ -661,6 +661,128 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             release.LocalBooks.Should().ContainSingle().Which.Should().BeSameAs(tracks.Single());
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_choose_the_physical_ebook_subformat_for_the_same_work_and_isbn(bool reverseOrder)
+        {
+            var tracks = GivenEbookSubformatScan();
+            var azw3 = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
+            GivenEbookSubformatCandidates(reverseOrder ? new[] { azw3, _ebookEdition } : new[] { _ebookEdition, azw3 });
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(azw3);
+        }
+
+        [TestCase("different work")]
+        [TestCase("different ISBN")]
+        [TestCase("untrusted file ISBN")]
+        [TestCase("extension-only format")]
+        [TestCase("already linked")]
+        [TestCase("explicit edition")]
+        public void should_keep_the_identified_edition_without_matching_trusted_same_work_evidence(string condition)
+        {
+            var tracks = GivenEbookSubformatScan();
+            var track = tracks.Single();
+            var work = condition == "different work"
+                ? new Book { Id = 7, CanonicalId = "different-work", Title = _book.Title, AuthorMetadata = _book.AuthorMetadata, Author = _author }
+                : _book;
+            var isbn = condition == "different ISBN" ? "9781455546176" : _ebookEdition.Isbn13;
+            var azw3 = CreateAzw3Edition(30, work, isbn);
+            if (condition == "untrusted file ISBN")
+            {
+                track.FileTrackInfo.IsbnConfidence = 0.55;
+            }
+            else if (condition == "extension-only format")
+            {
+                track.FileTrackInfo.Quality.QualityDetectionSource = QualityDetectionSource.Extension;
+            }
+            else if (condition == "already linked")
+            {
+                Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
+                    .Returns(new List<BookFile> { new BookFile { Path = track.Path, EditionId = _ebookEdition.Id } });
+            }
+
+            var overrides = new IdentificationOverrides
+            {
+                Edition = condition == "explicit edition" ? _ebookEdition : null
+            };
+            GivenEbookSubformatCandidates(_ebookEdition, azw3);
+
+            Subject.Identify(tracks, overrides, _config).Single().Edition.Should().BeSameAs(_ebookEdition);
+        }
+
+        [Test]
+        public void should_hold_two_distinct_equally_matching_exact_ebook_editions()
+        {
+            var tracks = GivenEbookSubformatScan();
+            var first = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
+            var second = CreateAzw3Edition(40, _book, _ebookEdition.Isbn13);
+            GivenEbookSubformatCandidates(_ebookEdition, first, first, second);
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            release.Edition.Should().BeNull();
+            release.IdentificationHoldReason.Should().Be(LibraryImportHoldReason.CompetingEditions);
+            tracks.Single().Edition.Should().BeNull();
+        }
+
+        [Test]
+        public void should_ignore_duplicate_projections_of_the_same_exact_ebook_edition()
+        {
+            var tracks = GivenEbookSubformatScan();
+            var azw3 = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
+            GivenEbookSubformatCandidates(_ebookEdition, azw3, azw3);
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(azw3);
+        }
+
+        private List<LocalBook> GivenEbookSubformatScan()
+        {
+            _config.NewDownload = false;
+            _config.Filter = FilterFilesType.Known;
+            _config.IncludeExisting = true;
+            _config.KeepAllEditions = true;
+            _book.CanonicalId = "test-canonical-work";
+            _ebookEdition.Title = _book.Title;
+            _ebookEdition.Format = "EPUB";
+            _ebookEdition.Isbn13 = "9781442482890";
+
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
+                .Returns(new List<BookFile>());
+
+            var tracks = CreateEbookLocalBooks();
+            var track = tracks.Single();
+            track.Path = "/media/ebooks/Test Author - Test Book.azw3";
+            track.Quality = new QualityModel(Quality.AZW3) { QualityDetectionSource = QualityDetectionSource.TagLib };
+            track.FileTrackInfo.Quality = track.Quality;
+            track.FileTrackInfo.BookTitle = _book.Title;
+            track.FileTrackInfo.Authors = new List<string> { _author.Name };
+            track.FileTrackInfo.Isbn = "1-4424-8289-3";
+            track.FileTrackInfo.IsbnConfidence = 0.97;
+            return tracks;
+        }
+
+        private Edition CreateAzw3Edition(int id, Book book, string isbn)
+        {
+            return new Edition
+            {
+                Id = id,
+                BookId = book.Id,
+                Book = book,
+                Title = _ebookEdition.Title,
+                Format = "AZW3",
+                IsEbook = true,
+                Isbn13 = isbn,
+                ForeignEditionId = $"azw3-{id}"
+            };
+        }
+
+        private void GivenEbookSubformatCandidates(params Edition[] editions)
+        {
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), true))
+                .Returns(editions.Select(edition => new CandidateEdition(edition)).ToList());
+        }
+
         [Test]
         public void should_group_both_media_formats_separately_in_single_release_mode()
         {

@@ -219,7 +219,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     // Issue #275: only search directly when identification found no edition
                     // and the file's own work identity is sufficiently consistent.
-                    if (release.Edition == null)
+                    if (release.Edition == null && release.IdentificationHoldReason != LibraryImportHoldReason.CompetingEditions)
                     {
                         IdentifyReleaseFallback(release, config);
                     }
@@ -597,9 +597,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             if (localEdition.Edition == null)
             {
                 var reason = localEdition.IdentificationHoldReason ?? LibraryImportHoldReason.NoAcceptedWork;
-                var message = reason == LibraryImportHoldReason.LowConfidence
-                    ? "The match could not confidently identify a new author. Select the intended author manually."
-                    : $"Couldn't find similar book for {localEdition}";
+                var message = reason switch
+                {
+                    LibraryImportHoldReason.LowConfidence => "The match could not confidently identify a new author. Select the intended author manually.",
+                    LibraryImportHoldReason.CompetingEditions => "More than one edition matches this file's ISBN and format. Select the intended edition manually.",
+                    _ => $"Couldn't find similar book for {localEdition}"
+                };
                 decision = new ImportDecision<LocalEdition>(localEdition, new Rejection(message, holdReason: reason));
             }
             else
