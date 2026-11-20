@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Analytics;
+using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
 
 namespace Bibliophilarr.Http.Frontend
@@ -24,13 +26,16 @@ namespace Bibliophilarr.Http.Frontend
         }
 
         [HttpGet("/initialize.json")]
-        public IActionResult Index()
+        public IActionResult Index([FromServices] IAntiforgery antiforgery)
         {
             var urlBase = _configFileProvider.UrlBase;
             return Json(new
             {
                 ApiRoot = $"{urlBase}/api/v1",
                 _configFileProvider.ApiKey,
+                RequestVerificationToken = _configFileProvider.AuthenticationMethod == AuthenticationType.Forms
+                    ? antiforgery.GetAndStoreTokens(HttpContext).RequestToken
+                    : null,
                 BuildInfo.Release,
                 Version = BuildInfo.Version.ToString(),
                 _configFileProvider.InstanceName,

@@ -44,6 +44,16 @@ availability and report complexity.
 - Prefer least-privilege credentials for local and CI workflows.
 - Document any security-relevant behavior changes in the same pull request.
 
+## Browser and API authentication
+
+Send a valid API key in the `X-Api-Key` header for versioned API writes.
+The WebUI includes that credential in its API requests. Forms sign-in and
+sign-out submit a browser verification token. The account menu is the normal
+sign-out entry point.
+
+After changing authentication or proxy settings, verify first-account setup,
+sign-in, an authenticated API write and sign-out on a disposable instance.
+
 ## Disclosure
 
 Public disclosure should wait until maintainers confirm a fix or an acceptable

@@ -274,6 +274,7 @@ namespace NzbDrone.Host
             app.UseRouting();
             app.UseCors();
             app.UseAuthentication();
+            app.UseMiddleware<ApiWriteAuthenticationMiddleware>();
 
             // Issue #313 A1/A2: challenge anonymous UI requests with the Forms scheme so the
             // denial is 401 (Unauthorized) rather than 403 (the cookie scheme's AccessDeniedPath
