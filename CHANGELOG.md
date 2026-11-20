@@ -20,6 +20,8 @@ process.
   support for existing `tagList` filters.
 - Calendar subscriptions display one release event per book when several
   editions are monitored or none is selected.
+- Enter activates the focused confirmation button once. Confirm closes the
+  dialog and Cancel dismisses it without submitting the action.
 
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
