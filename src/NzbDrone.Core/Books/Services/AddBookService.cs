@@ -68,15 +68,6 @@ namespace NzbDrone.Core.Books
                 book.TitleSlug = dbBook.TitleSlug;
             }
 
-            // Remove any import list exclusions preventing addition
-            _importListExclusionService.Delete(book.ForeignBookId);
-            if (sourceWorkId != book.ForeignBookId)
-            {
-                _importListExclusionService.Delete(sourceWorkId);
-            }
-
-            _importListExclusionService.Delete(sourceAuthorId);
-
             // Note it's a manual addition so it's not deleted on next refresh
             book.AddOptions.AddType = BookAddType.Manual;
             var selectedEdition = book.GetPreferredEdition();
@@ -94,10 +85,28 @@ namespace NzbDrone.Core.Books
             // Add the author if necessary
             if (dbAuthor == null)
             {
+                var author = book.Author?.Value;
+                if (string.IsNullOrWhiteSpace(author?.Path) && string.IsNullOrWhiteSpace(author?.RootFolderPath))
+                {
+                    throw new ValidationException(new List<ValidationFailure>
+                    {
+                        new ("Author.RootFolderPath", "A root folder or author path is required to add a new author")
+                    });
+                }
+
                 // The work lookup already returned this author. The BookAdded
                 // handler can hydrate their bibliography after the book is saved.
-                dbAuthor = _addAuthorService.AddAuthorWithMetadata(book.Author.Value, book.AuthorMetadata.Value, false);
+                dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, book.AuthorMetadata.Value, false);
             }
+
+            // Remove any import list exclusions preventing addition
+            _importListExclusionService.Delete(book.ForeignBookId);
+            if (sourceWorkId != book.ForeignBookId)
+            {
+                _importListExclusionService.Delete(sourceWorkId);
+            }
+
+            _importListExclusionService.Delete(sourceAuthorId);
 
             book.Author = dbAuthor;
             book.AuthorMetadataId = dbAuthor.AuthorMetadataId;
