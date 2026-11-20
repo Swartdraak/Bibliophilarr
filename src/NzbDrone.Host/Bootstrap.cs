@@ -107,7 +107,7 @@ namespace NzbDrone.Host
                                     ConfigureOptions<PostgresOptions>(services, config, "Postgres");
                                     ConfigureOptions<AppOptions>(services, config, "App");
                                     ConfigureOptions<AuthOptions>(services, config, "Auth");
-                                    ConfigureOptions<ServerOptions>(services, config, "Server");
+                                    ConfigureServerOptions(services, config);
                                     ConfigureOptions<LogOptions>(services, config, "Log");
                                     ConfigureOptions<UpdateOptions>(services, config, "Update");
                                 }).Build();
@@ -183,7 +183,7 @@ namespace NzbDrone.Host
                     ConfigureOptions<PostgresOptions>(services, config, "Postgres");
                     ConfigureOptions<AppOptions>(services, config, "App");
                     ConfigureOptions<AuthOptions>(services, config, "Auth");
-                    ConfigureOptions<ServerOptions>(services, config, "Server");
+                    ConfigureServerOptions(services, config);
                     ConfigureOptions<LogOptions>(services, config, "Log");
                     ConfigureOptions<UpdateOptions>(services, config, "Update");
                 })
@@ -281,9 +281,19 @@ namespace NzbDrone.Host
 
         internal static int GetServerPort(IConfiguration config)
         {
+            return GetServerPortOverride(config) ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
+        }
+
+        private static int? GetServerPortOverride(IConfiguration config)
+        {
             return config.GetValue<int?>("Bibliophilarr:Server:Port")
-                   ?? config.GetValue<int?>("Bibliophilarr_Server:Port")
-                   ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
+                   ?? config.GetValue<int?>("Bibliophilarr_Server:Port");
+        }
+
+        internal static void ConfigureServerOptions(IServiceCollection services, IConfiguration config)
+        {
+            ConfigureOptions<ServerOptions>(services, config, "Server");
+            services.PostConfigure<ServerOptions>(options => options.Port ??= GetServerPortOverride(config));
         }
 
         private static void ConfigureOptions<T>(IServiceCollection services, IConfiguration config, string sectionName)
