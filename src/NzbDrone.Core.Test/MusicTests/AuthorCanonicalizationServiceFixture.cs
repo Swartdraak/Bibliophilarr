@@ -5,8 +5,9 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.History;
-using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
 
@@ -142,115 +143,56 @@ namespace NzbDrone.Core.Test.MusicTests
             var match = Subject.TryFindCanonicalMatch(incoming, out _, out _, 0.1);
             match.Should().BeNull();
 
-            var summary = Subject.CanonicalizeDuplicates(false, 0, 10);
+            var summary = Subject.CanonicalizeDuplicates(true, 0, 10);
             summary.MergesPerformed.Should().Be(0);
             summary.MergesSkipped.Should().Be(1);
             Mocker.GetMock<IAuthorService>().Verify(x => x.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
         }
 
         [Test]
-        public void should_rewire_books_history_and_exclusions_when_merging_duplicate_author()
+        public void should_preview_a_candidate_without_changing_either_author()
         {
-            var books = new List<Book>
-            {
-                Builder<Book>.CreateNew()
-                    .With(x => x.AuthorMetadataId = _duplicate.AuthorMetadataId)
-                    .Build()
-            };
+            _primary.Path = "/library/primary";
+            _duplicate.Path = "/library/duplicate";
+            var command = new CanonicalizeAuthorsCommand();
 
-            var history = new List<EntityHistory>
-            {
-                Builder<EntityHistory>.CreateNew()
-                    .With(x => x.AuthorId = _duplicate.Id)
-                    .Build()
-            };
+            command.DryRun.Should().BeTrue();
+            Subject.Execute(command);
+            var summary = Subject.CanonicalizeDuplicates(true, 0.95, 10);
 
-            var duplicateExclusion = new ImportListExclusion
-            {
-                Id = 2,
-                ForeignId = _duplicate.Metadata.Value.ForeignAuthorId,
-                Name = _duplicate.Metadata.Value.Name
-            };
-
-            Mocker.GetMock<IBookService>()
-                .Setup(x => x.GetBooksByAuthor(_duplicate.Id))
-                .Returns(books);
-
-            Mocker.GetMock<IHistoryService>()
-                .Setup(x => x.GetByAuthor(_duplicate.Id, null))
-                .Returns(history);
-
-            Mocker.GetMock<IImportListExclusionService>()
-                .Setup(x => x.FindByForeignId(_duplicate.Metadata.Value.ForeignAuthorId))
-                .Returns(duplicateExclusion);
-
-            Mocker.GetMock<IImportListExclusionService>()
-                .Setup(x => x.FindByForeignId(_primary.Metadata.Value.ForeignAuthorId))
-                .Returns((ImportListExclusion)null);
-
-            var summary = Subject.CanonicalizeDuplicates(false, 0.5, 10);
-
+            summary.DuplicateGroupsEvaluated.Should().Be(1);
+            summary.CandidatesConsidered.Should().Be(1);
             summary.MergesPerformed.Should().Be(1);
-
-            Mocker.GetMock<IBookService>()
-                .Verify(x => x.UpdateMany(It.Is<List<Book>>(list =>
-                    list.Count == 1 &&
-                    list[0].AuthorMetadataId == _primary.AuthorMetadataId)), Times.Once);
-
-            Mocker.GetMock<IHistoryService>()
-                .Verify(x => x.UpdateMany(It.Is<List<EntityHistory>>(list =>
-                    list.Count == 1 &&
-                    list[0].AuthorId == _primary.Id)), Times.Once);
-
-            Mocker.GetMock<IImportListExclusionService>()
-                .Verify(x => x.Update(It.Is<ImportListExclusion>(e =>
-                    e.Id == duplicateExclusion.Id &&
-                    e.ForeignId == _primary.Metadata.Value.ForeignAuthorId &&
-                    e.Name == _primary.Metadata.Value.Name)), Times.Once);
-
-            Mocker.GetMock<IAuthorService>()
-                .Verify(x => x.DeleteAuthor(_duplicate.Id, false, false), Times.Once);
+            summary.MergesSkipped.Should().Be(0);
+            _primary.Path.Should().Be("/library/primary");
+            _duplicate.Path.Should().Be("/library/duplicate");
+            Mocker.GetMock<IAuthorService>().Verify(service => service.GetAllAuthors(), Times.Exactly(2));
+            Mocker.GetMock<IAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<ICatalogueIdentityRepository>().VerifyNoOtherCalls();
         }
 
-        [Test]
-        public void should_delete_duplicate_exclusion_when_primary_exclusion_already_exists()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_reject_legacy_apply_before_reading_or_changing_authors(bool queued)
         {
-            var duplicateExclusion = new ImportListExclusion
+            Mocker.GetMock<IBookService>().Setup(service => service.GetBooksByAuthor(_duplicate.Id)).Returns(new List<Book>());
+            Mocker.GetMock<IHistoryService>().Setup(service => service.GetByAuthor(_duplicate.Id, null)).Returns(new List<EntityHistory>());
+            var command = new CanonicalizeAuthorsCommand { DryRun = false };
+            Action apply;
+            if (queued)
             {
-                Id = 2,
-                ForeignId = _duplicate.Metadata.Value.ForeignAuthorId,
-                Name = _duplicate.Metadata.Value.Name
-            };
-
-            var primaryExclusion = new ImportListExclusion
+                apply = () => Subject.Execute(command);
+            }
+            else
             {
-                Id = 3,
-                ForeignId = _primary.Metadata.Value.ForeignAuthorId,
-                Name = _primary.Metadata.Value.Name
-            };
+                apply = () => Subject.CanonicalizeDuplicates(false, 0.95, 10);
+            }
 
-            Mocker.GetMock<IBookService>()
-                .Setup(x => x.GetBooksByAuthor(_duplicate.Id))
-                .Returns(new List<Book>());
-
-            Mocker.GetMock<IHistoryService>()
-                .Setup(x => x.GetByAuthor(_duplicate.Id, null))
-                .Returns(new List<EntityHistory>());
-
-            Mocker.GetMock<IImportListExclusionService>()
-                .Setup(x => x.FindByForeignId(_duplicate.Metadata.Value.ForeignAuthorId))
-                .Returns(duplicateExclusion);
-
-            Mocker.GetMock<IImportListExclusionService>()
-                .Setup(x => x.FindByForeignId(_primary.Metadata.Value.ForeignAuthorId))
-                .Returns(primaryExclusion);
-
-            var summary = Subject.CanonicalizeDuplicates(false, 0.5, 10);
-
-            summary.MergesPerformed.Should().Be(1);
-
-            Mocker.GetMock<IImportListExclusionService>()
-                .Verify(x => x.Delete(duplicateExclusion.Id), Times.Once);
+            apply.Should().Throw<CommandFailedException>().WithMessage("*ReconcileCatalogueAuthors*");
+            Mocker.GetMock<IAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IHistoryService>().VerifyNoOtherCalls();
+            Mocker.GetMock<ICatalogueIdentityRepository>().VerifyNoOtherCalls();
         }
     }
 }

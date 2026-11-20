@@ -5,8 +5,6 @@ using System.Text;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books.Commands;
-using NzbDrone.Core.History;
-using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser;
@@ -38,25 +36,16 @@ namespace NzbDrone.Core.Books
         private const int MaxAuthorCandidates = 3;
         private const int MaxWitnessPairs = 6;
         private readonly IAuthorService _authorService;
-        private readonly IBookService _bookService;
-        private readonly IHistoryService _historyService;
-        private readonly IImportListExclusionService _importListExclusionService;
         private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly IMetadataProviderOrchestrator _metadata;
         private readonly Logger _logger;
 
         public AuthorCanonicalizationService(IAuthorService authorService,
-                                             IBookService bookService,
-                                             IHistoryService historyService,
-                                             IImportListExclusionService importListExclusionService,
                                              ICatalogueIdentityRepository catalogueIdentity,
                                              IMetadataProviderOrchestrator metadata,
                                              Logger logger)
         {
             _authorService = authorService;
-            _bookService = bookService;
-            _historyService = historyService;
-            _importListExclusionService = importListExclusionService;
             _catalogueIdentity = catalogueIdentity;
             _metadata = metadata;
             _logger = logger;
@@ -194,6 +183,11 @@ namespace NzbDrone.Core.Books
 
         public CanonicalizationSummary CanonicalizeDuplicates(bool dryRun, double minConfidence, int maxMerges)
         {
+            if (!dryRun)
+            {
+                throw new CommandFailedException("Batch author canonicalization only previews candidates. Review a specific pair with ReconcileCatalogueAuthors.");
+            }
+
             var summary = new CanonicalizationSummary();
             var authors = _authorService.GetAllAuthors();
 
@@ -226,20 +220,12 @@ namespace NzbDrone.Core.Books
 
                     if (summary.MergesPerformed >= maxMerges)
                     {
-                        _logger.Warn("Author canonicalization reached max merge cap ({0})", maxMerges);
+                        _logger.Warn("Author canonicalization preview reached max candidate cap ({0})", maxMerges);
                         return summary;
                     }
 
-                    if (dryRun)
-                    {
-                        summary.MergesPerformed++;
-                        _logger.Info("[DRY-RUN] Candidate author merge: keep {0}, merge {1}, confidence={2:0.000}, reason={3}", primary, duplicate, score, reason);
-                        continue;
-                    }
-
-                    MergeIntoPrimary(primary, duplicate);
                     summary.MergesPerformed++;
-                    _logger.Info("Merged duplicate author {0} into canonical {1} (confidence={2:0.000}, reason={3})", duplicate, primary, score, reason);
+                    _logger.Info("[DRY-RUN] Candidate author merge: keep {0}, merge {1}, confidence={2:0.000}, reason={3}", primary, duplicate, score, reason);
                 }
             }
 
@@ -253,59 +239,11 @@ namespace NzbDrone.Core.Books
                 Math.Max(0, message?.MinConfidence ?? 0.95),
                 Math.Max(1, message?.MaxMerges ?? 200));
 
-            _logger.Info("Author canonicalization summary: groups={0}, candidates={1}, merges={2}, skipped={3}",
+            _logger.Info("Author canonicalization preview: groups={0}, candidates={1}, matches={2}, skipped={3}",
                 summary.DuplicateGroupsEvaluated,
                 summary.CandidatesConsidered,
                 summary.MergesPerformed,
                 summary.MergesSkipped);
-        }
-
-        private void MergeIntoPrimary(Author primary, Author duplicate)
-        {
-            if (primary == null || duplicate == null || primary.Id == duplicate.Id)
-            {
-                return;
-            }
-
-            var books = _bookService.GetBooksByAuthor(duplicate.Id);
-            if (books.Any())
-            {
-                books.ForEach(x => x.AuthorMetadataId = primary.AuthorMetadataId);
-                _bookService.UpdateMany(books);
-            }
-
-            var historyItems = _historyService.GetByAuthor(duplicate.Id, null);
-            if (historyItems.Any())
-            {
-                historyItems.ForEach(x => x.AuthorId = primary.Id);
-                _historyService.UpdateMany(historyItems);
-            }
-
-            var duplicateForeignId = duplicate.Metadata?.Value?.ForeignAuthorId;
-            if (duplicateForeignId.IsNotNullOrWhiteSpace())
-            {
-                var duplicateExclusion = _importListExclusionService.FindByForeignId(duplicateForeignId);
-                if (duplicateExclusion != null)
-                {
-                    var primaryForeignId = primary.Metadata?.Value?.ForeignAuthorId;
-                    var primaryExclusion = primaryForeignId.IsNotNullOrWhiteSpace()
-                        ? _importListExclusionService.FindByForeignId(primaryForeignId)
-                        : null;
-
-                    if (primaryExclusion == null && primaryForeignId.IsNotNullOrWhiteSpace())
-                    {
-                        duplicateExclusion.ForeignId = primaryForeignId;
-                        duplicateExclusion.Name = primary.Metadata?.Value?.Name ?? duplicateExclusion.Name;
-                        _importListExclusionService.Update(duplicateExclusion);
-                    }
-                    else
-                    {
-                        _importListExclusionService.Delete(duplicateExclusion.Id);
-                    }
-                }
-            }
-
-            _authorService.DeleteAuthor(duplicate.Id, false, false);
         }
 
         private IReadOnlyList<Book> LoadBibliography(Author authority)
