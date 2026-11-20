@@ -77,7 +77,8 @@ process.
   reliable file evidence contradicts its title or identifies a different volume.
 - Distinguish numbered works from guidebooks, excerpts, and omnibus editions.
   When a filename and reliable embedded title name different volumes of the
-  same series, hold the file for review.
+  same series, hold the file for review. Treat equivalent dash spacing in an
+  explicit omnibus book range as the same range.
 - Reuse an author across Hardcover and Open Library after both sources verify
   two distinct works. Hold ambiguous Google Books name matches during
   unattended imports, and allow reviewed reconciliation of existing authors

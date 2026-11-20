@@ -363,6 +363,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("Mistress of Dragons", "Mistress of Dragons (1)", "Master of Dragons")]
         [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff The Griffin Rider 3")]
         [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff The Griffin Rider")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1-4")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Book 3")]
         [TestCase("The World of Ice and Fire: The Untold History of Westeros and the Game of Thrones", "The World of Ice and Fire - The Untold History of Westeros and the Game of Thrones", "Selections from Dreamsongs 3")]
         public void should_hold_a_wrong_work_when_the_native_filename_differs_only_in_presentation(string tagTitle, string filenameTitle, string wrongTitle)
         {
@@ -461,6 +463,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("The Untold Story: A Novel", "The Untold Story - A Novel", "The Untold Story")]
         [TestCase("The Untold Story: A Novel", "The Untold Story - A Novel", "The Untold Story - A Novel")]
         [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1 - 5")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1-5")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1–5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1-5")]
         [TestCase("A Story About Number 2", "A Different Novel", "A Story")]
         public void should_preserve_matching_work_scope_and_ordinary_title_variants(string tagTitle, string filenameTitle, string candidateTitle)
         {

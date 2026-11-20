@@ -35,6 +35,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private static readonly Regex ExplicitSeriesVolume = new Regex(@"^(.+?)[\s:,(–—-]+(?:BOOK|VOL(?:UME)?\.?)[\s#]+([0-9]+)\)?$", RegexOptions.CultureInvariant);
         private static readonly Regex BareSeriesVolume = new Regex(@"^(.+\p{L})\s+([0-9]{1,3})$", RegexOptions.CultureInvariant);
         private static readonly Regex TrackTitleSuffix = new Regex(@"(?:^|[\s:,(–—-]+)(?:CHAPTERS?|DISCS?|PARTS?|TRACKS?)\s*[-#]?\s*[0-9]+(?:\s*[/–-]\s*[0-9]+)?\)?$", RegexOptions.CultureInvariant);
+        private static readonly Regex OmnibusBookRange = new Regex(@"(\bOMNIBUS\s+BOOKS?\s+[0-9]+)\s*[-–—]\s*([0-9]+)\b", RegexOptions.CultureInvariant);
         private static readonly Regex SubtitleDelimiter = new Regex(@"\s*:\s*|\s+[-–—]\s+", RegexOptions.CultureInvariant);
         private static readonly Regex GenreLine = new Regex(@"(?:: | \()A LITRPG ADVENTURE\)?$", RegexOptions.CultureInvariant);
         private static readonly Regex FileCopySuffix = new Regex(@"\s+\([1-9][0-9]*\)$", RegexOptions.CultureInvariant);
@@ -468,9 +469,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
         private static string NormalizeSubtitleNotation(string title)
         {
+            if (title == null)
+            {
+                return null;
+            }
+
             // This generic genre label does not identify the work. Preserve every numeral
             // in the remaining title so similarly named installments cannot corroborate one another.
-            return title == null ? null : GenreLine.Replace(SubtitleDelimiter.Replace(title, ": "), string.Empty);
+            // A range separator inside an explicit omnibus identifies scope, not a subtitle.
+            var withBookRange = OmnibusBookRange.Replace(title, "$1-$2");
+            return GenreLine.Replace(SubtitleDelimiter.Replace(withBookRange, ": "), string.Empty);
         }
 
         private static bool IsFullWorkTitle(string title, string workTitle)
