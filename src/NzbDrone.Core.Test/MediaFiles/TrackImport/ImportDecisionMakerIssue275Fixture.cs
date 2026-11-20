@@ -311,18 +311,29 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
                 newDownload ? Times.Never() : Times.Once());
         }
 
-        [Test]
-        public void should_stop_background_fallback_when_a_provider_returns_two_plausible_works()
+        [TestCase(null, false)]
+        [TestCase(LibraryImportHoldReason.LowConfidence, false)]
+        [TestCase(null, true)]
+        public void should_stop_background_fallback_when_a_provider_returns_two_plausible_works(
+            LibraryImportHoldReason? priorReason, bool sameSource)
         {
             _idConfig.NewDownload = false;
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides _, ImportDecisionMakerConfig _, ImportRunSummary _) =>
+                    new List<LocalEdition> { new LocalEdition(tracks) { IdentificationHoldReason = priorReason } });
             var (first, _) = BuildMatch();
             var (second, secondEdition) = BuildMatch();
             second.Id = 8;
-            second.ForeignBookId = "OL456W";
+            second.ForeignBookId = sameSource ? "openlibrary:work:OL123W" : "OL456W";
             secondEdition.BookId = second.Id;
             var (_, secondary) = GivenConfiguredProviders(new List<Book> { first, second }, new List<Book> { first });
 
-            GetSingleDecision().Approved.Should().BeFalse();
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Item.Edition.Should().BeNull();
+            decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
             secondary.Verify(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true), Times.Never());
         }
 

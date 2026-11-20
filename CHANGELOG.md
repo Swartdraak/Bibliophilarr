@@ -38,7 +38,8 @@ process.
   returns only incompatible formats or conflicts with the file's title, series
   volume, or author.
 - Explain in Unmapped Files when provider results conflict with the book's
-  identity. A later valid match clears the reason.
+  identity or identify multiple works for the same file. A later valid match
+  clears the reason.
 - Wanted searches with an ebook or audiobook filter target only that format.
   A queued copy of the other format no longer blocks a wanted release when
   independent format tracking is enabled.

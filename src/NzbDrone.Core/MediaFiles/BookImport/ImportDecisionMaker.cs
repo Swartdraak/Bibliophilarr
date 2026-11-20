@@ -448,6 +448,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 _metadataOrchestrator.SearchForLibraryImportByIsbn(requiredIsbn, Select);
             }
 
+            if (selection.Hold &&
+                (release.IdentificationHoldReason == null || release.IdentificationHoldReason == LibraryImportHoldReason.LowConfidence))
+            {
+                release.IdentificationHoldReason = LibraryImportHoldReason.ProviderIdentityConflict;
+            }
+
             return (selection.Book, selection.Edition);
         }
 
