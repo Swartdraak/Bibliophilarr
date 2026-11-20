@@ -118,6 +118,10 @@ process.
 
 ### Security
 
+- New and changed account passwords use salted PBKDF2. Existing accounts
+  upgrade when they next sign in successfully with a password. Rollback to an
+  earlier version requires its matching app-data backup after a password upgrade.
+
 - Update the frontend dependency graph to patched qs, PostCSS and picomatch versions. Keep each selector-parser consumer on a compatible release.
 
 - **Direct frontend dependency bumps** (Issue #237): `lodash` `4.17.23 -> 4.18.1` closes GHSA-r5fr-rjxr-66jc (code injection via `_.template` imports, high) and GHSA-f23m-r3pf-42rh (prototype pollution via array path bypass in `_.unset`/`_.omit`, moderate). Direct and transitive `qs` now resolve to `6.17.1`, which closes GHSA-q8mj-m7cp-5q26 (remotely triggerable `qs.stringify` DoS, moderate), GHSA-x5fp-wj9c-mxmx (array-limit bypass via bracket-key comma parsing, moderate) and GHSA-4mjr-xmp4-gh2g (DoS via attacker-controlled `isBuffer`, moderate). The lockfile no longer contains the affected older versions.

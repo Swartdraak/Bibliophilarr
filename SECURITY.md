@@ -51,6 +51,11 @@ The WebUI includes that credential in its API requests. Forms sign-in and
 sign-out submit a browser verification token. The account menu is the normal
 sign-out entry point.
 
+New and changed account passwords use salted PBKDF2. A successful password
+sign-in upgrades the account's legacy password record. Retain a matching
+app-data backup when upgrading. To roll back after a password record changes,
+restore the matching backup with the earlier application.
+
 After changing authentication or proxy settings, verify first-account setup,
 sign-in, an authenticated API write and sign-out on a disposable instance.
 
