@@ -304,6 +304,8 @@ class EnhancedSelectInput extends Component {
       className,
       disabledClassName,
       name,
+      inputId,
+      labelId,
       value,
       values,
       isDisabled,
@@ -327,6 +329,7 @@ class EnhancedSelectInput extends Component {
 
     const isMultiSelect = Array.isArray(value);
     const selectedOption = getSelectedOption(selectedIndex, values);
+    const selectedValueId = labelId && inputId ? `${inputId}-value` : undefined;
     let selectedValue = value;
 
     if (!values.length) {
@@ -354,6 +357,7 @@ class EnhancedSelectInput extends Component {
                         <TextInput
                           className={className}
                           name={name}
+                          inputId={inputId}
                           value={value}
                           readOnly={isDisabled}
                           hasError={hasError}
@@ -396,6 +400,8 @@ class EnhancedSelectInput extends Component {
                           hasWarning && styles.hasWarning,
                           isDisabled && disabledClassName
                         )}
+                        id={inputId}
+                        aria-labelledby={selectedValueId && `${labelId} ${selectedValueId}`}
                         isDisabled={isDisabled}
                         onBlur={this.onBlur}
                         onKeyDown={this.onKeyDown}
@@ -406,6 +412,7 @@ class EnhancedSelectInput extends Component {
                           values={values}
                           {...selectedValueOptions}
                           {...selectedOption}
+                          id={selectedValueId}
                           isDisabled={isDisabled}
                           isMultiSelect={isMultiSelect}
                         >
@@ -575,6 +582,8 @@ EnhancedSelectInput.propTypes = {
   className: PropTypes.string,
   disabledClassName: PropTypes.string,
   name: PropTypes.string.isRequired,
+  inputId: PropTypes.string,
+  labelId: PropTypes.string,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.arrayOf(PropTypes.string), PropTypes.arrayOf(PropTypes.number)]).isRequired,
   values: PropTypes.arrayOf(PropTypes.object).isRequired,
   isDisabled: PropTypes.bool.isRequired,

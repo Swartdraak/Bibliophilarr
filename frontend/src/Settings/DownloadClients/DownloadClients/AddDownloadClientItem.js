@@ -42,6 +42,7 @@ class AddDownloadClientItem extends Component {
       >
         <Link
           className={styles.underlay}
+          aria-label={implementationName}
           onPress={this.onDownloadClientSelect}
         />
 
