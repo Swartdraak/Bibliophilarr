@@ -207,21 +207,39 @@ jobs:
         run: >-
           dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
-          --filter 'FullyQualifiedName~ContainerFixture'
+          --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture'
 
-      - name: Run library import format fixtures
+      - name: Verify persistent user password storage
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~UserServicePasswordFixture'
+
+      - name: Verify author identity and path handling
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --no-restore --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~AuthorPathValidatorFixture|FullyQualifiedName~AuthorCanonicalizationServiceFixture|FullyQualifiedName~AddAuthorPersistenceFixture|FullyQualifiedName~AddBookFixture'
+
+      - name: Run library import format and selection fixtures
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture'
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~CandidateServiceIssue340Fixture|FullyQualifiedName~ManualImportServiceExecute'
 
-      - name: Run metadata, format monitoring and host configuration API fixtures
+      - name: Verify stored command results
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --no-restore --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~CommandRepositoryFixture'
+
+      - name: Run metadata, format monitoring, manual import and host configuration API fixtures
         run: >-
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~HostConfigCredentialValidationFixture|FullyQualifiedName~BootstrapControllerIssue313Fixture|FullyQualifiedName~AuthenticationServiceIssue369Fixture|FullyQualifiedName~ApiKeyAuthenticationHandlerFixture|FullyQualifiedName~ApiWriteAuthenticationMiddlewareFixture'
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~HostConfigCredentialValidationFixture|FullyQualifiedName~BootstrapControllerIssue313Fixture|FullyQualifiedName~AuthenticationServiceIssue369Fixture|FullyQualifiedName~ApiKeyAuthenticationHandlerFixture|FullyQualifiedName~ApiWriteAuthenticationMiddlewareFixture|FullyQualifiedName~ManualImportControllerFixture|FullyQualifiedName~AuthorEditorControllerIssue236Fixture|FullyQualifiedName~CalendarFeedControllerFixture'
 
   metadata-diagnostics-integration:
     name: Metadata Diagnostics Integration

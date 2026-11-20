@@ -124,6 +124,10 @@ the check could not be completed. This path has no schedule and never queues
 an installation. Use the deployment’s normal update mechanism and make a
 recoverable backup before upgrading.
 
+Automatic installation defaults to off on every platform. An explicit
+automatic-update setting in `config.xml` remains in effect, and
+`Bibliophilarr__Update__Automatically` takes precedence when set.
+
 ### Pattern B — Self-hosted services endpoint
 
 Run a minimal JSON API at a URL of your choice and set the env var.
