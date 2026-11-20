@@ -45,6 +45,7 @@ namespace NzbDrone.Core.Books
         private readonly ICheckIfBookShouldBeRefreshed _checkIfBookShouldBeRefreshed;
         private readonly IMapCoversToLocal _mediaCoverService;
         private readonly IConfigService _configService;
+        private readonly ICommandResultReporter _commandResultReporter;
         private readonly Logger _logger;
         private readonly ConcurrentDictionary<string, DateTime> _pendingDeleteMisses = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
@@ -65,6 +66,7 @@ namespace NzbDrone.Core.Books
                                   ICheckIfBookShouldBeRefreshed checkIfBookShouldBeRefreshed,
                                   IMapCoversToLocal mediaCoverService,
                                   IConfigService configService,
+                                  ICommandResultReporter commandResultReporter,
                                   Logger logger)
         : base(logger, authorMetadataService)
         {
@@ -81,6 +83,7 @@ namespace NzbDrone.Core.Books
             _checkIfBookShouldBeRefreshed = checkIfBookShouldBeRefreshed;
             _mediaCoverService = mediaCoverService;
             _configService = configService;
+            _commandResultReporter = commandResultReporter;
             _logger = logger;
         }
 
@@ -89,7 +92,11 @@ namespace NzbDrone.Core.Books
             try
             {
                 var tuple = _orchestrator.GetBookInfo(book.ForeignBookId);
-                var author = _orchestrator.GetAuthorInfo(tuple.Item1);
+                var verifiedAuthor = tuple.Item3?.FirstOrDefault(author => author != null && author.ForeignAuthorId == tuple.Item1 &&
+                    author.Name.IsNotNullOrWhiteSpace());
+                var author = verifiedAuthor == null
+                    ? _orchestrator.GetAuthorInfo(tuple.Item1)
+                    : new Author { Metadata = verifiedAuthor, AuthorMetadataId = book.AuthorMetadataId };
                 var newbook = tuple.Item2;
 
                 newbook.Author = author;
@@ -541,7 +548,15 @@ namespace NzbDrone.Core.Books
 
             foreach (var book in books)
             {
-                RefreshBookInfo(book);
+                try
+                {
+                    RefreshBookInfo(book);
+                }
+                catch (MetadataProviderUnavailableException)
+                {
+                    // The previous catalogue state remains usable while other works refresh.
+                    _commandResultReporter.Report(CommandResult.Unsuccessful);
+                }
             }
         }
 

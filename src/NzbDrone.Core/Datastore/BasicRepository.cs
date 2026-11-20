@@ -50,6 +50,7 @@ namespace NzbDrone.Core.Datastore
         private readonly string _updateSql;
         private readonly string _insertSql;
         private readonly bool _hasCatalogueIdentity;
+        private readonly IsolationLevel _catalogueWriteIsolation;
 
         protected readonly IDatabase _database;
         protected readonly string _table;
@@ -69,6 +70,12 @@ namespace NzbDrone.Core.Datastore
             _properties = type.GetProperties().Where(x => x.IsMappableProperty() && !excluded.Contains(x.Name)).ToList();
 
             _hasCatalogueIdentity = typeof(ICatalogueIdentityModel).IsAssignableFrom(type);
+
+            // SQLite must reserve the write lock before reading the current identity.
+            // A deferred transaction cannot promote a stale WAL snapshot to a writer.
+            _catalogueWriteIsolation = database.DatabaseType == DatabaseType.SQLite
+                ? IsolationLevel.Serializable
+                : IsolationLevel.ReadCommitted;
             _updateProperties = _hasCatalogueIdentity
                 ? _properties.Where(property => property.Name != nameof(ICatalogueIdentityModel.CanonicalId)).ToList()
                 : _properties;
@@ -155,7 +162,7 @@ namespace NzbDrone.Core.Datastore
             try
             {
                 using var conn = _database.OpenConnection();
-                using var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(IsolationLevel.ReadCommitted) : null;
+                using var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(_catalogueWriteIsolation) : null;
                 model = Insert(conn, transaction, model);
                 transaction?.Commit();
             }
@@ -243,7 +250,7 @@ namespace NzbDrone.Core.Datastore
             try
             {
                 using var conn = _database.OpenConnection();
-                using var transaction = conn.BeginTransaction(IsolationLevel.ReadCommitted);
+                using var transaction = conn.BeginTransaction(_hasCatalogueIdentity ? _catalogueWriteIsolation : IsolationLevel.ReadCommitted);
                 foreach (var model in models)
                 {
                     Insert(conn, transaction, model);
@@ -276,7 +283,7 @@ namespace NzbDrone.Core.Datastore
             }
 
             using (var conn = _database.OpenConnection())
-            using (var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(IsolationLevel.ReadCommitted) : null)
+            using (var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(_catalogueWriteIsolation) : null)
             {
                 var previousId = ReadCataloguePrimaryId(conn, transaction, model);
                 UpdateFields(conn, transaction, model, _updateProperties);
@@ -297,7 +304,7 @@ namespace NzbDrone.Core.Datastore
             }
 
             using (var conn = _database.OpenConnection())
-            using (var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(IsolationLevel.ReadCommitted) : null)
+            using (var transaction = _hasCatalogueIdentity ? conn.BeginTransaction(_catalogueWriteIsolation) : null)
             {
                 if (_hasCatalogueIdentity)
                 {

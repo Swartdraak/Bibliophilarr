@@ -28,7 +28,8 @@ process.
 - Use an ebook or audiobook edition for a confirmed work when a provider only
   supplies a print or unclassified edition. An approved full rescan can
   repair an old link to an unclassified edition on the same work without
-  replacing the file record or touching the file.
+  replacing the file record or touching the file. The rescan no longer
+  treats the tracked file as its own duplicate.
 - Recognize matching book and volume suffixes when both work records share the
   same author, series and primary position. Keep works with other subtitles
   separate.
@@ -38,6 +39,11 @@ process.
 - Require corroboration before matching authors across providers or adding
   Open Library work and author links. Keep two people with the same name
   distinct.
+- Reuse verified author metadata already returned by a work lookup. A partial
+  or unavailable provider response leaves stored metadata intact and lets the
+  rest of a bulk book refresh continue.
+- Acquire SQLite catalogue write locks before reading identity state so
+  simultaneous library scans and refreshes can commit safely.
 
 - A fresh installation opens first-account setup in the browser when opened
   directly on localhost. Create an account and sign in without a terminal command.

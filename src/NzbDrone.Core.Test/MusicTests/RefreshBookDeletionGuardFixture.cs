@@ -8,11 +8,13 @@ using Moq.Protected;
 using NLog;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.RootFolders;
@@ -92,6 +94,44 @@ namespace NzbDrone.Core.Test.MusicTests
                 It.Is<List<Edition>>(editions => editions.Any(edition => edition.Id == priorAudio.Id)),
                 It.IsAny<List<Edition>>(),
                 It.IsAny<bool>()), Times.Once);
+        }
+
+        [Test]
+        public void should_refresh_a_work_with_its_verified_author_metadata_without_loading_a_bibliography()
+        {
+            var metadata = _book.AuthorMetadata.Value;
+            var author = new Author { Metadata = metadata };
+            _book.Author = author;
+            var remote = new Book { ForeignBookId = _book.ForeignBookId, Title = "Updated title", Editions = new List<Edition>() };
+            var providers = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            providers.Setup(service => service.GetBookInfo(_book.ForeignBookId))
+                .Returns(Tuple.Create(metadata.ForeignAuthorId, remote, new List<AuthorMetadata> { metadata }));
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(metadata.ForeignAuthorId)).Returns(author);
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsForRefresh(_book.Id, It.IsAny<List<string>>())).Returns(new List<Edition>());
+
+            Subject.RefreshBookInfo(_book);
+
+            _book.Title.Should().Be("Updated title");
+            providers.Verify(service => service.GetAuthorInfo(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_continue_a_bulk_book_refresh_when_one_provider_lookup_is_incomplete()
+        {
+            var next = new Book { Id = 8, ForeignBookId = "openlibrary:work:OL8W", Title = "Next work" };
+            Mocker.GetMock<IBookService>().Setup(service => service.GetBooks(It.IsAny<List<int>>())).Returns(new List<Book> { _book, next });
+            var providers = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            foreach (var book in new[] { _book, next })
+            {
+                providers.Setup(service => service.GetBookInfo(book.ForeignBookId)).Throws(
+                    new MetadataProviderUnavailableException("get-book-info", book.ForeignBookId, new InvalidOperationException("Partial response")));
+            }
+
+            Subject.Execute(new BulkRefreshBookCommand(new List<int> { _book.Id, next.Id }));
+
+            providers.Verify(service => service.GetBookInfo(next.ForeignBookId), Times.Once());
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Exactly(2));
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -251,6 +291,7 @@ namespace NzbDrone.Core.Test.MusicTests
                 Mocker.GetMock<ICheckIfBookShouldBeRefreshed>().Object,
                 Mocker.GetMock<IMapCoversToLocal>().Object,
                 Mocker.GetMock<IConfigService>().Object,
+                Mocker.GetMock<ICommandResultReporter>().Object,
                 LogManager.GetCurrentClassLogger())
             {
                 CallBase = true
