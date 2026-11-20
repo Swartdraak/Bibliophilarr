@@ -53,7 +53,7 @@ namespace Bibliophilarr.Api.V1.BookFiles
             return new BookFileResource
             {
                 Id = model.Id,
-                BookId = model.Edition.Value?.BookId ?? 0,
+                BookId = model.EditionId > 0 ? model.Edition?.Value?.BookId ?? 0 : 0,
                 Path = model.Path,
                 Size = model.Size,
                 DateAdded = model.DateAdded,
@@ -76,7 +76,7 @@ namespace Bibliophilarr.Api.V1.BookFiles
                 Id = model.Id,
 
                 AuthorId = author.Id,
-                BookId = model.Edition.Value?.BookId ?? 0,
+                BookId = model.EditionId > 0 ? model.Edition?.Value?.BookId ?? 0 : 0,
                 Path = model.Path,
                 Size = model.Size,
                 DateAdded = model.DateAdded,

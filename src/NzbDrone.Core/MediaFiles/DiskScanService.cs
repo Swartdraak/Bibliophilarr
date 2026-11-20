@@ -229,7 +229,6 @@ namespace NzbDrone.Core.MediaFiles
                     DateAdded = DateTime.UtcNow,
                     Quality = decision.Item.Quality,
                     MediaInfo = decision.Item.FileTrackInfo?.MediaInfo,
-                    Edition = decision.Item.Edition,
                     UnmappedReason = unmappedReasons[decision.Item.Path]
                 })
                 .ToList();

@@ -394,7 +394,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 .Verify(v => v.GetImportDecisions(It.Is<List<IFileInfo>>(l => l.Count == 1), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()), Times.Once());
         }
 
-        private void GivenRejections()
+        private void GivenRejections(Edition candidate = null, LibraryImportHoldReason? holdReason = null)
         {
             Mocker.GetMock<IMakeImportDecision>()
                 .Setup(x => x.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()))
@@ -402,11 +402,12 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                           fileList.Select(x => new LocalBook
                           {
                               Author = _author,
+                              Edition = candidate,
                               Path = x.FullName,
                               Modified = x.LastWriteTimeUtc,
                               FileTrackInfo = new ParsedTrackInfo()
                           })
-                          .Select(x => new ImportDecision<LocalBook>(x, new Rejection("Reject")))
+                          .Select(x => new ImportDecision<LocalBook>(x, new Rejection("Reject", holdReason: holdReason)))
                           .ToList());
         }
 
@@ -430,6 +431,25 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Mocker.GetMock<IMediaFileService>()
                 .Verify(x => x.AddMany(It.Is<List<BookFile>>(l => l.Select(t => t.Path).SequenceEqual(files))),
                         Times.Once());
+        }
+
+        [Test]
+        public void should_track_rejected_candidate_without_linking_its_edition()
+        {
+            GivenAuthorFolder();
+            var path = Path.Combine(_author.Path, "rejected.epub");
+            GivenFiles(new List<string> { path });
+            GivenKnownFiles(new List<string>());
+            GivenRejections(new Edition { Id = 8, BookId = 9 }, LibraryImportHoldReason.LowConfidence);
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 &&
+                files[0].Path == path &&
+                files[0].EditionId == 0 &&
+                files[0].Edition == null &&
+                files[0].UnmappedReason == LibraryImportHoldReason.LowConfidence)), Times.Once);
         }
 
         [Test]
