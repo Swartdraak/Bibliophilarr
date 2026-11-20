@@ -67,7 +67,8 @@ namespace NzbDrone.Core.Test.MusicTests
             confidence.Should().Be(1.0);
             reason.Should().Be("foreign-author-id match");
             authors.Verify(service => service.FindById(incoming.ForeignAuthorId), Times.Once());
-            authors.VerifyNoOtherCalls();
+            authors.Verify(service => service.AddAuthor(It.IsAny<Author>(), It.IsAny<bool>()), Times.Never());
+            authors.Verify(service => service.UpdateAuthor(It.IsAny<Author>()), Times.Never());
         }
 
         [Test]

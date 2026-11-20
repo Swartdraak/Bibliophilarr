@@ -15,7 +15,8 @@ namespace NzbDrone.Core.Test.MusicTests
         [Test]
         public void should_persist_the_provider_name_and_reuse_the_author_on_a_second_add()
         {
-            const string canonicalId = "openlibrary:author:OL12345A";
+            const string providerId = "OL12345A";
+            const string canonicalId = "openlibrary:author:" + providerId;
             const string canonicalName = "Morgan Example";
             Mocker.SetConstant<IAuthorRepository>(Mocker.Resolve<AuthorRepository>());
             Mocker.SetConstant<IAuthorMetadataRepository>(Mocker.Resolve<AuthorMetadataRepository>());
@@ -26,7 +27,7 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Setup(validator => validator.Validate(It.IsAny<Author>()))
                 .Returns(new ValidationResult());
             Mocker.GetMock<IMetadataProviderOrchestrator>()
-                .Setup(provider => provider.GetAuthorInfo("OL12345A", false))
+                .Setup(provider => provider.GetAuthorInfo(providerId, false))
                 .Returns(() => new Author
                 {
                     Metadata = new AuthorMetadata
