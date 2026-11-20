@@ -1,13 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using FluentAssertions.Equivalency;
+using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MusicTests.BookRepositoryTests
 {
@@ -65,6 +72,89 @@ namespace NzbDrone.Core.Test.MusicTests.BookRepositoryTests
             };
 
             _bookRepo.Insert(_bookSpecial);
+        }
+
+        [TestCase("hardcover:work:9101", false)]
+        [TestCase("OL9101W", false)]
+        [TestCase("hardcover:work:9102", true)]
+        public void should_hold_only_the_contested_work_in_a_bibliography_refresh(string contestedForeignId, bool secondaryClaim)
+        {
+            var ownerId = contestedForeignId == "hardcover:work:9101" ? contestedForeignId : "openlibrary:work:OL9101W";
+            var owner = _bookRepo.Insert(CreateBibliographyWork(ownerId, "Incumbent", _author.AuthorMetadataId));
+            var metadata = new AuthorMetadata { Id = 2, Name = "Incoming author", ForeignAuthorId = "hardcover:author:420" };
+            var author = new Author { Id = 2, AuthorMetadataId = metadata.Id, Metadata = metadata, Path = Path.GetTempPath() };
+            var first = CreateBibliographyWork("hardcover:work:9100", "First bibliography entry", metadata.Id);
+            var contested = CreateBibliographyWork(contestedForeignId, "Contested bibliography entry", metadata.Id);
+            var last = CreateBibliographyWork("hardcover:work:9103", "Last bibliography entry", metadata.Id);
+            var remoteWorks = new List<Book> { first, contested, last };
+
+            if (secondaryClaim)
+            {
+                contested.OpenLibraryWorkId = "OL9101W";
+                contested.PendingSourceAssociations.Add(new CatalogueSourceAssociation
+                {
+                    Provider = "OpenLibrary",
+                    ProviderId = contested.OpenLibraryWorkId,
+                    Evidence = "corroborated-work-match"
+                });
+            }
+
+            Mocker.SetConstant<IBookRepository>(_bookRepo);
+            Mocker.SetConstant<IBookService>(Subject);
+            Mocker.GetMock<IMetadataProfileService>().Setup(service => service.FilterBooks(author, It.IsAny<int>())).Returns(remoteWorks);
+            Mocker.GetMock<IImportListExclusionService>().Setup(service => service.FindByForeignId(It.IsAny<List<string>>())).Returns(new List<ImportListExclusion>());
+            var refresh = Mocker.Resolve<RefreshAuthorService>();
+
+            refresh.RefreshEntityInfo(author, new List<Author> { author }, author, false, false, null);
+
+            var stored = _bookRepo.GetBooksByAuthorMetadataId(metadata.Id);
+            stored.Select(work => work.ForeignBookId).Should().BeEquivalentTo(first.ForeignBookId, last.ForeignBookId);
+            stored.Should().OnlyContain(work => work.Id > 0 && work.CanonicalId.Length == 32);
+            _bookRepo.Get(owner.Id).AuthorMetadataId.Should().Be(_author.AuthorMetadataId);
+            contested.Id.Should().Be(0);
+            contested.CanonicalId.Should().BeNull();
+            Mocker.Resolve<CatalogueIdentityRepository>().FindByLegacyProviderId(CatalogueEntityKind.Work, ownerId).Should().Be(owner.Id);
+            Mocker.GetMock<IRefreshBookService>().Verify(service => service.RefreshBookInfo(
+                It.Is<List<Book>>(works => works.Count == 2 && works.Contains(first) && works.Contains(last)),
+                It.IsAny<List<Book>>(),
+                It.IsAny<Author>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<DateTime?>()), Times.Once());
+            Mocker.GetMock<IEventAggregator>().Verify(aggregator => aggregator.PublishEvent(
+                It.Is<BookInfoRefreshedEvent>(message => message.Added.Count == 2 && message.Added.Contains(first) && message.Added.Contains(last) &&
+                    message.Updated.Count == 0 && message.Removed.Count == 0)), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        private static Book CreateBibliographyWork(string foreignId, string title, int ownerId)
+        {
+            return new Book
+            {
+                ForeignBookId = foreignId,
+                Title = title,
+                CleanTitle = title,
+                TitleSlug = foreignId,
+                AuthorMetadataId = ownerId
+            };
+        }
+
+        [Test]
+        public void should_keep_ordinary_book_insertion_atomic_when_a_later_work_conflicts()
+        {
+            var owner = _bookRepo.Insert(CreateBibliographyWork("openlibrary:work:OL9101W", "Incumbent", _author.AuthorMetadataId));
+            var valid = CreateBibliographyWork("hardcover:work:9100", "Valid", _author.AuthorMetadataId);
+            var conflicting = CreateBibliographyWork("OL9101W", "Conflicting", _author.AuthorMetadataId);
+
+            var insert = () => _bookRepo.InsertMany(new List<Book> { valid, conflicting });
+
+            insert.Should().Throw<CatalogueIdentityConflictException>().Which.Kind.Should().Be(CatalogueIdentityConflictKind.PrimarySource);
+            valid.Id.Should().Be(0);
+            valid.CanonicalId.Should().BeNull();
+            conflicting.Id.Should().Be(0);
+            conflicting.CanonicalId.Should().BeNull();
+            _bookRepo.FindById(valid.ForeignBookId).Should().BeNull();
+            Mocker.Resolve<CatalogueIdentityRepository>().FindByLegacyProviderId(CatalogueEntityKind.Work, conflicting.ForeignBookId).Should().Be(owner.Id);
         }
 
         [Test]

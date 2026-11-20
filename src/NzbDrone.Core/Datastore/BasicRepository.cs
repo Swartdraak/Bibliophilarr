@@ -269,6 +269,66 @@ namespace NzbDrone.Core.Datastore
             }
         }
 
+        protected List<TModel> InsertManyHoldingCatalogueConflicts(List<TModel> models)
+        {
+            // Keep the fast atomic batch for ordinary bibliographies. A typed conflict
+            // rolls back that transaction before retrying with per-work savepoints.
+            try
+            {
+                InsertMany(models);
+                return models;
+            }
+            catch (CatalogueIdentityConflictException)
+            {
+            }
+
+            var inserted = new List<TModel>();
+            var held = new List<(ICatalogueIdentityModel Model, CatalogueIdentityConflictKind Kind)>();
+            try
+            {
+                using var connection = _database.OpenConnection();
+                using var transaction = connection.BeginTransaction(_catalogueWriteIsolation);
+                foreach (var model in models)
+                {
+                    connection.Execute("SAVEPOINT bibliography_work", transaction: transaction);
+                    try
+                    {
+                        inserted.Add(Insert(connection, transaction, model));
+                    }
+                    catch (CatalogueIdentityConflictException conflict)
+                    {
+                        connection.Execute("ROLLBACK TO SAVEPOINT bibliography_work", transaction: transaction);
+                        ResetCatalogueInsertion(model);
+                        held.Add(((ICatalogueIdentityModel)model, conflict.Kind));
+                    }
+
+                    connection.Execute("RELEASE SAVEPOINT bibliography_work", transaction: transaction);
+                }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                foreach (var model in models)
+                {
+                    ResetCatalogueInsertion(model);
+                }
+
+                throw;
+            }
+
+            var logger = NzbDroneLogger.GetLogger(typeof(BasicRepository<TModel>));
+            foreach (var (model, reason) in held)
+            {
+                logger.Warn("Holding catalogue {0} {1} for review because its {2} belongs to an existing record.",
+                    model.CatalogueKind,
+                    LogSanitizer.Sanitize(model.LegacyForeignId),
+                    reason);
+            }
+
+            return inserted;
+        }
+
         private static void ResetCatalogueInsertion(TModel model)
         {
             model.Id = 0;
@@ -354,7 +414,7 @@ namespace NzbDrone.Core.Datastore
             {
                 if (!CatalogueIdentityRepository.TryAddSource(connection, transaction, identity.CatalogueKind, model.Id, primary))
                 {
-                    throw new InvalidOperationException("The provider identity belongs to another catalogue record.");
+                    throw new CatalogueIdentityConflictException(CatalogueIdentityConflictKind.PrimarySource, "The provider identity belongs to another catalogue record.");
                 }
 
                 CatalogueIdentityRepository.TryAddRouteAlias(connection, transaction, identity.CatalogueKind, model.Id, identity.LegacyForeignId);
@@ -366,7 +426,13 @@ namespace NzbDrone.Core.Datastore
             {
                 if (!CatalogueIdentityRepository.TryAddRouteAlias(connection, transaction, identity.CatalogueKind, model.Id, alias))
                 {
-                    throw new InvalidOperationException("A corroborated catalogue route belongs to another record.");
+                    const string message = "A corroborated catalogue route belongs to another record.";
+                    if (string.IsNullOrWhiteSpace(alias))
+                    {
+                        throw new InvalidOperationException(message);
+                    }
+
+                    throw new CatalogueIdentityConflictException(CatalogueIdentityConflictKind.CorroboratedRoute, message);
                 }
             }
 
@@ -381,7 +447,7 @@ namespace NzbDrone.Core.Datastore
 
                 if (inserting)
                 {
-                    throw new InvalidOperationException("A corroborated provider identity belongs to another catalogue record.");
+                    throw new CatalogueIdentityConflictException(CatalogueIdentityConflictKind.CorroboratedSource, "A corroborated provider identity belongs to another catalogue record.");
                 }
 
                 NzbDroneLogger.GetLogger(typeof(BasicRepository<TModel>)).Warn(

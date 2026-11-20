@@ -39,6 +39,7 @@ namespace NzbDrone.Core.Books
         List<Book> BooksBetweenDates(DateTime start, DateTime end, bool includeUnmonitored);
         List<Book> AuthorBooksBetweenDates(Author author, DateTime start, DateTime end, bool includeUnmonitored);
         void InsertMany(List<Book> books);
+        List<Book> InsertBibliographyWorks(List<Book> books);
         void UpdateMany(List<Book> books);
         void DeleteMany(List<Book> books);
         void SetAddOptions(IEnumerable<Book> books);
@@ -260,12 +261,22 @@ namespace NzbDrone.Core.Books
 
         public void InsertMany(List<Book> books)
         {
+            EnsureAuthorsForInsert(books);
+            _bookRepository.InsertMany(books);
+        }
+
+        public List<Book> InsertBibliographyWorks(List<Book> books)
+        {
+            EnsureAuthorsForInsert(books);
+            return _bookRepository.InsertBibliographyWorks(books);
+        }
+
+        private static void EnsureAuthorsForInsert(List<Book> books)
+        {
             if (books.Any(x => x.AuthorMetadataId == 0))
             {
                 throw new InvalidOperationException("Cannot insert book with AuthorMetadataId = 0");
             }
-
-            _bookRepository.InsertMany(books);
         }
 
         public void UpdateMany(List<Book> books)

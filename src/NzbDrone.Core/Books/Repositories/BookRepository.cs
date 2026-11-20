@@ -16,6 +16,7 @@ namespace NzbDrone.Core.Books
         List<Book> GetNextBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetBooksByAuthorMetadataId(int authorMetadataId);
         List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds);
+        List<Book> InsertBibliographyWorks(List<Book> books);
         List<Book> GetBooksByFileIds(IEnumerable<int> fileIds);
         Book FindByTitle(int authorMetadataId, string title);
         Book FindById(string foreignBookId);
@@ -87,6 +88,11 @@ namespace NzbDrone.Core.Books
         public List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds)
         {
             return Query(a => a.AuthorMetadataId == authorMetadataId || foreignIds.Contains(a.ForeignBookId));
+        }
+
+        public List<Book> InsertBibliographyWorks(List<Book> books)
+        {
+            return InsertManyHoldingCatalogueConflicts(books);
         }
 
         public List<Book> GetBooksByFileIds(IEnumerable<int> fileIds)

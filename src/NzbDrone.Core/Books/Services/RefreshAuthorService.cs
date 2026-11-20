@@ -288,8 +288,13 @@ namespace NzbDrone.Core.Books
                 return candidates;
             }
 
-            var existing = localBooks.Where(x => x.AuthorMetadataId == local.AuthorMetadataId)
-                .ToList();
+            var foreignOwnedIds = localBooks.Where(x => x.AuthorMetadataId != local.AuthorMetadataId)
+                .Select(x => x.ForeignBookId)
+                .ToHashSet(StringComparer.Ordinal);
+
+            // Cross-author exact hits are evidence of a conflict, never editable children.
+            localBooks.RemoveAll(x => x.AuthorMetadataId != local.AuthorMetadataId);
+            var existing = localBooks;
 
             var existingIds = existing.Select(x => x.ForeignBookId).ToHashSet();
             var canonical = new List<Book>();
@@ -299,6 +304,13 @@ namespace NzbDrone.Core.Books
                          .ThenByDescending(x => MetadataQualityScorer.GetBookScoreBreakdown(x).Values.Sum())
                          .ThenBy(x => x.ForeignBookId, StringComparer.Ordinal))
             {
+                if (foreignOwnedIds.Contains(candidate.ForeignBookId))
+                {
+                    _logger.Warn("Holding catalogue work {0} for review because it belongs to another author.",
+                        LogSanitizer.Sanitize(candidate.ForeignBookId));
+                    continue;
+                }
+
                 var stored = BookWorkIdentity.FindUniqueMatch(candidate, existing, out var ambiguous);
                 var current = stored != null
                     ? canonical.FirstOrDefault(x => x.ForeignBookId == stored.ForeignBookId)
@@ -436,7 +448,13 @@ namespace NzbDrone.Core.Books
 
         protected override void AddChildren(List<Book> children)
         {
-            _bookService.InsertMany(children);
+            var inserted = _bookService.InsertBibliographyWorks(children);
+            if (!ReferenceEquals(inserted, children))
+            {
+                _logger.Debug("Stored {0} of {1} proposed bibliography works.", inserted.Count, children.Count);
+                children.Clear();
+                children.AddRange(inserted);
+            }
         }
 
         protected override bool RefreshChildren(SortedChildren localChildren, List<Book> remoteChildren, Author remoteData, bool forceChildRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)

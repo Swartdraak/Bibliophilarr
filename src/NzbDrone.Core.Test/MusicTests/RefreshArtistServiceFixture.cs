@@ -63,7 +63,8 @@ namespace NzbDrone.Core.Test.MusicTests
                   .Returns(new List<Author> { _author });
 
             Mocker.GetMock<IBookService>(MockBehavior.Strict)
-                .Setup(s => s.InsertMany(It.IsAny<List<Book>>()));
+                .Setup(s => s.InsertBibliographyWorks(It.IsAny<List<Book>>()))
+                .Returns((List<Book> books) => books);
 
             Mocker.GetMock<IMetadataProfileService>()
                 .Setup(s => s.FilterBooks(It.IsAny<Author>(), It.IsAny<int>()))
@@ -165,7 +166,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             Subject.Execute(new RefreshAuthorCommand(_author.Id));
 
-            Mocker.GetMock<IBookService>().Verify(s => s.InsertMany(It.Is<List<Book>>(books => books.Count == 0)), Times.Once());
+            Mocker.GetMock<IBookService>().Verify(s => s.InsertBibliographyWorks(It.Is<List<Book>>(books => books.Count == 0)), Times.Once());
             Mocker.GetMock<IRefreshBookService>().Verify(s => s.RefreshBookInfo(
                 It.Is<List<Book>>(books => books.Count == 1 && books[0].Id == _book1.Id),
                 It.Is<List<Book>>(books => books.Count == 1 && books[0].ForeignBookId == _book1.ForeignBookId &&

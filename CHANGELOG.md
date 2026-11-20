@@ -52,6 +52,9 @@ process.
   local author or work.
 - Keep a novel's file away from a companion guide when its embedded title
   identifies the original work. Explicit edition selections still apply.
+- Save the unaffected works in an author's bibliography when one incoming
+  work or source identity is already owned by another catalogue record.
+  Hold the conflicting work for review and preserve the existing owner.
 - Reuse verified author metadata already returned by a work lookup. A partial
   or unavailable provider response leaves stored metadata intact and lets the
   rest of a bulk book refresh continue.
