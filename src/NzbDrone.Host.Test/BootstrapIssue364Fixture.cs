@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NUnit.Framework;
 using NzbDrone.Common.Exceptions;
+using NzbDrone.Common.Options;
 using NzbDrone.Host;
 
 namespace NzbDrone.App.Test
@@ -20,9 +23,10 @@ namespace NzbDrone.App.Test
         [TestCase(null, "8811", 8811)]
         [TestCase("8811", null, 8811)]
         [TestCase("8811", "8812", 8811)]
-        [TestCase(null, null, 8787)]
+        [TestCase("8811", "invalid", 8811)]
+        [TestCase(null, null, null)]
         [NonParallelizable]
-        public void should_resolve_the_server_port_from_environment(string canonical, string historical, int expected)
+        public void should_apply_the_same_environment_port_to_the_listener_and_server_options(string canonical, string historical, int? expectedOverride)
         {
             const string canonicalName = "BIBLIOPHILARR__SERVER__PORT";
             const string historicalName = "BIBLIOPHILARR_SERVER__PORT";
@@ -36,15 +40,60 @@ namespace NzbDrone.App.Test
                 var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
 
                 var port = Bootstrap.GetServerPort(config);
+                var expectedListener = expectedOverride ?? 8787;
 
-                Assert.That(port, Is.EqualTo(expected));
-                Assert.That(Bootstrap.BuildUrl("http", "*", port), Is.EqualTo($"http://*:{expected}"));
+                Assert.Multiple(() =>
+                {
+                    Assert.That(port, Is.EqualTo(expectedListener));
+                    Assert.That(Bootstrap.BuildUrl("http", "*", port), Is.EqualTo($"http://*:{expectedListener}"));
+                    Assert.That(GetServerOptions(config).Port, Is.EqualTo(expectedOverride));
+                });
             }
             finally
             {
                 Environment.SetEnvironmentVariable(canonicalName, previousCanonical);
                 Environment.SetEnvironmentVariable(historicalName, previousHistorical);
             }
+        }
+
+        [TestCase(null, 8790, null)]
+        [TestCase("8811", 8811, 8811)]
+        public void should_keep_the_flat_xml_port_as_the_persisted_fallback(string historical, int expectedListener, int? expectedOverride)
+        {
+            var config = BuildConfig(
+                new KeyValuePair<string, string>("Port", "8790"),
+                new KeyValuePair<string, string>("Bibliophilarr_Server:Port", historical));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Bootstrap.GetServerPort(config), Is.EqualTo(expectedListener));
+                Assert.That(GetServerOptions(config).Port, Is.EqualTo(expectedOverride));
+                Assert.That(config["Port"], Is.EqualTo("8790"));
+            });
+        }
+
+        [TestCase("invalid", "8811")]
+        [TestCase(null, "invalid")]
+        public void should_reject_a_malformed_effective_port_in_both_configuration_paths(string canonical, string historical)
+        {
+            var config = BuildConfig(
+                new KeyValuePair<string, string>("Bibliophilarr:Server:Port", canonical),
+                new KeyValuePair<string, string>("Bibliophilarr_Server:Port", historical));
+
+            Assert.Multiple(() =>
+            {
+                Assert.Throws<InvalidOperationException>(() => Bootstrap.GetServerPort(config));
+                Assert.Throws<InvalidOperationException>(() => GetServerOptions(config));
+            });
+        }
+
+        private static ServerOptions GetServerOptions(IConfiguration config)
+        {
+            var services = new ServiceCollection();
+            Bootstrap.ConfigureServerOptions(services, config);
+
+            using var provider = services.BuildServiceProvider();
+            return provider.GetRequiredService<IOptions<ServerOptions>>().Value;
         }
 
         [Test]
