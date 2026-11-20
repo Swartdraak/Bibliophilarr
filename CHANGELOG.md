@@ -39,7 +39,8 @@ process.
   ISBN match can fill missing edition details, and verified Open Library
   author records can supply missing biographies and portraits.
 - Keep the requested ISBN when Open Library confirms it on an edition with
-  multiple identifiers. Ignore ambiguous fallback work matches.
+  multiple identifiers. Follow its verified edition redirect once, and ignore
+  ambiguous fallback work matches.
 - Require corroboration before matching authors across providers or adding
   Open Library work and author links. Keep two people with the same name
   distinct.
