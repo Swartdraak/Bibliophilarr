@@ -185,7 +185,9 @@ class EnhancedSelectInput extends Component {
 
   onKeyDown = (event) => {
     const {
-      values
+      values,
+      labelId,
+      isEditable
     } = this.props;
 
     const {
@@ -195,6 +197,11 @@ class EnhancedSelectInput extends Component {
 
     const keyCode = event.keyCode;
     const newState = {};
+    const labelled = labelId && !isEditable;
+
+    if (labelled && !values.length && (!isOpen || isArrowKey(keyCode))) {
+      return;
+    }
 
     if (!isOpen) {
       if (isArrowKey(keyCode)) {
@@ -227,15 +234,15 @@ class EnhancedSelectInput extends Component {
       newState.selectedIndex = nextIndex(selectedIndex, values);
     }
 
-    if (keyCode === keyCodes.ENTER) {
-      event.preventDefault();
+    if (keyCode === keyCodes.ENTER || keyCode === keyCodes.TAB) {
+      if (keyCode === keyCodes.ENTER) {
+        event.preventDefault();
+      }
       newState.isOpen = false;
-      this.onSelect(getKey(selectedIndex, values));
-    }
 
-    if (keyCode === keyCodes.TAB) {
-      newState.isOpen = false;
-      this.onSelect(getKey(selectedIndex, values));
+      if (!labelled || getSelectedOption(selectedIndex, values)) {
+        this.onSelect(getKey(selectedIndex, values));
+      }
     }
 
     if (keyCode === keyCodes.ESCAPE) {
@@ -250,7 +257,11 @@ class EnhancedSelectInput extends Component {
     }
   };
 
-  onPress = () => {
+  onPress = (event) => {
+    if (this.props.labelId && !this.props.isEditable) {
+      event.currentTarget.focus();
+    }
+
     if (this.state.isOpen) {
       this._removeListener();
     } else {
@@ -481,6 +492,7 @@ class EnhancedSelectInput extends Component {
                       isOpen && !isMobile ?
                         <Scroller
                           className={styles.options}
+                          autoFocus={!(labelId && !isEditable)}
                           style={{
                             maxHeight: style.maxHeight
                           }}
