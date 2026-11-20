@@ -14,6 +14,9 @@ process.
 
 ### Fixed
 
+- Enter activates the focused confirmation button once. Confirm closes the
+  dialog and Cancel dismisses it without submitting the action.
+
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
   the setup form.
