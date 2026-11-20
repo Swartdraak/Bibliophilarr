@@ -1,10 +1,13 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using FluentMigrator;
 using FluentMigrator.Runner;
 using FluentMigrator.Runner.Generators;
+using FluentMigrator.Runner.Generators.Postgres;
 using FluentMigrator.Runner.Initialization;
 using FluentMigrator.Runner.Processors;
+using FluentMigrator.Runner.Processors.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NLog;
@@ -43,12 +46,19 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
                 .AddLogging(b => b.AddNLog())
                 .AddFluentMigratorCore()
                 .Configure<RunnerOptions>(cfg => cfg.IncludeUntaggedMaintenances = true)
-                .ConfigureRunner(
-                    builder => builder
-                    .AddPostgres()
-                    .AddNzbDroneSQLite()
-                    .WithGlobalConnectionString(connectionString)
-                    .ScanIn(Assembly.GetExecutingAssembly()).For.All())
+                .ConfigureRunner(builder =>
+                {
+                    // AddPostgres defaults to PostgreSQL 15 in FluentMigrator 8.
+                    // Register the existing generic dialect first to retain its selector aliases.
+                    builder.Services
+                        .AddScoped<IMigrationProcessor>(sp => sp.GetRequiredService<PostgresProcessor>())
+                        .AddScoped<IMigrationGenerator>(sp => sp.GetRequiredService<PostgresGenerator>());
+
+                    builder.AddPostgres()
+                        .AddNzbDroneSQLite()
+                        .WithGlobalConnectionString(connectionString)
+                        .ScanIn(Assembly.GetExecutingAssembly()).For.All();
+                })
                 .Configure<TypeFilterOptions>(opt => opt.Namespace = "NzbDrone.Core.Datastore.Migration")
                 .Configure<ProcessorOptions>(opt =>
                 {
