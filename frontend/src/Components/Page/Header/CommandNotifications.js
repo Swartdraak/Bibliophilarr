@@ -1,3 +1,4 @@
+import classNames from 'classnames';
 import PropTypes from 'prop-types';
 import React, { useEffect, useRef, useState } from 'react';
 import { connect } from 'react-redux';
@@ -69,7 +70,7 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
       <button
         type="button"
         ref={launcher}
-        className={styles.launcher}
+        className={classNames(styles.launcher, open && styles.launcherOpen)}
         aria-label={translate('TaskNotifications')}
         aria-expanded={open}
         aria-controls={open ? 'task-notifications' : undefined}
@@ -95,6 +96,7 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
           <div className={styles.filters}>
             <button
               type="button"
+              className={!attentionOnly ? styles.activeFilter : undefined}
               aria-pressed={!attentionOnly}
               onClick={() => setAttentionOnly(false)}
             >
@@ -102,6 +104,7 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
             </button>
             <button
               type="button"
+              className={attentionOnly ? styles.activeFilter : undefined}
               aria-pressed={attentionOnly}
               onClick={() => setAttentionOnly(true)}
             >

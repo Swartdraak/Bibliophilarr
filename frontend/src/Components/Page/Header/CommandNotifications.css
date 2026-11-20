@@ -16,7 +16,7 @@
   cursor: pointer;
 
   &:hover,
-  &[aria-expanded='true'] {
+  &.launcherOpen {
     background-color: var(--headerControlColor);
   }
 
@@ -44,8 +44,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  width: min(380px, calc(100vw - 84px));
   max-height: min(500px, 77vh);
+  width: min(380px, calc(100vw - 84px));
   border: 1px solid var(--workspaceBorderColor);
   border-radius: 10px;
   background-color: var(--notificationPanelBackgroundColor);
@@ -63,6 +63,7 @@
 .filters {
   display: flex;
   gap: 14px;
+
   padding: 0 16px;
   border-bottom: 1px solid var(--workspaceBorderColor);
 
@@ -74,7 +75,7 @@
     color: inherit;
     cursor: pointer;
 
-    &[aria-pressed='true'] {
+    &.activeFilter {
       border-bottom-color: var(--primaryColor);
       font-weight: 700;
     }
@@ -97,6 +98,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
+
   padding: 11px 15px;
   border-bottom: 1px solid var(--workspaceBorderColor);
 }
@@ -106,6 +108,7 @@
   display: grid;
   flex: 0 0 27px;
   place-items: center;
+
   height: 27px;
   border-radius: 50%;
   background-color: var(--notificationIconBackgroundColor);
@@ -158,5 +161,6 @@
   display: flex;
   justify-content: space-between;
   gap: 10px;
+
   border-top: 1px solid var(--workspaceBorderColor);
 }
