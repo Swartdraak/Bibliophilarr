@@ -18,7 +18,6 @@ import { align, icons, kinds } from 'Helpers/Props';
 import getFilterValue from 'Utilities/Filter/getFilterValue';
 import hasDifferentItems from 'Utilities/Object/hasDifferentItems';
 import translate from 'Utilities/String/translate';
-import getSelectedIds from 'Utilities/Table/getSelectedIds';
 import removeOldSelectedState from 'Utilities/Table/removeOldSelectedState';
 import selectAll from 'Utilities/Table/selectAll';
 import toggleSelected from 'Utilities/Table/toggleSelected';
@@ -30,7 +29,7 @@ function getMonitoredValue(props) {
     selectedFilterKey
   } = props;
 
-  return getFilterValue(filters, selectedFilterKey, 'monitored', false);
+  return getFilterValue(filters, selectedFilterKey, 'monitored', true);
 }
 
 class CutoffUnmet extends Component {
@@ -52,10 +51,13 @@ class CutoffUnmet extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (hasDifferentItems(prevProps.items, this.props.items)) {
-      this.setState((state) => {
-        return removeOldSelectedState(state, prevProps.items);
-      });
+    if (prevProps.selectedFilterKey !== this.props.selectedFilterKey) {
+      this.setState({ ...selectAll({}, false), isConfirmSearchAllCutoffUnmetModalOpen: false });
+    } else if (hasDifferentItems(prevProps.items, this.props.items)) {
+      this.setState((state) => ({
+        ...removeOldSelectedState(state, prevProps.items),
+        lastToggled: null
+      }));
     }
   }
 
@@ -63,14 +65,15 @@ class CutoffUnmet extends Component {
   // Control
 
   getSelectedIds = () => {
-    return getSelectedIds(this.state.selectedState);
+    return this.props.items.filter(({ id }) => this.state.selectedState[id]).map(({ id }) => id);
   };
 
   //
   // Listeners
 
   onSelectAllChange = ({ value }) => {
-    this.setState(selectAll(this.state.selectedState, value));
+    const selectedState = Object.fromEntries(this.props.items.map(({ id }) => [id, value]));
+    this.setState(selectAll(selectedState, value));
   };
 
   onSelectedChange = ({ id, value, shiftKey = false }) => {
@@ -82,16 +85,23 @@ class CutoffUnmet extends Component {
   onSearchSelectedPress = () => {
     const selected = this.getSelectedIds();
 
-    this.props.onSearchSelectedPress(selected);
+    if (selected.length) {
+      this.props.onSearchSelectedPress(selected);
+    }
   };
 
   onToggleSelectedPress = () => {
     const bookIds = this.getSelectedIds();
 
-    this.props.batchToggleCutoffUnmetBooks({
-      bookIds,
-      monitored: !getMonitoredValue(this.props)
-    });
+    const { formatType, dualFormatTracking } = this.props;
+
+    if (bookIds.length && (!formatType || dualFormatTracking === true)) {
+      this.props.batchToggleCutoffUnmetBooks({
+        bookIds,
+        monitored: !getMonitoredValue(this.props),
+        ...(formatType && { formatType })
+      });
+    }
   };
 
   onSearchAllCutoffUnmetPress = () => {
@@ -120,6 +130,8 @@ class CutoffUnmet extends Component {
       isAuthorPopulated,
       selectedFilterKey,
       filters,
+      formatType,
+      dualFormatTracking,
       columns,
       totalRecords,
       isSearchingForCutoffUnmetBooks,
@@ -138,7 +150,8 @@ class CutoffUnmet extends Component {
     const isAllPopulated = isPopulated && isAuthorPopulated;
     const isAnyFetching = isFetching || isAuthorFetching;
 
-    const itemsSelected = !!this.getSelectedIds().length;
+    const itemsSelected = !isAnyFetching && !!this.getSelectedIds().length;
+    const canToggleMonitoring = !formatType || dualFormatTracking === true;
     const isShowingMonitored = getMonitoredValue(this.props);
 
     return (
@@ -155,7 +168,8 @@ class CutoffUnmet extends Component {
             <PageToolbarButton
               label={isShowingMonitored ? translate('IsShowingMonitoredUnmonitorSelected') : translate('IsShowingMonitoredMonitorSelected')}
               iconName={isShowingMonitored ? icons.UNMONITORED : icons.MONITORED}
-              isDisabled={!itemsSelected}
+              isDisabled={!itemsSelected || !canToggleMonitoring}
+              title={formatType && dualFormatTracking === false ? translate('MissingFormatMonitorRequiresDualTracking') : undefined}
               isSpinning={isSaving}
               onPress={this.onToggleSelectedPress}
             />
@@ -165,7 +179,7 @@ class CutoffUnmet extends Component {
             <PageToolbarButton
               label={translate('SearchAll')}
               iconName={icons.SEARCH}
-              isDisabled={!items.length}
+              isDisabled={!items.length || isAnyFetching}
               isSpinning={isSearchingForCutoffUnmetBooks}
               onPress={this.onSearchAllCutoffUnmetPress}
             />
@@ -234,6 +248,7 @@ class CutoffUnmet extends Component {
                             isSelected={selectedState[item.id]}
                             columns={columns}
                             {...item}
+                            formatType={formatType}
                             onSelectedChange={this.onSelectedChange}
                           />
                         );
@@ -283,6 +298,8 @@ CutoffUnmet.propTypes = {
   isAuthorPopulated: PropTypes.bool.isRequired,
   selectedFilterKey: PropTypes.string.isRequired,
   filters: PropTypes.arrayOf(PropTypes.object).isRequired,
+  formatType: PropTypes.oneOf(['ebook', 'audiobook']),
+  dualFormatTracking: PropTypes.bool,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   totalRecords: PropTypes.number,
   isSearchingForCutoffUnmetBooks: PropTypes.bool.isRequired,

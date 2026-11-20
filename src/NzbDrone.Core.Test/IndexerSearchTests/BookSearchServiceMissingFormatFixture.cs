@@ -31,6 +31,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
         private Mock<IConfigService> _config;
         private Mock<IAuthorFormatProfileService> _profiles;
         private Mock<IQueueService> _queue;
+        private Mock<IBookCutoffService> _cutoff;
         private Book _book;
         private AuthorFormatProfile _profile;
         private BookSearchService _subject;
@@ -44,6 +45,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             _config = new Mock<IConfigService>();
             _profiles = new Mock<IAuthorFormatProfileService>();
             _queue = new Mock<IQueueService>();
+            _cutoff = new Mock<IBookCutoffService>(MockBehavior.Strict);
             _queue.Setup(service => service.GetQueue()).Returns(new List<Queue.Queue>());
 
             _profile = new AuthorFormatProfile { Monitored = true };
@@ -62,7 +64,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             _subject = new BookSearchService(
                 _search.Object,
                 _books.Object,
-                Mock.Of<IBookCutoffService>(),
+                _cutoff.Object,
                 _queue.Object,
                 _downloads.Object,
                 _config.Object,
@@ -340,6 +342,81 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             CommandEqualityComparer.Instance.Equals(AudioSearch(), AudioSearch()).Should().BeTrue();
             CommandEqualityComparer.Instance.Equals(AudioSearch(), ebook).Should().BeFalse();
             CommandEqualityComparer.Instance.Equals(AudioSearch(), unscoped).Should().BeFalse();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_search_cutoff_works_in_the_selected_format_with_other_formats_queued(bool allBooks)
+        {
+            var sameFormatQueued = new Book { Id = 42, Author = _book.Author, Monitored = true };
+            var unrelated = new Book { Id = 43, Author = _book.Author, Monitored = true };
+            SetCutoffBooks(() => new[] { _book, sameFormatQueued, unrelated });
+            _queue.Setup(service => service.GetQueue()).Returns(new List<Queue.Queue>
+            {
+                new Queue.Queue { Book = _book, Quality = new QualityModel(Quality.M4B) },
+                new Queue.Queue { Book = sameFormatQueued, Quality = new QualityModel(Quality.EPUB) },
+                new Queue.Queue { Book = unrelated, Quality = new QualityModel(Quality.EPUB) }
+            });
+            var upgrade = Decision(FormatType.Ebook, Quality.AZW3);
+            _search.Setup(service => service.BookSearch(BookId, false, true, false, true))
+                .ReturnsAsync(new List<DownloadDecision> { Decision(FormatType.Audiobook, Quality.M4B), upgrade });
+            _downloads.Setup(service => service.ProcessDecisions(It.IsAny<List<DownloadDecision>>())).ReturnsAsync(EmptyResult());
+            var command = new CutoffUnmetBookSearchCommand
+            {
+                Trigger = CommandTrigger.Manual,
+                FormatType = FormatType.Ebook,
+                BookIds = allBooks ? null : new List<int> { BookId, 42, 44 }
+            };
+
+            _subject.Execute(command);
+
+            _search.Verify(service => service.BookSearch(BookId, false, true, false, true), Times.Once);
+            _search.VerifyNoOtherCalls();
+            _downloads.Verify(service => service.ProcessDecisions(It.Is<List<DownloadDecision>>(items =>
+                items.Count == 1 && items[0] == upgrade)), Times.Once);
+            _books.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_not_grab_when_the_cutoff_query_no_longer_matches_after_search()
+        {
+            var stillBelowCutoff = true;
+            SetCutoffBooks(() => stillBelowCutoff ? new[] { _book } : Array.Empty<Book>());
+            _search.Setup(service => service.BookSearch(BookId, false, true, false, true)).Returns(() =>
+            {
+                stillBelowCutoff = false;
+                return System.Threading.Tasks.Task.FromResult(new List<DownloadDecision> { Decision(FormatType.Ebook, Quality.AZW3) });
+            });
+
+            _subject.Execute(new CutoffUnmetBookSearchCommand { Trigger = CommandTrigger.Manual, FormatType = FormatType.Ebook });
+
+            _search.Verify(service => service.BookSearch(BookId, false, true, false, true), Times.Once);
+            _downloads.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_compare_all_cutoff_command_scope_fields_when_optional_fields_are_missing()
+        {
+            var unscoped = new CutoffUnmetBookSearchCommand();
+            var ebook = STJson.Deserialize<CutoffUnmetBookSearchCommand>("""{"formatType":"ebook"}""");
+            var audio = new CutoffUnmetBookSearchCommand { FormatType = FormatType.Audiobook };
+            var selected = new CutoffUnmetBookSearchCommand { FormatType = FormatType.Ebook, BookIds = new List<int> { BookId } };
+
+            CommandEqualityComparer.Instance.Equals(ebook, unscoped).Should().BeFalse();
+            CommandEqualityComparer.Instance.Equals(ebook, audio).Should().BeFalse();
+            CommandEqualityComparer.Instance.Equals(ebook, selected).Should().BeFalse();
+            CommandEqualityComparer.Instance.Equals(ebook, new CutoffUnmetBookSearchCommand { FormatType = FormatType.Ebook }).Should().BeTrue();
+        }
+
+        private void SetCutoffBooks(Func<Book[]> getBooks)
+        {
+            _cutoff.Setup(service => service.BooksWhereCutoffUnmet(It.IsAny<PagingSpec<Book>>(), FormatType.Ebook, true))
+                .Returns((PagingSpec<Book> paging, FormatType? _, bool? _) =>
+                {
+                    var filters = paging.FilterExpressions.Select(filter => filter.Compile()).ToList();
+                    paging.Records = getBooks().Where(book => filters.All(filter => filter(book))).Take(paging.PageSize).ToList();
+                    return paging;
+                });
         }
 
         private static BookSearchCommand AudioSearch()

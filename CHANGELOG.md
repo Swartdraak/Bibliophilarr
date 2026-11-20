@@ -35,6 +35,8 @@ process.
 - Wanted searches with an ebook or audiobook filter target only that format.
   A queued copy of the other format no longer blocks a wanted release when
   independent format tracking is enabled.
+- Cutoff Unmet uses the selected format's files, monitoring, and quality target.
+  Its filtered row and bulk searches look for upgrades in that format.
 - Batch author canonicalization previews duplicate candidates. Apply a
   confirmed merge through the reviewed reconciliation command.
 - Terminal first-account setup now requires a request token and its cookie
