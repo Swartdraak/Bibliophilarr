@@ -65,6 +65,7 @@ namespace NzbDrone.Core.Test.MusicTests
             return new Book
             {
                 ForeignBookId = bookId,
+                Author = new Author { RootFolderPath = "/library" },
                 Editions = new List<Edition>
                 {
                     new Edition
@@ -113,6 +114,7 @@ namespace NzbDrone.Core.Test.MusicTests
             var newBook = new Book
             {
                 ForeignBookId = "book",
+                Author = new Author { RootFolderPath = "/library" },
                 Editions = new List<Edition>
                 {
                     new Edition
@@ -146,6 +148,7 @@ namespace NzbDrone.Core.Test.MusicTests
             var newBook = new Book
             {
                 ForeignBookId = "book",
+                Author = new Author { RootFolderPath = "/library" },
                 Editions = new List<Edition>
                 {
                     new Edition
