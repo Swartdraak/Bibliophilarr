@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using FluentAssertions;
@@ -9,8 +10,10 @@ using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.Test.Framework;
@@ -479,6 +482,60 @@ namespace NzbDrone.Core.Test.MetadataSource
             ExceptionVerification.ExpectedWarns(failure == "transport" ? 2 : 1);
             Mocker.GetMock<IHttpClient>()
                 .Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never);
+        }
+
+        [Test]
+        public void should_keep_existing_author_metadata_when_series_is_throttled_after_bibliography()
+        {
+            const string authorId = "hardcover:author:123";
+            var requests = new List<string>();
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    if (body.Value<string>("query").StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        requests.Add("series");
+                        var headers = new HttpHeader { ["Retry-After"] = "72096" };
+                        var response = new HttpResponse(request, headers, string.Empty, HttpStatusCode.TooManyRequests);
+                        throw new TooManyRequestsException(request, response);
+                    }
+
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    requests.Add($"works:{offset}");
+                    return CreateJsonResponse(request, BuildAuthorPage(offset == 0 ? new[] { 1 } : Array.Empty<int>()));
+                });
+
+            Mocker.GetMock<IMetadataProviderRegistry>()
+                .Setup(registry => registry.GetProviders()).Returns(new IMetadataProvider[] { Subject });
+            var orchestrator = Mocker.Resolve<MetadataProviderOrchestrator>();
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(orchestrator);
+
+            var lookup = () => orchestrator.GetAuthorInfo(authorId);
+            var unavailable = lookup.Should().Throw<MetadataProviderUnavailableException>().Which;
+            unavailable.EntityId.Should().Be(authorId);
+            unavailable.InnerException.Should().BeOfType<TooManyRequestsException>()
+                .Which.RetryAfter.Should().Be(TimeSpan.FromSeconds(72096));
+            requests.Should().Equal("works:0", "works:1", "series");
+            requests.Clear();
+
+            var stored = new Author { Id = 12, Metadata = new AuthorMetadata { ForeignAuthorId = authorId, Overview = "Existing biography" } };
+            var authorService = Mocker.GetMock<IAuthorService>();
+            authorService.Setup(service => service.GetAuthors(new[] { stored.Id })).Returns(new List<Author> { stored });
+
+            Mocker.Resolve<RefreshAuthorService>().Execute(new RefreshAuthorCommand(stored.Id));
+
+            requests.Should().Equal("works:0", "works:1", "series");
+            Mocker.GetMock<ICommandResultReporter>()
+                .Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            authorService.Verify(service => service.GetAuthors(new[] { stored.Id }), Times.Once);
+            authorService.VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
+            stored.Metadata.Value.Overview.Should().Be("Existing biography");
+            ExceptionVerification.ExpectedWarns(3);
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [TestCase(true)]

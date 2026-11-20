@@ -1536,6 +1536,10 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
                 return result.OrderBy(x => x.Title).ToList();
             }
+            catch (TooManyRequestsException ex)
+            {
+                throw new MetadataProviderUnavailableException("get-author-info", BuildHardcoverAuthorId(authorId), ex);
+            }
             catch (Exception ex)
             {
                 _logger.Debug(ex, "Hardcover series fetch failed for author ID {0}.", authorId);

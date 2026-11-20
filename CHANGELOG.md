@@ -29,6 +29,8 @@ process.
 - Continue scanning accessible folders when another root is unavailable.
   Preserve existing file records for unreadable folders and report the scan
   as unsuccessful when a folder is skipped or an import execution fails.
+- Show the full Hardcover retry window in provider health. Keep existing
+  author metadata and series when Hardcover limits the bibliography refresh.
 
 - Reconcile reviewed duplicate works without changing edition or file IDs.
   Preserve both formats, their monitoring settings, series membership and
