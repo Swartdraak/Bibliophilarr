@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, { useState } from 'react';
 import AuthorMetadataProfilePopoverContent from 'AddAuthor/AuthorMetadataProfilePopoverContent';
 import AuthorMonitoringOptionsPopoverContent from 'AddAuthor/AuthorMonitoringOptionsPopoverContent';
 import AuthorMonitorNewItemsOptionsPopoverContent from 'AddAuthor/AuthorMonitorNewItemsOptionsPopoverContent';
@@ -19,10 +19,14 @@ import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import Popover from 'Components/Tooltip/Popover';
 import { calibreProfiles, icons, inputTypes, kinds, tooltipPositions } from 'Helpers/Props';
+import getUniqueElementId from 'Utilities/getUniqueElementId';
 import translate from 'Utilities/String/translate';
 import styles from './EditRootFolderModalContent.css';
 
 function EditRootFolderModalContent(props) {
+  const [formId] = useState(getUniqueElementId);
+  const nameId = `${formId}-name`;
+  const pathId = `${formId}-path`;
 
   const {
     advancedSettings,
@@ -86,20 +90,21 @@ function EditRootFolderModalContent(props) {
             <Form {...otherProps}>
               <FieldSet legend={translate('RootFolder')} >
                 <FormGroup>
-                  <FormLabel>
+                  <FormLabel name={nameId}>
                     {translate('Name')}
                   </FormLabel>
 
                   <FormInputGroup
                     type={inputTypes.TEXT}
                     name="name"
+                    inputId={nameId}
                     {...name}
                     onChange={onInputChange}
                   />
                 </FormGroup>
 
                 <FormGroup>
-                  <FormLabel>
+                  <FormLabel name={pathId}>
                     {translate('Path')}
                   </FormLabel>
 
@@ -107,6 +112,7 @@ function EditRootFolderModalContent(props) {
                     type={id ? inputTypes.TEXT : inputTypes.PATH}
                     readOnly={!!id}
                     name="path"
+                    inputId={pathId}
                     helpText={translate('PathHelpText')}
                     helpTextWarning={translate('PathHelpTextWarning')}
                     {...path}

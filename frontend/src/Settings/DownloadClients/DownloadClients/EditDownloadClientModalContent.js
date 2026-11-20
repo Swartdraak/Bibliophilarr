@@ -170,7 +170,7 @@ class EditDownloadClientModalContent extends Component {
                   <FormInputGroup
                     type={inputTypes.NUMBER}
                     name="priority"
-                    helpText={translate('IndexerPriorityHelpText')}
+                    helpText={translate('ClientPriorityHelpText')}
                     min={1}
                     max={50}
                     {...priority}

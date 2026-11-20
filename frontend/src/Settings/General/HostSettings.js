@@ -74,7 +74,7 @@ function HostSettings(props) {
         <FormInputGroup
           type={inputTypes.TEXT}
           name="urlBase"
-          helpText={translate('UrlBaseHelpText')}
+          helpText={translate('BibliophilarrUrlBaseHelpText')}
           helpTextWarning={translate('UrlBaseHelpTextWarning')}
           onChange={onInputChange}
           {...urlBase}

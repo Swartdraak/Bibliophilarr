@@ -185,7 +185,9 @@ class EnhancedSelectInput extends Component {
 
   onKeyDown = (event) => {
     const {
-      values
+      values,
+      labelId,
+      isEditable
     } = this.props;
 
     const {
@@ -195,6 +197,11 @@ class EnhancedSelectInput extends Component {
 
     const keyCode = event.keyCode;
     const newState = {};
+    const labelled = labelId && !isEditable;
+
+    if (labelled && !values.length && (!isOpen || isArrowKey(keyCode))) {
+      return;
+    }
 
     if (!isOpen) {
       if (isArrowKey(keyCode)) {
@@ -227,15 +234,15 @@ class EnhancedSelectInput extends Component {
       newState.selectedIndex = nextIndex(selectedIndex, values);
     }
 
-    if (keyCode === keyCodes.ENTER) {
-      event.preventDefault();
+    if (keyCode === keyCodes.ENTER || keyCode === keyCodes.TAB) {
+      if (keyCode === keyCodes.ENTER) {
+        event.preventDefault();
+      }
       newState.isOpen = false;
-      this.onSelect(getKey(selectedIndex, values));
-    }
 
-    if (keyCode === keyCodes.TAB) {
-      newState.isOpen = false;
-      this.onSelect(getKey(selectedIndex, values));
+      if (!labelled || getSelectedOption(selectedIndex, values)) {
+        this.onSelect(getKey(selectedIndex, values));
+      }
     }
 
     if (keyCode === keyCodes.ESCAPE) {
@@ -250,7 +257,11 @@ class EnhancedSelectInput extends Component {
     }
   };
 
-  onPress = () => {
+  onPress = (event) => {
+    if (this.props.labelId && !this.props.isEditable) {
+      event.currentTarget.focus();
+    }
+
     if (this.state.isOpen) {
       this._removeListener();
     } else {
@@ -304,6 +315,8 @@ class EnhancedSelectInput extends Component {
       className,
       disabledClassName,
       name,
+      inputId,
+      labelId,
       value,
       values,
       isDisabled,
@@ -327,6 +340,7 @@ class EnhancedSelectInput extends Component {
 
     const isMultiSelect = Array.isArray(value);
     const selectedOption = getSelectedOption(selectedIndex, values);
+    const selectedValueId = labelId && inputId ? `${inputId}-value` : undefined;
     let selectedValue = value;
 
     if (!values.length) {
@@ -354,6 +368,7 @@ class EnhancedSelectInput extends Component {
                         <TextInput
                           className={className}
                           name={name}
+                          inputId={inputId}
                           value={value}
                           readOnly={isDisabled}
                           hasError={hasError}
@@ -396,6 +411,8 @@ class EnhancedSelectInput extends Component {
                           hasWarning && styles.hasWarning,
                           isDisabled && disabledClassName
                         )}
+                        id={inputId}
+                        aria-labelledby={selectedValueId && `${labelId} ${selectedValueId}`}
                         isDisabled={isDisabled}
                         onBlur={this.onBlur}
                         onKeyDown={this.onKeyDown}
@@ -406,6 +423,7 @@ class EnhancedSelectInput extends Component {
                           values={values}
                           {...selectedValueOptions}
                           {...selectedOption}
+                          id={selectedValueId}
                           isDisabled={isDisabled}
                           isMultiSelect={isMultiSelect}
                         >
@@ -474,6 +492,7 @@ class EnhancedSelectInput extends Component {
                       isOpen && !isMobile ?
                         <Scroller
                           className={styles.options}
+                          autoFocus={!(labelId && !isEditable)}
                           style={{
                             maxHeight: style.maxHeight
                           }}
@@ -575,6 +594,8 @@ EnhancedSelectInput.propTypes = {
   className: PropTypes.string,
   disabledClassName: PropTypes.string,
   name: PropTypes.string.isRequired,
+  inputId: PropTypes.string,
+  labelId: PropTypes.string,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.arrayOf(PropTypes.string), PropTypes.arrayOf(PropTypes.number)]).isRequired,
   values: PropTypes.arrayOf(PropTypes.object).isRequired,
   isDisabled: PropTypes.bool.isRequired,
