@@ -14,6 +14,12 @@ process.
 
 ### Fixed
 
+- Calendar subscription links authenticate with their API key and open in
+  calendar clients without a Bibliophilarr browser session.
+- Calendar subscriptions apply author tags from generated links and retain
+  support for existing `tagList` filters.
+- Calendar subscriptions display one release event per book when several
+  editions are monitored or none is selected.
 - Enter activates the focused confirmation button once. Confirm closes the
   dialog and Cancel dismisses it without submitting the action.
 
