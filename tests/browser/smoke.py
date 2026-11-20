@@ -74,6 +74,15 @@ def check_bootstrap_user(app_data, credentials=None):
     assert users == expected, "bootstrap user did not match the persisted profile"
 
 
+def bootstrap_headers(http, base):
+    response = check_status(http.get(base + "/bootstrap", max_redirects=0), 200, "Read terminal setup token")
+    token = response.json()
+    header_name = token.get("headerName")
+    request_token = token.get("requestToken")
+    assert header_name and request_token, "terminal setup token response is incomplete"
+    return {header_name: request_token}
+
+
 def free_port():
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
@@ -271,8 +280,10 @@ def run(binary, evidence, *, live_provider=False):
         weak_data = work / "weak-password"
         with running_app(binary, weak_data, work / "weak.log", free_port(), evidence, credentials) as (app, base):
             wait_ready(app, http, base, weak_data)
+            setup_headers = bootstrap_headers(http, base)
             check_status(
-                http.post(base + "/bootstrap", form={"username": username, "password": "weak"}, max_redirects=0),
+                http.post(base + "/bootstrap", headers=setup_headers,
+                          form={"username": username, "password": "weak"}, max_redirects=0),
                 400,
                 "Fresh user with weak password",
             )
@@ -284,6 +295,8 @@ def run(binary, evidence, *, live_provider=False):
                          403, "Rejected forwarded first-account request")
             check_status(http.post(base + "/bootstrap", form=credentials, headers={"Origin": "https://untrusted.invalid"}, max_redirects=0),
                          403, "Rejected cross-origin terminal bootstrap")
+            check_status(http.get(base + "/bootstrap", headers={"X-Forwarded-For": "127.0.0.1"}, max_redirects=0),
+                         403, "Rejected forwarded terminal setup token request")
             check_status(http.post(base + "/login/setup", form=credentials, max_redirects=0),
                          400, "First-account form without its request token")
             with playwright.chromium.launch() as onboarding_browser:
@@ -317,14 +330,20 @@ def run(binary, evidence, *, live_provider=False):
             check_status(http.get(base + "/api/v1/search?term=fixture", max_redirects=0), 401, "Anonymous API search")
             denied = check_status(http.get(base + "/initialize.json", max_redirects=0), 401, "Anonymous initializer")
             assert key.encode() not in denied.body()
+            check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 400,
+                         "Terminal setup without its request token")
+            setup_headers = bootstrap_headers(http, base)
             for invalid_username in ("ab", "a" * 33):
                 invalid = {**credentials, "username": invalid_username}
-                check_status(http.post(base + "/bootstrap", form=invalid, max_redirects=0), 400, "Invalid first username")
+                check_status(http.post(base + "/bootstrap", headers=setup_headers, form=invalid, max_redirects=0),
+                             400, "Invalid first username")
             check_bootstrap_user(data)
             initial_user = {**credentials, "username": username.upper()}
-            check_status(http.post(base + "/bootstrap", form=initial_user, max_redirects=0), 200, "First user")
+            check_status(http.post(base + "/bootstrap", headers=setup_headers, form=initial_user, max_redirects=0),
+                         200, "First user")
             check_bootstrap_user(data, credentials)
-            check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 409, "Duplicate bootstrap")
+            check_status(http.post(base + "/bootstrap", headers=setup_headers, form=credentials, max_redirects=0),
+                         409, "Duplicate bootstrap")
             check_bootstrap_user(data, credentials)
 
             host = check_status(api.get("/api/v1/config/host"), 200, "Read host config").json()
@@ -376,7 +395,9 @@ def run(binary, evidence, *, live_provider=False):
             assert ui_settings["theme"] == "dark"
             metadata = check_status(api.get(metadata_path), 200, "Persisted metadata settings").json()
             assert metadata["metadataProviderTimeoutSeconds"] == timeout
-            check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 409, "Persisted user")
+            setup_headers = bootstrap_headers(http, base)
+            check_status(http.post(base + "/bootstrap", headers=setup_headers, form=credentials, max_redirects=0),
+                         409, "Persisted user")
             check_bootstrap_user(data, credentials)
             print("Bootstrap user verified in SQLite after restart", flush=True)
             check_status(page.request.get(base + "/initialize.json"), 200, "Persisted Forms session")

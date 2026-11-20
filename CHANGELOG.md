@@ -26,6 +26,10 @@ process.
 
 ### Fixed
 
+- Terminal first-account setup now requires a request token and its cookie
+  before submitting credentials. Browser first-account setup continues through
+  the setup form.
+
 - Continue scanning accessible folders when another root is unavailable.
   Preserve existing file records for unreadable folders and report the scan
   as unsuccessful when a folder is skipped or an import execution fails.

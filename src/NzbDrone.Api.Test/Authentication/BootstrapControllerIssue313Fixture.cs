@@ -1,8 +1,14 @@
+using System;
 using System.Net;
+using System.Reflection;
 using Bibliophilarr.Http.Authentication;
 using FluentAssertions;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Routing;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Configuration;
@@ -12,6 +18,31 @@ namespace NzbDrone.Api.Test.Authentication
     [TestFixture]
     public class BootstrapControllerIssue313Fixture
     {
+        [Test]
+        public void bootstrap_should_issue_tokens_for_a_direct_terminal_client_and_validate_the_submission()
+        {
+            var (controller, _) = CreateController(existingUser: null);
+            var antiforgery = new Mock<IAntiforgery>();
+            antiforgery.Setup(service => service.GetAndStoreTokens(controller.HttpContext))
+                .Returns(new AntiforgeryTokenSet("request-token", "cookie-token", "__RequestVerificationToken", "RequestVerificationToken"));
+
+            var tokenAction = typeof(AuthenticationController).GetMethod(nameof(AuthenticationController.GetBootstrapToken));
+            tokenAction.GetCustomAttribute<HttpGetAttribute>().Template.Should().Be("bootstrap");
+            var result = controller.GetBootstrapToken(antiforgery.Object);
+
+            result.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeEquivalentTo(new
+            {
+                headerName = "RequestVerificationToken",
+                requestToken = "request-token"
+            });
+            antiforgery.Verify(service => service.GetAndStoreTokens(controller.HttpContext), Times.Once);
+            var submission = typeof(AuthenticationController).GetMethod(nameof(AuthenticationController.Bootstrap));
+            submission.GetCustomAttribute<HttpPostAttribute>().Template.Should().Be("bootstrap");
+            var validation = submission.GetCustomAttribute<ValidateAntiForgeryTokenAttribute>();
+            tokenAction.GetCustomAttribute<DirectTerminalBootstrapAttribute>().Should().NotBeNull();
+            submission.GetCustomAttribute<DirectTerminalBootstrapAttribute>().Order.Should().BeLessThan(validation.Order);
+        }
+
         // Issue #313 DEFECT-AUTH-BOOTSTRAP-DEADLOCK:
         // An Enabled install with an empty Users table can never create its first
         // user because PUT /config/host is auth-gated. POST /bootstrap provides the
@@ -66,18 +97,38 @@ namespace NzbDrone.Api.Test.Authentication
             authService.Verify(a => a.AddUser(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         }
 
-        [Test]
-        public void bootstrap_should_reject_a_forwarded_request()
+        [TestCase(null, true)]
+        [TestCase("X-Forwarded-For", false)]
+        [TestCase("Forwarded", false)]
+        [TestCase("Origin", false)]
+        [TestCase("Sec-Fetch-Site", false)]
+        public void terminal_bootstrap_should_only_accept_direct_terminal_requests(string header, bool allowed)
         {
-            var (controller, authService) = CreateController(existingUser: null, forwarded: true);
-            var result = controller.Bootstrap(new BootstrapResource { Username = "admin", Password = "AValidPassword123" });
+            var context = new DefaultHttpContext();
+            context.Connection.RemoteIpAddress = IPAddress.Loopback;
+            context.Request.Host = new HostString("localhost");
+            if (header != null)
+            {
+                context.Request.Headers[header] = "fixture-value";
+            }
 
-            result.Should().BeOfType<StatusCodeResult>().Which.StatusCode.Should().Be(403);
-            authService.Verify(a => a.AddUser(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            FirstAccountSetup.CaptureRequest(context);
+            var filterContext = new AuthorizationFilterContext(
+                new ActionContext(context, new RouteData(), new ActionDescriptor()), Array.Empty<IFilterMetadata>());
+            new DirectTerminalBootstrapAttribute().OnAuthorization(filterContext);
+
+            if (allowed)
+            {
+                filterContext.Result.Should().BeNull();
+            }
+            else
+            {
+                filterContext.Result.Should().BeOfType<StatusCodeResult>().Which.StatusCode.Should().Be(403);
+            }
         }
 
         private static (Bibliophilarr.Http.Authentication.AuthenticationController, Moq.Mock<Bibliophilarr.Http.Authentication.IAuthenticationService>) CreateController(
-            NzbDrone.Core.Authentication.User existingUser, bool forwarded = false)
+            NzbDrone.Core.Authentication.User existingUser)
         {
             var authService = new Mock<Bibliophilarr.Http.Authentication.IAuthenticationService>();
             authService.Setup(a => a.FindUser()).Returns(existingUser);
@@ -90,11 +141,6 @@ namespace NzbDrone.Api.Test.Authentication
             var context = new DefaultHttpContext();
             context.Connection.RemoteIpAddress = IPAddress.Loopback;
             context.Request.Host = new HostString("localhost");
-            if (forwarded)
-            {
-                context.Request.Headers["X-Forwarded-For"] = "127.0.0.1";
-            }
-
             FirstAccountSetup.CaptureRequest(context);
             controller.ControllerContext = new ControllerContext { HttpContext = context };
             return (controller, authService);
