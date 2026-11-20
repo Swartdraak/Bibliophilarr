@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -51,7 +52,14 @@ namespace Bibliophilarr.Http.Authentication
                 return headerValue.FirstOrDefault();
             }
 
-            return Request.Headers["Authorization"].FirstOrDefault()?.Replace("Bearer ", "");
+            var authorization = Request.Headers["Authorization"].FirstOrDefault();
+            if (AuthenticationHeaderValue.TryParse(authorization, out var credential) &&
+                string.Equals(credential.Scheme, "Bearer", StringComparison.OrdinalIgnoreCase))
+            {
+                return credential.Parameter;
+            }
+
+            return null;
         }
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()

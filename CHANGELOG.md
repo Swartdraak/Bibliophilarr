@@ -106,6 +106,10 @@ process.
 
 ### Changed
 
+- Automatic application updates are opt-in on every platform. Windows now
+  follows the same default. Explicit settings and environment overrides
+  continue to apply.
+
 - Updated the WebUI navigation, author search, and library views with clearer page titles, responsive layouts, and improved keyboard focus.
 - **Windows/macOS application-execution CI coverage** (Issue #270): added `.github/workflows/app-smoke-execution.yml`, closing the CI gap where `cross-build-portability.yml` only proved build + portable unit tests on the three hosts and **no** workflow booted the built application on `windows-latest` or `macos-latest`. On each of those two hosted runners the new workflow: (1) publishes the portable Bibliophilarr console app for the host RID (`win-x64` / `osx-arm64`|`osx-x64`), (2) starts it against a disposable data directory, (3) polls the authoritative startup signal `GET /ping` (must return `200 {"status":"OK"}` — a listening port alone is not sufficient), (4) runs one bounded primary workflow — a config round-trip `GET /api/v1/config/metadataprovider` → mutate `metadataProviderTimeoutSeconds` (valid range 0–120) → `PUT` (expect `202`) → re-GET and assert the mutated value — and (5) performs one recovery check: stop the stage-owned app (graceful, then hard kill), restart it, and GET-after-restart to prove the config mutation persisted (read back through the API from actual persisted state, not assumed filenames). Each OS job emits a pass/fail receipt distinguishing "app started + workflow + recovery passed" from "build-only". The job is hermetic (the primary workflow is a local config round-trip against the app's own persisted store, so it needs no external metadata provider and burns no third-party API quota). No tracked product code, `baseline.json`, `publication.json`, or root `quality.json` was modified. Windows/macOS `application_startup`, `primary_workflow`, and `persistence` are now backed by native hosted-runner execution evidence instead of remaining `native-build-only`.
 - **Default update branch**: Changed from `develop` to `main`. New installations now default to stable release tracking. Existing users retain their current branch setting and can change to `main` in Settings > General > Updates > Branch. The `main`, `master`, `develop`, and `nightly` branches are all recognized as valid update branches.
@@ -125,6 +129,8 @@ process.
 - New and changed account passwords use salted PBKDF2. Existing accounts
   upgrade when they next sign in successfully with a password. Rollback to an
   earlier version requires its matching app-data backup after a password upgrade.
+- API keys supplied in the Authorization header must use the Bearer scheme.
+  The X-Api-Key header and existing API key query parameter are still accepted.
 
 - Update the frontend dependency graph to patched qs, PostCSS and picomatch versions. Keep each selector-parser consumer on a compatible release.
 
