@@ -17,7 +17,7 @@
   "files": [
     {
       "path": "linux-program/browser/check_browser.py",
-      "sha256": "53b0a75f4d8ab0041df6a037cf3beeffb1cd81583cb10f8e8831882c44cbb967"
+      "sha256": "ea86bfeca475fab53709691b0e7eb8b4b22d1bc7be6cdecc351718dbf3794178"
     },
     {
       "path": "linux-program/browser/prepare.sh",
@@ -33,7 +33,7 @@
     },
     {
       "path": "linux-program/build/check_build.py",
-      "sha256": "b74a41a3c12bf985e355499a8bba05b2131368dc752681f48f8de9a94e4d9408"
+      "sha256": "0da89bb927060d271163cc422a0fc828ca928cae828e670ad9a67cbb72fd42bd"
     },
     {
       "path": "linux-program/build/durabilize_output.sh",
@@ -41,7 +41,7 @@
     },
     {
       "path": "linux-program/build/preflight_build.sh",
-      "sha256": "7cd2d42b51a7e454951eba930f0fc63edfd394b5d4903698c0688b42c1bbd6c5"
+      "sha256": "c273031f3558bb4d66cc7d1893201e056fed6c2ed938a86bd23c57a71f14b351"
     },
     {
       "path": "linux-program/build/start_app.sh",
@@ -49,15 +49,15 @@
     },
     {
       "path": "linux-program/harness/common.py",
-      "sha256": "12383fbf075eae025f355cf2bdcff9aac3b19327543ae34b845347acef355751"
+      "sha256": "523ca7ae704ee50ba6fac15a99fb76d71d46a74029766bcab3f706ae25a94c54"
     },
     {
       "path": "linux-program/harness/enable_providers.py",
-      "sha256": "c030909b6ca4b70043e39c6aa1d0b1ff1a7e0e3fc560a7aadd9f3e6ed8820e34"
+      "sha256": "b232d874c339fb40501cefbefc4036a25b5c7d299b8a60391a53dc977e8c2248"
     },
     {
       "path": "linux-program/integrations/check_integrations.py",
-      "sha256": "976cd64d5b88844f2eea3d93365ed4c9f6c9771c8838dba3c39ceddb06d2b536"
+      "sha256": "3d9fb5b4828d2211b4402bc88a07683348671f94de1fe4d39512de16901cdabf"
     },
     {
       "path": "linux-program/integrations/prepare.sh",
@@ -97,11 +97,11 @@
     },
     {
       "path": "linux-program/workflows/check_first_boot.py",
-      "sha256": "2abe42726c006b839991c31f262950e3aea9721ae6d6363e67dc55301701a7a3"
+      "sha256": "cc56f4c1dfb383ea6eafa8aee6bccde15e7f2e228b8e3f3c627ac817c058e1bc"
     },
     {
       "path": "linux-program/workflows/check_persistence.py",
-      "sha256": "6808877fd8aa5bded18e3c36370160d72318bc7e1b8caf577011a190c5d86350"
+      "sha256": "5277552f6f5b9a6378590a201b73ab2084b9469c6cae70340c5150bb9ebf63ec"
     },
     {
       "path": "linux-program/workflows/prepare.sh",
@@ -110,7 +110,7 @@
   ],
   "fixture_manifest_sha256": "e2d177e5b8fec74d7e348f731008868b558ce95f39eb0e3b93ea3cfa5ab169d7",
   "notes": {
-    "build_strategy": "Build once into the durable repo/_output/net10.0/linux-x64 directory (publish + UI) and snapshot it to /workspace/tmp/linux-program-build-output; later stages reuse the durable output. Source libraries stay read-only; fixtures are disposable approved copies.",
+    "build_strategy": "Build once into repo/_output/net10.0/linux-x64/publish with UI beside the launcher. Snapshot publish including publish/UI and record head.txt under /workspace/tmp/linux-program-build-output. Later stages reuse that output. Source libraries stay read-only; fixtures are approved disposable copies.",
     "known_product_blocker": "Prior exact-head evidence (acceptance-stages/t_e53b844e) recorded a linux-x64 startup crash (FileNotFoundException: Microsoft.Extensions.Primitives v10.0.0.0 at Bootstrap.GetConfiguration) at head fa61fc55. The build stage re-verifies the Primitives DLL in this candidate's publish output (B2) with startup proof as the primary assertion. If that product/build defect is still present at this candidate, the build stage startup proof and all dependent stages will fail; that requirement is recorded, not waived, and no product code is rewritten here.",
     "placeholders": "task_id/head_sha use @TASK@/@HEAD@; case-owned fresh writable data uses @CASE@ (materialized to acceptance-stages/<task>/data).",
     "repair_input_generalization": "Corrections from linux-program-repair-input/manifest.json (case 60354f1854f5483c56e6b0d1, task t_dd7ab58b at fa61fc55) are generalized into this reusable template: provider-enablement wire names are camelCase (enableOpenLibraryProvider/enableHardcoverFallback/hardcoverApiToken) with the id=1 guard and the hard-fail after failed enablement; I3 targets /api/v1/metadata/providers/health/basic and I4 targets /api/v1/metadata/providers/health (both rows carry providerName; the bare /metadata/providers base route has no [HttpGet] action and is not a definitions endpoint); search terms are URL-quoted; the browser check asserts the served login page and the built Content/login.html asset instead of the app-root index.html. The case-owned start_app.sh corrections (reviewed, t_d325f8e1/t_dd7ab58b) were already generalized: per-case DATA_DIR/APP_PORT bindings, durable _output/net10.0/linux-x64/publish + UI, bind-address 127.0.0.1 and ASPNETCORE_URLS, and no secret values in the launcher.",

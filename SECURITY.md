@@ -51,6 +51,12 @@ The WebUI includes that credential in its API requests. Forms sign-in and
 sign-out submit a browser verification token. The account menu is the normal
 sign-out entry point.
 
+Terminal first-account setup accepts direct loopback requests. Fetch an
+antiforgery cookie and request token with `GET /bootstrap`, then submit
+`POST /bootstrap` with that cookie and the returned token header. The server
+still permits creation of only the first user. See [Quick start](QUICKSTART.md#create-the-first-account-from-a-terminal)
+for the terminal example.
+
 After changing authentication or proxy settings, verify first-account setup,
 sign-in, an authenticated API write and sign-out on a disposable instance.
 

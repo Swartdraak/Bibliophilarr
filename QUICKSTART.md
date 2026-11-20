@@ -190,6 +190,36 @@ Hardcover token startup override:
 - This value now participates in Hardcover provider enablement as well as request authentication, so a pre-start environment token is sufficient even when the persisted `HardcoverApiToken` config value is empty.
 - Both plain tokens and `Bearer ...` values are accepted.
 
+### Create the first account from a terminal
+
+Use the local WebUI for interactive setup. For terminal provisioning, start a
+fresh instance and use its loopback URL, including any configured URL Base.
+Fetch the bootstrap token and submit the first-user form using the same cookie.
+This example uses Bash, curl and jq.
+
+```bash
+(
+  set -e
+  base=http://127.0.0.1:8787
+  cookies=$(mktemp)
+  trap 'rm -f "$cookies"' EXIT
+  tokens=$(curl -fsS --cookie-jar "$cookies" "$base/bootstrap")
+  header=$(jq -er '.headerName' <<<"$tokens")
+  request_token=$(jq -er '.requestToken' <<<"$tokens")
+  read -r -p 'Account name: ' username
+  read -rs -p 'Password: ' password
+  printf '\n' >&2
+  printf '%s' "$password" | curl -fsS --cookie "$cookies" \
+    --header "$header: $request_token" \
+    --data-urlencode "username=$username" --data-urlencode 'password@-' \
+    "$base/bootstrap"
+  printf '\n'
+)
+```
+
+A successful submission returns HTTP 200. Subsequent valid submissions return
+HTTP 409 because the initial account already exists.
+
 ### Logging and diagnostics
 
 To enable trace-level logs for debugging:

@@ -10,6 +10,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
+using DirectTerminalBootstrapAttribute = Bibliophilarr.Http.Authentication.DirectTerminalBootstrapAttribute;
 
 namespace NzbDrone.Api.Test.Middleware
 {
@@ -164,6 +165,30 @@ namespace NzbDrone.Api.Test.Middleware
 
             nextState.Called.Should().BeTrue("POST /bootstrap must reach the pipeline (AllowAnonymous)");
             auth.ChallengedWith.Should().BeEmpty("POST /bootstrap must not be challenged by the UI middleware");
+        }
+
+        [TestCase("/bootstrap", true)]
+        [TestCase("/bootstrap/extra", false)]
+        public async Task only_the_routed_terminal_bootstrap_get_should_pass_the_ui_gate(string path, bool terminalRoute)
+        {
+            var (context, auth, next, nextState, config) = CreatePipes(
+                AuthenticationRequiredType.Enabled,
+                remoteIp: "127.0.0.1",
+                path: path,
+                isAuthenticated: false,
+                trustCgnat: false);
+
+            if (terminalRoute)
+            {
+                context.SetEndpoint(new Endpoint(_ => Task.CompletedTask,
+                    new EndpointMetadataCollection(new DirectTerminalBootstrapAttribute()),
+                    "Terminal bootstrap"));
+            }
+
+            await new Bibliophilarr.Http.Middleware.UiAuthenticationMiddleware(next, config).InvokeAsync(context);
+
+            nextState.Called.Should().Be(terminalRoute);
+            auth.ChallengedWith.Should().HaveCount(terminalRoute ? 0 : 1);
         }
 
         [Test]

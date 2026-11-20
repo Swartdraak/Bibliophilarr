@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Xml;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -104,26 +105,21 @@ namespace Bibliophilarr.Http.Authentication
             return Redirect(_configFileProvider.UrlBase + "/");
         }
 
-        // Issue #313 bootstrap path: when AuthenticationRequired=Enabled and the Users table
-        // is empty, the install has a chicken-and-egg deadlock (no user can be created because
-        // PUT /config/host is auth-gated). This endpoint provides a one-time local bootstrap
-        // that creates the first user when the table is empty. It is safe to expose because:
-        //   1. It only succeeds when the Users table is empty (first boot);
-        //   2. It requires a non-trivial password (min 8 chars) to prevent brute-force races;
-        //   3. Once a user exists, it returns 409 Conflict and never creates a second user.
-        // This is NOT a silent bypass — after the first user is created, the endpoint is
-        // permanently inert and all subsequent requests require normal authentication.
+        [HttpGet("bootstrap")]
+        [DirectTerminalBootstrap]
+        public IActionResult GetBootstrapToken([FromServices] IAntiforgery antiforgery)
+        {
+            var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+            return Ok(new { headerName = tokens.HeaderName, requestToken = tokens.RequestToken });
+        }
+
+        // Terminal setup remains available before authenticated host settings can be used.
+        // The token exchange proves the submission belongs to the direct local terminal.
         [HttpPost("bootstrap")]
+        [DirectTerminalBootstrap]
+        [ValidateAntiForgeryToken]
         public IActionResult Bootstrap([FromForm] BootstrapResource resource)
         {
-            // Browser setup uses the form endpoint and its anti-forgery token.
-            if (!FirstAccountSetup.IsDirectLocalRequest(HttpContext) ||
-                Request.Headers.ContainsKey("Origin") ||
-                Request.Headers.ContainsKey("Sec-Fetch-Site"))
-            {
-                return StatusCode(StatusCodes.Status403Forbidden);
-            }
-
             return CreateFirstUser(resource);
         }
 
