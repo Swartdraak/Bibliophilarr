@@ -321,6 +321,58 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Item.Edition.Should().BeSameAs(matching);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_not_restore_a_guide_rejected_by_primary_identification(bool newDownload)
+        {
+            _idConfig.NewDownload = newDownload;
+            var (book, edition) = BuildMatch();
+            edition.Title = "Dark Crime: Teacher's Guide, with Poster";
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Approved.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_preserve_a_guide_candidate_when_only_augmentation_supplied_the_base_title()
+        {
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo { Authors = new List<string> { "Christine Feehan" } });
+            Mocker.GetMock<IAugmentingService>().Setup(service => service.Augment(It.IsAny<LocalBook>(), It.IsAny<bool>()))
+                .Returns((LocalBook track, bool _) =>
+                {
+                    track.FileTrackInfo.BookTitle = "Dark Crime";
+                    track.FileTrackInfo.BookTitleConfidence = 1.0;
+                    return track;
+                });
+            var (book, edition) = BuildMatch();
+            edition.Title = "Dark Crime: Teacher's Guide";
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [TestCase("Dark Crime: Study Guide", true)]
+        [TestCase("Dark Crime: Chapter 01", false)]
+        [TestCase("Study Guide", false)]
+        public void should_consider_a_full_guide_title_from_the_embedded_track_alongside_the_album(string trackTitle, bool shouldMatch)
+        {
+            SetFiles(".m4b");
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo
+                {
+                    BookTitle = "Dark Crime",
+                    Authors = new List<string> { "Christine Feehan" },
+                    Title = trackTitle
+                });
+            var (book, edition) = BuildMatch();
+            edition.Title = "Dark Crime: Study Guide";
+            edition.Format = "Hardcover";
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Approved.Should().Be(shouldMatch);
+        }
+
         private void GivenReliableFileIsbn()
         {
             Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))

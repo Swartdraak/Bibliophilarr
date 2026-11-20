@@ -30,6 +30,8 @@ namespace NzbDrone.Core.Parser.Model
         public string ReleaseGroup { get; set; }
         public string SceneName { get; set; }
 
+        internal string ReliableTaggedBookTitle { get; set; }
+
         public override string ToString()
         {
             return Path;

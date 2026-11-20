@@ -50,6 +50,8 @@ process.
   fallback work. Use edition identity and file format to select an edition
   within that work. A scan that disables new authors requires a verified
   local author or work.
+- Keep a novel's file away from a companion guide when its embedded title
+  identifies the original work. Explicit edition selections still apply.
 - Reuse verified author metadata already returned by a work lookup. A partial
   or unavailable provider response leaves stored metadata intact and lets the
   rest of a bulk book refresh continue.

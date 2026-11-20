@@ -145,6 +145,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     Size = file.Length,
                     Modified = file.LastWriteTimeUtc,
                     FileTrackInfo = fileTrackInfo,
+                    ReliableTaggedBookTitle = IdentificationService.CaptureReliableTaggedBookTitle(fileTrackInfo),
                     AdditionalFile = false
                 };
 
@@ -365,8 +366,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     .ToList()))
                 .FirstOrDefault(candidate => candidate.Editions.Count > 0);
 
+            var taggedBookTitle = IdentificationService.GetReliableTaggedBookTitle(release);
             return (match.Book, match.Editions?.FirstOrDefault(edition =>
-                release.LocalBooks.All(file => ImportFormat.IsCompatible(file.Path, edition))));
+                release.LocalBooks.All(file => ImportFormat.IsCompatible(file.Path, edition)) &&
+                !IdentificationService.ConflictsWithGuideTitle(taggedBookTitle, edition, match.Book)));
         }
 
         private (Book Book, Edition Edition) SelectLibraryFallback(List<Book> books, LocalEdition release, string title, string author, bool addNewAuthors)
@@ -398,10 +401,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             var format = formats[0].Value;
+            var taggedBookTitle = IdentificationService.GetReliableTaggedBookTitle(release);
             var editions = works[0].SelectMany(book => (book.Editions?.Value ?? new List<Edition>())
                     .Where(edition => edition?.ForeignEditionId.IsNotNullOrWhiteSpace() == true &&
                         edition.Title.IsNotNullOrWhiteSpace() &&
-                        (book.Id <= 0 || edition.BookId <= 0 || edition.BookId == book.Id))
+                        (book.Id <= 0 || edition.BookId <= 0 || edition.BookId == book.Id) &&
+                        !IdentificationService.ConflictsWithGuideTitle(taggedBookTitle, edition, book))
                     .Select(edition => (Book: book, Edition: edition)))
                 .Where(item => ImportFormat.ForEdition(item.Edition) == format || ImportFormat.NeedsDigitalEdition(item.Edition))
                 .OrderByDescending(item => ImportFormat.ForEdition(item.Edition) == format)
@@ -477,7 +482,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return (tagTitle != null && tagTitle != title) || (names.Count > 0 && !names.Contains(author));
         }
 
-        private static string NormalizeLibraryIdentity(string value)
+        internal static string NormalizeLibraryIdentity(string value)
         {
             return value.IsNullOrWhiteSpace() ? null : string.Join(" ", value.Normalize(NormalizationForm.FormKC)
                 .Split((char[])null, StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();

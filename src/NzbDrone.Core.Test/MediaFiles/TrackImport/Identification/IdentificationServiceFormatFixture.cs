@@ -252,6 +252,75 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Mocker.GetMock<IAuthorService>().Verify(service => service.FindByName("Test Author"), newDownload ? Times.Once() : Times.Never());
         }
 
+        [TestCase(false, false, "Teacher's Guide, with Poster")]
+        [TestCase(true, false, "Teacher’s Guide, with Poster")]
+        [TestCase(true, true, "Teaching Guide")]
+        [TestCase(false, true, "Reading Guide")]
+        public void should_reject_a_guide_when_the_embedded_title_identifies_its_base_work(bool findRemotely, bool guideOnWorkOnly, string guideSuffix)
+        {
+            var guideTitle = $"Test Book: {guideSuffix}";
+            _book.Title = guideTitle;
+            _audiobookEdition.Title = guideOnWorkOnly ? "Test Book" : guideTitle;
+            _audiobookEdition.Format = guideOnWorkOnly ? "Audio Book" : "Hardcover";
+            GivenGuideCandidate(findRemotely);
+
+            var result = IdentifyAudioTitle("Test Book");
+
+            result.Edition.Should().BeNull();
+        }
+
+        [Test]
+        public void should_continue_to_a_correct_remote_candidate_when_the_local_candidate_is_a_guide()
+        {
+            _ebookEdition.Title = "Test Book (Study Guide)";
+            _ebookEdition.IsEbook = false;
+            _audiobookEdition.Title = "Test Book";
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _ebookEdition, ExistingFiles = new List<BookFile>() } });
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+
+            IdentifyAudioTitle("Test Book").Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
+        [TestCase("Test Book: Teacher’s Guide, with Poster", "Test Book: Teacher’s Guide, with Poster", 0.98, false)]
+        [TestCase("Test Book: Teacher’s Guide, with Poster", "Test Book", 0.98, true)]
+        [TestCase("Test Book: Teaching Guide", "Test Book", 0.35, false)]
+        [TestCase("Test Book: The Return", "Test Book", 0.98, false)]
+        public void should_preserve_guide_editions_when_the_file_or_user_identifies_them_or_title_evidence_is_inconclusive(string candidateTitle, string fileTitle, double confidence, bool explicitEdition)
+        {
+            _book.Title = candidateTitle;
+            _audiobookEdition.Title = candidateTitle;
+            _overrides.Edition = explicitEdition ? _audiobookEdition : null;
+            GivenGuideCandidate(false);
+
+            IdentifyAudioTitle(fileTitle, confidence).Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
+        private void GivenGuideCandidate(bool findRemotely)
+        {
+            var candidates = new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } };
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(findRemotely ? new List<CandidateEdition>() : candidates);
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
+                .Returns(findRemotely ? candidates : new List<CandidateEdition>());
+        }
+
+        private LocalEdition IdentifyAudioTitle(string title, double confidence = 0.98)
+        {
+            _config.KeepAllEditions = true;
+            var tracks = CreateAudiobookLocalBooks();
+            tracks.Single().FileTrackInfo.BookTitle = title;
+            tracks.Single().FileTrackInfo.BookTitleConfidence = confidence;
+            tracks.Single().FileTrackInfo.Authors = new List<string> { "Test Author" };
+            tracks.Single().ReliableTaggedBookTitle = IdentificationService.CaptureReliableTaggedBookTitle(tracks.Single().FileTrackInfo);
+            return Subject.Identify(tracks, _overrides, _config).Single();
+        }
+
         [Test]
         public void should_leave_ebook_unmapped_when_an_incompatible_edition_is_explicitly_selected()
         {

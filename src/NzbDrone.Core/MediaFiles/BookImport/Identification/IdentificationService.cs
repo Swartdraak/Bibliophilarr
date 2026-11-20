@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -27,6 +28,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         // Lower distance = better match. 0.25 allows reasonably confident matches
         // while preventing false positives from badly tagged files.
         private const double AutoAddAuthorDistanceThreshold = 0.25;
+
+        private static readonly Regex GuideSuffix = new Regex(@"^(?:\s*[:(,–—]\s*|\s+-\s+|\s+)(?:TEACHER(?:['’]S)?|TEACHERS['’]|TEACHING|STUDY|READING) GUIDE\b", RegexOptions.CultureInvariant);
 
         private readonly ITrackGroupingService _trackGroupingService;
         private readonly IMetadataTagService _metadataTagService;
@@ -179,9 +182,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var usedRemote = false;
+            var taggedBookTitle = GetReliableTaggedBookTitle(localBookRelease);
 
             IEnumerable<CandidateEdition> candidateReleases = _candidateService.GetDbCandidatesFromTags(localBookRelease, idOverrides, config.IncludeExisting)
                 .Where(candidate => localBookRelease.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, candidate.Edition)))
+                .Where(candidate => AllowsGuideMatch(taggedBookTitle, candidate.Edition, idOverrides.Edition))
                 .ToList();
 
             // Read companion tracks only for eligible editions.
@@ -198,7 +203,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (!candidateReleases.Any())
             {
                 _logger.Debug("No local candidates found, trying remote");
-                candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides);
+                candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides)
+                    .Where(candidate => AllowsGuideMatch(taggedBookTitle, candidate.Edition, idOverrides.Edition));
                 if (!config.AddNewAuthors)
                 {
                     candidateReleases = candidateReleases.Where(x => AuthorExistsLocally(x.Edition, config.NewDownload));
@@ -229,7 +235,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (localBookRelease.Distance.NormalizedDistance() > 0.15 && !usedRemote)
             {
                 _logger.Debug("Match not good enough, trying remote candidates");
-                candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides);
+                candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides)
+                    .Where(candidate => AllowsGuideMatch(taggedBookTitle, candidate.Edition, idOverrides.Edition));
 
                 if (!config.AddNewAuthors)
                 {
@@ -271,6 +278,59 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             localBookRelease.PopulateMatch(config.KeepAllEditions);
 
             _logger.Debug($"IdentifyRelease done in {watch.ElapsedMilliseconds}ms");
+        }
+
+        internal static string CaptureReliableTaggedBookTitle(ParsedTrackInfo tags)
+        {
+            var bookTitle = tags.BookTitleConfidence >= 0.9 ? ImportDecisionMaker.NormalizeLibraryIdentity(tags.BookTitle) : null;
+
+            // Audio can identify a guide in its track title even when the album names the original work.
+            // Require the full base and a guide suffix so ordinary chapter labels do not override the album.
+            return bookTitle != null && HasGuideSuffix(tags.Title, bookTitle)
+                ? ImportDecisionMaker.NormalizeLibraryIdentity(tags.Title)
+                : bookTitle;
+        }
+
+        internal static string GetReliableTaggedBookTitle(LocalEdition release)
+        {
+            var titles = release.LocalBooks.Select(file => file.ReliableTaggedBookTitle)
+                .Where(title => title != null)
+                .Distinct()
+                .Take(2)
+                .ToList();
+            return titles.Count == 1 ? titles[0] : null;
+        }
+
+        internal static bool ConflictsWithGuideTitle(string taggedBookTitle, Edition edition, Book book = null)
+        {
+            return taggedBookTitle != null &&
+                (HasGuideSuffix(edition?.Title, taggedBookTitle) ||
+                 HasGuideSuffix((book ?? edition?.Book?.Value)?.Title, taggedBookTitle));
+        }
+
+        private static bool HasGuideSuffix(string title, string taggedBookTitle)
+        {
+            var normalized = ImportDecisionMaker.NormalizeLibraryIdentity(title);
+            return normalized != null && normalized.StartsWith(taggedBookTitle, StringComparison.Ordinal) &&
+                GuideSuffix.IsMatch(normalized.AsSpan(taggedBookTitle.Length));
+        }
+
+        private bool AllowsGuideMatch(string taggedBookTitle, Edition candidate, Edition selected)
+        {
+            if (selected != null &&
+                (selected == candidate || (selected.Id > 0 && selected.Id == candidate?.Id) ||
+                 (selected.ForeignEditionId.IsNotNullOrWhiteSpace() && selected.ForeignEditionId == candidate?.ForeignEditionId)))
+            {
+                return true;
+            }
+
+            if (ConflictsWithGuideTitle(taggedBookTitle, candidate))
+            {
+                _logger.Debug("Skipping guide candidate {0} because the embedded title identifies its base work", candidate);
+                return false;
+            }
+
+            return true;
         }
 
         private void GetBestRelease(LocalEdition localBookRelease, IEnumerable<CandidateEdition> candidateReleases, List<LocalBook> extraTracksOnDisk, out bool seenCandidate, FormatType? preferredFormat = null)
