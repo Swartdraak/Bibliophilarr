@@ -104,7 +104,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _logger.Debug("Starting book identification");
 
             // Preserve the independent tag author before release augmentation can fill it from the filename.
-            var retryAuthors = !config.NewDownload && config.Filter == FilterFilesType.Matched && idOverrides.Edition == null
+            var libraryAuthors = !config.NewDownload && idOverrides.Edition == null
                 ? localTracks.Distinct().ToDictionary(track => track, ReadCorroboratedFilenameAuthor)
                 : null;
             var releases = GetLocalBookReleases(localTracks, config.SingleRelease);
@@ -130,7 +130,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 try
                 {
-                    IdentifyRelease(localRelease, idOverrides, config, runSummary, retryAuthors);
+                    IdentifyRelease(localRelease, idOverrides, config, runSummary, libraryAuthors);
                 }
                 catch (Exception e)
                 {
@@ -185,18 +185,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return localTracks;
         }
 
-        private void IdentifyRelease(LocalEdition localBookRelease, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary runSummary, IReadOnlyDictionary<LocalBook, string> retryAuthors)
+        private void IdentifyRelease(LocalEdition localBookRelease, IdentificationOverrides idOverrides, ImportDecisionMakerConfig config, ImportRunSummary runSummary, IReadOnlyDictionary<LocalBook, string> libraryAuthors)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var usedRemote = false;
             var taggedBookTitle = GetReliableTaggedBookTitle(localBookRelease);
-            var corroboratedAuthors = retryAuthors == null || taggedBookTitle == null
+            var corroboratedAuthors = libraryAuthors == null || taggedBookTitle == null
                 ? null
-                : localBookRelease.LocalBooks.Select(track => retryAuthors.GetValueOrDefault(track)).Where(author => author != null).ToHashSet();
+                : localBookRelease.LocalBooks.Select(track => libraryAuthors.GetValueOrDefault(track)).Where(author => author != null).ToHashSet();
 
             bool AllowsCandidate(CandidateEdition candidate) =>
                 AllowsGuideMatch(taggedBookTitle, candidate.Edition, idOverrides.Edition) &&
-                (corroboratedAuthors == null || AllowsMatchedRetry(localBookRelease, taggedBookTitle, corroboratedAuthors, candidate.Edition));
+                (corroboratedAuthors == null || AllowsLibraryScanMatch(localBookRelease, taggedBookTitle, corroboratedAuthors, candidate.Edition));
 
             IEnumerable<CandidateEdition> candidateReleases = _candidateService.GetDbCandidatesFromTags(localBookRelease, idOverrides, config.IncludeExisting)
                 .Where(candidate => localBookRelease.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, candidate.Edition)))
@@ -366,7 +366,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return author.Length > 0 && tags.Authors?.Any(name => name.CleanAuthorName() == author) == true ? author : null;
         }
 
-        private bool AllowsMatchedRetry(LocalEdition release, string taggedTitle, IReadOnlySet<string> corroboratedAuthors, Edition edition)
+        private bool AllowsLibraryScanMatch(LocalEdition release, string taggedTitle, IReadOnlySet<string> corroboratedAuthors, Edition edition)
         {
             var book = edition?.Book?.Value;
             var workTitle = ImportDecisionMaker.NormalizeLibraryIdentity(book?.Title);
@@ -374,7 +374,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var (series, position) = ReadExplicitSeriesVolume(taggedTitle);
             if (position > 0 && (HasDifferentVolume(workTitle, series, position) || HasDifferentVolume(editionTitle, series, position)))
             {
-                _logger.Debug("Skipping matched-retry candidate {0} because it names a different volume of the same series", edition);
+                _logger.Debug("Skipping library scan candidate {0} because it names a different volume of the same series", edition);
                 return false;
             }
 
@@ -384,7 +384,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 !TitlesAgree(confirmed, workTitle) && !TitlesAgree(confirmed, editionTitle) &&
                 !HasNonconflictingEditionIdentifier(release, edition))
             {
-                _logger.Debug("Skipping matched-retry candidate {0} because its title contradicts the embedded title and filename", edition);
+                _logger.Debug("Skipping library scan candidate {0} because its title contradicts the embedded title and filename", edition);
                 return false;
             }
 

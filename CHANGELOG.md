@@ -51,8 +51,8 @@ process.
   within that work. A scan that disables new authors requires a verified
   local author or work. Try another enabled provider when no result qualifies,
   and hold genuinely ambiguous matches for review.
-- On an automatic retry, skip a candidate when reliable file evidence
-  contradicts its title or explicitly identifies a different volume.
+- On the initial library scan and automatic retries, skip a candidate when
+  reliable file evidence contradicts its title or identifies a different volume.
 - Keep a novel's file away from a companion guide when its embedded title
   identifies the original work. Explicit edition selections still apply.
 - Save the unaffected works in an author's bibliography when one incoming

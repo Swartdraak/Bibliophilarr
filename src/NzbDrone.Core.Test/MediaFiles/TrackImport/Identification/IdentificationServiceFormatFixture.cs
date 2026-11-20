@@ -310,6 +310,23 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeNull();
         }
 
+        [TestCase(FilterFilesType.None, false, 1.0, false)]
+        [TestCase(FilterFilesType.Known, true, 0.92, false)]
+        [TestCase(FilterFilesType.None, false, 0.55, true)]
+        public void should_apply_corroborated_title_to_library_scans_with_initialled_authors(FilterFilesType filter, bool findRemotely, double confidence, bool shouldMatch)
+        {
+            GivenRetryCandidate("Harry Potter and the Philosopher's Stone", findRemotely);
+            _config.Filter = filter;
+            _book.AuthorMetadata.Value.Name = "J K Rowling";
+            var fileTitle = "Harry Potter and the Chamber of Secrets";
+            var tracks = CreateRetryTracks(fileTitle, $"J. K. Rowling - {fileTitle}", confidence);
+            tracks[0].FileTrackInfo.Authors = new List<string> { "J.K. Rowling" };
+
+            var identifiedEdition = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (identifiedEdition == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
         [Test]
         public void should_skip_a_different_explicit_series_volume_without_a_full_filename()
         {
@@ -346,10 +363,11 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [TestCase("Elven Star", "Serpent Mage", "Test Author - Elven Star", false, 0.98, true, false)]
         [TestCase("Elven Star", "Serpent Mage", "Test Author - Elven Star", true, 0.98, true, true)]
         [TestCase("Saga Part 7", "Saga Part 3", "Part 1", true, 0.98, true, false)]
-        public void should_preserve_candidates_without_a_confirmed_matched_retry_conflict(string title, string candidate, string filename, bool matchedRetry, double confidence, bool hasTaggedAuthor, bool explicitEdition)
+        public void should_preserve_candidates_without_a_confirmed_library_scan_conflict(string title, string candidate, string filename, bool existingLibrary, double confidence, bool hasTaggedAuthor, bool explicitEdition)
         {
             GivenRetryCandidate(candidate);
-            _config.Filter = matchedRetry ? FilterFilesType.Matched : FilterFilesType.Known;
+            _config.NewDownload = !existingLibrary;
+            _config.Filter = FilterFilesType.None;
             var tracks = CreateRetryTracks(title, filename, confidence);
             if (!hasTaggedAuthor)
             {
