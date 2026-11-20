@@ -198,6 +198,35 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Item.Edition.Should().BeSameAs(edition);
         }
 
+        [TestCase(false, "Starling Almanac 7: An Adventure", false)]
+        [TestCase(false, "Starling Almanac 3: An Adventure", true)]
+        [TestCase(false, "Starling Almanac", true)]
+        [TestCase(true, "Starling Almanac 7: An Adventure", true)]
+        public void should_apply_numbered_edition_conflict_checks_to_background_fallback_only(
+            bool newDownload, string editionTitle, bool shouldMatch)
+        {
+            const string title = "Starling Almanac: Book 3";
+            const string author = "Christine Feehan";
+            _idConfig.NewDownload = newDownload;
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo { BookTitle = title, Authors = new List<string> { author } });
+            var (book, edition) = BuildMatch();
+            book.Title = title;
+            edition.Title = editionTitle;
+            var (_, secondary) = GivenConfiguredProviders(new List<Book> { book }, new List<Book>());
+            if (!newDownload)
+            {
+                GivenRealBookMatchPolicy();
+            }
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().Be(shouldMatch);
+            decision.Item.Edition.Should().BeSameAs(shouldMatch ? edition : null);
+            secondary.Verify(provider => provider.SearchForNewBook(title, author, true),
+                shouldMatch ? Times.Never() : Times.Once());
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void should_advance_past_a_guide_only_provider_only_for_background_import(bool newDownload)

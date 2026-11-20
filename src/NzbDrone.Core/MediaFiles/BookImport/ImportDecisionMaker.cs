@@ -480,7 +480,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         edition.Title.IsNotNullOrWhiteSpace() &&
                         (requiredIsbn == null || Isbn.AreEquivalent(edition.Isbn13, requiredIsbn)) &&
                         (book.Id <= 0 || edition.BookId <= 0 || edition.BookId == book.Id) &&
-                        !IdentificationService.ConflictsWithGuideTitle(taggedBookTitle, edition, book))
+                        !IdentificationService.ConflictsWithGuideTitle(taggedBookTitle, edition, book) &&
+                        !IdentificationService.HasConflictingCandidateOrdinal(taggedBookTitle, exactTitle, NormalizeLibraryIdentity(edition.Title)))
                     .Select(edition => (Book: book, Edition: edition)))
                 .Where(item => ImportFormat.ForEdition(item.Edition) == format || ImportFormat.NeedsDigitalEdition(item.Edition))
                 .Where(item => !HasConflictingFileIdentifiers(item.Edition, release.LocalBooks))

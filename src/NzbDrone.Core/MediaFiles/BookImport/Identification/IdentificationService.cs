@@ -487,8 +487,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var book = edition?.Book?.Value;
             var workTitle = ImportDecisionMaker.NormalizeLibraryIdentity(book?.Title);
             var editionTitle = ImportDecisionMaker.NormalizeLibraryIdentity(edition?.Title);
-            var ordinal = ReadWorkOrdinal(taggedTitle);
-            if (HasDifferentVolume(workTitle, taggedTitle, ordinal) || HasDifferentVolume(editionTitle, taggedTitle, ordinal))
+            if (HasConflictingCandidateOrdinal(taggedTitle, workTitle, editionTitle))
             {
                 _logger.Debug("Skipping library scan candidate {0} because it names a different volume of the same series", edition);
                 return false;
@@ -505,6 +504,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return true;
+        }
+
+        internal static bool HasConflictingCandidateOrdinal(string taggedTitle, string normalizedWorkTitle, string normalizedEditionTitle)
+        {
+            if (taggedTitle == null)
+            {
+                return false;
+            }
+
+            var ordinal = ReadWorkOrdinal(taggedTitle);
+            return HasDifferentVolume(normalizedWorkTitle, taggedTitle, ordinal) ||
+                HasDifferentVolume(normalizedEditionTitle, taggedTitle, ordinal);
         }
 
         private static bool HasDifferentVolume(string title, string taggedTitle, (string Series, int Position, bool IsExplicit) ordinal)
