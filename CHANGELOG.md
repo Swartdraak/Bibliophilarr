@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Library scans try the next enabled metadata provider when an author and title
+  search returns only incompatible editions or conflicts with file identity.
 - Continue metadata lookup when an earlier result conflicts with the file's
   title, series volume, or author.
 - Explain in Unmapped Files when provider results conflict with the book's

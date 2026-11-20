@@ -440,7 +440,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                 Mocker.GetMock<ICandidateService>().Verify(
                     service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()), Times.Never());
                 Mocker.GetMock<ICandidateService>().Verify(
-                    service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<Func<Edition, bool>>()), Times.Never());
+                    service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<Func<Edition, bool>>(), It.IsAny<bool>()), Times.Never());
             }
         }
 
@@ -716,8 +716,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         private void GivenRemoteCandidates(params CandidateEdition[] candidates)
         {
             Mocker.GetMock<ICandidateService>()
-                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<Func<Edition, bool>>()))
-                .Returns((LocalEdition release, IdentificationOverrides overrides, Func<Edition, bool> allowsEdition) =>
+                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<Func<Edition, bool>>(), It.IsAny<bool>()))
+                .Returns((LocalEdition release, IdentificationOverrides overrides, Func<Edition, bool> allowsEdition, bool forLibraryScan) =>
                     candidates.Where(candidate => allowsEdition(candidate.Edition)));
         }
 

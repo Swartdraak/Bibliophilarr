@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
+using NLog;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -35,6 +36,70 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             Mocker.GetMock<IBookSearchFallbackExecutionService>()
                 .Setup(x => x.Search(It.IsAny<IBookSearchFallbackProvider>(), It.IsAny<string>(), It.IsAny<string>()))
                 .Returns((IBookSearchFallbackProvider provider, string title, string author) => provider.Search(title, author));
+        }
+
+        [TestCase("Ebook", "River Chronicles: Book 7", true, true)]
+        [TestCase("Audiobook", "River Chronicles: Book 3", true, true)]
+        [TestCase("Audiobook", "River Chronicles: Book 7", true, false)]
+        [TestCase("Audiobook", "River Chronicles: Book 3", false, false)]
+        public void should_check_the_next_provider_for_an_eligible_author_and_title_match_in_library_scans(
+            string firstFormat, string firstTitle, bool forLibraryScan, bool expectSecond)
+        {
+            const string title = "River Chronicles: Book 7";
+            const string author = "Casey Rivers";
+            var first = CreateSearchProvider("Hardcover", "hardcover:edition:1", firstTitle, firstFormat, out var firstSearch);
+            var second = CreateSearchProvider("OpenLibrary", "openlibrary:edition:OL2M", title, "Audiobook", out var secondSearch);
+            var third = CreateSearchProvider("GoogleBooks", "googlebooks:edition:3", title, "Audiobook", out var thirdSearch);
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(r => r.GetProviders()).Returns(new[] { first, second, third });
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(new MetadataProviderOrchestrator(
+                registry.Object, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger()));
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.RemoteCandidateSearchWorkerCount).Returns(1);
+
+            var local = new LocalEdition
+            {
+                LocalBooks = new List<LocalBook>
+                {
+                    new LocalBook
+                    {
+                        Path = "/library/Casey Rivers/River Chronicles 7.m4b",
+                        FileTrackInfo = new ParsedTrackInfo { Authors = new List<string> { author }, BookTitle = title }
+                    }
+                }
+            };
+
+            var candidates = Subject.GetRemoteCandidates(local, null, edition => edition.Title == title, forLibraryScan).ToList();
+
+            if (expectSecond || firstTitle == title)
+            {
+                candidates.Should().ContainSingle().Which.Edition.ForeignEditionId.Should().Be(
+                    expectSecond ? "openlibrary:edition:OL2M" : "hardcover:edition:1");
+            }
+            else
+            {
+                candidates.Should().BeEmpty();
+            }
+
+            firstSearch.Verify(search => search.SearchForNewBook(title, author, true), Times.Once());
+            secondSearch.Verify(search => search.SearchForNewBook(title, author, true), expectSecond ? Times.Once() : Times.Never());
+            thirdSearch.Verify(search => search.SearchForNewBook(title, author, true), Times.Never());
+
+            IMetadataProvider CreateSearchProvider(string name, string editionId, string resultTitle, string format, out Mock<ISearchForNewBook> search)
+            {
+                var provider = new Mock<IMetadataProvider>();
+                provider.SetupGet(item => item.ProviderName).Returns(name);
+                provider.SetupGet(item => item.SupportsBookSearch).Returns(true);
+                search = provider.As<ISearchForNewBook>();
+                search.Setup(item => item.SearchForNewBook(title, author, true)).Returns(new List<Book>
+                {
+                    new Book
+                    {
+                        Title = resultTitle,
+                        Editions = new List<Edition> { new Edition { ForeignEditionId = editionId, Title = resultTitle, Format = format } }
+                    }
+                });
+                return provider.Object;
+            }
         }
 
         [Test]

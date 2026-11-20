@@ -256,7 +256,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (!candidateReleases.Any())
             {
                 _logger.Debug("No local candidates found, trying remote");
-                candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides, AllowsRemoteEdition);
+                candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides, AllowsRemoteEdition, forLibraryScan: !config.NewDownload);
 
                 usedRemote = true;
                 _importRunTracker.IncrementRemoteSearches(runSummary);
@@ -289,7 +289,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (localBookRelease.Distance.NormalizedDistance() > 0.15 && !usedRemote)
             {
                 _logger.Debug("Match not good enough, trying remote candidates");
-                candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides, AllowsRemoteEdition);
+                candidateReleases = _candidateService.GetRemoteCandidates(localBookRelease, idOverrides, AllowsRemoteEdition, forLibraryScan: !config.NewDownload);
 
                 _importRunTracker.IncrementRemoteSearches(runSummary);
                 GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out _, preferredFormat);
