@@ -46,6 +46,7 @@ process.
   Its filtered row and bulk searches look for upgrades in that format.
 - Batch author canonicalization previews duplicate candidates. Apply a
   confirmed merge through the reviewed reconciliation command.
+- Preserve completed task results in command history after restart.
 - Rename an import list exclusion while retaining its existing ID. The Add and
   Edit controls and form fields have accessible names.
 - Name the event details button in Activity History for screen readers.
