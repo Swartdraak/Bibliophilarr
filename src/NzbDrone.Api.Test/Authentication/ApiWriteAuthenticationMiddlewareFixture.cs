@@ -129,6 +129,43 @@ namespace NzbDrone.Api.Test.Authentication
             auth.VerifyNoOtherCalls();
         }
 
+        [TestCase("POST")]
+        [TestCase("PUT")]
+        [TestCase("PATCH")]
+        [TestCase("DELETE")]
+        public async Task should_require_an_explicit_api_key_with_an_authenticated_forms_session(string method)
+        {
+            var registrations = new ServiceCollection();
+            registrations.AddLogging();
+            registrations.AddSingleton(Mock.Of<IConfigFileProvider>(config => config.ApiKey == "local-fixture-key"));
+            registrations.AddAuthentication().AddApiKey("API", options =>
+            {
+                options.HeaderName = "X-Api-Key";
+                options.QueryName = "apikey";
+            });
+
+            using var services = registrations.BuildServiceProvider();
+            using var scope = services.CreateScope();
+            var context = new DefaultHttpContext
+            {
+                RequestServices = scope.ServiceProvider,
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("user", "fixture") }, "Forms"))
+            };
+            context.Request.Method = method;
+            context.SetEndpoint(new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(new V1ApiControllerAttribute()), "API action"));
+            var called = false;
+            var middleware = new ApiWriteAuthenticationMiddleware(_ =>
+            {
+                called = true;
+                return Task.CompletedTask;
+            });
+
+            await middleware.InvokeAsync(context);
+
+            called.Should().BeFalse();
+            context.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        }
+
         [TestCase(nameof(AuthenticationController.Login))]
         [TestCase(nameof(AuthenticationController.Logout))]
         [TestCase(nameof(AuthenticationController.Setup))]
