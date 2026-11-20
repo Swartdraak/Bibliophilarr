@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Threading.Tasks;
+using Bibliophilarr.Http.Authentication;
 using Bibliophilarr.Http.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -46,8 +47,7 @@ namespace Bibliophilarr.Http.Middleware
             // resolve to the SPA shell (StaticResourceController.Index / IndexContent). It must
             // NOT shadow:
             //   - API endpoints (the API scheme produces its own 401 via the fallback policy),
-            //   - [AllowAnonymous] routes (login GET+POST, /content/*, the one-time POST
-            //     /bootstrap first-user provisioning, the /ping liveness endpoint), and
+            //   - anonymous login, content, terminal provisioning, and liveness routes, and
             //   - non-GET UI methods (POST/PUT/etc are API/controller traffic).
             // A Forms challenge here yields 401 for an anonymous browser UI request, which is
             // exactly what issue #313 A1/A2 assert. Authenticated users and the
@@ -65,7 +65,8 @@ namespace Bibliophilarr.Http.Middleware
                 !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
                 !path.StartsWith("/login", StringComparison.OrdinalIgnoreCase) &&
                 !path.StartsWith("/content/", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(path, "/ping", StringComparison.OrdinalIgnoreCase);
+                !string.Equals(path, "/ping", StringComparison.OrdinalIgnoreCase) &&
+                context.GetEndpoint()?.Metadata.GetMetadata<DirectTerminalBootstrapAttribute>() == null;
 
             // The UI policy evaluates the Authorization header in Basic mode.
             if (isUiShellGet && _configService.AuthenticationMethod != AuthenticationType.Basic)
