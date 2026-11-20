@@ -14,6 +14,7 @@ process.
 
 ### Fixed
 
+- Name the event details button in Activity History for screen readers.
 - Calendar subscription links authenticate with their API key and open in
   calendar clients without a Bibliophilarr browser session.
 - Calendar subscriptions apply author tags from generated links and retain
