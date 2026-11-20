@@ -4,6 +4,7 @@ import { connect } from 'react-redux';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import { icons } from 'Helpers/Props';
+import { fetchCommands } from 'Store/Actions/commandActions';
 import translate from 'Utilities/String/translate';
 import styles from './CommandNotifications.css';
 
@@ -22,7 +23,7 @@ function needsAttention(command) {
   return command.result === 'unsuccessful' || command.status === 'failed' || interruptedStatus.includes(command.status);
 }
 
-export function CommandNotifications({ commands }) {
+export function CommandNotifications({ commands, onOpen, isFetching, hasError }) {
   const [open, setOpen] = useState(false);
   const [attentionOnly, setAttentionOnly] = useState(false);
   const wrapper = useRef(null);
@@ -53,9 +54,15 @@ export function CommandNotifications({ commands }) {
     };
   }, [open]);
 
-  const recent = commands.filter((command) => command.sendUpdatesToClient !== false);
+  const recent = commands.filter((command) => (command.body?.sendUpdatesToClient ?? command.sendUpdatesToClient) !== false);
   const visible = recent.filter((command) => !attentionOnly || needsAttention(command))
     .sort((left, right) => right.id - left.id).slice(0, 12);
+  let emptyMessage = attentionOnly ? 'NoTasksNeedAttention' : 'NoRecentTasks';
+  if (isFetching) {
+    emptyMessage = 'Loading';
+  } else if (hasError) {
+    emptyMessage = 'ErrorLoadingContent';
+  }
 
   return (
     <div className={styles.wrapper} ref={wrapper}>
@@ -68,6 +75,9 @@ export function CommandNotifications({ commands }) {
         aria-controls={open ? 'task-notifications' : undefined}
         onClick={(event) => {
           event.currentTarget.focus();
+          if (!open && !isFetching) {
+            onOpen?.();
+          }
           setOpen(!open);
         }}
       >
@@ -99,7 +109,7 @@ export function CommandNotifications({ commands }) {
             </button>
           </div>
           {visible.length === 0 ?
-            <p className={styles.empty}>{translate(attentionOnly ? 'NoTasksNeedAttention' : 'NoRecentTasks')}</p> :
+            <p className={styles.empty} role={isFetching ? 'status' : undefined}>{translate(emptyMessage)}</p> :
             <ul className={styles.feed}>
               {visible.map((command) => {
                 const needsReview = needsAttention(command);
@@ -139,7 +149,14 @@ export function CommandNotifications({ commands }) {
 }
 
 CommandNotifications.propTypes = {
-  commands: PropTypes.arrayOf(PropTypes.object).isRequired
+  commands: PropTypes.arrayOf(PropTypes.object).isRequired,
+  onOpen: PropTypes.func,
+  isFetching: PropTypes.bool,
+  hasError: PropTypes.bool
 };
 
-export default connect((state) => ({ commands: state.commands.items }))(CommandNotifications);
+export default connect((state) => ({
+  commands: state.commands.items,
+  isFetching: state.commands.isFetching,
+  hasError: Boolean(state.commands.error)
+}), { onOpen: fetchCommands })(CommandNotifications);
