@@ -157,6 +157,7 @@ namespace NzbDrone.Api.Test.Books
         {
             var book = new Book
             {
+                Id = 42,
                 Title = "Canonical title",
                 Editions = new List<Edition>
                 {

@@ -75,7 +75,7 @@ namespace Bibliophilarr.Api.V1.Books
             var editionsValue = model.Editions?.Value;
             var selectedEdition = editionsValue.GetPreferredEdition();
 
-            var title = model.Title.IsNotNullOrWhiteSpace() ? model.Title : selectedEdition?.Title;
+            var title = model.Id > 0 && model.Title.IsNotNullOrWhiteSpace() ? model.Title : selectedEdition?.Title ?? model.Title;
             var canonicalOpenLibraryId = OpenLibraryIdNormalizer.NormalizeWorkId(model.ForeignBookId);
             var openLibraryWorkId = OpenLibraryIdNormalizer.NormalizeWorkId(model.OpenLibraryWorkId);
             var bookAuthor = model.Author?.Value;
