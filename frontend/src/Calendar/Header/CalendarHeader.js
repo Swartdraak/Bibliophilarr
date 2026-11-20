@@ -12,6 +12,7 @@ import MenuContent from 'Components/Menu/MenuContent';
 import ViewMenuItem from 'Components/Menu/ViewMenuItem';
 import { align, icons } from 'Helpers/Props';
 import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
+import translate from 'Utilities/String/translate';
 import CalendarHeaderViewButton from './CalendarHeaderViewButton';
 import styles from './CalendarHeader.css';
 
@@ -111,6 +112,7 @@ class CalendarHeader extends Component {
         <div className={styles.header}>
           <div className={styles.navigationButtons}>
             <Button
+              aria-label={translate('CalendarPreviousPeriod')}
               buttonGroupPosition={align.LEFT}
               isDisabled={view === calendarViews.AGENDA}
               onPress={onPreviousPress}
@@ -119,6 +121,7 @@ class CalendarHeader extends Component {
             </Button>
 
             <Button
+              aria-label={translate('CalendarNextPeriod')}
               buttonGroupPosition={align.RIGHT}
               isDisabled={view === calendarViews.AGENDA}
               onPress={onNextPress}

@@ -14,6 +14,7 @@ process.
 
 ### Fixed
 
+- Name the Calendar's previous and next controls for assistive technology.
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
   the setup form.

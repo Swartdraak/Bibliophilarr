@@ -138,6 +138,8 @@
   "BypassIfHighestQualityHelpText": "Bypass delay when release has the highest enabled quality in the quality profile",
   "BypassProxyForLocalAddresses": "Bypass Proxy for Local Addresses",
   "Calendar": "Calendar",
+  "CalendarNextPeriod": "Next calendar period",
+  "CalendarPreviousPeriod": "Previous calendar period",
   "CalendarWeekColumnHeaderHelpText": "Shown above each column when week is the active view",
   "CalibreContentServer": "Calibre Content Server",
   "CalibreContentServerText": "Using a Calibre Content Server (not Calibre Web) allows {appName} to add books to your Calibre library and trigger conversions between formats",
