@@ -167,3 +167,72 @@ Recommended branch naming:
 - `rename/phase-3-core-test-frontend`
 - `rename/phase-4-packaging-ci`
 - `rename/phase-5-zero-gate`
+
+## Source folder convergence
+
+The source folder work uses a separate path inventory. `legacy-brand-audit.sh` checks the previous public product token. Use Git's tracked path list to measure the `NzbDrone` folder work. [Tracking issue #193](https://github.com/Swartdraak/Bibliophilarr/issues/193)
+
+### Baseline and mapping
+
+The `develop` tree at `2fe71a264bbdd43ab0ec73b450b254611f62139a` has 25 C# projects. Twenty-one use source folders under `src/NzbDrone*`. The solution includes 24 projects and references 20 of those folders. `NzbDrone.Automation.Test` is the remaining project and must be accounted for when scanning the repository. `Bibliophilarr.Api.V1`, `Bibliophilarr.Http`, and the two projects under `ServiceHelpers` already have separate paths.
+
+The per-project inventory uses the evaluated MSBuild assembly and root namespace properties. The console entry shows its Linux build name. The console assembly is `Bibliophilarr.Console` when targeting Windows. Source files can use explicit namespaces independent of the root property. A folder divergence takes precedence in the status when both the path and root namespace use legacy names.
+
+- `folder-diverged` means the project lives under a legacy `src/NzbDrone*` folder.
+- `namespace-diverged` means the folder is current and MSBuild still evaluates a legacy root namespace.
+- `aligned` means the folder and evaluated root namespace use current naming.
+
+| Folder | Project file | Assembly | MSBuild root namespace | Status |
+| --- | --- | --- | --- | --- |
+| `src/Bibliophilarr.Api.V1` | `Bibliophilarr.Api.V1.csproj` | `Bibliophilarr.Api.V1` | `NzbDrone.Api.V1` | namespace-diverged |
+| `src/Bibliophilarr.Http` | `Bibliophilarr.Http.csproj` | `Bibliophilarr.Http` | `NzbDrone.Http` | namespace-diverged |
+| `src/NzbDrone.Api.Test` | `Bibliophilarr.Api.Test.csproj` | `Bibliophilarr.Api.Test` | `NzbDrone.Api.Test` | folder-diverged |
+| `src/NzbDrone.Automation.Test` | `Bibliophilarr.Automation.Test.csproj` | `Bibliophilarr.Automation.Test` | `NzbDrone.Automation.Test` | folder-diverged |
+| `src/NzbDrone.Common.Test` | `Bibliophilarr.Common.Test.csproj` | `Bibliophilarr.Common.Test` | `NzbDrone.Common.Test` | folder-diverged |
+| `src/NzbDrone.Common` | `Bibliophilarr.Common.csproj` | `Bibliophilarr.Common` | `NzbDrone.Common` | folder-diverged |
+| `src/NzbDrone.Console` | `Bibliophilarr.Console.csproj` | `Bibliophilarr` | `NzbDrone.Console` | folder-diverged |
+| `src/NzbDrone.Core.Test` | `Bibliophilarr.Core.Test.csproj` | `Bibliophilarr.Core.Test` | `NzbDrone.Core.Test` | folder-diverged |
+| `src/NzbDrone.Core` | `Bibliophilarr.Core.csproj` | `Bibliophilarr.Core` | `NzbDrone.Core` | folder-diverged |
+| `src/NzbDrone.Host.Test` | `Bibliophilarr.Host.Test.csproj` | `Bibliophilarr.Host.Test` | `NzbDrone.Host.Test` | folder-diverged |
+| `src/NzbDrone.Host` | `Bibliophilarr.Host.csproj` | `Bibliophilarr.Host` | `NzbDrone.Host` | folder-diverged |
+| `src/NzbDrone.Integration.Test` | `Bibliophilarr.Integration.Test.csproj` | `Bibliophilarr.Integration.Test` | `NzbDrone.Integration.Test` | folder-diverged |
+| `src/NzbDrone.Libraries.Test` | `Bibliophilarr.Libraries.Test.csproj` | `Bibliophilarr.Libraries.Test` | `NzbDrone.Libraries.Test` | folder-diverged |
+| `src/NzbDrone.Mono.Test` | `Bibliophilarr.Mono.Test.csproj` | `Bibliophilarr.Mono.Test` | `NzbDrone.Mono.Test` | folder-diverged |
+| `src/NzbDrone.Mono` | `Bibliophilarr.Mono.csproj` | `Bibliophilarr.Mono` | `NzbDrone.Mono` | folder-diverged |
+| `src/NzbDrone.SignalR` | `Bibliophilarr.SignalR.csproj` | `Bibliophilarr.SignalR` | `NzbDrone.SignalR` | folder-diverged |
+| `src/NzbDrone.Test.Common` | `Bibliophilarr.Test.Common.csproj` | `Bibliophilarr.Test.Common` | `NzbDrone.Test.Common` | folder-diverged |
+| `src/NzbDrone.Test.Dummy` | `Bibliophilarr.Test.Dummy.csproj` | `Bibliophilarr.Test.Dummy` | `NzbDrone.Test.Dummy` | folder-diverged |
+| `src/NzbDrone.Update.Test` | `Bibliophilarr.Update.Test.csproj` | `Bibliophilarr.Update.Test` | `NzbDrone.Update.Test` | folder-diverged |
+| `src/NzbDrone.Update` | `Bibliophilarr.Update.csproj` | `Bibliophilarr.Update` | `NzbDrone.Update` | folder-diverged |
+| `src/NzbDrone.Windows.Test` | `Bibliophilarr.Windows.Test.csproj` | `Bibliophilarr.Windows.Test` | `NzbDrone.Windows.Test` | folder-diverged |
+| `src/NzbDrone.Windows` | `Bibliophilarr.Windows.csproj` | `Bibliophilarr.Windows` | `NzbDrone.Windows` | folder-diverged |
+| `src/NzbDrone` | `Bibliophilarr.csproj` | `Bibliophilarr` | `NzbDrone` | folder-diverged |
+| `src/ServiceHelpers/ServiceInstall` | `ServiceInstall.csproj` | `ServiceInstall` | `ServiceInstall` | aligned |
+| `src/ServiceHelpers/ServiceUninstall` | `ServiceUninstall.csproj` | `ServiceUninstall` | `ServiceUninstall` | aligned |
+
+For each physical move, replace the folder prefix with `Bibliophilarr` and keep the suffix. For example, `src/NzbDrone.Libraries.Test/Bibliophilarr.Libraries.Test.csproj` moves to `src/Bibliophilarr.Libraries.Test/Bibliophilarr.Libraries.Test.csproj`. Keep the solution project name, file name, and GUID. [Solution](../../src/Bibliophilarr.sln)
+
+Preserve project and assembly identity through the moves. MSBuild derives output classification and the current `RootNamespace` from project names in `Directory.Build.props`. The Console project also sets a non-Windows assembly name of `Bibliophilarr` and references the Host icon by source path. Existing migration discovery filters and custom format type lookup depend on exact namespaces. Review CLR namespaces, persisted type names, and resource identities as separate compatibility work. [Build properties](../../src/Directory.Build.props) · [Console project](../../src/NzbDrone.Console/Bibliophilarr.Console.csproj) · [Migration discovery](../../src/NzbDrone.Core/Datastore/Migration/Framework/MigrationController.cs) · [Custom format converter](../../src/NzbDrone.Core/Datastore/Converters/CustomFormatSpecificationConverter.cs)
+
+Hard-coded paths in the baseline show up in CI, test governance, labeling, and release tooling. Start by checking these files alongside the solution and project files. [App smoke](../../.github/workflows/app-smoke-execution.yml) · [Backend CI](../../.github/workflows/ci-backend.yml) · [Portability CI](../../.github/workflows/cross-build-portability.yml) · [Governed test commands](../../.onyx/project.yaml) · [Labels](../../.github/labeler.yml) · [Pre-push check](../../scripts/pre-push-check.sh) · [Release entry gate](../../scripts/release_entry_gate.py)
+
+### Sequence and checks
+
+1. Publish the contributor path map and use the solution entry point to discover paths. Run `dotnet sln src/Bibliophilarr.sln list` and validate links. [Contributor guidance](../../CONTRIBUTING.md#naming-convergence-policy)
+2. Move `NzbDrone.Libraries.Test` alone. Update its solution path, restore and build the solution, and run the moved test project and the existing test runner entry point. Compare the test assembly's name and discovered test count before and after.
+3. Move the remaining test and test-support projects one at a time. Start with the API test after tracing its direct CI and `.onyx/project.yaml` commands. For shared test support, update every consuming `ProjectReference` in the same PR. Run the affected fixtures and platform jobs. Treat the Automation test project as a direct project because the solution listing excludes it.
+4. Move runtime libraries one at a time, starting with `NzbDrone.SignalR` after the test sample. Move the application, Console, Host, platform, updater, and Core folders in separate PRs. For each, include every source path consumer and run the corresponding native startup, package or migration workflow before promotion. [Branching policy](../../BRANCHING.md)
+
+Search solution paths, relative `ProjectReference` and resource items, workflow commands and globs, `.onyx/project.yaml`, the labeler, hooks, release-gate path rules, and operator instructions before each move. Run these from the repository root and substitute the folder being moved.
+
+```bash
+git ls-files 'src/NzbDrone*'
+git grep -nE 'NzbDrone\.Libraries\.Test[/\\]'
+dotnet sln src/Bibliophilarr.sln list
+```
+
+For runtime slices, compare entry point and package file names, assembly names and resource lookup across affected runtimes. For Core, keep migration discovery and the repository migration suite in the evidence. For Host, Console and platform slices, check startup and installer/package contents on the affected targets. For updater slices, verify the update and rollback paths in a disposable installation. [Build and test commands](../../QUICKSTART.md) · [Packaging script](../../build.sh)
+
+### Rollback
+
+Land each move with its path dependencies in one PR targeting `develop`. If a move breaks checkout, CI or packaging, revert its complete commit set through the same branch process. Restore the directory and all dependent references together, rebuild with clean generated outputs, and rerun the checks that failed. Keep the before-and-after path inventory and the failure evidence with the PR. A source folder move requires no profile or database edits.

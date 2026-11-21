@@ -37,7 +37,7 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
         {
             var sw = Stopwatch.StartNew();
 
-            _logger.Info("*** Migrating {0} ***", connectionString);
+            _logger.Info("*** Migrating {0} database ({1}) ***", migrationContext.MigrationType, databaseType);
 
             var serviceProvider = ConfigureServices(connectionString, databaseType).BuildServiceProvider();
 

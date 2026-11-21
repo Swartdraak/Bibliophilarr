@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using NLog;
 using NzbDrone.Common.Extensions;
 
@@ -13,6 +14,8 @@ namespace NzbDrone.Core.Books
 
     public class RefreshSeriesService : RefreshEntityServiceBase<Series, SeriesBookLink>, IRefreshSeriesService
     {
+        private static readonly Dictionary<string, RefreshGate> RefreshGates = new Dictionary<string, RefreshGate>(StringComparer.Ordinal);
+
         private readonly IBookService _bookService;
         private readonly ISeriesService _seriesService;
         private readonly ISeriesBookLinkService _linkService;
@@ -129,11 +132,80 @@ namespace NzbDrone.Core.Books
 
         public bool RefreshSeriesInfo(int authorMetadataId, List<Series> remoteSeries, Author remoteData, bool forceBookRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
+            // Stabilize the author's link set while identifying shared series that this refresh might write.
+            return WithRefreshGates(new[] { $"author:{authorMetadataId}" }, () =>
+            {
+                var existingByAuthor = _seriesService.GetByAuthorMetadataId(authorMetadataId);
+                var foreignIds = remoteSeries.Concat(remoteData.Series.Value).Concat(existingByAuthor)
+                    .Select(series => series.ForeignSeriesId).Distinct(StringComparer.Ordinal).ToList();
+
+                // All refreshes acquire the author gate first and shared series gates in the same order.
+                return WithRefreshGates(foreignIds.Select(id => $"series:{id}"),
+                    () => ReconcileSeries(authorMetadataId, foreignIds, remoteData, forceUpdateFileTags));
+            });
+        }
+
+        private static bool WithRefreshGates(IEnumerable<string> keys, Func<bool> action)
+        {
+            var orderedKeys = keys.Distinct(StringComparer.Ordinal).OrderBy(key => key, StringComparer.Ordinal).ToList();
+            var reservations = new List<(string Key, RefreshGate Gate)>(orderedKeys.Count);
+            lock (RefreshGates)
+            {
+                foreach (var key in orderedKeys)
+                {
+                    if (!RefreshGates.TryGetValue(key, out var gate))
+                    {
+                        gate = new RefreshGate();
+                        RefreshGates.Add(key, gate);
+                    }
+
+                    gate.Users++;
+                    reservations.Add((key, gate));
+                }
+            }
+
+            var entered = 0;
+            try
+            {
+                for (; entered < reservations.Count; entered++)
+                {
+                    Monitor.Enter(reservations[entered].Gate);
+                }
+
+                return action();
+            }
+            finally
+            {
+                for (var index = entered - 1; index >= 0; index--)
+                {
+                    Monitor.Exit(reservations[index].Gate);
+                }
+
+                lock (RefreshGates)
+                {
+                    foreach (var (key, gate) in reservations)
+                    {
+                        // A waiting refresh reserves the same gate before sleeping.
+                        if (--gate.Users == 0)
+                        {
+                            RefreshGates.Remove(key);
+                        }
+                    }
+                }
+            }
+        }
+
+        private sealed class RefreshGate
+        {
+            public int Users { get; set; }
+        }
+
+        private bool ReconcileSeries(int authorMetadataId, List<string> foreignIds, Author remoteData, bool forceUpdateFileTags)
+        {
             var updated = false;
 
-            var existingByAuthor = _seriesService.GetByAuthorMetadataId(authorMetadataId);
-            var existingBySeries = _seriesService.FindById(remoteSeries.Select(x => x.ForeignSeriesId).ToList());
-            var existing = existingByAuthor.Concat(existingBySeries).GroupBy(x => x.ForeignSeriesId).Select(x => x.First()).ToList();
+            // Discovery above identifies keys only. Reread the rows after all their gates are owned.
+            var existing = _seriesService.FindById(foreignIds);
 
             var books = _bookService.GetBooksByAuthorMetadataId(authorMetadataId);
             var bookDict = books.ToDictionary(x => x.ForeignBookId);
@@ -159,7 +231,7 @@ namespace NzbDrone.Core.Books
                 s.LinkItems = matchedLinks;
             }
 
-            remoteSeries = remoteData.Series.Value;
+            var remoteSeries = remoteData.Series.Value;
 
             var toAdd = remoteSeries.ExceptBy(x => x.ForeignSeriesId, existing, x => x.ForeignSeriesId, StringComparer.Ordinal).ToList();
             var all = toAdd.Union(existing).ToList();
