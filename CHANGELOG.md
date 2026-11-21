@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Use a trusted embedded ASIN to select a unique same-work edition for an
+  unmapped EPUB when an eligible local edition is available.
 - Keep task notification links clickable when resizing from desktop to
   mobile by starting with the navigation drawer closed.
 - Close task notifications when keyboard focus moves out of the panel,

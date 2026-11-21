@@ -851,6 +851,80 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(azw3);
         }
 
+        [TestCase("exact generic ebook", true)]
+        [TestCase("exact EPUB", true)]
+        [TestCase("duplicate projection", true)]
+        [TestCase("two matching editions", false)]
+        [TestCase("cross-work ASIN collision", false)]
+        [TestCase("different work", false)]
+        [TestCase("explicit AZW3", false)]
+        [TestCase("untrusted ASIN", false)]
+        [TestCase("extension-only format", false)]
+        [TestCase("already linked", false)]
+        [TestCase("explicit work", false)]
+        public void should_refine_an_unlinked_epub_to_a_unique_same_work_embedded_asin(string condition, bool refine)
+        {
+            var tracks = GivenEbookSubformatScan();
+            var track = tracks.Single();
+            track.Path = "/media/ebooks/Test Author - Test Book.epub";
+            track.Quality = new QualityModel(Quality.EPUB)
+            {
+                QualityDetectionSource = condition == "extension-only format" ? QualityDetectionSource.Extension : QualityDetectionSource.TagLib
+            };
+            track.FileTrackInfo.Quality = track.Quality;
+            track.FileTrackInfo.Isbn = null;
+            track.FileTrackInfo.IsbnConfidence = 0;
+            track.FileTrackInfo.Asin = "B000000001";
+            track.FileTrackInfo.AsinConfidence = condition == "untrusted ASIN" ? 0.55 : 0.9;
+            track.FileTrackInfo.Publisher = "ZZZZZZ";
+            _ebookEdition.Format = "Ebook";
+            _ebookEdition.Isbn13 = null;
+            _ebookEdition.Publisher = track.FileTrackInfo.Publisher;
+            var otherWork = new Book
+            {
+                Id = 7,
+                CanonicalId = "different-work",
+                Title = _book.Title,
+                AuthorMetadata = _book.AuthorMetadata,
+                Author = _author
+            };
+            var exact = CreateAzw3Edition(30, condition == "different work" ? otherWork : _book, null);
+            exact.Asin = track.FileTrackInfo.Asin;
+            exact.Format = condition switch
+            {
+                "exact EPUB" => "EPUB",
+                "explicit AZW3" => "AZW3",
+                _ => "Ebook"
+            };
+            exact.Publisher = "AAAAAA";
+
+            var candidates = new List<Edition> { _ebookEdition, exact };
+            if (condition is "two matching editions" or "cross-work ASIN collision")
+            {
+                var competing = CreateAzw3Edition(40, condition == "cross-work ASIN collision" ? otherWork : _book, null);
+                competing.Asin = exact.Asin;
+                competing.Format = exact.Format;
+                competing.Publisher = exact.Publisher;
+                candidates.Add(competing);
+            }
+            else if (condition == "duplicate projection")
+            {
+                candidates.Add(exact);
+            }
+            else if (condition == "already linked")
+            {
+                Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
+                    .Returns(new List<BookFile> { new BookFile { Path = track.Path, EditionId = _ebookEdition.Id } });
+            }
+
+            GivenEbookSubformatCandidates(candidates.ToArray());
+            var overrides = new IdentificationOverrides { Book = condition == "explicit work" ? _book : null };
+
+            DistanceCalculator.BookDistance(tracks, _ebookEdition).NormalizedDistance()
+                .Should().BeLessThan(DistanceCalculator.BookDistance(tracks, exact).NormalizedDistance());
+            Subject.Identify(tracks, overrides, _config).Single().Edition.Should().BeSameAs(refine ? exact : _ebookEdition);
+        }
+
         private List<LocalBook> GivenEbookSubformatScan(FilterFilesType filter = FilterFilesType.None)
         {
             _config.NewDownload = false;
