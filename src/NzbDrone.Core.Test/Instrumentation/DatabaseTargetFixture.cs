@@ -1,7 +1,9 @@
 using System;
-using System.Threading;
+using System.Linq;
+using System.Threading.Tasks;
 using FluentAssertions;
 using NLog;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Datastore.Migration.Framework;
@@ -15,8 +17,9 @@ namespace NzbDrone.Core.Test.Instrumentation
     [TestFixture]
     public class DatabaseTargetFixture : DbTest<DatabaseTarget, Log>
     {
-        private static string _uniqueMessage;
+        private string _uniqueMessage;
         private Logger _logger;
+        private Target _databaseLogTarget;
 
         protected override MigrationType MigrationType => MigrationType.Log;
 
@@ -24,7 +27,9 @@ namespace NzbDrone.Core.Test.Instrumentation
         public void Setup()
         {
             Mocker.Resolve<ILogRepository, LogRepository>();
-            Mocker.Resolve<DatabaseTarget>().Register();
+            var databaseTarget = Mocker.Resolve<DatabaseTarget>();
+            databaseTarget.Register();
+            _databaseLogTarget = databaseTarget.Rule.Targets.Single();
 
             LogManager.ReconfigExistingLoggers();
 
@@ -38,7 +43,7 @@ namespace NzbDrone.Core.Test.Instrumentation
         {
             _logger.Info(_uniqueMessage);
 
-            Thread.Sleep(1000);
+            FlushDatabaseLogs();
 
             StoredModel.Message.Should().Be(_uniqueMessage);
             VerifyLog(StoredModel, LogLevel.Info);
@@ -55,7 +60,7 @@ namespace NzbDrone.Core.Test.Instrumentation
 
             _logger.Info(message);
 
-            Thread.Sleep(1000);
+            FlushDatabaseLogs();
 
             StoredModel.Message.Should().HaveLength(message.Length);
             StoredModel.Message.Should().Be(message);
@@ -69,7 +74,7 @@ namespace NzbDrone.Core.Test.Instrumentation
 
             _logger.Error(ex, _uniqueMessage);
 
-            Thread.Sleep(1000);
+            FlushDatabaseLogs();
 
             VerifyLog(StoredModel, LogLevel.Error);
             StoredModel.Message.Should().Be(_uniqueMessage + ": " + ex.Message);
@@ -87,7 +92,7 @@ namespace NzbDrone.Core.Test.Instrumentation
 
             _logger.Error(ex, _uniqueMessage);
 
-            Thread.Sleep(1000);
+            FlushDatabaseLogs();
 
             StoredModel.Message.Should().Be(ex.Message);
 
@@ -97,20 +102,39 @@ namespace NzbDrone.Core.Test.Instrumentation
         }
 
         [Test]
-        public void null_string_as_arg_should_not_fail()
+        public void should_store_a_message_with_a_null_format_argument()
         {
             var epFile = new BookFile();
-            _logger.Debug("File {0} no longer exists on disk. removing from database.", epFile.Path);
+            _logger.Info("File [{0}] no longer exists on disk.", epFile.Path);
 
-            Thread.Sleep(1000);
+            FlushDatabaseLogs();
 
-            epFile.Path.Should().BeNull();
+            StoredModel.Message.Should().Be("File [] no longer exists on disk.");
+            VerifyLog(StoredModel, LogLevel.Info);
         }
 
         [TearDown]
         public void Teardown()
         {
             Mocker.Resolve<DatabaseTarget>().UnRegister();
+        }
+
+        private void FlushDatabaseLogs()
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _databaseLogTarget.Flush(error =>
+            {
+                if (error == null)
+                {
+                    completion.TrySetResult();
+                }
+                else
+                {
+                    completion.TrySetException(error);
+                }
+            });
+
+            completion.Task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
         }
 
         private void VerifyLog(Log logItem, LogLevel level)
