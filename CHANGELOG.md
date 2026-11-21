@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Close task notifications when keyboard focus moves out of the panel,
+  preserving normal tab order.
 - Add distinct works from a verified Open Library bibliography for Hardcover
   authors. Keep existing work ownership and hold conflicting works and editions.
 - Fill missing author biographies and portraits from a verified Open Library

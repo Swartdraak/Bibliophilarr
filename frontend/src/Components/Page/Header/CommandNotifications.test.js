@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
@@ -30,7 +30,9 @@ test('filters unsuccessful tasks and returns focus to the launcher when dismisse
   expect(within(panel).getByText('Refresh Author')).toBeVisible();
   expect(within(panel).queryByText('Hidden Background Task')).not.toBeInTheDocument();
 
-  fireEvent.click(within(panel).getByRole('button', { name: 'TasksNeedAttention' }));
+  const attentionFilter = within(panel).getByRole('button', { name: 'TasksNeedAttention' });
+  act(() => attentionFilter.focus());
+  fireEvent.click(attentionFilter);
   expect(within(panel).getByText('A root was unavailable.')).toBeVisible();
   expect(within(panel).queryByText('Refresh Author')).toBeNull();
   expect(within(panel).getByRole('link', { name: 'UnmappedFiles' })).toHaveAttribute('href', '/unmapped');
@@ -38,6 +40,37 @@ test('filters unsuccessful tasks and returns focus to the launcher when dismisse
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(launcher).toHaveAttribute('aria-expanded', 'false');
   expect(launcher).toHaveFocus();
+});
+
+test('dismisses when focus moves to another control without redirecting it', () => {
+  window.Bibliophilarr.urlBase = '';
+  render(
+    <MemoryRouter>
+      <CommandNotifications commands={[]} />
+      <button type="button">Next header control</button>
+    </MemoryRouter>
+  );
+
+  const launcher = screen.getByRole('button', { name: 'TaskNotifications' });
+  fireEvent.click(launcher);
+  const panel = screen.getByRole('region', { name: 'TaskNotifications' });
+  const filter = within(panel).getByRole('button', { name: 'All' });
+  const lastLink = within(panel).getByRole('link', { name: 'Events' });
+  const nextControl = screen.getByRole('button', { name: 'Next header control' });
+
+  act(() => filter.focus());
+  // Selecting text in the panel can blur the focused control without a new focus target.
+  fireEvent.focusOut(filter, { relatedTarget: null });
+  expect(panel).toBeVisible();
+
+  act(() => lastLink.focus());
+  expect(panel).toBeVisible();
+  expect(lastLink).toHaveFocus();
+
+  act(() => nextControl.focus());
+  expect(launcher).toHaveAttribute('aria-expanded', 'false');
+  expect(panel).not.toBeInTheDocument();
+  expect(nextControl).toHaveFocus();
 });
 
 test('loads persisted tasks on open without filtering the queue view’s shared items', () => {

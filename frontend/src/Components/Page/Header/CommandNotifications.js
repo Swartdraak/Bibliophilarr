@@ -66,7 +66,17 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
   }
 
   return (
-    <div className={styles.wrapper} ref={wrapper}>
+    <div
+      className={styles.wrapper}
+      ref={wrapper}
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+
+        if (open && next instanceof Node && !event.currentTarget.contains(next)) {
+          setOpen(false);
+        }
+      }}
+    >
       <button
         type="button"
         ref={launcher}
