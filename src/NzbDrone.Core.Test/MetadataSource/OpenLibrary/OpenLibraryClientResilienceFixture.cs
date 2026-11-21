@@ -47,7 +47,13 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var isIsbn = term.StartsWith("isbn:", StringComparison.Ordinal);
             var path = isIsbn ? $"/isbn/{term[5..]}.json" : "/search.json";
             var request = new HttpRequest($"https://openlibrary.org{path}");
-            var response = new HttpResponse(request, new HttpHeader(), "{\"docs\":[]}", status);
+            var headers = new HttpHeader();
+            if (status == HttpStatusCode.TooManyRequests)
+            {
+                headers.Add("Retry-After", "0");
+            }
+
+            var response = new HttpResponse(request, headers, "{\"docs\":[]}", status);
             Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns(response);
 
             var logger = LogManager.GetCurrentClassLogger();
@@ -85,7 +91,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             entry.Failures.Should().Be(expectedFailures);
             entry.NullResults.Should().Be(0);
             entry.TotalResultCount.Should().Be(0);
-            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.Is<HttpRequest>(value => value.Url.Path == path)), Times.Once());
+            var expectedRequests = status == HttpStatusCode.TooManyRequests ? 2 : 1;
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.Is<HttpRequest>(value => value.Url.Path == path)), Times.Exactly(expectedRequests));
         }
 
         [Test]
