@@ -319,6 +319,11 @@ def check_import_list_exclusions(page, base, api, app_data):
 
 
 def check_metadata_settings(page, base, api):
+    metadata_path = "/api/v1/config/metadataprovider"
+    config = check_status(api.get(metadata_path), 200, "Read metadata settings").json()
+    config.update(enableInventaireProvider=False, enableInventaireFallback=True)
+    check_status(api.put(metadata_path + "/1", data=config), 202, "Seed divergent Inventaire preferences")
+
     page.set_viewport_size({"width": 1366, "height": 900})
     check_status(page.goto(base + "/settings"), 200, "Authenticated Settings")
     main = page.get_by_role("main")
@@ -326,6 +331,15 @@ def check_metadata_settings(page, base, api):
     expect(metadata_link).to_have_attribute("href", "/settings/metadata")
     metadata_link.click()
     expect(page).to_have_url(base + "/settings/metadata")
+
+    inventaire = main.get_by_role("checkbox", name="Enable Inventaire", exact=True)
+    expect(inventaire).to_have_count(1)
+    expect(inventaire).to_have_attribute("name", "enableInventaireFallback")
+    expect(inventaire).to_be_checked()
+    expect(main.get_by_role("checkbox", name="Enable Fallback Searches", exact=True)).to_have_count(0)
+    expect(main.locator('input[name="enableInventaireProvider"]')).to_have_count(0)
+    inventaire.press("Space")
+    expect(inventaire).not_to_be_checked()
 
     timeout_input = main.get_by_role("spinbutton", name="Provider Timeout (seconds)")
     expect(timeout_input).to_be_visible()
@@ -339,12 +353,23 @@ def check_metadata_settings(page, base, api):
     ) as saved:
         main.get_by_role("button", name="Save Changes", exact=True).click()
     check_status(saved.value, 202, "Metadata settings save from the browser")
+    submitted = saved.value.request.post_data_json
+    assert submitted["enableInventaireFallback"] is False, "browser did not submit the changed fallback preference"
+    assert submitted["enableInventaireProvider"] is False, "browser changed the legacy preference"
     expect(main.get_by_role("button", name="No Changes", exact=True)).to_be_disabled()
 
     check_status(page.reload(), 200, "Reload authenticated Metadata settings")
     expect(timeout_input).to_have_value(str(timeout))
-    config = check_status(api.get("/api/v1/config/metadataprovider"), 200, "Read back browser metadata setting").json()
+    expect(inventaire).not_to_be_checked()
+    config = check_status(api.get(metadata_path), 200, "Read back browser metadata settings").json()
     assert config["metadataProviderTimeoutSeconds"] == timeout, "browser metadata change did not persist"
+    assert config["enableInventaireFallback"] is False, "browser Inventaire change did not persist"
+    assert config["enableInventaireProvider"] is False, "legacy Inventaire preference changed"
+
+    config["enableInventaireProvider"] = True
+    check_status(api.put(metadata_path + "/1", data=config), 202, "Keep only the legacy Inventaire preference enabled")
+    check_status(page.reload(), 200, "Reload after changing the legacy preference")
+    expect(inventaire).not_to_be_checked()
     print("Metadata settings persisted after browser reload", flush=True)
     return timeout
 
