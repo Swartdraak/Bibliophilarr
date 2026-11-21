@@ -169,8 +169,8 @@ namespace NzbDrone.Core.IndexerSearch
         {
             var remoteBook = decision.RemoteBook;
             var parsedFormat = GetKnownQualityFormat(remoteBook?.ParsedBookInfo?.Quality?.Quality);
-            return (remoteBook?.ResolvedFormatType ?? parsedFormat) == format &&
-                   (parsedFormat == null || parsedFormat == format);
+            return parsedFormat == format &&
+                   (remoteBook.ResolvedFormatType ?? parsedFormat) == format;
         }
 
         public void Execute(MissingBookSearchCommand message)

@@ -85,6 +85,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
                 Decision(null, otherQuality),
                 Decision(null, null),
                 Decision(null, Quality.Unknown),
+                Decision(FormatType.Ebook, Quality.Unknown),
                 parsed
             };
 
@@ -285,6 +286,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
         {
             return new DownloadDecision(new RemoteBook
             {
+                Release = new ReleaseInfo { Title = $"{resolved} {quality}" },
                 ResolvedFormatType = resolved,
                 ParsedBookInfo = quality == null ? null : new ParsedBookInfo { Quality = new QualityModel(quality) }
             });
