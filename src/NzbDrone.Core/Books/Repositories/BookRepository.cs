@@ -248,9 +248,15 @@ namespace NzbDrone.Core.Books
             var oppositePath = string.Join(" OR ", oppositeExtensions.OrderBy(extension => extension, StringComparer.Ordinal)
                 .Select(extension => $""" LOWER(COALESCE("BookFiles"."Path", '')) LIKE '%{extension}' """));
             var actualFormatCondition = $"{editionCondition} AND NOT ({oppositePath})";
+
+            // Only monitored editions can qualify for a dual-format upgrade. A better
+            // physical copy still meets the target regardless of its edition's monitoring.
+            var upgradeCondition = dualFormatEnabled
+                ? $""" {actualFormatCondition} AND "Editions"."Monitored" = TRUE """
+                : actualFormatCondition;
             var belowCutoff = BuildQualityCutoffWhereClause(qualitiesBelowCutoff, profileColumn);
             var meetsCutoff = BuildQualityCutoffWhereClause(qualitiesBelowCutoff, profileColumn, meetsCutoff: true);
-            return builder.Where($"{HasScopedFile(actualFormatCondition, belowCutoff)} AND NOT {HasScopedFile(actualFormatCondition, meetsCutoff)}");
+            return builder.Where($"{HasScopedFile(upgradeCondition, belowCutoff)} AND NOT {HasScopedFile(actualFormatCondition, meetsCutoff)}");
         }
 
         private static string HasScopedFile(string condition, string qualities)

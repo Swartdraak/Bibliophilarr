@@ -96,6 +96,15 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             matched.Records.Select(item => item.Id).Should().Equal(book.Id);
             matched.TotalRecords.Should().Be(1);
 
+            var editions = Mocker.Resolve<EditionRepository>();
+            edition.Monitored = false;
+            editions.Update(edition);
+            var unmonitoredEdition = Page(true);
+            unmonitoredEdition.Records.Should().BeEmpty("a below-cutoff file must belong to a monitored edition");
+            unmonitoredEdition.TotalRecords.Should().Be(0);
+            edition.Monitored = true;
+            editions.Update(edition);
+
             var repository = Mocker.Resolve<BookRepository>();
             repository.SetFormatMonitored(new[] { book.Id }, format, false);
             Page(true).Records.Should().BeEmpty();
@@ -115,8 +124,20 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             profile.Monitored = true;
             formatProfiles.Update(profile);
 
-            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/work-target" + cutoffExtension, Quality = new QualityModel(cutoff) });
-            Page(true).Records.Should().BeEmpty("a better copy of the same format already meets the cutoff");
+            var betterEdition = Db.Insert(new Edition
+            {
+                BookId = book.Id,
+                ForeignEditionId = "better-edition",
+                Title = book.Title,
+                TitleSlug = "better-edition",
+                Format = edition.Format,
+                IsEbook = edition.IsEbook,
+                Monitored = false
+            });
+            Db.Insert(new BookFile { EditionId = betterEdition.Id, Path = "/library/work-target" + cutoffExtension, Quality = new QualityModel(cutoff) });
+            var cutoffMet = Page(true);
+            cutoffMet.Records.Should().BeEmpty("a same-format file already meets cutoff even when linked to an unmonitored edition");
+            cutoffMet.TotalRecords.Should().Be(0);
         }
 
         private static QualityProfile CreateProfile(int id, Quality cutoff, params Quality[] qualities)
