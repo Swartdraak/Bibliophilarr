@@ -14,7 +14,8 @@ process.
 
 ### Fixed
 
-- Name the Calendar's previous and next controls for assistive technology.
+- Name the Calendar's period controls and compact view menu for assistive
+  technology.
 - Coordinate overlapping author refreshes so they share the stored series and
   keep its book links.
 - Preserve completed task results in command history after restart.

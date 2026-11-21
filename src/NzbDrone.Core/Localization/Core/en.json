@@ -141,6 +141,7 @@
   "Calendar": "Calendar",
   "CalendarNextPeriod": "Next calendar period",
   "CalendarPreviousPeriod": "Previous calendar period",
+  "CalendarView": "Calendar view",
   "CalendarWeekColumnHeaderHelpText": "Shown above each column when week is the active view",
   "CalibreContentServer": "Calibre Content Server",
   "CalibreContentServerText": "Using a Calibre Content Server (not Calibre Web) allows {appName} to add books to your Calibre library and trigger conversions between formats",

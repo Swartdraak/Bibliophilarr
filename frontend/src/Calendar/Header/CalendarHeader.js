@@ -160,7 +160,7 @@ class CalendarHeader extends Component {
                   className={styles.viewMenu}
                   alignMenu={align.RIGHT}
                 >
-                  <MenuButton>
+                  <MenuButton aria-label={translate('CalendarView')}>
                     <Icon
                       name={icons.VIEW}
                       size={22}
