@@ -41,7 +41,7 @@ namespace NzbDrone.Core.Messaging.Commands
 
                 if (xValue == null && yValue == null)
                 {
-                    return true;
+                    continue;
                 }
 
                 if (xValue == null || yValue == null)
