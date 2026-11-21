@@ -51,6 +51,11 @@ The WebUI includes that credential in its API requests. Forms sign-in and
 sign-out submit a browser verification token. The account menu is the normal
 sign-out entry point.
 
+New and changed account passwords use salted PBKDF2. A successful password
+sign-in upgrades the account's legacy password record. Retain a matching
+app-data backup when upgrading. To roll back after a password record changes,
+restore the matching backup with the earlier application.
+
 Terminal first-account setup accepts direct loopback requests. Fetch an
 antiforgery cookie and request token with `GET /bootstrap`, then submit
 `POST /bootstrap` with that cookie and the returned token header. The server
