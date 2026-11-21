@@ -7,6 +7,7 @@ import RemotePathMappings from 'Settings/DownloadClients/RemotePathMappings/Remo
 import ImportLists from 'Settings/ImportLists/ImportLists/ImportLists';
 import EditIndexerModalContent from 'Settings/Indexers/Indexers/EditIndexerModalContent';
 import Indexers from 'Settings/Indexers/Indexers/Indexers';
+import * as keyCodes from 'Utilities/Constants/keyCodes';
 
 jest.mock('Components/Portal', () => ({ children }) => children);
 jest.mock('Store/Actions/providerOptionActions', () => ({
@@ -65,7 +66,7 @@ test.each([
     />
   );
 
-  fireEvent.click(screen.getByRole('button', { name: addName, exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: addName }));
   expect(screen.getByRole('dialog', { name: dialogName })).toBeVisible();
 });
 
@@ -163,9 +164,10 @@ test('associates Newznab labels with unique controls and preserves field names',
   const secondForm = within(forms[1]);
   const categories = secondForm.getByRole('button', { name: 'Categories Ebook' });
   categories.focus();
-  fireEvent.keyDown(categories, { keyCode: 40 });
-  fireEvent.keyDown(categories, { keyCode: 40 });
-  fireEvent.keyDown(categories, { keyCode: 13 });
+  fireEvent.keyDown(categories, { key: 'ArrowDown', code: 'ArrowDown', keyCode: keyCodes.DOWN_ARROW });
+  fireEvent.keyDown(categories, { key: 'ArrowDown', code: 'ArrowDown', keyCode: keyCodes.DOWN_ARROW });
+  expect(categories).toHaveAccessibleName('Categories Ebook');
+  fireEvent.keyDown(categories, { key: 'Enter', code: 'Enter', keyCode: keyCodes.ENTER });
   expect(onChange).toHaveBeenCalledWith({ name: 'categories', value: [7020, 8010] });
 
   fireEvent.change(secondForm.getByLabelText('URL'), { target: { value: 'http://127.0.0.1' } });
