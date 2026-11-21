@@ -76,6 +76,8 @@ process.
   confirmed merge through the reviewed reconciliation command.
 - Distinguish failed Open Library text and ISBN lookups from successful searches
   with no matches in provider telemetry.
+- Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
+  dual-format monitoring answer in the in-app help.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Reject missing profile IDs before saving a new author through Add Book.
