@@ -344,6 +344,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             edition.Ratings.Value.Should().Be(4.5m);
             edition.Images.Should().ContainSingle();
             edition.Images[0].Url.Should().Be("https://covers.example/stand.jpg");
+            edition.Images[0].SourceProvider.Should().Be("Hardcover");
+            edition.Images[0].SourceId.Should().Be("hardcover:work:book-1");
         }
 
         [TestCase("\"1978-10-03T01:00:00+02:00\"", 10, 2, 23)]
@@ -615,21 +617,34 @@ namespace NzbDrone.Core.Test.MetadataSource
                 """);
             var source = InstallEditionResponse(legacyEditions, authorSeries);
             source["cached_image"] = new JObject { ["url"] = "https://covers.example/work.jpg" };
+            ((JObject)source.SelectToken("editions[0]"))["cached_image"] = new JObject { ["url"] = "https://covers.example/print.jpg" };
             ((JObject)source.SelectToken("ebooks[0]"))["cached_image"] = new JObject { ["url"] = "https://covers.example/ebook.jpg" };
             ((JObject)source.SelectToken("book_series[0].series"))["description"] = "Published series description";
 
             var author = authorHydration ? Subject.GetAuthorInfo("hardcover:author:123") : null;
             var book = author?.Books.Value.Single() ?? Subject.GetBookInfo("hardcover:work:543").Item2;
 
-            book.GetPreferredEdition(FormatType.Ebook).Images.Should().ContainSingle()
-                .Which.Url.Should().Be("https://covers.example/ebook.jpg");
-            book.GetPreferredEdition(FormatType.Audiobook).Images.Should().ContainSingle()
-                .Which.Url.Should().Be("https://covers.example/work.jpg");
+            var ebookCover = book.GetPreferredEdition(FormatType.Ebook).Images.Should().ContainSingle().Which;
+            ebookCover.Url.Should().Be("https://covers.example/ebook.jpg");
+            ebookCover.SourceProvider.Should().Be("Hardcover");
+            ebookCover.SourceId.Should().Be("hardcover:source-edition:60");
+            var audioCover = book.GetPreferredEdition(FormatType.Audiobook).Images.Should().ContainSingle().Which;
+            audioCover.Url.Should().Be("https://covers.example/work.jpg");
+            audioCover.SourceProvider.Should().Be("Hardcover");
+            audioCover.SourceId.Should().Be("hardcover:work:543");
+            var projectedCover = book.Editions.Value[0].Images.Should().ContainSingle().Which;
+            projectedCover.Url.Should().Be("https://covers.example/print.jpg");
+            projectedCover.SourceProvider.Should().Be("Hardcover");
+            projectedCover.SourceId.Should().Be("hardcover:source-edition:50");
             book.SeriesLinks.Value.Single().Series.Value.Description.Should().Be("Published series description");
 
             if (authorHydration)
             {
                 author.Series.Value.Single().Description.Should().Be("Full series description");
+                var portrait = author.Metadata.Value.Images.Should().ContainSingle().Which;
+                portrait.Url.Should().Be("https://covers.example/author.jpg");
+                portrait.SourceProvider.Should().Be("Hardcover");
+                portrait.SourceId.Should().Be("hardcover:author:123");
             }
         }
 
@@ -738,6 +753,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                     }
 
                     var payload = BuildAuthorPage(body.SelectToken("variables.offset").Value<int>() == 0 ? new[] { 1 } : Array.Empty<int>());
+                    ((JObject)payload.SelectToken("data.authors[0]"))["image"] = new JObject { ["url"] = "https://covers.example/author.jpg" };
                     if (payload.SelectToken("data.authors[0].contributions[0]") is JObject contribution)
                     {
                         contribution["book"] = book;

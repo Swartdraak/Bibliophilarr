@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Preserve the Hardcover author, work, or edition that supplied an artwork
+  reference, including when an edition displays the work's cover.
 - Explain when a different ebook has an unverified ISBN for an occupied
   edition and needs review before import.
 - Refresh a book's cached cover after saving its updated edition metadata.

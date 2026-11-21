@@ -38,6 +38,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
     {
         internal const string ProviderEditionIdPrefix = "hardcover:source-edition:";
 
+        private const string HardcoverProviderName = "Hardcover";
         private const string EbookFormat = "Ebook";
         private const string AudiobookFormat = "Audiobook";
 
@@ -70,7 +71,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             _logger = logger;
         }
 
-        public string ProviderName => "Hardcover";
+        public string ProviderName => HardcoverProviderName;
 
         public int Priority => 1;
 
@@ -368,7 +369,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 {
                     new MediaCover.MediaCover(MediaCoverTypes.Poster, authorImageUrl)
                     {
-                        RemoteUrl = authorImageUrl
+                        RemoteUrl = authorImageUrl,
+                        SourceProvider = ProviderName,
+                        SourceId = hardcoverAuthorId > 0 ? metadata.ForeignAuthorId : null
                     }
                 };
             }
@@ -750,7 +753,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             {
                 images.Add(new MediaCover.MediaCover(MediaCoverTypes.Poster, imageUrl)
                 {
-                    RemoteUrl = imageUrl
+                    RemoteUrl = imageUrl,
+                    SourceProvider = ProviderName,
+                    SourceId = authorId > 0 ? BuildHardcoverAuthorId(authorId) : null
                 });
             }
 
@@ -1719,13 +1724,21 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 };
 
                 var editionCoverUrl = source?.SelectToken("cached_image.url")?.Value<string>();
-                editionCoverUrl = editionCoverUrl.IsNotNullOrWhiteSpace() ? editionCoverUrl : coverUrl;
                 if (editionCoverUrl.IsNotNullOrWhiteSpace())
                 {
-                    edition.Images.Add(new MediaCover.MediaCover
+                    var sourceId = source.Value<long?>("id");
+                    edition.Images.Add(new MediaCover.MediaCover(MediaCoverTypes.Cover, editionCoverUrl)
                     {
-                        Url = editionCoverUrl,
-                        CoverType = MediaCoverTypes.Cover
+                        SourceProvider = HardcoverProviderName,
+                        SourceId = sourceId > 0 ? $"{ProviderEditionIdPrefix}{sourceId}" : null
+                    });
+                }
+                else if (coverUrl.IsNotNullOrWhiteSpace())
+                {
+                    edition.Images.Add(new MediaCover.MediaCover(MediaCoverTypes.Cover, coverUrl)
+                    {
+                        SourceProvider = HardcoverProviderName,
+                        SourceId = book.ForeignBookId
                     });
                 }
 
@@ -2177,10 +2190,10 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             if (coverUrl.IsNotNullOrWhiteSpace())
             {
-                edition.Images.Add(new MediaCover.MediaCover
+                edition.Images.Add(new MediaCover.MediaCover(MediaCoverTypes.Cover, coverUrl)
                 {
-                    Url = coverUrl,
-                    CoverType = MediaCoverTypes.Cover
+                    SourceProvider = HardcoverProviderName,
+                    SourceId = book.ForeignBookId
                 });
             }
 
