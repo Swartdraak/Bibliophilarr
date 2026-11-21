@@ -45,7 +45,7 @@ restore. Forced migration interruption remains tracked in
   every supported metadata provider, scan both complete read-only target
   libraries in the same profile, and verify independent ebook and audiobook
   tracking. Check provider bibliography coverage, rendered artwork, unmapped
-  reasons, and authenticated behaviour after restart.
+  reasons, and authenticated behavior after restart.
 - The next promotion follows `develop -> staging` through a pull request.
   Validate installation, metadata, full-library matching, and release evidence
   on the consolidated revision.
