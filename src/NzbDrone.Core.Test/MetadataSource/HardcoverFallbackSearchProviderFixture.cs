@@ -66,6 +66,105 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Should().Be(expected ? "Fixture" : null);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_search_series_in_one_bounded_request(bool stringifiedResults)
+        {
+            var payload = JObject.Parse("""
+                {"data":{"search":{"ids":[10,11,12,13,999],"results":{"hits":[
+                    {"document":{"id":"10","name":" Fixture Series ","slug":"fixture-series","description":"Unspecified field","books":["30"]}},
+                    {"document":{"id":10,"name":"Duplicate series","slug":"duplicate"}},
+                    {"document":{"id":11,"name":"Other Series","slug":"https://example.invalid/series"}},
+                    {"document":{"id":12,"name":"  "}},
+                    {"document":{"id":"book-13","name":"Invalid ID"}},
+                    {"document":{"id":0,"name":"Invalid ID"}},
+                    {"document":{"name":"Missing ID"}},
+                    {"document":{"id":1.5,"name":"Invalid ID"}},
+                    {"document":{"id":{"value":14},"name":"Invalid ID"}},
+                    {"document":{"id":15,"title":"Wrong field"}},
+                    {"document":{"id":16,"name":["Wrong type"]}},
+                    {"document":false},
+                    false
+                ]}}}}
+                """);
+            var search = payload.SelectToken("data.search");
+            var results = search["results"];
+            var hits = (JArray)results["hits"];
+            for (var index = hits.Count; index < 20; index++)
+            {
+                hits.Add(new JObject());
+            }
+
+            hits.Add(JObject.Parse("""{"document":{"id":100,"name":"Outside requested page bound"}}"""));
+            if (stringifiedResults)
+            {
+                search["results"] = results.ToString(Newtonsoft.Json.Formatting.None);
+            }
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.HardcoverRequestTimeoutSeconds)
+                .Returns(9);
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                request.Method.Should().Be(HttpMethod.Post);
+                request.RateLimitKey.Should().Be("Hardcover");
+                request.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
+                request.RequestTimeout.Should().Be(TimeSpan.FromSeconds(9));
+                var requestBody = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                requestBody.Value<string>("query").Should().Contain("query_type: \"series\"");
+                requestBody.Value<string>("query").Should().NotContain("series_by_pk");
+                requestBody.Value<string>("query").Should().Contain("page: 1");
+                requestBody.SelectToken("variables.query").Value<string>().Should().Be("Fixture Series");
+                requestBody.SelectToken("variables.perPage").Value<int>().Should().Be(20);
+
+                return new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+            });
+
+            var series = ((ISearchForNewSeries)Subject).SearchForNewSeries(" Fixture Series ");
+
+            series.Select(result => result.ForeignSeriesId).Should().Equal("hardcover:series:10", "hardcover:series:11");
+            series[0].Title.Should().Be("Fixture Series");
+            series[0].Slug.Should().Be("fixture-series");
+            series[1].Title.Should().Be("Other Series");
+            series[1].Slug.Should().BeNull();
+            client.Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("", true)]
+        [TestCase(" ", true)]
+        [TestCase("Fixture Series", false)]
+        public void should_skip_series_request_for_blank_input_or_disabled_provider(string title, bool enabled)
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.EnableHardcoverFallback)
+                .Returns(enabled);
+
+            Subject.SearchForNewSeries(title).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
+        [TestCase("""{"errors":[{"message":"Unsupported search type"}]}""", 1)]
+        [TestCase("""{"data":{"search":{"error":"Search unavailable","results":{"hits":[{"document":{"id":10,"name":"Fixture"}}]}}}}""", 0)]
+        [TestCase("""{"data":{"search":{"results":"invalid json"}}}""", 1)]
+        [TestCase("""{"data":{"search":{"ids":[10,11],"results":[]}}}""", 0)]
+        public void should_return_no_series_when_search_payload_is_unusable(string payload, int expectedWarnings)
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            Subject.SearchForNewSeries("Fixture").Should().BeNull();
+
+            ExceptionVerification.ExpectedWarns(expectedWarnings);
+            client.Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
         [Test]
         public void should_preserve_timestamp_offset_in_stringified_search_results()
         {

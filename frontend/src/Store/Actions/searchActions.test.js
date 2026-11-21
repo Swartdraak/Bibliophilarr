@@ -115,6 +115,23 @@ describe('Add New search request lifetime', () => {
     expect(state).toMatchObject({ items: [], error, isFetching: false, isPopulated: false });
   });
 
+  test('replaces a pending author query when the same term switches to series', () => {
+    const latest = mockSearchRequest();
+    dispatch(getSearchResults({ term: 'Fixture', scope: 'author' }));
+    jest.advanceTimersByTime(400);
+    dispatch(getSearchResults({ term: ' Fixture ', scope: 'series' }));
+    jest.advanceTimersByTime(600);
+
+    expect(createAjaxRequest).toHaveBeenCalledTimes(1);
+    expect(createAjaxRequest).toHaveBeenCalledWith({
+      url: '/search',
+      data: { term: 'Fixture', scope: 'series' }
+    });
+    const results = [{ id: 1, series: { title: 'Fixture' } }];
+    latest.resolve(results);
+    expect(state.items).toEqual(results);
+  });
+
   test('invalidates a request before abort can synchronously report failure', () => {
     const previous = mockSearchRequest();
     mockSearchRequest();

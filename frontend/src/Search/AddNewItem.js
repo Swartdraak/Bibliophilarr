@@ -24,7 +24,8 @@ class AddNewItem extends Component {
     super(props, context);
 
     this.state = {
-      term: props.term || ''
+      term: props.term || '',
+      scope: 'all'
     };
   }
 
@@ -32,7 +33,7 @@ class AddNewItem extends Component {
     const term = this.state.term;
 
     if (term) {
-      this.props.onSearchChange(term);
+      this.props.onSearchChange(term, this.state.scope);
     }
   }
 
@@ -40,7 +41,7 @@ class AddNewItem extends Component {
     if (this.props.term !== prevProps.term) {
       const term = this.props.term || '';
       this.setState({ term });
-      this.props.onSearchChange(term);
+      this.props.onSearchChange(term, this.state.scope);
     }
   }
 
@@ -51,10 +52,16 @@ class AddNewItem extends Component {
     this.setState({ term: value });
 
     if (value.trim()) {
-      this.props.onSearchChange(value);
+      this.props.onSearchChange(value, this.state.scope);
     } else {
       this.props.onClearSearch();
     }
+  };
+
+  onSearchScopeChange = (event) => {
+    const scope = event.target.value;
+    this.setState({ scope });
+    this.props.onSearchChange(this.state.term, scope);
   };
 
   onClearSearchPress = () => {
@@ -73,11 +80,20 @@ class AddNewItem extends Component {
       hasExistingAuthors
     } = this.props;
 
-    const term = this.state.term;
+    const { scope, term } = this.state;
 
     return (
       <PageContent title={translate('AddNewItem')}>
         <PageContentBody>
+          <label className={styles.searchScope}>
+            {translate('SearchScope')}
+            <select value={scope} onChange={this.onSearchScopeChange}>
+              <option value="all">{translate('SearchAuthorsAndBooks')}</option>
+              <option value="author">{translate('Authors')}</option>
+              <option value="book">{translate('Books')}</option>
+              <option value="series">{translate('Series')}</option>
+            </select>
+          </label>
           <div className={styles.searchContainer}>
             <div className={styles.searchIconContainer}>
               <Icon
@@ -90,13 +106,14 @@ class AddNewItem extends Component {
               className={styles.searchInput}
               name="searchBox"
               value={term}
-              placeholder={translate('SearchBoxPlaceHolder')}
+              placeholder={translate(scope === 'series' ? 'SearchSeriesByName' : 'SearchBoxPlaceHolder')}
               autoFocus={true}
               onChange={this.onSearchInputChange}
             />
 
             <Button
               className={styles.clearLookupButton}
+              aria-label={translate('Clear')}
               onPress={this.onClearSearchPress}
             >
               <Icon
@@ -105,6 +122,7 @@ class AddNewItem extends Component {
               />
             </Button>
           </div>
+          {scope === 'series' && <p>{translate('SeriesDiscoveryHelp')}</p>}
 
           {
             isFetching &&
@@ -134,8 +152,8 @@ class AddNewItem extends Component {
                 {
                   [...items].sort((a, b) => {
                     const termLower = term.toLowerCase();
-                    const nameA = (a.author?.authorName || a.book?.title || '').toLowerCase();
-                    const nameB = (b.author?.authorName || b.book?.title || '').toLowerCase();
+                    const nameA = (a.author?.authorName || a.book?.title || a.series?.title || '').toLowerCase();
+                    const nameB = (b.author?.authorName || b.book?.title || b.series?.title || '').toLowerCase();
                     const exactA = nameA === termLower ? 0 : 1;
                     const exactB = nameB === termLower ? 0 : 1;
 
@@ -173,6 +191,24 @@ class AddNewItem extends Component {
                         />
                       );
                     }
+
+                    if (item.series) {
+                      const { slug, title } = item.series;
+                      return (
+                        <h3 key={item.id}>
+                          {slug ?
+                            <a
+                              href={`https://hardcover.app/series/${encodeURIComponent(slug)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {title}
+                            </a> :
+                            title}
+                        </h3>
+                      );
+                    }
+
                     return null;
                   })
                 }
@@ -180,16 +216,18 @@ class AddNewItem extends Component {
           }
 
           {
-            !isFetching && !error && !items.length && !!term &&
+            !isFetching && !error && !items.length && term.trim().length >= 3 &&
               <div className={styles.message}>
                 <div className={styles.noResults}>
                   {translate('CouldntFindAnyResultsForTerm', [term])}
                 </div>
-                <div>
-                  You can also search using the
-                  <Link to="/settings/metadata"> external ID </Link>
-                  of a book (e.g. hardcover:work:the-shining), author (e.g. hardcover:author:Stephen%20King), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
-                </div>
+                {scope !== 'series' &&
+                  <div>
+                    You can also search using the
+                    <Link to="/settings/metadata"> external ID </Link>
+                    of a book (e.g. hardcover:work:the-shining), author (e.g. hardcover:author:Stephen%20King), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
+                  </div>
+                }
               </div>
           }
 

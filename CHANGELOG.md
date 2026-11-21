@@ -9,6 +9,9 @@ process.
 
 ### Added
 
+- Search Add New by author, book, or Hardcover series. Series results link to
+  the provider's series page.
+
 - Give authors, works and series stable Bibliophilarr URLs. The catalogue
   identity API exposes matched provider IDs. Existing author and book
   bookmarks continue to resolve.

@@ -117,7 +117,8 @@ export const actionHandlers = handleThunks({
       const { request, abortRequest } = createAjaxRequest({
         url: '/search',
         data: {
-          term: payload.term
+          term,
+          ...(payload.scope && payload.scope !== 'all' ? { scope: payload.scope } : {})
         }
       });
       search.cancel = abortRequest;

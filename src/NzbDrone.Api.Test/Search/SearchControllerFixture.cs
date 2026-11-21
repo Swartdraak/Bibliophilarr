@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Api.V1.Search;
 using FluentAssertions;
+using Microsoft.AspNetCore.Mvc;
 using Moq;
 using NLog;
 using NLog.Config;
@@ -80,6 +81,60 @@ namespace NzbDrone.Api.Test.Search
             snapshot.UnsupportedEntityTypes[typeof(Version).FullName].Should().Be(1);
             snapshot.Terms["anne"].Should().Be(1);
             _memoryTarget.Logs.Should().ContainSingle(log => log.Contains("unsupported search entity type") && log.Contains("anne"));
+        }
+
+        [Test]
+        public void should_issue_only_the_requested_search_and_keep_series_provider_identity()
+        {
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(search => search.SearchForNewSeries("Fixture"))
+                .Returns(new List<SeriesSearchSummary>
+                {
+                    new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:10", Title = "Fixture", Slug = "fixture" },
+                    new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:11", Title = "Fixture", Slug = "another-fixture" }
+                });
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+
+            var results = (List<SearchResource>)controller.Search(" Fixture ", "series");
+
+            results.Select(result => result.ForeignId).Should().Equal("hardcover:series:10", "hardcover:series:11");
+            results.Should().OnlyContain(result => result.Series.Title == "Fixture" && result.Book == null && result.Author == null);
+            proxy.Verify(search => search.SearchForNewSeries("Fixture"), Times.Once());
+            proxy.VerifyNoOtherCalls();
+        }
+
+        [TestCase("author")]
+        [TestCase("book")]
+        public void should_route_scoped_search_without_combined_fan_out(string scope)
+        {
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            if (scope == "author")
+            {
+                proxy.Setup(search => search.SearchForNewAuthor("Fixture")).Returns(new List<Author>());
+            }
+            else
+            {
+                proxy.Setup(search => search.SearchForNewBook("Fixture", null, false)).Returns(new List<Book>());
+            }
+
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+
+            ((List<SearchResource>)controller.Search("Fixture", scope)).Should().BeEmpty();
+            proxy.Invocations.Should().ContainSingle();
+        }
+
+        [Test]
+        public void should_distinguish_unavailable_series_from_successful_empty_results()
+        {
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(search => search.SearchForNewSeries("Unavailable")).Returns((List<SeriesSearchSummary>)null);
+            proxy.Setup(search => search.SearchForNewSeries("Empty")).Returns(new List<SeriesSearchSummary>());
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+
+            controller.Search("Unavailable", "series").Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(503);
+            ((List<SearchResource>)controller.Search("Empty", "series")).Should().BeEmpty();
+            controller.Search("Fixture", "unknown").Should().BeOfType<BadRequestObjectResult>();
+            ((List<SearchResource>)controller.Search("ab", "series")).Should().BeEmpty();
         }
 
         // ── Issue #248 regression: null-safe mapping of search results ──────────

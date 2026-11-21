@@ -9,6 +9,7 @@ interface CssExports {
   'searchIconContainer': string;
   'searchInput': string;
   'searchResults': string;
+  'searchScope': string;
 }
 export const cssExports: CssExports;
 export default cssExports;

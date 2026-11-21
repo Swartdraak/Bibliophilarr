@@ -46,8 +46,8 @@ class AddNewItemConnector extends Component {
   //
   // Listeners
 
-  onSearchChange = (term) => {
-    this.props.getSearchResults({ term });
+  onSearchChange = (term, scope) => {
+    this.props.getSearchResults({ term, scope });
   };
 
   onClearSearch = () => {

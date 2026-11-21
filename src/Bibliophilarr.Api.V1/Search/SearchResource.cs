@@ -1,6 +1,7 @@
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http.REST;
+using NzbDrone.Core.MetadataSource;
 
 namespace Bibliophilarr.Api.V1.Search
 {
@@ -9,5 +10,6 @@ namespace Bibliophilarr.Api.V1.Search
         public string ForeignId { get; set; }
         public AuthorResource Author { get; set; }
         public BookResource Book { get; set; }
+        public SeriesSearchSummary Series { get; set; }
     }
 }

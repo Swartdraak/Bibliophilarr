@@ -7612,11 +7612,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "Defaults to combined author and book search. Series search returns provider summaries without provisioning catalogue records.",
+            "schema": {
+              "type": "string",
+              "enum": ["all", "author", "book", "series"]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "The matching search results, or an empty list if no matches were found."
+          },
+          "400": {
+            "description": "The supplied search scope was invalid."
+          },
+          "503": {
+            "description": "Series search could not be completed with the configured provider."
           }
         }
       }

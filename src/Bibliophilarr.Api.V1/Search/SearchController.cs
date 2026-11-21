@@ -3,6 +3,8 @@ using System.Linq;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.ErrorManagement;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Common.Instrumentation;
@@ -31,14 +33,35 @@ namespace Bibliophilarr.Api.V1.Search
         }
 
         [HttpGet]
-        public object Search([FromQuery] string term)
+        public object Search([FromQuery] string term, [FromQuery] string scope = null)
         {
+            if (scope is not null and not "" and not "all" and not "author" and not "book" and not "series")
+            {
+                return BadRequest(new ErrorModel { Message = "Choose a valid metadata search scope." });
+            }
+
             if (string.IsNullOrWhiteSpace(term) || term.Trim().Length < 3)
             {
                 return new List<SearchResource>();
             }
 
-            var searchResults = _searchProxy.SearchForNewEntity(term);
+            term = term.Trim();
+            var searchResults = scope switch
+            {
+                "author" => _searchProxy.SearchForNewAuthor(term)?.Cast<object>(),
+                "book" => _searchProxy.SearchForNewBook(term, null, false)?.Cast<object>(),
+                "series" => _searchProxy.SearchForNewSeries(term)?.Cast<object>(),
+                _ => _searchProxy.SearchForNewEntity(term)
+            };
+
+            if (scope == "series" && searchResults == null)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorModel
+                {
+                    Message = "Series search is unavailable. Check the Hardcover settings or try again later."
+                });
+            }
+
             return MapToResource(searchResults, term).ToList();
         }
 
@@ -103,6 +126,11 @@ namespace Bibliophilarr.Api.V1.Search
                     {
                         resource.Book.Author.Folder = _fileNameBuilder.GetAuthorFolder(bookAuthor);
                     }
+                }
+                else if (result is SeriesSearchSummary series)
+                {
+                    resource.Series = series;
+                    resource.ForeignId = series.ForeignSeriesId;
                 }
                 else
                 {

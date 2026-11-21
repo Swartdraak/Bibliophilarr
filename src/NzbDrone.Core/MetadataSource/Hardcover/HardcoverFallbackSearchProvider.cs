@@ -34,6 +34,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         IVerifyAuthorWork,
         ISearchForNewBook,
         ISearchForNewAuthor,
+        ISearchForNewSeries,
         ISearchForNewEntity
     {
         internal const string ProviderEditionIdPrefix = "hardcover:source-edition:";
@@ -850,6 +851,108 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             return output;
         }
 
+        public List<SeriesSearchSummary> SearchForNewSeries(string title)
+        {
+            if (title.IsNullOrWhiteSpace() || !_configService.EnableHardcoverFallback ||
+                !TryResolveToken(out var token, out _) || IsDeterministicErrorCooldownActive(out _))
+            {
+                return null;
+            }
+
+            var queryText = title.Trim();
+            var request = CreateSearchRequest(token, new
+            {
+                query = """
+                    query SearchSeries($query: String!, $perPage: Int!) {
+                        search(query: $query, query_type: "series", per_page: $perPage, page: 1) {
+                            error
+                            results
+                        }
+                    }
+                    """,
+                variables = new { query = queryText, perPage = SearchPageSize }
+            }.ToJson());
+
+            var response = _httpClient.Post<HardcoverGraphQlResponse>(request);
+            if (!ValidateGraphQlResponse(response?.Resource, queryText))
+            {
+                return null;
+            }
+
+            var payload = response.Resource.Data.Search;
+            if (payload?.Error.IsNotNullOrWhiteSpace() == true)
+            {
+                _logger.Debug("Hardcover series search returned provider error for query '{0}': {1}", queryText, payload.Error);
+                if (IsDeterministicSearchError(payload.Error))
+                {
+                    RegisterDeterministicSearchError(payload.Error);
+                }
+
+                return null;
+            }
+
+            if (GetSearchResultsToken(payload) is not JObject results || results["hits"] is not JArray hits)
+            {
+                return null;
+            }
+
+            ResetDeterministicSearchErrorState();
+
+            return hits.Take(SearchPageSize)
+                .OfType<JObject>()
+                .Select(hit => hit["document"])
+                .OfType<JObject>()
+                .Select(MapSeriesSearchSummary)
+                .Where(series => series != null)
+                .DistinctBy(series => series.ForeignSeriesId)
+                .ToList();
+        }
+
+        private static SeriesSearchSummary MapSeriesSearchSummary(JObject document)
+        {
+            var idToken = document["id"];
+            var name = document["name"]?.Type == JTokenType.String ? document.Value<string>("name")?.Trim() : null;
+            if (name.IsNullOrWhiteSpace() ||
+                idToken?.Type is not JTokenType.Integer and not JTokenType.String ||
+                !int.TryParse(idToken.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
+            {
+                return null;
+            }
+
+            var slug = document["slug"]?.Type == JTokenType.String ? document.Value<string>("slug")?.Trim() : null;
+            if (slug.IsNotNullOrWhiteSpace() &&
+                (!char.IsAsciiLetterOrDigit(slug[0]) || !slug.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_')))
+            {
+                slug = null;
+            }
+
+            return new SeriesSearchSummary
+            {
+                ForeignSeriesId = $"hardcover:series:{id.ToString(CultureInfo.InvariantCulture)}",
+                Title = name,
+                Slug = slug.IsNotNullOrWhiteSpace() ? slug : null
+            };
+        }
+
+        private HttpRequest CreateSearchRequest(string token, string content)
+        {
+            var request = new HttpRequest(Endpoint, HttpAccept.Json)
+            {
+                Method = HttpMethod.Post,
+                RateLimit = TimeSpan.FromSeconds(1),
+                RateLimitKey = ProviderName
+            };
+
+            var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
+            var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
+            request.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
+
+            request.Headers.ContentType = "application/json; charset=utf-8";
+            request.Headers["authorization"] = $"Bearer {token}";
+            request.SetContent(content);
+            return request;
+        }
+
         private List<Book> SearchBooks(string queryText, int perPage)
         {
             if (!_configService.EnableHardcoverFallback)
@@ -872,20 +975,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             _logger.Trace("Hardcover search request: query='{0}', perPage={1}, tokenSource={2}", queryText, perPage, tokenSource);
 
-            var request = new HttpRequest(Endpoint, HttpAccept.Json)
-            {
-                Method = HttpMethod.Post,
-                RateLimit = TimeSpan.FromSeconds(1),
-                RateLimitKey = ProviderName
-            };
-
-            var configuredTimeout = _configService.HardcoverRequestTimeoutSeconds;
-            var fallbackTimeout = Math.Max(5, _configService.MetadataProviderTimeoutSeconds);
-            request.RequestTimeout = TimeSpan.FromSeconds(configuredTimeout > 0 ? configuredTimeout : fallbackTimeout);
-
-            request.Headers.ContentType = "application/json; charset=utf-8";
-            request.Headers["authorization"] = $"Bearer {token}";
-            request.SetContent(new
+            var request = CreateSearchRequest(token, new
             {
                 query = "query SearchBooks($query: String!, $perPage: Int!, $page: Int!) { search(query: $query, query_type: \"Book\", per_page: $perPage, page: $page) { error ids results } }",
                 variables = new
@@ -1964,43 +2054,38 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         private List<HardcoverSearchResult> ParseSearchResults(HardcoverSearchPayload payload)
         {
-            if (payload?.Results == null)
-            {
-                return new List<HardcoverSearchResult>();
-            }
-
-            JToken resultsToken;
-
-            if (payload.Results.Type == JTokenType.String)
-            {
-                var raw = payload.Results.ToObject<string>();
-                if (raw.IsNullOrWhiteSpace())
-                {
-                    return new List<HardcoverSearchResult>();
-                }
-
-                try
-                {
-                    resultsToken = (JToken)Json.Deserialize(raw, typeof(JToken));
-                }
-                catch (Exception ex)
-                {
-                    _logger.Warn(ex, "Hardcover returned an unparsable search result payload.");
-                    return new List<HardcoverSearchResult>();
-                }
-            }
-            else
-            {
-                resultsToken = payload.Results;
-            }
-
-            var parsed = resultsToken?.ToObject<HardcoverSearchResults>();
+            var parsed = GetSearchResultsToken(payload)?.ToObject<HardcoverSearchResults>();
             var hits = parsed?.Hits ?? new List<HardcoverSearchHit>();
 
             return hits
                 .Select(x => x?.Document)
                 .Where(x => x != null)
                 .ToList();
+        }
+
+        private JToken GetSearchResultsToken(HardcoverSearchPayload payload)
+        {
+            var results = payload?.Results;
+            if (results?.Type != JTokenType.String)
+            {
+                return results;
+            }
+
+            var raw = results.ToObject<string>();
+            if (raw.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            try
+            {
+                return (JToken)Json.Deserialize(raw, typeof(JToken));
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Hardcover returned an unparsable search result payload.");
+                return null;
+            }
         }
 
         private bool ValidateGraphQlResponse(HardcoverGraphQlResponse response, string queryText)

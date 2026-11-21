@@ -174,6 +174,15 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.SupportsAuthorSearch || p.SupportsBookSearch);
         }
 
+        public List<SeriesSearchSummary> SearchForNewSeries(string title)
+        {
+            // An empty response is a successful series search with no matches.
+            return ExecuteFirst<ISearchForNewSeries, List<SeriesSearchSummary>>(
+                provider => provider.SearchForNewSeries(title),
+                "search-for-new-series",
+                provider => provider.SupportsSeriesInfo);
+        }
+
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
         {
             var result = ExecuteFirst<IProvideBookInfo, Tuple<string, Book, List<AuthorMetadata>>>(

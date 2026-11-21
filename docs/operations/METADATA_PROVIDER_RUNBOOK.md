@@ -117,6 +117,13 @@ Use this checklist after metadata-provider config changes or incident recovery:
 
 ## Series metadata validation
 
+In **Add New**, choose **Series** to search Hardcover by series name. This
+scope sends one bounded search query and returns up to 20 provider summaries.
+Open a matching title to review its provider page. A successful empty response
+shows no matches. An unavailable response gives retry guidance. The default
+**Authors and books** scope continues to use the combined lookup. [Hardcover
+search operation](https://github.com/hardcoverapp/hardcover-sdk/blob/9e5b90f3e76ed16ff00973c2088fbe0917a86be6/shared/operations/queries/search.graphql)
+
 Open Library can provide series information through search-document fields. Bibliophilarr maps these fields into
 book series links and author series during refresh.
 
