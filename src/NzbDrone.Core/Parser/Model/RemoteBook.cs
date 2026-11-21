@@ -38,11 +38,19 @@ namespace NzbDrone.Core.Parser.Model
 
         public bool MatchesKnownFormat(FormatType format)
         {
-            var quality = ParsedBookInfo?.Quality?.Quality;
-            return quality != null &&
-                   quality != Quality.Unknown &&
-                   Quality.GetFormatType(quality) == format &&
-                   (ResolvedFormatType == null || ResolvedFormatType == format);
+            return GetKnownFormat() == format;
+        }
+
+        public FormatType? GetKnownFormat(Quality fallbackQuality = null)
+        {
+            var quality = ParsedBookInfo?.Quality?.Quality ?? fallbackQuality;
+            if (quality == null || quality == Quality.Unknown)
+            {
+                return null;
+            }
+
+            var format = Quality.GetFormatType(quality);
+            return ResolvedFormatType == null || ResolvedFormatType == format ? format : null;
         }
 
         public override string ToString()
