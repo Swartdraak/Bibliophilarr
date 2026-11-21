@@ -226,7 +226,7 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~CandidateServiceIssue340Fixture|FullyQualifiedName~ManualImportServiceExecute|FullyQualifiedName~BookSearchServiceMissingFormatFixture|FullyQualifiedName~ScopedCutoffRepositoryFixture|FullyQualifiedName~QueueSpecificationFixture'
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~CandidateServiceIssue340Fixture|FullyQualifiedName~ManualImportServiceExecute|FullyQualifiedName~BookSearchServiceMissingFormatFixture|FullyQualifiedName~ScopedCutoffRepositoryFixture|FullyQualifiedName~QueueSpecificationFixture|FullyQualifiedName~AudioTagPayloadFixture'
 
       - name: Verify stored command results
         run: >-
