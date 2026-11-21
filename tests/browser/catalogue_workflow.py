@@ -1,5 +1,6 @@
 """Catalogue checks for the disposable production browser smoke app."""
 
+from contextlib import closing
 from dataclasses import dataclass
 from hashlib import sha256
 import os
@@ -30,6 +31,7 @@ class CatalogueState:
     title: str
     title_slug: str
     file_id: int
+    edition_id: int
     path: Path
     digest: str
 
@@ -284,7 +286,15 @@ def files_for_book(api, book_id):
     return response.json()
 
 
-def import_fixture(api, work, root, book, author):
+def verify_file_edition(app_data, file_id, edition_id):
+    database = (app_data / "bibliophilarr.db").as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(database, uri=True)) as db:
+        row = db.execute("SELECT EditionId FROM BookFiles WHERE Id = ?", (file_id,)).fetchone()
+    assert row is not None, f"file {file_id} is missing from SQLite"
+    assert row[0] == edition_id, f"file {file_id} links to edition {row[0]}, expected {edition_id}"
+
+
+def import_fixture(api, work, app_data, root, book, author):
     inbox = work / "catalogue-inbox"
     inbox.mkdir()
     edition = next((item for item in book["editions"] if item.get("isEbook")), book["editions"][0])
@@ -298,13 +308,29 @@ def import_fixture(api, work, root, book, author):
     }, timeout=90000), 200, "scan_fixture_epub")
     item = next(row for row in results if Path(row["path"]) == source)
     assert item["formatType"] == "ebook"
+    assert item["book"]["id"] == book["id"]
+    assert item["foreignEditionId"] == edition["foreignEditionId"]
+
+    unresolved = checked(api.post("/api/v1/manualimport", data=[{
+        "id": item["id"], "path": str(source), "name": item["name"],
+    }]), 400, "reject_unresolved_manual_import")
+    rejection, = unresolved
+    assert rejection["path"] == str(source) and rejection["rejections"]
+    assert not files_for_book(api, book["id"])
+
+    selection = {
+        "id": item["id"], "path": str(source), "name": item["name"],
+        "authorId": book["authorId"], "bookId": book["id"],
+        "foreignEditionId": item["foreignEditionId"], "quality": item["quality"],
+        "indexerFlags": 0, "replaceExistingFiles": False,
+    }
+    updated, = checked(api.post("/api/v1/manualimport", data=[selection], timeout=90000),
+                       202, "validate_manual_import_selection")
+    assert updated["path"] == str(source) and updated["book"]["id"] == book["id"]
+    assert updated["foreignEditionId"] == edition["foreignEditionId"] and not updated["rejections"]
     cmd = checked(api.post("/api/v1/command", data={
         "name": "ManualImport",
-        "files": [{
-            "path": str(source), "authorId": book["authorId"], "bookId": book["id"],
-            "foreignEditionId": edition["foreignEditionId"], "quality": item["quality"],
-            "indexerFlags": 0,
-        }],
+        "files": [selection],
         "importMode": "copy",
         "replaceExistingFiles": False,
     }), 201, "queue_epub_import")
@@ -322,13 +348,14 @@ def import_fixture(api, work, root, book, author):
 
     tracked, = files_for_book(api, book["id"])
     target = Path(tracked["path"])
+    verify_file_edition(app_data, tracked["id"], edition["id"])
     assert tracked["id"] > 0 and target.is_file() and target.is_relative_to(Path(root["path"]))
     assert target.suffix == ".epub" and source.is_file()
     with ZipFile(target) as archive:
         assert archive.testzip() is None
     print("import: PASS (command completed, EPUB and tracking record verified)", flush=True)
     return CatalogueState(
-        book["id"], book["foreignBookId"], book["title"], book["titleSlug"], tracked["id"],
+        book["id"], book["foreignBookId"], book["title"], book["titleSlug"], tracked["id"], edition["id"],
         target, sha256(target.read_bytes()).hexdigest(),
     )
 
@@ -360,15 +387,16 @@ def exercise_catalogue(page, api, base, work, app_data, *, live_provider=False):
     print("negative_input: PASS (documented 400 and ForeignBookId validation)", flush=True)
     render_library_and_detail(page, base, book["title"], book["titleSlug"])
     print("library_detail: PASS (library row and detail rendered)", flush=True)
-    return import_fixture(api, work, root, readback, author)
+    return import_fixture(api, work, app_data, root, readback, author)
 
 
-def verify_catalogue_after_restart(page, api, base, state):
+def verify_catalogue_after_restart(page, api, base, app_data, state):
     """Run after the existing smoke harness SIGTERMs and restarts the app on the same port."""
     book = checked(api.get(f"/api/v1/book/{state.book_id}"), 200, "read_restarted_catalogue")
     assert book["foreignBookId"] == state.foreign_book_id and book["titleSlug"] == state.title_slug
     tracked, = files_for_book(api, state.book_id)
     assert tracked["id"] == state.file_id and Path(tracked["path"]) == state.path
+    verify_file_edition(app_data, state.file_id, state.edition_id)
     assert sha256(state.path.read_bytes()).hexdigest() == state.digest
     render_library_and_detail(page, base, state.title, state.title_slug)
     print("persistence_after_restart: PASS (identity, imported file, content and browser detail)", flush=True)
