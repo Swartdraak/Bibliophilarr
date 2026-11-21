@@ -387,7 +387,7 @@ const wikiPages = [
           'To set up Prowlarr integration:'
         ],
         list: [
-          'In Prowlarr, go to Settings → Apps → Add and choose the legacy Readarr connector for Bibliophilarr.',
+          'In Prowlarr, open Settings → Apps → Add and select Readarr, the name Prowlarr uses for this connector.',
           'Enter your Bibliophilarr API URL and API key.',
           'Prowlarr will automatically push indexer configurations to Bibliophilarr.',
           'Prowlarr also provides unified search history across all your *arr applications.'
@@ -1222,8 +1222,7 @@ const wikiPages = [
       {
         heading: 'Can I monitor both ebook and audiobook for the same book?',
         paragraphs: [
-          'Yes. Bibliophilarr is the only *arr application that supports this natively. With Dual Format Tracking enabled (the default since v1.1.0-dev.27), each book can have independent ebook and audiobook monitoring with separate quality profiles.',
-          'In the original Readarr, this required running two separate instances. Bibliophilarr eliminates that complexity.'
+          'Yes. With Dual Format Tracking enabled, each book can have independent ebook and audiobook monitoring with separate quality profiles.'
         ]
       },
       {
