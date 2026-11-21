@@ -332,11 +332,11 @@ def check_metadata_settings(page, base, api):
     metadata_link.click()
     expect(page).to_have_url(base + "/settings/metadata")
 
-    inventaire = main.get_by_role("checkbox", name="Enable Inventaire", exact=True)
+    inventaire = main.get_by_role("checkbox", name=re.compile(r"^Enable Inventaire(?:\s|$)"))
     expect(inventaire).to_have_count(1)
     expect(inventaire).to_have_attribute("name", "enableInventaireFallback")
     expect(inventaire).to_be_checked()
-    expect(main.get_by_role("checkbox", name="Enable Fallback Searches", exact=True)).to_have_count(0)
+    expect(main.get_by_role("checkbox", name=re.compile(r"^Enable Fallback Searches(?:\s|$)"))).to_have_count(0)
     expect(main.locator('input[name="enableInventaireProvider"]')).to_have_count(0)
     inventaire.press("Space")
     expect(inventaire).not_to_be_checked()
