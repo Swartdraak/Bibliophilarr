@@ -82,6 +82,22 @@ namespace NzbDrone.Core.Books
                     });
                 }
 
+                var profileErrors = new List<ValidationFailure>();
+                if (author.QualityProfileId <= 0)
+                {
+                    profileErrors.Add(new ValidationFailure("Author.QualityProfileId", "A quality profile is required to add a new author"));
+                }
+
+                if (author.MetadataProfileId <= 0)
+                {
+                    profileErrors.Add(new ValidationFailure("Author.MetadataProfileId", "A metadata profile is required to add a new author"));
+                }
+
+                if (profileErrors.Count > 0)
+                {
+                    throw new ValidationException(profileErrors);
+                }
+
                 // The work lookup already returned this author. The BookAdded
                 // handler can hydrate their bibliography after the book is saved.
                 dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, book.AuthorMetadata.Value, false);

@@ -14,6 +14,7 @@ process.
 
 ### Fixed
 
+- Reject missing profile IDs before saving a new author through Add Book.
 - Label the backup upload field and show restore errors in the dialog. Choosing
   another file clears the previous error.
 - Provider telemetry distinguishes failed Open Library text searches from
