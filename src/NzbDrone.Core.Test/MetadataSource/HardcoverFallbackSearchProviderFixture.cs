@@ -166,6 +166,119 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_get_one_bounded_page_of_active_series_books_in_provider_order()
+        {
+            var payload = JObject.Parse("""
+                {"data":{"book_series":[
+                    {"series_id":1033,"book":{"id":22,"title":"First work","book_status_id":1,"release_year":1990,
+                        "cached_contributors":[{"author":{"id":9,"name":"Fixture Author"}}],
+                        "cached_image":{"url":"https://covers.example/first.jpg"}}},
+                    {"series_id":1033,"book":{"id":22,"title":"Duplicate","book_status_id":1}},
+                    {"series_id":4444,"book":{"id":31,"title":"Different series","book_status_id":1}},
+                    {"series_id":1033,"book":{"id":32,"title":"Inactive","book_status_id":2}},
+                    {"series_id":1033,"book":{"id":33,"title":"Unknown status"}},
+                    {"series_id":1033,"book":{"id":0,"title":"Invalid work","book_status_id":1}},
+                    {"series_id":1033,"book":{"id":34,"title":" ","book_status_id":1}},
+                    {"series_id":1033,"book":{"id":11,"title":"Second work","book_status_id":1}}
+                ]}}
+                """);
+            var entries = (JArray)payload.SelectToken("data.book_series");
+            while (entries.Count < 50)
+            {
+                entries.Add(new JObject());
+            }
+
+            entries.Add(JObject.Parse("""{"series_id":1033,"book":{"id":50,"title":"Outside the page","book_status_id":1}}"""));
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.MetadataProviderTimeoutSeconds).Returns(7);
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                request.Method.Should().Be(HttpMethod.Post);
+                request.RateLimitKey.Should().Be("Hardcover");
+                request.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
+                request.RequestTimeout.Should().Be(TimeSpan.FromSeconds(7));
+
+                var requestBody = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                var query = requestBody.Value<string>("query");
+                query.Should().Contain("series_id: { _eq: $seriesId }");
+                query.Should().Contain("book_status_id: { _eq: 1 }");
+                query.Should().Contain("order_by: [{ position: asc_nulls_last }, { book: { users_count: desc } }, { id: asc }]");
+                query.Should().NotContain("editions");
+                requestBody.SelectToken("variables.seriesId").Value<int>().Should().Be(1033);
+                requestBody.SelectToken("variables.limit").Value<int>().Should().Be(50);
+                requestBody.SelectToken("variables.offset").Value<int>().Should().Be(0);
+
+                return new HttpResponse<JObject>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+            });
+
+            var books = ((IProvideSeriesBooks)Subject).GetSeriesBooks("hardcover:series:1033");
+
+            books.Select(book => book.ForeignBookId).Should().Equal("hardcover:work:22", "hardcover:work:11");
+            books.Select(book => book.Title).Should().Equal("First work", "Second work");
+            books[0].AuthorMetadata.Value.ForeignAuthorId.Should().Be("hardcover:author:9");
+            var edition = books[0].Editions.Value.Should().ContainSingle().Which;
+            edition.Format.Should().Be(Edition.UnclassifiedFormat);
+            edition.Images.Should().ContainSingle().Which.SourceId.Should().Be("hardcover:work:22");
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase(null)]
+        [TestCase("1033")]
+        [TestCase("hardcover:work:1033")]
+        [TestCase("openlibrary:series:1033")]
+        [TestCase("hardcover:series:0")]
+        [TestCase("hardcover:series:+1033")]
+        [TestCase("hardcover:series:1033 ")]
+        [TestCase("hardcover:series:2147483648")]
+        public void should_skip_series_books_request_with_invalid_series_id(string foreignSeriesId)
+        {
+            Subject.GetSeriesBooks(foreignSeriesId).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
+        [TestCase("""{"data":{"book_series":[]}}""", true)]
+        [TestCase("""{"errors":[{"message":"Unavailable"}],"data":{"book_series":[]}}""", false)]
+        [TestCase("""{"data":{"book_series":null}}""", false)]
+        [TestCase("""{"data":{"book_series":[{"book":{"id":11,"title":"Unknown membership","book_status_id":1}}]}}""", false)]
+        public void should_distinguish_empty_series_page_from_unavailable_results(string payload, bool valid)
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<JObject>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            var books = Subject.GetSeriesBooks("hardcover:series:1033");
+
+            if (valid)
+            {
+                books.Should().BeEmpty();
+            }
+            else
+            {
+                books.Should().BeNull();
+            }
+
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_keep_series_books_unavailable_after_one_failed_request()
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Throws(new HttpRequestException("Fixture provider unavailable"));
+
+            Subject.GetSeriesBooks("hardcover:series:1033").Should().BeNull();
+
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [Test]
         public void should_preserve_timestamp_offset_in_stringified_search_results()
         {
             var payload = JObject.Parse(BuildBookInfoPayload());

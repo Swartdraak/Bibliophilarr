@@ -61,3 +61,11 @@
 
   margin-bottom: 10px;
 }
+
+.seriesResult {
+  margin-bottom: 16px;
+}
+
+.seriesResult a {
+  margin-inline-start: 12px;
+}

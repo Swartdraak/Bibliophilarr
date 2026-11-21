@@ -137,6 +137,26 @@ namespace NzbDrone.Api.Test.Search
             ((List<SearchResource>)controller.Search("ab", "series")).Should().BeEmpty();
         }
 
+        [Test]
+        public void should_return_addable_book_results_in_verified_series_order()
+        {
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(search => search.GetSeriesBooks("hardcover:series:24")).Returns(new List<Book>
+            {
+                new Book { Title = "Second alphabetically", ForeignBookId = "hardcover:work:8" },
+                new Book { Title = "First alphabetically", ForeignBookId = "hardcover:work:9" }
+            });
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+
+            var results = (List<SearchResource>)controller.Search("hardcover:series:24", "series-books");
+
+            results.Select(result => result.Book.ForeignBookId).Should().Equal("hardcover:work:8", "hardcover:work:9");
+            controller.Search("A series title", "series-books").Should().BeOfType<BadRequestObjectResult>();
+            controller.Search("hardcover:series:0", "series-books").Should().BeOfType<BadRequestObjectResult>();
+            proxy.Verify(search => search.GetSeriesBooks("hardcover:series:24"), Times.Once());
+            proxy.VerifyNoOtherCalls();
+        }
+
         // ── Issue #248 regression: null-safe mapping of search results ──────────
         //
         // The primary search endpoint GET /api/v1/search returned 500

@@ -31,6 +31,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         IMetadataProvider,
         IProvideBookInfo,
         IProvideAuthorInfo,
+        IProvideSeriesBooks,
         IVerifyAuthorWork,
         ISearchForNewBook,
         ISearchForNewAuthor,
@@ -40,6 +41,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         internal const string ProviderEditionIdPrefix = "hardcover:source-edition:";
 
         private const string HardcoverProviderName = "Hardcover";
+        private const string SeriesIdPrefix = "hardcover:series:";
         private const string EbookFormat = "Ebook";
         private const string AudiobookFormat = "Audiobook";
 
@@ -48,6 +50,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         // Hardcover API default page sizes — aligned with their typical result limits.
         private const int SearchPageSize = 20;
+        private const int SeriesBooksPageSize = 50;
         private const int AuthorPageSize = 40;
         private const int AuthorContributionsPageSize = 100;
         private const int OriginalBookMappingLimit = 21;
@@ -908,6 +911,85 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 .ToList();
         }
 
+        public List<Book> GetSeriesBooks(string foreignSeriesId)
+        {
+            if (foreignSeriesId?.StartsWith(SeriesIdPrefix, StringComparison.Ordinal) != true ||
+                !int.TryParse(foreignSeriesId.AsSpan(SeriesIdPrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var seriesId) ||
+                seriesId <= 0 ||
+                !TryResolveToken(out var token, out _) ||
+                IsDeterministicErrorCooldownActive(out _))
+            {
+                return null;
+            }
+
+            var request = CreateSearchRequest(token, new
+            {
+                query = """
+                    query GetSeriesBooks($seriesId: Int!, $limit: Int!, $offset: Int!) {
+                        book_series(
+                            where: { series_id: { _eq: $seriesId }, book: { book_status_id: { _eq: 1 } } }
+                            order_by: [{ position: asc_nulls_last }, { book: { users_count: desc } }, { id: asc }]
+                            limit: $limit
+                            offset: $offset
+                        ) {
+                            series_id
+                            book {
+                                id
+                                title
+                                slug
+                                release_year
+                                pages
+                                rating
+                                ratings_count
+                                cached_image
+                                cached_contributors
+                                book_status_id
+                            }
+                        }
+                    }
+                    """,
+                variables = new { seriesId, limit = SeriesBooksPageSize, offset = 0 }
+            }.ToJson());
+
+            try
+            {
+                var response = _httpClient.Post<JObject>(request)?.Resource;
+                if (response?["errors"]?.HasValues == true || response?.SelectToken("data.book_series") is not JArray entries)
+                {
+                    _logger.Debug("Hardcover series books response was unavailable for series ID {0}.", seriesId);
+                    return null;
+                }
+
+                var matchingSeries = new JValue(seriesId);
+                var activeStatus = new JValue(1);
+                var workIds = new HashSet<int>();
+                var books = new List<Book>();
+                foreach (var entry in entries.Take(SeriesBooksPageSize).OfType<JObject>())
+                {
+                    if (!JToken.DeepEquals(entry["series_id"], matchingSeries) ||
+                        entry["book"] is not JObject book ||
+                        !JToken.DeepEquals(book["book_status_id"], activeStatus) ||
+                        book["title"]?.Type != JTokenType.String ||
+                        book.Value<string>("title").IsNullOrWhiteSpace() ||
+                        book["id"]?.Type != JTokenType.Integer ||
+                        !int.TryParse(book["id"].ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var workId) ||
+                        workId <= 0 || !workIds.Add(workId))
+                    {
+                        continue;
+                    }
+
+                    books.Add(MapDirectBookResult(book));
+                }
+
+                return (entries.Count == 0 || books.Count > 0) ? books : null;
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Hardcover series books lookup failed for series ID {0}.", seriesId);
+                return null;
+            }
+        }
+
         private static SeriesSearchSummary MapSeriesSearchSummary(JObject document)
         {
             var idToken = document["id"];
@@ -928,7 +1010,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             return new SeriesSearchSummary
             {
-                ForeignSeriesId = $"hardcover:series:{id.ToString(CultureInfo.InvariantCulture)}",
+                ForeignSeriesId = $"{SeriesIdPrefix}{id.ToString(CultureInfo.InvariantCulture)}",
                 Title = name,
                 Slug = slug.IsNotNullOrWhiteSpace() ? slug : null
             };

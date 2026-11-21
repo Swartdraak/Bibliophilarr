@@ -7609,6 +7609,7 @@
           {
             "name": "term",
             "in": "query",
+            "description": "The title or name to search for. With series-books, supply the Hardcover series ID returned by series search.",
             "schema": {
               "type": "string"
             }
@@ -7616,10 +7617,10 @@
           {
             "name": "scope",
             "in": "query",
-            "description": "Defaults to combined author and book search. Series search returns provider summaries without provisioning catalogue records.",
+            "description": "Defaults to combined author and book search. Series search returns provider summaries. The series-books scope returns up to 50 ordered provider books.",
             "schema": {
               "type": "string",
-              "enum": ["all", "author", "book", "series"]
+              "enum": ["all", "author", "book", "series", "series-books"]
             }
           }
         ],
@@ -7628,10 +7629,10 @@
             "description": "The matching search results, or an empty list if no matches were found."
           },
           "400": {
-            "description": "The supplied search scope was invalid."
+            "description": "The supplied search scope or series ID was invalid."
           },
           "503": {
-            "description": "Series search could not be completed with the configured provider."
+            "description": "Series search or its book lookup could not be completed with the configured provider."
           }
         }
       }

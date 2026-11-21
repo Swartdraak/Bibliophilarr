@@ -25,7 +25,8 @@ class AddNewItem extends Component {
 
     this.state = {
       term: props.term || '',
-      scope: 'all'
+      scope: 'all',
+      selectedSeries: null
     };
   }
 
@@ -40,7 +41,7 @@ class AddNewItem extends Component {
   componentDidUpdate(prevProps) {
     if (this.props.term !== prevProps.term) {
       const term = this.props.term || '';
-      this.setState({ term });
+      this.setState({ term, selectedSeries: null });
       this.props.onSearchChange(term, this.state.scope);
     }
   }
@@ -49,7 +50,7 @@ class AddNewItem extends Component {
   // Listeners
 
   onSearchInputChange = ({ value }) => {
-    this.setState({ term: value });
+    this.setState({ term: value, selectedSeries: null });
 
     if (value.trim()) {
       this.props.onSearchChange(value, this.state.scope);
@@ -60,13 +61,23 @@ class AddNewItem extends Component {
 
   onSearchScopeChange = (event) => {
     const scope = event.target.value;
-    this.setState({ scope });
+    this.setState({ scope, selectedSeries: null });
     this.props.onSearchChange(this.state.term, scope);
   };
 
   onClearSearchPress = () => {
-    this.setState({ term: '' });
+    this.setState({ term: '', selectedSeries: null });
     this.props.onClearSearch();
+  };
+
+  onOpenSeries = (series) => {
+    this.setState({ selectedSeries: series });
+    this.props.onSearchChange(series.foreignSeriesId, 'series-books');
+  };
+
+  onBackToSeries = () => {
+    this.setState({ selectedSeries: null });
+    this.props.onSearchChange(this.state.term, 'series');
   };
 
   //
@@ -80,7 +91,7 @@ class AddNewItem extends Component {
       hasExistingAuthors
     } = this.props;
 
-    const { scope, term } = this.state;
+    const { scope, selectedSeries, term } = this.state;
 
     return (
       <PageContent title={translate('AddNewItem')}>
@@ -122,7 +133,14 @@ class AddNewItem extends Component {
               />
             </Button>
           </div>
-          {scope === 'series' && <p>{translate('SeriesDiscoveryHelp')}</p>}
+          {scope === 'series' && !selectedSeries && <p>{translate('SeriesDiscoveryHelp')}</p>}
+          {selectedSeries &&
+            <div>
+              <Button onPress={this.onBackToSeries}>{translate('BackToSeriesSearch')}</Button>
+              <h2>{translate('BooksInProviderSeries', [selectedSeries.title])}</h2>
+              <p>{translate('SeriesBookPreviewHelp')}</p>
+            </div>
+          }
 
           {
             isFetching &&
@@ -151,6 +169,10 @@ class AddNewItem extends Component {
               <div className={styles.searchResults}>
                 {
                   [...items].sort((a, b) => {
+                    if (selectedSeries) {
+                      return 0;
+                    }
+
                     const termLower = term.toLowerCase();
                     const nameA = (a.author?.authorName || a.book?.title || a.series?.title || '').toLowerCase();
                     const nameB = (b.author?.authorName || b.book?.title || b.series?.title || '').toLowerCase();
@@ -195,17 +217,24 @@ class AddNewItem extends Component {
                     if (item.series) {
                       const { slug, title } = item.series;
                       return (
-                        <h3 key={item.id}>
-                          {slug ?
+                        <div key={item.id} className={styles.seriesResult}>
+                          <h3>{title}</h3>
+                          <Button
+                            aria-label={translate('SeriesViewBooksFor', [title])}
+                            onPress={() => this.onOpenSeries(item.series)}
+                          >
+                            {translate('SeriesViewBooks')}
+                          </Button>
+                          {slug &&
                             <a
                               href={`https://hardcover.app/series/${encodeURIComponent(slug)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              {title}
-                            </a> :
-                            title}
-                        </h3>
+                              {translate('SeriesOpenHardcover')}
+                            </a>
+                          }
+                        </div>
                       );
                     }
 
@@ -219,7 +248,7 @@ class AddNewItem extends Component {
             !isFetching && !error && !items.length && term.trim().length >= 3 &&
               <div className={styles.message}>
                 <div className={styles.noResults}>
-                  {translate('CouldntFindAnyResultsForTerm', [term])}
+                  {selectedSeries ? translate('SeriesNoPreviewBooks') : translate('CouldntFindAnyResultsForTerm', [term])}
                 </div>
                 {scope !== 'series' &&
                   <div>

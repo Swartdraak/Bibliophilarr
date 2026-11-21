@@ -183,6 +183,15 @@ namespace NzbDrone.Core.MetadataSource
                 provider => provider.SupportsSeriesInfo);
         }
 
+        public List<Book> GetSeriesBooks(string foreignSeriesId)
+        {
+            return ExecuteFirst<IProvideSeriesBooks, List<Book>>(
+                provider => provider.GetSeriesBooks(foreignSeriesId),
+                "get-series-books",
+                provider => provider.SupportsSeriesInfo,
+                provider => IsProviderCompatibleWithIdScope(provider, foreignSeriesId));
+        }
+
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
         {
             var result = ExecuteFirst<IProvideBookInfo, Tuple<string, Book, List<AuthorMetadata>>>(

@@ -9,8 +9,8 @@ process.
 
 ### Added
 
-- Search Add New by author, book, or Hardcover series. Series results link to
-  the provider's series page.
+- Search Add New by author, book, or Hardcover series. Browse ordered series
+  books and choose one to add through the existing book workflow.
 
 - Give authors, works and series stable Bibliophilarr URLs. The catalogue
   identity API exposes matched provider IDs. Existing author and book

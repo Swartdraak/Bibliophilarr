@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
@@ -17,6 +19,7 @@ namespace Bibliophilarr.Api.V1.Search
     [V1ApiController]
     public class SearchController : Controller
     {
+        private const string HardcoverSeriesPrefix = "hardcover:series:";
         private static readonly Logger Logger = LogManager.GetLogger("Search");
 
         private readonly IMetadataProviderOrchestrator _searchProxy;
@@ -35,34 +38,49 @@ namespace Bibliophilarr.Api.V1.Search
         [HttpGet]
         public object Search([FromQuery] string term, [FromQuery] string scope = null)
         {
-            if (scope is not null and not "" and not "all" and not "author" and not "book" and not "series")
+            if (scope is not null and not "" and not "all" and not "author" and not "book" and not "series" and not "series-books")
             {
                 return BadRequest(new ErrorModel { Message = "Choose a valid metadata search scope." });
             }
 
-            if (string.IsNullOrWhiteSpace(term) || term.Trim().Length < 3)
+            term = term?.Trim();
+            if (scope == "series-books" && !IsHardcoverSeriesId(term))
+            {
+                return BadRequest(new ErrorModel { Message = "Choose a valid Hardcover series." });
+            }
+
+            if (string.IsNullOrEmpty(term) || term.Length < 3)
             {
                 return new List<SearchResource>();
             }
 
-            term = term.Trim();
             var searchResults = scope switch
             {
                 "author" => _searchProxy.SearchForNewAuthor(term)?.Cast<object>(),
                 "book" => _searchProxy.SearchForNewBook(term, null, false)?.Cast<object>(),
                 "series" => _searchProxy.SearchForNewSeries(term)?.Cast<object>(),
+                "series-books" => _searchProxy.GetSeriesBooks(term)?.Cast<object>(),
                 _ => _searchProxy.SearchForNewEntity(term)
             };
 
-            if (scope == "series" && searchResults == null)
+            if ((scope is "series" or "series-books") && searchResults == null)
             {
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorModel
                 {
-                    Message = "Series search is unavailable. Check the Hardcover settings or try again later."
+                    Message = scope == "series"
+                        ? "Series search is unavailable. Check the Hardcover settings or try again later."
+                        : "The books in this series could not be loaded. Check the Hardcover settings or try again later."
                 });
             }
 
             return MapToResource(searchResults, term).ToList();
+        }
+
+        private static bool IsHardcoverSeriesId(string term)
+        {
+            return term?.StartsWith(HardcoverSeriesPrefix, StringComparison.Ordinal) == true &&
+                   int.TryParse(term.AsSpan(HardcoverSeriesPrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var seriesId) &&
+                   seriesId > 0;
         }
 
         private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term)
