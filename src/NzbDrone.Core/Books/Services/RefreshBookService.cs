@@ -298,12 +298,6 @@ namespace NzbDrone.Core.Books
                 result = UpdateResult.None;
             }
 
-            // Force update and fetch covers if images have changed so that we can write them into tags
-            // if (remote.Images.Any() && !local.Images.SequenceEqual(remote.Images))
-            // {
-            //     _mediaCoverService.EnsureBookCovers(remote);
-            //     result = UpdateResult.UpdateTags;
-            // }
             local.UseMetadataFrom(remote);
 
             local.AuthorMetadataId = remote.AuthorMetadata.Value.Id;
@@ -553,7 +547,15 @@ namespace NzbDrone.Core.Books
                 return false;
             }
 
-            return RefreshBookInfo(book, data.Books, data, false);
+            var updated = RefreshBookInfo(book, data.Books, data, false);
+            var persisted = _bookService.FindById(book.ForeignBookId);
+
+            if (persisted?.Id == book.Id)
+            {
+                _mediaCoverService.EnsureBookCovers(persisted);
+            }
+
+            return updated;
         }
 
         public void Execute(BulkRefreshBookCommand message)

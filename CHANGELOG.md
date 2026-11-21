@@ -30,6 +30,7 @@ process.
 
 ### Fixed
 
+- Refresh a book's cached cover after saving its updated edition metadata.
 - Use a trusted embedded ASIN to select a unique same-work edition for an
   unmapped EPUB when an eligible local edition is available.
 - Keep task notification links clickable when resizing from desktop to

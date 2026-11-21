@@ -94,6 +94,7 @@ namespace NzbDrone.Core.Test.MusicTests
                 It.Is<List<Edition>>(editions => editions.Any(edition => edition.Id == priorAudio.Id)),
                 It.IsAny<List<Edition>>(),
                 It.IsAny<bool>()), Times.Once);
+            Mocker.GetMock<IMapCoversToLocal>().Verify(service => service.EnsureBookCovers(It.IsAny<Book>()), Times.Never);
         }
 
         [Test]
@@ -116,6 +117,41 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_cache_artwork_after_persisting_a_standalone_work_refresh()
+        {
+            var metadata = _book.AuthorMetadata.Value;
+            var author = new Author { Metadata = metadata };
+            _book.Author = author;
+            var edition = new Edition
+            {
+                ForeignEditionId = "openlibrary:edition:OL7M",
+                Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, "https://covers.example.invalid/7.jpg") }
+            };
+            var remote = new Book { ForeignBookId = _book.ForeignBookId, Title = _book.Title, Editions = new List<Edition> { edition } };
+            var stored = new Book { Id = _book.Id, ForeignBookId = _book.ForeignBookId, Editions = new List<Edition> { edition } };
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Setup(service => service.GetBookInfo(_book.ForeignBookId))
+                .Returns(Tuple.Create(metadata.ForeignAuthorId, remote, new List<AuthorMetadata> { metadata }));
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(metadata.ForeignAuthorId)).Returns(author);
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsForRefresh(_book.Id, It.IsAny<List<string>>())).Returns(new List<Edition>());
+            var editionSaved = false;
+            Mocker.GetMock<IEditionService>().Setup(service => service.InsertMany(It.Is<List<Edition>>(editions => editions.Single() == edition)))
+                .Callback(() => editionSaved = true);
+            var workSaved = false;
+            var books = Mocker.GetMock<IBookService>();
+            books.Setup(service => service.UpdateMany(It.Is<List<Book>>(works => works.Single() == _book)))
+                .Callback(() => workSaved = true);
+            books.Setup(service => service.FindById(_book.ForeignBookId)).Returns(() =>
+            {
+                (editionSaved && workSaved).Should().BeTrue();
+                return stored;
+            });
+
+            Subject.RefreshBookInfo(_book);
+
+            Mocker.GetMock<IMapCoversToLocal>().Verify(service => service.EnsureBookCovers(stored), Times.Once);
+        }
+
+        [Test]
         public void should_continue_a_bulk_book_refresh_when_one_provider_lookup_is_incomplete()
         {
             var next = new Book { Id = 8, ForeignBookId = "openlibrary:work:OL8W", Title = "Next work" };
@@ -131,6 +167,7 @@ namespace NzbDrone.Core.Test.MusicTests
 
             providers.Verify(service => service.GetBookInfo(next.ForeignBookId), Times.Once());
             Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Exactly(2));
+            Mocker.GetMock<IMapCoversToLocal>().Verify(service => service.EnsureBookCovers(It.IsAny<Book>()), Times.Never);
             ExceptionVerification.ExpectedWarns(2);
         }
 
