@@ -253,7 +253,7 @@ namespace NzbDrone.Core.Books
 
             local.UseMetadataFrom(remote);
             local.Metadata = remote.Metadata;
-            local.Series = remote.Series?.Value ?? new List<Series>();
+            ApplyRemoteSeries(local, remote);
             local.LastInfoSync = DateTime.UtcNow;
 
             try
@@ -267,6 +267,15 @@ namespace NzbDrone.Core.Books
             }
 
             return result;
+        }
+
+        private static void ApplyRemoteSeries(Author local, Author remote)
+        {
+            local.RemoteSeriesComplete = remote.RemoteSeriesComplete;
+            if (remote.RemoteSeriesComplete != false)
+            {
+                local.Series = remote.Series?.Value ?? new List<Series>();
+            }
         }
 
         protected override UpdateResult MoveEntity(Author local, Author remote)
@@ -296,6 +305,11 @@ namespace NzbDrone.Core.Books
         protected override UpdateResult MergeEntity(Author local, Author target, Author remote)
         {
             _logger.Warn($"Author {local} was replaced with {remote} because the original was a duplicate.");
+            target.RemoteSeriesComplete = remote.RemoteSeriesComplete;
+            if (remote.RemoteSeriesComplete == true)
+            {
+                ApplyRemoteSeries(target, remote);
+            }
 
             // Update list exclusion if one exists
             var importExclusionLocal = _importListExclusionService.FindByForeignId(local.Metadata.Value.ForeignAuthorId);
@@ -533,6 +547,11 @@ namespace NzbDrone.Core.Books
                 }
             }
 
+            if (local.RemoteSeriesComplete == false)
+            {
+                return canonical;
+            }
+
             foreach (var series in local.Series?.Value ?? new List<Series>())
             {
                 var links = series.LinkItems?.Value ?? new List<SeriesBookLink>();
@@ -636,15 +655,21 @@ namespace NzbDrone.Core.Books
 
         protected override void PublishRefreshCompleteEvent(Author entity)
         {
-            // NOTE: Trigger the series update here after author refresh completes.
-            var series = entity.Series;
-
-            if (series?.Value == null || !series.Value.Any())
+            // A verified empty response has no series to update. Legacy providers can still use book links.
+            if (entity.RemoteSeriesComplete != false)
             {
-                series = BuildSeriesFromBookLinks(entity);
+                var series = entity.Series;
+                if (entity.RemoteSeriesComplete == null && (series?.Value == null || !series.Value.Any()))
+                {
+                    series = BuildSeriesFromBookLinks(entity);
+                }
+
+                if (entity.RemoteSeriesComplete == null || series?.Value?.Count > 0)
+                {
+                    _refreshSeriesService.RefreshSeriesInfo(entity.AuthorMetadataId, series, entity, false, false, null);
+                }
             }
 
-            _refreshSeriesService.RefreshSeriesInfo(entity.AuthorMetadataId, series, entity, false, false, null);
             _eventAggregator.PublishEvent(new AuthorRefreshCompleteEvent(entity));
         }
 

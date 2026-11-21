@@ -126,6 +126,11 @@ response gives retry guidance. The default
 **Authors and books** scope continues to use the combined lookup. [Hardcover
 search operation](https://github.com/hardcoverapp/hardcover-sdk/blob/9e5b90f3e76ed16ff00973c2088fbe0917a86be6/shared/operations/queries/search.graphql)
 
+Hardcover author refresh continues with verified works if the optional series
+request fails. It preserves existing series links until the provider returns a
+complete membership response. The first verification request checks up to 500
+membership rows against the provider's aggregate count.
+
 Open Library can provide series information through search-document fields. Bibliophilarr maps these fields into
 book series links and author series during refresh.
 

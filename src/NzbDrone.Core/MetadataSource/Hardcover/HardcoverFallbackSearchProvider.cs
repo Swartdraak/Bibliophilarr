@@ -53,6 +53,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         private const int SeriesBooksPageSize = 50;
         private const int AuthorPageSize = 40;
         private const int AuthorContributionsPageSize = 100;
+        private const int AuthorSeriesMembershipLimit = 500;
         private const int OriginalBookMappingLimit = 21;
 
         // After this many consecutive deterministic errors (e.g. 400 Bad Request from
@@ -390,16 +391,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
             }
 
-            // Fetch comprehensive series data via the book_series table
-            // This captures ALL series for the author, not just those on fetched books
-            var authorSeries = hardcoverAuthorId > 0
-                ? FetchAuthorSeries(hardcoverAuthorId)
-                : BuildAuthorSeries(books);
-
-            if (!authorSeries.Any())
-            {
-                authorSeries = BuildAuthorSeries(books);
-            }
+            var authorSeries = hardcoverAuthorId > 0 ? FetchAuthorSeries(hardcoverAuthorId, books) : null;
+            var seriesComplete = authorSeries != null;
+            authorSeries ??= BuildAuthorSeries(books);
 
             _logger.Debug("GetAuthorInfo: {0} books, {1} series for '{2}'", books.Count, authorSeries.Count, authorName);
 
@@ -408,7 +402,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Metadata = metadata,
                 CleanName = Parser.Parser.CleanAuthorName(authorName),
                 Books = books,
-                Series = authorSeries
+                Series = authorSeries,
+                RemoteSeriesComplete = seriesComplete
             };
         }
 
@@ -1590,11 +1585,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
         }
 
-        private List<Series> FetchAuthorSeries(int authorId)
+        private List<Series> FetchAuthorSeries(int authorId, List<Book> books)
         {
             if (!TryResolveToken(out var token, out var tokenSource))
             {
-                return new List<Series>();
+                return null;
             }
 
             _logger.Trace("Hardcover series fetch for author ID {0}, tokenSource={1}", authorId, tokenSource);
@@ -1614,8 +1609,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             request.Headers["authorization"] = $"Bearer {token}";
             request.SetContent(new
             {
-                query = @"query GetAuthorSeries($authorId: Int!) {
-                    book_series(where: {book: {contributions: {author_id: {_eq: $authorId}, contributable_type: {_eq: ""Book""}}}}) {
+                query = @"query GetAuthorSeries($authorId: Int!, $limit: Int!) {
+                    book_series(where: {book: {contributions: {author_id: {_eq: $authorId}, contributable_type: {_eq: ""Book""}}}}, order_by: {id: asc}, limit: $limit) {
                         book_id
                         series_id
                         position
@@ -1627,26 +1622,49 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             primary_books_count
                         }
                     }
+                    book_series_aggregate(where: {book: {contributions: {author_id: {_eq: $authorId}, contributable_type: {_eq: ""Book""}}}}) {
+                        aggregate { count }
+                    }
                 }",
-                variables = new { authorId }
+                variables = new { authorId, limit = AuthorSeriesMembershipLimit }
             }.ToJson());
 
             try
             {
-                var response = _httpClient.Post<JObject>(request);
-                var seriesArray = response.Resource?.SelectToken("data.book_series") as JArray;
-
-                if (seriesArray == null || !seriesArray.Any())
+                var response = _httpClient.Post<JObject>(request)?.Resource;
+                if (response?["errors"]?.HasValues == true ||
+                    response?.SelectToken("data.book_series") is not JArray seriesArray ||
+                    response.SelectToken("data.book_series_aggregate.aggregate.count")?.Value<int?>() != seriesArray.Count ||
+                    seriesArray.Count > AuthorSeriesMembershipLimit)
                 {
-                    _logger.Debug("Hardcover series fetch returned no results for author ID {0}.", authorId);
-                    return new List<Series>();
+                    _logger.Debug("Hardcover series membership was incomplete for author ID {0}.", authorId);
+                    return null;
                 }
 
-                // Group by series ID and build Series objects with LinkItems
-                var grouped = seriesArray
-                    .GroupBy(entry => entry.SelectToken("series.id")?.Value<int>() ?? 0)
-                    .Where(g => g.Key > 0)
-                    .ToList();
+                // Both the aggregate and the individual source rows must support the snapshot.
+                var membership = new HashSet<(string SeriesId, string BookId)>();
+                foreach (var entry in seriesArray)
+                {
+                    var seriesId = entry.SelectToken("series.id")?.Value<int?>();
+                    var bookId = entry.Value<int?>("book_id");
+                    var name = entry.SelectToken("series.name");
+                    if (seriesId is not > 0 || entry.Value<int?>("series_id") != seriesId || bookId is not > 0 ||
+                        name?.Type != JTokenType.String || name.Value<string>().IsNullOrWhiteSpace() ||
+                        !membership.Add(($"hardcover:series:{seriesId}", $"hardcover:work:{bookId}")))
+                    {
+                        _logger.Debug("Hardcover series membership included an invalid or duplicate row for author ID {0}.", authorId);
+                        return null;
+                    }
+                }
+
+                if (books.Any(book => book.SeriesLinks?.Value?.Any(link =>
+                    !membership.Contains((link.Series.Value.ForeignSeriesId, book.ForeignBookId))) == true))
+                {
+                    _logger.Debug("Hardcover series membership omitted a verified book link for author ID {0}.", authorId);
+                    return null;
+                }
+
+                var grouped = seriesArray.GroupBy(entry => entry.SelectToken("series.id").Value<int>());
 
                 var result = new List<Series>();
 
@@ -1654,11 +1672,6 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 {
                     var firstEntry = group.First();
                     var seriesName = firstEntry.SelectToken("series.name")?.Value<string>();
-                    if (seriesName.IsNullOrWhiteSpace())
-                    {
-                        continue;
-                    }
-
                     var series = new Series
                     {
                         ForeignSeriesId = $"hardcover:series:{group.Key}",
@@ -1674,11 +1687,6 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     foreach (var entry in group)
                     {
                         var bookId = entry.Value<int?>("book_id");
-                        if (bookId == null || bookId <= 0)
-                        {
-                            continue;
-                        }
-
                         var position = entry.Value<decimal?>("position");
 
                         var stubBook = new Book
@@ -1698,11 +1706,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                         links.Add(link);
                     }
 
-                    if (links.Any())
-                    {
-                        series.LinkItems = links;
-                        result.Add(series);
-                    }
+                    series.LinkItems = links;
+                    result.Add(series);
                 }
 
                 _logger.Debug(
@@ -1713,14 +1718,10 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
                 return result.OrderBy(x => x.Title).ToList();
             }
-            catch (TooManyRequestsException ex)
-            {
-                throw new MetadataProviderUnavailableException("get-author-info", BuildHardcoverAuthorId(authorId), ex);
-            }
             catch (Exception ex)
             {
                 _logger.Debug(ex, "Hardcover series fetch failed for author ID {0}.", authorId);
-                return new List<Series>();
+                return null;
             }
         }
 

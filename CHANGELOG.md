@@ -57,6 +57,8 @@ process.
   the preferred edition has incomplete metadata.
 - Reuse each provider's ISBN lookup across equivalent editions during one
   book enrichment operation.
+- Keep a verified Hardcover bibliography when the separate series request
+  fails or is incomplete. Preserve existing series links until verification.
 - Cancel superseded Add New searches so cleared or shortened terms cannot
   trigger extra provider queries or display stale results.
 - Preserve the Hardcover author, work, or edition that supplied an artwork

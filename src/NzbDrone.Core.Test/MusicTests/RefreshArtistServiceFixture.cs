@@ -56,6 +56,7 @@ namespace NzbDrone.Core.Test.MusicTests
             _author = Builder<Author>.CreateNew()
                 .With(a => a.Metadata = metadata)
                 .With(a => a.Series = series)
+                .With(a => a.RemoteSeriesComplete = null)
                 .With(a => a.MetadataProfile = profile)
                 .Build();
 
