@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
+  audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
 - Include automatic import fallback searches in provider operation telemetry.

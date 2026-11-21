@@ -22,6 +22,7 @@ function CutoffUnmetRow(props) {
     lastSearchTime,
     disambiguation,
     formatStatuses,
+    formatType,
     isSelected,
     columns,
     onSelectedChange
@@ -77,7 +78,7 @@ function CutoffUnmetRow(props) {
             return (
               <TableRowCell key={name}>
                 {
-                  (formatStatuses || []).filter((fs) => fs.monitored).map((fs) => {
+                  (formatStatuses || []).filter((fs) => fs.monitored && (!formatType || fs.formatType === formatType)).map((fs) => {
                     let label = '';
                     let fullLabel = '';
 
@@ -139,6 +140,7 @@ function CutoffUnmetRow(props) {
                 bookTitle={title}
                 authorName={author.authorName}
                 bookEntity={bookEntities.WANTED_CUTOFF_UNMET}
+                formatType={formatType}
                 showOpenAuthorButton={true}
               />
             );
@@ -161,6 +163,7 @@ CutoffUnmetRow.propTypes = {
   lastSearchTime: PropTypes.string,
   disambiguation: PropTypes.string,
   formatStatuses: PropTypes.arrayOf(PropTypes.object),
+  formatType: PropTypes.oneOf(['ebook', 'audiobook']),
   isSelected: PropTypes.bool,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   onSelectedChange: PropTypes.func.isRequired

@@ -7,8 +7,10 @@ import withCurrentPage from 'Components/withCurrentPage';
 import { clearBookFiles, fetchBookFiles } from 'Store/Actions/bookFileActions';
 import { executeCommand } from 'Store/Actions/commandActions';
 import { clearQueueDetails, fetchQueueDetails } from 'Store/Actions/queueActions';
+import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import * as wantedActions from 'Store/Actions/wantedActions';
 import createCommandExecutingSelector from 'Store/Selectors/createCommandExecutingSelector';
+import getFilterValue from 'Utilities/Filter/getFilterValue';
 import hasDifferentItems from 'Utilities/Object/hasDifferentItems';
 import selectUniqueIds from 'Utilities/Object/selectUniqueIds';
 import { registerPagePopulator, unregisterPagePopulator } from 'Utilities/pagePopulator';
@@ -19,13 +21,16 @@ function createMapStateToProps() {
     (state) => state.wanted.cutoffUnmet,
     (state) => state.authors,
     createCommandExecutingSelector(commandNames.CUTOFF_UNMET_BOOK_SEARCH),
-    (cutoffUnmet, authors, isSearchingForCutoffUnmetBooks) => {
+    (state) => state.settings.mediaManagement.item?.enableDualFormatTracking,
+    (cutoffUnmet, authors, isSearchingForCutoffUnmetBooks, dualFormatTracking) => {
 
       return {
         isAuthorFetching: authors.isFetching,
         isAuthorPopulated: authors.isPopulated,
         isSearchingForCutoffUnmetBooks,
-        isSaving: cutoffUnmet.items.filter((m) => m.isSaving).length > 1,
+        isSaving: cutoffUnmet.items.some((item) => item.isSaving),
+        formatType: getFilterValue(cutoffUnmet.filters, cutoffUnmet.selectedFilterKey, 'formatType'),
+        dualFormatTracking,
         ...cutoffUnmet
       };
     }
@@ -38,7 +43,8 @@ const mapDispatchToProps = {
   fetchQueueDetails,
   clearQueueDetails,
   fetchBookFiles,
-  clearBookFiles
+  clearBookFiles,
+  fetchMediaManagementSettings
 };
 
 class CutoffUnmetConnector extends Component {
@@ -54,6 +60,7 @@ class CutoffUnmetConnector extends Component {
     } = this.props;
 
     registerPagePopulator(this.repopulate, ['bookFileUpdated', 'bookFileDeleted']);
+    this.props.fetchMediaManagementSettings();
 
     if (useCurrentPage) {
       fetchCutoffUnmet();
@@ -128,17 +135,23 @@ class CutoffUnmetConnector extends Component {
     }
   };
 
-  onSearchSelectedPress = (selected) => {
+  onSearchSelectedPress = (bookIds) => {
+    const { formatType } = this.props;
+
     this.props.executeCommand({
-      name: commandNames.BOOK_SEARCH,
-      bookIds: selected,
+      name: formatType ? commandNames.CUTOFF_UNMET_BOOK_SEARCH : commandNames.BOOK_SEARCH,
+      bookIds,
+      ...(formatType && { formatType }),
       commandFinished: this.repopulate
     });
   };
 
   onSearchAllCutoffUnmetPress = () => {
+    const { formatType } = this.props;
+
     this.props.executeCommand({
       name: commandNames.CUTOFF_UNMET_BOOK_SEARCH,
+      ...(formatType && { formatType }),
       commandFinished: this.repopulate
     });
   };
@@ -158,7 +171,6 @@ class CutoffUnmetConnector extends Component {
         onFilterSelect={this.onFilterSelect}
         onTableOptionChange={this.onTableOptionChange}
         onSearchSelectedPress={this.onSearchSelectedPress}
-        onToggleSelectedPress={this.onToggleSelectedPress}
         onSearchAllCutoffUnmetPress={this.onSearchAllCutoffUnmetPress}
         {...this.props}
       />
@@ -183,7 +195,9 @@ CutoffUnmetConnector.propTypes = {
   fetchQueueDetails: PropTypes.func.isRequired,
   clearQueueDetails: PropTypes.func.isRequired,
   fetchBookFiles: PropTypes.func.isRequired,
-  clearBookFiles: PropTypes.func.isRequired
+  clearBookFiles: PropTypes.func.isRequired,
+  fetchMediaManagementSettings: PropTypes.func.isRequired,
+  formatType: PropTypes.oneOf(['ebook', 'audiobook'])
 };
 
 export default withCurrentPage(
