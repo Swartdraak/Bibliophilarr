@@ -14,6 +14,7 @@ process.
 
 ### Fixed
 
+- Include automatic import fallback searches in provider operation telemetry.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
 - Name the Calendar's period controls and compact view menu for assistive
