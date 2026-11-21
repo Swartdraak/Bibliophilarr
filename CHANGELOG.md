@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Keep task notification links clickable when resizing from desktop to
+  mobile by starting with the navigation drawer closed.
 - Close task notifications when keyboard focus moves out of the panel,
   preserving normal tab order.
 - Add distinct works from a verified Open Library bibliography for Hardcover
