@@ -52,6 +52,8 @@ process.
   while the app checks it.
 - Keep verified same-work artwork and synopsis in Add New search results when
   the preferred edition has incomplete metadata.
+- Reuse each provider's ISBN lookup across equivalent editions during one
+  book enrichment operation.
 - Preserve the Hardcover author, work, or edition that supplied an artwork
   reference, including when an edition displays the work's cover.
 - Explain when a different ebook has an unverified ISBN for an occupied

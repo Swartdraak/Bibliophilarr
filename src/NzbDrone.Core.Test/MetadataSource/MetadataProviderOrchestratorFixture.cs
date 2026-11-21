@@ -565,6 +565,119 @@ namespace NzbDrone.Core.Test.MetadataSource
             edition.PageCount.Should().Be(317);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_reuse_isbn_enrichment_only_within_one_book_lookup(bool providerThrows)
+        {
+            const string workId = "hardcover:work:123";
+            const string isbn = "9780141439518";
+            const string alternateIsbn = "0-14-143951-3";
+            const string otherIsbn = "9780141439525";
+            const string invalidIsbn = "9780141439519";
+            const string sourceEditionId = "openlibrary:edition:OL123M";
+            var sourceCover = new MediaCover.MediaCover(MediaCoverTypes.Cover, "https://covers.example/match.jpg");
+            var source = new Book
+            {
+                ForeignBookId = "openlibrary:work:OL123W",
+                Title = "Fixture Work",
+                AuthorMetadata = new AuthorMetadata { Name = "Fixture Author" },
+                Editions = new List<Edition>
+                {
+                    new Edition
+                    {
+                        ForeignEditionId = sourceEditionId,
+                        Isbn13 = alternateIsbn,
+                        Publisher = "Verified publisher",
+                        Images = new List<MediaCover.MediaCover> { sourceCover }
+                    }
+                }
+            };
+
+            var primary = new Mock<IMetadataProvider>();
+            primary.SetupGet(provider => provider.ProviderName).Returns("Hardcover");
+            primary.SetupGet(provider => provider.SupportsBookSearch).Returns(true);
+            primary.As<IProvideBookInfo>().Setup(provider => provider.GetBookInfo(workId)).Returns(() =>
+            {
+                var book = new Book
+                {
+                    ForeignBookId = workId,
+                    Title = "Fixture Work",
+                    AuthorMetadata = new AuthorMetadata { Name = "Fixture Author" },
+                    Editions = new List<Edition>
+                    {
+                        new Edition { ForeignEditionId = "hardcover:edition:123", Isbn13 = isbn },
+                        new Edition { ForeignEditionId = "hardcover:edition:456", Isbn13 = alternateIsbn, Publisher = "Primary publisher" },
+                        new Edition { Isbn13 = otherIsbn },
+                        new Edition { Isbn13 = invalidIsbn }
+                    }
+                };
+
+                return Tuple.Create("hardcover:author:1", book, new List<AuthorMetadata>());
+            });
+
+            var unavailable = new Mock<IMetadataProvider>();
+            unavailable.SetupGet(provider => provider.ProviderName).Returns("GoogleBooks");
+            unavailable.SetupGet(provider => provider.SupportsIsbnLookup).Returns(true);
+            var unavailableSearch = unavailable.As<ISearchForNewBook>();
+            var unavailableLookup = unavailableSearch.Setup(provider => provider.SearchByIsbn(It.IsAny<string>()));
+            if (providerThrows)
+            {
+                unavailableLookup.Throws(new HttpRequestException("Fixture provider unavailable"));
+            }
+            else
+            {
+                unavailableLookup.Returns(new List<Book>());
+            }
+
+            var supplementary = new Mock<IMetadataProvider>();
+            supplementary.SetupGet(provider => provider.ProviderName).Returns("OpenLibrary");
+            supplementary.SetupGet(provider => provider.SupportsIsbnLookup).Returns(true);
+            supplementary.SetupGet(provider => provider.SupportsCoverImages).Returns(true);
+            var supplementarySearch = supplementary.As<ISearchForNewBook>();
+            supplementarySearch.Setup(provider => provider.SearchByIsbn(It.Is<string>(value => value == isbn || value == alternateIsbn)))
+                .Returns(new List<Book> { source });
+            supplementarySearch.Setup(provider => provider.SearchByIsbn(otherIsbn)).Returns(new List<Book>());
+
+            var registry = new TestRegistry(new[] { primary.Object, unavailable.Object, supplementary.Object });
+            var orchestrator = new MetadataProviderOrchestrator(registry, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger());
+
+            var first = orchestrator.GetBookInfo(workId).Item2;
+            var editions = first.Editions.Value;
+            editions[0].Publisher.Should().Be("Verified publisher");
+            editions[1].Publisher.Should().Be("Primary publisher");
+            editions[1].Isbn13.Should().Be(alternateIsbn);
+            editions[1].ForeignEditionId.Should().Be("hardcover:edition:456");
+            var firstCover = editions[0].Images.Should().ContainSingle().Which;
+            var secondCover = editions[1].Images.Should().ContainSingle().Which;
+            firstCover.Should().NotBeSameAs(secondCover);
+            foreach (var cover in new[] { firstCover, secondCover })
+            {
+                cover.Should().NotBeSameAs(sourceCover);
+                cover.Url.Should().Be(sourceCover.Url);
+                cover.SourceProvider.Should().Be("OpenLibrary");
+                cover.SourceId.Should().Be(sourceEditionId);
+            }
+
+            sourceCover.SourceProvider.Should().BeNull();
+            sourceCover.SourceId.Should().BeNull();
+            first.PendingSourceAssociations.Should().ContainSingle().Which.ProviderId.Should().Be("OL123W");
+            editions[2].Images.Should().BeEmpty();
+            editions[3].Images.Should().BeEmpty();
+
+            foreach (var search in new[] { unavailableSearch, supplementarySearch })
+            {
+                search.Verify(provider => provider.SearchByIsbn(isbn), Times.Once());
+                search.Verify(provider => provider.SearchByIsbn(otherIsbn), Times.Once());
+                search.Verify(provider => provider.SearchByIsbn(alternateIsbn), Times.Never());
+                search.Verify(provider => provider.SearchByIsbn(invalidIsbn), Times.Never());
+            }
+
+            var second = orchestrator.GetBookInfo(workId).Item2;
+            second.Editions.Value[0].Publisher.Should().Be("Verified publisher");
+            unavailableSearch.Verify(provider => provider.SearchByIsbn(isbn), Times.Exactly(2));
+            supplementarySearch.Verify(provider => provider.SearchByIsbn(isbn), Times.Exactly(2));
+        }
+
         [Test]
         public void should_keep_missing_fields_when_supplementary_result_has_a_different_isbn()
         {

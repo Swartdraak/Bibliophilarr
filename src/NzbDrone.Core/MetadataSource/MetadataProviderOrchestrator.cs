@@ -582,8 +582,15 @@ namespace NzbDrone.Core.MetadataSource
                                    !string.Equals(provider.ProviderName, primaryProviderName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
+            var exactMatches = new Dictionary<(string Provider, string Isbn), (Book Book, Edition Edition)>();
             foreach (var edition in editionsNeedingData)
             {
+                var isbn = Isbn.AsIsbn13(edition.Isbn13);
+                if (isbn == null)
+                {
+                    continue;
+                }
+
                 foreach (var provider in supplementaryProviders)
                 {
                     if (!NeedsSupplementaryMetadata(book, edition))
@@ -593,15 +600,23 @@ namespace NzbDrone.Core.MetadataSource
 
                     try
                     {
-                        var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
-                        var matches = GetExactIsbnMatches(results, edition.Isbn13).Take(2).ToList();
-                        if (matches.Count != 1)
+                        var key = (provider.ProviderName, isbn);
+                        if (!exactMatches.TryGetValue(key, out var match))
                         {
-                            continue;
+                            // Remember this attempt even if the provider lookup fails.
+                            exactMatches.Add(key, default);
+                            var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
+                            var matches = GetExactIsbnMatches(results, isbn).Take(2).ToList();
+                            if (matches.Count == 1)
+                            {
+                                match = matches[0];
+                                exactMatches[key] = match;
+                            }
                         }
 
-                        var (matchedBook, matchedEdition) = matches[0];
-                        if (ContradictsKnownMetadata(book.Title, matchedBook.Title) ||
+                        var (matchedBook, matchedEdition) = match;
+                        if (matchedBook == null ||
+                            ContradictsKnownMetadata(book.Title, matchedBook.Title) ||
                             ContradictsKnownMetadata(book.AuthorMetadata?.Value?.Name, matchedBook.AuthorMetadata?.Value?.Name))
                         {
                             continue;
