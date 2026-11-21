@@ -53,6 +53,10 @@ process.
   confirmed merge through the reviewed reconciliation command.
 - Distinguish failed Open Library text and ISBN lookups from successful searches
   with no matches in provider telemetry.
+- Label the backup upload field and show restore errors in the dialog. Choosing
+  another file clears the previous error.
+- Provider telemetry distinguishes failed Open Library text searches from
+  successful searches with no matches.
 - Coordinate overlapping author refreshes so they share the stored series and
   keep its book links.
 - Preserve completed task results in command history after restart.
