@@ -90,6 +90,33 @@ jobs:
             cosign sign --yes "${tag}@${DIGEST}"
           done
 
+      - name: Verify the published image signature
+        if: github.event_name == 'push' || inputs.push
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+        run: |
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Buildx did not provide a valid image digest." >&2
+            exit 1
+          fi
+
+          repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/bibliophilarr"
+          for attempt in 1 2 3; do
+            if timeout --kill-after=5s 45s cosign verify \
+              --certificate-identity "https://github.com/${GITHUB_WORKFLOW_REF}" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              "${repository}@${DIGEST}"; then
+              exit 0
+            fi
+
+            echo "Image signature verification attempt $attempt failed." >&2
+            if (( attempt < 3 )); then
+              sleep "$((attempt * 5))"
+            fi
+          done
+
+          exit 1
+
       - name: Smoke test image locally
         if: github.event_name == 'workflow_dispatch' && !inputs.push
         env:
