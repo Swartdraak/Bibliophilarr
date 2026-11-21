@@ -17,13 +17,18 @@ The migration program remains open and intentionally tracked through these activ
 
 - #96 Migration Program: .NET 8 -> .NET 10 LTS
 - #97 Workflow and action modernization train
-- #98 FluentMigrator coordinated upgrade train
 - #99 Frontend toolchain modernization train
 - #104 ASP.NET / SignalR runtime alignment
 
 The NuGet compatibility review (#103), Docker SDK/runtime validation (#105),
 tests/RID/platform validation (#106), and release/package validation (#107) are
 closed.
+
+The coordinated FluentMigrator 8.0.1 upgrade is integrated on `develop` in
+[#514](https://github.com/Swartdraak/Bibliophilarr/pull/514). Independent native
+tests covered SQLite and PostgreSQL startup, upgrade, restart and backup
+restore. Forced migration interruption remains tracked in
+[#328](https://github.com/Swartdraak/Bibliophilarr/issues/328).
 
 ## Governance and documentation tracks
 
@@ -33,7 +38,14 @@ closed.
 ## Branch and promotion posture
 
 - The release remains on hold pending full-library validation and maintainer
-  approval.
+  approval. [Release readiness](https://github.com/Swartdraak/Bibliophilarr/issues/484)
+  and [catalogue identity](https://github.com/Swartdraak/Bibliophilarr/issues/486)
+  are open.
+- Full-library acceptance uses a newly created native app database. Configure
+  every supported metadata provider, scan both complete read-only target
+  libraries in the same profile, and verify independent ebook and audiobook
+  tracking. Check provider bibliography coverage, rendered artwork, unmapped
+  reasons, and authenticated behavior after restart.
 - The next promotion follows `develop -> staging` through a pull request.
   Validate installation, metadata, full-library matching, and release evidence
   on the consolidated revision.

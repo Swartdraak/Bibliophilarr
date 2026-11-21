@@ -14,6 +14,9 @@ process.
 
 ### Fixed
 
+- Name the Calendar's period controls and compact view menu for assistive
+  technology.
+- Reject missing profile IDs before saving a new author through Add Book.
 - Label the backup upload field and show restore errors in the dialog. Choosing
   another file clears the previous error.
 - Provider telemetry distinguishes failed Open Library text searches from
@@ -57,6 +60,8 @@ process.
   refresh requests as unsuccessful while continuing the rest of the batch.
 - Honor the historical server port environment variable. The canonical
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
+- Update FluentMigrator to 8.0.1 for SQLite and PostgreSQL while preserving the
+  existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
   requested. Distinct provider work IDs retain separate catalogue records.
@@ -147,6 +152,8 @@ process.
 
 ### Security
 
+- Database migration startup logs identify the database type and role without
+  exposing connection details.
 - New and changed account passwords use salted PBKDF2. Existing accounts
   upgrade when they next sign in successfully with a password. Rollback to an
   earlier version requires its matching app-data backup after a password upgrade.
