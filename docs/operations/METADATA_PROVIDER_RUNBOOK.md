@@ -27,7 +27,14 @@ OpenLibrary-only migration notes:
 Check provider diagnostics first:
 
 - `GET /api/v1/metadata/providers/health`
+- `GET /api/v1/metadata/providers/health/basic`
 - `GET /api/v1/metadata/providers/telemetry`
+- `GET /api/v1/metadata/providers/telemetry/operations`
+
+For services used only in automatic import fallback, check basic health and
+the `fallback-search` operation. Operation counts include completed provider
+attempts with or without matches and failed requests. Disabled providers and
+requests skipped during cooldown do not add a call.
 
 Important counters:
 
