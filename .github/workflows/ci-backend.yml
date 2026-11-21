@@ -234,6 +234,12 @@ jobs:
           --configuration Release --no-build --no-restore --verbosity minimal -p:Platform=Posix
           --filter 'FullyQualifiedName~CommandRepositoryFixture'
 
+      - name: Verify SQLite migration recovery and interruption
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~SqliteMigrationRecoveryFixture|FullyQualifiedName~should_recover_after_kill_inside_a_sqlite_migration_transaction'
+
       - name: Run metadata, format monitoring, manual import and host configuration API fixtures
         run: >-
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
