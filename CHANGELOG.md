@@ -34,6 +34,8 @@ process.
   Bibliophilarr URLs.
 - Show whether an unmapped file is waiting for the author's bibliography or
   needs manual confirmation of a same-name author.
+- Allow a single same-name author candidate to be corroborated by two
+  independently verified works if Open Library's bibliography ends early.
 - Preserve the Hardcover author, work, or edition that supplied an artwork
   reference, including when an edition displays the work's cover.
 - Explain when a different ebook has an unverified ISBN for an occupied

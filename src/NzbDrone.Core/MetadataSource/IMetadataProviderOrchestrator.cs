@@ -28,6 +28,7 @@ namespace NzbDrone.Core.MetadataSource
         Author GetAuthorInfo(string id, bool useCache = true);
         AuthorMetadata GetAuthorProfileMetadata(string provider, string authorId);
         string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn);
+        (string WorkId, string Title)? GetVerifiedOpenLibraryAuthorWorkByIsbn(string authorId, string isbn);
         HashSet<string> GetChangedAuthors(DateTime startTime);
     }
 }

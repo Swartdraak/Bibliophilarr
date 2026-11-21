@@ -19,6 +19,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         IProvideAuthorProfileMetadata,
         IProvideAuthorInfo,
         IVerifyAuthorWork,
+        IResolveAuthorWorkByIsbn,
         IProvideBookInfo,
         ISearchForNewBook,
         ISearchForNewAuthor,
@@ -82,7 +83,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 throw new NzbDrone.Core.Exceptions.AuthorNotFoundException(foreignAuthorId);
             }
 
-            var works = GetAuthorWorkEntries(normalizedAuthorId);
+            var works = GetAuthorWorkEntries(normalizedAuthorId, authorResource.Key == $"/authors/{normalizedAuthorId}");
             var workDocsById = GetAuthorWorkSearchDocs(normalizedAuthorId)
                 .Where(x => x?.Key.IsNotNullOrWhiteSpace() == true)
                 .GroupBy(x => NormalizeWorkId(x.Key))
@@ -185,7 +186,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return series.OrderBy(x => x.Title).ToList();
         }
 
-        private List<OlWorkResource> GetAuthorWorkEntries(string normalizedAuthorId)
+        private List<OlWorkResource> GetAuthorWorkEntries(string normalizedAuthorId, bool exactAuthor)
         {
             return ReadAuthorPages(
                 normalizedAuthorId,
@@ -194,7 +195,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     var response = _client.GetAuthorWorks(normalizedAuthorId, 100, offset);
                     return (response?.Entries, response?.Size);
                 },
-                work => work?.Key);
+                work => work?.Key,
+                authoritative: exactAuthor);
         }
 
         private List<OlSearchDoc> GetAuthorWorkSearchDocs(string normalizedAuthorId)
@@ -210,12 +212,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 doc => doc?.Key);
         }
 
-        private static List<T> ReadAuthorPages<T>(string authorId, Func<int, (List<T> Entries, int? Total)> fetchPage, Func<T, string> getKey)
+        private static List<T> ReadAuthorPages<T>(string authorId,
+                                                  Func<int, (List<T> Entries, int? Total)> fetchPage,
+                                                  Func<T, string> getKey,
+                                                  bool authoritative = false)
         {
             var results = new List<T>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var offset = 0;
             var total = 0;
+            var endedEarly = false;
 
             try
             {
@@ -232,6 +238,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     {
                         if (offset < total)
                         {
+                            endedEarly = true;
                             throw new InvalidOperationException($"Open Library ended its bibliography at offset {offset} before the reported total {total}.");
                         }
 
@@ -262,7 +269,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
             catch (Exception ex)
             {
-                throw new MetadataProviderUnavailableException("get-author-info", $"openlibrary:author:{authorId}", ex);
+                throw new MetadataProviderUnavailableException(
+                    MetadataProviderOrchestrator.AuthorInfoOperation,
+                    $"openlibrary:author:{authorId}",
+                    ex,
+                    authoritative && endedEarly);
             }
         }
 
@@ -616,28 +627,47 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn)
         {
-            var author = CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null);
             var work = GetIsbnLookupWorkId(workId);
+            return work == null ? null : GetVerifiedAuthorWork(authorId, isbn, work)?.Title;
+        }
+
+        (string WorkId, string Title)? IResolveAuthorWorkByIsbn.GetVerifiedAuthorWorkByIsbn(string authorId, string isbn)
+        {
+            return GetVerifiedAuthorWork(authorId, isbn);
+        }
+
+        private (string WorkId, string Title)? GetVerifiedAuthorWork(string authorId, string isbn, string expectedWork = null)
+        {
+            var author = CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null);
             var canonicalIsbn = Isbn.AsIsbn13(isbn);
-            if (author == null || work == null || canonicalIsbn == null)
+            if (author == null || canonicalIsbn == null)
             {
                 return null;
             }
 
-            var edition = _client.GetEditionByIsbn(canonicalIsbn);
+            var edition = expectedWork == null ? _client.GetExactEditionByIsbn(canonicalIsbn) : _client.GetEditionByIsbn(canonicalIsbn);
             var editionKey = OpenLibraryIdNormalizer.NormalizeWorkId(edition?.Key);
             if (editionKey == null || !editionKey.EndsWith("M", StringComparison.Ordinal) ||
                 editionKey.Length <= 3 || !editionKey[2..^1].All(char.IsAsciiDigit) ||
                 (!ContainsExactIsbn(edition.Isbn13, canonicalIsbn) && !ContainsExactIsbn(edition.Isbn10, canonicalIsbn)) ||
-                edition.Works?.Count != 1 || GetIsbnLookupWorkId(edition.Works[0]?.Key) != work)
+                edition.Works?.Count != 1)
+            {
+                return null;
+            }
+
+            var workKey = edition.Works[0]?.Key;
+            var work = GetIsbnLookupWorkId(workKey);
+            if (work == null || (expectedWork != null && work != expectedWork) ||
+                (expectedWork == null && (edition.Key != $"/books/{editionKey}" || workKey != $"/works/{work}")))
             {
                 return null;
             }
 
             var source = _client.GetWork(work);
             return GetIsbnLookupWorkId(source?.Key) == work &&
+                   (expectedWork != null || source.Key == $"/works/{work}") &&
                    HasExclusiveAuthorCredit(source, author.ProviderId)
-                ? source.Title
+                ? ($"openlibrary:work:{work}", source.Title)
                 : null;
         }
 

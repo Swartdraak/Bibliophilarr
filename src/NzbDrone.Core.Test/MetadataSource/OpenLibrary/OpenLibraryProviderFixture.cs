@@ -4,6 +4,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 using NzbDrone.Core.Test.Framework;
@@ -411,6 +412,92 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             else
             {
                 _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 1000), Times.Once);
+            }
+        }
+
+        [TestCase(false, true, false)]
+        [TestCase(true, false, false)]
+        [TestCase(true, true, true)]
+        public void should_classify_only_matching_author_authoritative_early_end(bool authoritative, bool exactAuthor, bool recoverable)
+        {
+            var author = BuildAuthor();
+            if (!exactAuthor)
+            {
+                author.Key = "/authors/OL999A";
+            }
+
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(author);
+            if (authoritative)
+            {
+                _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 0))
+                    .Returns(new OlAuthorWorksResponse { Size = 2, Entries = new List<OlWorkResource> { BuildWork() } });
+                _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 1))
+                    .Returns(new OlAuthorWorksResponse { Size = 2 });
+            }
+            else
+            {
+                _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 0))
+                    .Returns(new OlSearchResponse { NumFound = 2, NumFoundExact = true, Docs = BuildSearchDocs(1, 0) });
+                _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 1))
+                    .Returns(new OlSearchResponse { Docs = new List<OlSearchDoc>() });
+            }
+
+            var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+
+            lookup.Should().Throw<MetadataProviderUnavailableException>().Which.AuthoritativeBibliographyEndedEarly.Should().Be(recoverable);
+            _clientMock.Verify(client => client.GetExactEditionByIsbn(It.IsAny<string>()), Times.Never());
+        }
+
+        [TestCase("exact", true)]
+        [TestCase("wrong ISBN", false)]
+        [TestCase("noncanonical edition", false)]
+        [TestCase("two works", false)]
+        [TestCase("wrong work response", false)]
+        [TestCase("wrong credited author", false)]
+        [TestCase("multiple credits", false)]
+        public void should_resolve_an_isbn_only_to_one_exclusively_credited_open_library_work(string scenario, bool verified)
+        {
+            const string isbn = "9781442482890";
+            var work = BuildWork();
+            var edition = new OlEditionResource
+            {
+                Key = scenario == "noncanonical edition" ? "/works/OL123M" : "/books/OL123M",
+                Isbn13 = new List<string> { scenario == "wrong ISBN" ? "9781455546176" : isbn },
+                Works = new List<OlKeyRef> { new OlKeyRef { Key = work.Key } }
+            };
+            var editionWorkKey = work.Key;
+            if (scenario == "two works")
+            {
+                edition.Works.Add(new OlKeyRef { Key = "/works/OL999W" });
+            }
+
+            if (scenario == "wrong work response")
+            {
+                work.Key = "/works/OL999W";
+            }
+
+            if (scenario == "wrong credited author")
+            {
+                work.Authors[0].Author.Key = "/authors/OL999A";
+            }
+
+            if (scenario == "multiple credits")
+            {
+                work.Authors.Add(new OlWorkAuthorEntry { Author = new OlKeyRef { Key = "/authors/OL999A" } });
+            }
+
+            _clientMock.Setup(client => client.GetExactEditionByIsbn(isbn)).Returns(edition);
+            _clientMock.Setup(client => client.GetWork(editionWorkKey.Replace("/works/", string.Empty))).Returns(work);
+
+            var result = ((IResolveAuthorWorkByIsbn)Subject).GetVerifiedAuthorWorkByIsbn("openlibrary:author:OL26320A", isbn);
+
+            if (verified)
+            {
+                result.Should().Be(($"openlibrary:work:{editionWorkKey.Replace("/works/", string.Empty)}", work.Title));
+            }
+            else
+            {
+                result.Should().BeNull();
             }
         }
 

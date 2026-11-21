@@ -20,6 +20,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         OlAuthorResource GetAuthor(string olid);
         OlAuthorResource GetAuthor(string olid, bool confirmNotFound);
         OlEditionResource GetEditionByIsbn(string isbn);
+        OlEditionResource GetExactEditionByIsbn(string isbn);
         OlEditionResource GetEdition(string olid);
     }
 
@@ -159,7 +160,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return ExecuteWithRateLimitRetry<OlAuthorResource>("openlibrary.author", request, GetRetryBudget(OperationClass.Work), confirmNotFound ? olid : null);
         }
 
-        public OlEditionResource GetEditionByIsbn(string isbn)
+        public OlEditionResource GetEditionByIsbn(string isbn) => GetEditionByIsbn(isbn, requireMatchingRedirect: false);
+
+        public OlEditionResource GetExactEditionByIsbn(string isbn) => GetEditionByIsbn(isbn, requireMatchingRedirect: true);
+
+        private OlEditionResource GetEditionByIsbn(string isbn, bool requireMatchingRedirect)
         {
             _logger.Debug("OpenLibrary get edition by ISBN: {0}", isbn);
 
@@ -169,6 +174,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 request,
                 GetRetryBudget(OperationClass.Isbn),
                 followIsbnRedirect: true,
+                requireMatchingIsbnRedirect: requireMatchingRedirect,
                 unavailable: () => new OlEditionResource { RequestUnavailable = true });
         }
 
@@ -226,6 +232,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             int maxRetries,
             string authorId = null,
             bool followIsbnRedirect = false,
+            bool requireMatchingIsbnRedirect = false,
             Func<T> unavailable = null)
             where T : class
         {
@@ -233,7 +240,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var breakerThreshold = Math.Max(1, _configService.MetadataProviderCircuitBreakerThreshold);
             var breakerDurationSeconds = Math.Max(5, _configService.MetadataProviderCircuitBreakerDurationSeconds);
             var attempts = 0;
-            var followedIsbnRedirect = false;
+            string redirectedEditionRoute = null;
 
             var state = _circuitState.GetOrAdd(endpointKey, _ => new CircuitState());
             if (state.OpenUntilUtc > DateTime.UtcNow)
@@ -268,14 +275,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 if (followIsbnRedirect && response.HasHttpRedirect)
                 {
-                    var route = followedIsbnRedirect ? null : GetIsbnEditionRoute(response);
+                    var route = redirectedEditionRoute == null ? GetIsbnEditionRoute(response) : null;
                     if (route == null)
                     {
                         return null;
                     }
 
                     request = BuildIsbnRequest(route);
-                    followedIsbnRedirect = true;
+                    redirectedEditionRoute = route;
                     continue;
                 }
 
@@ -336,7 +343,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 try
                 {
-                    return JsonSerializer.Deserialize<T>(response.Content, JsonOptions) ?? unavailable?.Invoke();
+                    var resource = JsonSerializer.Deserialize<T>(response.Content, JsonOptions);
+                    if (requireMatchingIsbnRedirect && redirectedEditionRoute != null && resource is OlEditionResource edition &&
+                        edition.Key != $"/{redirectedEditionRoute[..^5]}")
+                    {
+                        return null;
+                    }
+
+                    return resource ?? unavailable?.Invoke();
                 }
                 catch (JsonException ex)
                 {

@@ -5,6 +5,7 @@ using System.Text;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books.Commands;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser;
@@ -88,9 +89,16 @@ namespace NzbDrone.Core.Books
                 return null;
             }
 
-            bibliography ??= LoadBibliography(incoming);
-            var matches = candidates.Where(candidate => SharesVerifiedBibliography(
-                incoming, bibliography, candidate.Author, candidate.Bibliography ?? LoadBibliography(candidate.Author))).Take(2).ToList();
+            var soleCandidate = candidates.Count == 1;
+            if (!soleCandidate)
+            {
+                bibliography ??= LoadBibliography(incoming);
+            }
+
+            var matches = candidates.Where(candidate => soleCandidate
+                ? SharesVerifiedBibliographyOnAdd(incoming, bibliography, candidate.Author, candidate.Bibliography)
+                : SharesVerifiedBibliography(incoming, bibliography, candidate.Author, candidate.Bibliography ?? LoadBibliography(candidate.Author)))
+                .Take(2).ToList();
             if (matches.Count > 1)
             {
                 throw new InvalidOperationException("More than one catalogue author has corroborated work identity.");
@@ -252,6 +260,93 @@ namespace NzbDrone.Core.Books
             var expected = GetAuthority(authority);
             var actual = GetAuthority(remote);
             return actual?.Provider == expected.Provider && actual.ProviderId == expected.ProviderId ? remote.Books?.Value : null;
+        }
+
+        private bool SharesVerifiedBibliographyOnAdd(Author incoming,
+            IReadOnlyList<Book> incomingBooks,
+            Author incumbent,
+            IReadOnlyList<Book> incumbentBooks)
+        {
+            var incomingIsOpenLibrary = GetAuthority(incoming)?.Provider == "OpenLibrary";
+            var openLibrary = incomingIsOpenLibrary ? incoming : incumbent;
+            var hardcover = incomingIsOpenLibrary ? incumbent : incoming;
+            var openLibraryAuthority = GetAuthority(openLibrary);
+
+            try
+            {
+                incomingBooks ??= LoadBibliography(incoming);
+                incumbentBooks ??= LoadBibliography(incumbent);
+            }
+            catch (MetadataProviderUnavailableException ex) when (
+                ex.AuthoritativeBibliographyEndedEarly &&
+                ex.Operation == MetadataProviderOrchestrator.AuthorInfoOperation &&
+                GetAuthority(hardcover)?.Provider == "Hardcover" &&
+                openLibraryAuthority?.Provider == "OpenLibrary" &&
+                ex.EntityId == $"openlibrary:author:{openLibraryAuthority.ProviderId}")
+            {
+                var hardcoverBooks = incomingIsOpenLibrary ? incumbentBooks : incomingBooks;
+                if (VerifyWorksWithoutOpenLibraryBibliography(hardcover, hardcoverBooks, openLibrary))
+                {
+                    return true;
+                }
+
+                // Failure to recover positive evidence still means the authority is unknown.
+                throw;
+            }
+
+            return SharesVerifiedBibliography(incoming, incomingBooks, incumbent, incumbentBooks);
+        }
+
+        private bool VerifyWorksWithoutOpenLibraryBibliography(Author hardcover, IReadOnlyList<Book> books, Author openLibrary)
+        {
+            var verifiedHardcover = new HashSet<string>(StringComparer.Ordinal);
+            var verifiedOpenLibrary = new HashSet<string>(StringComparer.Ordinal);
+            var verifiedTitles = new HashSet<string>(StringComparer.Ordinal);
+            try
+            {
+                var witnesses = GetWitnessSuggestions(books ?? LoadBibliography(hardcover), "Hardcover")
+                    .OrderBy(item => item.Isbn, StringComparer.Ordinal)
+                    .GroupBy(item => item.Title)
+                    .SelectMany(group => group.Select((witness, rank) => (Witness: witness, Rank: rank)))
+                    .OrderBy(item => item.Rank).ThenBy(item => item.Witness.Isbn, StringComparer.Ordinal)
+                    .Take(MaxWitnessPairs).Select(item => item.Witness);
+
+                foreach (var witness in witnesses)
+                {
+                    if (verifiedHardcover.Contains(witness.WorkId) || verifiedTitles.Contains(witness.Title))
+                    {
+                        continue;
+                    }
+
+                    var leftTitle = _metadata.GetVerifiedAuthorWorkTitle(hardcover.ForeignAuthorId, witness.WorkId, witness.Isbn);
+                    if (NormalizeTitle(leftTitle) != witness.Title)
+                    {
+                        return false;
+                    }
+
+                    var right = _metadata.GetVerifiedOpenLibraryAuthorWorkByIsbn(openLibrary.ForeignAuthorId, witness.Isbn);
+                    if (right == null || NormalizeTitle(right.Value.Title) != witness.Title)
+                    {
+                        return false;
+                    }
+
+                    if (verifiedOpenLibrary.Add(right.Value.WorkId))
+                    {
+                        verifiedHardcover.Add(witness.WorkId);
+                        verifiedTitles.Add(witness.Title);
+                        if (verifiedTitles.Count == 2)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.Warn(ex, "Could not corroborate author identity using exact ISBN witnesses after an incomplete Open Library bibliography");
+            }
+
+            return false;
         }
 
         private bool SharesVerifiedBibliography(Author first, IReadOnlyList<Book> firstBooks, Author second, IReadOnlyList<Book> secondBooks)

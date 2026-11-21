@@ -245,6 +245,20 @@ namespace NzbDrone.Core.MetadataSource
             return provider?.GetVerifiedAuthorWorkTitle(authorId, workId, canonicalIsbn);
         }
 
+        public (string WorkId, string Title)? GetVerifiedOpenLibraryAuthorWorkByIsbn(string authorId, string isbn)
+        {
+            var author = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, authorId, null);
+            var canonicalIsbn = Isbn.AsIsbn13(isbn);
+            if (author?.Provider != "OpenLibrary" || canonicalIsbn == null)
+            {
+                return null;
+            }
+
+            var provider = _registry.GetProviders().FirstOrDefault(candidate =>
+                string.Equals(candidate.ProviderName, author.Provider, StringComparison.OrdinalIgnoreCase)) as IResolveAuthorWorkByIsbn;
+            return provider?.GetVerifiedAuthorWorkByIsbn(authorId, canonicalIsbn);
+        }
+
         private T ExecuteFirst<TContract, T>(Func<TContract, T> operation,
                                              string operationName,
                                              Func<IMetadataProvider, bool> supports,

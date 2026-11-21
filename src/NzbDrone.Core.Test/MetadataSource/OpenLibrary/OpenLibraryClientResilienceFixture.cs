@@ -140,6 +140,36 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             redirects.Should().Equal(false, false);
         }
 
+        [TestCase(true, true, true)]
+        [TestCase(true, false, false)]
+        [TestCase(false, false, true)]
+        public void isbn_corroboration_requires_the_body_to_match_the_redirected_edition(
+            bool corroboration, bool matchingBody, bool accepted)
+        {
+            const string isbn = "9781442482890";
+            const string redirectedEdition = "/books/OL33516062M";
+            var bodyEdition = matchingBody ? redirectedEdition : "/books/OL2M";
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(http => http.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                request.Url.ToString().Contains("/isbn/")
+                    ? new HttpResponse(request, new HttpHeader { { "Location", redirectedEdition + ".json" } }, string.Empty, HttpStatusCode.Found)
+                    : new HttpResponse(request, new HttpHeader(), $$"""{"key":"{{bodyEdition}}","isbn_13":["{{isbn}}"]}"""));
+
+            var edition = corroboration ? Subject.GetExactEditionByIsbn(isbn) : Subject.GetEditionByIsbn(isbn);
+
+            if (accepted)
+            {
+                edition.Should().NotBeNull();
+                edition.Key.Should().Be(bodyEdition);
+            }
+            else
+            {
+                edition.Should().BeNull();
+            }
+
+            client.Verify(http => http.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
         [TestCase("https://example.invalid/books/OL33516062M.json")]
         [TestCase("http://openlibrary.org/books/OL33516062M.json")]
         [TestCase("https://openlibrary.org:444/books/OL33516062M.json")]
