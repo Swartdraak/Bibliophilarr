@@ -148,6 +148,8 @@ process.
 
 ### Security
 
+- Database migration startup logs identify the database type and role without
+  exposing connection details.
 - New and changed account passwords use salted PBKDF2. Existing accounts
   upgrade when they next sign in successfully with a password. Rollback to an
   earlier version requires its matching app-data backup after a password upgrade.
