@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace NzbDrone.Core.Qualities
@@ -6,6 +7,7 @@ namespace NzbDrone.Core.Qualities
     {
         public int ProfileId { get; set; }
         public IEnumerable<int> QualityIds { get; set; }
+        public IEnumerable<int> QualityIdsMeetingCutoff { get; set; } = Array.Empty<int>();
 
         public QualitiesBelowCutoff(int profileId, IEnumerable<int> qualityIds)
         {

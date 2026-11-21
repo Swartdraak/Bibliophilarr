@@ -145,6 +145,44 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         }
 
         [Test]
+        public void should_still_reject_a_same_format_copy_in_the_queue_with_dual_tracking()
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(config => config.EnableDualFormatTracking)
+                .Returns(true);
+            _author.QualityProfile.Value.UpgradeAllowed = false;
+            GivenQueue(new[] { _remoteBook });
+
+            Subject.IsSatisfiedBy(_remoteBook, null).Accepted.Should().BeFalse();
+        }
+
+        [TestCase(FormatType.Ebook, true)]
+        [TestCase(FormatType.Audiobook, true)]
+        [TestCase(FormatType.Ebook, false)]
+        [TestCase(FormatType.Audiobook, false)]
+        public void should_ignore_opposite_format_queue_entries_only_with_dual_tracking(FormatType requested, bool dualTracking)
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(config => config.EnableDualFormatTracking)
+                .Returns(dualTracking);
+            _author.QualityProfile.Value.UpgradeAllowed = false;
+            var ebookRequested = requested == FormatType.Ebook;
+            _remoteBook.ParsedBookInfo.Quality = new QualityModel(ebookRequested ? Quality.AZW3 : Quality.M4B);
+            _remoteBook.ResolvedFormatType = requested;
+            GivenQueue(new[]
+            {
+                new RemoteBook
+                {
+                    Author = _author,
+                    Books = new List<Book> { _book },
+                    ParsedBookInfo = new ParsedBookInfo { Quality = new QualityModel(ebookRequested ? Quality.M4B : Quality.AZW3) }
+                }
+            });
+
+            Subject.IsSatisfiedBy(_remoteBook, null).Accepted.Should().Be(dualTracking);
+        }
+
+        [Test]
         public void should_return_true_when_quality_in_queue_is_lower()
         {
             _author.QualityProfile.Value.Cutoff = Quality.MP3.Id;

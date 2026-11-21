@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
-using System.Threading.Tasks;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Blocklist;
 using Bibliophilarr.Api.V1.Config;
@@ -14,7 +13,6 @@ using Bibliophilarr.Api.V1.Profiles.Quality;
 using Bibliophilarr.Api.V1.RootFolders;
 using Bibliophilarr.Api.V1.System.Tasks;
 using Bibliophilarr.Api.V1.Tags;
-using Microsoft.AspNetCore.SignalR.Client;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
@@ -23,7 +21,6 @@ using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Integration.Test.Client;
-using NzbDrone.SignalR;
 using NzbDrone.Test.Common;
 using NzbDrone.Test.Common.Categories;
 
@@ -54,12 +51,6 @@ namespace NzbDrone.Integration.Test
         public ClientBase<TagResource> Tags;
         public WantedClient WantedMissing;
         public WantedClient WantedCutoffUnmet;
-
-        private List<SignalRMessage> _signalRReceived;
-
-        private HubConnection _signalrConnection;
-
-        protected IEnumerable<SignalRMessage> SignalRMessages => _signalRReceived;
 
         public IntegrationTestBase()
         {
@@ -154,16 +145,8 @@ namespace NzbDrone.Integration.Test
         }
 
         [TearDown]
-        public async Task IntegrationTearDown()
+        public void IntegrationTearDown()
         {
-            if (_signalrConnection != null)
-            {
-                await _signalrConnection.StopAsync();
-
-                _signalrConnection = null;
-                _signalRReceived = new List<SignalRMessage>();
-            }
-
             if (Directory.Exists(TempDirectory))
             {
                 try
@@ -183,53 +166,6 @@ namespace NzbDrone.Integration.Test
             Directory.CreateDirectory(path);
 
             return path;
-        }
-
-        protected async Task ConnectSignalR()
-        {
-            _signalRReceived = new List<SignalRMessage>();
-            _signalrConnection = new HubConnectionBuilder()
-                .WithUrl("http://localhost:8787/signalr/messages", options =>
-                    {
-                        options.AccessTokenProvider = () => Task.FromResult(ApiKey);
-                    })
-                .Build();
-
-            var cts = new CancellationTokenSource();
-
-            _signalrConnection.Closed += e =>
-            {
-                cts.Cancel();
-                return Task.CompletedTask;
-            };
-
-            _signalrConnection.On<SignalRMessage>("receiveMessage", (message) =>
-            {
-                _signalRReceived.Add(message);
-            });
-
-            var connected = false;
-            var retryCount = 0;
-
-            while (!connected)
-            {
-                try
-                {
-                    await _signalrConnection.StartAsync();
-                    connected = true;
-                    break;
-                }
-                catch
-                {
-                    if (retryCount > 25)
-                    {
-                        Assert.Fail("Couldn't establish signalR connection");
-                    }
-                }
-
-                retryCount++;
-                Thread.Sleep(200);
-            }
         }
 
         public static void WaitForCompletion(Func<bool> predicate, int timeout = 10000, int interval = 500)
