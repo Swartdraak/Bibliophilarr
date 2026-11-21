@@ -35,6 +35,8 @@ process.
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
+- Keep a provider's fallback cooldown active when an earlier request finishes
+  successfully.
 - Include automatic import fallback searches in provider operation telemetry.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
