@@ -47,19 +47,20 @@ namespace NzbDrone.Core.Books
         {
             var qualitiesBelowCutoff = new List<QualitiesBelowCutoff>();
             var profiles = _qualityProfileService.All();
+            var scopedFormat = monitored.HasValue ? formatType : null;
 
             //Get all items less than the cutoff
             foreach (var profile in profiles)
             {
                 var cutoff = profile.UpgradeAllowed ? profile.Cutoff : profile.FirstAllowedQuality().Id;
                 var cutoffIndex = profile.GetIndex(cutoff);
-                var belowCutoff = GetQualityIds(profile.Items.Take(cutoffIndex.Index), formatType).ToList();
+                var belowCutoff = GetQualityIds(profile.Items.Take(cutoffIndex.Index), scopedFormat).ToList();
                 if (belowCutoff.Count != 0)
                 {
                     var qualityRange = new QualitiesBelowCutoff(profile.Id, belowCutoff);
-                    if (formatType.HasValue)
+                    if (scopedFormat.HasValue)
                     {
-                        qualityRange.QualityIdsMeetingCutoff = GetQualityIds(profile.Items.Skip(cutoffIndex.Index), formatType).ToList();
+                        qualityRange.QualityIdsMeetingCutoff = GetQualityIds(profile.Items.Skip(cutoffIndex.Index), scopedFormat).ToList();
                     }
 
                     qualitiesBelowCutoff.Add(qualityRange);
@@ -74,9 +75,9 @@ namespace NzbDrone.Core.Books
                 return pagingSpec;
             }
 
-            return formatType is FormatType format
+            return scopedFormat is FormatType format
                 ? _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, format, monitored, _configService.EnableDualFormatTracking)
-                : _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, null);
+                : _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, formatType);
         }
 
         private static IEnumerable<int> GetQualityIds(IEnumerable<QualityProfileQualityItem> items, FormatType? format)

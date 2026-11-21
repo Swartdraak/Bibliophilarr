@@ -194,15 +194,24 @@ namespace NzbDrone.Core.Books
             return pagingSpec;
         }
 
-        private SqlBuilder BooksWhereCutoffUnmetBuilder(List<QualitiesBelowCutoff> qualitiesBelowCutoff)
+        private SqlBuilder BooksWhereCutoffUnmetBuilder(List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType)
         {
-            return Builder()
+            var builder = Builder()
                 .Join<Book, Author>((book, author) => book.AuthorMetadataId == author.AuthorMetadataId)
                 .Join<Author, AuthorMetadata>((author, metadata) => author.AuthorMetadataId == metadata.Id)
                 .Join<Book, Edition>((book, edition) => book.Id == edition.BookId)
                 .LeftJoin<Edition, BookFile>((edition, file) => edition.Id == file.EditionId)
                 .Where<Edition>(edition => edition.Monitored == true)
                 .Where(BuildQualityCutoffWhereClause(qualitiesBelowCutoff, """ "Authors"."QualityProfileId" """));
+
+            if (formatType.HasValue)
+            {
+                var isEbook = formatType.Value == FormatType.Ebook;
+                builder.Where<Edition>(edition => edition.IsEbook == isEbook &&
+                    (isEbook || edition.Format == null || (edition.Format != Edition.PrintFormat && edition.Format != Edition.UnclassifiedFormat)));
+            }
+
+            return builder;
         }
 
         private SqlBuilder ScopedCutoffBuilder(List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType format, bool? monitored, bool dualFormatEnabled)
@@ -275,9 +284,7 @@ namespace NzbDrone.Core.Books
 
         public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType)
         {
-            return formatType is FormatType format
-                ? BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, format, null, false)
-                : GetCutoffPage(pagingSpec, () => BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff));
+            return GetCutoffPage(pagingSpec, () => BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff, formatType));
         }
 
         public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType format, bool? monitored, bool dualFormatEnabled)
