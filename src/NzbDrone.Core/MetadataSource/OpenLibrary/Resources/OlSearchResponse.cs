@@ -6,6 +6,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
     /// <summary>Top-level envelope returned by Open Library /search.json.</summary>
     public class OlSearchResponse
     {
+        internal bool RequestUnavailable { get; init; }
+
         [JsonPropertyName("numFound")]
         public int NumFound { get; set; }
 

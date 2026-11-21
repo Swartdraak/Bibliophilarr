@@ -14,6 +14,8 @@ process.
 
 ### Fixed
 
+- Provider telemetry distinguishes failed Open Library text searches from
+  successful searches with no matches.
 - Coordinate overlapping author refreshes so they share the stored series and
   keep its book links.
 - Preserve completed task results in command history after restart.
