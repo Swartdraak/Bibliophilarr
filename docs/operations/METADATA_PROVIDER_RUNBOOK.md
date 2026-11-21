@@ -84,7 +84,7 @@ Action at critical:
 1. Reduce blast radius by reordering providers:
    - Put most reliable provider first in `metadataProviderPriorityOrder`.
 2. Temporarily disable failing provider:
-   - `enableOpenLibraryProvider` or `enableInventaireProvider`.
+   - `enableOpenLibraryProvider` or `enableInventaireFallback`.
 3. Tighten timeout and retry settings:
    - Lower `metadataProviderTimeoutSeconds`.
    - Lower `metadataProviderRetryBudget` during sustained outage.
@@ -283,7 +283,9 @@ For emergency provider disablement, use the persisted metadata-provider configur
 
 - `enableOpenLibraryProvider`
 - `enableGoogleBooksProvider`
-- `enableInventaireProvider`
+- `enableInventaireFallback`
+
+The **Enable Inventaire** setting controls title and author fallback during automatic import. The configuration API still reads and writes `enableInventaireProvider` for compatibility with existing clients. That deprecated field has no effect on provider requests.
 
 ### Rollout Policy
 

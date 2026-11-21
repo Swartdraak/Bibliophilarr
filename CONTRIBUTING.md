@@ -340,13 +340,9 @@ If a new local automation tool introduces persistent workspace artifacts, add it
 
 ### Naming convergence policy
 
-Folder-level legacy `NzbDrone.*` naming remains in active code paths for compatibility. Convergence to Bibliophilarr naming must be staged and non-breaking:
+Use the Bibliophilarr project name in contributor guidance and CI summaries. The solution is the stable entry point for source navigation. Run `dotnet sln src/Bibliophilarr.sln list` from the repository root to resolve project names to current source paths. For example, `Bibliophilarr.Core` currently resolves to `src/NzbDrone.Core/Bibliophilarr.Core.csproj`. Keep `QUICKSTART.md`'s targeted project commands useful by updating their paths in the same PR as a move. [Build and test commands](QUICKSTART.md)
 
-1. documentation and contributor guidance updates;
-2. tooling/path alias updates where no runtime behavior changes;
-3. opt-in path migrations in small slices with CI and rollback notes.
-
-Do not perform broad rename sweeps across runtime projects in one PR.
+Make physical folder changes in small PRs to `develop`. Preserve project file names, assembly names and CLR namespaces. Update the solution and all affected project references, workflow paths and other tooling together. Record validation coverage and the rollback for each slice. [Inventory, sequence and rollback](docs/operations/ZERO_LEGACY_BRAND_CHANGEOVER_PLAN.md#source-folder-convergence)
 
 ## Production readiness
 
