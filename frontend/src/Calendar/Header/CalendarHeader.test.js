@@ -33,6 +33,12 @@ it('names the calendar period actions and keeps them unavailable in Agenda', () 
   expect(previous.disabled).toBe(true);
   expect(next.disabled).toBe(true);
 
-  rerender(<CalendarHeader {...props} isSmallScreen collapseViewButtons />);
+  rerender(
+    <CalendarHeader
+      {...props}
+      isSmallScreen={true}
+      collapseViewButtons={true}
+    />
+  );
   expect(screen.getByRole('button', { name: 'CalendarView' })).toBeVisible();
 });
