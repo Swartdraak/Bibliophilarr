@@ -766,6 +766,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
         [TestCase(LibraryImportHoldReason.LowConfidence, LibraryImportHoldReason.LowConfidence)]
         [TestCase(LibraryImportHoldReason.AuthorBibliographyUnavailable, LibraryImportHoldReason.AuthorBibliographyUnavailable)]
         [TestCase(LibraryImportHoldReason.AuthorIdentityConfirmationRequired, LibraryImportHoldReason.AuthorIdentityConfirmationRequired)]
+        [TestCase(LibraryImportHoldReason.CompetingEditions, LibraryImportHoldReason.CompetingEditions)]
         public void should_record_why_new_files_remain_unmapped(LibraryImportHoldReason? holdReason, LibraryImportHoldReason expectedReason)
         {
             GivenAuthorFolder();

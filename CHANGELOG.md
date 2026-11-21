@@ -16,7 +16,8 @@ process.
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
 - See the last recorded import hold reason next to each unmapped file, such as
-  an uncertain match, a preferred existing file, or a file of the same size.
+  competing catalogue works, a preferred existing file, or a file of the same
+  size.
 - Show import execution failures separately from uncertain matches and
   summarize unmapped reasons in scan progress.
 - Open recent background tasks from the WebUI header and filter for tasks
@@ -29,6 +30,9 @@ process.
   missing files of one format while preserving the work-wide monitoring controls.
 
 ### Fixed
+
+- Keep the Add Author dialog open with a retryable message when the configured
+  metadata providers cannot verify the bibliography.
 
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.

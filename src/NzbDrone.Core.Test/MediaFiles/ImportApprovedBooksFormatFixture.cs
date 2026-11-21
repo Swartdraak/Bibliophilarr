@@ -405,9 +405,15 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var results = Subject.Import(_approvedDecisions, false);
 
-            results.Should().ContainSingle(result => result.Result == ImportResultType.Rejected);
+            var held = results.Should().ContainSingle().Which;
+            held.Result.Should().Be(ImportResultType.Rejected);
+            held.ImportDecision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.CompetingEditions);
             Mocker.GetMock<IBookService>().Verify(s => s.InsertMany(It.IsAny<List<Book>>()), Times.Never());
-            Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+            Mocker.GetMock<IEditionService>().Verify(s => s.InsertMany(It.IsAny<List<Edition>>()), Times.Never());
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Verify(s => s.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+            mediaFiles.Verify(s => s.TryLinkUnmappedFile(It.IsAny<BookFile>(), It.IsAny<Edition>()), Times.Never());
+            mediaFiles.Verify(s => s.TryRepairUnsupportedEditionLink(It.IsAny<BookFile>(), It.IsAny<Edition>()), Times.Never());
         }
 
         [TestCase("Print")]

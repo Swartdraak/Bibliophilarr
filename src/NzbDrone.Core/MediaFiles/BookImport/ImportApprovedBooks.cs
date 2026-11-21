@@ -653,7 +653,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     {
                         foreach (var decision in decisions)
                         {
-                            decision.Reject(new Rejection("More than one existing work matches this book", RejectionType.Temporary));
+                            decision.Reject(new Rejection("More than one existing work matches this book", RejectionType.Temporary, LibraryImportHoldReason.CompetingEditions));
                         }
 
                         return null;
