@@ -36,6 +36,8 @@ process.
   needs manual confirmation of a same-name author.
 - Allow a single same-name author candidate to be corroborated by two
   independently verified works if Open Library's bibliography ends early.
+- Return HTTP 503 with a retry message when an unavailable bibliography
+  prevents adding an author.
 - Preserve the Hardcover author, work, or edition that supplied an artwork
   reference, including when an edition displays the work's cover.
 - Explain when a different ebook has an unverified ISBN for an occupied

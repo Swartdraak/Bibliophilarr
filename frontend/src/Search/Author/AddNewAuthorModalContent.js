@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import TextTruncate from 'react-text-truncate';
 import AuthorPoster from 'Author/AuthorPoster';
+import Alert from 'Components/Alert';
 import CheckInput from 'Components/Form/CheckInput';
 import SpinnerButton from 'Components/Link/SpinnerButton';
 import ModalBody from 'Components/Modal/ModalBody';
@@ -9,6 +10,7 @@ import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { kinds } from 'Helpers/Props';
+import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 import AddAuthorOptionsForm from '../Common/AddAuthorOptionsForm.js';
 import styles from './AddNewAuthorModalContent.css';
@@ -55,11 +57,13 @@ class AddNewAuthorModalContent extends Component {
       disambiguation,
       overview,
       images,
+      addError,
       isAdding,
       isSmallScreen,
       onModalClose,
       ...otherProps
     } = this.props;
+    const providerError = addError?.status === 503 ? getErrorMessage(addError) : undefined;
 
     return (
       <ModalContent onModalClose={onModalClose}>
@@ -101,6 +105,12 @@ class AddNewAuthorModalContent extends Component {
                     />
                   </div> :
                   null
+              }
+
+              {providerError &&
+                <Alert kind={kinds.DANGER} role="alert">
+                  {providerError}
+                </Alert>
               }
 
               <AddAuthorOptionsForm

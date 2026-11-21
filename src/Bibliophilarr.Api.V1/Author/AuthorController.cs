@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.ErrorManagement;
 using Bibliophilarr.Http.REST;
 using FluentValidation;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.AuthorStats;
@@ -11,6 +13,7 @@ using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Events;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
@@ -166,7 +169,18 @@ namespace Bibliophilarr.Api.V1.Author
         [RestPostById]
         public ActionResult<AuthorResource> AddAuthor([FromBody] AuthorResource authorResource)
         {
-            var author = _addAuthorService.AddAuthor(authorResource.ToModel());
+            NzbDrone.Core.Books.Author author;
+            try
+            {
+                author = _addAuthorService.AddAuthor(authorResource.ToModel());
+            }
+            catch (MetadataProviderUnavailableException)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorModel
+                {
+                    Message = "Could not verify the author's bibliography with the configured metadata providers. Try adding the author again later."
+                });
+            }
 
             return Created(author.Id);
         }
