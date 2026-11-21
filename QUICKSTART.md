@@ -15,11 +15,10 @@ Start in this order:
 
 ## Prerequisites
 
-- .NET SDK: the exact version pinned in [global.json](global.json)
-  (currently `10.0.400`, feature band `10.0.x`, rollForward `latestFeature`).
-  The repository fails to build if the required SDK is absent. Use
-  `dotnet --list-sdks` to verify the installed SDK and the
-  `dotnet --version` to confirm the selected SDK matches the pin.
+- .NET 10 SDK for source builds. [global.json](global.json) sets `10.0.100`
+  with `latestFeature` roll-forward and prereleases disabled. Use
+  `dotnet --list-sdks` to list installed versions and `dotnet --version` from
+  the repository root to confirm the selected SDK.
 - Node.js 22.x
 - Yarn 1.22.x
 - Git
@@ -157,6 +156,8 @@ Expected outcome:
 
 - `/ping` returns `200`.
 - The packaged runtime starts without any manual UI copy step.
+- Opening the WebUI directly on localhost with a fresh data directory starts
+  first-account setup. Use the built-in browser form to create the account.
 - `_tests/net10.0/linux-x64` is reserved for test execution only.
 
 Optional runtime cloud-services endpoint:

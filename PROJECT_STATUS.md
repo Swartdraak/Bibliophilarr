@@ -33,7 +33,14 @@ closed.
 ## Branch and promotion posture
 
 - The release remains on hold pending full-library validation and maintainer
-  approval.
+  approval. [Release readiness](https://github.com/Swartdraak/Bibliophilarr/issues/484)
+  and [catalogue identity](https://github.com/Swartdraak/Bibliophilarr/issues/486)
+  are open.
+- Full-library acceptance uses a newly created native app database. Configure
+  every supported metadata provider, scan both complete read-only target
+  libraries in the same profile, and verify independent ebook and audiobook
+  tracking. Check provider bibliography coverage, rendered artwork, unmapped
+  reasons, and authenticated behaviour after restart.
 - The next promotion follows `develop -> staging` through a pull request.
   Validate installation, metadata, full-library matching, and release evidence
   on the consolidated revision.
