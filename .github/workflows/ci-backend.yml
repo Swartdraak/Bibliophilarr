@@ -207,7 +207,7 @@ jobs:
         run: >-
           dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
-          --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture'
+          --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture|FullyQualifiedName~ApiWriteAuthorizationFixture'
 
       - name: Verify persistent user password storage
         run: >-
@@ -226,7 +226,7 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~DiskScanServiceTests.ScanFixture|FullyQualifiedName~EbookTagServiceFixture|FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~RefreshBookDeletionGuardFixture|FullyQualifiedName~RefreshEditionFormatFixture|FullyQualifiedName~BookSearchServiceMissingFormatFixture|FullyQualifiedName~QueueSpecificationFixture|FullyQualifiedName~ScopedCutoffRepositoryFixture|FullyQualifiedName~BookCutoffServiceFormatFixture|FullyQualifiedName~MediaFileRepositoryFixture.should_persist_updated_reasons_only_while_the_same_file_is_unmapped|FullyQualifiedName~CandidateServiceIssue340Fixture|FullyQualifiedName~ManualImportServiceExecute'
+          'FullyQualifiedName~IdentificationServiceFormatFixture|FullyQualifiedName~CandidateServiceFixture|FullyQualifiedName~ImportDecisionMakerIssue275Fixture|FullyQualifiedName~ImportApprovedBooksFormatFixture|FullyQualifiedName~DiskScanServiceTests.ScanFixture|FullyQualifiedName~EbookTagServiceFixture|FullyQualifiedName~RefreshAuthorServiceFixture|FullyQualifiedName~RefreshBookDeletionGuardFixture|FullyQualifiedName~RefreshEditionFormatFixture|FullyQualifiedName~BookSearchServiceMissingFormatFixture|FullyQualifiedName~QueueSpecificationFixture|FullyQualifiedName~ScopedCutoffRepositoryFixture|FullyQualifiedName~BookCutoffServiceFormatFixture|FullyQualifiedName~MediaFileRepositoryFixture.should_persist_updated_reasons_only_while_the_same_file_is_unmapped|FullyQualifiedName~CandidateServiceIssue340Fixture|FullyQualifiedName~ManualImportServiceExecute|FullyQualifiedName~AudioTagPayloadFixture'
 
       - name: Verify stored command results
         run: >-
