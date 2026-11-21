@@ -219,7 +219,7 @@ jobs:
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --no-restore --verbosity minimal -p:Platform=Posix
-          --filter 'FullyQualifiedName~AuthorPathValidatorFixture|FullyQualifiedName~AuthorCanonicalizationServiceFixture|FullyQualifiedName~AddAuthorPersistenceFixture|FullyQualifiedName~AddBookFixture'
+          --filter 'FullyQualifiedName~AuthorPathValidatorFixture|FullyQualifiedName~AuthorCanonicalizationServiceFixture|FullyQualifiedName~AddAuthorPersistenceFixture|FullyQualifiedName~AddBookFixture|FullyQualifiedName~RefreshSeriesServiceConcurrencyFixture'
 
       - name: Run library import format and selection fixtures
         run: >-
