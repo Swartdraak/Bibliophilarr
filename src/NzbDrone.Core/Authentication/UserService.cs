@@ -1,6 +1,4 @@
 using System;
-using NzbDrone.Common.Disk;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Core.Authentication
@@ -18,14 +16,10 @@ namespace NzbDrone.Core.Authentication
     public class UserService : IUserService
     {
         private readonly IUserRepository _repo;
-        private readonly IAppFolderInfo _appFolderInfo;
-        private readonly IDiskProvider _diskProvider;
 
-        public UserService(IUserRepository repo, IAppFolderInfo appFolderInfo, IDiskProvider diskProvider)
+        public UserService(IUserRepository repo)
         {
             _repo = repo;
-            _appFolderInfo = appFolderInfo;
-            _diskProvider = diskProvider;
         }
 
         public User Add(string username, string password)
@@ -34,7 +28,7 @@ namespace NzbDrone.Core.Authentication
             {
                 Identifier = Guid.NewGuid(),
                 Username = username.ToLowerInvariant(),
-                Password = password.SHA256Hash()
+                Password = UserPasswordHasher.Hash(password)
             });
         }
 
@@ -52,11 +46,7 @@ namespace NzbDrone.Core.Authentication
                 return Add(username, password);
             }
 
-            if (user.Password != password)
-            {
-                user.Password = password.SHA256Hash();
-            }
-
+            user.Password = UserPasswordHasher.Hash(password);
             user.Username = username.ToLowerInvariant();
 
             return Update(user);
@@ -74,19 +64,29 @@ namespace NzbDrone.Core.Authentication
                 return null;
             }
 
-            var user = _repo.FindUser(username.ToLowerInvariant());
+            var normalizedUsername = username.ToLowerInvariant();
+            var user = _repo.FindUser(normalizedUsername);
 
-            if (user == null)
+            if (user == null || !UserPasswordHasher.Verify(user.Password, password, out var needsUpgrade))
             {
                 return null;
             }
 
-            if (user.Password == password.SHA256Hash())
+            if (!needsUpgrade)
             {
                 return user;
             }
 
-            return null;
+            var upgradedHash = UserPasswordHasher.Hash(password);
+            if (_repo.TryUpdatePasswordHash(user, upgradedHash))
+            {
+                user.Password = upgradedHash;
+                return user;
+            }
+
+            // Another request changed these credentials before the upgrade could be saved.
+            var current = _repo.FindUser(normalizedUsername);
+            return current != null && UserPasswordHasher.Verify(current.Password, password, out _) ? current : null;
         }
 
         public User FindUser(Guid identifier)
