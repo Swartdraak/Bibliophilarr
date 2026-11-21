@@ -71,6 +71,26 @@
   }
 }
 
+.sharedBibliography {
+  margin-bottom: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--workspaceBorderColor);
+  border-radius: 6px;
+  background-color: var(--defaultBackgroundColor);
+
+  & > summary {
+    color: var(--textColor);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  & > ul {
+    margin: 10px 0 0;
+    padding-left: 22px;
+    line-height: 1.65;
+  }
+}
+
 @media only screen and (max-width: $breakpointSmall) {
   .contentContainer {
     padding: 20px 0;

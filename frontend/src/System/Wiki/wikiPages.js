@@ -8,7 +8,7 @@ const wikiPages = [
       {
         heading: 'Welcome to Bibliophilarr',
         paragraphs: [
-          'Bibliophilarr is a book library management tool for ebook and audiobook enthusiasts. It monitors your favorite authors, automatically downloads new releases, and organizes your library. It is a community-driven fork of the retired Readarr project, focused on sustainable FOSS metadata providers and native dual-format (ebook + audiobook) tracking.',
+          'Bibliophilarr manages ebook and audiobook libraries. It monitors your favorite authors, automatically downloads new releases, and organizes both formats. It uses open metadata providers and tracks ebooks and audiobooks independently.',
           'This guide walks you through initial setup after your first launch.'
         ]
       },

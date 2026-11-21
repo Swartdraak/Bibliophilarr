@@ -119,6 +119,7 @@ namespace NzbDrone.Core.MediaCover
             }
             else
             {
+                var cachedTypes = new HashSet<MediaCoverTypes>();
                 foreach (var mediaCover in covers)
                 {
                     if (mediaCover.CoverType == MediaCoverTypes.Unknown)
@@ -129,6 +130,11 @@ namespace NzbDrone.Core.MediaCover
                     var filePath = GetCoverPath(entityId, coverEntity, mediaCover.CoverType, mediaCover.Extension, null);
 
                     mediaCover.RemoteUrl = mediaCover.Url;
+                    if (!cachedTypes.Add(mediaCover.CoverType))
+                    {
+                        mediaCover.Url = _mediaCoverProxy.RegisterUrl(mediaCover.RemoteUrl);
+                        continue;
+                    }
 
                     if (coverEntity == MediaCoverEntity.Book)
                     {
@@ -139,9 +145,8 @@ namespace NzbDrone.Core.MediaCover
                         mediaCover.Url = _configFileProvider.UrlBase + @"/MediaCover/" + entityId + "/" + mediaCover.CoverType.ToString().ToLower() + GetExtension(mediaCover.CoverType, mediaCover.Extension);
                     }
 
-                    if (_diskProvider.FileExists(filePath))
+                    if (GetCachedCoverLastWrite(filePath) is DateTime lastWrite)
                     {
-                        var lastWrite = _diskProvider.FileGetLastWrite(filePath);
                         mediaCover.Url += "?lastWrite=" + lastWrite.Ticks;
                     }
                     else if (mediaCover.RemoteUrl.IsNotNullOrWhiteSpace())
@@ -150,6 +155,21 @@ namespace NzbDrone.Core.MediaCover
                         mediaCover.Url = _mediaCoverProxy.RegisterUrl(mediaCover.RemoteUrl);
                     }
                 }
+            }
+        }
+
+        private DateTime? GetCachedCoverLastWrite(string filePath)
+        {
+            try
+            {
+                return _diskProvider.FileExists(filePath) && _diskProvider.GetFileSize(filePath) > 0
+                    ? _diskProvider.FileGetLastWrite(filePath)
+                    : null;
+            }
+            catch (IOException ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                // The cache can be reconciled between checking the file and reading its metadata.
+                return null;
             }
         }
 
@@ -167,7 +187,7 @@ namespace NzbDrone.Core.MediaCover
         {
             var toResize = new List<Tuple<MediaCover, bool>>();
 
-            foreach (var cover in author.Metadata.Value.Images)
+            foreach (var cover in author.Metadata.Value.Images.DistinctBy(image => image.CoverType))
             {
                 if (cover.CoverType == MediaCoverTypes.Unknown)
                 {
@@ -225,13 +245,8 @@ namespace NzbDrone.Core.MediaCover
 
         public void EnsureBookCovers(Book book)
         {
-            foreach (var cover in book.Editions.Value.Single(x => x.Monitored).Images.Where(e => e.CoverType == MediaCoverTypes.Cover))
+            foreach (var cover in GetBookCovers(book))
             {
-                if (cover.CoverType == MediaCoverTypes.Unknown)
-                {
-                    continue;
-                }
-
                 var fileName = GetCoverPath(book.Id, MediaCoverEntity.Book, cover.CoverType, cover.Extension, null);
                 var alreadyExists = false;
 
@@ -431,11 +446,15 @@ namespace NzbDrone.Core.MediaCover
             foreach (var book in books)
             {
                 EnsureBookCovers(book);
-                var monitored = book.Editions?.Value?.SingleOrDefault(x => x.Monitored);
-                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, monitored?.Images ?? new List<MediaCover>());
+                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, GetBookCovers(book));
             }
 
             _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));
+        }
+
+        private static IEnumerable<MediaCover> GetBookCovers(Book book)
+        {
+            return (book.Editions?.Value).GetBookImages().Where(image => image.CoverType == MediaCoverTypes.Cover).Take(1);
         }
 
         public void HandleAsync(AuthorDeletedEvent message)

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Dapper;
 using NzbDrone.Common;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
@@ -18,6 +19,9 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFilesWithBasePath(string path);
         List<BookFile> GetFileWithPath(List<string> paths);
         BookFile GetFileWithPath(string path);
+        bool TryLinkUnmappedFile(BookFile file, Edition edition);
+        void SetUnmappedReasons(List<BookFile> files);
+        bool TryRepairUnsupportedEditionLink(BookFile file, Edition previous, Edition edition);
         void DeleteFilesByBook(int bookId);
         void UnlinkFilesByBook(int bookId);
     }
@@ -98,8 +102,12 @@ namespace NzbDrone.Core.MediaFiles
         public void UnlinkFilesByBook(int bookId)
         {
             var files = GetFilesByBook(bookId);
-            files.ForEach(x => x.EditionId = 0);
-            SetFields(files, f => f.EditionId);
+            files.ForEach(file =>
+            {
+                file.EditionId = 0;
+                file.UnmappedReason = null;
+            });
+            SetFields(files, f => f.EditionId, f => f.UnmappedReason);
         }
 
         public List<BookFile> GetFilesWithBasePath(string path)
@@ -112,6 +120,66 @@ namespace NzbDrone.Core.MediaFiles
         public BookFile GetFileWithPath(string path)
         {
             return Query(x => x.Path == path).SingleOrDefault();
+        }
+
+        public bool TryLinkUnmappedFile(BookFile file, Edition edition)
+        {
+            using var connection = _database.OpenConnection();
+            return connection.Execute("""
+                UPDATE "BookFiles"
+                SET "EditionId" = @EditionId, "UnmappedReason" = NULL
+                WHERE "Id" = @FileId AND "Path" = @Path AND "EditionId" = 0
+                  AND EXISTS (SELECT 1 FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId)
+                """, new { FileId = file.Id, file.Path, EditionId = edition.Id, edition.BookId }) == 1;
+        }
+
+        public void SetUnmappedReasons(List<BookFile> files)
+        {
+            if (files.Count == 0)
+            {
+                return;
+            }
+
+            using var connection = _database.OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            connection.Execute(
+                """
+                UPDATE "BookFiles" SET "UnmappedReason" = @Reason
+                WHERE "Id" = @Id AND "Path" = @Path AND "EditionId" = 0
+                """,
+                files.Select(file => new { file.Id, file.Path, Reason = (int?)file.UnmappedReason }),
+                transaction);
+            transaction.Commit();
+        }
+
+        public bool TryRepairUnsupportedEditionLink(BookFile file, Edition previous, Edition edition)
+        {
+            using var connection = _database.OpenConnection();
+            return connection.Execute(
+                """
+                UPDATE "BookFiles" SET "EditionId" = @EditionId
+                WHERE "Id" = @FileId AND "Path" = @Path AND "EditionId" = @PreviousId
+                  AND EXISTS (
+                      SELECT 1 FROM "Editions" WHERE "Id" = @PreviousId AND "BookId" = @BookId
+                      AND ("Format" = @PreviousFormat OR ("Format" IS NULL AND @PreviousFormat IS NULL))
+                      AND "IsEbook" = @PreviousEbook)
+                  AND EXISTS (
+                      SELECT 1 FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId
+                      AND ("Format" = @Format OR ("Format" IS NULL AND @Format IS NULL))
+                      AND "IsEbook" = @IsEbook)
+                """,
+                new
+                {
+                    FileId = file.Id,
+                    file.Path,
+                    PreviousId = previous.Id,
+                    PreviousFormat = previous.Format,
+                    PreviousEbook = previous.IsEbook,
+                    EditionId = edition.Id,
+                    edition.BookId,
+                    edition.Format,
+                    edition.IsEbook
+                }) == 1;
         }
 
         public List<BookFile> GetFileWithPath(List<string> paths)

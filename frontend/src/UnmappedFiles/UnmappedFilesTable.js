@@ -310,6 +310,7 @@ class UnmappedFilesTable extends Component {
                 scroller={scroller}
                 isSmallScreen={isSmallScreen}
                 overscanRowCount={10}
+                rowHeight={56}
                 rowRenderer={this.rowRenderer}
                 header={
                   <UnmappedFilesTableHeader

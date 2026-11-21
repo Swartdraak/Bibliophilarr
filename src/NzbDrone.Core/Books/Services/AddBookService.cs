@@ -47,12 +47,25 @@ namespace NzbDrone.Core.Books
             _logger.Debug($"Adding book {book}");
 
             book = AddSkyhookData(book);
+            var sourceWorkId = book.ForeignBookId;
+            var sourceAuthorId = book.AuthorMetadata.Value.ForeignAuthorId;
+            var dbAuthor = _authorService.FindById(sourceAuthorId);
 
             // we allow adding extra editions, so check if the book already exists
-            var dbBook = _bookService.FindById(book.ForeignBookId);
+            var dbBook = _bookService.FindById(sourceWorkId);
             if (dbBook != null)
             {
+                if (dbBook.AuthorMetadataId > 0 && dbAuthor?.AuthorMetadataId != dbBook.AuthorMetadataId)
+                {
+                    throw new ValidationException(new List<ValidationFailure>
+                    {
+                        new ("ForeignAuthorId", "The matched work belongs to a different catalogue author")
+                    });
+                }
+
                 book.UseDbFieldsFrom(dbBook);
+                book.ForeignBookId = dbBook.ForeignBookId;
+                book.TitleSlug = dbBook.TitleSlug;
             }
 
             // Note it's a manual addition so it's not deleted on next refresh
@@ -70,7 +83,6 @@ namespace NzbDrone.Core.Books
             selectedEdition.ManualAdd = true;
 
             // Add the author if necessary
-            var dbAuthor = _authorService.FindById(book.AuthorMetadata.Value.ForeignAuthorId);
             if (dbAuthor == null)
             {
                 var author = book.Author?.Value;
@@ -105,7 +117,12 @@ namespace NzbDrone.Core.Books
 
             // Remove any import list exclusions preventing addition
             _importListExclusionService.Delete(book.ForeignBookId);
-            _importListExclusionService.Delete(book.AuthorMetadata.Value.ForeignAuthorId);
+            if (sourceWorkId != book.ForeignBookId)
+            {
+                _importListExclusionService.Delete(sourceWorkId);
+            }
+
+            _importListExclusionService.Delete(sourceAuthorId);
 
             book.Author = dbAuthor;
             book.AuthorMetadataId = dbAuthor.AuthorMetadataId;

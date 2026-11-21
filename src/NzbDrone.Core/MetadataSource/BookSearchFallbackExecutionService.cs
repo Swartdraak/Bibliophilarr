@@ -159,10 +159,14 @@ namespace NzbDrone.Core.MetadataSource
                 _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
 
                 var retryAfter = e.RetryAfter > TimeSpan.Zero ? e.RetryAfter : TimeSpan.FromMinutes(5);
-                SetCooldown(provider.ProviderName, Clamp(retryAfter, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15)));
-                UpdateRateLimitHealth(provider, rateLimitSnapshot, retryAfter);
+                var maximumCooldown = string.Equals(provider.ProviderName, "Hardcover", StringComparison.OrdinalIgnoreCase)
+                    ? TimeSpan.FromSeconds(int.MaxValue)
+                    : TimeSpan.FromMinutes(15);
+                var cooldown = Clamp(retryAfter, TimeSpan.FromSeconds(30), maximumCooldown);
+                SetCooldown(provider.ProviderName, cooldown);
+                UpdateRateLimitHealth(provider, rateLimitSnapshot, cooldown);
 
-                _logger.Warn("Fallback provider {0} returned 429, dampening queries for {1:F0}s", provider.ProviderName, retryAfter.TotalSeconds);
+                _logger.Warn("Fallback provider {0} returned 429, dampening queries for {1:F0}s", provider.ProviderName, cooldown.TotalSeconds);
                 return new List<Book>();
             }
             catch (HttpException e) when (e.Response?.StatusCode == HttpStatusCode.RequestTimeout || e.Response?.HasHttpServerError == true)

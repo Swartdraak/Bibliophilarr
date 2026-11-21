@@ -23,6 +23,7 @@ import InteractiveSearchFilterMenuConnector from 'InteractiveSearch/InteractiveS
 import InteractiveSearchTable from 'InteractiveSearch/InteractiveSearchTable';
 import OrganizePreviewModalConnector from 'Organize/OrganizePreviewModalConnector';
 import RetagPreviewModalConnector from 'Retag/RetagPreviewModalConnector';
+import cataloguePath from 'Utilities/cataloguePath';
 import translate from 'Utilities/String/translate';
 import getSelectedIds from 'Utilities/Table/getSelectedIds';
 import selectAll from 'Utilities/Table/selectAll';
@@ -31,6 +32,7 @@ import InteractiveImportModal from '../../InteractiveImport/InteractiveImportMod
 import AuthorDetailsHeaderConnector from './AuthorDetailsHeaderConnector';
 import AuthorDetailsSeasonConnector from './AuthorDetailsSeasonConnector';
 import AuthorDetailsSeriesConnector from './AuthorDetailsSeriesConnector';
+import SharedBibliography from './SharedBibliography';
 import styles from './AuthorDetails.css';
 
 function getExpandedState(newState) {
@@ -230,6 +232,8 @@ class AuthorDetails extends Component {
       hasMonitoredBooks,
       hasSeries,
       series,
+      seriesArtworkBooks,
+      sharedBooks,
       hasBookFiles,
       previousAuthor,
       nextAuthor,
@@ -377,9 +381,9 @@ class AuthorDetails extends Component {
         <PageContentBody innerClassName={styles.innerContentBody}>
           <SwipeHeaderConnector
             className={styles.header}
-            nextLink={`/author/${nextAuthor.titleSlug}`}
+            nextLink={cataloguePath('author', nextAuthor)}
             nextComponent={(width) => <AuthorDetailsHeaderConnector authorId={nextAuthor.id} width={width} />}
-            prevLink={`/author/${previousAuthor.titleSlug}`}
+            prevLink={cataloguePath('author', previousAuthor)}
             prevComponent={(width) => <AuthorDetailsHeaderConnector authorId={previousAuthor.id} width={width} />}
             currentComponent={(width) => <AuthorDetailsHeaderConnector authorId={id} width={width} />}
           >
@@ -389,7 +393,7 @@ class AuthorDetails extends Component {
                 name={icons.ARROW_LEFT}
                 size={30}
                 title={translate('GoToInterp', [previousAuthor.authorName])}
-                to={`/author/${previousAuthor.titleSlug}`}
+                to={cataloguePath('author', previousAuthor)}
               />
 
               <IconButton
@@ -405,7 +409,7 @@ class AuthorDetails extends Component {
                 name={icons.ARROW_RIGHT}
                 size={30}
                 title={translate('GoToInterp', [nextAuthor.authorName])}
-                to={`/author/${nextAuthor.titleSlug}`}
+                to={cataloguePath('author', nextAuthor)}
               />
             </div>
           </SwipeHeaderConnector>
@@ -485,6 +489,7 @@ class AuthorDetails extends Component {
                   </TabList>
 
                   <TabPanel>
+                    <SharedBibliography books={sharedBooks} />
                     <AuthorDetailsSeasonConnector
                       authorId={id}
                       isExpanded={true}
@@ -507,6 +512,7 @@ class AuthorDetails extends Component {
                                   key={item.id}
                                   seriesId={item.id}
                                   authorId={id}
+                                  artworkBooks={seriesArtworkBooks}
                                   isExpanded={expandedState[item.id]}
                                   onExpandPress={this.onExpandPress}
                                 />
@@ -630,6 +636,8 @@ AuthorDetails.propTypes = {
   hasMonitoredBooks: PropTypes.bool.isRequired,
   hasSeries: PropTypes.bool.isRequired,
   series: PropTypes.arrayOf(PropTypes.object).isRequired,
+  seriesArtworkBooks: PropTypes.arrayOf(PropTypes.object),
+  sharedBooks: PropTypes.arrayOf(PropTypes.object),
   hasBookFiles: PropTypes.bool.isRequired,
   previousAuthor: PropTypes.object.isRequired,
   nextAuthor: PropTypes.object.isRequired,

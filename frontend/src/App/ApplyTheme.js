@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React, { Fragment, useCallback, useEffect } from 'react';
+import React, { Fragment, useEffect } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import themes from 'Styles/Themes';
@@ -17,26 +17,27 @@ function createMapStateToProps() {
   );
 }
 
-function ApplyTheme({ theme, children }) {
-  // Update the CSS Variables
-  const updateCSSVariables = useCallback(() => {
-    const arrayOfVariableKeys = Object.keys(themes[theme]);
-    const arrayOfVariableValues = Object.values(themes[theme]);
-
-    // Loop through each array key and set the CSS Variables
-    arrayOfVariableKeys.forEach((cssVariableKey, index) => {
-      // Based on our snippet from MDN
-      document.documentElement.style.setProperty(
-        `--${cssVariableKey}`,
-        arrayOfVariableValues[index]
-      );
-    });
-  }, [theme]);
-
-  // On Component Mount and Component Update
+export function ApplyTheme({ theme, children }) {
   useEffect(() => {
-    updateCSSVariables(theme);
-  }, [updateCSSVariables, theme]);
+    const fixedTheme = theme === 'light' || theme === 'dark';
+    const preference = fixedTheme ? null : window.matchMedia?.('(prefers-color-scheme: dark)');
+    const update = () => {
+      const systemPalette = preference?.matches ? 'dark' : 'light';
+      const palette = fixedTheme ? theme : systemPalette;
+      const style = document.documentElement.style;
+      Object.entries(themes[palette]).forEach(([key, value]) => style.setProperty(`--${key}`, value));
+      style.colorScheme = palette;
+    };
+
+    update();
+    if (preference?.addEventListener) {
+      preference.addEventListener('change', update);
+      return () => preference.removeEventListener('change', update);
+    }
+
+    preference?.addListener?.(update);
+    return () => preference?.removeListener?.(update);
+  }, [theme]);
 
   return <Fragment>{children}</Fragment>;
 }

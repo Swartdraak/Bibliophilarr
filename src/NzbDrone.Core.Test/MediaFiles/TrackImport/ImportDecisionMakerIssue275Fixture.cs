@@ -15,6 +15,7 @@ using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
+using NzbDrone.Core.MediaFiles.BookImport.Specifications;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
@@ -112,9 +113,9 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             }
         }
 
-        private ImportDecision<LocalBook> GetSingleDecision()
+        private ImportDecision<LocalBook> GetSingleDecision(IdentificationOverrides overrides = null)
         {
-            var decisions = Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+            var decisions = Subject.GetImportDecisions(_fileInfos, overrides, null, _idConfig);
             decisions.Should().HaveCount(1);
             return decisions.Single();
         }
@@ -151,6 +152,547 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
 
             book.Editions.Value.Add(edition);
             return (book, edition);
+        }
+
+        [Test]
+        public void should_preserve_competing_ebook_editions_hold_without_direct_catalogue_fallback()
+        {
+            _idConfig.NewDownload = false;
+            _idConfig.Filter = FilterFilesType.Known;
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides overrides, ImportDecisionMakerConfig config, ImportRunSummary summary) =>
+                    new List<LocalEdition> { new LocalEdition(tracks) { IdentificationHoldReason = LibraryImportHoldReason.CompetingEditions } });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Rejections.Single().HoldReason.Should().Be(LibraryImportHoldReason.CompetingEditions);
+            Mocker.GetMock<IMetadataProviderOrchestrator>().VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_hold_conflicting_numbered_mobi_identity_without_direct_catalogue_fallback()
+        {
+            const string title = "The Primal Hunter 15: A LitRPG Adventure";
+            const string author = "Zogarth";
+            _idConfig.NewDownload = false;
+            _filePath = @"C:\Test\Unsorted\Zogarth - The Primal Hunter 7 (1).mobi".AsOsAgnostic();
+            FileSystem.AddFile(_filePath, new MockFileData(string.Empty));
+            _fileInfos = new List<IFileInfo> { DiskProvider.GetFileInfo(_filePath) };
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo { BookTitle = title, BookTitleConfidence = 0.9, Authors = new List<string> { author } });
+            var (book, edition) = BuildMatch();
+            book.Title = title;
+            book.AuthorMetadata.Value.Name = author;
+            book.Author.Value.Metadata.Value.Name = author;
+            edition.Title = title;
+            var provider = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            provider.Setup(service => service.SearchForLibraryImport(title, author, It.IsAny<Func<List<Book>, bool>>()))
+                .Callback((string _, string _, Func<List<Book>, bool> stopAfter) => stopAfter(new List<Book> { book }));
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Item.Edition.Should().BeNull();
+            decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ConflictingIdentity);
+            provider.Verify(service => service.SearchForLibraryImport(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<List<Book>, bool>>()), Times.Never());
+        }
+
+        [Test]
+        public void should_select_only_the_exact_work_for_a_background_library_fallback()
+        {
+            _idConfig.NewDownload = false;
+            var (wrong, _) = BuildMatch();
+            wrong.Title = "A Different Story";
+            wrong.ForeignBookId = "OL456W";
+            var (right, edition) = BuildMatch();
+            GivenFallbackWorks(wrong, right);
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [TestCase(LibraryImportHoldReason.LowConfidence, false)]
+        [TestCase(LibraryImportHoldReason.LowConfidence, true)]
+        [TestCase(LibraryImportHoldReason.ProviderIdentityConflict, false)]
+        [TestCase(LibraryImportHoldReason.ProviderIdentityConflict, true)]
+        public void should_preserve_identification_hold_until_fallback_finds_a_match(LibraryImportHoldReason reason, bool fallbackMatches)
+        {
+            _idConfig.NewDownload = false;
+            LocalEdition release = null;
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides overrides, ImportDecisionMakerConfig config, ImportRunSummary summary) =>
+                {
+                    release = new LocalEdition(tracks) { IdentificationHoldReason = reason };
+                    return new List<LocalEdition> { release };
+                });
+
+            var (book, edition) = BuildMatch();
+            GivenFallbackWorks(fallbackMatches ? new[] { book } : Array.Empty<Book>());
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().Be(fallbackMatches);
+            if (fallbackMatches)
+            {
+                decision.Item.Edition.Should().BeSameAs(edition);
+                release.IdentificationHoldReason.Should().BeNull();
+            }
+            else
+            {
+                var rejection = decision.Rejections.Should().ContainSingle().Which;
+                rejection.HoldReason.Should().Be(reason);
+                if (reason == LibraryImportHoldReason.ProviderIdentityConflict)
+                {
+                    rejection.Reason.Should().Be("Metadata provider results conflict with this file's book identity. Select the intended work manually.");
+                }
+
+                decision.Item.Edition.Should().BeNull();
+            }
+        }
+
+        [TestCase(false, "Starling Almanac 7: An Adventure", false)]
+        [TestCase(false, "Starling Almanac 3: An Adventure", true)]
+        [TestCase(false, "Starling Almanac", true)]
+        [TestCase(true, "Starling Almanac 7: An Adventure", true)]
+        public void should_apply_numbered_edition_conflict_checks_to_background_fallback_only(
+            bool newDownload, string editionTitle, bool shouldMatch)
+        {
+            const string title = "Starling Almanac: Book 3";
+            const string author = "Christine Feehan";
+            _idConfig.NewDownload = newDownload;
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo { BookTitle = title, Authors = new List<string> { author } });
+            var (book, edition) = BuildMatch();
+            book.Title = title;
+            edition.Title = editionTitle;
+            var (_, secondary) = GivenConfiguredProviders(new List<Book> { book }, new List<Book>());
+            if (!newDownload)
+            {
+                GivenRealBookMatchPolicy();
+            }
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().Be(shouldMatch);
+            decision.Item.Edition.Should().BeSameAs(shouldMatch ? edition : null);
+            secondary.Verify(provider => provider.SearchForNewBook(title, author, true),
+                shouldMatch ? Times.Never() : Times.Once());
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_advance_past_a_guide_only_provider_only_for_background_import(bool newDownload)
+        {
+            _idConfig.NewDownload = newDownload;
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo
+                {
+                    BookTitle = "Dark Crime",
+                    BookTitleConfidence = 0.95,
+                    Authors = new List<string> { "Christine Feehan" }
+                });
+            var (guide, guideEdition) = BuildMatch();
+            guide.ForeignBookId = "hardcover:work:31";
+            guideEdition.Title = "Dark Crime: Teacher's Guide";
+            var (original, edition) = BuildMatch();
+            var (primary, secondary) = GivenConfiguredProviders(new List<Book> { guide }, new List<Book> { original });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().Be(!newDownload);
+            decision.Item.Edition.Should().BeSameAs(newDownload ? null : edition);
+            primary.Verify(provider => provider.SearchForNewBook("Dark Crime", "Christine Feehan", true), Times.Once());
+            secondary.Verify(provider => provider.SearchForNewBook("Dark Crime", "Christine Feehan", true),
+                newDownload ? Times.Never() : Times.Once());
+        }
+
+        [TestCase(null, false)]
+        [TestCase(LibraryImportHoldReason.LowConfidence, false)]
+        [TestCase(null, true)]
+        public void should_stop_background_fallback_when_a_provider_returns_two_plausible_works(
+            LibraryImportHoldReason? priorReason, bool sameSource)
+        {
+            _idConfig.NewDownload = false;
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides _, ImportDecisionMakerConfig _, ImportRunSummary _) =>
+                    new List<LocalEdition> { new LocalEdition(tracks) { IdentificationHoldReason = priorReason } });
+            var (first, _) = BuildMatch();
+            var (second, secondEdition) = BuildMatch();
+            second.Id = 8;
+            second.ForeignBookId = sameSource ? "openlibrary:work:OL123W" : "OL456W";
+            secondEdition.BookId = second.Id;
+            var (_, secondary) = GivenConfiguredProviders(new List<Book> { first, second }, new List<Book> { first });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Item.Edition.Should().BeNull();
+            decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+            secondary.Verify(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true), Times.Never());
+        }
+
+        [Test]
+        public void should_advance_past_a_conflicting_edition_isbn_to_the_exact_isbn()
+        {
+            _idConfig.NewDownload = false;
+            GivenReliableFileIsbn();
+            GivenRealBookMatchPolicy();
+            var (first, wrong) = BuildMatch();
+            first.ForeignBookId = "hardcover:work:31";
+            wrong.Title = first.Title;
+            wrong.Isbn13 = "9781455546176";
+            var (second, exact) = BuildMatch();
+            exact.Title = second.Title;
+            exact.Isbn13 = "9781442482890";
+            var (_, secondary) = GivenConfiguredProviders(new List<Book> { first }, new List<Book> { second });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(exact);
+            secondary.Verify(provider => provider.SearchForNewBook("Dark Crime", "Christine Feehan", true), Times.Once());
+        }
+
+        [TestCase(false, false, true)]
+        [TestCase(true, false, false)]
+        [TestCase(false, true, false)]
+        public void should_hold_a_new_unverified_synthetic_author_only_for_unattended_imports(bool newDownload, bool selected, bool hold)
+        {
+            _idConfig.NewDownload = newDownload;
+            _idConfig.AddNewAuthors = true;
+            var incumbent = GivenSyntheticAuthorAndAuthoritativeNamesake();
+            var overrides = selected ? new IdentificationOverrides { Author = incumbent } : null;
+
+            var decision = GetSingleDecision(overrides);
+
+            decision.Approved.Should().Be(!hold);
+            if (hold)
+            {
+                decision.Rejections.Should().ContainSingle(rejection => rejection.HoldReason == LibraryImportHoldReason.AuthorIdentityConfirmationRequired);
+            }
+        }
+
+        [Test]
+        public void should_reuse_an_already_authoritative_author_for_a_verified_alternate_edition()
+        {
+            _idConfig.NewDownload = false;
+            _idConfig.AddNewAuthors = true;
+            GivenReliableFileIsbn();
+            var incumbent = GivenSyntheticAuthorAndAuthoritativeNamesake();
+            var (work, exact) = BuildMatch();
+            work.Author = incumbent;
+            work.AuthorMetadata = incumbent.Metadata.Value;
+            exact.Isbn13 = "9781442482890";
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(service => service.SearchForLibraryImportByIsbn("9781442482890", It.IsAny<Func<List<Book>, bool>>()))
+                .Callback((string _, Func<List<Book>, bool> select) => select(new List<Book> { work }));
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Author.Should().BeSameAs(incumbent);
+            decision.Item.Edition.Should().BeSameAs(exact);
+        }
+
+        [Test]
+        public void should_match_initial_spacing_only_when_the_provider_author_has_a_local_identity()
+        {
+            _idConfig.NewDownload = false;
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo { BookTitle = "Dark Crime", Authors = new List<string> { "J. K. Rowling" } });
+            var (book, edition) = BuildMatch();
+            book.Author.Value.Metadata.Value.Name = "J.K. Rowling";
+            book.AuthorMetadata.Value.Name = "J.K. Rowling";
+            GivenConfiguredProviders(new List<Book> { book }, new List<Book>());
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [Test]
+        public void should_reject_an_exact_title_with_a_different_author_on_background_fallback()
+        {
+            _idConfig.NewDownload = false;
+            var (book, _) = BuildMatch();
+            book.AuthorMetadata.Value.Name = "A Different Author";
+            book.Author.Value.Metadata.Value.Name = "A Different Author";
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Approved.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_hold_distinct_corroborated_works_even_if_only_one_has_the_file_format()
+        {
+            _idConfig.NewDownload = false;
+            var (first, _) = BuildMatch();
+            var (second, otherEdition) = BuildMatch();
+            second.Id = 8;
+            second.ForeignBookId = "OL456W";
+            otherEdition.Format = "Audiobook";
+            otherEdition.IsEbook = false;
+            GivenFallbackWorks(first, second);
+
+            GetSingleDecision().Approved.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_deduplicate_one_authoritative_work_before_choosing_a_compatible_edition()
+        {
+            _idConfig.NewDownload = false;
+            var (first, otherEdition) = BuildMatch();
+            otherEdition.Format = "Audiobook";
+            otherEdition.IsEbook = false;
+            var (second, edition) = BuildMatch();
+            second.ForeignBookId = "openlibrary:work:OL123W";
+            GivenFallbackWorks(first, second);
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void should_require_existing_author_identity_instead_of_a_matching_display_name_on_background_fallback(
+            bool verifiedAuthorAlias, bool allowNewAuthors)
+        {
+            _idConfig.NewDownload = false;
+            _idConfig.AddNewAuthors = allowNewAuthors;
+            var (book, _) = BuildMatch();
+            book.Id = 0;
+            book.Author.Value.Id = 0;
+            var localAuthor = new Author { Id = 42, Name = "Christine Feehan", ForeignAuthorId = "openlibrary:author:OL1A" };
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindByName(localAuthor.Name)).Returns(localAuthor);
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById("OL1A"))
+                .Returns(verifiedAuthorAlias ? localAuthor : null);
+            GivenFallbackWorks(book);
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().Be(verifiedAuthorAlias);
+            if (verifiedAuthorAlias)
+            {
+                decision.Item.Author.Should().BeSameAs(localAuthor);
+            }
+        }
+
+        [Test]
+        public void should_not_auto_add_a_provider_author_identified_only_by_name_on_background_fallback()
+        {
+            _idConfig.NewDownload = false;
+            _idConfig.AddNewAuthors = true;
+            var (book, _) = BuildMatch();
+            book.Id = 0;
+            book.Author.Value.Id = 0;
+            book.Author.Value.ForeignAuthorId = "googlebooks:author:Christine%20Feehan";
+            book.AuthorMetadata.Value.ForeignAuthorId = book.Author.Value.ForeignAuthorId;
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Approved.Should().BeFalse();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_score_exact_background_fallback_on_the_real_match_policy(bool printOnly)
+        {
+            _idConfig.NewDownload = false;
+            var (book, edition) = BuildMatch();
+            edition.Title = book.Title;
+            edition.Format = printOnly ? "Print" : "Ebook";
+            edition.IsEbook = !printOnly;
+            GivenFallbackWorks(book);
+            GivenRealBookMatchPolicy();
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [Test]
+        public void should_reject_conflicting_edition_isbn_even_when_primary_distance_was_cleared()
+        {
+            _idConfig.NewDownload = false;
+            GivenReliableFileIsbn();
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides _, ImportDecisionMakerConfig _, ImportRunSummary _) =>
+                    new List<LocalEdition> { new LocalEdition(tracks) { Distance = new Distance() } });
+            var (book, edition) = BuildMatch();
+            edition.Title = book.Title;
+            edition.Isbn13 = "9781455546176";
+            GivenFallbackWorks(book);
+            GivenRealBookMatchPolicy();
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Item.Edition.Should().BeNull();
+        }
+
+        [Test]
+        public void should_prefer_a_compatible_edition_matching_the_files_verified_isbn()
+        {
+            _idConfig.NewDownload = false;
+            GivenReliableFileIsbn();
+            var (book, edition) = BuildMatch();
+            edition.Title = book.Title;
+            edition.Isbn13 = "9781455546176";
+            var matching = new Edition
+            {
+                Book = book,
+                BookId = book.Id,
+                ForeignEditionId = "OL456M",
+                Title = book.Title,
+                IsEbook = true,
+                Isbn13 = "9781442482890"
+            };
+            book.Editions.Value.Add(matching);
+            GivenFallbackWorks(book);
+            GivenRealBookMatchPolicy();
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(matching);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_not_restore_a_guide_rejected_by_primary_identification(bool newDownload)
+        {
+            _idConfig.NewDownload = newDownload;
+            var (book, edition) = BuildMatch();
+            edition.Title = "Dark Crime: Teacher's Guide, with Poster";
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Approved.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_preserve_a_guide_candidate_when_only_augmentation_supplied_the_base_title()
+        {
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo { Authors = new List<string> { "Christine Feehan" } });
+            Mocker.GetMock<IAugmentingService>().Setup(service => service.Augment(It.IsAny<LocalBook>(), It.IsAny<bool>()))
+                .Returns((LocalBook track, bool _) =>
+                {
+                    track.FileTrackInfo.BookTitle = "Dark Crime";
+                    track.FileTrackInfo.BookTitleConfidence = 1.0;
+                    return track;
+                });
+            var (book, edition) = BuildMatch();
+            edition.Title = "Dark Crime: Teacher's Guide";
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Item.Edition.Should().BeSameAs(edition);
+        }
+
+        [TestCase("Dark Crime: Study Guide", true)]
+        [TestCase("Dark Crime: Chapter 01", false)]
+        [TestCase("Study Guide", false)]
+        public void should_consider_a_full_guide_title_from_the_embedded_track_alongside_the_album(string trackTitle, bool shouldMatch)
+        {
+            SetFiles(".m4b");
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo
+                {
+                    BookTitle = "Dark Crime",
+                    Authors = new List<string> { "Christine Feehan" },
+                    Title = trackTitle
+                });
+            var (book, edition) = BuildMatch();
+            edition.Title = "Dark Crime: Study Guide";
+            edition.Format = "Hardcover";
+            GivenFallbackWorks(book);
+
+            GetSingleDecision().Approved.Should().Be(shouldMatch);
+        }
+
+        private void GivenReliableFileIsbn()
+        {
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo
+                {
+                    BookTitle = "Dark Crime",
+                    BookTitleConfidence = 0.9,
+                    Authors = new List<string> { "Christine Feehan" },
+                    AuthorConfidence = 0.9,
+                    Isbn = "9781442482890",
+                    IsbnConfidence = 0.97
+                });
+        }
+
+        private Author GivenSyntheticAuthorAndAuthoritativeNamesake()
+        {
+            var (book, edition) = BuildMatch();
+            book.ForeignBookId = "googlebooks:work:synthetic";
+            book.Author.Value.Id = 0;
+            book.Author.Value.ForeignAuthorId = "googlebooks:author:Christine%20Feehan";
+            book.AuthorMetadata.Value.ForeignAuthorId = book.Author.Value.ForeignAuthorId;
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides _, ImportDecisionMakerConfig _, ImportRunSummary _) =>
+                {
+                    var release = new LocalEdition(tracks) { Edition = edition, ExistingTracks = new List<LocalBook>() };
+                    release.PopulateMatch(true);
+                    return new List<LocalEdition> { release };
+                });
+            var incumbent = new Author { Id = 42, Name = "Christine Feehan", ForeignAuthorId = "openlibrary:author:OL1A" };
+            Mocker.GetMock<IAuthorService>().Setup(service => service.GetAuthorsByCleanName(It.IsAny<string>()))
+                .Returns(new List<Author> { incumbent });
+            return incumbent;
+        }
+
+        private void GivenRealBookMatchPolicy()
+        {
+            var settings = Mocker.GetMock<IConfigService>();
+            settings.SetupGet(config => config.BookImportMatchThresholdPercent).Returns(70);
+            var specification = new CloseBookMatchSpecification(settings.Object, Mocker.GetMock<IBookService>().Object, TestLogger);
+            Mocker.GetMock<IImportDecisionEngineSpecification<LocalEdition>>()
+                .Setup(service => service.IsSatisfiedBy(It.IsAny<LocalEdition>(), It.IsAny<DownloadClientItem>()))
+                .Returns((LocalEdition release, DownloadClientItem download) => specification.IsSatisfiedBy(release, download));
+        }
+
+        private void GivenFallbackWorks(params Book[] books)
+        {
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(search => search.SearchForNewBook("Dark Crime", "Christine Feehan", true))
+                .Returns(books.ToList());
+            orchestrator.Setup(search => search.SearchForLibraryImport("Dark Crime", "Christine Feehan", It.IsAny<Func<List<Book>, bool>>()))
+                .Callback((string _, string _, Func<List<Book>, bool> stopAfter) => stopAfter(books.ToList()));
+        }
+
+        private (Mock<ISearchForNewBook> Primary, Mock<ISearchForNewBook> Secondary) GivenConfiguredProviders(List<Book> primaryBooks, List<Book> secondaryBooks)
+        {
+            var primary = new Mock<IMetadataProvider>();
+            primary.SetupGet(provider => provider.ProviderName).Returns("Hardcover");
+            primary.SetupGet(provider => provider.SupportsBookSearch).Returns(true);
+            var primarySearch = primary.As<ISearchForNewBook>();
+            primarySearch.Setup(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true)).Returns(primaryBooks);
+
+            var secondary = new Mock<IMetadataProvider>();
+            secondary.SetupGet(provider => provider.ProviderName).Returns("OpenLibrary");
+            secondary.SetupGet(provider => provider.SupportsBookSearch).Returns(true);
+            var secondarySearch = secondary.As<ISearchForNewBook>();
+            secondarySearch.Setup(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true)).Returns(secondaryBooks);
+
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(providerRegistry => providerRegistry.GetProviders()).Returns(new[] { primary.Object, secondary.Object });
+            var orchestrator = new MetadataProviderOrchestrator(registry.Object, new MetadataProviderTelemetryService(), TestLogger);
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(orchestrator);
+            return (primarySearch, secondarySearch);
         }
 
         [Test]

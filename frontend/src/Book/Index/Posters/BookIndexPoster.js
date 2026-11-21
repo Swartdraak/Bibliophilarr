@@ -11,6 +11,7 @@ import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
 import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
 import { icons } from 'Helpers/Props';
+import cataloguePath from 'Utilities/cataloguePath';
 import getRelativeDate from 'Utilities/Date/getRelativeDate';
 import translate from 'Utilities/String/translate';
 import BookIndexPosterInfo from './BookIndexPosterInfo';
@@ -94,6 +95,7 @@ class BookIndexPoster extends Component {
       author,
       monitored,
       titleSlug,
+      canonicalId,
       nextAiring,
       statistics,
       images,
@@ -133,7 +135,7 @@ class BookIndexPoster extends Component {
       isEditBookModalOpen
     } = this.state;
 
-    const link = `/book/${titleSlug}`;
+    const link = cataloguePath('book', { canonicalId, titleSlug });
 
     const elementStyle = {
       width: `${posterWidth}px`,
@@ -316,6 +318,7 @@ BookIndexPoster.propTypes = {
   author: PropTypes.object.isRequired,
   monitored: PropTypes.bool.isRequired,
   titleSlug: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   nextAiring: PropTypes.string,
   statistics: PropTypes.object.isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,

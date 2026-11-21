@@ -34,7 +34,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
         {
             if (HasConflictingKnownAudioWork(item))
             {
-                return Decision.Reject("The embedded audiobook title and filename identify different catalogued works. Select the intended work manually.");
+                return Decision.RejectWithHoldReason("The embedded audiobook title and filename identify different catalogued works. Select the intended work manually.", LibraryImportHoldReason.ConflictingIdentity);
             }
 
             var thresholdPercent = Math.Max(50, Math.Min(100, _configService.BookImportMatchThresholdPercent));
@@ -60,7 +60,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                 if (dist > distanceThreshold)
                 {
                     _logger.Debug($"Book match is not close enough: {dist} vs {distanceThreshold} {reasons}. Skipping {item}");
-                    return Decision.Reject($"Book match is not close enough: {1 - dist:P1} vs {thresholdPercent}% {reasons}");
+                    return Decision.RejectWithHoldReason($"Book match is not close enough: {1 - dist:P1} vs {thresholdPercent}% {reasons}", LibraryImportHoldReason.LowConfidence);
                 }
             }
 
@@ -73,7 +73,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                 if (dist > distanceThreshold)
                 {
                     _logger.Debug($"Book match is not close enough: {dist} vs {distanceThreshold} {reasons}. Skipping {item}");
-                    return Decision.Reject($"Book match is not close enough: {1 - dist:P1} vs {thresholdPercent}% {reasons}");
+                    return Decision.RejectWithHoldReason($"Book match is not close enough: {1 - dist:P1} vs {thresholdPercent}% {reasons}", LibraryImportHoldReason.LowConfidence);
                 }
             }
 

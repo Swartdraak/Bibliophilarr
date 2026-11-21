@@ -4,8 +4,10 @@ using System.IO.Abstractions;
 using System.Linq;
 using NLog;
 using NzbDrone.Common;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Datastore.Events;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.RootFolders;
@@ -18,6 +20,7 @@ namespace NzbDrone.Core.MediaFiles
         void AddMany(List<BookFile> bookFiles);
         void Update(BookFile bookFile);
         void Update(List<BookFile> bookFiles);
+        void UpdateScannedFileInfo(List<BookFile> bookFiles);
         void Delete(BookFile bookFile, DeleteMediaFileReason reason);
         void DeleteMany(List<BookFile> bookFiles, DeleteMediaFileReason reason);
         List<BookFile> GetFilesByAuthor(int authorId);
@@ -31,6 +34,9 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFilesWithBasePath(string path);
         List<BookFile> GetFileWithPath(List<string> path);
         BookFile GetFileWithPath(string path);
+        bool TryLinkUnmappedFile(BookFile file, Edition edition);
+        void SetUnmappedReasons(List<BookFile> files);
+        bool TryRepairUnsupportedEditionLink(BookFile file, Edition edition);
         void UpdateMediaInfo(List<BookFile> bookFiles);
     }
 
@@ -104,9 +110,49 @@ namespace NzbDrone.Core.MediaFiles
             _mediaFileRepository.Update(bookFile);
         }
 
+        public bool TryLinkUnmappedFile(BookFile file, Edition edition)
+        {
+            if (!_mediaFileRepository.TryLinkUnmappedFile(file, edition))
+            {
+                return false;
+            }
+
+            file.EditionId = edition.Id;
+            file.Edition = edition;
+            file.UnmappedReason = null;
+            return true;
+        }
+
+        public void SetUnmappedReasons(List<BookFile> files)
+        {
+            _mediaFileRepository.SetUnmappedReasons(files);
+        }
+
+        public bool TryRepairUnsupportedEditionLink(BookFile file, Edition edition)
+        {
+            var previous = file.Edition?.Value;
+            var format = ImportFormat.ForPath(file.Path);
+            if (previous == null || previous.Id <= 0 || previous.Id == edition.Id ||
+                previous.BookId == 0 || previous.BookId != edition.BookId ||
+                !ImportFormat.NeedsDigitalEdition(previous) || !format.HasValue || ImportFormat.ForEdition(edition) != format ||
+                !_mediaFileRepository.TryRepairUnsupportedEditionLink(file, previous, edition))
+            {
+                return false;
+            }
+
+            file.EditionId = edition.Id;
+            file.Edition = edition;
+            return true;
+        }
+
         public void Update(List<BookFile> bookFiles)
         {
             _mediaFileRepository.UpdateMany(bookFiles);
+        }
+
+        public void UpdateScannedFileInfo(List<BookFile> bookFiles)
+        {
+            _mediaFileRepository.SetFields(bookFiles, file => file.Size, file => file.Modified, file => file.MediaInfo, file => file.Quality);
         }
 
         public void Delete(BookFile bookFile, DeleteMediaFileReason reason)

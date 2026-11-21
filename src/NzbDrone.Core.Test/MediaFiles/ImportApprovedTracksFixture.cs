@@ -48,6 +48,8 @@ namespace NzbDrone.Core.Test.MediaFiles
             var edition = Builder<Edition>.CreateNew()
                 .With(e => e.Book = book)
                 .With(e => e.Monitored = true)
+                .With(e => e.Format = "Audiobook")
+                .With(e => e.IsEbook = false)
                 .Build();
 
             book.Editions = new List<Edition> { edition };

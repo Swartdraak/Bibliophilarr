@@ -7,8 +7,20 @@ using NzbDrone.Core.Datastore;
 namespace NzbDrone.Core.Books
 {
     [DebuggerDisplay("{GetType().FullName} ID = {Id} [{ForeignSeriesId}][{Title}]")]
-    public class Series : Entity<Series>
+    public class Series : Entity<Series>, ICatalogueIdentityModel
     {
+        [MemberwiseEqualityIgnore]
+        public string CanonicalId { get; set; }
+        [MemberwiseEqualityIgnore]
+        public List<CatalogueSourceAssociation> PendingSourceAssociations { get; } = new List<CatalogueSourceAssociation>();
+        [MemberwiseEqualityIgnore]
+        public List<string> PendingAliases { get; } = new List<string>();
+
+        CatalogueEntityKind ICatalogueIdentityModel.CatalogueKind => CatalogueEntityKind.Series;
+        IEnumerable<string> ICatalogueIdentityModel.PendingRouteAliases => PendingAliases;
+        string ICatalogueIdentityModel.LegacyForeignId => ForeignSeriesId;
+        string ICatalogueIdentityModel.LegacyTitleSlug => null;
+
         public string ForeignSeriesId { get; set; }
         public string Title { get; set; }
         public string Description { get; set; }
@@ -32,9 +44,18 @@ namespace NzbDrone.Core.Books
 
         public override void UseMetadataFrom(Series other)
         {
+            if (!ReferenceEquals(this, other))
+            {
+                PendingSourceAssociations.AddRange(other.PendingSourceAssociations);
+                PendingAliases.AddRange(other.PendingAliases);
+            }
+
+            var sameSeries = (CanonicalId.IsNotNullOrWhiteSpace() && CanonicalId == other.CanonicalId) ||
+                             (ForeignSeriesId.IsNotNullOrWhiteSpace() && ForeignSeriesId == other.ForeignSeriesId);
+
             ForeignSeriesId = other.ForeignSeriesId;
             Title = other.Title;
-            Description = other.Description;
+            Description = sameSeries && other.Description.IsNullOrWhiteSpace() ? Description : other.Description;
             Numbered = other.Numbered;
             WorkCount = other.WorkCount;
             PrimaryWorkCount = other.PrimaryWorkCount;
@@ -43,6 +64,7 @@ namespace NzbDrone.Core.Books
         public override void UseDbFieldsFrom(Series other)
         {
             Id = other.Id;
+            CanonicalId = other.CanonicalId;
         }
     }
 }

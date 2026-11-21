@@ -15,9 +15,12 @@ interface CssExports {
   'episodeCountTooltip': string;
   'expandButton': string;
   'expandButtonIcon': string;
+  'formatActions': string;
+  'formatActionsRow': string;
   'header': string;
   'left': string;
   'noBooks': string;
+  'seriesCover': string;
   'seriesTitle': string;
 }
 export const cssExports: CssExports;

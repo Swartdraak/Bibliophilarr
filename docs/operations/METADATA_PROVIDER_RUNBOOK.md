@@ -117,6 +117,20 @@ Use this checklist after metadata-provider config changes or incident recovery:
 
 ## Series metadata validation
 
+In **Add New**, choose **Series** to search Hardcover by series name. This
+scope sends one bounded search query and returns up to 20 provider summaries.
+Choose **View books** to browse up to 50 active books in order from one
+membership query. The normal Add Book action resolves the selected work and
+its editions. A successful empty response shows no matches. An unavailable
+response gives retry guidance. The default
+**Authors and books** scope continues to use the combined lookup. [Hardcover
+search operation](https://github.com/hardcoverapp/hardcover-sdk/blob/9e5b90f3e76ed16ff00973c2088fbe0917a86be6/shared/operations/queries/search.graphql)
+
+Hardcover author refresh continues with verified works if the optional series
+request fails. It preserves existing series links until the provider returns a
+complete membership response. The first verification request checks up to 500
+membership rows against the provider's aggregate count.
+
 Open Library can provide series information through search-document fields. Bibliophilarr maps these fields into
 book series links and author series during refresh.
 
@@ -153,6 +167,10 @@ SELECT
 
 If both counts remain zero after refresh, treat this as a metadata ingestion defect and escalate to
 the metadata migration backlog.
+
+## Shared bibliography credits
+
+Refresh a tracked Hardcover author whose provider bibliography credits them as an author of a work already owned by another tracked author. Compare `GET /api/v1/book?authorId=<id>` with `GET /api/v1/book?authorId=<id>&includeShared=true`. The second response also includes the shared canonical work with its original owner, work ID, editions and monitoring policy. Bibliography membership requires an explicit author credit.
 
 ## Rename no-op diagnosis (forced rename)
 

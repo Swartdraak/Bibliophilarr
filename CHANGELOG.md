@@ -9,10 +9,28 @@ process.
 
 ### Added
 
+- Search Add New by author, book, or Hardcover series. Browse ordered series
+  books and choose one to add through the existing book workflow.
+
+- Give authors, works and series stable Bibliophilarr URLs. The catalogue
+  identity API exposes matched provider IDs. Existing author and book
+  bookmarks continue to resolve.
+
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
+- See the last recorded import hold reason next to each unmapped file, such as
+  competing catalogue works, a preferred existing file, or a file of the same
+  size.
+- Show import execution failures separately from uncertain matches and
+  summarize unmapped reasons in scan progress.
+- Open recent background tasks from the WebUI header and filter for tasks
+  that need attention. The Auto theme updates when the system palette changes.
+- Show verified shared works in an author's bibliography while keeping each
+  work's catalogue owner, editions and format status.
 - A book-search command can target a single monitored format that is still
   missing. Scoped searches skip releases with conflicting format information.
+- Monitor ebooks and audiobooks independently in the series views. Search for
+  missing files of one format while preserving the work-wide monitoring controls.
 
 ### Fixed
 
@@ -25,6 +43,52 @@ process.
 - Include automatic import fallback searches in provider operation telemetry.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
+- Resolve once-encoded legacy Hardcover series bookmarks to their stable
+  Bibliophilarr URLs.
+- Show whether an unmapped file is waiting for the author's bibliography or
+  needs manual confirmation of a same-name author.
+- Allow a single same-name author candidate to be corroborated by two
+  independently verified works if Open Library's bibliography ends early.
+- Return HTTP 503 and keep the Add Author dialog open with retry guidance
+  when the configured providers cannot verify the bibliography.
+- Recover author and book artwork when the cached file is empty or disappears
+  while the app checks it.
+- Keep verified same-work artwork and synopsis in Add New search results when
+  the preferred edition has incomplete metadata.
+- Reuse each provider's ISBN lookup across equivalent editions during one
+  book enrichment operation.
+- Keep a verified Hardcover bibliography when the separate series request
+  fails or is incomplete. Preserve existing series links until verification.
+- Cancel superseded Add New searches so cleared or shortened terms cannot
+  trigger extra provider queries or display stale results.
+- Preserve the Hardcover author, work, or edition that supplied an artwork
+  reference, including when an edition displays the work's cover.
+- Explain when a different ebook has an unverified ISBN for an occupied
+  edition and needs review before import.
+- Refresh a book's cached cover after saving its updated edition metadata.
+- Use a trusted embedded ASIN to select a unique same-work edition for an
+  unmapped EPUB when an eligible local edition is available.
+- Keep task notification links clickable when resizing from desktop to
+  mobile by starting with the navigation drawer closed.
+- Close task notifications when keyboard focus moves out of the panel,
+  preserving normal tab order.
+- Add distinct works from a verified Open Library bibliography for Hardcover
+  authors. Keep existing work ownership and hold conflicting works and editions.
+- Fill missing author biographies and portraits from a verified Open Library
+  author profile without changing the primary identity or bibliography.
+- Library scans try the next enabled provider when an author-and-title search
+  returns only incompatible formats or conflicts with the file's title, series
+  volume, or author.
+- Explain in Unmapped Files when provider results conflict with the book's
+  identity or identify multiple works for the same file. A later valid match
+  clears the reason.
+- Wanted searches with an ebook or audiobook filter target only that format.
+  A queued copy of the other format no longer blocks a wanted release when
+  independent format tracking is enabled.
+- Batch author canonicalization previews duplicate candidates. Apply a
+  confirmed merge through the reviewed reconciliation command.
+- Distinguish failed Open Library text and ISBN lookups from successful searches
+  with no matches in provider telemetry.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
   dual-format monitoring answer in the in-app help.
 - Name the Calendar's period controls and compact view menu for assistive
@@ -32,8 +96,6 @@ process.
 - Reject missing profile IDs before saving a new author through Add Book.
 - Label the backup upload field and show restore errors in the dialog. Choosing
   another file clears the previous error.
-- Provider telemetry distinguishes failed Open Library text searches from
-  successful searches with no matches.
 - Coordinate overlapping author refreshes so they share the stored series and
   keep its book links.
 - Preserve completed task results in command history after restart.
@@ -54,6 +116,79 @@ process.
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
   the setup form.
+
+- Continue scanning accessible folders when another root is unavailable.
+  Preserve existing file records for unreadable folders and report the scan
+  as unsuccessful when a folder is skipped or an import execution fails.
+- Keep tracked file records when a nested library folder or its parent cannot
+  be read.
+- Show the full Hardcover retry window in provider health. Keep existing
+  author metadata and series when Hardcover limits the bibliography refresh.
+- Reject a different numbered volume of the same series when either the
+  audiobook's reliable tags or the candidate title explicitly names its volume.
+
+- Reconcile reviewed duplicate works without changing edition or file IDs.
+  Preserve both formats, their monitoring settings, series membership and
+  links to the retired work.
+- Read explicitly tagged Audible identifiers from audiobooks. A successful
+  import retry can attach an existing unmapped library file to its edition
+  while preserving the file record. Scan logs record why evaluated files remain
+  unmapped.
+- Use validated ISBNs embedded in AZW3 and MOBI ebooks when identifying a
+  work and edition during import.
+- Use an ebook or audiobook edition for a confirmed work when a provider only
+  supplies a print or unclassified edition. An approved full rescan can
+  repair an old link to an unclassified edition on the same work without
+  replacing the file record or touching the file. The rescan no longer
+  treats the tracked file as its own duplicate.
+- Recognize matching book and volume suffixes when both work records share the
+  same author, series and primary position. Keep works with other subtitles
+  separate.
+- Fetch edition publisher and publication dates from Hardcover. A unique
+  ISBN match can fill missing edition details, and verified Open Library
+  author records can supply missing biographies and portraits.
+- Keep the requested ISBN when Open Library confirms it on an edition with
+  multiple identifiers. Follow its verified edition redirect once, and ignore
+  ambiguous fallback work matches.
+- An explicit `isbn:` search returns verified editions for that ISBN, using
+  the configured provider order.
+- Require corroboration before matching authors across providers or adding
+  Open Library work and author links. Keep two people with the same name
+  distinct.
+- During a background scan, require a unique matching title and author for a
+  fallback work. Use edition identity and file format to select an edition
+  within that work. A scan that disables new authors requires a verified
+  local author or work. Try another enabled provider when no result qualifies,
+  and hold genuinely ambiguous matches for review.
+- On the initial library scan and automatic retries, skip a candidate when
+  reliable file evidence contradicts its title or identifies a different volume.
+- Distinguish numbered works from guidebooks, excerpts, and omnibus editions.
+  When a filename and reliable embedded title name different volumes of the
+  same series, hold the file for review. Treat equivalent dash spacing in an
+  explicit omnibus book range as the same range.
+- Prefer the matching ebook file format when verified editions of the same
+  work share the file's trusted ISBN. Keep equally supported editions
+  available for manual selection.
+- Reuse an author across Hardcover and Open Library after both sources verify
+  two distinct works. Hold ambiguous Google Books name matches during
+  unattended imports, and allow reviewed reconciliation of existing authors
+  with compatible library paths and format settings.
+- Honor Hardcover's retry window across search, lookup, and author bibliography
+  requests within the same app session.
+- Keep a novel's file away from a companion guide when its embedded title
+  identifies the original work. Explicit edition selections still apply.
+- Save the unaffected works in an author's bibliography when one incoming
+  work or source identity is already owned by another catalogue record.
+  Hold the conflicting work for review and preserve the existing owner.
+- Reuse verified author metadata already returned by a work lookup. A partial
+  or unavailable provider response leaves stored metadata intact and lets the
+  rest of a bulk book refresh continue.
+- Acquire SQLite catalogue write locks before reading identity state so
+  simultaneous library scans and refreshes can commit safely.
+- Keep rejected media in Unmapped Files with the recorded reason. Live updates
+  only show linked files in their book and author Files tabs.
+- Keep the low-confidence reason when an initial scan cannot reliably select a
+  new author and the fallback finds no verified match.
 
 - A fresh installation opens first-account setup in the browser when opened
   directly on localhost. Create an account and sign in without a terminal command.
@@ -77,8 +212,25 @@ process.
   existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
-  requested. Distinct provider work IDs retain separate catalogue records.
+  requested. Distinct works retain separate catalogue records.
   Complete Bibliography is available as an unfiltered metadata profile.
+- Reconcile corroborated provider work aliases within an author's catalogue and
+  preserve separate ebook and audiobook editions under the same work. Ambiguous
+  import matches stay available for review.
+- Preserve linked edition formats and independent monitoring selections when
+  refreshing metadata.
+- Read correctly labeled ASINs from EPUB metadata and avoid using folder names
+  as ebook identifiers during import.
+- Use verified alternate sources for missing edition details and author
+  portraits. Display an available cover from the same work, and show a
+  representative member cover alongside a series when available.
+- Display the canonical work title and show a synopsis from another edition
+  when the preferred edition has none. Try distinct same-work artwork if the
+  preferred cover fails.
+- Try the next verified Open Library portrait or cover when the first image
+  is missing. Series artwork can fall back to another member's cover.
+- Keep verified alternate source identifiers and series descriptions when
+  the primary provider returns an incomplete refresh.
 - Open Library and Google Books read all available author pages and preserve
   the current catalogue when a later provider page fails.
 - Hardcover tracks representative ebook and audiobook editions where available.
@@ -165,6 +317,9 @@ process.
 
 ### Security
 
+- Require an API credential for versioned API writes and protect Forms
+  sign-in and sign-out with browser verification tokens.
+- Keep Calibre connection settings and library lookup terms out of scan logs.
 - Database migration startup logs identify the database type and role without
   exposing connection details.
 - New and changed account passwords use salted PBKDF2. Existing accounts
@@ -181,6 +336,9 @@ process.
 - Honor Basic authentication on the WebUI when authentication is required and return HTTP 401 for anonymous API calls.
 
 ### Operations
+
+- Fail build smoke checks when a settings update is rejected or a telemetry
+  response has the wrong shape. Fail branding audits when the search fails.
 
 - Release workflows verify the SemVer tag and promotion branch before
   publishing a GitHub release, npm package, or container image.

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using FluentAssertions;
 using Moq;
@@ -33,15 +34,26 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         [TestCase("Test Book", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
         [TestCase("Test Author", true, HttpStatusCode.OK, 1, 0)]
         [TestCase("Test Author", true, HttpStatusCode.ServiceUnavailable, 0, 1)]
-        [TestCase("isbn:9780140328720", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("isbn:9780140328720", false, HttpStatusCode.OK, 0, 0)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.NotFound, 1, 0)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.TooManyRequests, 0, 1)]
         [TestCase("asin:B000000001", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
-        public void text_search_telemetry_should_distinguish_empty_results_from_http_failures(
+        public void search_telemetry_should_distinguish_no_results_from_http_failures(
             string term, bool searchAuthors, HttpStatusCode status, int expectedSuccesses, int expectedFailures)
         {
             var config = Mocker.GetMock<IConfigService>();
             config.SetupGet(provider => provider.EnableOpenLibraryProvider).Returns(true);
-            var request = new HttpRequest("https://openlibrary.org/search.json");
-            var response = new HttpResponse(request, new HttpHeader(), "{\"docs\":[]}", status);
+            var isIsbn = term.StartsWith("isbn:", StringComparison.Ordinal);
+            var path = isIsbn ? $"/isbn/{term[5..]}.json" : "/search.json";
+            var request = new HttpRequest($"https://openlibrary.org{path}");
+            var headers = new HttpHeader();
+            if (status == HttpStatusCode.TooManyRequests)
+            {
+                headers.Add("Retry-After", "0");
+            }
+
+            var response = new HttpResponse(request, headers, "{\"docs\":[]}", status);
             Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns(response);
 
             var logger = LogManager.GetCurrentClassLogger();
@@ -63,15 +75,24 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 orchestrator.SearchForNewBook(term, null);
             }
 
+            if (expectedSuccesses + expectedFailures == 0)
+            {
+                telemetry.GetOperationSnapshots().Should().BeEmpty();
+                Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Never());
+                return;
+            }
+
             var entry = telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
             entry.ProviderName.Should().Be("OpenLibrary");
-            entry.OperationName.Should().Be(searchAuthors ? "search-for-new-author" : "search-for-new-book");
+            var expectedOperation = isIsbn ? "search-by-isbn" : searchAuthors ? "search-for-new-author" : "search-for-new-book";
+            entry.OperationName.Should().Be(expectedOperation);
             entry.Calls.Should().Be(1);
             entry.Successes.Should().Be(expectedSuccesses);
             entry.Failures.Should().Be(expectedFailures);
             entry.NullResults.Should().Be(0);
             entry.TotalResultCount.Should().Be(0);
-            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+            var expectedRequests = status == HttpStatusCode.TooManyRequests ? 2 : 1;
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.Is<HttpRequest>(value => value.Url.Path == path)), Times.Exactly(expectedRequests));
         }
 
         [Test]
@@ -90,6 +111,161 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             result.Should().NotBeNull();
             result.Docs.Should().HaveCount(1);
             Mocker.GetMock<IHttpClient>().Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
+        [TestCase("/books/OL33516062M.json")]
+        [TestCase("https://openlibrary.org/books/OL33516062M.json")]
+        [TestCase("https://openlibrary.org:443/books/OL33516062M.json")]
+        public void isbn_lookup_follows_one_validated_edition_redirect(string location)
+        {
+            const string isbnUrl = "https://openlibrary.org/isbn/9781442482890.json";
+            const string editionUrl = "https://openlibrary.org/books/OL33516062M.json";
+            var urls = new List<string>();
+            var redirects = new List<bool>();
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    urls.Add(request.Url.ToString());
+                    redirects.Add(request.AllowAutoRedirect);
+                    return urls.Count == 1
+                        ? new HttpResponse(request, new HttpHeader { { "Location", location } }, "", HttpStatusCode.Found)
+                        : new HttpResponse(request, new HttpHeader(), """{"key":"/books/OL33516062M","isbn_13":["9781442482890"]}""");
+                });
+
+            var edition = Subject.GetEditionByIsbn("9781442482890");
+
+            edition.Should().NotBeNull();
+            edition.Key.Should().Be("/books/OL33516062M");
+            urls.Should().Equal(isbnUrl, editionUrl);
+            redirects.Should().Equal(false, false);
+        }
+
+        [TestCase(true, true, true)]
+        [TestCase(true, false, false)]
+        [TestCase(false, false, true)]
+        public void isbn_corroboration_requires_the_body_to_match_the_redirected_edition(
+            bool corroboration, bool matchingBody, bool accepted)
+        {
+            const string isbn = "9781442482890";
+            const string redirectedEdition = "/books/OL33516062M";
+            var bodyEdition = matchingBody ? redirectedEdition : "/books/OL2M";
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(http => http.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                request.Url.ToString().Contains("/isbn/")
+                    ? new HttpResponse(request, new HttpHeader { { "Location", redirectedEdition + ".json" } }, string.Empty, HttpStatusCode.Found)
+                    : new HttpResponse(request, new HttpHeader(), $$"""{"key":"{{bodyEdition}}","isbn_13":["{{isbn}}"]}"""));
+
+            var edition = corroboration ? Subject.GetExactEditionByIsbn(isbn) : Subject.GetEditionByIsbn(isbn);
+
+            if (accepted)
+            {
+                edition.Should().NotBeNull();
+                edition.Key.Should().Be(bodyEdition);
+            }
+            else
+            {
+                edition.Should().BeNull();
+            }
+
+            client.Verify(http => http.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
+        [TestCase("https://example.invalid/books/OL33516062M.json")]
+        [TestCase("http://openlibrary.org/books/OL33516062M.json")]
+        [TestCase("https://openlibrary.org:444/books/OL33516062M.json")]
+        [TestCase("https://user@openlibrary.org/books/OL33516062M.json")]
+        [TestCase("https://@openlibrary.org/books/OL33516062M.json")]
+        [TestCase("/books/OL33516062M.json?next=1")]
+        [TestCase("/books/OL33516062M.json#other")]
+        [TestCase("/works/OL33516062W.json")]
+        [TestCase("/books/../books/OL33516062M.json")]
+        [TestCase("/books/OL33516062%4D.json")]
+        [TestCase("//openlibrary.org/books/OL33516062M.json")]
+        [TestCase(null)]
+        public void isbn_lookup_rejects_unverified_destination(string location)
+        {
+            var headers = new HttpHeader();
+            if (location != null)
+            {
+                headers.Add("Location", location);
+            }
+
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, headers, "", HttpStatusCode.Found));
+
+            Subject.GetEditionByIsbn("9781442482890").Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once);
+        }
+
+        [Test]
+        public void isbn_lookup_does_not_follow_a_second_redirect()
+        {
+            var urls = new List<string>();
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    urls.Add(request.Url.ToString());
+                    var location = urls.Count == 1 ? "/books/OL33516062M.json" : "/books/OL2M.json";
+                    return new HttpResponse(request, new HttpHeader { { "Location", location } }, """{"key":"/books/OL2M"}""", HttpStatusCode.Found);
+                });
+
+            Subject.GetEditionByIsbn("9781442482890").Should().BeNull();
+
+            urls.Should().Equal("https://openlibrary.org/isbn/9781442482890.json", "https://openlibrary.org/books/OL33516062M.json");
+        }
+
+        [Test]
+        public void isbn_lookup_rejects_multiple_location_headers()
+        {
+            var headers = new HttpHeader
+            {
+                { "Location", "/books/OL33516062M.json" },
+                { "Location", "/books/OL2M.json" }
+            };
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, headers, "", HttpStatusCode.Found));
+
+            Subject.GetEditionByIsbn("9781442482890").Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once);
+        }
+
+        [Test]
+        public void edition_lookup_keeps_automatic_redirects_disabled()
+        {
+            var headers = new HttpHeader { { "Location", "/books/OL2M.json" } };
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(http => http.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, headers, "", HttpStatusCode.Found));
+
+            Subject.GetEdition("OL33516062M").Should().BeNull();
+
+            client.Verify(http => http.Get(It.Is<HttpRequest>(request => !request.AllowAutoRedirect)), Times.Once);
+            client.Verify(http => http.Get(It.IsAny<HttpRequest>()), Times.Once);
+        }
+
+        [Test]
+        public void isbn_lookup_preserves_the_retry_budget_on_the_validated_edition()
+        {
+            const string editionUrl = "https://openlibrary.org/books/OL33516062M.json";
+            var edition = new HttpResponse(new HttpRequest(editionUrl), new HttpHeader(), """{"key":"/books/OL33516062M"}""");
+            var urls = new List<string>();
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    urls.Add(request.Url.ToString());
+                    return urls.Count switch
+                    {
+                        1 => new HttpResponse(request, new HttpHeader { { "Location", "/books/OL33516062M.json" } }, "", HttpStatusCode.Found),
+                        2 => new HttpResponse(request, new HttpHeader { { "Retry-After", "0" } }, "", HttpStatusCode.TooManyRequests),
+                        _ => edition
+                    };
+                });
+
+            Subject.GetEditionByIsbn("9781442482890").Should().NotBeNull();
+
+            urls.Should().Equal("https://openlibrary.org/isbn/9781442482890.json", editionUrl, editionUrl);
         }
 
         [Test]

@@ -200,6 +200,22 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The configured metadata providers could not verify the author bibliography. The request can be retried later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["message"],
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -7593,14 +7609,30 @@
           {
             "name": "term",
             "in": "query",
+            "description": "The title or name to search for. With series-books, supply the Hardcover series ID returned by series search.",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "Defaults to combined author and book search. Series search returns provider summaries. The series-books scope returns up to 50 ordered provider books.",
+            "schema": {
+              "type": "string",
+              "enum": ["all", "author", "book", "series", "series-books"]
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "The matching search results, or an empty list if no matches were found."
+          },
+          "400": {
+            "description": "The supplied search scope or series ID was invalid."
+          },
+          "503": {
+            "description": "Series search or its book lookup could not be completed with the configured provider."
           }
         }
       }
@@ -9323,6 +9355,29 @@
           },
           "qualityCutoffNotMet": {
             "type": "boolean"
+          },
+          "unmappedReason": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true,
+            "description": "Reason the library scan held an unlinked file. Cleared after a successful link.",
+            "enum": [
+              "reviewRequired",
+              "noAcceptedWork",
+              "lowConfidence",
+              "existingFilePreferred",
+              "sameSizeAsExisting",
+              "competingEditions",
+              "readError",
+              "duplicateInScan",
+              "conflictingIdentity",
+              "importFailed",
+              "providerIdentityConflict",
+              "unverifiedEditionIdentifier",
+              "authorBibliographyUnavailable",
+              "authorIdentityConfirmationRequired",
+              null
+            ]
           },
           "audioTags": {
             "$ref": "#/components/schemas/ParsedTrackInfo"

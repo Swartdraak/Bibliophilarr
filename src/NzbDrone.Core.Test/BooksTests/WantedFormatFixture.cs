@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
@@ -136,14 +138,51 @@ namespace NzbDrone.Core.Test.BooksTests
         }
 
         [Test]
-        public void should_pass_audiobook_format_to_repository()
+        public void should_separate_audiobook_qualities_below_and_at_or_above_cutoff()
+        {
+            _profile.Cutoff = Quality.M4B.Id;
+            _profile.Items = new List<QualityProfileQualityItem>
+            {
+                new QualityProfileQualityItem { Quality = Quality.EPUB, Allowed = true },
+                new QualityProfileQualityItem { Quality = Quality.MP3, Allowed = true },
+                new QualityProfileQualityItem { Quality = Quality.M4B, Allowed = true }
+            };
+
+            Mocker.GetMock<IConfigService>().SetupGet(s => s.EnableDualFormatTracking).Returns(true);
+
+            Subject.BooksWhereCutoffUnmet(_pagingSpec, FormatType.Audiobook, true);
+
+            Mocker.GetMock<IBookRepository>()
+                .Verify(r => r.BooksWhereCutoffUnmet(
+                    _pagingSpec,
+                    It.Is<List<QualitiesBelowCutoff>>(cutoffs => cutoffs.Count == 1 &&
+                        cutoffs[0].QualityIds.SequenceEqual(new[] { Quality.MP3.Id }) &&
+                        cutoffs[0].QualityIdsMeetingCutoff.SequenceEqual(new[] { Quality.M4B.Id })),
+                    FormatType.Audiobook,
+                    true,
+                    true), Times.Once());
+        }
+
+        [Test]
+        public void should_ignore_ebook_only_profiles_for_an_audiobook_cutoff()
+        {
+            var result = Subject.BooksWhereCutoffUnmet(_pagingSpec, FormatType.Audiobook, true);
+
+            result.Records.Should().BeEmpty();
+            result.TotalRecords.Should().Be(0);
+            Mocker.GetMock<IBookRepository>().VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_preserve_unfiltered_quality_ranges_for_the_legacy_overload()
         {
             Subject.BooksWhereCutoffUnmet(_pagingSpec, FormatType.Audiobook);
 
             Mocker.GetMock<IBookRepository>()
                 .Verify(r => r.BooksWhereCutoffUnmet(
                     _pagingSpec,
-                    It.IsAny<List<QualitiesBelowCutoff>>(),
+                    It.Is<List<QualitiesBelowCutoff>>(cutoffs => cutoffs.Count == 1 &&
+                        cutoffs[0].QualityIds.SequenceEqual(new[] { Quality.Unknown.Id })),
                     FormatType.Audiobook), Times.Once());
         }
 

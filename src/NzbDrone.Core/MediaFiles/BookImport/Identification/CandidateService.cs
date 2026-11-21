@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NLog;
@@ -17,7 +18,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
     public interface ICandidateService
     {
         List<CandidateEdition> GetDbCandidatesFromTags(LocalEdition localEdition, IdentificationOverrides idOverrides, bool includeExisting);
-        IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides);
+        IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides, Func<Edition, bool> allowsEdition = null, bool forLibraryScan = false);
     }
 
     public class CandidateService : ICandidateService
@@ -278,7 +279,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return candidateReleases;
         }
 
-        public IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides)
+        public IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides, Func<Edition, bool> allowsEdition = null, bool forLibraryScan = false)
         {
             // NOTE handle edition override
 
@@ -314,7 +315,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // an empty result instead of NRE-ing in ToCandidates.
                 remoteBooks ??= new List<Book>();
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -324,7 +325,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     var preContextCount = seenCandidates.Count;
 
-                    foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides))
+                    foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides, allowsEdition))
                     {
                         yield return candidate;
                     }
@@ -350,7 +351,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // Issue #340: no-provider-configured state -> orchestrator returns null.
                 remoteBooks ??= new List<Book>();
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -374,7 +375,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // Issue #340: no-provider-configured state -> orchestrator returns null.
                 remoteBooks ??= new List<Book>();
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -392,7 +393,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             // Always attempt author / book name search even when ID-based results
             // were found — embedded ISBNs/ASINs can be incorrect, and the
             // author+title search may find the correct book. seenCandidates
-            // prevents duplicate editions from being yielded.
+            // tracks only editions that fit the release and pass identification checks.
             var authorTags = new List<string>();
 
             if (TrackGroupingService.IsVariousAuthors(localEdition.LocalBooks))
@@ -456,9 +457,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     }
                 }
 
-                remoteBooks = SearchPrimaryWithFanOut(authorTitleQueries, _configService.RemoteCandidateSearchWorkerCount);
+                var candidates = forLibraryScan && seenCandidates.Count == 0
+                    ? SearchLibraryAuthorTitle(authorTitleQueries, seenCandidates, idOverrides, localEdition, allowsEdition)
+                    : ToCandidates(SearchPrimaryWithFanOut(authorTitleQueries, SearchPrimary), seenCandidates, idOverrides, localEdition, allowsEdition);
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in candidates)
                 {
                     yield return candidate;
                 }
@@ -474,7 +477,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 remoteBooks = SearchPrimary(swappedPair.Title, swappedPair.Author, "swapped author/title search");
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -489,9 +492,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (titleVariants.Any())
             {
                 var titleOnlyQueries = titleVariants.Select(titleVariant => (titleVariant, (string)null, "book title search")).ToList();
-                remoteBooks = SearchPrimaryWithFanOut(titleOnlyQueries, _configService.RemoteCandidateSearchWorkerCount);
+                remoteBooks = SearchPrimaryWithFanOut(titleOnlyQueries, SearchPrimary);
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -501,9 +504,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (authorVariants.Any())
             {
                 var authorOnlyQueries = authorVariants.Select(author => (author, (string)null, "author search")).ToList();
-                remoteBooks = SearchPrimaryWithFanOut(authorOnlyQueries, _configService.RemoteCandidateSearchWorkerCount);
+                remoteBooks = SearchPrimaryWithFanOut(authorOnlyQueries, SearchPrimary);
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -524,7 +527,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     {
                         foreach (var authorVariant in authorVariants)
                         {
-                            foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, authorVariant), seenCandidates, idOverrides, localEdition))
+                            foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, authorVariant), seenCandidates, idOverrides, localEdition, allowsEdition))
                             {
                                 yield return candidate;
                             }
@@ -536,7 +539,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     foreach (var titleVariant in titleVariants)
                     {
-                        foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, null), seenCandidates, idOverrides, localEdition))
+                        foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, null), seenCandidates, idOverrides, localEdition, allowsEdition))
                         {
                             yield return candidate;
                         }
@@ -547,7 +550,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     foreach (var authorVariant in authorVariants)
                     {
-                        foreach (var candidate in ToCandidates(SearchFallback(provider, null, authorVariant), seenCandidates, idOverrides, localEdition))
+                        foreach (var candidate in ToCandidates(SearchFallback(provider, null, authorVariant), seenCandidates, idOverrides, localEdition, allowsEdition))
                         {
                             yield return candidate;
                         }
@@ -564,7 +567,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             LogCandidateRejectionTelemetry(localEdition, "all-search-paths-exhausted", 0, 0, seenCandidates.Count);
         }
 
-        private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides)
+        private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides, Func<Edition, bool> allowsEdition)
         {
             var attemptLimit = _configService.IsbnContextFallbackLimit;
             var attempts = 0;
@@ -596,7 +599,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     {
                         cacheHits++;
                         _logger.Debug("ISBN contextual fallback cache hit for title='{0}', author='{1}'", title, author ?? "<none>");
-                        foreach (var candidate in ToCandidates(cached, seenCandidates, idOverrides, localEdition))
+                        foreach (var candidate in ToCandidates(cached, seenCandidates, idOverrides, localEdition, allowsEdition))
                         {
                             yield return candidate;
                         }
@@ -645,7 +648,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                     _isbnFallbackCache[cacheKey] = remoteBooks.AsReadOnly();
 
-                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                     {
                         yield return candidate;
                     }
@@ -698,14 +701,61 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
         }
 
-        private List<Book> SearchPrimaryWithFanOut(List<(string Title, string Author, string Mode)> queries, int configuredWorkers)
+        private List<CandidateEdition> SearchLibraryAuthorTitle(List<(string Title, string Author, string Mode)> queries,
+                                                               HashSet<string> seenCandidates,
+                                                               IdentificationOverrides idOverrides,
+                                                               LocalEdition localEdition,
+                                                               Func<Edition, bool> allowsEdition)
+        {
+            var eligibilityGate = new object();
+            var candidates = SearchPrimaryWithFanOut(queries, Search);
+            return candidates.Where(candidate => seenCandidates.Add(candidate.Edition.ForeignEditionId)).ToList();
+
+            List<CandidateEdition> Search(string title, string author, string mode)
+            {
+                var matches = new List<CandidateEdition>();
+                ExceptionDispatchInfo eligibilityError = null;
+
+                try
+                {
+                    _metadataOrchestrator.SearchForLibraryImport(title, author, books =>
+                    {
+                        // Queries can run in parallel. The identification callback records
+                        // rejection reasons for this release, so serialize only that evaluation.
+                        lock (eligibilityGate)
+                        {
+                            try
+                            {
+                                matches = ToCandidates(books, new HashSet<string>(), idOverrides, localEdition, allowsEdition);
+                                return matches.Count > 0;
+                            }
+                            catch (Exception ex)
+                            {
+                                // Stop this query and propagate the local failure outside the provider loop.
+                                eligibilityError = ExceptionDispatchInfo.Capture(ex);
+                                return true;
+                            }
+                        }
+                    });
+                }
+                catch (OpenLibraryException ex)
+                {
+                    _logger.Info(ex, "Skipping {0} due to OpenLibrary Error", mode);
+                }
+
+                eligibilityError?.Throw();
+                return matches;
+            }
+        }
+
+        private List<T> SearchPrimaryWithFanOut<T>(List<(string Title, string Author, string Mode)> queries, Func<string, string, string, List<T>> search)
         {
             if (queries == null || queries.Count == 0)
             {
-                return new List<Book>();
+                return new List<T>();
             }
 
-            var maxWorkers = Math.Max(1, Math.Min(configuredWorkers, queries.Count));
+            var maxWorkers = Math.Max(1, Math.Min(_configService.RemoteCandidateSearchWorkerCount, queries.Count));
 
             _logger.Debug(
                 "Running {0} primary candidate search query(ies) with up to {1} worker(s)",
@@ -714,22 +764,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             if (maxWorkers == 1)
             {
-                var sequentialResults = new List<Book>();
+                var sequentialResults = new List<T>();
 
                 foreach (var query in queries)
                 {
-                    sequentialResults.AddRange(SearchPrimary(query.Title, query.Author, query.Mode));
+                    sequentialResults.AddRange(search(query.Title, query.Author, query.Mode));
                 }
 
                 return sequentialResults;
             }
 
-            var allResults = new ConcurrentBag<Book>();
+            var allResults = new ConcurrentBag<T>();
             var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
 
             Parallel.ForEach(queries, options, query =>
             {
-                var results = SearchPrimary(query.Title, query.Author, query.Mode);
+                var results = search(query.Title, query.Author, query.Mode);
 
                 foreach (var result in results)
                 {
@@ -957,7 +1007,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return null;
         }
 
-        private List<CandidateEdition> ToCandidates(IEnumerable<Book> books, HashSet<string> seenCandidates, IdentificationOverrides idOverrides, LocalEdition localEdition)
+        private List<CandidateEdition> ToCandidates(IEnumerable<Book> books, HashSet<string> seenCandidates, IdentificationOverrides idOverrides, LocalEdition localEdition, Func<Edition, bool> allowsEdition)
         {
             var candidates = new List<CandidateEdition>();
 
@@ -971,7 +1021,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                     if (!seenCandidates.Contains(edition.ForeignEditionId) &&
                         SatisfiesOverride(edition, idOverrides) &&
-                        localEdition.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, edition)))
+                        localEdition.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, edition)) &&
+                        allowsEdition?.Invoke(edition) != false)
                     {
                         seenCandidates.Add(edition.ForeignEditionId);
                         candidates.Add(new CandidateEdition

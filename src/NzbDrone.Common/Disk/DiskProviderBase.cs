@@ -538,6 +538,11 @@ namespace NzbDrone.Common.Disk
 
         public List<IFileInfo> GetFileInfos(string path, bool recursive = false)
         {
+            return GetFileInfos(path, recursive, ignoreInaccessible: true);
+        }
+
+        public List<IFileInfo> GetFileInfos(string path, bool recursive, bool ignoreInaccessible)
+        {
             Ensure.That(path, () => path).IsValidPath(PathValidationType.CurrentOs);
 
             var di = _fileSystem.DirectoryInfo.FromDirectoryName(path);
@@ -545,7 +550,7 @@ namespace NzbDrone.Common.Disk
             return di.EnumerateFiles("*", new EnumerationOptions
             {
                 RecurseSubdirectories = recursive,
-                IgnoreInaccessible = true
+                IgnoreInaccessible = ignoreInaccessible
             }).ToList();
         }
 

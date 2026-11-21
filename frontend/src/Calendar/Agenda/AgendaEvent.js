@@ -7,6 +7,7 @@ import getStatusStyle from 'Calendar/getStatusStyle';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import { icons } from 'Helpers/Props';
+import cataloguePath from 'Utilities/cataloguePath';
 import formatTime from 'Utilities/Date/formatTime';
 import momentFormatToDateFns from 'Utilities/Date/momentFormatToDateFns';
 import translate from 'Utilities/String/translate';
@@ -43,6 +44,7 @@ class AgendaEvent extends Component {
       id,
       author,
       title,
+      canonicalId,
       titleSlug,
       releaseDate,
       monitored,
@@ -88,7 +90,7 @@ class AgendaEvent extends Component {
           </div>
 
           <div className={styles.authorName}>
-            <Link to={`/author/${author.titleSlug}`}>
+            <Link to={cataloguePath('author', author)}>
               {author.authorName}
             </Link>
           </div>
@@ -96,7 +98,7 @@ class AgendaEvent extends Component {
           <div className={styles.bookSeparator}> - </div>
 
           <div className={styles.bookTitle}>
-            <Link to={`/book/${titleSlug}`}>
+            <Link to={cataloguePath('book', { canonicalId, titleSlug })}>
               {title}
             </Link>
           </div>
@@ -125,6 +127,7 @@ AgendaEvent.propTypes = {
   id: PropTypes.number.isRequired,
   author: PropTypes.object.isRequired,
   title: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   bookType: PropTypes.string.isRequired,
   releaseDate: PropTypes.string.isRequired,

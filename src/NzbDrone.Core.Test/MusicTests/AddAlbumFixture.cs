@@ -7,6 +7,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Test.Framework;
@@ -92,6 +93,53 @@ namespace NzbDrone.Core.Test.MusicTests
             var book = Subject.AddBook(newBook);
 
             book.Title.Should().Be(_fakeBook.Title);
+        }
+
+        [Test]
+        public void should_reject_a_provider_alias_that_would_reparent_an_existing_work()
+        {
+            var incoming = BookToAdd("edition", "book", "author");
+            GivenValidBook("book", "edition");
+            var stored = new Book { Id = 20, AuthorMetadataId = _fakeAuthor.AuthorMetadataId + 1, ForeignBookId = "hardcover:work:8" };
+            Mocker.GetMock<IBookService>().Setup(service => service.FindById(_fakeBook.ForeignBookId)).Returns(stored);
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(_fakeAuthor.ForeignAuthorId)).Returns(_fakeAuthor);
+
+            Assert.Throws<ValidationException>(() => Subject.AddBook(incoming));
+
+            Mocker.GetMock<IBookService>().Verify(service => service.AddBook(It.IsAny<Book>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAddAuthorService>().Verify(service => service.AddAuthorWithMetadata(It.IsAny<Author>(), It.IsAny<AuthorMetadata>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IImportListExclusionService>().Verify(service => service.Delete(It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_the_owned_work_identity_and_clear_both_work_exclusions_on_an_alias_add()
+        {
+            var incoming = BookToAdd("edition", "book", "author");
+            incoming.Author = new Author();
+            GivenValidBook("book", "edition");
+            _fakeAuthor.AuthorMetadataId = 5;
+            var stored = new Book
+            {
+                Id = 20,
+                AuthorMetadataId = _fakeAuthor.AuthorMetadataId,
+                CanonicalId = "f56520d8b4e144f782a2ebb68f293f26",
+                ForeignBookId = "hardcover:work:8",
+                TitleSlug = "persisted-work"
+            };
+            Mocker.GetMock<IBookService>().Setup(service => service.FindById(_fakeBook.ForeignBookId)).Returns(stored);
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(_fakeAuthor.ForeignAuthorId)).Returns(_fakeAuthor);
+
+            var added = Subject.AddBook(incoming);
+
+            added.Id.Should().Be(stored.Id);
+            added.CanonicalId.Should().Be(stored.CanonicalId);
+            added.AuthorMetadataId.Should().Be(stored.AuthorMetadataId);
+            added.ForeignBookId.Should().Be(stored.ForeignBookId);
+            added.TitleSlug.Should().Be(stored.TitleSlug);
+            var exclusions = Mocker.GetMock<IImportListExclusionService>();
+            exclusions.Verify(service => service.Delete(stored.ForeignBookId), Times.Once());
+            exclusions.Verify(service => service.Delete(_fakeBook.ForeignBookId), Times.Once());
+            exclusions.Verify(service => service.Delete(_fakeAuthor.ForeignAuthorId), Times.Once());
         }
 
         [Test]

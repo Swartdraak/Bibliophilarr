@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Api.V1.Search;
 using FluentAssertions;
+using Microsoft.AspNetCore.Mvc;
 using Moq;
 using NLog;
 using NLog.Config;
@@ -80,6 +81,80 @@ namespace NzbDrone.Api.Test.Search
             snapshot.UnsupportedEntityTypes[typeof(Version).FullName].Should().Be(1);
             snapshot.Terms["anne"].Should().Be(1);
             _memoryTarget.Logs.Should().ContainSingle(log => log.Contains("unsupported search entity type") && log.Contains("anne"));
+        }
+
+        [Test]
+        public void should_issue_only_the_requested_search_and_keep_series_provider_identity()
+        {
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(search => search.SearchForNewSeries("Fixture"))
+                .Returns(new List<SeriesSearchSummary>
+                {
+                    new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:10", Title = "Fixture", Slug = "fixture" },
+                    new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:11", Title = "Fixture", Slug = "another-fixture" }
+                });
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+
+            var results = (List<SearchResource>)controller.Search(" Fixture ", "series");
+
+            results.Select(result => result.ForeignId).Should().Equal("hardcover:series:10", "hardcover:series:11");
+            results.Should().OnlyContain(result => result.Series.Title == "Fixture" && result.Book == null && result.Author == null);
+            proxy.Verify(search => search.SearchForNewSeries("Fixture"), Times.Once());
+            proxy.VerifyNoOtherCalls();
+        }
+
+        [TestCase("author")]
+        [TestCase("book")]
+        public void should_route_scoped_search_without_combined_fan_out(string scope)
+        {
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            if (scope == "author")
+            {
+                proxy.Setup(search => search.SearchForNewAuthor("Fixture")).Returns(new List<Author>());
+            }
+            else
+            {
+                proxy.Setup(search => search.SearchForNewBook("Fixture", null, false)).Returns(new List<Book>());
+            }
+
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+
+            ((List<SearchResource>)controller.Search("Fixture", scope)).Should().BeEmpty();
+            proxy.Invocations.Should().ContainSingle();
+        }
+
+        [Test]
+        public void should_distinguish_unavailable_series_from_successful_empty_results()
+        {
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(search => search.SearchForNewSeries("Unavailable")).Returns((List<SeriesSearchSummary>)null);
+            proxy.Setup(search => search.SearchForNewSeries("Empty")).Returns(new List<SeriesSearchSummary>());
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+
+            controller.Search("Unavailable", "series").Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(503);
+            ((List<SearchResource>)controller.Search("Empty", "series")).Should().BeEmpty();
+            controller.Search("Fixture", "unknown").Should().BeOfType<BadRequestObjectResult>();
+            ((List<SearchResource>)controller.Search("ab", "series")).Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_return_addable_book_results_in_verified_series_order()
+        {
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(search => search.GetSeriesBooks("hardcover:series:24")).Returns(new List<Book>
+            {
+                new Book { Title = "Second alphabetically", ForeignBookId = "hardcover:work:8" },
+                new Book { Title = "First alphabetically", ForeignBookId = "hardcover:work:9" }
+            });
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+
+            var results = (List<SearchResource>)controller.Search("hardcover:series:24", "series-books");
+
+            results.Select(result => result.Book.ForeignBookId).Should().Equal("hardcover:work:8", "hardcover:work:9");
+            controller.Search("A series title", "series-books").Should().BeOfType<BadRequestObjectResult>();
+            controller.Search("hardcover:series:0", "series-books").Should().BeOfType<BadRequestObjectResult>();
+            proxy.Verify(search => search.GetSeriesBooks("hardcover:series:24"), Times.Once());
+            proxy.VerifyNoOtherCalls();
         }
 
         // ── Issue #248 regression: null-safe mapping of search results ──────────
@@ -210,9 +285,7 @@ namespace NzbDrone.Api.Test.Search
         [Test]
         public void should_not_throw_when_book_author_metadata_is_null_and_editions_have_images()
         {
-            // Combined shape: Author.Metadata unset AND editions carry images that
-            // must still be mapped into the book resource (preserves the
-            // selectedEdition.Images override behavior from the original code).
+            // An unresolved author must not prevent valid edition artwork from being mapped.
             var author = new Author
             {
                 Metadata = new LazyLoaded<AuthorMetadata>() // unset
@@ -224,7 +297,7 @@ namespace NzbDrone.Api.Test.Search
                 Overview = "A quest.",
                 Images = new List<MediaCover>
                 {
-                    new MediaCover { CoverType = MediaCoverTypes.Cover, RemoteUrl = "https://covers.example/cover.jpg" }
+                    new MediaCover { CoverType = MediaCoverTypes.Cover, Url = "https://covers.example/cover.jpg" }
                 },
                 Monitored = false
             };
@@ -245,6 +318,46 @@ namespace NzbDrone.Api.Test.Search
             resource.Book.Author.Should().NotBeNull();
             resource.Book.Images.Should().NotBeNull();
             resource.Book.Images.Should().Contain(c => c.CoverType == MediaCoverTypes.Cover);
+        }
+
+        [Test]
+        public void should_keep_same_work_fallback_metadata_in_search_without_modifying_provider_covers()
+        {
+            const string preferredUrl = "https://covers.example/preferred.jpg";
+            const string fallbackUrl = "https://covers.example/fallback.jpg";
+            var preferredCover = new MediaCover(MediaCoverTypes.Cover, preferredUrl);
+            var fallbackCover = new MediaCover(MediaCoverTypes.Cover, fallbackUrl);
+            var book = new Book
+            {
+                Title = "Fixture Work",
+                ForeignBookId = "OL250W",
+                Editions = new List<Edition>
+                {
+                    new Edition { Title = "Fixture Work", Monitored = true, Images = new List<MediaCover> { preferredCover } },
+                    new Edition { Title = "Fixture Work", Overview = "A verified edition synopsis.", Images = new List<MediaCover> { fallbackCover } }
+                }
+            };
+            var searchProxy = new Mock<IMetadataProviderOrchestrator>();
+            searchProxy.Setup(proxy => proxy.SearchForNewEntity("fixture")).Returns(new List<object> { book });
+            var coverMapper = new Mock<IMapCoversToLocal>();
+            coverMapper.Setup(mapper => mapper.ConvertToLocalUrls(0, MediaCoverEntity.Book, It.IsAny<IEnumerable<MediaCover>>()))
+                .Callback<int, MediaCoverEntity, IEnumerable<MediaCover>>((_, _, images) =>
+                {
+                    foreach (var image in images)
+                    {
+                        image.RemoteUrl = image.Url;
+                        image.Url = "/artwork/" + System.IO.Path.GetFileName(image.Url);
+                    }
+                });
+            var controller = new SearchController(searchProxy.Object, Mock.Of<IBuildFileNames>(), coverMapper.Object, _telemetry);
+
+            var result = ((List<SearchResource>)controller.Search("fixture")).Should().ContainSingle().Which.Book;
+
+            result.Overview.Should().Be("A verified edition synopsis.");
+            result.Images.Select(image => image.RemoteUrl).Should().Equal(preferredUrl, fallbackUrl);
+            result.RemoteCover.Should().Be(preferredUrl);
+            preferredCover.Url.Should().Be(preferredUrl);
+            fallbackCover.Url.Should().Be(fallbackUrl);
         }
 
         [Test]

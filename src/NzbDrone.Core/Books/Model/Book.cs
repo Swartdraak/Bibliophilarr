@@ -10,7 +10,7 @@ using NzbDrone.Core.MediaFiles;
 namespace NzbDrone.Core.Books
 {
     [DebuggerDisplay("{GetType().FullName} ID = {Id} [{ForeignBookId}][{Title}]")]
-    public class Book : Entity<Book>
+    public class Book : Entity<Book>, ICatalogueIdentityModel
     {
         public Book()
         {
@@ -25,6 +25,21 @@ namespace NzbDrone.Core.Books
         // These correspond to columns in the Books table
         // These are metadata entries
         public int AuthorMetadataId { get; set; }
+        [MemberwiseEqualityIgnore]
+        public string CanonicalId { get; set; }
+        [MemberwiseEqualityIgnore]
+        public List<CatalogueSourceAssociation> PendingSourceAssociations { get; } = new List<CatalogueSourceAssociation>();
+
+        [MemberwiseEqualityIgnore]
+        internal int? CreditedHardcoverAuthorId { get; set; }
+
+        [MemberwiseEqualityIgnore]
+        internal string VerifiedOpenLibraryAuthorId { get; set; }
+
+        CatalogueEntityKind ICatalogueIdentityModel.CatalogueKind => CatalogueEntityKind.Work;
+        string ICatalogueIdentityModel.LegacyForeignId => ForeignBookId;
+        string ICatalogueIdentityModel.LegacyTitleSlug => TitleSlug;
+
         public string ForeignBookId { get; set; }
         public string ForeignEditionId { get; set; }
         public string OpenLibraryWorkId { get; set; }
@@ -81,12 +96,18 @@ namespace NzbDrone.Core.Books
 
         public override void UseMetadataFrom(Book other)
         {
+            if (!ReferenceEquals(this, other))
+            {
+                PendingSourceAssociations.AddRange(other.PendingSourceAssociations);
+            }
+
+            var sameWork = ForeignBookId.IsNotNullOrWhiteSpace() && ForeignBookId == other.ForeignBookId;
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
-            OpenLibraryWorkId = other.OpenLibraryWorkId;
+            OpenLibraryWorkId = sameWork && other.OpenLibraryWorkId.IsNullOrWhiteSpace() ? OpenLibraryWorkId : other.OpenLibraryWorkId;
             TitleSlug = other.TitleSlug;
             Title = other.Title;
-            ReleaseDate = other.ReleaseDate;
+            ReleaseDate = sameWork ? other.ReleaseDate ?? ReleaseDate : other.ReleaseDate;
             Links = other.Links;
             Genres = other.Genres;
             RelatedBooks = other.RelatedBooks;
@@ -97,6 +118,7 @@ namespace NzbDrone.Core.Books
         public override void UseDbFieldsFrom(Book other)
         {
             Id = other.Id;
+            CanonicalId = other.CanonicalId;
             AuthorMetadataId = other.AuthorMetadataId;
             Monitored = other.Monitored;
             EbookMonitoringOverride = other.EbookMonitoringOverride;

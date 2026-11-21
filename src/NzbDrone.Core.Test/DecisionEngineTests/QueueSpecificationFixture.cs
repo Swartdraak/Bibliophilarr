@@ -144,6 +144,30 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             Subject.IsSatisfiedBy(_remoteBook, null).Accepted.Should().BeFalse();
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_compare_queued_quality_only_within_the_requested_format_when_dual_tracking_is_enabled(bool dualFormatEnabled)
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(config => config.EnableDualFormatTracking)
+                .Returns(dualFormatEnabled);
+            _author.QualityProfile.Value.UpgradeAllowed = false;
+            _remoteBook.ResolvedFormatType = FormatType.Audiobook;
+
+            GivenQueue(new List<RemoteBook>
+            {
+                new RemoteBook
+                {
+                    Author = _author,
+                    Books = new List<Book> { _book },
+                    ParsedBookInfo = new ParsedBookInfo { Quality = new QualityModel(Quality.EPUB) },
+                    CustomFormats = new List<CustomFormat>()
+                }
+            });
+
+            Subject.IsSatisfiedBy(_remoteBook, null).Accepted.Should().Be(dualFormatEnabled);
+        }
+
         [Test]
         public void should_still_reject_a_same_format_copy_in_the_queue_with_dual_tracking()
         {

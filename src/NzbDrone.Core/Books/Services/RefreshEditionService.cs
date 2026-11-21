@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NLog;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.BookImport;
 
 namespace NzbDrone.Core.Books
 {
@@ -14,14 +15,17 @@ namespace NzbDrone.Core.Books
     public class RefreshEditionService : IRefreshEditionService
     {
         private readonly IEditionService _editionService;
+        private readonly IMediaFileService _mediaFileService;
         private readonly IMetadataTagService _metadataTagService;
         private readonly Logger _logger;
 
         public RefreshEditionService(IEditionService editionService,
+            IMediaFileService mediaFileService,
             IMetadataTagService metadataTagService,
             Logger logger)
         {
             _editionService = editionService;
+            _mediaFileService = mediaFileService;
             _metadataTagService = metadataTagService;
             _logger = logger;
         }
@@ -33,8 +37,24 @@ namespace NzbDrone.Core.Books
             // for editions that need updating, just grab the remote edition and set db ids
             foreach (var edition in update)
             {
-                var remoteEdition = remoteEditions.Single(e => e.ForeignEditionId == edition.ForeignEditionId);
-                edition.UseMetadataFrom(remoteEdition);
+                var remoteEdition = remoteEditions.SingleOrDefault(e => e.ForeignEditionId == edition.ForeignEditionId);
+                if (remoteEdition != null)
+                {
+                    if (remoteEdition.BookId > 0)
+                    {
+                        edition.BookId = remoteEdition.BookId;
+                        edition.Book = remoteEdition.Book;
+                    }
+
+                    if (HasLinkedFileFormatConflict(edition, remoteEdition, _mediaFileService))
+                    {
+                        _logger.Warn("Retaining stored metadata for edition {0}: provider format {1} conflicts with its linked files.", edition.Id, remoteEdition.Format);
+                    }
+                    else
+                    {
+                        edition.UseMetadataFrom(remoteEdition);
+                    }
+                }
 
                 // make sure title is not null
                 edition.Title = edition.Title ?? "Unknown";
@@ -54,6 +74,12 @@ namespace NzbDrone.Core.Books
             _metadataTagService.SyncTags(tagsToUpdate);
 
             return add.Any() || delete.Any() || updateList.Any() || merge.Any();
+        }
+
+        internal static bool HasLinkedFileFormatConflict(Edition edition, Edition remoteEdition, IMediaFileService mediaFileService)
+        {
+            return (edition.Format != remoteEdition.Format || edition.IsEbook != remoteEdition.IsEbook) &&
+                   mediaFileService.GetFilesByEdition(edition.Id).Any(file => !ImportFormat.CanLink(file.Path, remoteEdition));
         }
     }
 }

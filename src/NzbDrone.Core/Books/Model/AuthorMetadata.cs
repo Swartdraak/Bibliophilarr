@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Equ;
 using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Core.Books
 {
-    public class AuthorMetadata : Entity<AuthorMetadata>
+    public class AuthorMetadata : Entity<AuthorMetadata>, ICatalogueIdentityModel
     {
         public AuthorMetadata()
         {
@@ -15,6 +16,15 @@ namespace NzbDrone.Core.Books
             Aliases = new List<string>();
             Ratings = new Ratings();
         }
+
+        [MemberwiseEqualityIgnore]
+        public string CanonicalId { get; set; }
+        [MemberwiseEqualityIgnore]
+        public List<CatalogueSourceAssociation> PendingSourceAssociations { get; } = new List<CatalogueSourceAssociation>();
+
+        CatalogueEntityKind ICatalogueIdentityModel.CatalogueKind => CatalogueEntityKind.Author;
+        string ICatalogueIdentityModel.LegacyForeignId => ForeignAuthorId;
+        string ICatalogueIdentityModel.LegacyTitleSlug => TitleSlug;
 
         public string ForeignAuthorId { get; set; }
         public string OpenLibraryAuthorId { get; set; }
@@ -41,10 +51,24 @@ namespace NzbDrone.Core.Books
             return string.Format("[{0}][{1}]", ForeignAuthorId, Name.NullSafe());
         }
 
+        public override void UseDbFieldsFrom(AuthorMetadata other)
+        {
+            base.UseDbFieldsFrom(other);
+            CanonicalId = other.CanonicalId;
+        }
+
         public override void UseMetadataFrom(AuthorMetadata other)
         {
+            if (!ReferenceEquals(this, other))
+            {
+                PendingSourceAssociations.AddRange(other.PendingSourceAssociations);
+            }
+
+            var sameAuthor = (CanonicalId.IsNotNullOrWhiteSpace() && CanonicalId == other.CanonicalId) ||
+                             (ForeignAuthorId.IsNotNullOrWhiteSpace() && ForeignAuthorId == other.ForeignAuthorId);
+
             ForeignAuthorId = other.ForeignAuthorId;
-            OpenLibraryAuthorId = other.OpenLibraryAuthorId;
+            OpenLibraryAuthorId = sameAuthor && other.OpenLibraryAuthorId.IsNullOrWhiteSpace() ? OpenLibraryAuthorId : other.OpenLibraryAuthorId;
             TitleSlug = other.TitleSlug;
             Name = other.Name;
             NameLastFirst = other.NameLastFirst;
@@ -55,8 +79,8 @@ namespace NzbDrone.Core.Books
             Disambiguation = other.Disambiguation;
             Gender = other.Gender;
             Hometown = other.Hometown;
-            Born = other.Born;
-            Died = other.Died;
+            Born = sameAuthor ? other.Born ?? Born : other.Born;
+            Died = sameAuthor ? other.Died ?? Died : other.Died;
             Status = other.Status;
             Images = other.Images.Any() ? other.Images : Images;
             Links = other.Links;

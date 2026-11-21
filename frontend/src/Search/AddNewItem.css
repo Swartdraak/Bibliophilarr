@@ -53,3 +53,19 @@
 .searchResults {
   margin-top: 30px;
 }
+
+.searchScope {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-bottom: 10px;
+}
+
+.seriesResult {
+  margin-bottom: 16px;
+}
+
+.seriesResult a {
+  margin-inline-start: 12px;
+}

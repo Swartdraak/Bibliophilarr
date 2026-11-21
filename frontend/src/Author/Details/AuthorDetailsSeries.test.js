@@ -1,13 +1,43 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import AuthorDetailsSeries from './AuthorDetailsSeries';
-import { compareSeriesBookPositions, getSeriesSearchBookIds } from './AuthorDetailsSeriesConnector';
+import { compareSeriesBookPositions, getSeriesRepresentativeCovers, getSeriesSearchBookIds } from './AuthorDetailsSeriesConnector';
 
 describe('author series', () => {
   test('orders multi-digit series numbers in both directions', () => {
     const positions = ['10', '2', '1'];
     expect([...positions].sort((a, b) => compareSeriesBookPositions(a, b, 'ascending'))).toEqual(['1', '2', '10']);
     expect([...positions].sort((a, b) => compareSeriesBookPositions(a, b, 'descending'))).toEqual(['10', '2', '1']);
+  });
+
+  test('chooses an available linked cover in stable series order', () => {
+    const books = [
+      { id: 9, title: 'Unrelated', images: [{ coverType: 'cover', url: '/unrelated.jpg' }] },
+      { id: 10, title: 'Volume ten', images: [{ coverType: 'cover', url: '/ten.jpg' }] },
+      { id: 2, title: 'Volume two', images: [{ coverType: 'cover', url: '/two.jpg' }] },
+      { id: 1, title: 'Volume one', images: [{ coverType: 'cover', url: '' }] }
+    ];
+    const links = [
+      { bookId: 10, position: '10' },
+      { bookId: 2, position: '2' },
+      { bookId: 1, position: '1' }
+    ];
+
+    expect(getSeriesRepresentativeCovers(books, links)).toEqual([{ bookTitle: 'Volume two', url: '/two.jpg' }, { bookTitle: 'Volume ten', url: '/ten.jpg' }]);
+    expect(getSeriesRepresentativeCovers([...books].reverse(), [...links].reverse())).toEqual([{ bookTitle: 'Volume two', url: '/two.jpg' }, { bookTitle: 'Volume ten', url: '/ten.jpg' }]);
+    expect(getSeriesRepresentativeCovers(books, links.slice(-1))).toEqual([]);
+  });
+
+  test('uses author-scoped artwork when the global library omits alternate-edition covers', () => {
+    const libraryBooks = [{ id: 2, title: 'Volume two', images: [] }];
+    const authorBooks = [{ id: 2, title: 'Volume two', images: [{ coverType: 'cover', url: '/alternate.png' }] }];
+    const links = [{ bookId: 2, position: '2' }];
+
+    expect(getSeriesRepresentativeCovers(libraryBooks, links)).toEqual([]);
+    expect(getSeriesRepresentativeCovers(libraryBooks, links, authorBooks)).toEqual([{
+      bookTitle: 'Volume two',
+      url: '/alternate.png'
+    }]);
   });
 
   test('searches only monitored members missing a file in a monitored format', () => {
@@ -53,6 +83,7 @@ describe('author series', () => {
     );
     const search = screen.getByRole('button', { name: 'SearchMissingSeriesBooks' });
     expect(search).toBeDisabled();
+    expect(screen.queryByRole('img')).toBeNull();
     rerender(
       <AuthorDetailsSeries
         {...properties}
@@ -64,10 +95,14 @@ describe('author series', () => {
     rerender(
       <AuthorDetailsSeries
         {...properties}
+        representativeCovers={[{ bookTitle: 'Volume two', url: '/two.jpg' }, { bookTitle: 'Volume ten', url: '/ten.jpg' }]}
         searchBookIds={[8, 9]}
         isSearching={false}
       />
     );
+    expect(screen.getByRole('img', { name: 'SeriesRepresentativeCover' })).toHaveAttribute('src', '/two.jpg');
+    fireEvent.error(screen.getByRole('img', { name: 'SeriesRepresentativeCover' }));
+    expect(screen.getByRole('img', { name: 'SeriesRepresentativeCover' })).toHaveAttribute('src', '/ten.jpg');
     fireEvent.click(search);
     expect(onSearchPress).toHaveBeenCalledWith([8, 9]);
   });

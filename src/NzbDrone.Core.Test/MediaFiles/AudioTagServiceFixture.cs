@@ -180,6 +180,44 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
             tags.Duration.Should().BeCloseTo(new TimeSpan(0, 0, 1, 25, 130), TimeSpan.FromMilliseconds(100));
         }
 
+        [TestCase("com.apple.iTunes", "ASIN")]
+        [TestCase("com.pilabor.tone", "AUDIBLE_ASIN")]
+        public void should_read_explicit_mpeg4_asin_without_fallback(string issuer, string field)
+        {
+            GivenFileCopy("nin.m4a");
+            using (var media = TagLib.File.Create(_copiedFile))
+            {
+                var tags = (TagLib.Mpeg4.AppleTag)media.GetTag(TagLib.TagTypes.Apple);
+                tags.SetDashBox(issuer, field, " b00example ");
+                media.Save();
+            }
+
+            var track = Subject.ReadTags(_copiedFile);
+
+            track.Asin.Should().Be("B00EXAMPLE");
+            track.AsinConfidence.Should().BeGreaterThan(0);
+            Mocker.GetMock<IEmbeddedAudioTagFallbackReader>().Verify(reader => reader.ReadTags(It.IsAny<string>()), Times.Never());
+        }
+
+        [TestCase(null, "not an identifier")]
+        [TestCase("B00EXAMPLE", "B01EXAMPLE")]
+        public void should_not_use_a_malformed_or_conflicting_mpeg4_asin(string appleAsin, string toneAsin)
+        {
+            GivenFileCopy("nin.m4a");
+            using (var media = TagLib.File.Create(_copiedFile))
+            {
+                var tags = (TagLib.Mpeg4.AppleTag)media.GetTag(TagLib.TagTypes.Apple);
+                tags.SetDashBox("com.apple.iTunes", "ASIN", appleAsin);
+                tags.SetDashBox("com.pilabor.tone", "AUDIBLE_ASIN", toneAsin);
+                media.Save();
+            }
+
+            var track = Subject.ReadTags(_copiedFile);
+
+            track.Asin.Should().BeNull();
+            track.AsinConfidence.Should().Be(0);
+        }
+
         [Test]
         public void should_use_fallback_reader_when_primary_tags_missing_identity()
         {

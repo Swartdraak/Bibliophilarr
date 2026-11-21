@@ -35,39 +35,19 @@ class AddNewItemConnector extends Component {
   //
   // Lifecycle
 
-  constructor(props, context) {
-    super(props, context);
-
-    this._searchTimeout = null;
-  }
-
   componentDidMount() {
     this.props.fetchRootFolders();
   }
 
   componentWillUnmount() {
-    if (this._searchTimeout) {
-      clearTimeout(this._searchTimeout);
-    }
-
     this.props.clearSearchResults();
   }
 
   //
   // Listeners
 
-  onSearchChange = (term) => {
-    if (this._searchTimeout) {
-      clearTimeout(this._searchTimeout);
-    }
-
-    if (term.trim() === '') {
-      this.props.clearSearchResults();
-    } else {
-      this._searchTimeout = setTimeout(() => {
-        this.props.getSearchResults({ term });
-      }, 600);
-    }
+  onSearchChange = (term, scope) => {
+    this.props.getSearchResults({ term, scope });
   };
 
   onClearSearch = () => {

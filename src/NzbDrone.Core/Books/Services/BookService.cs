@@ -18,6 +18,8 @@ namespace NzbDrone.Core.Books
         List<Book> GetNextBooksByAuthorMetadataId(IEnumerable<int> authorMetadataIds);
         List<Book> GetLastBooksByAuthorMetadataId(IEnumerable<int> authorMetadataIds);
         List<Book> GetBooksByAuthorMetadataId(int authorMetadataId);
+        List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId);
+        void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds);
         List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds);
         List<Book> GetBooksByFileIds(IEnumerable<int> fileIds);
         Book AddBook(Book newBook, bool doRefresh = true);
@@ -39,6 +41,7 @@ namespace NzbDrone.Core.Books
         List<Book> BooksBetweenDates(DateTime start, DateTime end, bool includeUnmonitored);
         List<Book> AuthorBooksBetweenDates(Author author, DateTime start, DateTime end, bool includeUnmonitored);
         void InsertMany(List<Book> books);
+        List<Book> InsertBibliographyWorks(List<Book> books);
         void UpdateMany(List<Book> books);
         void DeleteMany(List<Book> books);
         void SetAddOptions(IEnumerable<Book> books);
@@ -209,6 +212,16 @@ namespace NzbDrone.Core.Books
             return _bookRepository.GetBooksByAuthorMetadataId(authorMetadataId).ToList();
         }
 
+        public List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId)
+        {
+            return _bookRepository.GetSharedBooksByAuthorMetadataId(authorMetadataId);
+        }
+
+        public void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds)
+        {
+            _bookRepository.RecordHardcoverAuthorCredits(authorMetadataId, providerAuthorId, foreignBookIds);
+        }
+
         public List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds)
         {
             return _bookRepository.GetBooksForRefresh(authorMetadataId, foreignIds);
@@ -260,12 +273,22 @@ namespace NzbDrone.Core.Books
 
         public void InsertMany(List<Book> books)
         {
+            EnsureAuthorsForInsert(books);
+            _bookRepository.InsertMany(books);
+        }
+
+        public List<Book> InsertBibliographyWorks(List<Book> books)
+        {
+            EnsureAuthorsForInsert(books);
+            return _bookRepository.InsertBibliographyWorks(books);
+        }
+
+        private static void EnsureAuthorsForInsert(List<Book> books)
+        {
             if (books.Any(x => x.AuthorMetadataId == 0))
             {
                 throw new InvalidOperationException("Cannot insert book with AuthorMetadataId = 0");
             }
-
-            _bookRepository.InsertMany(books);
         }
 
         public void UpdateMany(List<Book> books)

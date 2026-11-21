@@ -29,6 +29,7 @@ namespace NzbDrone.Core.Books
 
     public class AddAuthorService : IAddAuthorService
     {
+        private static readonly object[] AdditionLocks = Enumerable.Range(0, 64).Select(_ => new object()).ToArray();
         private readonly IAuthorService _authorService;
         private readonly IAuthorMetadataService _authorMetadataService;
         private readonly IAuthorCanonicalizationService _authorCanonicalizationService;
@@ -70,7 +71,8 @@ namespace NzbDrone.Core.Books
         {
             Ensure.That(newAuthor, () => newAuthor).IsNotNull();
 
-            return AddResolvedAuthor(AddSkyhookData(newAuthor), doRefresh);
+            var resolved = AddSkyhookData(newAuthor);
+            return AddResolvedAuthor(resolved.Author, resolved.Bibliography, doRefresh);
         }
 
         public Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh)
@@ -87,73 +89,112 @@ namespace NzbDrone.Core.Books
 
             metadata.ForeignAuthorId = NormalizeForeignAuthorId(metadata.ForeignAuthorId);
             newAuthor.Metadata = metadata;
-            return AddResolvedAuthor(newAuthor, doRefresh);
+            return AddResolvedAuthor(newAuthor, null, doRefresh);
         }
 
-        private Author AddResolvedAuthor(Author newAuthor, bool doRefresh)
+        private Author AddResolvedAuthor(Author newAuthor, IReadOnlyList<Book> bibliography, bool doRefresh)
         {
-            newAuthor = SetPropertiesAndValidate(newAuthor);
-
-            var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(newAuthor, out var confidence, out var reason);
-            if (canonical != null)
+            lock (AdditionLocks[GetAdditionLockIndex(newAuthor)])
             {
-                _logger.Info("Reusing canonical author {0} for incoming {1} (confidence={2:0.000}, reason={3})", canonical, newAuthor, confidence, reason);
-                return canonical;
+                newAuthor = SetPropertiesAndValidate(newAuthor);
+
+                var canonical = _authorCanonicalizationService.TryReuseAuthorOnAdd(
+                    newAuthor, bibliography, Array.Empty<(Author, IReadOnlyList<Book>)>());
+                if (canonical != null)
+                {
+                    return canonical;
+                }
+
+                _logger.Info("Adding catalogue author");
+
+                _authorMetadataService.Upsert(newAuthor.Metadata.Value);
+                newAuthor.AuthorMetadataId = newAuthor.Metadata.Value.Id;
+
+                var existingAuthor = _authorService.GetAuthorByMetadataId(newAuthor.AuthorMetadataId);
+                if (existingAuthor != null)
+                {
+                    _logger.Info("Author already exists for metadata {0}; returning existing author {1}", newAuthor.AuthorMetadataId, existingAuthor.Id);
+                    return existingAuthor;
+                }
+
+                var addedAuthor = _authorService.AddAuthor(newAuthor, doRefresh);
+
+                EnsureFormatProfiles(addedAuthor);
+
+                return addedAuthor;
             }
-
-            _logger.Info("Adding Author {0} Path: [{1}]", newAuthor, newAuthor.Path);
-
-            // add metadata
-            _authorMetadataService.Upsert(newAuthor.Metadata.Value);
-            newAuthor.AuthorMetadataId = newAuthor.Metadata.Value.Id;
-
-            // If metadata was reused (slug collision), an Author may already exist
-            var existingAuthor = _authorService.GetAuthorByMetadataId(newAuthor.AuthorMetadataId);
-            if (existingAuthor != null)
-            {
-                _logger.Info("Author already exists for metadata {0}; returning existing author {1}", newAuthor.AuthorMetadataId, existingAuthor);
-                return existingAuthor;
-            }
-
-            // add the author itself
-            var addedAuthor = _authorService.AddAuthor(newAuthor, doRefresh);
-
-            EnsureFormatProfiles(addedAuthor);
-
-            return addedAuthor;
         }
 
         public List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh = true)
         {
-            var added = DateTime.UtcNow;
-            var authorsToAdd = new List<Author>();
-            var existingMatches = new List<Author>();
-
+            var resolved = new List<(Author Author, IReadOnlyList<Book> Bibliography)>();
             foreach (var s in newAuthors)
             {
                 try
                 {
-                    var author = AddSkyhookData(s);
-                    author = SetPropertiesAndValidate(author);
-
-                    var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(author, out var confidence, out var reason);
-                    if (canonical != null)
-                    {
-                        _logger.Info("Skipping duplicate author insert for {0}; using canonical {1} (confidence={2:0.000}, reason={3})", author, canonical, confidence, reason);
-                        existingMatches.Add(canonical);
-                        continue;
-                    }
-
-                    author.Added = added;
-                    authorsToAdd.Add(author);
+                    resolved.Add(AddSkyhookData(s));
                 }
                 catch (Exception ex)
                 {
-                    // Catch Import Errors for now until we get things fixed up
                     _logger.Error(ex, "Failed to import id: {0} - {1}", s.Metadata.Value.ForeignAuthorId, s.Metadata.Value.Name);
                 }
             }
 
+            var lockIndexes = resolved.Select(candidate => GetAdditionLockIndex(candidate.Author)).Distinct().Order().ToArray();
+            return WithAdditionLocks(lockIndexes, 0, () => AddResolvedAuthors(resolved, doRefresh));
+        }
+
+        private static int GetAdditionLockIndex(Author author)
+        {
+            var name = AuthorCanonicalizationService.NormalizeName(author.Name) ?? author.ForeignAuthorId;
+            return (int)((uint)StringComparer.Ordinal.GetHashCode(name) % AdditionLocks.Length);
+        }
+
+        private static T WithAdditionLocks<T>(int[] lockIndexes, int index, Func<T> action)
+        {
+            if (index == lockIndexes.Length)
+            {
+                return action();
+            }
+
+            // Bulk adds acquire the same locks as single adds, in a consistent order.
+            lock (AdditionLocks[lockIndexes[index]])
+            {
+                return WithAdditionLocks(lockIndexes, index + 1, action);
+            }
+        }
+
+        private List<Author> AddResolvedAuthors(List<(Author Author, IReadOnlyList<Book> Bibliography)> resolved, bool doRefresh)
+        {
+            var added = DateTime.UtcNow;
+            var pending = new List<(Author Author, IReadOnlyList<Book> Bibliography)>();
+            var existingMatches = new List<Author>();
+            foreach (var (input, bibliography) in resolved)
+            {
+                try
+                {
+                    var author = SetPropertiesAndValidate(input);
+                    var canonical = _authorCanonicalizationService.TryReuseAuthorOnAdd(author, bibliography, pending);
+                    if (canonical != null)
+                    {
+                        if (canonical.Id > 0)
+                        {
+                            existingMatches.Add(canonical);
+                        }
+
+                        continue;
+                    }
+
+                    author.Added = added;
+                    pending.Add((author, bibliography));
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Failed to import id: {0} - {1}", input.ForeignAuthorId, input.Name);
+                }
+            }
+
+            var authorsToAdd = pending.Select(candidate => candidate.Author).ToList();
             if (!authorsToAdd.Any())
             {
                 return existingMatches.DistinctBy(x => x.Id).ToList();
@@ -189,7 +230,7 @@ namespace NzbDrone.Core.Books
             return inserted.Concat(existingMatches).DistinctBy(x => x.Id).ToList();
         }
 
-        private Author AddSkyhookData(Author newAuthor)
+        private (Author Author, IReadOnlyList<Book> Bibliography) AddSkyhookData(Author newAuthor)
         {
             Author author;
 
@@ -224,9 +265,10 @@ namespace NzbDrone.Core.Books
                 author = BuildFallbackAuthor(newAuthor);
             }
 
+            var bibliography = author.Books?.Value;
             author.ApplyChanges(newAuthor);
 
-            return author;
+            return (author, bibliography);
         }
 
         private static string NormalizeForeignAuthorId(string foreignAuthorId)

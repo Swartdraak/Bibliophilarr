@@ -7,12 +7,8 @@ function createExistingAuthorSelector() {
     (state, { foreignAuthorId }) => foreignAuthorId,
     createAllAuthorsSelector(),
     (titleSlug, foreignAuthorId, authors) => {
-      // Check by titleSlug first (preferred), then by foreignAuthorId as fallback
-      // This handles cases where titleSlug changes during author add (e.g., name-based to numeric ID)
-      return authors.some((a) =>
-        a.titleSlug === titleSlug ||
-        (foreignAuthorId && a.foreignAuthorId === foreignAuthorId)
-      );
+      const providerMatch = foreignAuthorId && authors.find((author) => author.foreignAuthorId === foreignAuthorId);
+      return providerMatch || (titleSlug ? authors.find((author) => author.titleSlug === titleSlug) : undefined);
     }
   );
 }

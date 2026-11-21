@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Equ;
 using NzbDrone.Common.Extensions;
@@ -37,7 +38,7 @@ namespace NzbDrone.Core.MediaCover
 
                 if (Extension.IsNullOrWhiteSpace())
                 {
-                    Extension = Path.GetExtension(value);
+                    Extension = GetImageExtension(value);
                 }
             }
         }
@@ -45,6 +46,8 @@ namespace NzbDrone.Core.MediaCover
         public MediaCoverTypes CoverType { get; set; }
         public string Extension { get; private set; }
         public string RemoteUrl { get; set; }
+        public string SourceProvider { get; set; }
+        public string SourceId { get; set; }
 
         public MediaCover()
         {
@@ -54,6 +57,19 @@ namespace NzbDrone.Core.MediaCover
         {
             CoverType = coverType;
             Url = url;
+        }
+
+        internal static string GetImageExtension(string url)
+        {
+            if (url.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var path = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.AbsolutePath : url;
+            var extension = Path.GetExtension(path);
+
+            return extension.ToLowerInvariant() is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" ? extension : ".jpg";
         }
     }
 }

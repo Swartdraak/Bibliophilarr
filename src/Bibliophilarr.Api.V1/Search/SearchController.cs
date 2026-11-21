@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.ErrorManagement;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Common.Instrumentation;
@@ -15,6 +19,7 @@ namespace Bibliophilarr.Api.V1.Search
     [V1ApiController]
     public class SearchController : Controller
     {
+        private const string HardcoverSeriesPrefix = "hardcover:series:";
         private static readonly Logger Logger = LogManager.GetLogger("Search");
 
         private readonly IMetadataProviderOrchestrator _searchProxy;
@@ -31,15 +36,51 @@ namespace Bibliophilarr.Api.V1.Search
         }
 
         [HttpGet]
-        public object Search([FromQuery] string term)
+        public object Search([FromQuery] string term, [FromQuery] string scope = null)
         {
-            if (string.IsNullOrWhiteSpace(term) || term.Trim().Length < 3)
+            if (scope is not null and not "" and not "all" and not "author" and not "book" and not "series" and not "series-books")
+            {
+                return BadRequest(new ErrorModel { Message = "Choose a valid metadata search scope." });
+            }
+
+            term = term?.Trim();
+            if (scope == "series-books" && !IsHardcoverSeriesId(term))
+            {
+                return BadRequest(new ErrorModel { Message = "Choose a valid Hardcover series." });
+            }
+
+            if (string.IsNullOrEmpty(term) || term.Length < 3)
             {
                 return new List<SearchResource>();
             }
 
-            var searchResults = _searchProxy.SearchForNewEntity(term);
+            var searchResults = scope switch
+            {
+                "author" => _searchProxy.SearchForNewAuthor(term)?.Cast<object>(),
+                "book" => _searchProxy.SearchForNewBook(term, null, false)?.Cast<object>(),
+                "series" => _searchProxy.SearchForNewSeries(term)?.Cast<object>(),
+                "series-books" => _searchProxy.GetSeriesBooks(term)?.Cast<object>(),
+                _ => _searchProxy.SearchForNewEntity(term)
+            };
+
+            if ((scope is "series" or "series-books") && searchResults == null)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorModel
+                {
+                    Message = scope == "series"
+                        ? "Series search is unavailable. Check the Hardcover settings or try again later."
+                        : "The books in this series could not be loaded. Check the Hardcover settings or try again later."
+                });
+            }
+
             return MapToResource(searchResults, term).ToList();
+        }
+
+        private static bool IsHardcoverSeriesId(string term)
+        {
+            return term?.StartsWith(HardcoverSeriesPrefix, StringComparison.Ordinal) == true &&
+                   int.TryParse(term.AsSpan(HardcoverSeriesPrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var seriesId) &&
+                   seriesId > 0;
         }
 
         private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term)
@@ -81,17 +122,6 @@ namespace Bibliophilarr.Api.V1.Search
                 else if (result is NzbDrone.Core.Books.Book book)
                 {
                     resource.Book = book.ToResource();
-                    var editions = book.Editions?.Value ?? new List<NzbDrone.Core.Books.Edition>();
-                    var selectedEdition = editions.FirstOrDefault(x => x.Monitored) ?? editions.FirstOrDefault();
-
-                    resource.Book.Overview = selectedEdition?.Overview;
-
-                    // Search-result editions have Monitored=false, so ToResource() produces
-                    // empty Images.  Override with the selected edition's images.
-                    if (selectedEdition?.Images?.Any() == true)
-                    {
-                        resource.Book.Images = selectedEdition.Images;
-                    }
 
                     // Issue #248: book.Author is a LazyLoaded<Author> whose Value can be
                     // null (provider did not resolve the author).  The ?.Value?.ToResource()
@@ -99,7 +129,6 @@ namespace Bibliophilarr.Api.V1.Search
                     // the folder mapping below does not dereference a null LazyLoaded.
                     var bookAuthor = book.Author?.Value;
                     resource.Book.Author = bookAuthor?.ToResource();
-                    resource.Book.Editions = editions.ToResource();
                     resource.ForeignId = book.ForeignBookId;
 
                     _coverMapper.ConvertToLocalUrls(resource.Book.Id, MediaCoverEntity.Book, resource.Book.Images);
@@ -115,6 +144,11 @@ namespace Bibliophilarr.Api.V1.Search
                     {
                         resource.Book.Author.Folder = _fileNameBuilder.GetAuthorFolder(bookAuthor);
                     }
+                }
+                else if (result is SeriesSearchSummary series)
+                {
+                    resource.Series = series;
+                    resource.ForeignId = series.ForeignSeriesId;
                 }
                 else
                 {

@@ -70,6 +70,28 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_keep_the_fetched_bibliography_for_author_reuse_when_the_request_has_no_books()
+        {
+            const string incomingId = "hardcover:author:11";
+            var requested = new Author { ForeignAuthorId = incomingId, RootFolderPath = @"C:\Test\Books" };
+            var providerBooks = new List<Book> { new Book { ForeignBookId = "hardcover:work:21" } };
+            _fakeAuthor.ForeignAuthorId = incomingId;
+            _fakeAuthor.Books = providerBooks;
+            var incumbent = new Author { Id = 30, ForeignAuthorId = "openlibrary:author:OL10A" };
+            GivenValidAuthor(incomingId);
+            GivenValidPath();
+            Mocker.GetMock<IAuthorCanonicalizationService>()
+                .Setup(service => service.TryReuseAuthorOnAdd(_fakeAuthor, providerBooks, It.IsAny<IReadOnlyList<(Author, IReadOnlyList<Book>)>>()))
+                .Returns(incumbent);
+
+            var result = Subject.AddAuthor(requested);
+
+            result.Should().BeSameAs(incumbent);
+            Mocker.GetMock<IAuthorService>().Verify(service => service.AddAuthor(It.IsAny<Author>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAuthorMetadataService>().Verify(service => service.Upsert(It.IsAny<AuthorMetadata>()), Times.Never());
+        }
+
+        [Test]
         public void should_save_the_work_providers_author_without_refetching_the_bibliography()
         {
             var requested = new Author { RootFolderPath = @"C:\Test\Books", MetadataProfileId = 3 };

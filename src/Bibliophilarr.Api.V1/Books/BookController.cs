@@ -89,7 +89,8 @@ namespace Bibliophilarr.Api.V1.Books
             [FromQuery] string titleSlug,
             [FromQuery] bool includeAllAuthorBooks = false,
             [FromQuery] int? page = null,
-            [FromQuery] int? pageSize = null)
+            [FromQuery] int? pageSize = null,
+            [FromQuery] bool includeShared = false)
         {
             if (!authorId.HasValue && !bookIds.Any() && titleSlug.IsNullOrWhiteSpace())
             {
@@ -152,6 +153,12 @@ namespace Bibliophilarr.Api.V1.Books
                     }
                 }
 
+                if (includeShared)
+                {
+                    // Credited works retain their owning Author, Editions, and monitoring policy.
+                    books = books.Concat(_bookService.GetSharedBooksByAuthorMetadataId(author.AuthorMetadataId)).ToList();
+                }
+
                 return MapToResource(books, false);
             }
 
@@ -180,7 +187,7 @@ namespace Bibliophilarr.Api.V1.Books
         [HttpGet("{id:int}/overview")]
         public object Overview(int id)
         {
-            var overview = _editionService.GetEditionsByBook(id).Single(x => x.Monitored).Overview;
+            var overview = _editionService.GetEditionsByBook(id).GetBookOverview();
             return new
             {
                 id,

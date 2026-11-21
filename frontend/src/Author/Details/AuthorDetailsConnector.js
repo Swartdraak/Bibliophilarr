@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
+import isBookFileFor from 'BookFile/isBookFileFor';
 import * as commandNames from 'Commands/commandNames';
 import { toggleAuthorMonitored } from 'Store/Actions/authorActions';
 import { clearBookFiles, fetchBookFiles } from 'Store/Actions/bookFileActions';
@@ -12,11 +13,13 @@ import { executeCommand } from 'Store/Actions/commandActions';
 import { clearQueueDetails, fetchQueueDetails } from 'Store/Actions/queueActions';
 import { cancelFetchReleases, clearReleases } from 'Store/Actions/releaseActions';
 import { clearSeries, fetchSeries } from 'Store/Actions/seriesActions';
+import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import createAllAuthorSelector from 'Store/Selectors/createAllAuthorsSelector';
 import createCommandsSelector from 'Store/Selectors/createCommandsSelector';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
 import createSortedSectionSelector from 'Store/Selectors/createSortedSectionSelector';
 import { findCommand, isCommandExecuting } from 'Utilities/Command';
+import createAjaxRequest from 'Utilities/createAjaxRequest';
 import { registerPagePopulator, unregisterPagePopulator } from 'Utilities/pagePopulator';
 import AuthorDetails from './AuthorDetails';
 
@@ -88,29 +91,27 @@ const selectBookFiles = createSelector(
       error
     } = bookFiles;
 
-    const hasBookFiles = !!items.length;
-
     return {
       isBookFilesFetching: isFetching,
       isBookFilesPopulated: isPopulated,
       bookFilesError: error,
-      hasBookFiles
+      items
     };
   }
 );
 
 function createMapStateToProps() {
   return createSelector(
-    (state, { titleSlug }) => titleSlug,
+    (state, { authorId }) => authorId,
     selectBooks,
     selectSeries,
     selectBookFiles,
     createAllAuthorSelector(),
     createCommandsSelector(),
     createDimensionsSelector(),
-    (titleSlug, books, series, bookFiles, allAuthors, commands, dimensions) => {
+    (authorId, books, series, bookFiles, allAuthors, commands, dimensions) => {
       const sortedAuthor = _.orderBy(allAuthors, 'sortNameLastFirst');
-      const authorIndex = _.findIndex(sortedAuthor, { titleSlug });
+      const authorIndex = sortedAuthor.findIndex((author) => author.id === authorId);
       const author = sortedAuthor[authorIndex];
 
       if (!author) {
@@ -141,8 +142,9 @@ function createMapStateToProps() {
         isBookFilesFetching,
         isBookFilesPopulated,
         bookFilesError,
-        hasBookFiles
+        items
       } = bookFiles;
+      const hasBookFiles = items.some((file) => isBookFileFor(file, undefined, author.id));
 
       const previousAuthor = sortedAuthor[authorIndex - 1] || _.last(sortedAuthor);
       const nextAuthor = sortedAuthor[authorIndex + 1] || _.first(sortedAuthor);
@@ -206,6 +208,7 @@ function createMapStateToProps() {
 
 const mapDispatchToProps = {
   fetchSeries,
+  fetchMediaManagementSettings,
   clearSeries,
   saveBookEditor,
   fetchBookFiles,
@@ -219,6 +222,8 @@ const mapDispatchToProps = {
 };
 
 class AuthorDetailsConnector extends Component {
+
+  state = { seriesArtwork: null };
 
   //
   // Lifecycle
@@ -267,11 +272,40 @@ class AuthorDetailsConnector extends Component {
     const authorId = this.props.id;
 
     this.props.fetchSeries({ authorId });
+    this.props.fetchMediaManagementSettings();
     this.props.fetchBookFiles({ authorId });
     this.props.fetchQueueDetails({ authorId });
+    this.populateSeriesArtwork(authorId);
+  };
+
+  populateSeriesArtwork = (authorId) => {
+    this.seriesArtworkRequest?.abortRequest();
+
+    const load = createAjaxRequest({ url: '/book', data: { authorId, includeShared: true } });
+    this.seriesArtworkRequest = load;
+
+    load.request.done((books) => {
+      if (this.seriesArtworkRequest === load) {
+        this.setState({
+          seriesArtwork: {
+            authorId,
+            books
+          }
+        });
+      }
+    });
+
+    load.request.fail(() => {
+      if (this.seriesArtworkRequest === load) {
+        // The individual series can still load its members by ID.
+        this.setState({ seriesArtwork: { authorId, books: [] } });
+      }
+    });
   };
 
   unpopulate = () => {
+    this.seriesArtworkRequest?.abortRequest();
+    this.seriesArtworkRequest = null;
     this.props.cancelFetchReleases();
     this.props.clearSeries();
     this.props.clearBookFiles();
@@ -311,9 +345,14 @@ class AuthorDetailsConnector extends Component {
   // Render
 
   render() {
+    const { seriesArtwork } = this.state;
+    const authorId = this.props.id;
+    const catalogue = seriesArtwork?.authorId === authorId ? seriesArtwork.books : undefined;
     return (
       <AuthorDetails
         {...this.props}
+        seriesArtworkBooks={catalogue}
+        sharedBooks={catalogue?.filter((book) => book.authorId > 0 && book.authorId !== authorId)}
         onMonitorTogglePress={this.onMonitorTogglePress}
         onRefreshPress={this.onRefreshPress}
         onSearchPress={this.onSearchPress}
@@ -325,13 +364,14 @@ class AuthorDetailsConnector extends Component {
 
 AuthorDetailsConnector.propTypes = {
   id: PropTypes.number.isRequired,
-  titleSlug: PropTypes.string.isRequired,
+  authorId: PropTypes.number.isRequired,
   isAuthorRefreshing: PropTypes.bool.isRequired,
   allAuthorRefreshing: PropTypes.bool.isRequired,
   isRefreshing: PropTypes.bool.isRequired,
   isRenamingFiles: PropTypes.bool.isRequired,
   isRenamingAuthor: PropTypes.bool.isRequired,
   fetchSeries: PropTypes.func.isRequired,
+  fetchMediaManagementSettings: PropTypes.func.isRequired,
   clearSeries: PropTypes.func.isRequired,
   saveBookEditor: PropTypes.func.isRequired,
   fetchBookFiles: PropTypes.func.isRequired,

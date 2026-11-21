@@ -4,6 +4,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
@@ -47,6 +48,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             var files = Builder<BookFile>.CreateListOfSize(10)
                 .All()
                 .With(c => c.Id = 0)
+                .With(c => c.UnmappedReason = null)
                 .With(c => c.Quality = new QualityModel(Quality.MP3))
                 .TheFirst(5)
                 .With(c => c.EditionId = _edition.Id)
@@ -78,6 +80,93 @@ namespace NzbDrone.Core.Test.MediaFiles
             VerifyUnmapped(unmappedfiles);
 
             unmappedfiles.Should().HaveCount(5);
+        }
+
+        [TestCase(LibraryImportHoldReason.NoAcceptedWork)]
+        [TestCase(LibraryImportHoldReason.ProviderIdentityConflict)]
+        [TestCase(LibraryImportHoldReason.AuthorBibliographyUnavailable)]
+        [TestCase(LibraryImportHoldReason.AuthorIdentityConfirmationRequired)]
+        public void should_persist_updated_reasons_only_while_the_same_file_is_unmapped(LibraryImportHoldReason initialReason)
+        {
+            var files = Subject.GetUnmappedFiles();
+            var file = files.First();
+            var untouched = files.Last();
+            file.UnmappedReason.Should().BeNull();
+
+            file.UnmappedReason = initialReason;
+            untouched.UnmappedReason = LibraryImportHoldReason.SameSizeAsExisting;
+            Subject.SetUnmappedReasons(new List<BookFile> { file, untouched });
+            Subject.Get(file.Id).UnmappedReason.Should().Be(initialReason);
+
+            file.UnmappedReason = LibraryImportHoldReason.LowConfidence;
+            Subject.SetUnmappedReasons(new List<BookFile> { file });
+            Subject.Get(file.Id).UnmappedReason.Should().Be(LibraryImportHoldReason.LowConfidence);
+            Subject.Get(untouched.Id).UnmappedReason.Should().Be(LibraryImportHoldReason.SameSizeAsExisting);
+
+            Subject.TryLinkUnmappedFile(file, _edition).Should().BeTrue();
+            Subject.SetUnmappedReasons(new List<BookFile> { file });
+            file.Size = 1024;
+            Subject.SetFields(new List<BookFile> { file }, stored => stored.Size);
+            Subject.Get(file.Id).UnmappedReason.Should().BeNull();
+            Subject.Get(file.Id).EditionId.Should().Be(_edition.Id);
+            Subject.Get(file.Id).Size.Should().Be(1024);
+        }
+
+        [Test]
+        public void should_link_the_original_row_only_when_its_path_is_still_unmapped_and_the_edition_has_the_expected_owner()
+        {
+            var file = Subject.GetUnmappedFiles().First();
+            var invalidOwner = new Edition { Id = _edition.Id, BookId = _book.Id + 1 };
+            var stalePath = new BookFile { Id = file.Id, Path = file.Path + ".moved" };
+
+            Subject.TryLinkUnmappedFile(file, invalidOwner).Should().BeFalse();
+            Subject.TryLinkUnmappedFile(stalePath, _edition).Should().BeFalse();
+            Subject.TryLinkUnmappedFile(file, _edition).Should().BeTrue();
+            Subject.TryLinkUnmappedFile(file, _edition).Should().BeFalse();
+
+            var stored = Subject.Get(file.Id);
+            stored.EditionId.Should().Be(_edition.Id);
+            stored.Path.Should().Be(file.Path);
+            stored.DateAdded.Should().Be(file.DateAdded);
+            stored.Modified.Should().Be(file.Modified);
+            stored.CalibreId.Should().Be(file.CalibreId);
+            Db.All<BookFile>().Should().HaveCount(10);
+        }
+
+        [TestCase("Print")]
+        [TestCase(null)]
+        public void should_repair_only_the_unchanged_file_and_edition_in_the_same_work(string previousFormat)
+        {
+            var previous = Db.Insert(new Edition
+            {
+                BookId = _book.Id,
+                ForeignEditionId = "previous-edition",
+                Title = "Previous",
+                TitleSlug = "previous-edition",
+                Format = previousFormat
+            });
+            var digital = Db.Insert(new Edition
+            {
+                BookId = _book.Id,
+                ForeignEditionId = "digital-edition",
+                Title = "Digital",
+                TitleSlug = "digital-edition",
+                Format = "Ebook",
+                IsEbook = true
+            });
+            var tracked = Db.Insert(new BookFile { Path = "/library/actual.epub", EditionId = previous.Id, Quality = new QualityModel(Quality.EPUB) });
+            var wrongWork = new Edition { Id = digital.Id, BookId = _book.Id + 1, Format = digital.Format, IsEbook = true };
+            var changedPrevious = new Edition { Id = previous.Id, BookId = _book.Id, Format = "Audiobook" };
+
+            Subject.TryRepairUnsupportedEditionLink(tracked, previous, wrongWork).Should().BeFalse();
+            Subject.TryRepairUnsupportedEditionLink(tracked, changedPrevious, digital).Should().BeFalse();
+            Subject.TryRepairUnsupportedEditionLink(tracked, previous, digital).Should().BeTrue();
+            Subject.TryRepairUnsupportedEditionLink(tracked, previous, digital).Should().BeFalse();
+
+            var repaired = Subject.Get(tracked.Id);
+            repaired.EditionId.Should().Be(digital.Id);
+            repaired.DateAdded.Should().Be(tracked.DateAdded);
+            repaired.Path.Should().Be(tracked.Path);
         }
 
         [TestCase("C:\\Test\\Path")]

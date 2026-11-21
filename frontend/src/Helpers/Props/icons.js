@@ -26,6 +26,7 @@ import {
   faBackward as fasBackward,
   faBan as fasBan,
   faBars as fasBars,
+  faBell as fasBell,
   faBolt as fasBolt,
   faBook as fasBook,
   faBookmark as fasBookmark,
@@ -175,6 +176,7 @@ export const MISSING = fasExclamationTriangle;
 export const MONITORED = fasBookmark;
 export const NETWORK = fasBroadcastTower;
 export const NAVBAR_COLLAPSE = fasBars;
+export const BELL = fasBell;
 export const NOT_AIRED = farClock;
 export const ORGANIZE = fasSitemap;
 export const OVERFLOW = fasEllipsisH;

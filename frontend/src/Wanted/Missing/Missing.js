@@ -19,7 +19,6 @@ import InteractiveImportModal from 'InteractiveImport/InteractiveImportModal';
 import getFilterValue from 'Utilities/Filter/getFilterValue';
 import hasDifferentItems from 'Utilities/Object/hasDifferentItems';
 import translate from 'Utilities/String/translate';
-import getSelectedIds from 'Utilities/Table/getSelectedIds';
 import removeOldSelectedState from 'Utilities/Table/removeOldSelectedState';
 import selectAll from 'Utilities/Table/selectAll';
 import toggleSelected from 'Utilities/Table/toggleSelected';
@@ -31,7 +30,7 @@ function getMonitoredValue(props) {
     selectedFilterKey
   } = props;
 
-  return getFilterValue(filters, selectedFilterKey, 'monitored', false);
+  return getFilterValue(filters, selectedFilterKey, 'monitored', true);
 }
 
 class Missing extends Component {
@@ -53,10 +52,13 @@ class Missing extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (hasDifferentItems(prevProps.items, this.props.items)) {
-      this.setState((state) => {
-        return removeOldSelectedState(state, prevProps.items);
-      });
+    if (prevProps.selectedFilterKey !== this.props.selectedFilterKey) {
+      this.setState({ ...selectAll({}, false), isConfirmSearchAllMissingModalOpen: false });
+    } else if (hasDifferentItems(prevProps.items, this.props.items)) {
+      this.setState((state) => ({
+        ...removeOldSelectedState(state, prevProps.items),
+        lastToggled: null
+      }));
     }
   }
 
@@ -64,14 +66,15 @@ class Missing extends Component {
   // Control
 
   getSelectedIds = () => {
-    return getSelectedIds(this.state.selectedState);
+    return this.props.items.filter(({ id }) => this.state.selectedState[id]).map(({ id }) => id);
   };
 
   //
   // Listeners
 
   onSelectAllChange = ({ value }) => {
-    this.setState(selectAll(this.state.selectedState, value));
+    const selectedState = Object.fromEntries(this.props.items.map(({ id }) => [id, value]));
+    this.setState(selectAll(selectedState, value));
   };
 
   onSelectedChange = ({ id, value, shiftKey = false }) => {
@@ -89,10 +92,15 @@ class Missing extends Component {
   onToggleSelectedPress = () => {
     const bookIds = this.getSelectedIds();
 
-    this.props.batchToggleMissingBooks({
-      bookIds,
-      monitored: !getMonitoredValue(this.props)
-    });
+    const { formatType, dualFormatTracking } = this.props;
+
+    if (bookIds.length && (!formatType || dualFormatTracking === true)) {
+      this.props.batchToggleMissingBooks({
+        bookIds,
+        monitored: !getMonitoredValue(this.props),
+        ...(formatType && { formatType })
+      });
+    }
   };
 
   onSearchAllMissingPress = () => {
@@ -129,6 +137,8 @@ class Missing extends Component {
       isAuthorPopulated,
       selectedFilterKey,
       filters,
+      formatType,
+      dualFormatTracking,
       columns,
       totalRecords,
       isSearchingForMissingBooks,
@@ -148,7 +158,8 @@ class Missing extends Component {
     const isAllPopulated = isPopulated && isAuthorPopulated;
     const isAnyFetching = isFetching || isAuthorFetching;
 
-    const itemsSelected = !!this.getSelectedIds().length;
+    const itemsSelected = !isAnyFetching && !!this.getSelectedIds().length;
+    const canToggleMonitoring = !formatType || dualFormatTracking === true;
     const isShowingMonitored = getMonitoredValue(this.props);
 
     return (
@@ -165,7 +176,8 @@ class Missing extends Component {
             <PageToolbarButton
               label={isShowingMonitored ? translate('IsShowingMonitoredUnmonitorSelected') : translate('IsShowingMonitoredMonitorSelected')}
               iconName={isShowingMonitored ? icons.UNMONITORED : icons.MONITORED}
-              isDisabled={!itemsSelected}
+              isDisabled={!itemsSelected || !canToggleMonitoring}
+              title={formatType && dualFormatTracking === false ? translate('MissingFormatMonitorRequiresDualTracking') : undefined}
               isSpinning={isSaving}
               onPress={this.onToggleSelectedPress}
             />
@@ -175,7 +187,7 @@ class Missing extends Component {
             <PageToolbarButton
               label={translate('SearchAll')}
               iconName={icons.SEARCH}
-              isDisabled={!items.length}
+              isDisabled={!items.length || isAnyFetching}
               isSpinning={isSearchingForMissingBooks}
               onPress={this.onSearchAllMissingPress}
             />
@@ -251,6 +263,7 @@ class Missing extends Component {
                             isSelected={selectedState[item.id]}
                             columns={columns}
                             {...item}
+                            formatType={formatType}
                             onSelectedChange={this.onSelectedChange}
                           />
                         );
@@ -307,6 +320,8 @@ Missing.propTypes = {
   selectedFilterKey: PropTypes.string.isRequired,
   filters: PropTypes.arrayOf(PropTypes.object).isRequired,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
+  formatType: PropTypes.oneOf(['ebook', 'audiobook']),
+  dualFormatTracking: PropTypes.bool,
   totalRecords: PropTypes.number,
   isSearchingForMissingBooks: PropTypes.bool.isRequired,
   isSaving: PropTypes.bool.isRequired,

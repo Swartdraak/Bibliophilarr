@@ -16,7 +16,13 @@ import createHandleActions from './Creators/createHandleActions';
 // Variables
 
 export const section = 'search';
-let abortCurrentRequest = null;
+let activeSearch = null;
+
+function cancelActiveSearch() {
+  const previousSearch = activeSearch;
+  activeSearch = null;
+  previousSearch?.cancel();
+}
 
 //
 // State
@@ -29,6 +35,7 @@ export const defaultState = {
   isAdded: false,
   addError: null,
   items: [],
+  itemMap: {},
 
   authorDefaults: {
     rootFolderPath: '',
@@ -74,7 +81,8 @@ export const SET_BOOK_ADD_DEFAULT = 'search/setBookAddDefault';
 export const getSearchResults = createThunk(GET_SEARCH_RESULTS);
 export const addAuthor = createThunk(ADD_AUTHOR);
 export const addBook = createThunk(ADD_BOOK);
-export const clearSearchResults = createAction(CLEAR_SEARCH_RESULTS);
+export const clearSearchResults = createThunk(CLEAR_SEARCH_RESULTS);
+const resetSearchState = createAction(CLEAR_SEARCH_RESULTS);
 export const setAuthorAddDefault = createAction(SET_AUTHOR_ADD_DEFAULT);
 export const setBookAddDefault = createAction(SET_BOOK_ADD_DEFAULT);
 
@@ -83,12 +91,20 @@ export const setBookAddDefault = createAction(SET_BOOK_ADD_DEFAULT);
 
 export const actionHandlers = handleThunks({
 
+  [CLEAR_SEARCH_RESULTS]: function(getState, payload, dispatch) {
+    cancelActiveSearch();
+    dispatch(resetSearchState());
+  },
+
   [GET_SEARCH_RESULTS]: function(getState, payload, dispatch) {
     const term = payload.term ? payload.term.trim() : '';
+    cancelActiveSearch();
 
     if (term.length < 3) {
       dispatch(set({
         section,
+        items: [],
+        itemMap: {},
         isFetching: false,
         isPopulated: false,
         error: null
@@ -96,42 +112,53 @@ export const actionHandlers = handleThunks({
       return;
     }
 
-    dispatch(set({ section, isFetching: true }));
+    const search = {};
+    const timeout = setTimeout(() => {
+      const { request, abortRequest } = createAjaxRequest({
+        url: '/search',
+        data: {
+          term,
+          ...(payload.scope && payload.scope !== 'all' ? { scope: payload.scope } : {})
+        }
+      });
+      search.cancel = abortRequest;
 
-    if (abortCurrentRequest) {
-      abortCurrentRequest();
-    }
+      request.done((data) => {
+        if (activeSearch !== search) {
+          return;
+        }
 
-    const { request, abortRequest } = createAjaxRequest({
-      url: '/search',
-      data: {
-        term: payload.term
-      }
-    });
+        activeSearch = null;
+        dispatch(batchActions([
+          update({ section, data }),
 
-    abortCurrentRequest = abortRequest;
+          set({
+            section,
+            isFetching: false,
+            isPopulated: true,
+            error: null
+          })
+        ]));
+      });
 
-    request.done((data) => {
-      dispatch(batchActions([
-        update({ section, data }),
+      request.fail((xhr) => {
+        if (activeSearch !== search) {
+          return;
+        }
 
-        set({
+        activeSearch = null;
+        dispatch(set({
           section,
           isFetching: false,
-          isPopulated: true,
-          error: null
-        })
-      ]));
-    });
+          isPopulated: false,
+          error: xhr.aborted ? null : xhr
+        }));
+      });
+    }, 600);
 
-    request.fail((xhr) => {
-      dispatch(set({
-        section,
-        isFetching: false,
-        isPopulated: false,
-        error: xhr.aborted ? null : xhr
-      }));
-    });
+    search.cancel = () => clearTimeout(timeout);
+    activeSearch = search;
+    dispatch(set({ section, isFetching: true, error: null }));
   },
 
   [ADD_AUTHOR]: function(getState, payload, dispatch) {

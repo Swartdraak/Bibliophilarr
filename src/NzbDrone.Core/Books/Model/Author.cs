@@ -43,6 +43,10 @@ namespace NzbDrone.Core.Books
         [MemberwiseEqualityIgnore]
         public LazyLoaded<List<Series>> Series { get; set; }
 
+        // An unset value keeps the existing refresh behavior for providers without coverage information.
+        [MemberwiseEqualityIgnore]
+        public bool? RemoteSeriesComplete { get; set; }
+
         //compatibility properties
         [MemberwiseEqualityIgnore]
         public string Name

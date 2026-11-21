@@ -4,17 +4,22 @@ using System.IO;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using FizzWare.NBuilder;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Datastore.Migration.Framework;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
+using NzbDrone.Core.MediaFiles.Commands;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
@@ -112,7 +117,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             }
 
             Mocker.GetMock<IDiskProvider>()
-                .Setup(s => s.GetFileInfos(It.IsAny<string>(), true))
+                .Setup(s => s.GetFileInfos(It.IsAny<string>(), true, false))
                 .Returns(files.Select(x => DiskProvider.GetFileInfo(x)).ToList());
         }
 
@@ -173,13 +178,33 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
         public void should_clean_if_folder_does_not_exist()
         {
             GivenRootFolder(_otherAuthorFolder);
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, false))
+                .Throws(new DirectoryNotFoundException());
 
             Subject.Scan(new List<string> { _author.Path });
 
             DiskProvider.FolderExists(_author.Path).Should().BeFalse();
 
             Mocker.GetMock<IMediaFileTableCleanupService>()
-                  .Verify(v => v.Clean(It.IsAny<string>(), It.IsAny<List<string>>()), Times.Once());
+                  .Verify(v => v.Clean(_author.Path, It.Is<List<string>>(paths => paths.Count == 0)), Times.Once());
+        }
+
+        [Test]
+        public void should_keep_tracked_files_if_an_explicit_folder_has_an_unreadable_ancestor()
+        {
+            GivenRootFolder(_otherAuthorFolder);
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, false))
+                .Throws(new UnauthorizedAccessException());
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<IMediaFileTableCleanupService>()
+                .Verify(cleanup => cleanup.Clean(_author.Path, It.IsAny<List<string>>()), Times.Never());
+            Mocker.GetMock<ICommandResultReporter>()
+                .Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -216,7 +241,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IDiskProvider>()
-                .Verify(v => v.GetFileInfos(It.IsAny<string>(), It.IsAny<bool>()), Times.Once());
+                .Verify(v => v.GetFileInfos(It.IsAny<string>(), true, false), Times.Once());
 
             Mocker.GetMock<IMakeImportDecision>()
                 .Verify(v => v.GetImportDecisions(It.Is<List<IFileInfo>>(l => l.Count == 1), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()), Times.Once());
@@ -389,7 +414,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 .Verify(v => v.GetImportDecisions(It.Is<List<IFileInfo>>(l => l.Count == 1), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()), Times.Once());
         }
 
-        private void GivenRejections()
+        private void GivenRejections(Edition candidate = null, LibraryImportHoldReason? holdReason = null)
         {
             Mocker.GetMock<IMakeImportDecision>()
                 .Setup(x => x.GetImportDecisions(It.IsAny<List<IFileInfo>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerInfo>(), It.IsAny<ImportDecisionMakerConfig>()))
@@ -397,11 +422,12 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                           fileList.Select(x => new LocalBook
                           {
                               Author = _author,
+                              Edition = candidate,
                               Path = x.FullName,
                               Modified = x.LastWriteTimeUtc,
                               FileTrackInfo = new ParsedTrackInfo()
                           })
-                          .Select(x => new ImportDecision<LocalBook>(x, new Rejection("Reject")))
+                          .Select(x => new ImportDecision<LocalBook>(x, new Rejection("Reject", holdReason: holdReason)))
                           .ToList());
         }
 
@@ -425,6 +451,25 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Mocker.GetMock<IMediaFileService>()
                 .Verify(x => x.AddMany(It.Is<List<BookFile>>(l => l.Select(t => t.Path).SequenceEqual(files))),
                         Times.Once());
+        }
+
+        [Test]
+        public void should_track_rejected_candidate_without_linking_its_edition()
+        {
+            GivenAuthorFolder();
+            var path = Path.Combine(_author.Path, "rejected.epub");
+            GivenFiles(new List<string> { path });
+            GivenKnownFiles(new List<string>());
+            GivenRejections(new Edition { Id = 8, BookId = 9 }, LibraryImportHoldReason.LowConfidence);
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 &&
+                files[0].Path == path &&
+                files[0].EditionId == 0 &&
+                files[0].Edition == null &&
+                files[0].UnmappedReason == LibraryImportHoldReason.LowConfidence)), Times.Once);
         }
 
         [Test]
@@ -582,14 +627,10 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             ex.Should().BeNull();
         }
 
-        private static IDatabase CreateInMemoryDatabase()
+        private IDatabase CreateInMemoryDatabase()
         {
-            // Ensure the table mappers are registered exactly once (normally done at startup
-            // by DbFactory). Guard with a type marker so repeated calls are a no-op.
-            if (TableMapping.Mapper.TableMap.Count == 0)
-            {
-                TableMapping.Map();
-            }
+            // Use the same one-time table mapping as the normal database factory.
+            RuntimeHelpers.RunClassConstructor(typeof(DbFactory).TypeHandle);
 
             // Use the same cached migrated test database that the DbTest harness uses
             // (TestContext.CurrentContext.TestDirectory is the test output directory, which
@@ -599,11 +640,23 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             var cachedDb = Path.Combine(TestContext.CurrentContext.TestDirectory, "cached_Main.db");
             var dbPath = Path.Combine(Path.GetTempPath(), $"issue383-{Guid.NewGuid():N}.db");
 
-            File.Copy(cachedDb, dbPath, true);
+            if (File.Exists(cachedDb))
+            {
+                File.Copy(cachedDb, dbPath, true);
+            }
+
+            var connectionString = $"Data Source={dbPath};Version=3;";
+            var migrationController = new MigrationController(TestLogger, NullLoggerProvider.Instance);
+            migrationController.Migrate(connectionString, new MigrationContext(MigrationType.Main), DatabaseType.SQLite);
 
             // The real Database implementation: each OpenConnection returns a fresh connection
             // to the same file, exactly like production.
-            return new Database(dbPath, () => new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"));
+            return new Database(dbPath, () =>
+            {
+                var connection = new System.Data.SQLite.SQLiteConnection(connectionString);
+                connection.Open();
+                return connection;
+            });
         }
 
         [Test]
@@ -624,12 +677,107 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IMediaFileService>()
-                .Verify(x => x.Update(It.Is<List<BookFile>>(l => l.Count == 0)),
+                .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(l => l.Count == 0)),
                         Times.Once());
 
             Mocker.GetMock<IMediaFileService>()
-                .Verify(x => x.Update(It.Is<List<BookFile>>(l => l.Count > 0)),
+                .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(l => l.Count > 0)),
                         Times.Never());
+        }
+
+        [Test]
+        public void should_report_an_unavailable_root_and_still_import_files_from_the_other_root()
+        {
+            GivenAuthorFolder();
+            var availableFile = Path.Combine(_author.Path, "available.epub");
+            var unavailableRoot = @"C:\OtherLibrary".AsOsAgnostic();
+            GivenFiles(new[] { availableFile });
+            GivenRejections();
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(service => service.GetBestRootFolder(unavailableRoot))
+                .Returns(new RootFolder { Path = unavailableRoot });
+
+            Subject.Execute(new RescanFoldersCommand(
+                new List<string> { unavailableRoot, _author.Path },
+                FilterFilesType.Matched,
+                false,
+                null));
+
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].Path == availableFile)), Times.Once);
+        }
+
+        [Test]
+        public void should_keep_records_for_a_partially_readable_folder_and_still_scan_other_folders()
+        {
+            var unreadable = Path.Combine(_rootFolder, "Unreadable");
+            GivenRootFolder(_author.Path, unreadable);
+            var readableFile = Path.Combine(_author.Path, "available.epub");
+            var partialFile = Path.Combine(unreadable, "sibling.epub");
+            GivenFiles(new[] { readableFile, partialFile });
+            GivenRejections();
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(unreadable, true, true))
+                .Returns(new List<IFileInfo> { DiskProvider.GetFileInfo(partialFile) });
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, true))
+                .Returns(new List<IFileInfo> { DiskProvider.GetFileInfo(readableFile) });
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, false))
+                .Returns(new List<IFileInfo> { DiskProvider.GetFileInfo(readableFile) });
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(unreadable, true, false))
+                .Throws(new UnauthorizedAccessException());
+
+            Subject.Scan(new List<string> { unreadable, _author.Path });
+
+            Mocker.GetMock<IMediaFileTableCleanupService>().Verify(cleanup => cleanup.Clean(unreadable, It.IsAny<List<string>>()), Times.Never);
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].Path == readableFile)), Times.Once);
+        }
+
+        [Test]
+        public void should_record_an_import_execution_failure_on_an_unlinked_file()
+        {
+            GivenAuthorFolder();
+            var file = Path.Combine(_author.Path, "failed.epub");
+            GivenFiles(new[] { file });
+            var decision = new ImportDecision<LocalBook>(new LocalBook { Path = file, FileTrackInfo = new ParsedTrackInfo() });
+            var decisions = new List<ImportDecision<LocalBook>> { decision };
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(service => service.GetImportDecisions(It.IsAny<List<IFileInfo>>(), null, null, It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(decisions);
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(service => service.Import(decisions, false, null, ImportMode.Auto))
+                .Returns(new List<ImportResult> { new ImportResult(decision, LibraryImportHoldReason.ImportFailed, "I/O failed") });
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                files.Count == 1 && files[0].UnmappedReason == LibraryImportHoldReason.ImportFailed)), Times.Once);
+        }
+
+        [TestCase(null, LibraryImportHoldReason.ReviewRequired)]
+        [TestCase(LibraryImportHoldReason.LowConfidence, LibraryImportHoldReason.LowConfidence)]
+        [TestCase(LibraryImportHoldReason.AuthorBibliographyUnavailable, LibraryImportHoldReason.AuthorBibliographyUnavailable)]
+        [TestCase(LibraryImportHoldReason.AuthorIdentityConfirmationRequired, LibraryImportHoldReason.AuthorIdentityConfirmationRequired)]
+        [TestCase(LibraryImportHoldReason.CompetingEditions, LibraryImportHoldReason.CompetingEditions)]
+        public void should_record_why_new_files_remain_unmapped(LibraryImportHoldReason? holdReason, LibraryImportHoldReason expectedReason)
+        {
+            GivenAuthorFolder();
+            GivenFiles(new[] { Path.Combine(_author.Path, "unmatched.epub") });
+            GivenRejections(holdReason: holdReason);
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                    files.Count == 1 && files[0].UnmappedReason == expectedReason)));
         }
 
         [Test]
@@ -650,13 +798,15 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IMediaFileService>()
-                .Verify(x => x.Update(It.Is<List<BookFile>>(l => l.Count == 2)),
+                .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(l => l.Count == 2)),
                         Times.Once());
         }
 
         [Test]
         public void should_update_fields_for_updated_files()
         {
+            GivenAuthorFolder();
+
             var files = new List<string>
             {
                 Path.Combine(_author.Path, "Season 1", "file1.mobi"),
@@ -665,6 +815,9 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             GivenKnownFiles(files);
 
             FileSystem.AddFile(files[0], new MockFileData("".PadRight(100)) { LastWriteTime = new DateTime(2019, 2, 1) });
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(provider => provider.GetFileInfos(_author.Path, true, false))
+                .Returns(new List<IFileInfo> { DiskProvider.GetFileInfo(files[0]) });
 
             var localTrack = Builder<LocalBook>.CreateNew()
                 .With(x => x.Path = files[0])
@@ -684,7 +837,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Subject.Scan(new List<string> { _author.Path });
 
             Mocker.GetMock<IMediaFileService>()
-                .Verify(x => x.Update(It.Is<List<BookFile>>(
+                .Verify(x => x.UpdateScannedFileInfo(It.Is<List<BookFile>>(
                                           l => l.Count == 1 &&
                                           l[0].Path == localTrack.Path &&
                                           l[0].Modified == localTrack.Modified &&

@@ -19,6 +19,7 @@ namespace NzbDrone.Core.Books
 
         public enum UpdateResult
         {
+            MergeDeferred = -1,
             None,
             Standard,
             UpdateTags
@@ -88,6 +89,12 @@ namespace NzbDrone.Core.Books
 
         protected abstract List<TChild> GetRemoteChildren(TEntity local, TEntity remote);
         protected abstract List<TChild> GetLocalChildren(TEntity entity, List<TChild> remoteChildren);
+
+        protected virtual List<TChild> ReconcileRemoteChildren(TEntity entity, List<TChild> remoteChildren, List<TChild> localChildren)
+        {
+            return remoteChildren;
+        }
+
         protected abstract Tuple<TChild, List<TChild>> GetMatchingExistingChildren(List<TChild> existingChildren, TChild remote);
 
         protected abstract void PrepareNewChild(TChild child, TEntity entity);
@@ -161,6 +168,10 @@ namespace NzbDrone.Core.Books
                 {
                     _logger.Trace($"Merging {typeof(TEntity).Name} {local} into {target}");
                     result = MergeEntity(local, target, remote);
+                    if (result == UpdateResult.MergeDeferred)
+                    {
+                        return updated;
+                    }
 
                     // having merged local into target, do update for target using remote
                     local = target;
@@ -221,6 +232,7 @@ namespace NzbDrone.Core.Books
         {
             // Get existing children (and children to be) from the database
             var localChildren = GetLocalChildren(entity, remoteChildren);
+            remoteChildren = ReconcileRemoteChildren(entity, remoteChildren, localChildren);
 
             var sortedChildren = new SortedChildren();
             sortedChildren.Deleted.AddRange(localChildren);

@@ -5,10 +5,13 @@ namespace NzbDrone.Core.DecisionEngine
         public string Reason { get; set; }
         public RejectionType Type { get; set; }
 
-        public Rejection(string reason, RejectionType type = RejectionType.Permanent)
+        internal LibraryImportHoldReason? HoldReason { get; }
+
+        public Rejection(string reason, RejectionType type = RejectionType.Permanent, LibraryImportHoldReason? holdReason = null)
         {
             Reason = reason;
             Type = type;
+            HoldReason = holdReason;
         }
 
         public override string ToString()

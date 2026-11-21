@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Disk;
@@ -14,11 +17,13 @@ using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Extras;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -34,6 +39,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
     public class ImportApprovedBooks : IImportApprovedBooks
     {
+        private const string LocalEditionIdPrefix = "bibliophilarr:edition:";
         private static readonly RegexReplace PadNumbers = new RegexReplace(@"\d+", n => n.Value.PadLeft(9, '0'), RegexOptions.Compiled);
         private static readonly Regex ScopedAuthorIdRegex = new Regex("^(openlibrary|googlebooks|inventaire|hardcover):author:[^:]+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -113,23 +119,25 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     ForeignBookId = e.Item.Book.ForeignBookId,
                     ForeignEditionId = e.Item.Edition.ForeignEditionId,
                     LocalBookId = e.Item.Book.ForeignBookId.IsNullOrWhiteSpace() ? e.Item.Book.Id : 0,
-                    LocalEditionId = e.Item.Edition.ForeignEditionId.IsNullOrWhiteSpace() ? e.Item.Edition.Id : 0
+                    LocalEditionId = e.Item.Edition.ForeignEditionId.IsNullOrWhiteSpace() ? e.Item.Edition.Id : 0,
+                    FileFormat = ImportFormat.ForPath(e.Item.Path)
                 })
+                .SelectMany(group => PartitionDigitalVariants(group.ToList(), group.Key.FileFormat)
+                    .Select(partition => (Decisions: partition, group.Key.FileFormat)))
                 .ToList();
 
             var iDecision = 1;
             foreach (var bookDecision in bookDecisions)
             {
-                _logger.ProgressInfo("Importing book {0}/{1} {2}", iDecision++, bookDecisions.Count, bookDecision.First().Item.Book);
-
-                var decisionList = bookDecision.ToList();
+                var decisionList = bookDecision.Decisions;
+                _logger.ProgressInfo("Importing book {0}/{1} {2}", iDecision++, bookDecisions.Count, decisionList[0].Item.Book);
 
                 try
                 {
                     var author = EnsureAuthorAdded(decisionList, addedAuthors);
 
                     var book = author == null ? null : EnsureBookAdded(decisionList, addedBooks);
-                    var edition = book == null ? null : EnsureEditionAdded(decisionList);
+                    var edition = book == null ? null : EnsureImportEdition(book, decisionList, bookDecision.FileFormat);
 
                     if (edition == null)
                     {
@@ -137,7 +145,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         continue;
                     }
 
-                    RejectIncompatibleFormats(decisionList);
+                    foreach (var decision in decisionList.Where(d => d.Approved && !ImportFormat.CanLink(d.Item.Path, d.Item.Edition)))
+                    {
+                        decision.Reject(new Rejection("The selected edition cannot store this file's format", RejectionType.Temporary));
+                    }
+
                     decisionList = decisionList.Where(d => d.Approved).ToList();
                     if (decisionList.Count == 0)
                     {
@@ -181,7 +193,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, "Failed to prepare book {0} for import; continuing with remaining books", bookDecision.First().Item.Book);
+                    _logger.Error(ex, "Failed to prepare book {0} for import; continuing with remaining books", decisionList[0].Item.Book);
                     RejectBook(decisionList);
                 }
             }
@@ -207,14 +219,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 try
                 {
                     var format = Quality.GetFormatType(localTrack.Quality?.Quality);
-                    if (importResults.Any(result =>
+                    var alreadyImported = importResults.FirstOrDefault(result =>
                         result.Result == ImportResultType.Imported &&
                         result.ImportDecision.Item.Book.Id == localTrack.Book.Id &&
                         result.ImportDecision.Item.Edition?.Id == localTrack.Edition?.Id &&
                         result.ImportDecision.Item.Part == localTrack.Part &&
-                        Quality.GetFormatType(result.ImportDecision.Item.Quality?.Quality) == format))
+                        Quality.GetFormatType(result.ImportDecision.Item.Quality?.Quality) == format);
+
+                    if (alreadyImported != null)
                     {
-                        importResults.Add(new ImportResult(importDecision, "Book has already been imported"));
+                        importResults.Add(HasUnverifiedEbookIsbn(localTrack, alreadyImported.ImportDecision.Item)
+                            ? new ImportResult(importDecision, LibraryImportHoldReason.UnverifiedEditionIdentifier, "The embedded ISBN does not identify the occupied ebook edition")
+                            : new ImportResult(importDecision, LibraryImportHoldReason.DuplicateInScan, "Book has already been imported"));
                         continue;
                     }
 
@@ -227,6 +243,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                         if (previousFile?.Id > 0)
                         {
+                            if (localTrack.ExistingFile &&
+                                (previousFile.EditionId == 0
+                                    ? _mediaFileService.TryLinkUnmappedFile(previousFile, localTrack.Edition)
+                                    : _mediaFileService.TryRepairUnsupportedEditionLink(previousFile, localTrack.Edition)))
+                            {
+                                previousFile.Author = localTrack.Author;
+                                allImportedTrackFiles.Add(previousFile);
+                                trackImportedEvents.Add(new TrackImportedEvent(localTrack, previousFile, oldFiles, false, downloadClientItem));
+                                importResults.Add(new ImportResult(importDecision));
+                                continue;
+                            }
+
                             var preservedId = previousFile.Id;
                             _logger.ProgressInfo(
                                 "Skipping duplicate import of {0} for {1}: existing book file {2} is preserved (replaceExistingFiles=false)",
@@ -349,37 +377,37 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     _logger.Warn(e, "Couldn't import book " + localTrack);
                     _eventAggregator.PublishEvent(new TrackImportFailedEvent(e, localTrack, !localTrack.ExistingFile, downloadClientItem));
 
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, root folder missing."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, root folder missing."));
                 }
                 catch (DestinationAlreadyExistsException e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, destination already exists."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, destination already exists."));
                 }
                 catch (UnauthorizedAccessException e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
                     _eventAggregator.PublishEvent(new TrackImportFailedEvent(e, localTrack, !localTrack.ExistingFile, downloadClientItem));
 
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, permissions error"));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, permissions error"));
                 }
                 catch (RecycleBinException e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
                     _eventAggregator.PublishEvent(new TrackImportFailedEvent(e, localTrack, !localTrack.ExistingFile, downloadClientItem));
 
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, unable to move existing file to the Recycle Bin."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, unable to move existing file to the Recycle Bin."));
                 }
                 catch (CalibreException e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
 
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book, error communicating with Calibre.  Check log for details."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book, error communicating with Calibre.  Check log for details."));
                 }
                 catch (Exception e)
                 {
                     _logger.Warn(e, "Couldn't import book " + localTrack);
-                    importResults.Add(new ImportResult(importDecision, "Failed to import book."));
+                    importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.ImportFailed, "Failed to import book."));
                 }
             }
 
@@ -455,36 +483,21 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             {
                 var dbAuthor = _authorService.FindById(author.ForeignAuthorId);
 
-                // If not found by ForeignAuthorId, check by TitleSlug to handle
-                // variant ID formats that normalize to the same slug
-                // (e.g. "J.D.%20Robb" vs "J.%20D.%20Robb" both produce "hardcover-author-j-d-robb")
                 if (dbAuthor == null)
                 {
-                    var expectedSlug = author.ForeignAuthorId.ToUrlSlug();
-                    if (expectedSlug.IsNotNullOrWhiteSpace())
+                    if (decisions.Any(decision => decision.Item.IsUnattendedLibraryImport) &&
+                        ImportDecisionMaker.NeedsReviewForNewSyntheticAuthor(author, _authorService))
                     {
-                        dbAuthor = _authorService.FindByTitleSlug(expectedSlug);
-                        if (dbAuthor != null)
+                        foreach (var decision in decisions)
                         {
-                            _logger.Debug("Found existing author by TitleSlug {0} (variant ForeignAuthorId: {1})", expectedSlug, author.ForeignAuthorId);
+                            decision.Reject(new Rejection(
+                                ImportDecisionMaker.UnverifiedAuthorReviewMessage,
+                                holdReason: LibraryImportHoldReason.AuthorIdentityConfirmationRequired));
                         }
-                    }
-                }
 
-                // If still not found, try matching by author name — remote stubs from book-title
-                // searches may have a name-based ForeignAuthorId (e.g. "hardcover:author:Charlaine%20Harris")
-                // that doesn't match the numeric ID stored in the local DB.
-                if (dbAuthor == null && author.Name.IsNotNullOrWhiteSpace())
-                {
-                    dbAuthor = _authorService.FindByName(author.Name);
-                    if (dbAuthor != null)
-                    {
-                        _logger.Debug("Found existing author by name '{0}' (ForeignAuthorId: {1})", author.Name, author.ForeignAuthorId);
+                        return null;
                     }
-                }
 
-                if (dbAuthor == null)
-                {
                     _logger.Debug("Adding remote author {0}", author);
 
                     var path = decisions.First().Item.Path;
@@ -525,9 +538,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     catch (Exception e)
                     {
                         _logger.Error(e, "Failed to add author {0}", author);
+                        var bibliographyUnavailable = e is MetadataProviderUnavailableException { Operation: MetadataProviderOrchestrator.AuthorInfoOperation };
+                        var reason = bibliographyUnavailable ? LibraryImportHoldReason.AuthorBibliographyUnavailable : (LibraryImportHoldReason?)null;
+                        var message = bibliographyUnavailable
+                            ? "The metadata provider could not load the author's bibliography. Rescan to retry."
+                            : "Failed to add missing author";
                         foreach (var decision in decisions)
                         {
-                            decision.Reject(new Rejection("Failed to add missing author", RejectionType.Temporary));
+                            decision.Reject(new Rejection(message, RejectionType.Temporary, reason));
                         }
 
                         return null;
@@ -601,7 +619,46 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (book.Id == 0)
             {
+                var selectedEdition = decisions[0].Item.Edition;
                 var dbBook = _bookService.FindById(book.ForeignBookId);
+                if (dbBook != null && book.AuthorMetadataId > 0 && dbBook.AuthorMetadataId != book.AuthorMetadataId)
+                {
+                    foreach (var decision in decisions)
+                    {
+                        decision.Reject(new Rejection("The matched work belongs to a different author", RejectionType.Temporary));
+                    }
+
+                    return null;
+                }
+
+                if (dbBook == null && selectedEdition.ForeignEditionId.IsNotNullOrWhiteSpace())
+                {
+                    var storedEdition = _editionService.GetEditionByForeignEditionId(selectedEdition.ForeignEditionId);
+                    if (storedEdition != null)
+                    {
+                        dbBook = _bookService.GetBook(storedEdition.BookId);
+                        if (dbBook == null || book.AuthorMetadataId == 0 || dbBook.AuthorMetadataId != book.AuthorMetadataId)
+                        {
+                            RejectBook(decisions);
+                            return null;
+                        }
+                    }
+                }
+
+                if (dbBook == null && book.AuthorMetadataId > 0)
+                {
+                    var candidates = _bookService.GetBooksByAuthorMetadataId(book.AuthorMetadataId) ?? new List<Book>();
+                    dbBook = BookWorkIdentity.FindUniqueMatch(book, candidates, out var ambiguous);
+                    if (ambiguous)
+                    {
+                        foreach (var decision in decisions)
+                        {
+                            decision.Reject(new Rejection("More than one existing work matches this book", RejectionType.Temporary, LibraryImportHoldReason.CompetingEditions));
+                        }
+
+                        return null;
+                    }
+                }
 
                 if (dbBook == null)
                 {
@@ -635,7 +692,6 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
                 }
 
-                var selectedEdition = decisions[0].Item.Edition;
                 var edition = dbBook.Editions.Value.ExclusiveOrDefault(x =>
                     selectedEdition.ForeignEditionId.IsNotNullOrWhiteSpace()
                         ? x.ForeignEditionId == selectedEdition.ForeignEditionId
@@ -659,6 +715,190 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             return book;
+        }
+
+        private static IEnumerable<List<ImportDecision<LocalBook>>> PartitionDigitalVariants(List<ImportDecision<LocalBook>> decisions, FormatType? format)
+        {
+            if (!format.HasValue || !decisions.Any(decision => ImportFormat.NeedsDigitalEdition(decision.Item.Edition)))
+            {
+                yield return decisions;
+                yield break;
+            }
+
+            var tagged = decisions.Select(decision => (Decision: decision, Identity: GetFileEditionIdentity(decision.Item.FileTrackInfo))).ToList();
+            if (format == FormatType.Ebook && tagged.Count(item => IsCompleteFile(item.Decision.Item)) > 1)
+            {
+                foreach (var item in tagged.Where(item => !item.Identity.HasIdentifier && IsCompleteFile(item.Decision.Item)))
+                {
+                    item.Decision.Reject(new Rejection("Competing complete ebook files require verified edition identifiers", RejectionType.Temporary, LibraryImportHoldReason.CompetingEditions));
+                }
+
+                tagged.RemoveAll(item => !item.Decision.Approved);
+                if (tagged.Count == 0)
+                {
+                    yield break;
+                }
+
+                decisions = tagged.Select(item => item.Decision).ToList();
+            }
+
+            var identities = tagged.Select(item => item.Identity).Where(identity => identity.HasIdentifier).Distinct().ToList();
+            var matchingTags = identities.Select(identity => identity.Asin).Where(value => value != null).Distinct().Count() <= 1 &&
+                               identities.Select(identity => identity.Isbn).Where(value => value != null).Distinct().Count() <= 1;
+            var connectedTags = identities.Count <= 1 || identities.Any(identity => identity.HasBothIdentifiers);
+            if (matchingTags && (connectedTags || format == FormatType.Audiobook))
+            {
+                // Multipart audio often has partial identifiers on different files.
+                yield return decisions;
+                yield break;
+            }
+
+            var variants = identities.Where(identity => identity.HasBothIdentifiers ||
+                !identities.Any(other => other.HasBothIdentifiers && identity.Fits(other))).ToList();
+            var partitions = variants.ToDictionary(identity => identity, _ => new List<ImportDecision<LocalBook>>());
+            foreach (var item in tagged)
+            {
+                var matches = variants.Where(variant => item.Identity.Fits(variant)).Take(2).ToList();
+                if (matches.Count == 1)
+                {
+                    partitions[matches[0]].Add(item.Decision);
+                }
+                else
+                {
+                    item.Decision.Reject(new Rejection("The file does not identify one of the competing digital editions", RejectionType.Temporary, LibraryImportHoldReason.CompetingEditions));
+                }
+            }
+
+            foreach (var partition in partitions.Values.Where(items => items.Count > 0))
+            {
+                yield return partition;
+            }
+        }
+
+        private static bool IsCompleteFile(LocalBook book)
+        {
+            return book.PartCount <= 1 && book.Part <= 1;
+        }
+
+        private static bool HasUnverifiedEbookIsbn(LocalBook file, LocalBook retained)
+        {
+            if (!file.ExistingFile || !retained.ExistingFile || ImportFormat.ForPath(file.Path) != FormatType.Ebook ||
+                !IsCompleteFile(file) || !IsCompleteFile(retained) || file.Size <= 0 || retained.Size <= 0 || file.Size == retained.Size)
+            {
+                return false;
+            }
+
+            var isbn = GetFileEditionIdentity(file.FileTrackInfo).Isbn;
+            return isbn != null && !Isbn.AreEquivalent(isbn, file.Edition.Isbn13) && isbn != GetFileEditionIdentity(retained.FileTrackInfo).Isbn;
+        }
+
+        private static FileEditionIdentity GetFileEditionIdentity(ParsedTrackInfo tags)
+        {
+            var asin = tags?.Asin?.Trim();
+            return new FileEditionIdentity(
+                tags?.AsinConfidence >= 0.9 && asin?.Length == 10 && asin.All(char.IsAsciiLetterOrDigit) ? asin.ToUpperInvariant() : null,
+                tags?.IsbnConfidence >= 0.9 ? Isbn.AsIsbn13(tags.Isbn) : null);
+        }
+
+        private Edition EnsureImportEdition(Book book, List<ImportDecision<LocalBook>> decisions, FormatType? fileFormat)
+        {
+            var selected = EnsureEditionAdded(decisions);
+            if (!fileFormat.HasValue || !ImportFormat.NeedsDigitalEdition(selected))
+            {
+                return selected;
+            }
+
+            var format = fileFormat.Value;
+            var ebook = format == FormatType.Ebook;
+            var identities = decisions.Select(decision => GetFileEditionIdentity(decision.Item.FileTrackInfo)).ToList();
+            var identity = new FileEditionIdentity(
+                identities.Select(item => item.Asin).FirstOrDefault(value => value != null),
+                identities.Select(item => item.Isbn).FirstOrDefault(value => value != null));
+            var compatible = (_editionService.GetEditionsByBook(book.Id) ?? new List<Edition>())
+                .Where(edition => edition.Id > 0 && edition.BookId == book.Id &&
+                    edition.IsEbook == ebook && ImportFormat.ForEdition(edition) == format)
+                .ToList();
+            var matches = identity.HasIdentifier
+                ? compatible.Where(edition => MatchesVerifiedIdentifiers(edition, identity.Asin, identity.Isbn)).Take(2).ToList()
+                : new List<Edition>();
+            if (matches.Count > 1 || (!identity.HasIdentifier && compatible.Take(2).Count() > 1))
+            {
+                foreach (var decision in decisions)
+                {
+                    decision.Reject(new Rejection("More than one compatible digital edition requires file identity evidence", RejectionType.Temporary, LibraryImportHoldReason.CompetingEditions));
+                }
+
+                return null;
+            }
+
+            var edition = matches.SingleOrDefault() ?? GetOrAddLocalDigitalEdition(book, ebook, identity);
+            if (edition == null || edition.Id <= 0 || edition.BookId != book.Id ||
+                ImportFormat.ForEdition(edition) != format || edition.IsEbook != ebook)
+            {
+                return null;
+            }
+
+            foreach (var decision in decisions)
+            {
+                decision.Item.Edition = edition;
+            }
+
+            return edition;
+        }
+
+        private static bool MatchesVerifiedIdentifiers(Edition edition, string asin, string isbn)
+        {
+            var compareAsin = asin != null && edition.Asin.IsNotNullOrWhiteSpace();
+            var compareIsbn = isbn != null && edition.Isbn13.IsNotNullOrWhiteSpace();
+            return (compareAsin || compareIsbn) &&
+                   (!compareAsin || string.Equals(asin, edition.Asin, StringComparison.OrdinalIgnoreCase)) &&
+                   (!compareIsbn || Isbn.AreEquivalent(isbn, edition.Isbn13));
+        }
+
+        private Edition GetOrAddLocalDigitalEdition(Book book, bool ebook, FileEditionIdentity fileIdentity)
+        {
+            var identity = Guid.TryParseExact(book.CanonicalId, "N", out var canonical)
+                ? canonical.ToString("N")
+                : book.Id.ToString(CultureInfo.InvariantCulture);
+            var key = LocalEditionIdPrefix + identity + (ebook ? ":ebook" : ":audiobook");
+            if (fileIdentity.HasIdentifier)
+            {
+                var evidence = Encoding.ASCII.GetBytes($"{fileIdentity.Asin}:{fileIdentity.Isbn}");
+                key += ":" + Convert.ToHexStringLower(SHA256.HashData(evidence));
+            }
+
+            var existing = _editionService.GetEditionByForeignEditionId(key);
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            var edition = new Edition
+            {
+                ForeignEditionId = key,
+                BookId = book.Id,
+                Book = book,
+                Title = book.Title,
+                Format = ebook ? "Ebook" : "Audiobook",
+                IsEbook = ebook
+            };
+            NormalizeEditionForInsert(edition, book);
+
+            try
+            {
+                _editionService.InsertMany(new List<Edition> { edition });
+            }
+            catch
+            {
+                // Another approved import may have created the same local edition.
+                existing = _editionService.GetEditionByForeignEditionId(key);
+                if (existing == null)
+                {
+                    throw;
+                }
+            }
+
+            return existing ?? edition;
         }
 
         private Edition EnsureEditionAdded(List<ImportDecision<LocalBook>> decisions)
@@ -693,6 +933,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
 
                 edition = dbEdition;
+            }
+
+            if (edition != null && edition.BookId != book.Id)
+            {
+                foreach (var decision in decisions)
+                {
+                    decision.Reject(new Rejection("The selected edition belongs to a different work", RejectionType.Temporary));
+                }
+
+                return null;
             }
 
             foreach (var decision in decisions)
@@ -798,6 +1048,25 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             return null;
+        }
+
+        private readonly struct FileEditionIdentity
+        {
+            public FileEditionIdentity(string asin, string isbn)
+            {
+                Asin = asin;
+                Isbn = isbn;
+            }
+
+            public string Asin { get; }
+            public string Isbn { get; }
+            public bool HasIdentifier => Asin != null || Isbn != null;
+            public bool HasBothIdentifiers => Asin != null && Isbn != null;
+
+            public bool Fits(FileEditionIdentity variant)
+            {
+                return HasIdentifier && (Asin == null || Asin == variant.Asin) && (Isbn == null || Isbn == variant.Isbn);
+            }
         }
     }
 }

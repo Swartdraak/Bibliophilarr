@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -5,10 +6,12 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
@@ -215,9 +218,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Mocker.GetMock<ICandidateService>()
                 .Setup(s => s.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
                 .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _ebookEdition, ExistingFiles = new List<BookFile>() } });
-            Mocker.GetMock<ICandidateService>()
-                .Setup(s => s.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>()))
-                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+            GivenRemoteCandidates(new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() });
 
             var results = Subject.Identify(localBooks, _overrides, _config);
 
@@ -226,14 +227,526 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         }
 
         [Test]
+        public void should_retain_low_confidence_reason_when_holding_a_new_author_match()
+        {
+            _config.NewDownload = false;
+            _config.AddNewAuthors = true;
+            _book.Id = 0;
+            _author.Id = 0;
+            _audiobookEdition.Title = "Test Book";
+            _audiobookEdition.Format = "Audio Book";
+            _audiobookEdition.Language = "spa";
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(It.IsAny<string>())).Returns((Author)null);
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(new List<CandidateEdition>());
+            GivenRemoteCandidates(new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() });
+
+            var tracks = CreateAudiobookLocalBooks();
+            tracks.Single().FileTrackInfo.BookTitle = "Test Book";
+            tracks.Single().FileTrackInfo.Authors = new List<string> { "Test Author" };
+            tracks.Single().FileTrackInfo.Language = "eng";
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            result.Edition.Should().BeNull();
+            result.IdentificationHoldReason.Should().Be(LibraryImportHoldReason.LowConfidence);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, true)]
+        public void should_only_allow_name_based_existing_author_lookup_for_requested_imports(bool newDownload, bool expectedMatch)
+        {
+            _config.NewDownload = newDownload;
+            _config.KeepAllEditions = true;
+            _book.Id = 0;
+            _author.Id = 0;
+            _audiobookEdition.Format = "Audio Book";
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(It.IsAny<string>())).Returns((Author)null);
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindByName("Test Author")).Returns(new Author { Id = 42 });
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(new List<CandidateEdition>());
+            GivenRemoteCandidates(new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() });
+
+            var tracks = CreateAudiobookLocalBooks();
+            tracks.Single().FileTrackInfo.BookTitle = "Test Book";
+            tracks.Single().FileTrackInfo.Authors = new List<string> { "Test Author" };
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            (result.Edition != null).Should().Be(expectedMatch);
+            Mocker.GetMock<IAuthorService>().Verify(service => service.FindByName("Test Author"), newDownload ? Times.Once() : Times.Never());
+        }
+
+        [TestCase(false, false, "Teacher's Guide, with Poster")]
+        [TestCase(true, false, "Teacher’s Guide, with Poster")]
+        [TestCase(true, true, "Teaching Guide")]
+        [TestCase(false, true, "Reading Guide")]
+        public void should_reject_a_guide_when_the_embedded_title_identifies_its_base_work(bool findRemotely, bool guideOnWorkOnly, string guideSuffix)
+        {
+            var guideTitle = $"Test Book: {guideSuffix}";
+            _book.Title = guideTitle;
+            _audiobookEdition.Title = guideOnWorkOnly ? "Test Book" : guideTitle;
+            _audiobookEdition.Format = guideOnWorkOnly ? "Audio Book" : "Hardcover";
+            GivenGuideCandidate(findRemotely);
+
+            var result = IdentifyAudioTitle("Test Book");
+
+            result.Edition.Should().BeNull();
+        }
+
+        [Test]
+        public void should_continue_to_a_correct_remote_candidate_when_the_local_candidate_is_a_guide()
+        {
+            _ebookEdition.Title = "Test Book (Study Guide)";
+            _ebookEdition.IsEbook = false;
+            _audiobookEdition.Title = "Test Book";
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _ebookEdition, ExistingFiles = new List<BookFile>() } });
+            GivenRemoteCandidates(new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() });
+
+            IdentifyAudioTitle("Test Book").Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
+        [TestCase("Test Book: Teacher’s Guide, with Poster", "Test Book: Teacher’s Guide, with Poster", 0.98, false)]
+        [TestCase("Test Book: Teacher’s Guide, with Poster", "Test Book", 0.98, true)]
+        [TestCase("Test Book: Teaching Guide", "Test Book", 0.35, false)]
+        [TestCase("Test Book: The Return", "Test Book", 0.98, false)]
+        public void should_preserve_guide_editions_when_the_file_or_user_identifies_them_or_title_evidence_is_inconclusive(string candidateTitle, string fileTitle, double confidence, bool explicitEdition)
+        {
+            _book.Title = candidateTitle;
+            _audiobookEdition.Title = candidateTitle;
+            _overrides.Edition = explicitEdition ? _audiobookEdition : null;
+            GivenGuideCandidate(false);
+
+            IdentifyAudioTitle(fileTitle, confidence).Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
+        [TestCase(false, "The Primal Hunter 7", "The Primal Hunter 3")]
+        [TestCase(true, "Elven Star", "Serpent Mage")]
+        [TestCase(false, "Winter", "Cinder")]
+        public void should_skip_wrong_matched_retry_work_when_raw_title_and_filename_agree(bool findRemotely, string observedTitle, string candidateTitle)
+        {
+            GivenRetryCandidate(candidateTitle, findRemotely);
+            var tracks = CreateRetryTracks(observedTitle, $"Test Author - {observedTitle}");
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            release.Edition.Should().BeNull();
+            release.IdentificationHoldReason.Should().Be(findRemotely
+                ? LibraryImportHoldReason.ProviderIdentityConflict
+                : null);
+        }
+
+        [TestCase(FilterFilesType.None, false, 1.0, false)]
+        [TestCase(FilterFilesType.Known, true, 0.92, false)]
+        [TestCase(FilterFilesType.None, false, 0.55, true)]
+        public void should_apply_corroborated_title_to_library_scans_with_initialled_authors(FilterFilesType filter, bool findRemotely, double confidence, bool shouldMatch)
+        {
+            GivenRetryCandidate("Harry Potter and the Philosopher's Stone", findRemotely);
+            _config.Filter = filter;
+            _book.AuthorMetadata.Value.Name = "J K Rowling";
+            var fileTitle = "Harry Potter and the Chamber of Secrets";
+            var tracks = CreateRetryTracks(fileTitle, $"J. K. Rowling - {fileTitle}", confidence);
+            tracks[0].FileTrackInfo.Authors = new List<string> { "J.K. Rowling" };
+
+            var identifiedEdition = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (identifiedEdition == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
+        [TestCase("Abiding in Mindfulness, Volume 2: On Feeling, the Mind & Dhamma", "Abiding in Mindfulness, Volume 2 - On Feeling, the Mind & Dhamma", "The Experience Of Insight: A Simple & Direct Guide To Buddhist Meditation")]
+        [TestCase("City of Bones: The Little Book of Quotes", "City of Bones - The Little Book of Quotes", "City of Bones Movie postcards Mortal Instruments Paperback")]
+        [TestCase("City of Bones: The Little Book of Quotes", "City of Bones - The Little Book of Quotes", "City of Bones")]
+        [TestCase("Mistress of Dragons", "Mistress of Dragons (1)", "Master of Dragons")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff The Griffin Rider 3")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff The Griffin Rider")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1-4")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Book 3")]
+        [TestCase("The World of Ice and Fire: The Untold History of Westeros and the Game of Thrones", "The World of Ice and Fire - The Untold History of Westeros and the Game of Thrones", "Selections from Dreamsongs 3")]
+        public void should_hold_a_wrong_work_when_the_native_filename_differs_only_in_presentation(string tagTitle, string filenameTitle, string wrongTitle)
+        {
+            GivenRetryCandidate(wrongTitle);
+            _config.Filter = FilterFilesType.None;
+            var tracks = CreateRetryTracks(tagTitle, $"Test Author - {filenameTitle}");
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeNull();
+        }
+
+        [TestCase(7, "B0C6W5XQNW", "The Primal Hunter 3: A LitRPG Adventure", false)]
+        [TestCase(8, "B0CHSJVWL7", "The Primal Hunter 3: A LitRPG Adventure", false)]
+        [TestCase(7, "B0C6W5XQNW", "The Primal Hunter 7", true)]
+        public void should_corroborate_a_numbered_work_when_the_filename_omits_its_generic_genre_line(int volume, string asin, string candidateTitle, bool shouldMatch)
+        {
+            GivenRetryCandidate(candidateTitle);
+            _book.AuthorMetadata.Value.Name = "Zogarth";
+            _audiobookEdition.Format = "Ebook";
+            _audiobookEdition.IsEbook = true;
+            var title = $"The Primal Hunter {volume}";
+            var tracks = CreateRetryTracks($"{title}: A LitRPG Adventure", $"Zogarth - {title}", 0.92);
+            tracks[0].Path = $"/media/ebooks/Zogarth - {title}.epub";
+            tracks[0].Quality = new QualityModel(Quality.EPUB);
+            tracks[0].FileTrackInfo.Authors = new List<string> { "Zogarth" };
+            tracks[0].FileTrackInfo.Asin = asin;
+            tracks[0].FileTrackInfo.AsinConfidence = 0.95;
+
+            var identified = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (identified == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
+        [Test]
+        public void should_not_select_other_chapters_just_because_the_chapter_range_agrees()
+        {
+            GivenRetryCandidate("Cress: Chapters 1-5");
+            _book.AuthorMetadata.Value.Name = "Marissa Meyer";
+            var tracks = CreateRetryTracks("Cinder: Chapters 1-5", "Marissa Meyer - Cinder - Chapters 1-5", 1.0);
+            tracks[0].FileTrackInfo.Title = "Cinder: Chapters 1-5";
+            tracks[0].FileTrackInfo.Authors = new List<string> { "Marissa Meyer" };
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeNull();
+        }
+
+        [TestCase("The Primal Hunter 15: A LitRPG Adventure", "The Primal Hunter 7 (1).mobi", 0.9, false, false, false)]
+        [TestCase("The Primal Hunter 7: A LitRPG Adventure", "The Primal Hunter 7 (1).mobi", 0.9, false, false, true)]
+        [TestCase("The Primal Hunter 15: A LitRPG Adventure", "Another Series 7 (1).mobi", 0.9, false, false, true)]
+        [TestCase("The Primal Hunter Book 7", "The Primal Hunter Book 7 - Disc 15.mobi", 0.9, false, false, true)]
+        [TestCase("The Primal Hunter Book 15", "The Primal Hunter Volume 7 (1).mobi", 0.9, false, false, false)]
+        [TestCase("The Primal Hunter 15", "The Primal Hunter 7 (1).mobi", 0.6, false, false, true)]
+        [TestCase("The Primal Hunter 15", "The Primal Hunter 7 (1).mobi", 0.9, true, false, true)]
+        [TestCase("The Primal Hunter 15", "The Primal Hunter 7 (1).mobi", 0.9, false, true, true)]
+        [TestCase("The Archive 2021", "The Archive 2019.mobi", 0.9, false, false, true)]
+        public void should_hold_disagreeing_numbered_file_evidence_before_querying_automatic_candidates(
+            string tagTitle, string filename, double confidence, bool requested, bool explicitEdition, bool shouldMatch)
+        {
+            GivenRetryCandidate(tagTitle);
+            _config.Filter = FilterFilesType.None;
+            _config.NewDownload = requested;
+            _book.AuthorMetadata.Value.Name = "Zogarth";
+            _audiobookEdition.Format = "Ebook";
+            _audiobookEdition.IsEbook = true;
+            var tracks = CreateRetryTracks(tagTitle, filename, confidence);
+            tracks[0].Path = $"/media/ebooks/Zogarth - {filename}";
+            tracks[0].Quality = new QualityModel(Quality.MOBI);
+            tracks[0].FileTrackInfo.Authors = new List<string> { "Zogarth" };
+            var overrides = new IdentificationOverrides { Edition = explicitEdition ? _audiobookEdition : null };
+
+            var result = Subject.Identify(tracks, overrides, _config).Single();
+
+            (result.Edition == _audiobookEdition).Should().Be(shouldMatch);
+            if (!shouldMatch)
+            {
+                Mocker.GetMock<ICandidateService>().Verify(
+                    service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()), Times.Never());
+                Mocker.GetMock<ICandidateService>().Verify(
+                    service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<Func<Edition, bool>>(), It.IsAny<bool>()), Times.Never());
+            }
+        }
+
+        [TestCase("Sheepfarmer's Daughter (The Deed of Paksenarrion)", false)]
+        [TestCase("Surrender None", true)]
+        public void should_read_an_exact_work_suffix_after_numbered_series_and_agreeing_inverted_author(string candidateTitle, bool shouldMatch)
+        {
+            GivenRetryCandidate(candidateTitle);
+            _config.Filter = FilterFilesType.None;
+            _book.AuthorMetadata.Value.Name = "Elizabeth Moon";
+            var tracks = CreateRetryTracks("Paksenarrion 04 - Surrender None", "Elizabeth Moon - Surrender None", 0.9);
+            tracks[0].FileTrackInfo.Authors = new List<string> { "Moon, Elizabeth" };
+
+            var identified = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (identified == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
+        [TestCase("The Untold Story: A Novel", "The Untold Story - A Novel", "The Untold Story")]
+        [TestCase("The Untold Story: A Novel", "The Untold Story - A Novel", "The Untold Story - A Novel")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1 - 5")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1 - 5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1-5")]
+        [TestCase("Gryff the Griffin Rider: Omnibus Book 1–5", "Gryff the Griffin Rider - Omnibus Book 1 - 5", "Gryff the Griffin Rider: Omnibus Book 1-5")]
+        [TestCase("A Story About Number 2", "A Different Novel", "A Story")]
+        public void should_preserve_matching_work_scope_and_ordinary_title_variants(string tagTitle, string filenameTitle, string candidateTitle)
+        {
+            GivenRetryCandidate(candidateTitle);
+            var tracks = CreateRetryTracks(tagTitle, $"Test Author - {filenameTitle}");
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
+        [TestCase("Study Guide", false)]
+        [TestCase("Teacher’s Guide, with Poster", false)]
+        [TestCase("Reading Guide", false)]
+        [TestCase("A Novel", true)]
+        public void should_distinguish_an_embedded_guide_from_its_original_work_across_subtitle_separators(string subtitle, bool shouldMatch)
+        {
+            GivenRetryCandidate("Test Book");
+            _config.Filter = FilterFilesType.None;
+            var tracks = CreateRetryTracks($"Test Book - {subtitle}", $"Test Author - Test Book - {subtitle}");
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (result == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
+        [TestCase("The Primal Hunter: Book 7", "The Primal Hunter: Volume 3", false)]
+        [TestCase("The Primal Hunter: Book 7", "The Primal Hunter 3: A LitRPG Adventure", false)]
+        [TestCase("The Primal Hunter 7: A LitRPG Adventure", "The Primal Hunter: Volume 3", false)]
+        [TestCase("The Primal Hunter: Book 7", "The Primal Hunter 7: A LitRPG Adventure", true)]
+        [TestCase("Starling Almanac: Book 3", "Starling Almanac 7: An Adventure", false)]
+        [TestCase("Starling Almanac 3 - An Adventure", "Starling Almanac: Book 7", false)]
+        [TestCase("Starling Almanac: Book 3", "Starling Almanac 3: An Adventure", true)]
+        [TestCase("Starling: Almanac: Book 3", "Starling: Almanac 7: An Adventure: Illustrated", false)]
+        [TestCase("The Archive: Book 7", "The Archive 2021", true)]
+        [TestCase("The Archive: Book 7", "The Archive 2021: A History", true)]
+        [TestCase("The Archive 3", "The Archive 7: A History", true)]
+        [TestCase("The Primal Hunter: Book 7", "Another Series 3", true)]
+        public void should_skip_a_different_series_volume_without_a_full_filename_when_either_title_names_the_volume(
+            string embeddedTitle, string candidateTitle, bool shouldMatch)
+        {
+            GivenRetryCandidate(candidateTitle);
+            var tracks = CreateRetryTracks(embeddedTitle, "Chapter 01");
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition;
+
+            (result == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
+        [Test]
+        public void should_try_the_remote_work_after_excluding_a_contradicted_local_work_on_matched_retry()
+        {
+            GivenRetryCandidate("Serpent Mage");
+            var remoteBook = new Book
+            {
+                Id = 2,
+                Title = "Elven Star",
+                Author = _author,
+                AuthorMetadata = _book.AuthorMetadata
+            };
+            var remoteEdition = new Edition { Book = remoteBook, Title = remoteBook.Title, Format = "Audiobook" };
+            GivenRemoteCandidates(new CandidateEdition { Edition = remoteEdition, ExistingFiles = new List<BookFile>() });
+            var tracks = CreateRetryTracks("Elven Star", "Test Author - Elven Star");
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(remoteEdition);
+        }
+
+        [TestCase("Elven Star", "Elven Star: A Novel", "Test Author - Elven Star", true, 0.98, true, false)]
+        [TestCase("Elven Star", "Serpent Mage", "Test Author - Elven Star - Part 1", true, 0.98, true, false)]
+        [TestCase("Elven Star", "Serpent Mage", "Test Author - Elven Star", true, 0.55, true, false)]
+        [TestCase("Elven Star", "Serpent Mage", "Test Author - Elven Star", true, 0.98, false, false)]
+        [TestCase("Elven Star", "Serpent Mage", "Test Author - Elven Star", false, 0.98, true, false)]
+        [TestCase("Elven Star", "Serpent Mage", "Test Author - Elven Star", true, 0.98, true, true)]
+        [TestCase("Saga Part 7", "Saga Part 3", "Part 1", true, 0.98, true, false)]
+        public void should_preserve_candidates_without_a_confirmed_library_scan_conflict(string title, string candidate, string filename, bool existingLibrary, double confidence, bool hasTaggedAuthor, bool explicitEdition)
+        {
+            GivenRetryCandidate(candidate);
+            _config.NewDownload = !existingLibrary;
+            _config.Filter = FilterFilesType.None;
+            var tracks = CreateRetryTracks(title, filename, confidence);
+            if (!hasTaggedAuthor)
+            {
+                tracks[0].FileTrackInfo.Authors.Clear();
+                Mocker.GetMock<IAugmentingService>().Setup(service => service.Augment(It.IsAny<LocalEdition>()))
+                    .Returns((LocalEdition release) =>
+                    {
+                        release.LocalBooks[0].FileTrackInfo.Authors.Add("Test Author");
+                        return release;
+                    });
+            }
+
+            var selected = explicitEdition ? _audiobookEdition : null;
+            Subject.Identify(tracks, new IdentificationOverrides { Edition = selected }, _config).Single().Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
+        [TestCase(true, false, true)]
+        [TestCase(false, false, true)]
+        [TestCase(false, true, false)]
+        public void should_preserve_a_candidate_corroborated_by_a_nonconflicting_trusted_edition_identifier(bool useIsbn, bool conflictingIsbn, bool shouldMatch)
+        {
+            GivenRetryCandidate("Serpent Mage");
+            var tracks = CreateRetryTracks("Elven Star", "Test Author - Elven Star");
+            var tags = tracks[0].FileTrackInfo;
+            _audiobookEdition.Isbn13 = "9781442482890";
+            _audiobookEdition.Asin = "B01ABCDEF1";
+
+            if (useIsbn || conflictingIsbn)
+            {
+                tags.Isbn = conflictingIsbn ? "9781455546176" : "1-4424-8289-3";
+                tags.IsbnConfidence = 0.98;
+            }
+
+            if (!useIsbn)
+            {
+                tags.Asin = "b01abcdef1";
+                tags.AsinConfidence = 0.98;
+            }
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            (result.Edition == _audiobookEdition).Should().Be(shouldMatch);
+        }
+
+        private void GivenRetryCandidate(string candidateTitle, bool findRemotely = false)
+        {
+            _config.NewDownload = false;
+            _config.KeepAllEditions = true;
+            _config.Filter = FilterFilesType.Matched;
+            _book.Title = candidateTitle;
+            _audiobookEdition.Title = candidateTitle;
+            _audiobookEdition.Format = "Audiobook";
+            GivenGuideCandidate(findRemotely);
+        }
+
+        [TestCase(true, true, false)]
+        [TestCase(false, true, false)]
+        [TestCase(false, false, false)]
+        [TestCase(false, true, true)]
+        [TestCase(false, false, true)]
+        public void should_continue_remote_search_after_rejecting_an_ineligible_edition(bool rejectPrimary, bool laterMatch, bool requireLocalAuthor)
+        {
+            const string title = "Fixture Series Book 2";
+            _config.NewDownload = false;
+            _config.KeepAllEditions = true;
+            _config.Filter = FilterFilesType.Matched;
+            var tracks = CreateRetryTracks(title, "Test Author - " + title);
+            tracks[0].FileTrackInfo.AuthorConfidence = 0.98;
+            var wrong = RemoteWork(requireLocalAuthor ? title : "Fixture Series Book 1");
+            var expected = RemoteWork(title);
+            var authors = Mocker.GetMock<IAuthorService>();
+            authors.Setup(service => service.GetCandidates(It.IsAny<string>())).Returns(new List<Author>());
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile>());
+            if (requireLocalAuthor)
+            {
+                const string missingAuthor = "openlibrary:author:OL999A";
+                wrong.Author = new Author { Name = _author.Name, ForeignAuthorId = missingAuthor };
+                wrong.AuthorMetadata = new AuthorMetadata { Name = _author.Name, ForeignAuthorId = missingAuthor };
+                authors.Setup(service => service.FindById(missingAuthor)).Returns((Author)null);
+            }
+
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(service => service.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
+                .Returns(rejectPrimary ? new List<Book> { wrong } : new List<Book>());
+
+            var first = new Mock<IBookSearchFallbackProvider>();
+            first.SetupGet(provider => provider.ProviderName).Returns("Inventaire");
+            var second = new Mock<IBookSearchFallbackProvider>();
+            second.SetupGet(provider => provider.ProviderName).Returns("GoogleBooks");
+            var last = new Mock<IBookSearchFallbackProvider>();
+            last.SetupGet(provider => provider.ProviderName).Returns("Hardcover");
+            Mocker.SetConstant<IEnumerable<IBookSearchFallbackProvider>>(new[] { last.Object, second.Object, first.Object });
+
+            var search = Mocker.GetMock<IBookSearchFallbackExecutionService>();
+            search.Setup(service => service.Search(first.Object, It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(new List<Book> { wrong });
+            search.Setup(service => service.Search(second.Object, It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(laterMatch ? new List<Book> { expected } : new List<Book> { wrong });
+            search.Setup(service => service.Search(last.Object, It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(new List<Book>());
+            Mocker.SetConstant<ICandidateService>(Mocker.Resolve<CandidateService>());
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            result.Edition.Should().BeSameAs(laterMatch ? expected.Editions.Value.Single() : null);
+            result.IdentificationHoldReason.Should().Be(laterMatch || requireLocalAuthor
+                ? null
+                : LibraryImportHoldReason.ProviderIdentityConflict);
+            search.Verify(service => service.Search(first.Object, It.IsAny<string>(), It.IsAny<string>()), Times.AtLeastOnce());
+            search.Verify(service => service.Search(second.Object, It.IsAny<string>(), It.IsAny<string>()), Times.AtLeastOnce());
+            search.Verify(service => service.Search(last.Object, It.IsAny<string>(), It.IsAny<string>()),
+                laterMatch ? Times.Never() : Times.AtLeastOnce());
+        }
+
+        [Test]
+        public void should_leave_author_policy_distinct_when_an_identity_compatible_provider_result_has_no_local_author()
+        {
+            const string title = "Fixture Series Book 2";
+            GivenRetryCandidate("Fixture Series Book 1", findRemotely: true);
+            var tracks = CreateRetryTracks(title, "Test Author - " + title);
+            var compatible = RemoteWork(title);
+            const string missingAuthor = "openlibrary:author:OL999A";
+            compatible.Author = new Author { Name = _author.Name, ForeignAuthorId = missingAuthor };
+            compatible.AuthorMetadata = new AuthorMetadata { Name = _author.Name, ForeignAuthorId = missingAuthor };
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(missingAuthor)).Returns((Author)null);
+            var compatibleEdition = compatible.Editions.Value.Single();
+            compatibleEdition.Book = compatible;
+            GivenRemoteCandidates(
+                new CandidateEdition { Edition = _audiobookEdition },
+                new CandidateEdition { Edition = compatibleEdition });
+
+            var result = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            result.Edition.Should().BeNull();
+            result.IdentificationHoldReason.Should().BeNull();
+        }
+
+        private Book RemoteWork(string title)
+        {
+            return new Book
+            {
+                Author = _author,
+                AuthorMetadata = _book.AuthorMetadata,
+                ForeignBookId = "openlibrary:work:OL531W",
+                Title = title,
+                Editions = new List<Edition>
+                {
+                    new Edition { ForeignEditionId = "openlibrary:edition:OL531M", Title = title, Format = "Audiobook" }
+                }
+            };
+        }
+
+        private List<LocalBook> CreateRetryTracks(string title, string filename, double confidence = 0.98)
+        {
+            var tracks = CreateAudiobookLocalBooks();
+            tracks[0].Path = $"/media/audiobooks/{filename}.m4b";
+            tracks[0].FileTrackInfo.BookTitle = title;
+            tracks[0].FileTrackInfo.BookTitleConfidence = confidence;
+            tracks[0].FileTrackInfo.Authors.Add("Test Author");
+            tracks[0].ReliableTaggedBookTitle = IdentificationService.CaptureReliableTaggedBookTitle(tracks[0].FileTrackInfo);
+            return tracks;
+        }
+
+        private void GivenGuideCandidate(bool findRemotely)
+        {
+            var candidates = new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } };
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<bool>()))
+                .Returns(findRemotely ? new List<CandidateEdition>() : candidates);
+            GivenRemoteCandidates(findRemotely ? candidates.ToArray() : Array.Empty<CandidateEdition>());
+        }
+
+        private void GivenRemoteCandidates(params CandidateEdition[] candidates)
+        {
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), It.IsAny<Func<Edition, bool>>(), It.IsAny<bool>()))
+                .Returns((LocalEdition release, IdentificationOverrides overrides, Func<Edition, bool> allowsEdition, bool forLibraryScan) =>
+                    candidates.Where(candidate => allowsEdition(candidate.Edition)));
+        }
+
+        private LocalEdition IdentifyAudioTitle(string title, double confidence = 0.98)
+        {
+            _config.KeepAllEditions = true;
+            var tracks = CreateAudiobookLocalBooks();
+            tracks.Single().FileTrackInfo.BookTitle = title;
+            tracks.Single().FileTrackInfo.BookTitleConfidence = confidence;
+            tracks.Single().FileTrackInfo.Authors = new List<string> { "Test Author" };
+            tracks.Single().ReliableTaggedBookTitle = IdentificationService.CaptureReliableTaggedBookTitle(tracks.Single().FileTrackInfo);
+            return Subject.Identify(tracks, _overrides, _config).Single();
+        }
+
+        [Test]
         public void should_leave_ebook_unmapped_when_an_incompatible_edition_is_explicitly_selected()
         {
             _audiobookEdition.Format = "M4B";
             _overrides.Edition = _audiobookEdition;
+            GivenGuideCandidate(false);
             var tracks = CreateEbookLocalBooks();
+            var summary = new ImportRunSummary();
 
-            Subject.Identify(tracks, _overrides, _config).Single().Edition.Should().BeNull();
+            var release = Subject.Identify(tracks, _overrides, _config, summary).Single();
+
+            release.Edition.Should().BeNull();
+            release.IdentificationHoldReason.Should().BeNull();
             tracks.Single().Edition.Should().BeNull();
+            summary.Errors.Should().Be(0);
         }
 
         [Test]
@@ -252,6 +765,212 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
 
             release.Edition.Should().BeSameAs(_audiobookEdition);
             release.LocalBooks.Should().ContainSingle().Which.Should().BeSameAs(tracks.Single());
+        }
+
+        [TestCase(false, FilterFilesType.None)]
+        [TestCase(true, FilterFilesType.Known)]
+        public void should_choose_the_physical_ebook_subformat_for_the_same_work_and_isbn(bool reverseOrder, FilterFilesType filter)
+        {
+            var tracks = GivenEbookSubformatScan(filter);
+            var azw3 = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
+            GivenEbookSubformatCandidates(reverseOrder ? new[] { azw3, _ebookEdition } : new[] { _ebookEdition, azw3 });
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(azw3);
+        }
+
+        [TestCase("different work")]
+        [TestCase("different ISBN")]
+        [TestCase("untrusted file ISBN")]
+        [TestCase("extension-only format")]
+        [TestCase("already linked")]
+        [TestCase("explicit edition")]
+        [TestCase("new download")]
+        [TestCase("existing library excluded")]
+        public void should_keep_the_identified_edition_without_matching_trusted_same_work_evidence(string condition)
+        {
+            var tracks = GivenEbookSubformatScan();
+            var track = tracks.Single();
+            var work = condition == "different work"
+                ? new Book { Id = 7, CanonicalId = "different-work", Title = _book.Title, AuthorMetadata = _book.AuthorMetadata, Author = _author }
+                : _book;
+            var isbn = condition == "different ISBN" ? "9781455546176" : _ebookEdition.Isbn13;
+            var azw3 = CreateAzw3Edition(30, work, isbn);
+            if (condition == "untrusted file ISBN")
+            {
+                track.FileTrackInfo.IsbnConfidence = 0.55;
+            }
+            else if (condition == "extension-only format")
+            {
+                track.FileTrackInfo.Quality.QualityDetectionSource = QualityDetectionSource.Extension;
+            }
+            else if (condition == "already linked")
+            {
+                Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
+                    .Returns(new List<BookFile> { new BookFile { Path = track.Path, EditionId = _ebookEdition.Id } });
+            }
+            else if (condition == "new download")
+            {
+                _config.NewDownload = true;
+            }
+            else if (condition == "existing library excluded")
+            {
+                _config.IncludeExisting = false;
+            }
+
+            var overrides = new IdentificationOverrides
+            {
+                Edition = condition == "explicit edition" ? _ebookEdition : null
+            };
+            GivenEbookSubformatCandidates(_ebookEdition, azw3);
+
+            Subject.Identify(tracks, overrides, _config).Single().Edition.Should().BeSameAs(_ebookEdition);
+        }
+
+        [Test]
+        public void should_hold_two_distinct_equally_matching_exact_ebook_editions()
+        {
+            var tracks = GivenEbookSubformatScan();
+            var first = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
+            var second = CreateAzw3Edition(40, _book, _ebookEdition.Isbn13);
+            GivenEbookSubformatCandidates(_ebookEdition, first, first, second);
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            release.Edition.Should().BeNull();
+            release.IdentificationHoldReason.Should().Be(LibraryImportHoldReason.CompetingEditions);
+            tracks.Single().Edition.Should().BeNull();
+        }
+
+        [Test]
+        public void should_ignore_duplicate_projections_of_the_same_exact_ebook_edition()
+        {
+            var tracks = GivenEbookSubformatScan();
+            var azw3 = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
+            GivenEbookSubformatCandidates(_ebookEdition, azw3, azw3);
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(azw3);
+        }
+
+        [TestCase("exact generic ebook", true)]
+        [TestCase("exact EPUB", true)]
+        [TestCase("duplicate projection", true)]
+        [TestCase("two matching editions", false)]
+        [TestCase("cross-work ASIN collision", false)]
+        [TestCase("different work", false)]
+        [TestCase("explicit AZW3", false)]
+        [TestCase("untrusted ASIN", false)]
+        [TestCase("extension-only format", false)]
+        [TestCase("already linked", false)]
+        [TestCase("explicit work", false)]
+        public void should_refine_an_unlinked_epub_to_a_unique_same_work_embedded_asin(string condition, bool refine)
+        {
+            var tracks = GivenEbookSubformatScan();
+            var track = tracks.Single();
+            track.Path = "/media/ebooks/Test Author - Test Book.epub";
+            track.Quality = new QualityModel(Quality.EPUB)
+            {
+                QualityDetectionSource = condition == "extension-only format" ? QualityDetectionSource.Extension : QualityDetectionSource.TagLib
+            };
+            track.FileTrackInfo.Quality = track.Quality;
+            track.FileTrackInfo.Isbn = null;
+            track.FileTrackInfo.IsbnConfidence = 0;
+            track.FileTrackInfo.Asin = "B000000001";
+            track.FileTrackInfo.AsinConfidence = condition == "untrusted ASIN" ? 0.55 : 0.9;
+            track.FileTrackInfo.Publisher = "ZZZZZZ";
+            _ebookEdition.Format = "Ebook";
+            _ebookEdition.Isbn13 = null;
+            _ebookEdition.Publisher = track.FileTrackInfo.Publisher;
+            var otherWork = new Book
+            {
+                Id = 7,
+                CanonicalId = "different-work",
+                Title = _book.Title,
+                AuthorMetadata = _book.AuthorMetadata,
+                Author = _author
+            };
+            var exact = CreateAzw3Edition(30, condition == "different work" ? otherWork : _book, null);
+            exact.Asin = track.FileTrackInfo.Asin;
+            exact.Format = condition switch
+            {
+                "exact EPUB" => "EPUB",
+                "explicit AZW3" => "AZW3",
+                _ => "Ebook"
+            };
+            exact.Publisher = "AAAAAA";
+
+            var candidates = new List<Edition> { _ebookEdition, exact };
+            if (condition is "two matching editions" or "cross-work ASIN collision")
+            {
+                var competing = CreateAzw3Edition(40, condition == "cross-work ASIN collision" ? otherWork : _book, null);
+                competing.Asin = exact.Asin;
+                competing.Format = exact.Format;
+                competing.Publisher = exact.Publisher;
+                candidates.Add(competing);
+            }
+            else if (condition == "duplicate projection")
+            {
+                candidates.Add(exact);
+            }
+            else if (condition == "already linked")
+            {
+                Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
+                    .Returns(new List<BookFile> { new BookFile { Path = track.Path, EditionId = _ebookEdition.Id } });
+            }
+
+            GivenEbookSubformatCandidates(candidates.ToArray());
+            var overrides = new IdentificationOverrides { Book = condition == "explicit work" ? _book : null };
+
+            DistanceCalculator.BookDistance(tracks, _ebookEdition).NormalizedDistance()
+                .Should().BeLessThan(DistanceCalculator.BookDistance(tracks, exact).NormalizedDistance());
+            Subject.Identify(tracks, overrides, _config).Single().Edition.Should().BeSameAs(refine ? exact : _ebookEdition);
+        }
+
+        private List<LocalBook> GivenEbookSubformatScan(FilterFilesType filter = FilterFilesType.None)
+        {
+            _config.NewDownload = false;
+            _config.Filter = filter;
+            _config.IncludeExisting = true;
+            _config.KeepAllEditions = true;
+            _book.CanonicalId = "test-canonical-work";
+            _ebookEdition.Title = _book.Title;
+            _ebookEdition.Format = "EPUB";
+            _ebookEdition.Isbn13 = "9781442482890";
+
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
+                .Returns(new List<BookFile>());
+
+            var tracks = CreateEbookLocalBooks();
+            var track = tracks.Single();
+            track.Path = "/media/ebooks/Test Author - Test Book.azw3";
+            track.Quality = new QualityModel(Quality.AZW3) { QualityDetectionSource = QualityDetectionSource.TagLib };
+            track.FileTrackInfo.Quality = track.Quality;
+            track.FileTrackInfo.BookTitle = _book.Title;
+            track.FileTrackInfo.Authors = new List<string> { _author.Name };
+            track.FileTrackInfo.Isbn = "1-4424-8289-3";
+            track.FileTrackInfo.IsbnConfidence = 0.97;
+            return tracks;
+        }
+
+        private Edition CreateAzw3Edition(int id, Book book, string isbn)
+        {
+            return new Edition
+            {
+                Id = id,
+                BookId = book.Id,
+                Book = book,
+                Title = _ebookEdition.Title,
+                Format = "AZW3",
+                IsEbook = true,
+                Isbn13 = isbn,
+                ForeignEditionId = $"azw3-{id}"
+            };
+        }
+
+        private void GivenEbookSubformatCandidates(params Edition[] editions)
+        {
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), _config.IncludeExisting))
+                .Returns(editions.Select(edition => new CandidateEdition(edition)).ToList());
         }
 
         [Test]

@@ -47,7 +47,7 @@ const mapDispatchToProps = {
   fetchMediaManagementSettings
 };
 
-class CutoffUnmetConnector extends Component {
+export class CutoffUnmetConnector extends Component {
 
   //
   // Lifecycle

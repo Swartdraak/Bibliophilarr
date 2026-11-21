@@ -23,6 +23,15 @@
   margin-left: 5px;
 }
 
+.seriesCover {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  width: 32px;
+  height: 48px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
 .bookCount {
   color: #8895aa;
   font-style: italic;
@@ -73,6 +82,21 @@
   composes: button from '~Components/Link/IconButton.css';
 
   width: 30px;
+}
+
+.formatActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+
+  padding: 8px 15px 12px;
+}
+
+.formatActionsRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .books {

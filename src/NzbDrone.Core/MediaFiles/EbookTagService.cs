@@ -43,7 +43,8 @@ namespace NzbDrone.Core.MediaFiles
         private readonly ICalibreProxy _calibre;
         private readonly Logger _logger;
         private static readonly Regex IsbnPattern = new Regex(@"(?:97[89])?\d{9}[\dXx]", RegexOptions.Compiled);
-        private static readonly Regex AsinPattern = new Regex(@"\b[A-Za-z0-9]{10}\b", RegexOptions.Compiled);
+        private static readonly Regex LabelledAsinPattern = new Regex(@"\bASIN(?:\s*[:=._-]\s*|\s+)([A-Z0-9]{10})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        private static readonly Regex AmazonAsinPattern = new Regex(@"\bB[0-9][A-Z0-9]{8}\b", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private static readonly Regex BracketedMetadataPattern = new Regex(@"\[[^\]]*\]|\([^\)]*\)", RegexOptions.Compiled);
         private static readonly Regex YearTokenPattern = new Regex(@"^(19|20)\d{2}$", RegexOptions.Compiled);
         private static readonly HashSet<string> MetadataNoiseTokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -300,7 +301,7 @@ namespace NzbDrone.Core.MediaFiles
                     _logger.Trace(meta.ToJson());
 
                     result.Isbn = GetIsbn(meta?.Identifiers);
-                    result.Asin = meta?.Identifiers?.FirstOrDefault(x => x.Scheme?.ToLower().Contains("asin") ?? false)?.Identifier;
+                    result.Asin = meta?.Identifiers?.FirstOrDefault(x => x.Scheme?.Contains("asin", StringComparison.OrdinalIgnoreCase) == true)?.Identifier;
                     result.Language = meta?.Languages?.FirstOrDefault();
                     result.Publisher = meta?.Publishers?.FirstOrDefault();
                     result.Disambiguation = meta?.Description;
@@ -342,6 +343,7 @@ namespace NzbDrone.Core.MediaFiles
                 var book = new Azw3File(file);
                 result.Authors = book.Authors;
                 result.BookTitle = book.Title;
+                result.Isbn = Isbn.AsIsbn13(book.Isbn);
                 result.Asin = book.Asin;
                 result.Language = book.Language;
                 result.Disambiguation = book.Description;
@@ -351,6 +353,7 @@ namespace NzbDrone.Core.MediaFiles
 
                 result.BookTitleConfidence = result.BookTitle.IsNotNullOrWhiteSpace() ? 0.9 : 0.0;
                 result.AuthorConfidence = result.Authors?.Any() == true ? 0.9 : 0.0;
+                result.IsbnConfidence = result.Isbn.IsNotNullOrWhiteSpace() ? 0.97 : 0.0;
                 result.AsinConfidence = result.Asin.IsNotNullOrWhiteSpace() ? 0.92 : 0.0;
                 result.PublisherConfidence = result.Publisher.IsNotNullOrWhiteSpace() ? 0.7 : 0.0;
                 result.LanguageConfidence = result.Language.IsNotNullOrWhiteSpace() ? 0.7 : 0.0;
@@ -445,7 +448,8 @@ namespace NzbDrone.Core.MediaFiles
         private void ApplyFilenameFallback(string file, ParsedTrackInfo result, double fieldConfidence)
         {
             var filename = Path.GetFileName(file);
-            var parsed = Parser.Parser.ParseTitle(filename) ?? Parser.Parser.ParseTitle(file);
+            var parsedFilename = Parser.Parser.ParseTitle(filename);
+            var parsed = parsedFilename ?? Parser.Parser.ParseTitle(file);
             if (parsed == null)
             {
                 return;
@@ -472,8 +476,8 @@ namespace NzbDrone.Core.MediaFiles
                 parsedTitle = swappedFilenamePair.Title;
             }
 
-            var parsedIsbn = NormalizeIsbn(parsed.Isbn) ?? TryExtractIsbnFromText(filename) ?? TryExtractIsbnFromText(file);
-            var parsedAsin = NormalizeAsin(parsed.Asin) ?? TryExtractAsinFromText(filename) ?? TryExtractAsinFromText(file);
+            var parsedIsbn = NormalizeIsbn(parsedFilename?.Isbn) ?? TryExtractIsbnFromText(filename);
+            var parsedAsin = TryExtractAsinFromText(filename);
 
             if (parsedAuthors.Any() && ShouldUseFilenameAuthors(result, parsedAuthors, fieldConfidence))
             {
@@ -878,23 +882,21 @@ namespace NzbDrone.Core.MediaFiles
             return null;
         }
 
-        private string TryExtractAsinFromText(string text)
+        private static string TryExtractAsinFromText(string text)
         {
             if (text.IsNullOrWhiteSpace())
             {
                 return null;
             }
 
-            foreach (Match match in AsinPattern.Matches(text))
+            var labelled = LabelledAsinPattern.Match(text);
+            if (labelled.Success)
             {
-                var asin = NormalizeAsin(match.Value);
-                if (asin != null)
-                {
-                    return asin;
-                }
+                return labelled.Groups[1].Value.ToUpperInvariant();
             }
 
-            return null;
+            var amazon = AmazonAsinPattern.Match(text);
+            return amazon.Success ? amazon.Value.ToUpperInvariant() : null;
         }
 
         private void LogFallbackOutcome(string file, ParsedTrackInfo result, string format)

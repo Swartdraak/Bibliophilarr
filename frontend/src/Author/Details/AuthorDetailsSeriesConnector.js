@@ -13,6 +13,8 @@ import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
 import createExecutingCommandsSelector from 'Store/Selectors/createExecutingCommandsSelector';
 import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
 import AuthorDetailsSeries from './AuthorDetailsSeries';
+import SeriesFormatActions from './SeriesFormatActions';
+import useSeriesBookDetails from './useSeriesBookDetails';
 
 export function getSeriesSearchBookIds(books, authorMonitored) {
   if (!authorMonitored) {
@@ -36,16 +38,42 @@ export function compareSeriesBookPositions(left, right, direction) {
   return direction === 'descending' ? -order : order;
 }
 
+export function getSeriesRepresentativeCovers(books, links, artworkBooks = books) {
+  const booksById = new Map(artworkBooks.map((book) => [book.id, book]));
+  const orderedLinks = [...links].sort((left, right) => {
+    const leftPosition = left.position || String(left.seriesPosition || '');
+    const rightPosition = right.position || String(right.seriesPosition || '');
+    const order = Number(!leftPosition) - Number(!rightPosition) ||
+      compareSeriesBookPositions(leftPosition, rightPosition, 'ascending');
+
+    return order || left.bookId - right.bookId;
+  });
+
+  const urls = new Set();
+  return orderedLinks.flatMap((link) => {
+    const book = booksById.get(link.bookId);
+    return (book?.images ?? []).filter((image) => {
+      if (image.coverType !== 'cover' || !image.url || urls.has(image.url)) {
+        return false;
+      }
+      urls.add(image.url);
+      return true;
+    }).map(({ url }) => ({ url, bookTitle: book.title }));
+  }).slice(0, 8);
+}
+
 function createMapStateToProps() {
   return createSelector(
     (state, { seriesId }) => seriesId,
+    (state, { artworkBooks }) => artworkBooks,
     (state) => state.books,
     createAuthorSelector(),
     (state) => state.series,
+    (state) => state.settings.mediaManagement.item?.enableDualFormatTracking,
     createExecutingCommandsSelector(),
     createDimensionsSelector(),
     createUISettingsSelector(),
-    (seriesId, books, author, series, executingCommands, dimensions, uiSettings) => {
+    (seriesId, artworkBooks, books, author, series, dualFormatTracking, executingCommands, dimensions, uiSettings) => {
 
       const currentSeries = _.find(series.items, { id: seriesId });
 
@@ -76,14 +104,17 @@ function createMapStateToProps() {
 
       return {
         id: currentSeries.id,
+        links: currentSeries.links,
+        dualFormatTracking,
+        canonicalId: currentSeries.canonicalId,
         label: currentSeries.title,
+        representativeCovers: getSeriesRepresentativeCovers(booksInSeries, currentSeries.links, artworkBooks),
         items: sortedBooks,
         positionMap,
         columns: series.columns,
         sortKey: series.sortKey,
         sortDirection: series.sortDirection,
         authorMonitored: author.monitored,
-        searchBookIds: getSeriesSearchBookIds(sortedBooks, author.monitored),
         isSearching: executingCommands.some((command) => {
           return command.name === commandNames.BOOK_SEARCH &&
             command.body?.bookIds?.some((id) => bookIds.includes(id));
@@ -102,7 +133,43 @@ const mapDispatchToProps = {
   executeCommand
 };
 
-class AuthorDetailsSeasonConnector extends Component {
+function AuthorDetailsSeriesWithFormats(props) {
+  const {
+    artworkBooks,
+    links,
+    label,
+    authorMonitored,
+    dualFormatTracking
+  } = props;
+  const details = useSeriesBookDetails(links, artworkBooks, true);
+  const seriesBooks = details.ready ? details.books : [];
+
+  return (
+    <AuthorDetailsSeries
+      {...props}
+      seriesBooks={seriesBooks}
+      searchBookIds={getSeriesSearchBookIds(seriesBooks, authorMonitored)}
+      formatActions={
+        <SeriesFormatActions
+          title={label}
+          details={details}
+          authorMonitored={authorMonitored}
+          dualFormatTracking={dualFormatTracking}
+        />
+      }
+    />
+  );
+}
+
+AuthorDetailsSeriesWithFormats.propTypes = {
+  artworkBooks: PropTypes.arrayOf(PropTypes.object),
+  links: PropTypes.arrayOf(PropTypes.object).isRequired,
+  label: PropTypes.string.isRequired,
+  authorMonitored: PropTypes.bool.isRequired,
+  dualFormatTracking: PropTypes.bool
+};
+
+class AuthorDetailsSeriesConnector extends Component {
 
   //
   // Listeners
@@ -134,7 +201,7 @@ class AuthorDetailsSeasonConnector extends Component {
 
   render() {
     return (
-      <AuthorDetailsSeries
+      <AuthorDetailsSeriesWithFormats
         {...this.props}
         onSortPress={this.onSortPress}
         onTableOptionChange={this.onTableOptionChange}
@@ -145,7 +212,7 @@ class AuthorDetailsSeasonConnector extends Component {
   }
 }
 
-AuthorDetailsSeasonConnector.propTypes = {
+AuthorDetailsSeriesConnector.propTypes = {
   authorId: PropTypes.number.isRequired,
   toggleBooksMonitored: PropTypes.func.isRequired,
   setSeriesTableOption: PropTypes.func.isRequired,
@@ -153,4 +220,4 @@ AuthorDetailsSeasonConnector.propTypes = {
   executeCommand: PropTypes.func.isRequired
 };
 
-export default connect(createMapStateToProps, mapDispatchToProps)(AuthorDetailsSeasonConnector);
+export default connect(createMapStateToProps, mapDispatchToProps)(AuthorDetailsSeriesConnector);

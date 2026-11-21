@@ -23,9 +23,9 @@ function createMapStateToProps() {
     createExistingBookSelector(),
     createExistingAuthorForBookSelector(),
     createDimensionsSelector(),
-    (isExistingBook, isExistingAuthor, dimensions) => {
+    (existingBook, isExistingAuthor, dimensions) => {
       return {
-        isExistingBook,
+        existingBook,
         isExistingAuthor,
         isSmallScreen: dimensions.isSmallScreen
       };

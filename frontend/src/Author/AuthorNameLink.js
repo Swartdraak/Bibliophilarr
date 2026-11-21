@@ -1,9 +1,10 @@
 import PropTypes from 'prop-types';
 import React from 'react';
 import Link from 'Components/Link/Link';
+import cataloguePath from 'Utilities/cataloguePath';
 
-function AuthorNameLink({ titleSlug, authorName, ...otherProps }) {
-  const link = `/author/${titleSlug}`;
+function AuthorNameLink({ canonicalId, titleSlug, authorName, ...otherProps }) {
+  const link = cataloguePath('author', { canonicalId, titleSlug });
 
   return (
     <Link to={link} {...otherProps}>
@@ -13,6 +14,7 @@ function AuthorNameLink({ titleSlug, authorName, ...otherProps }) {
 }
 
 AuthorNameLink.propTypes = {
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   authorName: PropTypes.string.isRequired
 };

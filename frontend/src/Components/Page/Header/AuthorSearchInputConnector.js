@@ -4,6 +4,8 @@ import { createSelector } from 'reselect';
 import createAllAuthorSelector from 'Store/Selectors/createAllAuthorsSelector';
 import createDeepEqualSelector from 'Store/Selectors/createDeepEqualSelector';
 import createTagsSelector from 'Store/Selectors/createTagsSelector';
+import cataloguePath from 'Utilities/cataloguePath';
+import getPathWithUrlBase from 'Utilities/getPathWithUrlBase';
 import AuthorSearchInput from './AuthorSearchInput';
 
 function createCleanAuthorSelector() {
@@ -16,6 +18,7 @@ function createCleanAuthorSelector() {
           authorName,
           sortName,
           images,
+          canonicalId,
           titleSlug,
           tags = []
         } = author;
@@ -24,6 +27,7 @@ function createCleanAuthorSelector() {
           type: 'author',
           name: authorName,
           sortName,
+          canonicalId,
           titleSlug,
           images,
           firstCharacter: authorName.charAt(0).toLowerCase(),
@@ -50,6 +54,7 @@ function createCleanBookSelector() {
         const {
           title,
           images,
+          canonicalId,
           titleSlug
         } = book;
 
@@ -57,6 +62,7 @@ function createCleanBookSelector() {
           type: 'book',
           name: title,
           sortName: title,
+          canonicalId,
           titleSlug,
           images,
           firstCharacter: title.charAt(0).toLowerCase(),
@@ -85,12 +91,12 @@ function createMapStateToProps() {
 
 function createMapDispatchToProps(dispatch, props) {
   return {
-    onGoToAuthor(titleSlug) {
-      dispatch(push(`${window.Bibliophilarr.urlBase}/author/${titleSlug}`));
+    onGoToAuthor(author) {
+      dispatch(push(getPathWithUrlBase(cataloguePath('author', author))));
     },
 
-    onGoToBook(titleSlug) {
-      dispatch(push(`${window.Bibliophilarr.urlBase}/book/${titleSlug}`));
+    onGoToBook(book) {
+      dispatch(push(getPathWithUrlBase(cataloguePath('book', book))));
     },
 
     onGoToAddNewAuthor(query) {

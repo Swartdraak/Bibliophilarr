@@ -5,7 +5,7 @@ function createExistingBookSelector() {
     (state, { foreignBookId }) => foreignBookId,
     (state) => state.books.items,
     (foreignBookId, books) => {
-      return books.some((book) => book.foreignBookId === foreignBookId);
+      return books.find((book) => foreignBookId && book.foreignBookId === foreignBookId);
     }
   );
 }
