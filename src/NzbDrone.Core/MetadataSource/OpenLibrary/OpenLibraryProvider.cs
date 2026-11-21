@@ -662,6 +662,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             try
             {
                 var edition = _client.GetEditionByIsbn(isbn);
+                if (edition?.RequestUnavailable == true)
+                {
+                    throw new ServiceProviderException("Open Library did not return a usable ISBN response.");
+                }
+
                 var editionId = OpenLibraryIdNormalizer.NormalizeWorkId(edition?.Key);
                 if (editionId == null || !editionId.EndsWith("M", StringComparison.OrdinalIgnoreCase) ||
                     editionId.Length <= 3 || !editionId[2..^1].All(char.IsAsciiDigit) ||

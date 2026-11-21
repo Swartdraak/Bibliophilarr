@@ -51,8 +51,8 @@ process.
   Its filtered row and bulk searches look for upgrades in that format.
 - Batch author canonicalization previews duplicate candidates. Apply a
   confirmed merge through the reviewed reconciliation command.
-- Provider telemetry distinguishes failed Open Library text searches from
-  successful searches with no matches.
+- Distinguish failed Open Library text and ISBN lookups from successful searches
+  with no matches in provider telemetry.
 - Coordinate overlapping author refreshes so they share the stored series and
   keep its book links.
 - Preserve completed task results in command history after restart.

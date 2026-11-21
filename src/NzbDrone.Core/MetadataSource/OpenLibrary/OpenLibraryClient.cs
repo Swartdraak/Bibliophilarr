@@ -164,7 +164,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             _logger.Debug("OpenLibrary get edition by ISBN: {0}", isbn);
 
             var request = BuildIsbnRequest($"isbn/{isbn}.json");
-            return ExecuteWithRateLimitRetry<OlEditionResource>("openlibrary.isbn", request, GetRetryBudget(OperationClass.Isbn), followIsbnRedirect: true);
+            return ExecuteWithRateLimitRetry<OlEditionResource>(
+                "openlibrary.isbn",
+                request,
+                GetRetryBudget(OperationClass.Isbn),
+                followIsbnRedirect: true,
+                unavailable: () => new OlEditionResource { RequestUnavailable = true });
         }
 
         public OlEditionResource GetEdition(string olid)
@@ -215,7 +220,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return match.Groups["path"].Value[1..];
         }
 
-        private T ExecuteWithRateLimitRetry<T>(string endpointKey, HttpRequest request, int maxRetries, string authorId = null, bool followIsbnRedirect = false)
+        private T ExecuteWithRateLimitRetry<T>(
+            string endpointKey,
+            HttpRequest request,
+            int maxRetries,
+            string authorId = null,
+            bool followIsbnRedirect = false,
+            Func<T> unavailable = null)
             where T : class
         {
             maxRetries = Math.Max(0, maxRetries);
@@ -228,7 +239,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             if (state.OpenUntilUtc > DateTime.UtcNow)
             {
                 _logger.Debug("OpenLibrary endpoint {0} is in open-circuit until {1:o}", endpointKey, state.OpenUntilUtc);
-                return null;
+                return unavailable?.Invoke();
             }
 
             while (true)
@@ -247,6 +258,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     }
 
                     _logger.Warn(ex, "OpenLibrary HTTP error for {0}", request.Url);
+                    if (unavailable != null)
+                    {
+                        return unavailable();
+                    }
+
                     throw new OpenLibraryException("HTTP error communicating with Open Library: {0}", ex, ex.Message);
                 }
 
@@ -276,7 +292,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                             state.OpenUntilUtc = DateTime.UtcNow.AddSeconds(breakerDurationSeconds);
                         }
 
-                        return null;
+                        return unavailable?.Invoke();
                     }
 
                     var retryAfterSeconds = ParseRetryAfter(response);
@@ -307,7 +323,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     }
 
                     _logger.Warn("OpenLibrary returned HTTP {0} for {1}", (int)response.StatusCode, request.Url);
-                    return null;
+                    return unavailable?.Invoke();
                 }
 
                 state.ConsecutiveFailures = 0;
@@ -315,17 +331,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 if (string.IsNullOrWhiteSpace(response.Content))
                 {
-                    return null;
+                    return unavailable?.Invoke();
                 }
 
                 try
                 {
-                    return JsonSerializer.Deserialize<T>(response.Content, JsonOptions);
+                    return JsonSerializer.Deserialize<T>(response.Content, JsonOptions) ?? unavailable?.Invoke();
                 }
                 catch (JsonException ex)
                 {
                     _logger.Warn(ex, "OpenLibrary: failed to deserialize response from {0}", request.Url);
-                    return null;
+                    return unavailable?.Invoke();
                 }
             }
         }

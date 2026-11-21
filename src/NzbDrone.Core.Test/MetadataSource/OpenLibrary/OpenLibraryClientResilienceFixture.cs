@@ -34,14 +34,19 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         [TestCase("Test Book", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
         [TestCase("Test Author", true, HttpStatusCode.OK, 1, 0)]
         [TestCase("Test Author", true, HttpStatusCode.ServiceUnavailable, 0, 1)]
-        [TestCase("isbn:9780140328720", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("isbn:9780140328720", false, HttpStatusCode.OK, 0, 0)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.NotFound, 1, 0)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.TooManyRequests, 0, 1)]
         [TestCase("asin:B000000001", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
-        public void text_search_telemetry_should_distinguish_empty_results_from_http_failures(
+        public void search_telemetry_should_distinguish_no_results_from_http_failures(
             string term, bool searchAuthors, HttpStatusCode status, int expectedSuccesses, int expectedFailures)
         {
             var config = Mocker.GetMock<IConfigService>();
             config.SetupGet(provider => provider.EnableOpenLibraryProvider).Returns(true);
-            var request = new HttpRequest("https://openlibrary.org/search.json");
+            var isIsbn = term.StartsWith("isbn:", StringComparison.Ordinal);
+            var path = isIsbn ? $"/isbn/{term[5..]}.json" : "/search.json";
+            var request = new HttpRequest($"https://openlibrary.org{path}");
             var response = new HttpResponse(request, new HttpHeader(), "{\"docs\":[]}", status);
             Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns(response);
 
@@ -64,15 +69,23 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 orchestrator.SearchForNewBook(term, null);
             }
 
+            if (expectedSuccesses + expectedFailures == 0)
+            {
+                telemetry.GetOperationSnapshots().Should().BeEmpty();
+                Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Never());
+                return;
+            }
+
             var entry = telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
             entry.ProviderName.Should().Be("OpenLibrary");
-            entry.OperationName.Should().Be(searchAuthors ? "search-for-new-author" : "search-for-new-book");
+            var expectedOperation = isIsbn ? "search-by-isbn" : searchAuthors ? "search-for-new-author" : "search-for-new-book";
+            entry.OperationName.Should().Be(expectedOperation);
             entry.Calls.Should().Be(1);
             entry.Successes.Should().Be(expectedSuccesses);
             entry.Failures.Should().Be(expectedFailures);
             entry.NullResults.Should().Be(0);
             entry.TotalResultCount.Should().Be(0);
-            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.Is<HttpRequest>(value => value.Url.Path == path)), Times.Once());
         }
 
         [Test]
