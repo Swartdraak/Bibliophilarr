@@ -10,6 +10,7 @@ on:
       - docker-compose.test.yml
       - .github/workflows/container-smoke.yml
       - .github/workflows/docker-image.yml
+      - scripts/ops/smoke_container.sh
   push:
     branches: [staging]
 
@@ -56,46 +57,4 @@ jobs:
           TEST_ARCH: ${{ matrix.arch }}
         shell: bash
         run: |
-          set -euo pipefail
-          container=bibliophilarr-smoke
-          volume=bibliophilarr-smoke-config
-
-          cleanup() {
-            docker rm -f "$container" >/dev/null 2>&1 || true
-            docker volume rm "$volume" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-
-          launch() {
-            docker run --detach --platform "linux/$TEST_ARCH" --name "$container" \
-              --mount "type=volume,source=$volume,target=/config" bibliophilarr:smoke >/dev/null
-            for _ in {1..45}; do
-              if docker exec "$container" curl -fsS http://127.0.0.1:8787/ping 2>/dev/null |
-                jq -e '.status == "OK"' >/dev/null; then
-                return
-              fi
-              if [[ "$(docker inspect --format '{{.State.Running}}' "$container")" != true ]]; then
-                break
-              fi
-              sleep 2
-            done
-            docker logs --tail 100 "$container"
-            return 1
-          }
-
-          key_fingerprint() {
-            docker exec "$container" grep '<ApiKey>[^<]' /config/config.xml | sha256sum | cut -d ' ' -f 1
-          }
-
-          test "$(docker image inspect --format '{{.Architecture}}' bibliophilarr:smoke)" = "$TEST_ARCH"
-          docker volume create "$volume" >/dev/null
-          launch
-          test "$(docker exec "$container" id -u)" != 0
-          docker exec "$container" test -s /config/bibliophilarr.db
-          docker exec "$container" test ! -e /run/secrets/sixlabors_license
-          before="$(key_fingerprint)"
-          docker stop "$container" >/dev/null
-          docker rm "$container" >/dev/null
-          launch
-          test "$before" = "$(key_fingerprint)"
-          echo "Container startup and persistence passed for linux/$TEST_ARCH"
+          bash scripts/ops/smoke_container.sh bibliophilarr:smoke "$TEST_ARCH"

@@ -1,7 +1,7 @@
 # Project status summary
 
-**Last verified**: 2026-11-19
-**Verification scope**: branch topology, open issue queue, PR checks, release channels, dependency posture
+**Last verified**: 2026-11-21
+**Verification scope**: branch topology, issue and pull request state, and published release channels
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
 ## Current operational state
@@ -17,13 +17,18 @@ The migration program remains open and intentionally tracked through these activ
 
 - #96 Migration Program: .NET 8 -> .NET 10 LTS
 - #97 Workflow and action modernization train
-- #98 FluentMigrator coordinated upgrade train
 - #99 Frontend toolchain modernization train
-- #103 NuGet compatibility review
 - #104 ASP.NET / SignalR runtime alignment
-- #105 Docker SDK/runtime migration validation
-- #106 Tests/RID/platform validation
-- #107 Release/package validation
+
+The NuGet compatibility review (#103), Docker SDK/runtime validation (#105),
+tests/RID/platform validation (#106), and release/package validation (#107) are
+closed.
+
+The coordinated FluentMigrator 8.0.1 upgrade is integrated on `develop` in
+[#514](https://github.com/Swartdraak/Bibliophilarr/pull/514). Independent native
+tests covered SQLite and PostgreSQL startup, upgrade, restart and backup
+restore. Forced migration interruption remains tracked in
+[#328](https://github.com/Swartdraak/Bibliophilarr/issues/328).
 
 ## Governance and documentation tracks
 
@@ -32,9 +37,19 @@ The migration program remains open and intentionally tracked through these activ
 
 ## Branch and promotion posture
 
-- `develop -> staging` is the next promotion. Validate installation, metadata,
-  full-library matching, and the release-entry evidence on the consolidated revision.
-- `staging -> main` follows exact staging checks and upgrade and rollback verification.
+- The release remains on hold pending full-library validation and maintainer
+  approval. [Release readiness](https://github.com/Swartdraak/Bibliophilarr/issues/484)
+  and [catalogue identity](https://github.com/Swartdraak/Bibliophilarr/issues/486)
+  are open.
+- Full-library acceptance uses a newly created native app database. Configure
+  every supported metadata provider, scan both complete read-only target
+  libraries in the same profile, and verify independent ebook and audiobook
+  tracking. Check provider bibliography coverage, rendered artwork, unmapped
+  reasons, and authenticated behavior after restart.
+- The next promotion follows `develop -> staging` through a pull request.
+  Validate installation, metadata, full-library matching, and release evidence
+  on the consolidated revision.
+- `staging -> main` follows staging checks and upgrade and rollback verification.
 
 ## Release and CI posture
 
@@ -56,9 +71,10 @@ The migration program remains open and intentionally tracked through these activ
 
 ## Branch reconciliation
 
-`develop` contains the current `staging` and `main` revisions in its ancestry
-after [#437](https://github.com/Swartdraak/Bibliophilarr/pull/437). Future
-promotions follow the protected pull-request sequence.
+[Promotion #483](https://github.com/Swartdraak/Bibliophilarr/pull/483) recorded
+the previous `develop` snapshot on `staging`. Integration work has since
+continued on `develop`. Follow the protected pull-request sequence for the
+next promotion.
 
 ## Related references
 

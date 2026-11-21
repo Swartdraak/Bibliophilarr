@@ -2,6 +2,7 @@
 
 import argparse
 from contextlib import closing, contextmanager
+from io import BytesIO
 import os
 from pathlib import Path
 import re
@@ -184,7 +185,7 @@ def running_app(binary, app_data, log_path, port, evidence, credentials):
                 raise TimeoutError("application did not stop after SIGTERM")
 
 
-def login(page, username, password, *, rejected):
+def login(page, username, password, *, rejected, return_path="/authors"):
     print(f"Checking {'rejected' if rejected else 'successful'} Forms submission", flush=True)
     page.get_by_placeholder("Username").fill(username)
     page.get_by_placeholder("Password").fill(password)
@@ -200,8 +201,8 @@ def login(page, username, password, *, rejected):
         assert "loginFailed=true" in location and "BibliophilarrAuth=" not in cookie
         page.wait_for_url(re.compile(r"loginFailed=true"))
     else:
-        assert urlsplit(location).path == "/authors" and "BibliophilarrAuth=" in cookie
-        page.wait_for_url(re.compile(r"/authors$"))
+        assert urlsplit(location).path == return_path and "BibliophilarrAuth=" in cookie
+        page.wait_for_url(re.compile(re.escape(return_path) + r"$"))
 
     assert any(item["name"] == "BibliophilarrAuth" for item in page.context.cookies()) != rejected
 
@@ -306,6 +307,153 @@ def check_routes(page, base, api, evidence):
         page.keyboard.press("Escape")
         expect(toggle).to_have_attribute("aria-expanded", "false")
         expect(toggle).to_be_focused()
+
+
+def check_import_list_exclusions(page, base, api, app_data):
+    route = "/api/v1/importlistexclusion"
+    source = {"foreignId": "a4fd3e6d-235c-43c1-af03-000000000001", "authorName": "Browser exclusion"}
+    other = {"foreignId": "a4fd3e6d-235c-43c1-af03-000000000002", "authorName": "Second exclusion"}
+    original = check_status(api.post(route, data=source), 201, "Create fixture exclusion").json()
+    second = check_status(api.post(route, data=other), 201, "Create second exclusion").json()
+    check_status(api.post(route, data=source), 400, "Reject duplicate exclusion creation")
+    check_status(api.put(f"{route}/{original['id']}", data={**source, "foreignId": other["foreignId"]}),
+                 400, "Reject exclusion edit to another record's ID")
+    renamed = {**source, "authorName": "Renamed browser exclusion"}
+    check_status(api.put(f"{route}/{original['id']}", data=renamed), 202, "Rename exclusion with its original ID")
+
+    # Older profiles can contain provider IDs created by author or work deletion.
+    legacy = {"foreignId": "hardcover:author:90123", "authorName": "Existing provider exclusion"}
+    with closing(sqlite3.connect(app_data / "bibliophilarr.db")) as connection, connection:
+        cursor = connection.execute("INSERT INTO ImportListExclusions (ForeignId, Name) VALUES (?, ?)",
+                                    (legacy["foreignId"], legacy["authorName"]))
+        legacy_id = cursor.lastrowid
+    legacy["authorName"] = "Renamed provider exclusion"
+    check_status(api.put(f"{route}/{legacy_id}", data=legacy), 202, "Keep the stored provider ID when renaming")
+
+    page.set_viewport_size({"width": 1366, "height": 900})
+    page.goto(base + "/settings")
+    main = page.get_by_role("main")
+    main.get_by_role("link", name="Lists", exact=True).click()
+    expect(page).to_have_url(base + "/settings/importlists")
+    main.get_by_role("button", name="Add Import List Exclusion", exact=True).press("Enter")
+    dialog = page.get_by_role("dialog")
+    expect(dialog.get_by_text("Add Import List Exclusion", exact=True)).to_be_visible()
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    main.get_by_role("button", name="Edit import list exclusion for Renamed browser exclusion", exact=True).press("Enter")
+    expect(dialog.get_by_label("Foreign ID", exact=True)).to_have_value(source["foreignId"])
+    final_name = "Edited in the browser"
+    dialog.get_by_label("Entity Name", exact=True).fill(final_name)
+    with page.expect_response(
+        lambda response: response.request.method == "PUT"
+        and urlsplit(response.url).path.lower() in {route, f"{route}/{original['id']}"}
+    ) as saved:
+        dialog.get_by_role("button", name="Save", exact=True).click()
+    check_status(saved.value, 202, "Save exclusion edited in the browser")
+    expect(dialog).to_have_count(0)
+    page.reload()
+    expect(main.get_by_text(final_name, exact=True)).to_be_visible()
+    expect(main.get_by_text(other["authorName"], exact=True)).to_be_visible()
+    return {original["id"]: {**source, "authorName": final_name}, second["id"]: other, legacy_id: legacy}
+
+
+def check_metadata_settings(page, base, api):
+    metadata_path = "/api/v1/config/metadataprovider"
+    config = check_status(api.get(metadata_path), 200, "Read metadata settings").json()
+    config.update(enableInventaireProvider=False, enableInventaireFallback=True)
+    check_status(api.put(metadata_path + "/1", data=config), 202, "Seed divergent Inventaire preferences")
+
+    page.set_viewport_size({"width": 1366, "height": 900})
+    check_status(page.goto(base + "/settings"), 200, "Authenticated Settings")
+    main = page.get_by_role("main")
+    metadata_link = main.get_by_role("link", name="Metadata", exact=True)
+    expect(metadata_link).to_have_attribute("href", "/settings/metadata")
+    metadata_link.click()
+    expect(page).to_have_url(base + "/settings/metadata")
+
+    inventaire = main.get_by_role("checkbox", name=re.compile(r"^Enable Inventaire(?:\s|$)"))
+    expect(inventaire).to_have_count(1)
+    expect(inventaire).to_have_attribute("name", "enableInventaireFallback")
+    expect(inventaire).to_be_checked()
+    expect(main.get_by_role("checkbox", name=re.compile(r"^Enable Fallback Searches(?:\s|$)"))).to_have_count(0)
+    expect(main.locator('input[name="enableInventaireProvider"]')).to_have_count(0)
+    inventaire.press("Space")
+    expect(inventaire).not_to_be_checked()
+
+    timeout_input = main.get_by_role("spinbutton", name="Provider Timeout (seconds)")
+    expect(timeout_input).to_be_visible()
+    timeout = 41 if timeout_input.input_value() != "41" else 43
+    timeout_input.fill(str(timeout))
+    with page.expect_response(
+        lambda response: response.request.method == "PUT"
+        and urlsplit(response.url).path.lower() in {
+            "/api/v1/config/metadataprovider", "/api/v1/config/metadataprovider/1"
+        }
+    ) as saved:
+        main.get_by_role("button", name="Save Changes", exact=True).click()
+    check_status(saved.value, 202, "Metadata settings save from the browser")
+    submitted = saved.value.request.post_data_json
+    assert submitted["enableInventaireFallback"] is False, "browser did not submit the changed fallback preference"
+    assert submitted["enableInventaireProvider"] is False, "browser changed the legacy preference"
+    expect(main.get_by_role("button", name="No Changes", exact=True)).to_be_disabled()
+
+    check_status(page.reload(), 200, "Reload authenticated Metadata settings")
+    expect(timeout_input).to_have_value(str(timeout))
+    expect(inventaire).not_to_be_checked()
+    config = check_status(api.get(metadata_path), 200, "Read back browser metadata settings").json()
+    assert config["metadataProviderTimeoutSeconds"] == timeout, "browser metadata change did not persist"
+    assert config["enableInventaireFallback"] is False, "browser Inventaire change did not persist"
+    assert config["enableInventaireProvider"] is False, "legacy Inventaire preference changed"
+
+    config["enableInventaireProvider"] = True
+    check_status(api.put(metadata_path + "/1", data=config), 202, "Keep only the legacy Inventaire preference enabled")
+    check_status(page.reload(), 200, "Reload after changing the legacy preference")
+    expect(inventaire).not_to_be_checked()
+    print("Metadata settings persisted after browser reload", flush=True)
+    return timeout
+
+
+def check_restore_upload_error(page, api):
+    status = "/api/v1/system/status"
+    initial_start = check_status(api.get(status), 200, "Start time before rejected restore").json()["startTime"]
+    nav = page.get_by_role("navigation", name="Primary navigation")
+    nav.locator('a[href="/system/status"]').filter(has_text="System").click()
+    nav.get_by_role("link", name="Backup", exact=True).click()
+    expect(page).to_have_url(re.compile(r"/system/backup$"))
+    opener = page.get_by_role("button", name="Restore Backup", exact=True).filter(has_text="Restore Backup")
+    opener.click()
+
+    dialog = page.get_by_role("dialog", name="Restore Backup")
+    chooser = dialog.get_by_label("Backup file", exact=True)
+    restore = dialog.get_by_role("button", name="Restore", exact=True)
+    alert = dialog.get_by_role("alert")
+    expect(chooser).to_be_visible()
+    expect(restore).to_be_disabled()
+
+    invalid_zip = BytesIO()
+    with ZipFile(invalid_zip, "w") as archive:
+        archive.writestr("fixture.txt", "No restorable app files in this test archive.")
+
+    for name in ("invalid-backup.zip", "different-invalid-backup.zip"):
+        chooser.set_input_files({"name": name, "mimeType": "application/zip", "buffer": invalid_zip.getvalue()})
+        expect(alert).to_have_count(0)
+        with page.expect_response(
+            lambda response: response.request.method == "POST"
+            and urlsplit(response.url).path == "/api/v1/system/backup/restore/upload"
+        ) as failed:
+            restore.click()
+        error = check_status(failed.value, 404, "Reject backup archive without restorable files").json()["message"]
+        assert error.strip(), "backup rejection did not explain the failure"
+        expect(alert).to_have_text(error)
+
+    assert check_status(api.get(status), 200, "Start time after rejected restore").json()["startTime"] == initial_start
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    expect(dialog).to_have_count(0)
+    opener.click()
+    expect(chooser).to_have_value("")
+    expect(restore).to_be_disabled()
+    expect(alert).to_have_count(0)
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    print("Restore upload: PASS (named input, readable rejection and clean retry)", flush=True)
 
 
 def run(binary, evidence, *, live_provider=False):
@@ -420,6 +568,9 @@ def run(binary, evidence, *, live_provider=False):
             initializer = check_status(page.request.get(base + "/initialize.json"), 200, "Forms initializer")
             assert initializer.json()["apiKey"] == key and "no-store" in initializer.headers["cache-control"]
             check_routes(page, base, api, evidence)
+            timeout = check_metadata_settings(page, base, api)
+            exclusions = check_import_list_exclusions(page, base, api, data)
+            check_restore_upload_error(page, api)
             catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
             backup_witness = exercise_manual_backup(api, data)
             assert app.poll() is None, "native app exited before the planned restart"
@@ -444,7 +595,9 @@ def run(binary, evidence, *, live_provider=False):
             page.set_viewport_size({"width": 1366, "height": 900})
             check_status(page.goto(base + "/authors"), 200, "Library after restart")
             expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
-            verify_catalogue_after_restart(page, api, base, catalogue)
+            verify_catalogue_after_restart(page, api, base, data, catalogue)
+            persisted = check_status(api.get("/api/v1/importlistexclusion"), 200, "Exclusions after restart").json()
+            assert {row["id"]: {key: row[key] for key in ("foreignId", "authorName")} for row in persisted} == exclusions
             assert not (data / "bibliophilarr.restore").exists(), "manual backup restore was not applied at startup"
             check_status(api.get(f"/api/v1/tag/{backup_witness}"), 404, "Post-backup tag absent after restore")
             assert not errors, f"{len(errors)} uncaught browser page errors"
@@ -452,9 +605,13 @@ def run(binary, evidence, *, live_provider=False):
             page.get_by_role("button", name="Logout", exact=True).click()
             expect(page.get_by_placeholder("Username")).to_be_visible()
             check_status(page.request.get(base + "/initialize.json"), 401, "Logged-out initializer")
-            page.goto(base + "/authors")
+            check_status(page.request.get(base + "/settings/metadata", max_redirects=0), 401,
+                         "Logged-out Metadata settings")
+            page.goto(base + "/settings/metadata")
             expect(page).to_have_url(re.compile(r"/login\?.*returnUrl="))
-            login(page, username, password, rejected=False)
+            login(page, username, password, rejected=False, return_path="/settings/metadata")
+            expect(page.get_by_role("spinbutton", name="Provider Timeout (seconds)")).to_have_value(str(timeout))
+            print("Signed-in browser returned to the saved Metadata settings", flush=True)
             check_status(page.request.get(base + "/", max_redirects=0), 200, "New Forms session after restart opens the root")
             main = page.get_by_role("main")
             for route, label, locator in (
