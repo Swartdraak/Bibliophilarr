@@ -14,6 +14,11 @@ process.
 
 ### Fixed
 
+- Name the Calendar's period controls and compact view menu for assistive
+  technology.
+- Reject missing profile IDs before saving a new author through Add Book.
+- Label the backup upload field and show restore errors in the dialog. Choosing
+  another file clears the previous error.
 - Provider telemetry distinguishes failed Open Library text searches from
   successful searches with no matches.
 - Coordinate overlapping author refreshes so they share the stored series and
@@ -145,6 +150,8 @@ process.
 
 ### Security
 
+- Database migration startup logs identify the database type and role without
+  exposing connection details.
 - New and changed account passwords use salted PBKDF2. Existing accounts
   upgrade when they next sign in successfully with a password. Rollback to an
   earlier version requires its matching app-data backup after a password upgrade.

@@ -2,6 +2,7 @@
 
 import argparse
 from contextlib import closing, contextmanager
+from io import BytesIO
 import os
 from pathlib import Path
 import re
@@ -13,6 +14,7 @@ from tempfile import TemporaryDirectory
 import time
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
+from zipfile import ZipFile
 
 from playwright.sync_api import Error as PlaywrightError, expect, sync_playwright
 
@@ -347,6 +349,50 @@ def check_metadata_settings(page, base, api):
     return timeout
 
 
+def check_restore_upload_error(page, api):
+    status = "/api/v1/system/status"
+    initial_start = check_status(api.get(status), 200, "Start time before rejected restore").json()["startTime"]
+    nav = page.get_by_role("navigation", name="Primary navigation")
+    nav.locator('a[href="/system/status"]').filter(has_text="System").click()
+    nav.get_by_role("link", name="Backup", exact=True).click()
+    expect(page).to_have_url(re.compile(r"/system/backup$"))
+    opener = page.get_by_role("button", name="Restore Backup", exact=True).filter(has_text="Restore Backup")
+    opener.click()
+
+    dialog = page.get_by_role("dialog", name="Restore Backup")
+    chooser = dialog.get_by_label("Backup file", exact=True)
+    restore = dialog.get_by_role("button", name="Restore", exact=True)
+    alert = dialog.get_by_role("alert")
+    expect(chooser).to_be_visible()
+    expect(restore).to_be_disabled()
+
+    invalid_zip = BytesIO()
+    with ZipFile(invalid_zip, "w") as archive:
+        archive.writestr("fixture.txt", "No restorable app files in this test archive.")
+
+    for name in ("invalid-backup.zip", "different-invalid-backup.zip"):
+        chooser.set_input_files({"name": name, "mimeType": "application/zip", "buffer": invalid_zip.getvalue()})
+        expect(alert).to_have_count(0)
+        with page.expect_response(
+            lambda response: response.request.method == "POST"
+            and urlsplit(response.url).path == "/api/v1/system/backup/restore/upload"
+        ) as failed:
+            restore.click()
+        error = check_status(failed.value, 404, "Reject backup archive without restorable files").json()["message"]
+        assert error.strip(), "backup rejection did not explain the failure"
+        expect(alert).to_have_text(error)
+
+    assert check_status(api.get(status), 200, "Start time after rejected restore").json()["startTime"] == initial_start
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    expect(dialog).to_have_count(0)
+    opener.click()
+    expect(chooser).to_have_value("")
+    expect(restore).to_be_disabled()
+    expect(alert).to_have_count(0)
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    print("Restore upload: PASS (named input, readable rejection and clean retry)", flush=True)
+
+
 def run(binary, evidence, *, live_provider=False):
     username = "browser-fixture"
     password = "Ci!" + secrets.token_urlsafe(16)
@@ -461,6 +507,7 @@ def run(binary, evidence, *, live_provider=False):
             check_routes(page, base, api, evidence)
             timeout = check_metadata_settings(page, base, api)
             exclusions = check_import_list_exclusions(page, base, api, data)
+            check_restore_upload_error(page, api)
             catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
             assert app.poll() is None, "native app exited before the planned restart"
 
