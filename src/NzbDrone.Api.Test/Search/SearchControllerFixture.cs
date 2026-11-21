@@ -210,9 +210,7 @@ namespace NzbDrone.Api.Test.Search
         [Test]
         public void should_not_throw_when_book_author_metadata_is_null_and_editions_have_images()
         {
-            // Combined shape: Author.Metadata unset AND editions carry images that
-            // must still be mapped into the book resource (preserves the
-            // selectedEdition.Images override behavior from the original code).
+            // An unresolved author must not prevent valid edition artwork from being mapped.
             var author = new Author
             {
                 Metadata = new LazyLoaded<AuthorMetadata>() // unset
@@ -224,7 +222,7 @@ namespace NzbDrone.Api.Test.Search
                 Overview = "A quest.",
                 Images = new List<MediaCover>
                 {
-                    new MediaCover { CoverType = MediaCoverTypes.Cover, RemoteUrl = "https://covers.example/cover.jpg" }
+                    new MediaCover { CoverType = MediaCoverTypes.Cover, Url = "https://covers.example/cover.jpg" }
                 },
                 Monitored = false
             };
@@ -245,6 +243,46 @@ namespace NzbDrone.Api.Test.Search
             resource.Book.Author.Should().NotBeNull();
             resource.Book.Images.Should().NotBeNull();
             resource.Book.Images.Should().Contain(c => c.CoverType == MediaCoverTypes.Cover);
+        }
+
+        [Test]
+        public void should_keep_same_work_fallback_metadata_in_search_without_modifying_provider_covers()
+        {
+            const string preferredUrl = "https://covers.example/preferred.jpg";
+            const string fallbackUrl = "https://covers.example/fallback.jpg";
+            var preferredCover = new MediaCover(MediaCoverTypes.Cover, preferredUrl);
+            var fallbackCover = new MediaCover(MediaCoverTypes.Cover, fallbackUrl);
+            var book = new Book
+            {
+                Title = "Fixture Work",
+                ForeignBookId = "OL250W",
+                Editions = new List<Edition>
+                {
+                    new Edition { Title = "Fixture Work", Monitored = true, Images = new List<MediaCover> { preferredCover } },
+                    new Edition { Title = "Fixture Work", Overview = "A verified edition synopsis.", Images = new List<MediaCover> { fallbackCover } }
+                }
+            };
+            var searchProxy = new Mock<IMetadataProviderOrchestrator>();
+            searchProxy.Setup(proxy => proxy.SearchForNewEntity("fixture")).Returns(new List<object> { book });
+            var coverMapper = new Mock<IMapCoversToLocal>();
+            coverMapper.Setup(mapper => mapper.ConvertToLocalUrls(0, MediaCoverEntity.Book, It.IsAny<IEnumerable<MediaCover>>()))
+                .Callback<int, MediaCoverEntity, IEnumerable<MediaCover>>((_, _, images) =>
+                {
+                    foreach (var image in images)
+                    {
+                        image.RemoteUrl = image.Url;
+                        image.Url = "/artwork/" + System.IO.Path.GetFileName(image.Url);
+                    }
+                });
+            var controller = new SearchController(searchProxy.Object, Mock.Of<IBuildFileNames>(), coverMapper.Object, _telemetry);
+
+            var result = ((List<SearchResource>)controller.Search("fixture")).Should().ContainSingle().Which.Book;
+
+            result.Overview.Should().Be("A verified edition synopsis.");
+            result.Images.Select(image => image.RemoteUrl).Should().Equal(preferredUrl, fallbackUrl);
+            result.RemoteCover.Should().Be(preferredUrl);
+            preferredCover.Url.Should().Be(preferredUrl);
+            fallbackCover.Url.Should().Be(fallbackUrl);
         }
 
         [Test]

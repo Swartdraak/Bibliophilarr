@@ -81,17 +81,6 @@ namespace Bibliophilarr.Api.V1.Search
                 else if (result is NzbDrone.Core.Books.Book book)
                 {
                     resource.Book = book.ToResource();
-                    var editions = book.Editions?.Value ?? new List<NzbDrone.Core.Books.Edition>();
-                    var selectedEdition = editions.FirstOrDefault(x => x.Monitored) ?? editions.FirstOrDefault();
-
-                    resource.Book.Overview = selectedEdition?.Overview;
-
-                    // Search-result editions have Monitored=false, so ToResource() produces
-                    // empty Images.  Override with the selected edition's images.
-                    if (selectedEdition?.Images?.Any() == true)
-                    {
-                        resource.Book.Images = selectedEdition.Images;
-                    }
 
                     // Issue #248: book.Author is a LazyLoaded<Author> whose Value can be
                     // null (provider did not resolve the author).  The ?.Value?.ToResource()
@@ -99,7 +88,6 @@ namespace Bibliophilarr.Api.V1.Search
                     // the folder mapping below does not dereference a null LazyLoaded.
                     var bookAuthor = book.Author?.Value;
                     resource.Book.Author = bookAuthor?.ToResource();
-                    resource.Book.Editions = editions.ToResource();
                     resource.ForeignId = book.ForeignBookId;
 
                     _coverMapper.ConvertToLocalUrls(resource.Book.Id, MediaCoverEntity.Book, resource.Book.Images);

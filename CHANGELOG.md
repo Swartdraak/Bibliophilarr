@@ -48,6 +48,8 @@ process.
   when the configured providers cannot verify the bibliography.
 - Recover author and book artwork when the cached file is empty or disappears
   while the app checks it.
+- Keep verified same-work artwork and synopsis in Add New search results when
+  the preferred edition has incomplete metadata.
 - Preserve the Hardcover author, work, or edition that supplied an artwork
   reference, including when an edition displays the work's cover.
 - Explain when a different ebook has an unverified ISBN for an occupied
