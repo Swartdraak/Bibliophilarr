@@ -96,6 +96,22 @@ namespace NzbDrone.Host.Test
                         {
                             foreignAuthorId = ForeignAuthorId,
                             rootFolderPath = library,
+                            monitored = false,
+                            monitorNewItems = "none"
+                        };
+
+                        var missingProfiles = await Post(client, "book", request, HttpStatusCode.BadRequest, timeout.Token);
+                        missingProfiles.EnumerateArray()
+                            .Select(error => error.GetProperty("propertyName").GetString())
+                            .Should().BeEquivalentTo(new[] { "Author.QualityProfileId", "Author.MetadataProfileId" });
+                        (await Get(client, "author", timeout.Token)).GetArrayLength().Should().Be(0);
+                        (await Get(client, "book", timeout.Token)).GetArrayLength().Should().Be(0);
+                        exclusions.FindByForeignId(ForeignBookId).Id.Should().Be(exclusion.Id);
+
+                        request["author"] = new
+                        {
+                            foreignAuthorId = ForeignAuthorId,
+                            rootFolderPath = library,
                             qualityProfileId = ebook,
                             metadataProfileId = metadata,
                             monitored = false,
