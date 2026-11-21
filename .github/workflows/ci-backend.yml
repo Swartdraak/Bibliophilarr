@@ -201,7 +201,7 @@ jobs:
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~GoogleBooksFallbackSearchProviderFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture|FullyQualifiedName~RefreshAuthorProviderOutageFixture'
+          'FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~GoogleBooksFallbackSearchProviderFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture|FullyQualifiedName~RefreshAuthorProviderOutageFixture|FullyQualifiedName~BookSearchFallbackExecutionServiceFixture'
 
       - name: Run host composition fixtures
         run: >-

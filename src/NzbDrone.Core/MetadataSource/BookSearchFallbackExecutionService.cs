@@ -98,10 +98,8 @@ namespace NzbDrone.Core.MetadataSource
                 return new List<Book>();
             }
 
-            if (TryGetActiveCooldown(provider.ProviderName, out var remaining))
+            if (SkipIfCoolingDown(provider))
             {
-                UpdateRateLimitHealth(provider, 0, remaining);
-                _logger.Debug("Skipping fallback provider {0} for {1:F0}s because cooldown is active", provider.ProviderName, remaining.TotalSeconds);
                 return new List<Book>();
             }
 
@@ -117,6 +115,11 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             _rateLimitService.WaitAndPulse("metadata-fallback", provider.ProviderName, GetRateLimitInterval(provider, health));
+            if (SkipIfCoolingDown(provider))
+            {
+                return new List<Book>();
+            }
+
             var rateLimitSnapshot = TrackRateLimitWindow(provider);
             UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
 
@@ -357,6 +360,18 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             return interval < DefaultInterval ? DefaultInterval : interval;
+        }
+
+        private bool SkipIfCoolingDown(IBookSearchFallbackProvider provider)
+        {
+            if (!TryGetActiveCooldown(provider.ProviderName, out var remaining))
+            {
+                return false;
+            }
+
+            UpdateRateLimitHealth(provider, 0, remaining);
+            _logger.Debug("Skipping fallback provider {0} for {1:F0}s because cooldown is active", provider.ProviderName, remaining.TotalSeconds);
+            return true;
         }
 
         private bool TryGetActiveCooldown(string providerName, out TimeSpan remaining)
