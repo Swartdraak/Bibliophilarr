@@ -14,11 +14,12 @@ jest.mock('Store/Actions/providerOptionActions', () => ({
   clearOptions: () => ({ type: 'clearProviderOptions' }),
   fetchOptions: () => ({ type: 'fetchProviderOptions' })
 }));
-jest.mock('Utilities/String/translate', () => (key) => ({
+jest.mock('Utilities/String/translate', () => (key, { name } = {}) => ({
   AddDownloadClient: 'Add Download Client',
   AddIndexer: 'Add Indexer',
   AddList: 'Add List',
-  AddRemotePathMapping: 'Add Remote Path Mapping'
+  AddRemotePathMapping: 'Add Remote Path Mapping',
+  EditNamedItem: `Edit ${name}`
 })[key] ?? key);
 
 jest.mock('Settings/Indexers/Indexers/AddIndexerModal', () => ({ isOpen }) => (
@@ -36,7 +37,9 @@ jest.mock('Settings/ImportLists/ImportLists/AddImportListModal', () => ({ isOpen
 jest.mock('Settings/DownloadClients/RemotePathMappings/EditRemotePathMappingModalConnector', () => ({ isOpen }) => (
   isOpen ? <div role="dialog" aria-label="Remote path mapping editor" /> : null
 ));
-jest.mock('Settings/Indexers/Indexers/EditIndexerModalConnector', () => () => null);
+jest.mock('Settings/Indexers/Indexers/EditIndexerModalConnector', () => ({ id, isOpen }) => (
+  isOpen ? <div role="dialog" aria-label={`Indexer editor ${id}`} /> : null
+));
 jest.mock('Settings/DownloadClients/DownloadClients/EditDownloadClientModalConnector', () => () => null);
 jest.mock('Settings/ImportLists/ImportLists/EditImportListModalConnector', () => () => null);
 
@@ -68,6 +71,37 @@ test.each([
 
   fireEvent.click(screen.getByRole('button', { name: addName }));
   expect(screen.getByRole('dialog', { name: dialogName })).toBeVisible();
+});
+
+test('names each saved indexer edit button and opens the chosen indexer', () => {
+  const defaults = {
+    priority: 25,
+    enableRss: true,
+    enableAutomaticSearch: true,
+    enableInteractiveSearch: true,
+    supportsRss: true,
+    supportsSearch: true,
+    tags: []
+  };
+
+  render(
+    <Indexers
+      isFetching={false}
+      isPopulated={true}
+      items={[
+        { ...defaults, id: 1, name: 'Daily Books' },
+        { ...defaults, id: 2, name: 'Audiobook Feed' }
+      ]}
+      tagList={[]}
+      dispatchCloneIndexer={jest.fn()}
+      onConfirmDeleteIndexer={jest.fn()}
+    />
+  );
+
+  expect(screen.getByRole('button', { name: 'Edit Daily Books' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Audiobook Feed' }));
+  expect(screen.getByRole('dialog', { name: 'Indexer editor 2' })).toBeVisible();
+  expect(screen.queryByRole('dialog', { name: 'Indexer editor 1' })).not.toBeInTheDocument();
 });
 
 function field(name, label, type, value) {
