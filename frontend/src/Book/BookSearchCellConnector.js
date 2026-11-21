@@ -5,25 +5,35 @@ import { executeCommand } from 'Store/Actions/commandActions';
 import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
 import createCommandsSelector from 'Store/Selectors/createCommandsSelector';
 import { isCommandExecuting } from 'Utilities/Command';
+import bookEntities from './bookEntities';
 import BookSearchCell from './BookSearchCell';
+
+function getCutoffFormat({ bookEntity, formatType }) {
+  return bookEntity === bookEntities.WANTED_CUTOFF_UNMET ? formatType : undefined;
+}
 
 function createMapStateToProps() {
   return createSelector(
     (state, { bookId }) => bookId,
+    (state, props) => getCutoffFormat(props),
     createAuthorSelector(),
     createCommandsSelector(),
-    (bookId, author, commands) => {
+    (bookId, cutoffFormat, author, commands) => {
       const isSearching = commands.some((command) => {
-        const bookSearch = command.name === commandNames.BOOK_SEARCH;
-
-        if (!bookSearch) {
+        if (!isCommandExecuting(command)) {
           return false;
         }
 
-        return (
-          isCommandExecuting(command) &&
-          command.body.bookIds.indexOf(bookId) > -1
-        );
+        const { bookIds, formatType } = command.body || {};
+
+        if (command.name === commandNames.BOOK_SEARCH) {
+          return bookIds?.includes(bookId);
+        }
+
+        return cutoffFormat &&
+          command.name === commandNames.CUTOFF_UNMET_BOOK_SEARCH &&
+          formatType === cutoffFormat &&
+          (!bookIds || bookIds.includes(bookId));
       });
 
       return {
@@ -36,10 +46,13 @@ function createMapStateToProps() {
 
 function createMapDispatchToProps(dispatch, props) {
   return {
-    onSearchPress(name, path) {
+    onSearchPress() {
+      const cutoffFormat = getCutoffFormat(props);
+
       dispatch(executeCommand({
-        name: commandNames.BOOK_SEARCH,
-        bookIds: [props.bookId]
+        name: cutoffFormat ? commandNames.CUTOFF_UNMET_BOOK_SEARCH : commandNames.BOOK_SEARCH,
+        bookIds: [props.bookId],
+        ...(cutoffFormat && { formatType: cutoffFormat })
       }));
     }
   };

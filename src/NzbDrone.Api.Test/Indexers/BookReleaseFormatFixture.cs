@@ -28,7 +28,9 @@ namespace NzbDrone.Api.Test.Indexers
             search.Setup(s => s.BookSearch(bookId, true, true, true)).ReturnsAsync(new List<DownloadDecision>
             {
                 CreateDecision("ebook", Quality.EPUB),
-                CreateDecision("audiobook", Quality.M4B)
+                CreateDecision("audiobook", Quality.M4B, FormatType.Audiobook),
+                CreateDecision("conflicting", Quality.EPUB, FormatType.Audiobook),
+                CreateDecision("unknown", Quality.Unknown, FormatType.Ebook)
             });
             var prioritize = new Mock<IPrioritizeDownloadDecision>();
             prioritize.Setup(s => s.PrioritizeDecisions(It.IsAny<List<DownloadDecision>>()))
@@ -50,17 +52,18 @@ namespace NzbDrone.Api.Test.Indexers
             var ebooks = await controller.GetReleases(bookId, null, FormatType.Ebook);
             var audiobooks = await controller.GetReleases(bookId, null, FormatType.Audiobook);
 
-            all.Should().HaveCount(2);
+            all.Should().HaveCount(4);
             ebooks.Should().ContainSingle().Which.Title.Should().Be("ebook");
             audiobooks.Should().ContainSingle().Which.Title.Should().Be("audiobook");
         }
 
-        private static DownloadDecision CreateDecision(string title, Quality quality)
+        private static DownloadDecision CreateDecision(string title, Quality quality, FormatType? resolvedFormat = null)
         {
             return new DownloadDecision(new RemoteBook
             {
                 Release = new ReleaseInfo { Title = title, Guid = title },
-                ParsedBookInfo = new ParsedBookInfo { Quality = new QualityModel(quality) }
+                ParsedBookInfo = new ParsedBookInfo { Quality = new QualityModel(quality) },
+                ResolvedFormatType = resolvedFormat
             });
         }
     }

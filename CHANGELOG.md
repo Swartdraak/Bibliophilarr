@@ -11,9 +11,15 @@ process.
 
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
+- A book-search command can target a single monitored format that is still
+  missing. Scoped searches skip releases with conflicting format information.
 
 ### Fixed
 
+- Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
+  audiobook format. Skip upgrades when that format already meets its cutoff.
+- Recheck provider cooldowns before dispatching fallback requests that waited
+  for the rate limiter.
 - Include automatic import fallback searches in provider operation telemetry.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
