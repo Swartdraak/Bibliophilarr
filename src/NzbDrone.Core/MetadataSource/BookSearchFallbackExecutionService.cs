@@ -140,7 +140,9 @@ namespace NzbDrone.Core.MetadataSource
                 resultCount = books?.Count ?? 0;
                 watch.Stop();
                 _providerTelemetryService.RecordSuccess(provider.ProviderName, FallbackSearchOperation, watch.Elapsed.TotalMilliseconds, resultCount);
-                ClearCooldown(provider.ProviderName);
+
+                // Another request may have set a cooldown since this one started.
+                // Keep its deadline until it expires.
                 UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
                 return books ?? new List<Book>();
             }
@@ -396,11 +398,6 @@ namespace NzbDrone.Core.MetadataSource
 
             var until = DateTime.UtcNow.Add(duration);
             _cooldownStore.AddOrUpdate(providerName, until, (_, existing) => existing > until ? existing : until);
-        }
-
-        private void ClearCooldown(string providerName)
-        {
-            _cooldownStore.TryRemove(providerName, out _);
         }
 
         private static TimeSpan Clamp(TimeSpan value, TimeSpan min, TimeSpan max)

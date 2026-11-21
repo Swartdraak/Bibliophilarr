@@ -35,7 +35,8 @@ For services used only in automatic import fallback, check basic health and
 the `fallback-search` operation. Operation counts distinguish matches,
 successful empty lists, null responses and failed requests. Disabled
 providers and requests skipped during cooldown do not add a call.
-The fallback also rechecks cooldown immediately after each rate-limit wait.
+The fallback rechecks cooldown immediately after each rate-limit wait.
+A successful request already in flight leaves an active cooldown in effect.
 
 Important counters:
 
