@@ -26,10 +26,11 @@ import CutoffUnmetRowConnector from './CutoffUnmetRowConnector';
 function getMonitoredValue(props) {
   const {
     filters,
-    selectedFilterKey
+    selectedFilterKey,
+    formatType
   } = props;
 
-  return getFilterValue(filters, selectedFilterKey, 'monitored', true);
+  return getFilterValue(filters, selectedFilterKey, 'monitored', !!formatType);
 }
 
 class CutoffUnmet extends Component {

@@ -30,6 +30,11 @@ process.
 
 ### Fixed
 
+- Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
+  audiobook format. Skip upgrades when that format already meets its cutoff.
+- Include automatic import fallback searches in provider operation telemetry.
+- Make the Inventaire setting control its actual fallback searches during
+  automatic library import.
 - Resolve once-encoded legacy Hardcover series bookmarks to their stable
   Bibliophilarr URLs.
 - Show whether an unmapped file is waiting for the author's bibliography or
@@ -62,8 +67,6 @@ process.
 - Wanted searches with an ebook or audiobook filter target only that format.
   A queued copy of the other format no longer blocks a wanted release when
   independent format tracking is enabled.
-- Cutoff Unmet uses the selected format's files, monitoring, and quality target.
-  Its filtered row and bulk searches look for upgrades in that format.
 - Batch author canonicalization previews duplicate candidates. Apply a
   confirmed merge through the reviewed reconciliation command.
 - Distinguish failed Open Library text and ISBN lookups from successful searches

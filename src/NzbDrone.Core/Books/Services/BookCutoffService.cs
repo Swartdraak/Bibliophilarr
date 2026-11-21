@@ -12,7 +12,7 @@ namespace NzbDrone.Core.Books
     {
         PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec);
         PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, FormatType? formatType);
-        PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, FormatType? formatType, bool? monitored);
+        PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, FormatType format, bool monitored);
     }
 
     public class BookCutoffService : IBookCutoffService
@@ -38,25 +38,32 @@ namespace NzbDrone.Core.Books
             return BooksWhereCutoffUnmet(pagingSpec, formatType, null);
         }
 
-        public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, FormatType? formatType, bool? monitored)
+        public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, FormatType format, bool monitored)
+        {
+            return BooksWhereCutoffUnmet(pagingSpec, format, (bool?)monitored);
+        }
+
+        private PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, FormatType? formatType, bool? monitored)
         {
             var qualitiesBelowCutoff = new List<QualitiesBelowCutoff>();
             var profiles = _qualityProfileService.All();
+            var scopedFormat = monitored.HasValue ? formatType : null;
 
             //Get all items less than the cutoff
             foreach (var profile in profiles)
             {
                 var cutoff = profile.UpgradeAllowed ? profile.Cutoff : profile.FirstAllowedQuality().Id;
                 var cutoffIndex = profile.GetIndex(cutoff);
-                var belowCutoff = profile.Items.Take(cutoffIndex.Index)
-                    .SelectMany(item => item.GetQualities())
-                    .Where(quality => !formatType.HasValue || Quality.GetFormatType(quality) == formatType.Value)
-                    .Select(quality => quality.Id)
-                    .ToList();
-
+                var belowCutoff = GetQualityIds(profile.Items.Take(cutoffIndex.Index), scopedFormat).ToList();
                 if (belowCutoff.Count != 0)
                 {
-                    qualitiesBelowCutoff.Add(new QualitiesBelowCutoff(profile.Id, belowCutoff));
+                    var qualityRange = new QualitiesBelowCutoff(profile.Id, belowCutoff);
+                    if (scopedFormat.HasValue)
+                    {
+                        qualityRange.QualityIdsMeetingCutoff = GetQualityIds(profile.Items.Skip(cutoffIndex.Index), scopedFormat).ToList();
+                    }
+
+                    qualitiesBelowCutoff.Add(qualityRange);
                 }
             }
 
@@ -68,21 +75,16 @@ namespace NzbDrone.Core.Books
                 return pagingSpec;
             }
 
-            if (formatType is FormatType format && _configService.EnableDualFormatTracking)
-            {
-                return _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, format, monitored);
-            }
+            return scopedFormat is FormatType format
+                ? _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, format, monitored, _configService.EnableDualFormatTracking)
+                : _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, formatType);
+        }
 
-            if (monitored is true)
-            {
-                pagingSpec.FilterExpressions.Add(book => book.Monitored == true && book.Author.Value.Monitored == true);
-            }
-            else if (monitored is false)
-            {
-                pagingSpec.FilterExpressions.Add(book => book.Monitored == false || book.Author.Value.Monitored == false);
-            }
-
-            return _bookRepository.BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, formatType);
+        private static IEnumerable<int> GetQualityIds(IEnumerable<QualityProfileQualityItem> items, FormatType? format)
+        {
+            return items.SelectMany(item => item.GetQualities())
+                .Where(quality => !format.HasValue || (quality != Quality.Unknown && Quality.GetFormatType(quality) == format.Value))
+                .Select(quality => quality.Id);
         }
     }
 }

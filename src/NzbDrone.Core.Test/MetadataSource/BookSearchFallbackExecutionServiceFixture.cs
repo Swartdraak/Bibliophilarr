@@ -20,10 +20,14 @@ namespace NzbDrone.Core.Test.MetadataSource
     [TestFixture]
     public class BookSearchFallbackExecutionServiceFixture : CoreTest<BookSearchFallbackExecutionService>
     {
+        private MetadataProviderTelemetryService _telemetry;
+
         [SetUp]
         public void SetUp()
         {
             Mocker.SetConstant<IMetadataProviderRegistry>(new MetadataProviderRegistry(Array.Empty<IMetadataProvider>()));
+            _telemetry = new MetadataProviderTelemetryService();
+            Mocker.SetConstant<IMetadataProviderTelemetryService>(_telemetry);
         }
 
         [TestCase("GoogleBooks")]
@@ -49,6 +53,50 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
             Mocker.GetMock<IProviderTelemetryService>()
                 .Verify(x => x.RecordSuccess(providerName, "fallback-search", It.IsAny<double>(), It.IsAny<int>()), Times.Never());
+            _telemetry.GetOperationSnapshots().Should().BeEmpty();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_publish_actual_inventaire_fallback_results_to_operation_telemetry(bool hasMatch)
+        {
+            var books = hasMatch ? new List<Book> { new Book { Title = "Fixture Work" } } : new List<Book>();
+            var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
+            provider.SetupGet(x => x.ProviderName).Returns("Inventaire");
+            provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
+            provider.Setup(x => x.Search("Title", "Author")).Returns(books);
+
+            Subject.Search(provider.Object, "Title", "Author").Should().BeSameAs(books);
+
+            var snapshot = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            snapshot.ProviderName.Should().Be("Inventaire");
+            snapshot.OperationName.Should().Be("fallback-search");
+            snapshot.Calls.Should().Be(1);
+            snapshot.Successes.Should().Be(1);
+            snapshot.Failures.Should().Be(0);
+            snapshot.TotalResultCount.Should().Be(books.Count);
+            snapshot.FallbackHits.Should().Be(books.Count);
+            _telemetry.GetSnapshots().Should().ContainSingle().Which.Operations.Should().ContainSingle();
+        }
+
+        [Test]
+        public void should_distinguish_null_fallback_response_from_empty_results()
+        {
+            var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
+            provider.SetupGet(x => x.ProviderName).Returns("Inventaire");
+            provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
+            provider.Setup(x => x.Search("Title", "Author")).Returns((List<Book>)null);
+
+            Subject.Search(provider.Object, "Title", "Author").Should().BeEmpty();
+
+            var snapshot = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            snapshot.Calls.Should().Be(1);
+            snapshot.NullResults.Should().Be(1);
+            snapshot.Successes.Should().Be(0);
+            snapshot.Failures.Should().Be(0);
+            snapshot.FallbackHits.Should().Be(0);
         }
 
         [Test]
@@ -94,6 +142,12 @@ namespace NzbDrone.Core.Test.MetadataSource
             Subject.Search(provider.Object, "Title", "Author").Should().BeEmpty();
 
             provider.Verify(x => x.Search(It.IsAny<string>(), It.IsAny<string>()), Times.Once());
+
+            var telemetry = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            telemetry.Calls.Should().Be(1);
+            telemetry.Failures.Should().Be(1);
+            telemetry.Successes.Should().Be(0);
+            telemetry.FallbackHits.Should().Be(0);
         }
 
         [Test]

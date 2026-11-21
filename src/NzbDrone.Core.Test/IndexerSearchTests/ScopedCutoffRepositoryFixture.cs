@@ -15,9 +15,17 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
     [TestFixture]
     public class ScopedCutoffRepositoryFixture : DbTest
     {
-        [Test]
-        public void should_read_dual_cutoff_from_the_current_format_profile_and_actual_linked_file()
+        [TestCase(FormatType.Ebook)]
+        [TestCase(FormatType.Audiobook)]
+        public void should_read_dual_cutoff_from_the_current_format_profile_and_best_linked_file(FormatType format)
         {
+            var ebook = format == FormatType.Ebook;
+            var below = ebook ? Quality.EPUB : Quality.MP3;
+            var cutoff = ebook ? Quality.AZW3 : Quality.M4B;
+            var other = ebook ? Quality.M4B : Quality.AZW3;
+            var belowExtension = ebook ? ".epub" : ".mp3";
+            var cutoffExtension = ebook ? ".azw3" : ".m4b";
+            var otherExtension = ebook ? ".m4b" : ".azw3";
             var metadata = Db.Insert(new AuthorMetadata
             {
                 ForeignAuthorId = "hardcover:author:123",
@@ -38,7 +46,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             var profile = Db.Insert(new AuthorFormatProfile
             {
                 AuthorId = author.Id,
-                FormatType = FormatType.Ebook,
+                FormatType = format,
                 QualityProfileId = 901,
                 RootFolderPath = "/library/ebook",
                 Monitored = true
@@ -58,8 +66,8 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
                 ForeignEditionId = "fixture-edition",
                 Title = book.Title,
                 TitleSlug = "fixture-edition",
-                Format = "Audiobook",
-                IsEbook = false,
+                Format = ebook ? "Audiobook" : "Ebook",
+                IsEbook = !ebook,
                 Monitored = true
             });
 
@@ -67,35 +75,69 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableDualFormatTracking).Returns(true);
             var profiles = new List<QualityProfile>
             {
-                CreateProfile(900, Quality.EPUB, Quality.EPUB, Quality.AZW3, Quality.M4B),
-                CreateProfile(901, Quality.AZW3, Quality.EPUB, Quality.M4B, Quality.AZW3)
+                CreateProfile(900, below, Quality.Unknown, below, other, cutoff),
+                CreateProfile(901, cutoff, Quality.Unknown, below, other, cutoff)
             };
             Mocker.GetMock<IQualityProfileService>().Setup(service => service.All()).Returns(profiles);
             var service = Mocker.Resolve<BookCutoffService>();
 
             PagingSpec<Book> Page(bool monitored)
             {
-                return service.BooksWhereCutoffUnmet(new PagingSpec<Book> { Page = 1, PageSize = 10, SortKey = "Id" }, FormatType.Ebook, monitored);
+                return service.BooksWhereCutoffUnmet(new PagingSpec<Book> { Page = 1, PageSize = 10, SortKey = "Id" }, format, monitored);
             }
 
-            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/work.m4b", Quality = new QualityModel(Quality.M4B) });
-            Page(true).Records.Should().BeEmpty("another format does not satisfy ebook presence");
-            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/work.epub", Quality = new QualityModel(Quality.EPUB) });
-            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/work-copy.epub", Quality = new QualityModel(Quality.EPUB) });
+            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/other" + otherExtension, Quality = new QualityModel(other) });
+            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/legacy-mismatch" + otherExtension.ToUpperInvariant(), Quality = new QualityModel(below) });
+            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/unknown", Quality = new QualityModel(Quality.Unknown) });
+            Page(true).Records.Should().BeEmpty("the other format, contradictory path and generic unknown do not establish a below-cutoff file");
+            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/work" + belowExtension, Quality = new QualityModel(below) });
+            Db.Insert(new BookFile { EditionId = edition.Id, Path = "/library/work-copy" + belowExtension, Quality = new QualityModel(below) });
             var matched = Page(true);
             matched.Records.Select(item => item.Id).Should().Equal(book.Id);
             matched.TotalRecords.Should().Be(1);
 
-            book.EbookMonitoringOverride = false;
-            Mocker.Resolve<BookRepository>().Update(book);
+            var editions = Mocker.Resolve<EditionRepository>();
+            edition.Monitored = false;
+            editions.Update(edition);
+            var unmonitoredEdition = Page(true);
+            unmonitoredEdition.Records.Should().BeEmpty("a below-cutoff file must belong to a monitored edition");
+            unmonitoredEdition.TotalRecords.Should().Be(0);
+            edition.Monitored = true;
+            editions.Update(edition);
+
+            var repository = Mocker.Resolve<BookRepository>();
+            repository.SetFormatMonitored(new[] { book.Id }, format, false);
             Page(true).Records.Should().BeEmpty();
             Page(false).Records.Select(item => item.Id).Should().Equal(book.Id);
 
-            book.EbookMonitoringOverride = true;
-            Mocker.Resolve<BookRepository>().Update(book);
+            repository.SetFormatMonitored(new[] { book.Id }, format, true);
+            var formatProfiles = Mocker.Resolve<AuthorFormatProfileRepository>();
             profile.QualityProfileId = 900;
-            Mocker.Resolve<AuthorFormatProfileRepository>().Update(profile);
-            Page(true).Records.Should().BeEmpty("the current format profile now places EPUB at cutoff");
+            formatProfiles.Update(profile);
+            Page(true).Records.Should().BeEmpty("the current format profile now places the existing file at cutoff");
+
+            profile.QualityProfileId = 901;
+            profile.Monitored = false;
+            formatProfiles.Update(profile);
+            Page(true).Records.Should().BeEmpty("a disabled format profile does not appear as monitored");
+            Page(false).Records.Select(item => item.Id).Should().Equal(book.Id);
+            profile.Monitored = true;
+            formatProfiles.Update(profile);
+
+            var betterEdition = Db.Insert(new Edition
+            {
+                BookId = book.Id,
+                ForeignEditionId = "better-edition",
+                Title = book.Title,
+                TitleSlug = "better-edition",
+                Format = edition.Format,
+                IsEbook = edition.IsEbook,
+                Monitored = false
+            });
+            Db.Insert(new BookFile { EditionId = betterEdition.Id, Path = "/library/work-target" + cutoffExtension, Quality = new QualityModel(cutoff) });
+            var cutoffMet = Page(true);
+            cutoffMet.Records.Should().BeEmpty("a same-format file already meets cutoff even when linked to an unmonitored edition");
+            cutoffMet.TotalRecords.Should().Be(0);
         }
 
         private static QualityProfile CreateProfile(int id, Quality cutoff, params Quality[] qualities)

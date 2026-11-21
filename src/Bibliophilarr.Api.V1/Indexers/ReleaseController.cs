@@ -159,7 +159,7 @@ namespace Bibliophilarr.Api.V1.Indexers
                 var decisions = await _releaseSearchService.BookSearch(bookId, true, true, true);
                 if (formatType.HasValue)
                 {
-                    decisions = decisions.Where(decision => RemoteBook.GetReleaseFormat(decision.RemoteBook) == formatType).ToList();
+                    decisions = decisions.Where(decision => decision.RemoteBook?.MatchesKnownFormat(formatType.Value) == true).ToList();
                 }
 
                 var prioritizedDecisions = _prioritizeDownloadDecision.PrioritizeDecisions(decisions);

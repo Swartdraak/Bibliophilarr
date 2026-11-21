@@ -200,6 +200,22 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "The configured metadata providers could not verify the author bibliography. The request can be retried later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["message"],
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

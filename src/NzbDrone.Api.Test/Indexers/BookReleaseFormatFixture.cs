@@ -28,9 +28,9 @@ namespace NzbDrone.Api.Test.Indexers
             search.Setup(s => s.BookSearch(bookId, true, true, true)).ReturnsAsync(new List<DownloadDecision>
             {
                 CreateDecision("ebook", Quality.EPUB),
-                CreateDecision("audiobook", Quality.M4B),
-                CreateDecision("audio classified as ebook", Quality.M4B, FormatType.Ebook),
-                CreateDecision("ebook classified as audio", Quality.EPUB, FormatType.Audiobook)
+                CreateDecision("audiobook", Quality.M4B, FormatType.Audiobook),
+                CreateDecision("conflicting", Quality.EPUB, FormatType.Audiobook),
+                CreateDecision("unknown", Quality.Unknown, FormatType.Ebook)
             });
             var prioritize = new Mock<IPrioritizeDownloadDecision>();
             prioritize.Setup(s => s.PrioritizeDecisions(It.IsAny<List<DownloadDecision>>()))

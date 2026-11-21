@@ -36,18 +36,21 @@ namespace NzbDrone.Core.Parser.Model
             return Books.Any(e => e.ReleaseDate >= DateTime.UtcNow.Date.AddDays(-14));
         }
 
-        public static FormatType? GetReleaseFormat(RemoteBook book, Quality fallbackQuality = null)
+        public bool MatchesKnownFormat(FormatType format)
         {
-            var quality = book?.ParsedBookInfo?.Quality?.Quality ?? fallbackQuality;
-            var parsedFormat = quality == null ? (FormatType?)null : Quality.GetFormatType(quality);
-            var resolvedFormat = book?.ResolvedFormatType;
+            return GetKnownFormat() == format;
+        }
 
-            if (resolvedFormat.HasValue && parsedFormat.HasValue && resolvedFormat != parsedFormat)
+        public FormatType? GetKnownFormat(Quality fallbackQuality = null)
+        {
+            var quality = ParsedBookInfo?.Quality?.Quality ?? fallbackQuality;
+            if (quality == null || quality == Quality.Unknown)
             {
                 return null;
             }
 
-            return resolvedFormat ?? parsedFormat;
+            var format = Quality.GetFormatType(quality);
+            return ResolvedFormatType == null || ResolvedFormatType == format ? format : null;
         }
 
         public override string ToString()

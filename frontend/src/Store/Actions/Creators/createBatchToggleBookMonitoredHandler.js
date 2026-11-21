@@ -6,8 +6,8 @@ function createBatchToggleBookMonitoredHandler(section, fetchHandler) {
   return function(getState, payload, dispatch) {
     const {
       bookIds,
-      formatType,
-      monitored
+      monitored,
+      formatType
     } = payload;
 
     const state = getSectionState(getState(), section, true);
@@ -19,23 +19,26 @@ function createBatchToggleBookMonitoredHandler(section, fetchHandler) {
     const promise = createAjaxRequest({
       url: '/book/monitor',
       method: 'PUT',
-      data: JSON.stringify({ bookIds, monitored, formatType }),
+      data: JSON.stringify({ bookIds, monitored, ...(formatType && { formatType }) }),
       dataType: 'json'
     }).request;
 
-    promise.done(() => {
-      dispatch(updateBooks(section, state.items, bookIds, {
+    function finishSave(options) {
+      const currentState = getSectionState(getState(), section, true);
+      dispatch(updateBooks(section, currentState.items, bookIds, {
         isSaving: false,
-        ...(formatType == null && { monitored })
+        ...options
       }));
+    }
+
+    promise.done(() => {
+      finishSave(formatType ? {} : { monitored });
 
       dispatch(fetchHandler());
     });
 
     promise.fail(() => {
-      dispatch(updateBooks(section, state.items, bookIds, {
-        isSaving: false
-      }));
+      finishSave();
     });
   };
 }

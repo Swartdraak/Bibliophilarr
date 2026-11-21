@@ -221,7 +221,7 @@ jobs:
           --configuration Release --no-build --no-restore --verbosity minimal -p:Platform=Posix
           --filter 'FullyQualifiedName~AuthorPathValidatorFixture|FullyQualifiedName~AuthorCanonicalizationServiceFixture|FullyQualifiedName~AddAuthorPersistenceFixture|FullyQualifiedName~AddBookFixture|FullyQualifiedName~RefreshSeriesServiceConcurrencyFixture'
 
-      - name: Run library import and book format search fixtures
+      - name: Run library import selection and book format search fixtures
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --no-build --verbosity minimal -p:Platform=Posix
@@ -234,12 +234,18 @@ jobs:
           --configuration Release --no-build --no-restore --verbosity minimal -p:Platform=Posix
           --filter 'FullyQualifiedName~CommandRepositoryFixture'
 
+      - name: Verify SQLite migration recovery and interruption
+        run: >-
+          dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
+          --configuration Release --no-build --verbosity minimal -p:Platform=Posix
+          --filter 'FullyQualifiedName~SqliteMigrationRecoveryFixture|FullyQualifiedName~should_recover_after_kill_inside_a_sqlite_migration_transaction'
+
       - name: Run metadata, format monitoring, manual import and host configuration API fixtures
         run: >-
           dotnet test NzbDrone.Api.Test/Bibliophilarr.Api.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~BookFileResourceFixture|FullyQualifiedName~HostConfigCredentialValidationFixture|FullyQualifiedName~BootstrapControllerIssue313Fixture|FullyQualifiedName~AuthenticationServiceIssue369Fixture|FullyQualifiedName~ApiKeyAuthenticationHandlerFixture|FullyQualifiedName~ApiWriteAuthenticationMiddlewareFixture|FullyQualifiedName~BookReleaseFormatFixture|FullyQualifiedName~CalendarFeedControllerFixture|FullyQualifiedName~ManualImportControllerFixture|FullyQualifiedName~AuthorEditorControllerIssue236Fixture'
+          'FullyQualifiedName~MetadataProvidersControllerFixture|FullyQualifiedName~MetadataProviderConfigResourceMapperFixture|FullyQualifiedName~BookFormatMonitoringProjectionFixture|FullyQualifiedName~BookFormatStatusResourceFixture|FullyQualifiedName~BookControllerEventGuardFixture|FullyQualifiedName~BookFileResourceFixture|FullyQualifiedName~HostConfigCredentialValidationFixture|FullyQualifiedName~BootstrapControllerIssue313Fixture|FullyQualifiedName~AuthenticationServiceIssue369Fixture|FullyQualifiedName~ApiKeyAuthenticationHandlerFixture|FullyQualifiedName~ApiWriteAuthenticationMiddlewareFixture|FullyQualifiedName~BookReleaseFormatFixture|FullyQualifiedName~CalendarFeedControllerFixture|FullyQualifiedName~ManualImportControllerFixture|FullyQualifiedName~AuthorEditorControllerIssue236Fixture|FullyQualifiedName~AuthorControllerFixture'
 
   metadata-diagnostics-integration:
     name: Metadata Diagnostics Integration

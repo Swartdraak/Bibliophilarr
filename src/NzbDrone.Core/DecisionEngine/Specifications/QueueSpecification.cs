@@ -38,6 +38,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
         public Decision IsSatisfiedBy(RemoteBook subject, SearchCriteriaBase searchCriteria)
         {
             var queue = _queueService.GetQueue();
+            var requestedFormat = _configService.EnableDualFormatTracking ? subject.GetKnownFormat() : null;
             var matchingBook = queue.Where(q => q.RemoteBook?.Author != null &&
                                                  q.RemoteBook.Author.Id == subject.Author.Id &&
                                                  q.RemoteBook.Books.Select(e => e.Id).Intersect(subject.Books.Select(e => e.Id)).Any())
@@ -46,7 +47,6 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
             foreach (var queueItem in matchingBook)
             {
                 var remoteBook = queueItem.RemoteBook;
-                var qualityProfile = _upgradableSpecification.ResolveProfile(subject);
 
                 // To avoid a race make sure it's not FailedPending (failed awaiting removal/search).
                 // Failed items (already searching for a replacement) won't be part of the queue since
@@ -56,14 +56,14 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                     continue;
                 }
 
-                if (_configService.EnableDualFormatTracking &&
-                    RemoteBook.GetReleaseFormat(remoteBook, queueItem.Quality?.Quality) is { } queuedFormat &&
-                    RemoteBook.GetReleaseFormat(subject) is { } requestedFormat &&
+                if (requestedFormat.HasValue &&
+                    remoteBook.GetKnownFormat(queueItem.Quality?.Quality) is { } queuedFormat &&
                     queuedFormat != requestedFormat)
                 {
                     continue;
                 }
 
+                var qualityProfile = _upgradableSpecification.ResolveProfile(subject);
                 _logger.Debug("Checking if existing release in queue meets cutoff. Queued quality is: {0}", remoteBook.ParsedBookInfo.Quality);
 
                 var queuedItemCustomFormats = _formatService.ParseCustomFormat(remoteBook, (long)queueItem.Size);
