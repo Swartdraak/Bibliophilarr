@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Parser;
@@ -14,6 +15,10 @@ namespace NzbDrone.Core.Books
 
     public class RefreshSeriesService : RefreshEntityServiceBase<Series, SeriesBookLink>, IRefreshSeriesService
     {
+        private const int AliasDiscoveryAttempts = 4;
+
+        private static readonly Dictionary<string, RefreshGate> RefreshGates = new Dictionary<string, RefreshGate>(StringComparer.Ordinal);
+
         private readonly IBookService _bookService;
         private readonly ISeriesService _seriesService;
         private readonly ISeriesBookLinkService _linkService;
@@ -134,11 +139,127 @@ namespace NzbDrone.Core.Books
 
         public bool RefreshSeriesInfo(int authorMetadataId, List<Series> remoteSeries, Author remoteData, bool forceBookRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
-            var updated = false;
+            return WithRefreshGates(new[] { $"author:{authorMetadataId}" }, () =>
+            {
+                var incoming = remoteData.Series.Value;
+                var existingByAuthor = _seriesService.GetByAuthorMetadataId(authorMetadataId);
+                var foreignIds = remoteSeries.Concat(incoming).Concat(existingByAuthor)
+                    .Select(series => series.ForeignSeriesId).Distinct(StringComparer.Ordinal).ToList();
+                var seriesGates = foreignIds.Select(GetSeriesGateKey).ToHashSet(StringComparer.Ordinal);
 
-            var existingByAuthor = _seriesService.GetByAuthorMetadataId(authorMetadataId);
-            var existingBySeries = _seriesService.FindById(remoteSeries.Select(x => x.ForeignSeriesId).ToList());
-            var existing = existingByAuthor.Concat(existingBySeries).GroupBy(x => x.ForeignSeriesId).Select(x => x.First()).ToList();
+                for (var attempt = 0; attempt < AliasDiscoveryAttempts; attempt++)
+                {
+                    var discoveredOwner = false;
+                    var updated = WithRefreshGates(seriesGates, () =>
+                    {
+                        var existing = _seriesService.FindById(foreignIds);
+                        var aliases = ResolveKnownAliases(incoming, existing);
+                        foreach (var owner in aliases.Values)
+                        {
+                            discoveredOwner |= seriesGates.Add(GetSeriesGateKey(owner.ForeignSeriesId));
+                        }
+
+                        // Release the whole set before acquiring newly discovered keys. Reread owners
+                        // on the next attempt, in case ownership changed while the gates were released.
+                        return !discoveredOwner && ReconcileSeries(authorMetadataId, existing, aliases, remoteData, forceUpdateFileTags);
+                    });
+
+                    if (!discoveredOwner)
+                    {
+                        return updated;
+                    }
+                }
+
+                throw new InvalidOperationException("Series alias ownership changed repeatedly during refresh.");
+            });
+        }
+
+        private static string GetSeriesGateKey(string id)
+        {
+            if (Guid.TryParseExact(id, "N", out var canonical))
+            {
+                return $"series:{canonical:N}";
+            }
+
+            var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Series, id, null);
+            return source == null ? $"series:{id}" : $"series:{source.Provider.ToLowerInvariant()}:series:{source.ProviderId}";
+        }
+
+        private Dictionary<string, Series> ResolveKnownAliases(List<Series> incoming, List<Series> existing)
+        {
+            var aliases = new Dictionary<string, Series>(StringComparer.Ordinal);
+            var existingIds = existing.Select(series => series.ForeignSeriesId).ToHashSet(StringComparer.Ordinal);
+            var unmatchedIds = incoming.Select(series => series.ForeignSeriesId).Except(existingIds, StringComparer.Ordinal);
+            foreach (var id in unmatchedIds)
+            {
+                var owner = _seriesService.FindById(id);
+                if (owner != null)
+                {
+                    aliases.Add(id, owner);
+                }
+            }
+
+            return aliases;
+        }
+
+        private static bool WithRefreshGates(IEnumerable<string> keys, Func<bool> action)
+        {
+            var orderedKeys = keys.Distinct(StringComparer.Ordinal).OrderBy(key => key, StringComparer.Ordinal).ToList();
+            var reservations = new List<(string Key, RefreshGate Gate)>(orderedKeys.Count);
+            lock (RefreshGates)
+            {
+                foreach (var key in orderedKeys)
+                {
+                    if (!RefreshGates.TryGetValue(key, out var gate))
+                    {
+                        gate = new RefreshGate();
+                        RefreshGates.Add(key, gate);
+                    }
+
+                    gate.Users++;
+                    reservations.Add((key, gate));
+                }
+            }
+
+            var entered = 0;
+            try
+            {
+                for (; entered < reservations.Count; entered++)
+                {
+                    Monitor.Enter(reservations[entered].Gate);
+                }
+
+                return action();
+            }
+            finally
+            {
+                for (var index = entered - 1; index >= 0; index--)
+                {
+                    Monitor.Exit(reservations[index].Gate);
+                }
+
+                lock (RefreshGates)
+                {
+                    foreach (var (key, gate) in reservations)
+                    {
+                        // A waiting refresh reserves the same gate before sleeping.
+                        if (--gate.Users == 0)
+                        {
+                            RefreshGates.Remove(key);
+                        }
+                    }
+                }
+            }
+        }
+
+        private sealed class RefreshGate
+        {
+            public int Users { get; set; }
+        }
+
+        private bool ReconcileSeries(int authorMetadataId, List<Series> existing, IReadOnlyDictionary<string, Series> aliases, Author remoteData, bool forceUpdateFileTags)
+        {
+            var updated = false;
 
             var books = _bookService.GetBooksByAuthorMetadataId(authorMetadataId);
             var bookDict = books.ToDictionary(x => x.ForeignBookId);
@@ -164,7 +285,7 @@ namespace NzbDrone.Core.Books
                 s.LinkItems = matchedLinks;
             }
 
-            remoteSeries = ReconcileSeriesSources(remoteData.Series.Value, existing, books.Select(book => book.Id).ToHashSet());
+            var remoteSeries = ReconcileSeriesSources(remoteData.Series.Value, existing, aliases, books.Select(book => book.Id).ToHashSet());
             remoteData.Series = remoteSeries;
 
             var toAdd = remoteSeries.ExceptBy(x => x.ForeignSeriesId, existing, x => x.ForeignSeriesId, StringComparer.Ordinal).ToList();
@@ -181,7 +302,7 @@ namespace NzbDrone.Core.Books
             return updated;
         }
 
-        private List<Series> ReconcileSeriesSources(List<Series> incoming, List<Series> existing, HashSet<int> authorBookIds)
+        private static List<Series> ReconcileSeriesSources(List<Series> incoming, List<Series> existing, IReadOnlyDictionary<string, Series> aliases, HashSet<int> authorBookIds)
         {
             var reconciled = new Dictionary<string, Series>(StringComparer.Ordinal);
             var incomingIds = incoming.Select(series => series.ForeignSeriesId).ToHashSet(StringComparer.Ordinal);
@@ -191,7 +312,7 @@ namespace NzbDrone.Core.Books
                 var alias = candidate.ForeignSeriesId;
                 if (!existingIds.Contains(alias))
                 {
-                    var canonical = _seriesService.FindById(alias);
+                    aliases.TryGetValue(alias, out var canonical);
                     if (canonical == null)
                     {
                         var equivalent = existing.Where(series => !incomingIds.Contains(series.ForeignSeriesId) &&
