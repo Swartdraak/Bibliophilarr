@@ -119,7 +119,7 @@ namespace NzbDrone.Core.IndexerSearch
                         userInvokedSearch: message.Trigger == CommandTrigger.Manual,
                         interactiveSearch: false,
                         monitoredBooksOnly: true);
-                    matching = decisions.Where(decision => MatchesFormat(decision, format)).ToList();
+                    matching = decisions.Where(decision => decision.RemoteBook?.MatchesKnownFormat(format) == true).ToList();
 
                     // A file may have arrived, or monitoring may have changed, during the indexer search.
                     if (matching.Count == 0 || !IsMissingMonitoredFormat(bookId, format))
@@ -163,14 +163,6 @@ namespace NzbDrone.Core.IndexerSearch
         private static FormatType? GetKnownQualityFormat(Quality quality)
         {
             return quality == null || quality == Quality.Unknown ? null : Quality.GetFormatType(quality);
-        }
-
-        private static bool MatchesFormat(DownloadDecision decision, FormatType format)
-        {
-            var remoteBook = decision.RemoteBook;
-            var parsedFormat = GetKnownQualityFormat(remoteBook?.ParsedBookInfo?.Quality?.Quality);
-            return parsedFormat == format &&
-                   (remoteBook.ResolvedFormatType ?? parsedFormat) == format;
         }
 
         public void Execute(MissingBookSearchCommand message)
@@ -217,6 +209,22 @@ namespace NzbDrone.Core.IndexerSearch
 
         public void Execute(CutoffUnmetBookSearchCommand message)
         {
+            if (message.FormatType is FormatType format)
+            {
+                if (format != FormatType.Ebook && format != FormatType.Audiobook)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(message.FormatType), format, "Unsupported book format.");
+                }
+
+                SearchCutoffFormat(message, format).GetAwaiter().GetResult();
+                return;
+            }
+
+            if (message.BookIds != null)
+            {
+                throw new ArgumentException("A format is required for selected cutoff searches.", nameof(message.FormatType));
+            }
+
             var pagingSpec = new PagingSpec<Book>
             {
                 Page = 1,
@@ -233,6 +241,104 @@ namespace NzbDrone.Core.IndexerSearch
             var cutoffUnmet = books.Where(e => !queue.Contains(e.Id)).ToList();
 
             SearchForBulkBooks(cutoffUnmet, message.Trigger == CommandTrigger.Manual).GetAwaiter().GetResult();
+        }
+
+        private async Task SearchCutoffFormat(CutoffUnmetBookSearchCommand message, FormatType format)
+        {
+            var bookIds = message.BookIds?.Distinct().ToList() ?? GetCutoffBookIds(format, message.AuthorId);
+            var downloadedCount = 0;
+            foreach (var bookId in bookIds)
+            {
+                if (HasQueuedFormat(bookId, format) || !CutoffStillUnmet(bookId, format, message.AuthorId))
+                {
+                    continue;
+                }
+
+                List<DownloadDecision> matching;
+                try
+                {
+                    var decisions = await _releaseSearchService.BookSearch(
+                        bookId,
+                        missingOnly: false,
+                        userInvokedSearch: message.Trigger == CommandTrigger.Manual,
+                        interactiveSearch: false,
+                        monitoredBooksOnly: _configService.EnableDualFormatTracking);
+                    matching = decisions.Where(decision =>
+                        (decision.Approved || decision.TemporarilyRejected) &&
+                        decision.RemoteBook?.MatchesKnownFormat(format) == true &&
+                        decision.RemoteBook.Books is { Count: > 0 } books && books.All(book => book.Id == bookId)).ToList();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Unable to search for a {0} cutoff upgrade for book {1}.", format, bookId);
+                    continue;
+                }
+
+                // Files, monitoring and the author format profile may have changed while searching indexers.
+                if (matching.Count == 0 || HasQueuedFormat(bookId, format) || !CutoffStillUnmet(bookId, format, message.AuthorId))
+                {
+                    continue;
+                }
+
+                var processed = await _processDownloadDecisions.ProcessDecisions(matching);
+                downloadedCount += processed.Grabbed.Count;
+            }
+
+            _logger.ProgressInfo("{0} cutoff upgrade search completed. {1} reports downloaded.", format, downloadedCount);
+        }
+
+        private List<int> GetCutoffBookIds(FormatType format, int? authorId)
+        {
+            var books = new List<Book>();
+            var paging = CutoffPaging(authorId, 500);
+            var lastId = 0;
+            paging.FilterExpressions.Add(book => book.Id > lastId);
+
+            List<Book> page;
+            do
+            {
+                page = _bookCutoffService.BooksWhereCutoffUnmet(paging, format, true).Records;
+                books.AddRange(page);
+                lastId = page.LastOrDefault()?.Id ?? lastId;
+            }
+            while (page.Count == paging.PageSize);
+
+            return books.OrderBy(book => book.LastSearchTime ?? DateTime.MinValue).Select(book => book.Id).ToList();
+        }
+
+        private bool HasQueuedFormat(int bookId, FormatType format)
+        {
+            return _queueService.GetQueue().Any(item =>
+            {
+                var remote = item.RemoteBook;
+                var queuedFormat = GetKnownQualityFormat(item.Quality?.Quality) ?? GetKnownQualityFormat(remote?.ParsedBookInfo?.Quality?.Quality);
+                return item.Book?.Id == bookId && queuedFormat == format && (remote?.ResolvedFormatType ?? queuedFormat) == format;
+            });
+        }
+
+        private bool CutoffStillUnmet(int bookId, FormatType format, int? authorId)
+        {
+            var paging = CutoffPaging(authorId, 1);
+            paging.FilterExpressions.Add(book => book.Id == bookId);
+            return _bookCutoffService.BooksWhereCutoffUnmet(paging, format, true).Records.Count != 0;
+        }
+
+        private static PagingSpec<Book> CutoffPaging(int? authorId, int pageSize)
+        {
+            var paging = new PagingSpec<Book>
+            {
+                Page = 1,
+                PageSize = pageSize,
+                SortDirection = SortDirection.Ascending,
+                SortKey = "Id"
+            };
+
+            if (authorId is int id)
+            {
+                paging.FilterExpressions.Add(book => book.Author.Value.Id == id);
+            }
+
+            return paging;
         }
 
         private static void AddMonitoredFilter(PagingSpec<Book> pagingSpec)

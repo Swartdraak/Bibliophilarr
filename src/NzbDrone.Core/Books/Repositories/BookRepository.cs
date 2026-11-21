@@ -25,6 +25,7 @@ namespace NzbDrone.Core.Books
         PagingSpec<Book> BooksWithoutFiles(PagingSpec<Book> pagingSpec, FormatType? formatType, bool dualFormatEnabled);
         PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff);
         PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType);
+        PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType format, bool? monitored, bool dualFormatEnabled);
         List<Book> BooksBetweenDates(DateTime startDate, DateTime endDate, bool includeUnmonitored);
         List<Book> AuthorBooksBetweenDates(Author author, DateTime startDate, DateTime endDate, bool includeUnmonitored);
         void SetMonitoredFlat(Book book, bool monitored);
@@ -193,39 +194,78 @@ namespace NzbDrone.Core.Books
             return pagingSpec;
         }
 
-        private SqlBuilder BooksWhereCutoffUnmetBuilder(List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType = null)
+        private SqlBuilder BooksWhereCutoffUnmetBuilder(List<QualitiesBelowCutoff> qualitiesBelowCutoff)
         {
-            var builder = Builder()
-                .Join<Book, Author>((l, r) => l.AuthorMetadataId == r.AuthorMetadataId)
-                .Join<Author, AuthorMetadata>((l, r) => l.AuthorMetadataId == r.Id)
-                .Join<Book, Edition>((b, e) => b.Id == e.BookId)
-                .LeftJoin<Edition, BookFile>((t, f) => t.Id == f.EditionId)
-                .Where<Edition>(e => e.Monitored == true)
-                .Where(BuildQualityCutoffWhereClause(qualitiesBelowCutoff));
-
-            if (formatType.HasValue)
-            {
-                var isEbook = formatType.Value == FormatType.Ebook;
-                builder = builder.Where<Edition>(e => e.IsEbook == isEbook &&
-                    (isEbook || e.Format == null || (e.Format != Edition.PrintFormat && e.Format != Edition.UnclassifiedFormat)));
-            }
-
-            return builder;
+            return Builder()
+                .Join<Book, Author>((book, author) => book.AuthorMetadataId == author.AuthorMetadataId)
+                .Join<Author, AuthorMetadata>((author, metadata) => author.AuthorMetadataId == metadata.Id)
+                .Join<Book, Edition>((book, edition) => book.Id == edition.BookId)
+                .LeftJoin<Edition, BookFile>((edition, file) => edition.Id == file.EditionId)
+                .Where<Edition>(edition => edition.Monitored == true)
+                .Where(BuildQualityCutoffWhereClause(qualitiesBelowCutoff, """ "Authors"."QualityProfileId" """));
         }
 
-        private string BuildQualityCutoffWhereClause(List<QualitiesBelowCutoff> qualitiesBelowCutoff)
+        private SqlBuilder ScopedCutoffBuilder(List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType format, bool? monitored, bool dualFormatEnabled)
+        {
+            var builder = Builder()
+                .Join<Book, Author>((book, author) => book.AuthorMetadataId == author.AuthorMetadataId)
+                .Join<Author, AuthorMetadata>((author, metadata) => author.AuthorMetadataId == metadata.Id);
+            var profileColumn = """ "Authors"."QualityProfileId" """;
+            var isMonitored = """ "Books"."Monitored" AND "Authors"."Monitored" """;
+            var editionCondition = format == FormatType.Ebook
+                ? """ "Editions"."Monitored" = TRUE AND "Editions"."IsEbook" = TRUE """
+                : $""" "Editions"."Monitored" = TRUE AND "Editions"."IsEbook" = FALSE AND ("Editions"."Format" IS NULL OR "Editions"."Format" NOT IN ('{Edition.PrintFormat}', '{Edition.UnclassifiedFormat}')) """;
+
+            if (dualFormatEnabled)
+            {
+                builder.Join<Author, AuthorFormatProfile>((author, profile) => author.Id == profile.AuthorId)
+                    .Where<AuthorFormatProfile>(profile => profile.FormatType == format);
+
+                var preference = format == FormatType.Ebook ? nameof(Book.EbookMonitoringOverride) : nameof(Book.AudiobookMonitoringOverride);
+                isMonitored += $""" AND "AuthorFormatProfiles"."Monitored" AND COALESCE("Books"."{preference}", TRUE) """;
+                profileColumn = """ "AuthorFormatProfiles"."QualityProfileId" """;
+
+                // Older imports may link both media formats to the same edition.
+                editionCondition = "TRUE";
+            }
+
+            if (monitored.HasValue)
+            {
+                builder.Where(monitored.Value ? $"({isMonitored})" : $"NOT ({isMonitored})");
+            }
+
+            // Known file extensions take precedence over contradictory legacy quality metadata.
+            var oppositeExtensions = format == FormatType.Ebook ? MediaFileExtensions.AudioExtensions : MediaFileExtensions.TextExtensions;
+            var oppositePath = string.Join(" OR ", oppositeExtensions.OrderBy(extension => extension, StringComparer.Ordinal)
+                .Select(extension => $""" LOWER(COALESCE("BookFiles"."Path", '')) LIKE '%{extension}' """));
+            var actualFormatCondition = $"{editionCondition} AND NOT ({oppositePath})";
+            var belowCutoff = BuildQualityCutoffWhereClause(qualitiesBelowCutoff, profileColumn);
+            var meetsCutoff = BuildQualityCutoffWhereClause(qualitiesBelowCutoff, profileColumn, meetsCutoff: true);
+            return builder.Where($"{HasScopedFile(actualFormatCondition, belowCutoff)} AND NOT {HasScopedFile(actualFormatCondition, meetsCutoff)}");
+        }
+
+        private static string HasScopedFile(string condition, string qualities)
+        {
+            return $"""
+                EXISTS (SELECT 1 FROM "BookFiles"
+                    INNER JOIN "Editions" ON "Editions"."Id" = "BookFiles"."EditionId"
+                    WHERE "Editions"."BookId" = "Books"."Id" AND {condition} AND {qualities})
+                """;
+        }
+
+        private static string BuildQualityCutoffWhereClause(List<QualitiesBelowCutoff> qualitiesBelowCutoff, string profileColumn, bool meetsCutoff = false)
         {
             var clauses = new List<string>();
-
             foreach (var profile in qualitiesBelowCutoff)
             {
-                foreach (var belowCutoff in profile.QualityIds)
+                var qualityIds = meetsCutoff ? profile.QualityIdsMeetingCutoff : profile.QualityIds;
+                foreach (var qualityId in qualityIds)
                 {
-                    clauses.Add(string.Format("(\"Authors\".\"QualityProfileId\" = {0} AND \"BookFiles\".\"Quality\" LIKE '%_quality_: {1},%')", profile.ProfileId, belowCutoff));
+                    clauses.Add(FormattableString.Invariant($""" ({profileColumn} = {profile.ProfileId} AND "BookFiles"."Quality" LIKE '%_quality_: {qualityId},%') """));
                 }
             }
 
-            return string.Format("({0})", string.Join(" OR ", clauses));
+            return clauses.Count == 0 ? "FALSE" : $"({string.Join(" OR ", clauses)})";
         }
 
         public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff)
@@ -235,10 +275,22 @@ namespace NzbDrone.Core.Books
 
         public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType? formatType)
         {
-            pagingSpec.Records = GetPagedRecords(BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff, formatType), pagingSpec, PagedQuery);
+            return formatType is FormatType format
+                ? BooksWhereCutoffUnmet(pagingSpec, qualitiesBelowCutoff, format, null, false)
+                : GetCutoffPage(pagingSpec, () => BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff));
+        }
+
+        public PagingSpec<Book> BooksWhereCutoffUnmet(PagingSpec<Book> pagingSpec, List<QualitiesBelowCutoff> qualitiesBelowCutoff, FormatType format, bool? monitored, bool dualFormatEnabled)
+        {
+            return GetCutoffPage(pagingSpec, () => ScopedCutoffBuilder(qualitiesBelowCutoff, format, monitored, dualFormatEnabled));
+        }
+
+        private PagingSpec<Book> GetCutoffPage(PagingSpec<Book> pagingSpec, Func<SqlBuilder> builder)
+        {
+            pagingSpec.Records = GetPagedRecords(builder(), pagingSpec, PagedQuery);
 
             var countTemplate = $"SELECT COUNT(*) FROM (SELECT /**select**/ FROM \"{TableMapping.Mapper.TableNameMapping(typeof(Book))}\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/ /**groupby**/ /**having**/) AS \"Inner\"";
-            pagingSpec.TotalRecords = GetPagedRecordCount(BooksWhereCutoffUnmetBuilder(qualitiesBelowCutoff, formatType).Select(typeof(Book)), pagingSpec, countTemplate);
+            pagingSpec.TotalRecords = GetPagedRecordCount(builder().Select(typeof(Book)), pagingSpec, countTemplate);
 
             return pagingSpec;
         }
