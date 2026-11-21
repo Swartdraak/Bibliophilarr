@@ -78,6 +78,7 @@ class ImportListExclusions extends Component {
           <div className={styles.addImportListExclusion}>
             <Link
               className={styles.addButton}
+              aria-label={translate('AddImportListExclusion')}
               onPress={this.onAddImportListExclusionPress}
             >
               <Icon name={icons.ADD} />
