@@ -123,6 +123,7 @@ namespace NzbDrone.Core.MetadataSource
             var watch = Stopwatch.StartNew();
             var pipeline = GetOrCreateCircuitBreaker(provider.ProviderName);
             var attempted = false;
+            var returnedNull = false;
             var resultCount = -1;
 
             try
@@ -130,14 +131,15 @@ namespace NzbDrone.Core.MetadataSource
                 var books = pipeline.Execute(_ =>
                 {
                     attempted = true;
-                    return provider.Search(title, author) ?? new List<Book>();
+                    return provider.Search(title, author);
                 }, CancellationToken.None);
-                resultCount = books.Count;
+                returnedNull = books == null;
+                resultCount = books?.Count ?? 0;
                 watch.Stop();
                 _providerTelemetryService.RecordSuccess(provider.ProviderName, FallbackSearchOperation, watch.Elapsed.TotalMilliseconds, resultCount);
                 ClearCooldown(provider.ProviderName);
                 UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
-                return books;
+                return books ?? new List<Book>();
             }
             catch (BrokenCircuitException)
             {
@@ -198,8 +200,8 @@ namespace NzbDrone.Core.MetadataSource
                         provider.ProviderName,
                         FallbackSearchOperation,
                         watch.ElapsedMilliseconds,
-                        success: resultCount >= 0,
-                        returnedNull: false,
+                        success: resultCount >= 0 && !returnedNull,
+                        returnedNull: returnedNull,
                         fallbackHit: resultCount > 0,
                         resultCount: resultCount);
                 }

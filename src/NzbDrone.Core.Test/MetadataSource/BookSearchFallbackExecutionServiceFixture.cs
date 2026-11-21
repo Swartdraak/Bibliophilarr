@@ -81,6 +81,25 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_distinguish_null_fallback_response_from_empty_results()
+        {
+            var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
+            provider.SetupGet(x => x.ProviderName).Returns("Inventaire");
+            provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
+            provider.Setup(x => x.Search("Title", "Author")).Returns((List<Book>)null);
+
+            Subject.Search(provider.Object, "Title", "Author").Should().BeEmpty();
+
+            var snapshot = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            snapshot.Calls.Should().Be(1);
+            snapshot.NullResults.Should().Be(1);
+            snapshot.Successes.Should().Be(0);
+            snapshot.Failures.Should().Be(0);
+            snapshot.FallbackHits.Should().Be(0);
+        }
+
+        [Test]
         public void should_run_google_fallback_with_the_primary_provider_disabled()
         {
             Mocker.GetMock<IConfigService>()

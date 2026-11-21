@@ -32,9 +32,9 @@ Check provider diagnostics first:
 - `GET /api/v1/metadata/providers/telemetry/operations`
 
 For services used only in automatic import fallback, check basic health and
-the `fallback-search` operation. Operation counts include completed provider
-attempts with or without matches and failed requests. Disabled providers and
-requests skipped during cooldown do not add a call.
+the `fallback-search` operation. Operation counts distinguish matches,
+successful empty lists, null responses and failed requests. Disabled
+providers and requests skipped during cooldown do not add a call.
 
 Important counters:
 
