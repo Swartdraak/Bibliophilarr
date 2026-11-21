@@ -60,6 +60,8 @@ process.
   refresh requests as unsuccessful while continuing the rest of the batch.
 - Honor the historical server port environment variable. The canonical
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
+- Update FluentMigrator to 8.0.1 for SQLite and PostgreSQL while preserving the
+  existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
   requested. Distinct provider work IDs retain separate catalogue records.
