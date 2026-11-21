@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
@@ -42,6 +43,25 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             GivenFileExistsOnDisk(givenDate);
 
             Subject.AlreadyExists(givenDate, null, "c:\\file.exe").Should().BeTrue();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_reject_an_empty_or_disappearing_file_even_with_a_matching_timestamp(bool disappeared)
+        {
+            var givenDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            GivenFileExistsOnDisk(givenDate);
+            var length = Mocker.GetMock<IDiskProvider>().Setup(provider => provider.GetFileSize(It.IsAny<string>()));
+            if (disappeared)
+            {
+                length.Throws(new FileNotFoundException());
+            }
+            else
+            {
+                length.Returns(0);
+            }
+
+            Subject.AlreadyExists(givenDate, null, "c:\\file.exe").Should().BeFalse();
         }
 
         [Test]

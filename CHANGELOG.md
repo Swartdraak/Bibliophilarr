@@ -31,9 +31,6 @@ process.
 
 ### Fixed
 
-- Keep the Add Author dialog open with a retryable message when the configured
-  metadata providers cannot verify the bibliography.
-
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
@@ -47,8 +44,10 @@ process.
   needs manual confirmation of a same-name author.
 - Allow a single same-name author candidate to be corroborated by two
   independently verified works if Open Library's bibliography ends early.
-- Return HTTP 503 with a retry message when an unavailable bibliography
-  prevents adding an author.
+- Return HTTP 503 and keep the Add Author dialog open with retry guidance
+  when the configured providers cannot verify the bibliography.
+- Recover author and book artwork when the cached file is empty or disappears
+  while the app checks it.
 - Preserve the Hardcover author, work, or edition that supplied an artwork
   reference, including when an edition displays the work's cover.
 - Explain when a different ebook has an unverified ISBN for an occupied

@@ -71,6 +71,9 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IDiskProvider>().Setup(c => c.FileExists(It.IsAny<string>()))
                   .Returns(true);
 
+            Mocker.GetMock<IDiskProvider>().Setup(c => c.GetFileSize(It.IsAny<string>()))
+                  .Returns(1000);
+
             Subject.ConvertToLocalUrls(12, MediaCoverEntity.Author, covers);
 
             covers.Single().Url.Should().Be("/MediaCover/12/banner" + extension + "?lastWrite=1234");
@@ -94,6 +97,9 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             Mocker.GetMock<IDiskProvider>().Setup(c => c.FileExists(It.IsAny<string>()))
                   .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>().Setup(c => c.GetFileSize(It.IsAny<string>()))
+                  .Returns(1000);
 
             Subject.ConvertToLocalUrls(12, MediaCoverEntity.Author, covers);
 
@@ -119,9 +125,58 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IDiskProvider>().Setup(c => c.FileExists(It.IsAny<string>()))
                   .Returns(true);
 
+            Mocker.GetMock<IDiskProvider>().Setup(c => c.GetFileSize(It.IsAny<string>()))
+                  .Returns(1000);
+
             Subject.ConvertToLocalUrls(6, MediaCoverEntity.Book, covers);
 
             covers.Single().Url.Should().Be("/MediaCover/Books/6/disc" + extension + "?lastWrite=1234");
+        }
+
+        [TestCase(MediaCoverEntity.Author, false)]
+        [TestCase(MediaCoverEntity.Book, false)]
+        [TestCase(MediaCoverEntity.Author, true)]
+        [TestCase(MediaCoverEntity.Book, true)]
+        public void should_proxy_the_origin_when_the_cached_image_is_empty_or_disappears(MediaCoverEntity entity, bool disappeared)
+        {
+            const string origin = "https://covers.example/art.jpg";
+            const string proxyUrl = "/MediaCoverProxy/test-hash/image.jpg";
+            var type = entity == MediaCoverEntity.Author ? MediaCoverTypes.Poster : MediaCoverTypes.Cover;
+            var cover = new MediaCover.MediaCover(type, origin);
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(provider => provider.FileExists(It.IsAny<string>())).Returns(true);
+            var length = disk.Setup(provider => provider.GetFileSize(It.IsAny<string>()));
+            if (disappeared)
+            {
+                length.Throws(new FileNotFoundException());
+            }
+            else
+            {
+                length.Returns(0);
+            }
+
+            Mocker.GetMock<IMediaCoverProxy>().Setup(proxy => proxy.RegisterUrl(origin)).Returns(proxyUrl);
+
+            Subject.ConvertToLocalUrls(12, entity, new[] { cover });
+
+            cover.Url.Should().Be(proxyUrl);
+            cover.RemoteUrl.Should().Be(origin);
+            disk.Verify(provider => provider.FileGetLastWrite(It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_the_local_placeholder_when_the_empty_cache_has_no_origin()
+        {
+            var cover = new MediaCover.MediaCover(MediaCoverTypes.Poster, string.Empty);
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(provider => provider.FileExists(It.IsAny<string>())).Returns(true);
+            disk.Setup(provider => provider.GetFileSize(It.IsAny<string>())).Returns(0);
+
+            Subject.ConvertToLocalUrls(12, MediaCoverEntity.Author, new[] { cover });
+
+            cover.Url.Should().Be("/MediaCover/12/poster");
+            cover.RemoteUrl.Should().BeEmpty();
+            Mocker.GetMock<IMediaCoverProxy>().Verify(proxy => proxy.RegisterUrl(It.IsAny<string>()), Times.Never());
         }
 
         [TestCase(".png")]

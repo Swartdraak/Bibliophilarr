@@ -145,9 +145,8 @@ namespace NzbDrone.Core.MediaCover
                         mediaCover.Url = _configFileProvider.UrlBase + @"/MediaCover/" + entityId + "/" + mediaCover.CoverType.ToString().ToLower() + GetExtension(mediaCover.CoverType, mediaCover.Extension);
                     }
 
-                    if (_diskProvider.FileExists(filePath))
+                    if (GetCachedCoverLastWrite(filePath) is DateTime lastWrite)
                     {
-                        var lastWrite = _diskProvider.FileGetLastWrite(filePath);
                         mediaCover.Url += "?lastWrite=" + lastWrite.Ticks;
                     }
                     else if (mediaCover.RemoteUrl.IsNotNullOrWhiteSpace())
@@ -156,6 +155,21 @@ namespace NzbDrone.Core.MediaCover
                         mediaCover.Url = _mediaCoverProxy.RegisterUrl(mediaCover.RemoteUrl);
                     }
                 }
+            }
+        }
+
+        private DateTime? GetCachedCoverLastWrite(string filePath)
+        {
+            try
+            {
+                return _diskProvider.FileExists(filePath) && _diskProvider.GetFileSize(filePath) > 0
+                    ? _diskProvider.FileGetLastWrite(filePath)
+                    : null;
+            }
+            catch (IOException ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                // The cache can be reconciled between checking the file and reading its metadata.
+                return null;
             }
         }
 
