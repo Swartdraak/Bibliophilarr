@@ -815,7 +815,7 @@ Files affected:
 - [AuthorDetailsHeader.js](frontend/src/Author/Details/AuthorDetailsHeader.js) — show format badges
 - [AuthorDetailsSeason.js](frontend/src/Author/Details/AuthorDetailsSeason.js) — per-format status columns
 - [EditAuthorModalContent.js](frontend/src/Author/Edit/EditAuthorModalContent.js) — format profile configuration
-- [AddNewAuthorModal*.js](frontend/src/AddNewItem/) — format profile setup
+- [AddNewAuthorModalContent.js](frontend/src/Search/Author/AddNewAuthorModalContent.js) — format profile setup
 - [bookActions.js](frontend/src/Store/Actions/bookActions.js) — per-format monitoring toggles
 - New: `AuthorFormatProfileEditor.js` component
 

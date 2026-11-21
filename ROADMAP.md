@@ -137,7 +137,7 @@ Planned entry conditions:
 | Security headers and input validation | add CSP/HSTS/X-Frame-Options middleware; validate API search/parse inputs at controller boundary | complete |
 | React 18 + Router 6 upgrade | upgrade React 17→18, React Router 5→6; remove deprecated npm packages; establish frontend upgrade path | **assessed** — migration plan documented below |
 | Node 22 LTS migration | upgrade from Node 20 (EOL April 2026) to Node 22 LTS | complete |
-| .NET 10 LTS planning | prepare upgrade from .NET 8 (EOL Nov 2026) directly to .NET 10 LTS (skip .NET 9 STS) | future (DMQ-001, DMQ-002) |
+| .NET 10 LTS migration | target .NET 10 in the native app and both container base images | integrated on `develop`, release and follow-up checks tracked in [#96](https://github.com/Swartdraak/Bibliophilarr/issues/96) |
 | Documentation normalization | fix duplicate headings, stale references, archive dated files, align wiki with ROADMAP phases | complete |
 | Installer signing | code-sign Windows installer and macOS app bundle; add GPG signing for release artifacts | future |
 | Dual-format title management | ebook and audiobook variants can be tracked independently under one host/instance with non-conflicting quality/format policy | **implemented** — all 16 slices (DF-1 through DF-16) complete, enabled by default via `EnableDualFormatTracking`. Detailed architecture in [MIGRATION_PLAN.md — TD-DUAL-FORMAT-001](MIGRATION_PLAN.md), Track B |
@@ -153,8 +153,8 @@ according to EOL urgency, coupling risk, and prerequisite dependencies.
 
 | ID | Component | Current → Target | Dependabot PR | Category | Effort | Prerequisites | Target phase | Status |
 |---|---|---|---|---|---|---|---|---|
-| DMQ-001 | `dotnet/sdk` Docker image | 8.0 → 10.0 | [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) | Backend / Docker | High | DMQ-002, net8.0→net10.0 TFM migration across 24 projects | Phase 7 | planned |
-| DMQ-002 | `dotnet/aspnet` Docker image | 8.0 → 10.0 | [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) | Backend / Docker | High | .NET 10 GA release, TFM migration, runtime compatibility validation | Phase 7 | planned |
+| DMQ-001 | `dotnet/sdk` Docker image | 8.0 → 10.0 | [#35](https://github.com/Swartdraak/Bibliophilarr/pull/35) | Backend / Docker | High | Build the `net10.0` applications with the matching SDK image | Phase 7 | Integrated on `develop` |
+| DMQ-002 | `dotnet/aspnet` Docker image | 8.0 → 10.0 | [#40](https://github.com/Swartdraak/Bibliophilarr/pull/40) | Backend / Docker | High | Use the matching ASP.NET runtime and validate startup on both architectures | Phase 7 | Integrated on `develop`. Additional smoke coverage in [#508](https://github.com/Swartdraak/Bibliophilarr/pull/508) |
 | DMQ-003 | `react-router-dom` | 5.3.4 → 6.x | [#38](https://github.com/Swartdraak/Bibliophilarr/pull/38) | Frontend | High | React 18 upgrade (DMQ-007 / RQ-159), remove `connected-react-router`, migrate Switch→Routes, class→hooks | Phase 7 | planned |
 | DMQ-004 | `react-google-recaptcha` | 2.1.0 → 3.x | [#36](https://github.com/Swartdraak/Bibliophilarr/pull/36) | Frontend | Medium | React 18 upgrade, reCAPTCHA v3 API integration | Phase 7 | planned |
 | DMQ-005 | `stylelint` | 15.11.0 → 16.x | [#39](https://github.com/Swartdraak/Bibliophilarr/pull/39) | Frontend / CI | Medium | Migrate config format, update plugin compatibility, validate all CSS rules | Phase 6-7 | **complete** |
@@ -184,13 +184,6 @@ Phase 6-7 (independent, can start now):
    DMQ-015 FluentValidation 12   — validator and request-pipeline migration
    DMQ-016 Ical.Net 5            — calendar parser compatibility checks
 
-Phase 7 (requires .NET 10 GA):
-  DMQ-002 dotnet/aspnet 10      — runtime image first
-  DMQ-001 dotnet/sdk 10         — build image, depends on DMQ-002 + TFM migration
-  DMQ-007 FluentMigrator 8  ──┐
-   DMQ-008 FluentMigrator.PG 8 ─┼─ coordinated upgrade
-   DMQ-014 FluentMigrator.SQLite 8 ┘ coordinated upgrade
-
 Phase 7 (requires React 18 first):
   DMQ-003 react-router-dom 6   — after React 18 + connected-react-router removal
   DMQ-004 react-google-recaptcha 3 — after React 18
@@ -200,9 +193,9 @@ Phase 7 (requires React 18 first):
 
 - Each migration gets a dedicated feature branch with its own PR.
 - Migrations with test-only impact (DMQ-005, DMQ-006) can proceed independently.
-- .NET 10 migrations (DMQ-001, DMQ-002) are available for scheduling now that .NET 10 LTS has reached GA; blocked by TFM migration scope.
+- The .NET 10 container images (DMQ-001, DMQ-002) are integrated on `develop`.
 - Frontend migrations (DMQ-003, DMQ-004) are sequenced after React 18 upgrade (RQ-159).
-- FluentMigrator set (DMQ-007, DMQ-008, DMQ-014) must ship as a single coordinated change.
+- The FluentMigrator packages (DMQ-007, DMQ-008, DMQ-014) were integrated together in [#514](https://github.com/Swartdraak/Bibliophilarr/pull/514).
 - Re-open Dependabot PRs or create fresh PRs against the target version available at migration time.
 
 ### Cross-references
