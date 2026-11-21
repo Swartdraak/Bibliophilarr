@@ -219,7 +219,10 @@ namespace NzbDrone.Core.Test.MetadataSource
             });
 
             var results = Subject.Search(provider.Object, "In Flight Title", "Author");
-            var deadlineAfterSuccess = registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc;
+            var healthAfterSuccess = registry.GetProvidersHealthStatus()[providerName];
+            var deadlineAfterSuccess = healthAfterSuccess.CooldownUntilUtc;
+            var requestsAfterSuccess = healthAfterSuccess.RateLimitWindowRequests;
+            var remainingAfterSuccess = healthAfterSuccess.RateLimitRemaining;
             Subject.Search(provider.Object, "Later Title", "Author").Should().BeEmpty();
 
             ExceptionVerification.ExpectedWarns(1);
@@ -227,6 +230,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             deadline.Should().BeAfter(DateTime.UtcNow);
             provider.Verify(x => x.Search("Later Title", "Author"), Times.Never());
             deadlineAfterSuccess.Should().Be(deadline);
+            requestsAfterSuccess.Should().Be(2);
+            remainingAfterSuccess.Should().Be(38);
             var telemetry = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
             telemetry.Calls.Should().Be(2);
             telemetry.Successes.Should().Be(1);

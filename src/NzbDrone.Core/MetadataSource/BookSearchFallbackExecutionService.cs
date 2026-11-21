@@ -141,9 +141,8 @@ namespace NzbDrone.Core.MetadataSource
                 watch.Stop();
                 _providerTelemetryService.RecordSuccess(provider.ProviderName, FallbackSearchOperation, watch.Elapsed.TotalMilliseconds, resultCount);
 
-                // Another request may have set a cooldown since this one started.
-                // Keep its deadline until it expires.
-                UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
+                // Another request may have updated the window and cooldown since this one started.
+                UpdateRateLimitHealth(provider, 0, TimeSpan.Zero);
                 return books ?? new List<Book>();
             }
             catch (BrokenCircuitException)
