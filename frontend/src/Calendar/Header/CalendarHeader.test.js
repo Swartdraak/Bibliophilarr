@@ -1,3 +1,5 @@
+/** @jest-environment-options {"html":"<!doctype html><html><body><div id='portal-root'></div></body></html>"} */
+
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import * as calendarViews from 'Calendar/calendarViews';
