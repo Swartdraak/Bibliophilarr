@@ -20,9 +20,13 @@ process.
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
+- Keep a provider's fallback cooldown active when an earlier request finishes
+  successfully.
 - Include automatic import fallback searches in provider operation telemetry.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
+- Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
+  dual-format monitoring answer in the in-app help.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Reject missing profile IDs before saving a new author through Add Book.
