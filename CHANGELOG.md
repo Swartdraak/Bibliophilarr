@@ -60,6 +60,8 @@ process.
   confirmed merge through the reviewed reconciliation command.
 - Distinguish failed Open Library text and ISBN lookups from successful searches
   with no matches in provider telemetry.
+- Name the Calendar's period controls and compact view menu for assistive
+  technology.
 - Reject missing profile IDs before saving a new author through Add Book.
 - Label the backup upload field and show restore errors in the dialog. Choosing
   another file clears the previous error.
