@@ -17,13 +17,18 @@ The migration program remains open and intentionally tracked through these activ
 
 - #96 Migration Program: .NET 8 -> .NET 10 LTS
 - #97 Workflow and action modernization train
-- #98 FluentMigrator coordinated upgrade train
 - #99 Frontend toolchain modernization train
 - #104 ASP.NET / SignalR runtime alignment
 
 The NuGet compatibility review (#103), Docker SDK/runtime validation (#105),
 tests/RID/platform validation (#106), and release/package validation (#107) are
 closed.
+
+The coordinated FluentMigrator 8.0.1 upgrade is integrated on `develop` in
+[#514](https://github.com/Swartdraak/Bibliophilarr/pull/514). Independent native
+tests covered SQLite and PostgreSQL startup, upgrade, restart and backup
+restore. Forced migration interruption remains tracked in
+[#328](https://github.com/Swartdraak/Bibliophilarr/issues/328).
 
 ## Governance and documentation tracks
 

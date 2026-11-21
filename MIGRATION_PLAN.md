@@ -6,6 +6,20 @@ This document outlines the comprehensive technical plan for migrating Bibliophil
 
 ## Implementation progress snapshots
 
+### November 21, 2026 — FluentMigrator compatibility
+
+[#514](https://github.com/Swartdraak/Bibliophilarr/pull/514) integrated
+FluentMigrator, SQLite and PostgreSQL runner 8.0.1 together on `develop`. The
+application selects the existing SQLite adapter or generic PostgreSQL dialect
+according to the configured database. The upgrade introduces no migration
+definitions.
+
+Independent native validation covered fresh SQLite and PostgreSQL 16 startup,
+v1.1.0 SQLite upgrade, upgrade of a PostgreSQL profile created with
+FluentMigrator 3.3.2, restart, and restoration of backups with the older
+binaries. Preserve matching pre-upgrade backups for rollback. Forced
+interruption recovery remains in [#328](https://github.com/Swartdraak/Bibliophilarr/issues/328).
+
 ### March 26, 2026 — Hardcover metadata expansion and series persistence progress
 
 Hardcover metadata provider fixes deployed and RefreshAuthor triggered for all 430 library
