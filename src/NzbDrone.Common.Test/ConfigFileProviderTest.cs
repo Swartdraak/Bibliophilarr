@@ -181,6 +181,37 @@ namespace NzbDrone.Common.Test
         }
 
         [Test]
+        public void UpdateAutomatically_Is_Disabled_For_A_New_Profile()
+        {
+            Subject.EnsureDefaultConfigFile();
+
+            Subject.UpdateAutomatically.Should().BeFalse();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void UpdateAutomatically_Preserves_An_Explicit_Profile_Setting(bool enabled)
+        {
+            _configFileContents = $"<Config><UpdateAutomatically>{enabled}</UpdateAutomatically></Config>";
+
+            Subject.EnsureDefaultConfigFile();
+
+            Subject.UpdateAutomatically.Should().Be(enabled);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void UpdateAutomatically_Prefers_An_Explicit_Environment_Override(bool enabled)
+        {
+            _configFileContents = $"<Config><UpdateAutomatically>{!enabled}</UpdateAutomatically></Config>";
+            Mocker.GetMock<IOptions<UpdateOptions>>()
+                .Setup(v => v.Value)
+                .Returns(new UpdateOptions { Automatically = enabled });
+
+            Subject.UpdateAutomatically.Should().Be(enabled);
+        }
+
+        [Test]
         public void SaveDictionary_should_save_proper_value()
         {
             var port = 20555;
