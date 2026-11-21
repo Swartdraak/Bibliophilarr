@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
+using NzbDrone.Common.Exceptions;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -604,7 +605,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     query = slug;
                 }
 
-                return Search(query, getAllEditions);
+                return MapSearchDocsToBooks(SearchText(query, getAllEditions ? 20 : 10)?.Docs);
             }
             catch (OpenLibraryException ex) when (!MetadataProviderOrchestrator.IsTransportError(ex))
             {
@@ -771,7 +772,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             _logger.Debug("OpenLibraryProvider.SearchForNewAuthor: {0}", title);
 
-            var response = _client.Search(title, limit: 10);
+            var response = SearchText(title, 10);
             return (response?.Docs ?? new List<OlSearchDoc>())
                 .Select(d => OpenLibraryMapper.MapSearchDocToBook(d))
                 .Where(b => b?.Author?.Value != null)
@@ -936,6 +937,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             var response = _client.Search(query, limit: getAllEditions ? 20 : 10);
             return MapSearchDocsToBooks(response?.Docs);
+        }
+
+        private OlSearchResponse SearchText(string query, int limit)
+        {
+            var response = _client.Search(query, limit: limit);
+            if (response?.RequestUnavailable == true)
+            {
+                throw new ServiceProviderException("Open Library did not return a usable search response.");
+            }
+
+            return response;
         }
 
         private List<Book> SearchByOpenLibraryAuthorId(string authorId)

@@ -84,7 +84,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request, GetRetryBudget(OperationClass.Search));
 
             // Author hydration must distinguish a failed request from an empty final page.
-            return query.StartsWith("author_key:", StringComparison.Ordinal) ? response : response ?? new OlSearchResponse();
+            return query.StartsWith("author_key:", StringComparison.Ordinal)
+                ? response
+                : response ?? new OlSearchResponse { RequestUnavailable = true };
         }
 
         public OlAuthorWorksResponse GetAuthorWorks(string olid, int limit = 100, int offset = 0)
