@@ -62,15 +62,24 @@ sign-in, an authenticated API write and sign-out on a disposable instance.
 
 ## Container image signatures
 
-The Docker release workflow uses keyless Cosign signing and verifies the
-published image digest against its exact GitHub workflow identity and OIDC
-issuer. A failed signature verification fails the workflow.
+The Docker release workflow uses keyless Cosign signing. After pushing the
+image, it checks the immutable digest against the exact GitHub Actions
+workflow identity and OIDC issuer. Verification failure fails the workflow.
+The registry can already contain the image when verification fails.
 
-When verifying a public image, use its immutable digest and the
-`Swartdraak/Bibliophilarr/.github/workflows/docker-image.yml` identity at the
-approved tag ref. A manual publish from an approved main commit uses the
-`refs/heads/main` workflow identity. Follow the identity and issuer options
-in the [Sigstore verification guide](https://docs.sigstore.dev/quickstart/verification-cheat-sheet/).
+To verify a tag-triggered image, set `release_tag` to its approved release
+tag and `digest` to the published `sha256:…` digest. Then run:
+
+```bash
+cosign verify \
+  --certificate-identity "https://github.com/Swartdraak/Bibliophilarr/.github/workflows/docker-image.yml@refs/tags/${release_tag}" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  "ghcr.io/swartdraak/bibliophilarr@${digest}"
+```
+
+For an image published by manual dispatch on an approved main commit, pass
+`https://github.com/Swartdraak/Bibliophilarr/.github/workflows/docker-image.yml@refs/heads/main`
+as the certificate identity.
 
 ## Disclosure
 
@@ -81,3 +90,4 @@ mitigation path.
 
 1. [README.md](README.md) — repository mission and active maintenance context.
 2. [CONTRIBUTING.md](CONTRIBUTING.md) — documentation and change-management expectations.
+3. [Sigstore OIDC verification guide](https://docs.sigstore.dev/quickstart/verification-cheat-sheet/)
