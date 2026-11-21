@@ -58,10 +58,9 @@ process.
   confirmed merge through the reviewed reconciliation command.
 - Distinguish failed Open Library text and ISBN lookups from successful searches
   with no matches in provider telemetry.
+- Reject missing profile IDs before saving a new author through Add Book.
 - Label the backup upload field and show restore errors in the dialog. Choosing
   another file clears the previous error.
-- Provider telemetry distinguishes failed Open Library text searches from
-  successful searches with no matches.
 - Coordinate overlapping author refreshes so they share the stored series and
   keep its book links.
 - Preserve completed task results in command history after restart.
@@ -284,6 +283,8 @@ process.
 - Require an API credential for versioned API writes and protect Forms
   sign-in and sign-out with browser verification tokens.
 - Keep Calibre connection settings and library lookup terms out of scan logs.
+- Database migration startup logs identify the database type and role without
+  exposing connection details.
 - New and changed account passwords use salted PBKDF2. Existing accounts
   upgrade when they next sign in successfully with a password. Rollback to an
   earlier version requires its matching app-data backup after a password upgrade.
