@@ -24,8 +24,7 @@ class AddNewItem extends Component {
     super(props, context);
 
     this.state = {
-      term: props.term || '',
-      isFetching: false
+      term: props.term || ''
     };
   }
 
@@ -38,21 +37,10 @@ class AddNewItem extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    const {
-      term,
-      isFetching
-    } = this.props;
-
-    if (term && term !== prevProps.term) {
-      this.setState({
-        term,
-        isFetching: true
-      });
+    if (this.props.term !== prevProps.term) {
+      const term = this.props.term || '';
+      this.setState({ term });
       this.props.onSearchChange(term);
-    } else if (isFetching !== prevProps.isFetching) {
-      this.setState({
-        isFetching
-      });
     }
   }
 
@@ -60,15 +48,13 @@ class AddNewItem extends Component {
   // Listeners
 
   onSearchInputChange = ({ value }) => {
-    const hasValue = !!value.trim();
+    this.setState({ term: value });
 
-    this.setState({ term: value, isFetching: hasValue }, () => {
-      if (hasValue) {
-        this.props.onSearchChange(value);
-      } else {
-        this.props.onClearSearch();
-      }
-    });
+    if (value.trim()) {
+      this.props.onSearchChange(value);
+    } else {
+      this.props.onClearSearch();
+    }
   };
 
   onClearSearchPress = () => {
@@ -83,11 +69,11 @@ class AddNewItem extends Component {
     const {
       error,
       items,
+      isFetching,
       hasExistingAuthors
     } = this.props;
 
     const term = this.state.term;
-    const isFetching = this.state.isFetching;
 
     return (
       <PageContent title={translate('AddNewItem')}>

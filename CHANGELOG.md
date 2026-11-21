@@ -54,6 +54,8 @@ process.
   the preferred edition has incomplete metadata.
 - Reuse each provider's ISBN lookup across equivalent editions during one
   book enrichment operation.
+- Cancel superseded Add New searches so cleared or shortened terms cannot
+  trigger extra provider queries or display stale results.
 - Preserve the Hardcover author, work, or edition that supplied an artwork
   reference, including when an edition displays the work's cover.
 - Explain when a different ebook has an unverified ISBN for an occupied
