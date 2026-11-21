@@ -57,14 +57,14 @@ namespace NzbDrone.Integration.Test.ApiTests
                 .Save(Path.Combine(data, "config.xml"));
 
             var args = new[] { $"-data={data}", "-nobrowser", "-nosingleinstancecheck" };
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-            var cancellationToken = timeout.Token;
 
             try
             {
                 AuthorResource created;
                 using (var host = BuildHost(args, provider))
                 {
+                    using var firstTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                    var cancellationToken = firstTimeout.Token;
                     await host.StartAsync(cancellationToken);
                     try
                     {
@@ -104,7 +104,7 @@ namespace NzbDrone.Integration.Test.ApiTests
                     }
                     finally
                     {
-                        await host.StopAsync();
+                        await host.StopAsync(CancellationToken.None);
                     }
                 }
 
@@ -112,23 +112,41 @@ namespace NzbDrone.Integration.Test.ApiTests
 
                 // Restart with the original SQLite files and no provider available to re-resolve the author.
                 using var restartedHost = BuildHost(args);
-                await restartedHost.StartAsync(cancellationToken);
+                using var restartTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                var restartToken = restartTimeout.Token;
+                await restartedHost.StartAsync(restartToken);
                 try
                 {
                     using var client = CreateClient(restartedHost, apiKey);
-                    await AssertAuthorIdentity(client, created, cancellationToken);
-                    var all = await client.GetFromJsonAsync<List<AuthorResource>>("author", STJson.GetSerializerSettings(), cancellationToken);
+                    await AssertAuthorIdentity(client, created, restartToken);
+                    var all = await client.GetFromJsonAsync<List<AuthorResource>>("author", STJson.GetSerializerSettings(), restartToken);
                     all.Should().ContainSingle().Which.Id.Should().Be(created.Id);
                 }
                 finally
                 {
-                    await restartedHost.StopAsync();
+                    await restartedHost.StopAsync(CancellationToken.None);
                 }
             }
             finally
             {
                 SQLiteConnection.ClearAllPools();
-                workspace.Delete(recursive: true);
+                await DeleteWorkspace(workspace);
+            }
+        }
+
+        private static async Task DeleteWorkspace(DirectoryInfo workspace)
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    workspace.Delete(recursive: true);
+                    return;
+                }
+                catch (Exception ex) when (attempt < 4 && ex is IOException or UnauthorizedAccessException)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
+                }
             }
         }
 
@@ -137,17 +155,25 @@ namespace NzbDrone.Integration.Test.ApiTests
             return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
                 .ConfigureServices(services =>
                 {
+                    services.PostConfigure<LogOptions>(options => options.AnalyticsEnabled = false);
                     services.PostConfigure<PostgresOptions>(options => options.Host = null);
                     services.PostConfigure<UpdateOptions>(options => options.PublicReleaseDiscovery = false);
                 })
                 .ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"))
                 .ConfigureContainer<IContainer>(container =>
                 {
-                    container.RegisterInstance(Mock.Of<IHttpDispatcher>(MockBehavior.Strict), ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+                    // Test HTTP requests use the real loopback client. The app itself has no network fixture.
+                    var dispatcher = new Mock<IHttpDispatcher>();
+                    dispatcher.Setup(client => client.GetResponseAsync(It.IsAny<NzbDrone.Common.Http.HttpRequest>(), It.IsAny<CookieContainer>()))
+                        .ThrowsAsync(new InvalidOperationException("The author persistence fixture does not permit outbound HTTP."));
+                    container.RegisterInstance(dispatcher.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
 
                     // Bootstrap can resolve the orchestrator before this callback, so keep its registry instance.
                     var registry = container.Resolve<IMetadataProviderRegistry>();
-                    foreach (var provider in registry.GetAllProviders())
+
+                    // GetAllProviders returns a snapshot taken under the registry lock.
+                    var registeredProviders = registry.GetAllProviders();
+                    foreach (var provider in registeredProviders)
                     {
                         registry.UnregisterProvider(provider.ProviderName);
                     }
