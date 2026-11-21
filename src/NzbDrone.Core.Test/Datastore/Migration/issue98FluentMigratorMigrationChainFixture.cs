@@ -3,7 +3,15 @@ using System.Linq;
 using System.Reflection;
 using FluentAssertions;
 using FluentMigrator;
+using FluentMigrator.Runner.Generators;
+using FluentMigrator.Runner.Generators.Postgres;
+using FluentMigrator.Runner.Generators.SQLite;
+using FluentMigrator.Runner.Initialization;
+using FluentMigrator.Runner.Processors;
+using FluentMigrator.Runner.Processors.Postgres;
+using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Migration;
 using NzbDrone.Core.Datastore.Migration.Framework;
 
@@ -86,12 +94,21 @@ namespace NzbDrone.Core.Test.Datastore.Migration
             });
         }
 
-        [Test]
-        public void sqlite_processor_should_be_registered()
+        [TestCase(DatabaseType.SQLite, "Data Source=:memory:", typeof(NzbDroneSQLiteProcessor), typeof(SQLiteGenerator))]
+        [TestCase(DatabaseType.PostgreSQL, "Host=localhost;Database=migration_fixture", typeof(PostgresProcessor), typeof(PostgresGenerator))]
+        public void should_register_and_select_only_the_configured_dialect(DatabaseType databaseType, string connectionString, Type processorType, Type generatorType)
         {
-            var processorType = typeof(NzbDroneSQLiteProcessor);
-            processorType.Should().NotBeNull("NzbDroneSQLiteProcessor must exist");
-            processorType.IsAbstract.Should().BeFalse("NzbDroneSQLiteProcessor must be instantiable");
+            using var provider = MigrationController.ConfigureServices(connectionString, databaseType).BuildServiceProvider();
+            using var scope = provider.CreateScope();
+            var services = scope.ServiceProvider;
+            var processor = services.GetRequiredService<IProcessorAccessor>().Processor;
+            var generator = services.GetRequiredService<IGeneratorAccessor>().Generator;
+
+            processor.Should().BeOfType(processorType);
+            generator.Should().BeOfType(generatorType);
+            services.GetServices<IMigrationProcessor>().Should().ContainSingle().Which.Should().BeSameAs(processor);
+            services.GetServices<IMigrationGenerator>().Should().ContainSingle().Which.Should().BeSameAs(generator);
+            services.GetRequiredService<IConnectionStringAccessor>().ConnectionString.Should().Be(connectionString);
         }
     }
 }
