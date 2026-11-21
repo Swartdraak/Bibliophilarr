@@ -10,6 +10,8 @@ test.each([
   ['sameSizeAsExisting', 'UnmappedReasonSameSizeAsExisting'],
   ['conflictingIdentity', 'UnmappedReasonConflictingIdentity'],
   ['providerIdentityConflict', 'UnmappedReasonProviderIdentityConflict'],
+  ['authorBibliographyUnavailable', 'UnmappedReasonAuthorBibliographyUnavailable'],
+  ['authorIdentityConfirmationRequired', 'UnmappedReasonAuthorIdentityConfirmationRequired'],
   [undefined, 'UnmappedReasonNotRecorded']
 ])('shows the recorded reason %s beside the file', (unmappedReason, expectedLabel) => {
   render(

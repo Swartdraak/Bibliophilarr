@@ -9,6 +9,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Parser.Model;
@@ -192,7 +193,35 @@ namespace NzbDrone.Core.Test.MediaFiles
             authorityAdded.Should().BeTrue();
             additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == syntheticId), false),
                 unattended ? Times.Never() : Times.Once());
-            later.Rejections.Any(rejection => rejection.HoldReason == LibraryImportHoldReason.ReviewRequired).Should().Be(unattended);
+            later.Rejections.Any(rejection => rejection.HoldReason == LibraryImportHoldReason.AuthorIdentityConfirmationRequired).Should().Be(unattended);
+        }
+
+        [TestCase("get-author-info", LibraryImportHoldReason.AuthorBibliographyUnavailable)]
+        [TestCase("get-book-info", null)]
+        public void should_record_only_author_bibliography_provider_failures_with_the_retry_reason(string operation, LibraryImportHoldReason? expectedReason)
+        {
+            GivenAudiobookImport();
+            _author.Id = 0;
+            _author.ForeignAuthorId = "hardcover:author:123";
+            var decision = _approvedDecisions.Single();
+            decision.Item.IsUnattendedLibraryImport = true;
+            Mocker.GetMock<IAddAuthorService>()
+                .Setup(service => service.AddAuthor(_author, false))
+                .Throws(new MetadataProviderUnavailableException(operation, "openlibrary:author:OL1A", new InvalidOperationException("Synthetic incomplete bibliography")));
+
+            var result = Subject.Import(_approvedDecisions, false).Single();
+
+            ExceptionVerification.ExpectedErrors(1);
+            result.Result.Should().Be(ImportResultType.Rejected);
+            var rejection = decision.Rejections.Should().ContainSingle().Which;
+            rejection.Type.Should().Be(RejectionType.Temporary);
+            rejection.Reason.Should().Be(expectedReason.HasValue
+                ? "The metadata provider could not load the author's bibliography. Rescan to retry."
+                : "Failed to add missing author");
+            rejection.HoldReason.Should().Be(expectedReason);
+            Mocker.GetMock<IAddAuthorService>().Verify(service => service.AddAuthor(_author, false), Times.Once());
+            Mocker.GetMock<IEditionService>().Verify(service => service.SetMonitored(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
         }
 
         [Test]

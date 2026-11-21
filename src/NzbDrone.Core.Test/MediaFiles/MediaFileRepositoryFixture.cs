@@ -84,6 +84,8 @@ namespace NzbDrone.Core.Test.MediaFiles
 
         [TestCase(LibraryImportHoldReason.NoAcceptedWork)]
         [TestCase(LibraryImportHoldReason.ProviderIdentityConflict)]
+        [TestCase(LibraryImportHoldReason.AuthorBibliographyUnavailable)]
+        [TestCase(LibraryImportHoldReason.AuthorIdentityConfirmationRequired)]
         public void should_persist_updated_reasons_only_while_the_same_file_is_unmapped(LibraryImportHoldReason initialReason)
         {
             var files = Subject.GetUnmappedFiles();

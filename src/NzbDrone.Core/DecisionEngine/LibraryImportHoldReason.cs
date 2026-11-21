@@ -13,6 +13,8 @@ namespace NzbDrone.Core.DecisionEngine
         ConflictingIdentity = 9,
         ImportFailed = 10,
         ProviderIdentityConflict = 11,
-        UnverifiedEditionIdentifier = 12
+        UnverifiedEditionIdentifier = 12,
+        AuthorBibliographyUnavailable = 13,
+        AuthorIdentityConfirmationRequired = 14
     }
 }

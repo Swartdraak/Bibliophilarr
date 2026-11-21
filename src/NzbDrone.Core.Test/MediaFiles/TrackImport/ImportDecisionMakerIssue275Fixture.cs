@@ -374,7 +374,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Approved.Should().Be(!hold);
             if (hold)
             {
-                decision.Rejections.Should().ContainSingle(rejection => rejection.HoldReason == LibraryImportHoldReason.ReviewRequired);
+                decision.Rejections.Should().ContainSingle(rejection => rejection.HoldReason == LibraryImportHoldReason.AuthorIdentityConfirmationRequired);
             }
         }
 

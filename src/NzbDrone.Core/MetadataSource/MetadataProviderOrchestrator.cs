@@ -26,7 +26,7 @@ namespace NzbDrone.Core.MetadataSource
     /// </summary>
     public class MetadataProviderOrchestrator : IMetadataProviderOrchestrator, ISearchForNewBook, ISearchForNewAuthor
     {
-        private const string AuthorInfoOperation = "get-author-info";
+        internal const string AuthorInfoOperation = "get-author-info";
         private const string BookSearchOperation = "search-for-new-book";
         private const int MaxPortraitIsbnLookups = 2;
         private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(250);

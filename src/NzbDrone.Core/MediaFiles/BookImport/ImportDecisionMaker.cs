@@ -53,7 +53,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
     public class ImportDecisionMaker : IMakeImportDecision
     {
-        internal const string UnverifiedAuthorReviewMessage = "A different catalogue author has the same name. Select the intended author manually.";
+        internal const string UnverifiedAuthorReviewMessage = "An existing catalogue author has the same name. Select the intended author manually.";
 
         private readonly IEnumerable<IImportDecisionEngineSpecification<LocalBook>> _trackSpecifications;
         private readonly IEnumerable<IImportDecisionEngineSpecification<LocalEdition>> _bookSpecifications;
@@ -252,7 +252,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 {
                     releaseDecision = new ImportDecision<LocalEdition>(release, new Rejection(
                         UnverifiedAuthorReviewMessage,
-                        holdReason: LibraryImportHoldReason.ReviewRequired));
+                        holdReason: LibraryImportHoldReason.AuthorIdentityConfirmationRequired));
                 }
                 else
                 {

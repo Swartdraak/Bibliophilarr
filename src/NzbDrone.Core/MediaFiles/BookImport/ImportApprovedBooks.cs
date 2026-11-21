@@ -17,11 +17,13 @@ using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Extras;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -490,7 +492,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         {
                             decision.Reject(new Rejection(
                                 ImportDecisionMaker.UnverifiedAuthorReviewMessage,
-                                holdReason: LibraryImportHoldReason.ReviewRequired));
+                                holdReason: LibraryImportHoldReason.AuthorIdentityConfirmationRequired));
                         }
 
                         return null;
@@ -536,9 +538,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     catch (Exception e)
                     {
                         _logger.Error(e, "Failed to add author {0}", author);
+                        var bibliographyUnavailable = e is MetadataProviderUnavailableException { Operation: MetadataProviderOrchestrator.AuthorInfoOperation };
+                        var reason = bibliographyUnavailable ? LibraryImportHoldReason.AuthorBibliographyUnavailable : (LibraryImportHoldReason?)null;
+                        var message = bibliographyUnavailable
+                            ? "The metadata provider could not load the author's bibliography. Rescan to retry."
+                            : "Failed to add missing author";
                         foreach (var decision in decisions)
                         {
-                            decision.Reject(new Rejection("Failed to add missing author", RejectionType.Temporary));
+                            decision.Reject(new Rejection(message, RejectionType.Temporary, reason));
                         }
 
                         return null;

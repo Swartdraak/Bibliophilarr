@@ -26,6 +26,8 @@ const unmappedReasonLabels = {
   conflictingIdentity: 'UnmappedReasonConflictingIdentity',
   providerIdentityConflict: 'UnmappedReasonProviderIdentityConflict',
   unverifiedEditionIdentifier: 'UnmappedReasonUnverifiedEditionIdentifier',
+  authorBibliographyUnavailable: 'UnmappedReasonAuthorBibliographyUnavailable',
+  authorIdentityConfirmationRequired: 'UnmappedReasonAuthorIdentityConfirmationRequired',
   importFailed: 'UnmappedReasonImportFailed'
 };
 
