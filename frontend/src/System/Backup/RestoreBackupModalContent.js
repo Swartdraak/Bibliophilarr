@@ -1,5 +1,8 @@
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
+import Alert from 'Components/Alert';
+import FormGroup from 'Components/Form/FormGroup';
+import FormLabel from 'Components/Form/FormLabel';
 import TextInput from 'Components/Form/TextInput';
 import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
@@ -14,7 +17,7 @@ import styles from './RestoreBackupModalContent.css';
 
 function getErrorMessage(error) {
   if (!error || !error.responseJSON || !error.responseJSON.message) {
-    return 'Error restoring backup';
+    return translate('BackupRestoreFailed');
   }
 
   return error.responseJSON.message;
@@ -38,8 +41,7 @@ function getStepIconProps(isExecuting, hasExecuted, error) {
   if (error) {
     return {
       name: icons.FATAL,
-      kinds: kinds.DANGER,
-      title: getErrorMessage(error)
+      kind: kinds.DANGER
     };
   }
 
@@ -81,10 +83,16 @@ class RestoreBackupModalContent extends Component {
   // Listeners
 
   onPathChange = ({ value, files }) => {
+    const { isRestoring, restoreError, onClearRestoreError } = this.props;
+
     this.setState({
       file: files[0],
       path: value
     });
+
+    if (!isRestoring && restoreError) {
+      onClearRestoreError();
+    }
   };
 
   onRestorePress = () => {
@@ -125,7 +133,7 @@ class RestoreBackupModalContent extends Component {
     return (
       <ModalContent onModalClose={onModalClose}>
         <ModalHeader>
-          Restore Backup
+          {translate('RestoreBackup')}
         </ModalHeader>
 
         <ModalBody>
@@ -135,12 +143,23 @@ class RestoreBackupModalContent extends Component {
 
           {
             !id &&
-              <TextInput
-                type="file"
-                name="path"
-                value={path}
-                onChange={this.onPathChange}
-              />
+              <FormGroup>
+                <FormLabel name="restoreBackupFile">{translate('BackupFile')}</FormLabel>
+                <TextInput
+                  type="file"
+                  name="path"
+                  inputId="restoreBackupFile"
+                  value={path}
+                  onChange={this.onPathChange}
+                />
+              </FormGroup>
+          }
+
+          {
+            restoreError && !isRestoring &&
+              <Alert kind={kinds.DANGER} role="alert">
+                {getErrorMessage(restoreError)}
+              </Alert>
           }
 
           <div className={styles.steps}>
@@ -178,7 +197,7 @@ class RestoreBackupModalContent extends Component {
           </div>
 
           <Button onPress={onModalClose}>
-            Cancel
+            {translate('Cancel')}
           </Button>
 
           <SpinnerButton
@@ -187,7 +206,7 @@ class RestoreBackupModalContent extends Component {
             isSpinning={isRestoring}
             onPress={this.onRestorePress}
           >
-            Restore
+            {translate('Restore')}
           </SpinnerButton>
         </ModalFooter>
       </ModalContent>
@@ -202,6 +221,7 @@ RestoreBackupModalContent.propTypes = {
   isRestoring: PropTypes.bool.isRequired,
   restoreError: PropTypes.object,
   dispatchRestart: PropTypes.func.isRequired,
+  onClearRestoreError: PropTypes.func.isRequired,
   onRestorePress: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired
 };

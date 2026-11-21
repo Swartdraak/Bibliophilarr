@@ -2,6 +2,7 @@
 
 import argparse
 from contextlib import closing, contextmanager
+from io import BytesIO
 import os
 from pathlib import Path
 import re
@@ -13,6 +14,7 @@ from tempfile import TemporaryDirectory
 import time
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
+from zipfile import ZipFile
 
 from playwright.sync_api import Error as PlaywrightError, expect, sync_playwright
 
@@ -317,6 +319,11 @@ def check_import_list_exclusions(page, base, api, app_data):
 
 
 def check_metadata_settings(page, base, api):
+    metadata_path = "/api/v1/config/metadataprovider"
+    config = check_status(api.get(metadata_path), 200, "Read metadata settings").json()
+    config.update(enableInventaireProvider=False, enableInventaireFallback=True)
+    check_status(api.put(metadata_path + "/1", data=config), 202, "Seed divergent Inventaire preferences")
+
     page.set_viewport_size({"width": 1366, "height": 900})
     check_status(page.goto(base + "/settings"), 200, "Authenticated Settings")
     main = page.get_by_role("main")
@@ -324,6 +331,15 @@ def check_metadata_settings(page, base, api):
     expect(metadata_link).to_have_attribute("href", "/settings/metadata")
     metadata_link.click()
     expect(page).to_have_url(base + "/settings/metadata")
+
+    inventaire = main.get_by_role("checkbox", name=re.compile(r"^Enable Inventaire(?:\s|$)"))
+    expect(inventaire).to_have_count(1)
+    expect(inventaire).to_have_attribute("name", "enableInventaireFallback")
+    expect(inventaire).to_be_checked()
+    expect(main.get_by_role("checkbox", name=re.compile(r"^Enable Fallback Searches(?:\s|$)"))).to_have_count(0)
+    expect(main.locator('input[name="enableInventaireProvider"]')).to_have_count(0)
+    inventaire.press("Space")
+    expect(inventaire).not_to_be_checked()
 
     timeout_input = main.get_by_role("spinbutton", name="Provider Timeout (seconds)")
     expect(timeout_input).to_be_visible()
@@ -337,14 +353,69 @@ def check_metadata_settings(page, base, api):
     ) as saved:
         main.get_by_role("button", name="Save Changes", exact=True).click()
     check_status(saved.value, 202, "Metadata settings save from the browser")
+    submitted = saved.value.request.post_data_json
+    assert submitted["enableInventaireFallback"] is False, "browser did not submit the changed fallback preference"
+    assert submitted["enableInventaireProvider"] is False, "browser changed the legacy preference"
     expect(main.get_by_role("button", name="No Changes", exact=True)).to_be_disabled()
 
     check_status(page.reload(), 200, "Reload authenticated Metadata settings")
     expect(timeout_input).to_have_value(str(timeout))
-    config = check_status(api.get("/api/v1/config/metadataprovider"), 200, "Read back browser metadata setting").json()
+    expect(inventaire).not_to_be_checked()
+    config = check_status(api.get(metadata_path), 200, "Read back browser metadata settings").json()
     assert config["metadataProviderTimeoutSeconds"] == timeout, "browser metadata change did not persist"
+    assert config["enableInventaireFallback"] is False, "browser Inventaire change did not persist"
+    assert config["enableInventaireProvider"] is False, "legacy Inventaire preference changed"
+
+    config["enableInventaireProvider"] = True
+    check_status(api.put(metadata_path + "/1", data=config), 202, "Keep only the legacy Inventaire preference enabled")
+    check_status(page.reload(), 200, "Reload after changing the legacy preference")
+    expect(inventaire).not_to_be_checked()
     print("Metadata settings persisted after browser reload", flush=True)
     return timeout
+
+
+def check_restore_upload_error(page, api):
+    status = "/api/v1/system/status"
+    initial_start = check_status(api.get(status), 200, "Start time before rejected restore").json()["startTime"]
+    nav = page.get_by_role("navigation", name="Primary navigation")
+    nav.locator('a[href="/system/status"]').filter(has_text="System").click()
+    nav.get_by_role("link", name="Backup", exact=True).click()
+    expect(page).to_have_url(re.compile(r"/system/backup$"))
+    opener = page.get_by_role("button", name="Restore Backup", exact=True).filter(has_text="Restore Backup")
+    opener.click()
+
+    dialog = page.get_by_role("dialog", name="Restore Backup")
+    chooser = dialog.get_by_label("Backup file", exact=True)
+    restore = dialog.get_by_role("button", name="Restore", exact=True)
+    alert = dialog.get_by_role("alert")
+    expect(chooser).to_be_visible()
+    expect(restore).to_be_disabled()
+
+    invalid_zip = BytesIO()
+    with ZipFile(invalid_zip, "w") as archive:
+        archive.writestr("fixture.txt", "No restorable app files in this test archive.")
+
+    for name in ("invalid-backup.zip", "different-invalid-backup.zip"):
+        chooser.set_input_files({"name": name, "mimeType": "application/zip", "buffer": invalid_zip.getvalue()})
+        expect(alert).to_have_count(0)
+        with page.expect_response(
+            lambda response: response.request.method == "POST"
+            and urlsplit(response.url).path == "/api/v1/system/backup/restore/upload"
+        ) as failed:
+            restore.click()
+        error = check_status(failed.value, 404, "Reject backup archive without restorable files").json()["message"]
+        assert error.strip(), "backup rejection did not explain the failure"
+        expect(alert).to_have_text(error)
+
+    assert check_status(api.get(status), 200, "Start time after rejected restore").json()["startTime"] == initial_start
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    expect(dialog).to_have_count(0)
+    opener.click()
+    expect(chooser).to_have_value("")
+    expect(restore).to_be_disabled()
+    expect(alert).to_have_count(0)
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    print("Restore upload: PASS (named input, readable rejection and clean retry)", flush=True)
 
 
 def run(binary, evidence, *, live_provider=False):
@@ -461,6 +532,7 @@ def run(binary, evidence, *, live_provider=False):
             check_routes(page, base, api, evidence)
             timeout = check_metadata_settings(page, base, api)
             exclusions = check_import_list_exclusions(page, base, api, data)
+            check_restore_upload_error(page, api)
             catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
             assert app.poll() is None, "native app exited before the planned restart"
 
@@ -484,7 +556,7 @@ def run(binary, evidence, *, live_provider=False):
             page.set_viewport_size({"width": 1366, "height": 900})
             check_status(page.goto(base + "/authors"), 200, "Library after restart")
             expect(page.get_by_role("main").get_by_role("heading", name="Authors", exact=True)).to_be_visible()
-            verify_catalogue_after_restart(page, api, base, catalogue)
+            verify_catalogue_after_restart(page, api, base, data, catalogue)
             persisted = check_status(api.get("/api/v1/importlistexclusion"), 200, "Exclusions after restart").json()
             assert {row["id"]: {key: row[key] for key in ("foreignId", "authorName")} for row in persisted} == exclusions
             assert not errors, f"{len(errors)} uncaught browser page errors"
