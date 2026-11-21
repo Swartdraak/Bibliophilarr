@@ -91,6 +91,7 @@ class Indexers extends Component {
 
             <Card
               className={styles.addIndexer}
+              ariaLabel={translate('AddIndexer')}
               onPress={this.onAddIndexerPress}
             >
               <div className={styles.center}>
