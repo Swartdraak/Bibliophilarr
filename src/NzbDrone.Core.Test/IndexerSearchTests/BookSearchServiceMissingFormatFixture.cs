@@ -84,6 +84,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
                 Decision(other, targetQuality),
                 Decision(null, otherQuality),
                 Decision(null, null),
+                Decision(null, Quality.Unknown),
                 parsed
             };
 
@@ -165,6 +166,28 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
         }
 
         [Test]
+        public void should_identify_a_legacy_file_without_quality_by_its_path()
+        {
+            _book.BookFiles.Value.Add(new BookFile { Path = "/library/existing.m4b" });
+            var ebook = Decision(FormatType.Ebook, Quality.EPUB);
+            _search.Setup(service => service.BookSearch(BookId, true, true, false, true))
+                .ReturnsAsync(new List<DownloadDecision> { ebook });
+            _downloads.Setup(service => service.ProcessDecisions(It.IsAny<List<DownloadDecision>>())).ReturnsAsync(EmptyResult());
+
+            _subject.Execute(AudioSearch());
+            _search.VerifyNoOtherCalls();
+            _downloads.VerifyNoOtherCalls();
+
+            var command = AudioSearch();
+            command.MissingFormat = FormatType.Ebook;
+            _subject.Execute(command);
+
+            _search.Verify(service => service.BookSearch(BookId, true, true, false, true), Times.Once);
+            _downloads.Verify(service => service.ProcessDecisions(It.Is<List<DownloadDecision>>(items =>
+                items.Count == 1 && items[0] == ebook)), Times.Once);
+        }
+
+        [Test]
         public void should_not_forward_a_result_set_without_the_requested_format()
         {
             _search.Setup(service => service.BookSearch(BookId, true, true, false, true))
@@ -173,6 +196,8 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             _subject.Execute(AudioSearch());
 
             _search.Verify(service => service.BookSearch(BookId, true, true, false, true), Times.Once);
+            _books.Verify(service => service.GetBook(BookId), Times.Once);
+            _profiles.Verify(service => service.GetByAuthorIdAndFormat(AuthorId, FormatType.Audiobook), Times.Once);
             _downloads.VerifyNoOtherCalls();
         }
 

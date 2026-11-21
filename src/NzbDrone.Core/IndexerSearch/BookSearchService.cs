@@ -9,6 +9,8 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Queue;
@@ -150,14 +152,23 @@ namespace NzbDrone.Core.IndexerSearch
                    book.Author?.Value is { Monitored: true } author &&
                    _formatProfileService.GetByAuthorIdAndFormat(author.Id, format)?.Monitored == true &&
                    book.BookFiles?.Value is { } files &&
-                   !files.Any(file => Quality.GetFormatType(file.Quality?.Quality) == format);
+                   !files.Any(file => GetFileFormat(file) == format);
+        }
+
+        private static FormatType? GetFileFormat(BookFile file)
+        {
+            return ImportFormat.ForPath(file.Path) ?? GetKnownQualityFormat(file.Quality?.Quality);
+        }
+
+        private static FormatType? GetKnownQualityFormat(Quality quality)
+        {
+            return quality == null || quality == Quality.Unknown ? null : Quality.GetFormatType(quality);
         }
 
         private static bool MatchesFormat(DownloadDecision decision, FormatType format)
         {
             var remoteBook = decision.RemoteBook;
-            var quality = remoteBook?.ParsedBookInfo?.Quality?.Quality;
-            var parsedFormat = quality == null ? (FormatType?)null : Quality.GetFormatType(quality);
+            var parsedFormat = GetKnownQualityFormat(remoteBook?.ParsedBookInfo?.Quality?.Quality);
             return (remoteBook?.ResolvedFormatType ?? parsedFormat) == format &&
                    (parsedFormat == null || parsedFormat == format);
         }
