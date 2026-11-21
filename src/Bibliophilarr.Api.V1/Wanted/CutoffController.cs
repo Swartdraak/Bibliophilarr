@@ -46,6 +46,11 @@ namespace Bibliophilarr.Api.V1.Wanted
                 SortDirection = pagingResource.SortDirection
             };
 
+            if (formatType is FormatType format)
+            {
+                return pagingSpec.ApplyToPage(spec => _bookCutoffService.BooksWhereCutoffUnmet(spec, format, monitored), v => MapToResource(v, includeAuthor));
+            }
+
             var dualFormatEnabled = _configService.EnableDualFormatTracking;
 
             if (monitored)
