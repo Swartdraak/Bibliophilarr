@@ -73,6 +73,44 @@ def check_bootstrap_user(app_data, credentials=None):
     assert users == expected, "bootstrap user did not match the persisted profile"
 
 
+def exercise_manual_backup(api, app_data):
+    command = check_status(api.post("/api/v1/command", data={"name": "Backup"}), 201, "Queue manual backup").json()
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        response = api.get(f"/api/v1/command/{command['id']}")
+        assert response.status == 200, "read manual backup command"
+        status = response.json()["status"]
+        if status == "completed":
+            break
+        assert status not in ("failed", "aborted", "orphaned"), f"manual backup command {status}"
+        time.sleep(0.25)
+    else:
+        raise TimeoutError("manual backup command did not complete")
+
+    backups = check_status(api.get("/api/v1/system/backup"), 200, "Discover manual backup").json()
+    manual_backups = [entry for entry in backups if entry["type"] == "manual"]
+    assert len(manual_backups) == 1, f"one fresh manual backup expected after command completion, found {len(manual_backups)}"
+    backup = manual_backups[0]
+    backup_root = app_data / "Backups"
+    target = backup_root / "manual" / backup["name"]
+    # Read actual names so a casing regression also fails on Windows.
+    assert backup_root.is_dir() and any(path.name == "Backups" for path in app_data.iterdir()), "expected an exact Backups directory"
+    assert target.parent.is_dir() and any(path.name == "manual" for path in backup_root.iterdir()), "expected the exact Backups/manual directory"
+    assert backup["path"] == f"/backup/manual/{target.name}"
+    assert target.is_file() and target.stat().st_size == backup["size"]
+    with ZipFile(target) as archive:
+        assert {"config.xml", "bibliophilarr.db"}.issubset(archive.namelist())
+        assert archive.testzip() is None
+
+    witness = check_status(api.post("/api/v1/tag", data={"label": "after-backup-witness"}), 201, "Create post-backup tag").json()
+    check_status(api.get(f"/api/v1/tag/{witness['id']}"), 200, "Read post-backup tag")
+    staged = check_status(api.post(f"/api/v1/system/backup/restore/{backup['id']}"), 200, "Stage restore by manual backup ID").json()
+    assert staged["restartRequired"] is True, "restore did not request a restart"
+    assert (app_data / "bibliophilarr.restore").is_file(), "restore returned before staging the database"
+    print("manual_backup: PASS (exact Backups/manual path and restore by API ID)", flush=True)
+    return witness["id"]
+
+
 def bootstrap_headers(http, base):
     response = check_status(http.get(base + "/bootstrap", max_redirects=0), 200, "Read terminal setup token")
     cache_control = response.headers.get("cache-control", "")
@@ -534,6 +572,7 @@ def run(binary, evidence, *, live_provider=False):
             exclusions = check_import_list_exclusions(page, base, api, data)
             check_restore_upload_error(page, api)
             catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
+            backup_witness = exercise_manual_backup(api, data)
             assert app.poll() is None, "native app exited before the planned restart"
 
         assert app.returncode == 0, "native app did not exit cleanly after SIGTERM"
@@ -559,6 +598,8 @@ def run(binary, evidence, *, live_provider=False):
             verify_catalogue_after_restart(page, api, base, data, catalogue)
             persisted = check_status(api.get("/api/v1/importlistexclusion"), 200, "Exclusions after restart").json()
             assert {row["id"]: {key: row[key] for key in ("foreignId", "authorName")} for row in persisted} == exclusions
+            assert not (data / "bibliophilarr.restore").exists(), "manual backup restore was not applied at startup"
+            check_status(api.get(f"/api/v1/tag/{backup_witness}"), 404, "Post-backup tag absent after restore")
             assert not errors, f"{len(errors)} uncaught browser page errors"
             page.get_by_role("button", name="Menu Button").click()
             page.get_by_role("button", name="Logout", exact=True).click()
