@@ -16,6 +16,32 @@ process.
 
 ### Fixed
 
+- Make the Inventaire setting control its actual fallback searches during
+  automatic library import.
+- Name the Calendar's period controls and compact view menu for assistive
+  technology.
+- Reject missing profile IDs before saving a new author through Add Book.
+- Label the backup upload field and show restore errors in the dialog. Choosing
+  another file clears the previous error.
+- Provider telemetry distinguishes failed Open Library text searches from
+  successful searches with no matches.
+- Coordinate overlapping author refreshes so they share the stored series and
+  keep its book links.
+- Preserve completed task results in command history after restart.
+- Rename an import list exclusion while retaining its existing ID. The Add and
+  Edit controls and form fields have accessible names.
+- Name the event details button in Activity History for screen readers.
+- Calendar subscription links authenticate with their API key and open in
+  calendar clients without a Bibliophilarr browser session.
+- Calendar subscriptions apply author tags from generated links and retain
+  support for existing `tagList` filters.
+- Calendar subscriptions display one release event per book when several
+  editions are monitored or none is selected.
+- Enter activates the focused confirmation button once. Confirm closes the
+  dialog and Cancel dismisses it without submitting the action.
+- Confirm before clearing all Blocklist entries and disable the action when the
+  list is empty or unavailable.
+
 - Terminal first-account setup now requires a request token and its cookie
   before submitting credentials. Browser first-account setup continues through
   the setup form.
@@ -38,6 +64,8 @@ process.
   refresh requests as unsuccessful while continuing the rest of the batch.
 - Honor the historical server port environment variable. The canonical
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
+- Update FluentMigrator to 8.0.1 for SQLite and PostgreSQL while preserving the
+  existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
   requested. Distinct provider work IDs retain separate catalogue records.
@@ -128,6 +156,11 @@ process.
 
 ### Security
 
+- Database migration startup logs identify the database type and role without
+  exposing connection details.
+- New and changed account passwords use salted PBKDF2. Existing accounts
+  upgrade when they next sign in successfully with a password. Rollback to an
+  earlier version requires its matching app-data backup after a password upgrade.
 - API keys supplied in the Authorization header must use the Bearer scheme.
   The X-Api-Key header and existing API key query parameter are still accepted.
 

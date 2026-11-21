@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React, { useState } from 'react';
 import Card from 'Components/Card';
+import ConfirmModal from './ConfirmModal';
 import Modal from './Modal';
 import ModalContent from './ModalContent';
 import ModalHeader from './ModalHeader';
@@ -57,6 +58,48 @@ test('names its dialogs from visible titles and handles Escape in the active nes
 
     fireEvent.keyDown(window, { keyCode: 27 });
     expect(screen.queryByRole('dialog')).toBeNull();
+  } finally {
+    unmount();
+    portal.remove();
+  }
+});
+
+test.each([false, true])('leaves Enter activation to the focused confirmation control while busy is %s', (isSpinning) => {
+  const portal = document.createElement('div');
+  const onConfirm = jest.fn();
+  const onCancel = jest.fn();
+  portal.id = 'portal-root';
+  document.body.append(portal);
+  const { unmount } = render(
+    <ConfirmModal
+      isOpen={true}
+      isSpinning={isSpinning}
+      title="Confirm action"
+      message="The action changes the fixture."
+      confirmLabel="Continue"
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+
+  try {
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    const confirm = screen.getByRole('button', { name: 'Continue' });
+    const enter = { key: 'Enter', keyCode: 13, which: 13 };
+
+    cancel.focus();
+    fireEvent.keyDown(cancel, enter);
+    fireEvent.keyPress(cancel, enter);
+    expect(onConfirm).not.toHaveBeenCalled();
+    fireEvent.click(cancel);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    expect(confirm.disabled).toBe(isSpinning);
+    fireEvent.keyDown(confirm, enter);
+    fireEvent.keyPress(confirm, enter);
+    expect(onConfirm).not.toHaveBeenCalled();
+    fireEvent.click(confirm);
+    expect(onConfirm).toHaveBeenCalledTimes(isSpinning ? 0 : 1);
   } finally {
     unmount();
     portal.remove();
