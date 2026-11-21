@@ -41,9 +41,14 @@ namespace NzbDrone.Core.Test.BooksTests
             var books = new Mock<IBookService>();
             books.Setup(service => service.GetBooksByAuthorMetadataId(1)).Returns(new List<Book>());
             var links = new Mock<ISeriesBookLinkService>();
-            links.Setup(service => service.GetLinksBySeriesAndAuthor(current.Id, authorId)).Returns(new List<SeriesBookLink>());
-            var refresh = new RefreshSeriesService(books.Object, series.Object, links.Object,
-                Mock.Of<IRefreshSeriesBookLinkService>(), Mock.Of<IAuthorMetadataService>(), LogManager.GetCurrentClassLogger());
+            links.Setup(service => service.GetLinksBySeriesAndAuthor(It.IsAny<int>(), authorId)).Returns(new List<SeriesBookLink>());
+            var refresh = new RefreshSeriesService(
+                books.Object,
+                series.Object,
+                links.Object,
+                Mock.Of<IRefreshSeriesBookLinkService>(),
+                Mock.Of<IAuthorMetadataService>(),
+                LogManager.GetCurrentClassLogger());
 
             if (ownerKeepsChanging)
             {
