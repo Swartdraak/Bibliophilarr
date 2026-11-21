@@ -217,14 +217,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 try
                 {
                     var format = Quality.GetFormatType(localTrack.Quality?.Quality);
-                    if (importResults.Any(result =>
+                    var alreadyImported = importResults.FirstOrDefault(result =>
                         result.Result == ImportResultType.Imported &&
                         result.ImportDecision.Item.Book.Id == localTrack.Book.Id &&
                         result.ImportDecision.Item.Edition?.Id == localTrack.Edition?.Id &&
                         result.ImportDecision.Item.Part == localTrack.Part &&
-                        Quality.GetFormatType(result.ImportDecision.Item.Quality?.Quality) == format))
+                        Quality.GetFormatType(result.ImportDecision.Item.Quality?.Quality) == format);
+
+                    if (alreadyImported != null)
                     {
-                        importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.DuplicateInScan, "Book has already been imported"));
+                        importResults.Add(HasUnverifiedEbookIsbn(localTrack, alreadyImported.ImportDecision.Item)
+                            ? new ImportResult(importDecision, LibraryImportHoldReason.UnverifiedEditionIdentifier, "The embedded ISBN does not identify the occupied ebook edition")
+                            : new ImportResult(importDecision, LibraryImportHoldReason.DuplicateInScan, "Book has already been imported"));
                         continue;
                     }
 
@@ -767,6 +771,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private static bool IsCompleteFile(LocalBook book)
         {
             return book.PartCount <= 1 && book.Part <= 1;
+        }
+
+        private static bool HasUnverifiedEbookIsbn(LocalBook file, LocalBook retained)
+        {
+            if (!file.ExistingFile || !retained.ExistingFile || ImportFormat.ForPath(file.Path) != FormatType.Ebook ||
+                !IsCompleteFile(file) || !IsCompleteFile(retained) || file.Size <= 0 || retained.Size <= 0 || file.Size == retained.Size)
+            {
+                return false;
+            }
+
+            var isbn = GetFileEditionIdentity(file.FileTrackInfo).Isbn;
+            return isbn != null && !Isbn.AreEquivalent(isbn, file.Edition.Isbn13) && isbn != GetFileEditionIdentity(retained.FileTrackInfo).Isbn;
         }
 
         private static FileEditionIdentity GetFileEditionIdentity(ParsedTrackInfo tags)

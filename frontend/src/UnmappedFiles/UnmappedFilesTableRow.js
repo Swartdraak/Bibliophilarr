@@ -25,6 +25,7 @@ const unmappedReasonLabels = {
   duplicateInScan: 'UnmappedReasonDuplicateInScan',
   conflictingIdentity: 'UnmappedReasonConflictingIdentity',
   providerIdentityConflict: 'UnmappedReasonProviderIdentityConflict',
+  unverifiedEditionIdentifier: 'UnmappedReasonUnverifiedEditionIdentifier',
   importFailed: 'UnmappedReasonImportFailed'
 };
 

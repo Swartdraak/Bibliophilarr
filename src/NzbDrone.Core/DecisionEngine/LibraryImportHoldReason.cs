@@ -12,6 +12,7 @@ namespace NzbDrone.Core.DecisionEngine
         DuplicateInScan = 8,
         ConflictingIdentity = 9,
         ImportFailed = 10,
-        ProviderIdentityConflict = 11
+        ProviderIdentityConflict = 11,
+        UnverifiedEditionIdentifier = 12
     }
 }

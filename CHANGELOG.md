@@ -30,6 +30,8 @@ process.
 
 ### Fixed
 
+- Explain when a different ebook has an unverified ISBN for an occupied
+  edition and needs review before import.
 - Refresh a book's cached cover after saving its updated edition metadata.
 - Use a trusted embedded ASIN to select a unique same-work edition for an
   unmapped EPUB when an eligible local edition is available.

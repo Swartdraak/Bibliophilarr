@@ -27,13 +27,14 @@ namespace NzbDrone.Api.Test.Books
             Assert.That(resource.UnmappedReason, Is.EqualTo(LibraryImportHoldReason.LowConfidence));
         }
 
-        [Test]
-        public void should_serialize_provider_identity_conflict_as_a_named_reason()
+        [TestCase(LibraryImportHoldReason.ProviderIdentityConflict, "providerIdentityConflict")]
+        [TestCase(LibraryImportHoldReason.UnverifiedEditionIdentifier, "unverifiedEditionIdentifier")]
+        public void should_serialize_review_reasons_by_name(LibraryImportHoldReason reason, string serializedReason)
         {
-            var file = new BookFile { UnmappedReason = LibraryImportHoldReason.ProviderIdentityConflict };
+            var file = new BookFile { UnmappedReason = reason };
             using var response = JsonDocument.Parse(STJson.ToJson(file.ToResource()));
 
-            Assert.That(response.RootElement.GetProperty("unmappedReason").GetString(), Is.EqualTo("providerIdentityConflict"));
+            Assert.That(response.RootElement.GetProperty("unmappedReason").GetString(), Is.EqualTo(serializedReason));
         }
 
         [Test]

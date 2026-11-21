@@ -512,6 +512,33 @@ namespace NzbDrone.Core.Test.MediaFiles
             inserted.Should().BeEmpty();
         }
 
+        [TestCase(null, null, 1000, true, true)]
+        [TestCase("9781455546176", null, 1000, true, false)]
+        [TestCase(null, "9781455546176", 1000, true, false)]
+        [TestCase(null, null, 2000, true, false)]
+        [TestCase(null, null, 1000, false, false)]
+        public void should_distinguish_unverified_ebook_isbn_from_a_scan_duplicate(string retainedIsbn, string editionIsbn, int heldSize, bool existing, bool review)
+        {
+            GivenEbookImport();
+            const string heldIsbn = "9781455546176";
+            var first = _approvedDecisions.Single();
+            first.Item.Size = 2000;
+            first.Item.ExistingFile = true;
+            first.Item.FileTrackInfo.Isbn = retainedIsbn;
+            first.Item.FileTrackInfo.IsbnConfidence = 0.95;
+            _ebookEdition.Isbn13 = editionIsbn;
+            var second = AddDigitalFallbackFile(first, "alternate.epub", new ParsedTrackInfo { Isbn = heldIsbn, IsbnConfidence = 0.95 });
+            second.Item.Size = heldSize;
+            second.Item.ExistingFile = existing;
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.ImportDecision == first && result.Result == ImportResultType.Imported);
+            var held = results.Single(result => result.ImportDecision == second);
+            held.Result.Should().Be(ImportResultType.Skipped);
+            held.HoldReason.Should().Be(review ? LibraryImportHoldReason.UnverifiedEditionIdentifier : LibraryImportHoldReason.DuplicateInScan);
+        }
+
         [Test]
         public void should_import_untagged_parts_as_part_of_one_identified_audiobook()
         {

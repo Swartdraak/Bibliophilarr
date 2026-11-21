@@ -9341,6 +9341,7 @@
               "conflictingIdentity",
               "importFailed",
               "providerIdentityConflict",
+              "unverifiedEditionIdentifier",
               null
             ]
           },
