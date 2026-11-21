@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Bibliophilarr.Http;
 using Ical.Net;
 using Ical.Net.CalendarComponents;
 using Ical.Net.DataTypes;
 using Ical.Net.Serialization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
@@ -14,8 +16,10 @@ using NzbDrone.Core.Tags;
 namespace Bibliophilarr.Api.V1.Calendar
 {
     [V1FeedController("calendar")]
+    [Authorize(Policy = "API")]
     public class CalendarFeedController : Controller
     {
+        private const string InvalidTagMessage = "The calendar subscription includes an unknown tag.";
         private readonly IBookService _bookService;
         private readonly IAuthorService _authorService;
         private readonly ITagService _tagService;
@@ -28,15 +32,34 @@ namespace Bibliophilarr.Api.V1.Calendar
         }
 
         [HttpGet("Bibliophilarr.ics")]
-        public IActionResult GetCalendarFeed(int pastDays = 7, int futureDays = 28, string tagList = "", bool unmonitored = false)
+        public IActionResult GetCalendarFeed(int pastDays = 7, int futureDays = 28, string tagList = "", bool unmonitored = false, [FromQuery] string tags = "")
         {
             var start = DateTime.Today.AddDays(-pastDays);
             var end = DateTime.Today.AddDays(futureDays);
-            var tags = new List<int>();
+            var requestedTags = tagList.IsNotNullOrWhiteSpace() ? tagList : tags;
+            var tagIds = new HashSet<int>();
 
-            if (tagList.IsNotNullOrWhiteSpace())
+            if (requestedTags.IsNotNullOrWhiteSpace())
             {
-                tags.AddRange(tagList.Split(',').Select(_tagService.GetTag).Select(t => t.Id));
+                var tokens = requestedTags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (tokens.Length == 0)
+                {
+                    return BadRequest(InvalidTagMessage);
+                }
+
+                var availableTags = _tagService.All();
+                foreach (var requestedTag in tokens)
+                {
+                    var tag = int.TryParse(requestedTag, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+                        ? availableTags.Find(candidate => candidate.Id == id)
+                        : availableTags.Find(candidate => candidate.Label == requestedTag);
+                    if (tag == null)
+                    {
+                        return BadRequest(InvalidTagMessage);
+                    }
+
+                    tagIds.Add(tag.Id);
+                }
             }
 
             var books = _bookService.BooksBetweenDates(start, end, unmonitored);
@@ -53,7 +76,7 @@ namespace Bibliophilarr.Api.V1.Calendar
             {
                 var author = _authorService.GetAuthor(book.AuthorId); // Temp fix NOTE: Figure out why Book.Author is not populated during BooksBetweenDates Query
 
-                if (tags.Any() && tags.None(author.Tags.Contains))
+                if (tagIds.Count != 0 && tagIds.None(author.Tags.Contains))
                 {
                     continue;
                 }
@@ -61,8 +84,7 @@ namespace Bibliophilarr.Api.V1.Calendar
                 var occurrence = calendar.Create<CalendarEvent>();
                 occurrence.Uid = "Bibliophilarr_book_" + book.Id;
 
-                //occurrence.Status = book.HasFile ? EventStatus.Confirmed : EventStatus.Tentative;
-                occurrence.Description = book.Editions.Value.Single(x => x.Monitored).Overview;
+                occurrence.Description = book.GetPreferredEdition()?.Overview;
                 occurrence.Categories = book.Genres;
 
                 var releaseDate = book.ReleaseDate.Value.Date;

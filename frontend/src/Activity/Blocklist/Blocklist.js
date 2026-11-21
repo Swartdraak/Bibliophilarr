@@ -36,6 +36,7 @@ class Blocklist extends Component {
       lastToggled: null,
       selectedState: {},
       isConfirmRemoveModalOpen: false,
+      isConfirmClearModalOpen: false,
       items: props.items
     };
   }
@@ -64,6 +65,23 @@ class Blocklist extends Component {
     return getSelectedIds(this.state.selectedState);
   };
 
+  canClearBlocklist = () => {
+    const {
+      isFetching,
+      isPopulated,
+      isAuthorFetching,
+      isAuthorPopulated,
+      error,
+      totalRecords,
+      isClearingBlocklistExecuting
+    } = this.props;
+
+    const isAllPopulated = isPopulated && isAuthorPopulated;
+    const isAnyFetching = isFetching || isAuthorFetching;
+
+    return isAllPopulated && !isAnyFetching && !error && totalRecords > 0 && !isClearingBlocklistExecuting;
+  };
+
   //
   // Listeners
 
@@ -90,6 +108,22 @@ class Blocklist extends Component {
     this.setState({ isConfirmRemoveModalOpen: false });
   };
 
+  onClearPress = () => {
+    this.setState({ isConfirmClearModalOpen: true });
+  };
+
+  onClearConfirmed = () => {
+    if (this.canClearBlocklist()) {
+      this.props.onClearBlocklistPress();
+    }
+
+    this.onConfirmClearModalClose();
+  };
+
+  onConfirmClearModalClose = () => {
+    this.setState({ isConfirmClearModalOpen: false });
+  };
+
   //
   // Render
 
@@ -105,7 +139,6 @@ class Blocklist extends Component {
       totalRecords,
       isRemoving,
       isClearingBlocklistExecuting,
-      onClearBlocklistPress,
       ...otherProps
     } = this.props;
 
@@ -116,7 +149,8 @@ class Blocklist extends Component {
       allSelected,
       allUnselected,
       selectedState,
-      isConfirmRemoveModalOpen
+      isConfirmRemoveModalOpen,
+      isConfirmClearModalOpen
     } = this.state;
 
     const selectedIds = this.getSelectedIds();
@@ -134,10 +168,11 @@ class Blocklist extends Component {
             />
 
             <PageToolbarButton
-              label={translate('Clear')}
+              label={translate('ClearBlocklist')}
               iconName={icons.CLEAR}
+              isDisabled={!this.canClearBlocklist()}
               isSpinning={isClearingBlocklistExecuting}
-              onPress={onClearBlocklistPress}
+              onPress={this.onClearPress}
             />
           </PageToolbarSection>
 
@@ -219,6 +254,16 @@ class Blocklist extends Component {
           confirmLabel={translate('RemoveSelected')}
           onConfirm={this.onRemoveSelectedConfirmed}
           onCancel={this.onConfirmRemoveModalClose}
+        />
+
+        <ConfirmModal
+          isOpen={isConfirmClearModalOpen}
+          kind={kinds.DANGER}
+          title={translate('ClearBlocklist')}
+          message={translate('ClearBlocklistMessage')}
+          confirmLabel={translate('ClearBlocklist')}
+          onConfirm={this.onClearConfirmed}
+          onCancel={this.onConfirmClearModalClose}
         />
       </PageContent>
     );

@@ -95,12 +95,14 @@ jobs:
         env:
           SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: |
-          docker build --secret id=sixlabors_license,env=SIXLABORS_LICENSE_KEY -t bibliophilarr:local .
-          docker run --rm -d -p 8787:8787 \
-            --name bibliophilarr-local bibliophilarr:local
-          sleep 20
-          docker logs bibliophilarr-local | tail -n 100 || true
-          docker rm -f bibliophilarr-local
+          case "${RUNNER_ARCH:-}" in
+            X64) architecture=amd64 ;;
+            ARM64) architecture=arm64 ;;
+            *) echo "Unsupported runner architecture: ${RUNNER_ARCH:-<unset>}" >&2; exit 1 ;;
+          esac
+          docker build --platform "linux/$architecture" \
+            --secret id=sixlabors_license,env=SIXLABORS_LICENSE_KEY -t bibliophilarr:local .
+          bash scripts/ops/smoke_container.sh bibliophilarr:local "$architecture"
 
       - name: Build local image for scanning
         env:
