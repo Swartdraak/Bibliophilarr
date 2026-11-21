@@ -15,6 +15,8 @@ process.
 ### Fixed
 
 - Name the Calendar's previous and next controls for assistive technology.
+- Coordinate overlapping author refreshes so they share the stored series and
+  keep its book links.
 - Preserve completed task results in command history after restart.
 - Rename an import list exclusion while retaining its existing ID. The Add and
   Edit controls and form fields have accessible names.
