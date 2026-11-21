@@ -1,6 +1,6 @@
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
-import { restart, restoreBackup } from 'Store/Actions/systemActions';
+import { clearRestoreBackup, restart, restoreBackup } from 'Store/Actions/systemActions';
 import RestoreBackupModalContent from './RestoreBackupModalContent';
 
 function createMapStateToProps() {
@@ -22,6 +22,10 @@ function createMapStateToProps() {
 
 function createMapDispatchToProps(dispatch, props) {
   return {
+    onClearRestoreError() {
+      dispatch(clearRestoreBackup());
+    },
+
     onRestorePress(payload) {
       dispatch(restoreBackup(payload));
     },
