@@ -68,6 +68,8 @@ namespace NzbDrone.Host.Test
                     await host.StartAsync(timeout.Token);
                     try
                     {
+                        host.Services.GetRequiredService<IMetadataProviderRegistry>().GetAllProviders()
+                            .Should().ContainSingle().Which.ProviderName.Should().Be("Hardcover");
                         using var client = CreateClient(host, apiKey);
                         var ebook = await FindProfile(client, "qualityprofile", "eBook", timeout.Token);
                         var metadata = await FindProfile(client, "metadataprofile", "None", timeout.Token);
@@ -165,9 +167,16 @@ namespace NzbDrone.Host.Test
                 await restarted.StartAsync(timeout.Token);
                 try
                 {
+                    restarted.Services.GetRequiredService<IMetadataProviderRegistry>().GetAllProviders().Should().BeEmpty();
                     using var client = CreateClient(restarted, apiKey);
                     var saved = await Get(client, $"book/{bookId}", timeout.Token);
                     AssertIdentity(saved, bookId, authorId, ForeignBookId, ForeignEditionId).Should().Be(editionId);
+
+                    var author = await Get(client, $"author/{authorId}", timeout.Token);
+                    author.GetProperty("id").GetInt32().Should().Be(authorId);
+                    author.GetProperty("foreignAuthorId").GetString().Should().Be(ForeignAuthorId);
+                    author.GetProperty("authorName").GetString().Should().Be(AuthorName);
+                    Path.GetDirectoryName(author.GetProperty("path").GetString()).Should().Be(library);
                 }
                 finally
                 {
