@@ -43,7 +43,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Mono.Test", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Mono", "NzbDrone.Mono\Bibliophilarr.Mono.csproj", "{504CD0A8-523B-4A0E-99BE-C179DECA9B76}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.SignalR", "NzbDrone.SignalR\Bibliophilarr.SignalR.csproj", "{B30BE76E-4D20-47AA-9E03-E32613D888CC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.SignalR", "Bibliophilarr.SignalR\Bibliophilarr.SignalR.csproj", "{B30BE76E-4D20-47AA-9E03-E32613D888CC}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Test.Common", "NzbDrone.Test.Common\Bibliophilarr.Test.Common.csproj", "{B8706292-5BE8-4099-94CA-F26DDD3757E0}"
 EndProject
