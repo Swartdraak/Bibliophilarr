@@ -21,6 +21,7 @@ from playwright.sync_api import Error as PlaywrightError, expect, sync_playwrigh
 from catalogue_workflow import (
     LIVE_PROVIDER_TOKEN_ENV,
     exercise_catalogue,
+    reembed_imported_epub,
     verify_catalogue_after_restart,
 )
 
@@ -227,6 +228,38 @@ def check_routes(page, base, api, evidence):
     expect(page).to_have_url(base + "/books")
     expect(main.get_by_role("heading", name="No books found", exact=True)).to_be_visible()
     expect(nav.get_by_role("link", name="Books", exact=True)).to_have_attribute("aria-current", "page")
+
+    print("Sidebar navigation opens distinct Calendar, Activity, Wanted and System views", flush=True)
+    print("Open Calendar from the sidebar", flush=True)
+    nav.get_by_role("link", name="Calendar", exact=True).click()
+    expect(page).to_have_url(base + "/calendar")
+    expect(main.get_by_role("button", name="iCal Link", exact=True)).to_be_visible()
+
+    for link, route, content, child_link in (
+        ("Activity", "/activity/queue", "Queue is empty", "Queue"),
+        ("History", "/activity/history", "No history.", None),
+        ("Blocklist", "/activity/blocklist", "No history blocklist", None),
+        ("Wanted", "/wanted/missing", "No missing items", "Missing"),
+        ("Cutoff Unmet", "/wanted/cutoffunmet", "No cutoff unmet items", None),
+    ):
+        print(f"Open {link} from the sidebar", flush=True)
+        nav.get_by_role("link", name=link, exact=True).click()
+        expect(page).to_have_url(base + route)
+        expect(main.get_by_text(content, exact=True)).to_be_visible()
+        if child_link:
+            expect(nav.get_by_role("link", name=child_link, exact=True)).to_be_visible()
+
+    print("Open System health from the sidebar", flush=True)
+    nav.locator('a[href="/system/status"]').filter(has_text="System").click()
+    expect(page).to_have_url(base + "/system/status")
+    expect(main.get_by_text("Health", exact=True)).to_be_visible()
+
+    print("Open Library and Add New from the sidebar", flush=True)
+    nav.get_by_role("link", name="Library", exact=True).click()
+    expect(main.get_by_role("heading", name="Authors", exact=True)).to_be_visible()
+    nav.get_by_role("link", name="Add New", exact=True).click()
+    expect(page).to_have_url(base + "/add/search")
+    expect(main.locator('input[placeholder*="War and Peace"]')).to_be_visible()
 
     print("Library and Search bookmarks mount distinct content", flush=True)
     check_status(page.goto(base + "/library?view=table#authors"), 200, "Authenticated Library bookmark")
@@ -515,6 +548,10 @@ def run(binary, evidence, *, live_provider=False):
             check_native_profile(http, api, base, data, key, "Startup")
             check_status(http.get(base + "/authors", max_redirects=0), 401, "Anonymous library")
             check_status(http.get(base + "/api/v1/search?term=fixture", max_redirects=0), 401, "Anonymous API search")
+            root_url = base + "/api/v1/rootfolder"
+            check_status(http.get(root_url, max_redirects=0), 401, "Root folders without an API key")
+            check_status(http.get(root_url, max_redirects=0, headers={"X-Api-Key": "wrong-fixture-key"}),
+                         401, "Root folders with the wrong API key")
             denied = check_status(http.get(base + "/initialize.json", max_redirects=0), 401, "Anonymous initializer")
             assert key.encode() not in denied.body()
             check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 400,
@@ -576,6 +613,7 @@ def run(binary, evidence, *, live_provider=False):
             assert app.poll() is None, "native app exited before the planned restart"
 
         assert app.returncode == 0, "native app did not exit cleanly after SIGTERM"
+        reembed_imported_epub(work, catalogue)
 
         with running_app(binary, data, log, port, evidence, credentials) as (app, base):
             wait_ready(app, http, base, data)

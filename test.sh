@@ -3,9 +3,8 @@ PLATFORM=$1
 TYPE=$2
 COVERAGE=$3
 WHERE="Category!=ManualTest"
-TEST_PATTERN="*Test.dll"
-FILES=( "Bibliophilarr.Api.Test.dll" "Bibliophilarr.Automation.Test.dll" "Bibliophilarr.Common.Test.dll" "Bibliophilarr.Core.Test.dll" "Bibliophilarr.Host.Test.dll" "Bibliophilarr.Integration.Test.dll" "Bibliophilarr.Libraries.Test.dll" "Bibliophilarr.Mono.Test.dll" "Bibliophilarr.Update.Test.dll" "Bibliophilarr.Windows.Test.dll" )
-ASSMEBLIES=""
+FILES=( "Bibliophilarr.Api.Test.dll" "Bibliophilarr.Common.Test.dll" "Bibliophilarr.Core.Test.dll" "Bibliophilarr.Host.Test.dll" "Bibliophilarr.Integration.Test.dll" "Bibliophilarr.Libraries.Test.dll" "Bibliophilarr.Mono.Test.dll" "Bibliophilarr.Update.Test.dll" "Bibliophilarr.Windows.Test.dll" )
+ASSEMBLIES=()
 TEST_LOG_FILE="TestLog.txt"
 
 echo "test dir: $TEST_DIR"
@@ -46,27 +45,32 @@ else
 fi
 
 if [ "$TYPE" = "Unit" ]; then
-  WHERE="$WHERE&Category!=IntegrationTest&Category!=AutomationTest"
+  WHERE="$WHERE&Category!=IntegrationTest"
 elif [ "$TYPE" = "Integration" ] || [ "$TYPE" = "int" ] ; then
   WHERE="$WHERE&Category=IntegrationTest"
 elif [ "$TYPE" = "Automation" ] ; then
-  WHERE="$WHERE&Category=AutomationTest"
+  echo 'Browser automation now uses tests/browser/smoke.py. See tests/browser/CATALOGUE.md.'
+  exit 2
 else
-  echo "Type must be provided as second argument: Unit, Integration or Automation"
+  echo "Type must be provided as second argument: Unit or Integration"
   exit 2
 fi
 
-for i in "${FILES[@]}";
-  do ASSEMBLIES="$ASSEMBLIES $TEST_DIR/$i"
+for assembly in "${FILES[@]}"; do
+  if [ ! -f "$TEST_DIR/$assembly" ]; then
+    echo "Missing $TEST_DIR/$assembly. Set TEST_DIR to the built test directory."
+    exit 1
+  fi
+  ASSEMBLIES+=("$TEST_DIR/$assembly")
 done
 
-DOTNET_PARAMS="$ASSEMBLIES --filter:$WHERE $VSTEST_PARAMS"
+DOTNET_PARAMS=("${ASSEMBLIES[@]}" "--filter:$WHERE" "$VSTEST_PARAMS")
 
 if [ "$COVERAGE" = "Coverage" ]; then
-  dotnet test $DOTNET_PARAMS --settings:"src/coverlet.runsettings" --results-directory:./CoverageResults
+  dotnet test "${DOTNET_PARAMS[@]}" --settings:"src/coverlet.runsettings" --results-directory:./CoverageResults
   EXIT_CODE=$?
 elif [ "$COVERAGE" = "Test" ] ; then
-  dotnet test $DOTNET_PARAMS
+  dotnet test "${DOTNET_PARAMS[@]}"
   EXIT_CODE=$?
 else
   echo "Run Type must be provided as third argument: Coverage or Test"

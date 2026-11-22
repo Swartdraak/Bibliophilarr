@@ -2,7 +2,7 @@
   "version": 1,
   "task_id": "@TASK@",
   "head_sha": "@HEAD@",
-  "deadline_seconds": 600,
+  "deadline_seconds": 840,
   "setup": [
     {
       "name": "prepare_fresh_data",
@@ -56,10 +56,31 @@
       "name": "check_browser",
       "argv": [
         "python3",
+        "-B",
         "/workspace/linux-program/browser/check_browser.py"
       ],
       "cwd": "repo",
       "timeout_seconds": 240,
+      "env": {
+        "APP_URL": "http://127.0.0.1:8765",
+        "CASE_DIR": "/workspace/@CASE@"
+      }
+    },
+    {
+      "action": "restart",
+      "service": "bibliophilarr-app",
+      "signal": "TERM"
+    },
+    {
+      "name": "check_browser_after_restart",
+      "argv": [
+        "python3",
+        "-B",
+        "/workspace/linux-program/browser/check_browser.py",
+        "--after-restart"
+      ],
+      "cwd": "repo",
+      "timeout_seconds": 180,
       "env": {
         "APP_URL": "http://127.0.0.1:8765",
         "CASE_DIR": "/workspace/@CASE@"
