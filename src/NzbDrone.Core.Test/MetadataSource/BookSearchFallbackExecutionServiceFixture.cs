@@ -106,9 +106,9 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .SetupGet(x => x.EnableGoogleBooksFallback)
                 .Returns(true);
             Mocker.GetMock<IHttpClient>()
-                .Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
-                    new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(request, new HttpHeader(), "{\"items\":[]}")));
+                    new HttpResponse(request, new HttpHeader(), "{\"items\":[]}"));
 
             var provider = Mocker.Resolve<GoogleBooksFallbackSearchProvider>();
 
@@ -117,7 +117,58 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IRateLimitService>()
                 .Verify(x => x.WaitAndPulse("metadata-fallback", "GoogleBooks", It.IsAny<TimeSpan>()), Times.Once());
             Mocker.GetMock<IHttpClient>()
-                .Verify(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.Once());
+                .Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
+            var telemetry = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            telemetry.Successes.Should().Be(1);
+            telemetry.Failures.Should().Be(0);
+        }
+
+        [TestCase("{\"error\":{\"message\":\"private-response-marker\"}}")]
+        [TestCase("<html>private-response-marker</html>")]
+        public void should_enforce_google_fallback_rate_limit_before_reading_the_response_body(string content)
+        {
+            const string providerName = "GoogleBooks";
+            const string apiKey = "synthetic-private-api-key";
+            const string firstTitle = "private-first-candidate";
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(x => x.EnableGoogleBooksFallback).Returns(true);
+            config.SetupGet(x => x.GoogleBooksApiKey).Returns(apiKey);
+            var http = Mocker.GetMock<IHttpClient>();
+
+            HttpResponse RateLimit(HttpRequest request)
+            {
+                var headers = new HttpHeader
+                {
+                    ["Retry-After"] = "3600",
+                    ContentType = content.StartsWith('<') ? "text/html" : "application/json"
+                };
+                return new HttpResponse(request, headers, content, HttpStatusCode.TooManyRequests);
+            }
+
+            http.Setup(x => x.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(RateLimit);
+
+            var provider = Mocker.Resolve<GoogleBooksFallbackSearchProvider>();
+            var registry = Mocker.Resolve<IMetadataProviderRegistry>();
+            var started = DateTime.UtcNow;
+
+            Subject.Search(provider, firstTitle, "Author").Should().BeEmpty();
+            var deadline = registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc;
+            deadline.Should().BeOnOrAfter(started.AddHours(1));
+            deadline.Should().BeOnOrBefore(DateTime.UtcNow.AddHours(1));
+            Subject.Search(provider, "second candidate", "Another Author").Should().BeEmpty();
+
+            registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc.Should().Be(deadline);
+            http.Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
+            http.VerifyNoOtherCalls();
+            var telemetry = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            telemetry.Calls.Should().Be(1);
+            telemetry.Failures.Should().Be(1);
+            telemetry.Successes.Should().Be(0);
+            Mocker.GetMock<IProviderTelemetryService>()
+                .Verify(x => x.RecordFailure(providerName, "fallback-search", It.Is<Exception>(failure =>
+                    !failure.ToString().Contains(apiKey) && !failure.ToString().Contains(firstTitle) &&
+                    !failure.ToString().Contains("private-response-marker"))), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

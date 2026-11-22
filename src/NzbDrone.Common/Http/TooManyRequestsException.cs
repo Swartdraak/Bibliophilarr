@@ -9,19 +9,28 @@ namespace NzbDrone.Common.Http
         public TooManyRequestsException(HttpRequest request, HttpResponse response)
             : base(request, response)
         {
-            if (response.Headers.ContainsKey("Retry-After"))
-            {
-                var retryAfter = response.Headers["Retry-After"].ToString();
+            RetryAfter = ParseRetryAfter(response.Headers["Retry-After"]);
+        }
 
-                if (int.TryParse(retryAfter, out var seconds))
-                {
-                    RetryAfter = TimeSpan.FromSeconds(seconds);
-                }
-                else if (DateTime.TryParse(retryAfter, out var date))
-                {
-                    RetryAfter = date.ToUniversalTime() - DateTime.UtcNow;
-                }
+        public TooManyRequestsException(string retryAfter)
+            : base(null, null, "HTTP request failed: [429:TooManyRequests]")
+        {
+            RetryAfter = ParseRetryAfter(retryAfter);
+        }
+
+        private static TimeSpan ParseRetryAfter(string retryAfter)
+        {
+            if (int.TryParse(retryAfter, out var seconds))
+            {
+                return TimeSpan.FromSeconds(seconds);
             }
+
+            if (DateTime.TryParse(retryAfter, out var date))
+            {
+                return date.ToUniversalTime() - DateTime.UtcNow;
+            }
+
+            return TimeSpan.Zero;
         }
 
         internal TooManyRequestsException(HttpRequest request, HttpResponse response, TimeSpan retryAfter)

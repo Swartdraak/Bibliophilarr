@@ -54,7 +54,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void ordinary_search_should_keep_the_existing_volume_cap_and_language_default()
         {
             Mocker.GetMock<IHttpClient>()
-                .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(client => client.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
                     request.Url.Query.Should().Contain("langRestrict=en");
@@ -266,9 +266,9 @@ namespace NzbDrone.Core.Test.MetadataSource
                           "\"thumbnail\":\"https://books.google.example/cover-thumb.jpg\"}}}]}";
 
             Mocker.GetMock<IHttpClient>()
-                .Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
-                    new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload));
 
             var books = Subject.Search("Dune", "Frank Herbert");
 
