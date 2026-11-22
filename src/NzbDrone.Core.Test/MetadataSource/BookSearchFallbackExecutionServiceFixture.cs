@@ -392,16 +392,29 @@ namespace NzbDrone.Core.Test.MetadataSource
             health.RateLimitRemaining.Should().BeLessThanOrEqualTo(1);
         }
 
-        [TestCase("Hardcover", 72096)]
-        [TestCase("GoogleBooks", 900)]
-        public void should_report_and_skip_until_the_same_retry_after_deadline(string providerName, int expectedCooldownSeconds)
+        [TestCase("Hardcover", "72096", 72096)]
+        [TestCase("GoogleBooks", "72096", 72096)]
+        [TestCase("Inventaire", "72096", 72096)]
+        [TestCase("Inventaire", "2147483647", int.MaxValue)]
+        [TestCase("Inventaire", "Sat, 01 Jan 2400 00:00:00 GMT", int.MaxValue)]
+        [TestCase("Inventaire", "Sat, 01 Jan 2000 00:00:00 GMT", 300)]
+        [TestCase("Inventaire", null, 300)]
+        [TestCase("Inventaire", "invalid", 300)]
+        [TestCase("Inventaire", "0", 300)]
+        [TestCase("Inventaire", "1", 30)]
+        public void should_report_and_skip_until_the_same_retry_after_deadline(string providerName, string retryAfter, int expectedCooldownSeconds)
         {
             var provider = new Mock<IBookSearchFallbackProvider>();
             provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
             provider.SetupGet(x => x.ProviderName).Returns(providerName);
 
             var request = new HttpRequest("https://example.test");
-            var headers = new HttpHeader { ["Retry-After"] = "72096" };
+            var headers = new HttpHeader();
+            if (retryAfter != null)
+            {
+                headers["Retry-After"] = retryAfter;
+            }
+
             var response = new HttpResponse(request, headers, string.Empty, HttpStatusCode.TooManyRequests);
             provider.Setup(x => x.Search(It.IsAny<string>(), It.IsAny<string>()))
                 .Throws(new TooManyRequestsException(request, response));
@@ -411,7 +424,9 @@ namespace NzbDrone.Core.Test.MetadataSource
             Subject.Search(provider.Object, "Title", "Author").Should().BeEmpty();
             ExceptionVerification.IgnoreWarns();
 
-            var deadline = registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc;
+            var health = registry.GetProvidersHealthStatus()[providerName];
+            health.RetryAfterRemainingSeconds.Should().BeInRange(1, expectedCooldownSeconds);
+            var deadline = health.CooldownUntilUtc;
             deadline.Should().BeOnOrAfter(started.AddSeconds(expectedCooldownSeconds));
             deadline.Should().BeOnOrBefore(DateTime.UtcNow.AddSeconds(expectedCooldownSeconds));
 

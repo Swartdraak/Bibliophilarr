@@ -47,6 +47,8 @@ process.
 
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
+- Preserve supported provider Retry-After delays longer than 15 minutes
+  during fallback metadata searches.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
 - Keep a provider's fallback cooldown active when an earlier request finishes

@@ -54,6 +54,9 @@ namespace NzbDrone.Core.MetadataSource
         // Cooldown after receiving a 5xx server error before retrying.
         private static readonly TimeSpan ServerErrorCooldown = TimeSpan.FromMinutes(2);
 
+        // Maximum Retry-After cooldown representable by provider health's integer seconds.
+        private static readonly TimeSpan MaximumRetryAfterCooldown = TimeSpan.FromSeconds(int.MaxValue);
+
         // Cooldown after a non-server failure (e.g. timeout, parse error).
         private static readonly TimeSpan FailureCooldown = TimeSpan.FromSeconds(45);
 
@@ -159,10 +162,7 @@ namespace NzbDrone.Core.MetadataSource
                 _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
 
                 var retryAfter = e.RetryAfter > TimeSpan.Zero ? e.RetryAfter : TimeSpan.FromMinutes(5);
-                var maximumCooldown = string.Equals(provider.ProviderName, "Hardcover", StringComparison.OrdinalIgnoreCase)
-                    ? TimeSpan.FromSeconds(int.MaxValue)
-                    : TimeSpan.FromMinutes(15);
-                var cooldown = Clamp(retryAfter, TimeSpan.FromSeconds(30), maximumCooldown);
+                var cooldown = Clamp(retryAfter, TimeSpan.FromSeconds(30), MaximumRetryAfterCooldown);
                 SetCooldown(provider.ProviderName, cooldown);
                 UpdateRateLimitHealth(provider, rateLimitSnapshot, cooldown);
 
