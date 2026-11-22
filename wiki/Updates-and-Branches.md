@@ -16,7 +16,7 @@ release approval. [Branch policy](../BRANCHING.md)
 
 Open **System > Updates** to view the installed version and available update
 options. Some deployments use their configured services endpoint. Builds
-that support optional GitHub discovery also offer **Check GitHub for updates**
+that support optional GitHub discovery also offer **Check for stable release**
 when `Bibliophilarr__Update__PublicReleaseDiscovery=true`. This manual check
 compares the installed version to the official stable release and opens the
 release notes. It does not install the update.

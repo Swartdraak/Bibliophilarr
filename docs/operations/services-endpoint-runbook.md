@@ -111,7 +111,7 @@ dotnet /opt/bibliophilarr/Bibliophilarr -nobrowser
 ### Optional public release discovery
 
 Set `Bibliophilarr__Update__PublicReleaseDiscovery=true` on the application
-service and restart it to show **Check GitHub for updates** under **System >
+service and restart it to show **Check for stable release** under **System >
 Updates**. Setting the option to `false` or leaving it unset keeps this public
 check disabled. The independently configured services endpoint continues to
 have its own controls.
