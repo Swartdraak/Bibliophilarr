@@ -16,7 +16,6 @@ using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
-using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Validation;
 using HttpStatusCode = System.Net.HttpStatusCode;
 
@@ -160,13 +159,7 @@ namespace Bibliophilarr.Api.V1.Indexers
                 var decisions = await _releaseSearchService.BookSearch(bookId, true, true, true);
                 if (formatType.HasValue)
                 {
-                    decisions = decisions.Where(decision =>
-                    {
-                        var remoteBook = decision.RemoteBook;
-                        var quality = remoteBook?.ParsedBookInfo?.Quality?.Quality;
-                        return remoteBook?.ResolvedFormatType == formatType ||
-                               (remoteBook?.ResolvedFormatType == null && quality != null && Quality.GetFormatType(quality) == formatType);
-                    }).ToList();
+                    decisions = decisions.Where(decision => decision.RemoteBook?.MatchesKnownFormat(formatType.Value) == true).ToList();
                 }
 
                 var prioritizedDecisions = _prioritizeDownloadDecision.PrioritizeDecisions(decisions);

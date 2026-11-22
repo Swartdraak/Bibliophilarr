@@ -11,12 +11,22 @@ process.
 
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
+- A book-search command can target a single monitored format that is still
+  missing. Scoped searches skip releases with conflicting format information.
 
 ### Fixed
 
+- Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
+  audiobook format. Skip upgrades when that format already meets its cutoff.
+- Recheck provider cooldowns before dispatching fallback requests that waited
+  for the rate limiter.
+- Keep a provider's fallback cooldown active when an earlier request finishes
+  successfully.
 - Include automatic import fallback searches in provider operation telemetry.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
+- Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
+  dual-format monitoring answer in the in-app help.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Reject missing profile IDs before saving a new author through Add Book.
@@ -53,6 +63,9 @@ process.
 - Google Books author refresh keeps existing catalogue entries when overlapping
   pages or a shrinking result count leave the bibliography incomplete.
 - Name, URL, credentials, and tags in connection forms have associated labels.
+- Name the Add controls for indexers, download clients, and remote path
+  mappings for assistive technology. Keep Newznab category selection usable
+  with the keyboard and explain which host a remote path mapping uses.
 - Connection and health help links open the maintained WebUI guides.
 - A malformed book or edition no longer interrupts the rest of a library
   import batch. Rejected files report why preparation failed, and inconsistent
