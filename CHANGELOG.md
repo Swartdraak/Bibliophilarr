@@ -41,6 +41,8 @@ process.
 
 - Report a media file read failure as an import hold and continue scanning
   the other files.
+- Mark a queued manual import as unsuccessful when none of its selected files
+  passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Resolve once-encoded provider bookmarks to canonical author, book, and
@@ -64,6 +66,8 @@ process.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
 - Include automatic import fallback searches in provider operation telemetry.
+- Confirm an unexpectedly empty Open Library bibliography page once before
+  treating the author's catalogue as incomplete.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
 - Resolve once-encoded legacy Hardcover series bookmarks to their stable
