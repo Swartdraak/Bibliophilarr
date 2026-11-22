@@ -173,11 +173,13 @@ namespace NzbDrone.Core.Test.MetadataSource
             client.VerifyNoOtherCalls();
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void should_log_series_failure_without_caller_or_provider_text(bool graphQlError)
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void should_log_search_failure_without_caller_or_provider_text(bool seriesSearch, bool graphQlError)
         {
-            const string searchTerm = "Fixture series search text";
+            var searchTerm = seriesSearch ? "Fixture series search text" : "9781442482890";
             const string providerText = "Fixture provider detail";
             var payload = graphQlError
                 ? new JObject { ["errors"] = new JArray(new JObject { ["message"] = providerText }) }
@@ -195,9 +197,17 @@ namespace NzbDrone.Core.Test.MetadataSource
                 http.Object,
                 logFactory.GetLogger(nameof(HardcoverFallbackSearchProvider)));
 
-            provider.SearchForNewSeries(searchTerm).Should().BeNull();
+            if (seriesSearch)
+            {
+                provider.SearchForNewSeries(searchTerm).Should().BeNull();
+            }
+            else
+            {
+                provider.SearchByIsbn(searchTerm).Should().BeEmpty();
+            }
 
-            messages.Logs.Should().Contain(message => message.Contains("series search") && message.Contains("error"));
+            var operation = seriesSearch ? "series search" : "book search";
+            messages.Logs.Should().Contain(message => message.Contains(operation) && message.Contains("error"));
             messages.Logs.Should().NotContain(message => message.Contains(searchTerm) || message.Contains(providerText));
             http.Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
         }

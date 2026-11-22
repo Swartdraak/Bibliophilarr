@@ -681,7 +681,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public List<Book> SearchByIsbn(string isbn)
         {
-            _logger.Debug("OpenLibraryProvider.SearchByIsbn: {0}", isbn);
+            _logger.Debug("OpenLibrary provider ISBN lookup.");
 
             var canonicalIsbn = Isbn.AsIsbn13(isbn);
             if (canonicalIsbn == null)
@@ -743,9 +743,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 return new List<Book> { BuildBookFromEditionOnly(mappedEdition, edition, null) };
             }
-            catch (OpenLibraryException ex)
+            catch (OpenLibraryException)
             {
-                _logger.Warn(ex, "OpenLibrary ISBN lookup failed for '{0}'", isbn);
+                _logger.Warn("OpenLibrary provider ISBN lookup failed.");
                 return new List<Book>();
             }
         }

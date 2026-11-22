@@ -207,7 +207,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 return new List<Book>();
             }
 
-            _logger.Trace("HardcoverProvider.SearchByIsbn: {0}", isbn);
+            _logger.Trace("Hardcover ISBN lookup.");
             return SearchBooks(isbn.Trim(), SearchPageSize);
         }
 
@@ -872,7 +872,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }.ToJson());
 
             var response = _httpClient.Post<HardcoverGraphQlResponse>(request);
-            if (!ValidateGraphQlResponse(response?.Resource, "series search", includeProviderDetails: false))
+            if (!ValidateGraphQlResponse(response?.Resource, "series search"))
             {
                 return null;
             }
@@ -1035,23 +1035,23 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         {
             if (!_configService.EnableHardcoverFallback)
             {
-                _logger.Debug("Hardcover search skipped for query '{0}' because the provider is disabled.", queryText);
+                _logger.Debug("Hardcover book search skipped because the provider is disabled.");
                 return new List<Book>();
             }
 
             if (!TryResolveToken(out var token, out var tokenSource))
             {
-                _logger.Debug("Hardcover search skipped for query '{0}' because no API token is configured.", queryText);
+                _logger.Debug("Hardcover book search skipped because no API token is configured.");
                 return new List<Book>();
             }
 
             if (IsDeterministicErrorCooldownActive(out var cooldownUntilUtc))
             {
-                _logger.Debug("Hardcover search skipped for query '{0}' because the provider is cooling down until {1:u} after repeated deterministic errors.", queryText, cooldownUntilUtc.Value);
+                _logger.Debug("Hardcover book search skipped because the provider is cooling down until {0:u} after repeated deterministic errors.", cooldownUntilUtc.Value);
                 return new List<Book>();
             }
 
-            _logger.Trace("Hardcover search request: query='{0}', perPage={1}, tokenSource={2}", queryText, perPage, tokenSource);
+            _logger.Trace("Hardcover book search request: perPage={0}, tokenSource={1}", perPage, tokenSource);
 
             var request = CreateSearchRequest(token, new
             {
@@ -1066,7 +1066,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             var response = _httpClient.Post<HardcoverGraphQlResponse>(request);
 
-            if (!ValidateGraphQlResponse(response.Resource, queryText))
+            if (!ValidateGraphQlResponse(response.Resource, "book search"))
             {
                 return new List<Book>();
             }
@@ -1075,17 +1075,18 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             if (payload == null)
             {
-                _logger.Warn("Hardcover returned no search payload for query '{0}'.", queryText);
+                _logger.Warn("Hardcover book search returned no payload.");
                 return new List<Book>();
             }
 
             if (payload.Error.IsNotNullOrWhiteSpace())
             {
-                _logger.Debug("Hardcover search returned provider error for query '{0}': {1}", queryText, payload.Error);
+                var deterministic = IsDeterministicSearchError(payload.Error);
+                _logger.Debug("Hardcover book search returned a provider error (deterministic: {0}).", deterministic);
 
-                if (IsDeterministicSearchError(payload.Error))
+                if (deterministic)
                 {
-                    RegisterDeterministicSearchError(payload.Error);
+                    RegisterDeterministicSearchError("book search query rejected");
                     return new List<Book>();
                 }
             }
@@ -1098,11 +1099,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             if (!results.Any())
             {
-                _logger.Debug("Hardcover returned no matches for query '{0}'.", queryText);
+                _logger.Debug("Hardcover book search returned no matches.");
                 return new List<Book>();
             }
 
-            ValidateSearchResults(results, queryText);
+            ValidateSearchResults(results);
 
             var mapped = results.Select(MapBook)
                 .Where(x => x != null)
@@ -1111,7 +1112,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             ResetDeterministicSearchErrorState();
 
-            _logger.Debug("Hardcover returned {0} unique mapped result(s) for query '{1}'.", mapped.Count, queryText);
+            _logger.Debug("Hardcover book search returned {0} unique mapped result(s).", mapped.Count);
 
             return mapped;
         }
@@ -2172,25 +2173,17 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
         }
 
-        private bool ValidateGraphQlResponse(HardcoverGraphQlResponse response, string queryText, bool includeProviderDetails = true)
+        private bool ValidateGraphQlResponse(HardcoverGraphQlResponse response, string operation)
         {
             if (response == null)
             {
-                _logger.Warn("Hardcover returned null response for query '{0}'.", queryText);
+                _logger.Warn("Hardcover returned null response for {0}.", operation);
                 return false;
             }
 
             if (response.Errors != null && response.Errors.Any())
             {
-                if (includeProviderDetails)
-                {
-                    var errorMessages = string.Join("; ", response.Errors.Select(e => e.Message ?? "unknown error"));
-                    _logger.Warn("Hardcover GraphQL returned error(s) for query '{0}': {1}", queryText, errorMessages);
-                }
-                else
-                {
-                    _logger.Warn("Hardcover GraphQL returned {0} error(s) for {1}.", response.Errors.Count, queryText);
-                }
+                _logger.Warn("Hardcover GraphQL returned {0} error(s) for {1}.", response.Errors.Count, operation);
 
                 if (response.Data == null)
                 {
@@ -2200,14 +2193,14 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             if (response.Data == null)
             {
-                _logger.Warn("Hardcover GraphQL response missing 'data' envelope for query '{0}'.", queryText);
+                _logger.Warn("Hardcover GraphQL response missing 'data' envelope for {0}.", operation);
                 return false;
             }
 
             return true;
         }
 
-        private void ValidateSearchResults(List<HardcoverSearchResult> results, string queryText)
+        private void ValidateSearchResults(List<HardcoverSearchResult> results)
         {
             var missingIds = results.Count(r => r.Id.IsNullOrWhiteSpace());
             var missingTitles = results.Count(r => r.Title.IsNullOrWhiteSpace());
@@ -2217,17 +2210,17 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             if (missingIds > 0)
             {
-                _logger.Warn("Hardcover returned {0}/{1} result(s) with missing IDs for query '{2}' — these will be skipped", missingIds, results.Count, queryText);
+                _logger.Warn("Hardcover returned {0}/{1} result(s) with missing IDs for book search — these will be skipped", missingIds, results.Count);
             }
 
             if (missingTitles > 0)
             {
-                _logger.Debug("Hardcover returned {0}/{1} result(s) with missing titles for query '{2}' — ID will be used as fallback title", missingTitles, results.Count, queryText);
+                _logger.Debug("Hardcover returned {0}/{1} result(s) with missing titles for book search — ID will be used as fallback title", missingTitles, results.Count);
             }
 
             if (missingAuthors > 0)
             {
-                _logger.Debug("Hardcover returned {0}/{1} result(s) with no author information for query '{2}' — 'Unknown Author' will be used", missingAuthors, results.Count, queryText);
+                _logger.Debug("Hardcover returned {0}/{1} result(s) with no author information for book search — 'Unknown Author' will be used", missingAuthors, results.Count);
             }
         }
 

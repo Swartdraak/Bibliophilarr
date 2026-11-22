@@ -2,7 +2,11 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
@@ -29,6 +33,27 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Returns(new OlAuthorWorksResponse());
             _clientMock.Setup(client => client.Search("author_key:OL26320A", It.IsAny<int>(), It.IsAny<int>()))
                 .Returns(new OlSearchResponse());
+        }
+
+        [Test]
+        public void isbn_failure_should_log_operation_without_the_lookup_value()
+        {
+            const string isbn = "9781442482890";
+            _clientMock.Setup(client => client.GetEditionByIsbn(isbn)).Throws(new OpenLibraryException("Fixture lookup: {0}", isbn));
+            var messages = new MemoryTarget { Layout = "${message} ${exception}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var provider = new OpenLibraryProvider(
+                _clientMock.Object,
+                Mocker.GetMock<IConfigService>().Object,
+                logFactory.GetLogger(nameof(OpenLibraryProvider)));
+
+            provider.SearchByIsbn(isbn).Should().BeEmpty();
+
+            messages.Logs.Should().Contain(message => message.Contains("OpenLibrary provider ISBN lookup failed"));
+            messages.Logs.Should().NotContain(message => message.Contains(isbn));
+            _clientMock.Verify(client => client.GetEditionByIsbn(isbn), Times.Once());
         }
 
         [TestCase("/authors/OL42A", true)]
