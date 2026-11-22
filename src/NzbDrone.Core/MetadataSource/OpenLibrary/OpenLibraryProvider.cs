@@ -197,18 +197,27 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var offset = 0;
             var total = 0;
+            var confirmedEmptyPage = false;
 
             try
             {
                 while (true)
                 {
                     var (page, reportedTotal) = fetchPage(offset);
+                    total = Math.Max(total, reportedTotal ?? 0);
+                    if (!confirmedEmptyPage && page?.Count == 0 && offset < total)
+                    {
+                        // Confirm an unexpected gap once without discarding the earlier total.
+                        confirmedEmptyPage = true;
+                        (page, reportedTotal) = fetchPage(offset);
+                        total = Math.Max(total, reportedTotal ?? 0);
+                    }
+
                     if (page == null)
                     {
                         throw new InvalidOperationException($"Open Library did not return a bibliography page at offset {offset}.");
                     }
 
-                    total = Math.Max(total, reportedTotal ?? 0);
                     if (page.Count == 0)
                     {
                         if (offset < total)

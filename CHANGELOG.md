@@ -27,6 +27,8 @@ process.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
 - Include automatic import fallback searches in provider operation telemetry.
+- Confirm an unexpectedly empty Open Library bibliography page once before
+  treating the author's catalogue as incomplete.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
