@@ -72,20 +72,24 @@ def initialize_root(api, work):
     ebook = next(profile for profile in quality if profile["name"].lower() == "ebook")
     profiles = checked(api.get("/api/v1/metadataprofile"), 200, "read_catalogue_metadata_profiles")
     none = next(profile for profile in profiles if profile["name"] == "None")
-    return checked(
-        api.post("/api/v1/rootfolder", data={
-            "name": "Catalogue fixture",
-            "path": str(library),
-            "defaultQualityProfileId": ebook["id"],
-            "defaultMetadataProfileId": none["id"],
-            "defaultMonitorOption": "none",
-            "defaultNewItemMonitorOption": "none",
-            "defaultTags": [],
-            "isCalibreLibrary": False,
-        }),
-        201,
-        "create_disposable_ebook_root",
-    )
+    route = "/api/v1/rootfolder"
+    payload = {
+        "name": "Catalogue fixture",
+        "path": str(library),
+        "defaultQualityProfileId": ebook["id"],
+        "defaultMetadataProfileId": none["id"],
+        "defaultMonitorOption": "none",
+        "defaultNewItemMonitorOption": "all",
+        "defaultTags": [],
+        "isCalibreLibrary": False,
+    }
+    root = checked(api.post(route, data=payload), 201, "create_disposable_ebook_root")
+    checked(api.post(route, data=payload), 400, "reject_duplicate_root")
+    roots = checked(api.get(route), 200, "read_disposable_ebook_roots")
+    persisted, = roots
+    assert persisted["id"] == root["id"] and persisted["path"] == str(library)
+    assert persisted["defaultNewItemMonitorOption"] == "all"
+    return root
 
 
 def author_at_root(author, root):
@@ -133,19 +137,70 @@ def find_live_book(page, api, base, root):
     return book, LIVE_AUTHOR
 
 
-def seed_local_catalogue(page, api, base, root, app_data):
-    author = checked(
-        api.post("/api/v1/author", data=author_at_root({
-            "authorName": FIXTURE_AUTHOR,
-            "foreignAuthorId": FIXTURE_AUTHOR_ID,
-            "titleSlug": "browser-fixture-observatory-author",
-        }, root)),
-        201,
-        "create_fixture_author",
-    )
+def read_author_row(app_data, author_id):
+    with closing(sqlite3.connect((app_data / "bibliophilarr.db").as_uri() + "?mode=ro", uri=True)) as db:
+        return db.execute("SELECT Id, AuthorMetadataId, Path FROM Authors WHERE Id = ?", (author_id,)).fetchone()
+
+
+def catalogue_command(api, name, *, expected_status="completed", **body):
+    queued = checked(api.post("/api/v1/command", data={"name": name, **body}), 201, f"queue_{name}")
+    command_id = queued["id"]
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        command = checked(api.get(f"/api/v1/command/{command_id}"), 200, f"read_{name}_state")
+        assert command["id"] == command_id and command["name"] == name
+        if command["status"] not in ("queued", "started"):
+            assert command["status"] == expected_status, f"{name}: unexpected terminal state {command['status']}"
+            return command
+        time.sleep(0.25)
+
+    raise TimeoutError(f"{name} did not finish")
+
+
+def verify_missing_author_rescan(api, app_data, root):
+    with closing(sqlite3.connect((app_data / "bibliophilarr.db").as_uri() + "?mode=ro", uri=True)) as db:
+        missing_id, = db.execute("SELECT COALESCE(MAX(Id), 0) + 1 FROM Authors").fetchone()
+    library = Path(root["path"])
+    assert not any(library.iterdir()), "missing-author regression needs an empty registered root"
+    missing_folder = library / "missing-author"
+    assert read_author_row(app_data, missing_id) is None
+
+    command = catalogue_command(api, "RescanFolders", folders=[str(missing_folder)], filter="known",
+                                addNewAuthors=False, authorIds=[missing_id])
+
+    assert not command.get("exception")
+    assert read_author_row(app_data, missing_id) is None
+    print("missing_author_rescan: PASS (command completed for an absent author)", flush=True)
+
+
+def verify_author_refresh(api, app_data, author):
+    identifier = author["id"]
+    original = read_author_row(app_data, identifier)
+    assert original is not None and original[0] == identifier and original[1] > 0
+
+    command = catalogue_command(api, "RefreshAuthor", authorId=identifier)
+    assert command["result"] == "successful" and not command.get("exception")
+
+    saved = checked(api.get(f"/api/v1/author/{identifier}"), 200, "author_after_refresh")
+    assert saved["id"] == identifier and saved["foreignAuthorId"] == author["foreignAuthorId"]
+    assert saved["titleSlug"] == author["titleSlug"] and read_author_row(app_data, identifier) == original
+    print("author_refresh_retention: PASS (native refresh keeps API identity and SQLite row)", flush=True)
+
+
+def verify_failed_command(api, http, base):
+    command = catalogue_command(api, "DownloadedBooksScan", expected_status="failed")
+    assert command["message"] == "Failed" and command["ended"]
+    assert command["body"]["name"] == "DownloadedBooksScan"
+    assert "A path must be provided" in command["exception"]
+    ping = checked(http.get(base + "/ping"), 200, "ping_after_failed_command")
+    assert ping["status"] == "OK"
+    print("failed_command_json: PASS (failed command remains readable and app stays alive)", flush=True)
+
+
+def seed_fixture_book(api, app_data, author_id, *, foreign_id, foreign_edition_id, slug, title, clean_title):
     with sqlite3.connect((app_data / "bibliophilarr.db").as_uri() + "?mode=rw", uri=True) as db:
         metadata_id, = db.execute(
-            "SELECT AuthorMetadataId FROM Authors WHERE Id = ?", (author["id"],)
+            "SELECT AuthorMetadataId FROM Authors WHERE Id = ?", (author_id,)
         ).fetchone()
         inserted = db.execute(
             """
@@ -154,8 +209,7 @@ def seed_local_catalogue(page, api, base, root, app_data):
                  AnyEditionOk, Links, Genres, Ratings, AddOptions)
             VALUES (?, ?, ?, ?, ?, 0, 1, '[]', '[]', '{}', '{}')
             """,
-            (metadata_id, FIXTURE_BOOK_ID, "browser-fixture-observatory", FIXTURE_TITLE,
-             "thefixtureobservatory"),
+            (metadata_id, foreign_id, slug, title, clean_title),
         )
         book_id = inserted.lastrowid
         db.execute(
@@ -165,11 +219,31 @@ def seed_local_catalogue(page, api, base, root, app_data):
                  IsEbook, Monitored, ManualAdd, Images, Links, Ratings)
             VALUES (?, ?, ?, ?, 'en', 'Ebook', 1, 1, 1, '[]', '[]', '{}')
             """,
-            (book_id, FIXTURE_EDITION_ID, FIXTURE_TITLE, "browser-fixture-observatory-edition"),
+            (book_id, foreign_edition_id, title, f"{slug}-edition"),
         )
 
     book = checked(api.get(f"/api/v1/book/{book_id}"), 200, "read_seeded_fixture")
-    assert book["authorId"] == author["id"] and book["foreignBookId"] == FIXTURE_BOOK_ID
+    assert book["authorId"] == author_id and book["foreignBookId"] == foreign_id
+    return book
+
+
+def seed_local_catalogue(page, api, base, root, app_data):
+    route = "/api/v1/author"
+    payload = author_at_root({
+        "authorName": FIXTURE_AUTHOR,
+        "foreignAuthorId": FIXTURE_AUTHOR_ID,
+        "titleSlug": "browser-fixture-observatory-author",
+    }, root)
+    checked(api.post(route, data={**payload, "authorName": ""}), 400, "reject_invalid_author")
+    author = checked(api.post(route, data=payload), 201, "create_fixture_author")
+    checked(api.post(route, data=payload), 400, "reject_duplicate_author")
+    authors = checked(api.get(route), 200, "read_catalogue_authors")
+    persisted, = authors
+    assert persisted["id"] == author["id"] and persisted["foreignAuthorId"] == FIXTURE_AUTHOR_ID
+    verify_author_refresh(api, app_data, author)
+    book = seed_fixture_book(api, app_data, author["id"], foreign_id=FIXTURE_BOOK_ID,
+                            foreign_edition_id=FIXTURE_EDITION_ID, slug="browser-fixture-observatory",
+                            title=FIXTURE_TITLE, clean_title="thefixtureobservatory")
     page.goto(base + "/authors", wait_until="domcontentloaded")
     search = page.get_by_role("textbox", name="Search books and authors")
     search.fill(FIXTURE_TITLE)
@@ -360,6 +434,32 @@ def import_fixture(api, work, app_data, root, book, author):
     )
 
 
+def verify_downloaded_copy(api, work, app_data, root, author_id):
+    title = "Fixture Almanac"
+    book = seed_fixture_book(api, app_data, author_id, foreign_id="fixture:work:almanac",
+                            foreign_edition_id="fixture:edition:almanac", slug="browser-fixture-almanac",
+                            title=title, clean_title="fixturealmanac")
+    edition, = book["editions"]
+    assert not files_for_book(api, book["id"])
+    inbox = work / "download-copy-inbox"
+    inbox.mkdir()
+    source = inbox / f"{FIXTURE_AUTHOR} - {title}.epub"
+    write_epub(source, title, FIXTURE_AUTHOR, "urn:test:bibliophilarr-almanac")
+    before = sha256(source.read_bytes()).hexdigest()
+
+    command = catalogue_command(api, "DownloadedBooksScan", path=str(source), importMode="copy")
+    assert command["result"] == "successful" and not command.get("exception")
+
+    tracked, = files_for_book(api, book["id"])
+    target = Path(tracked["path"]).resolve(strict=True)
+    assert target.is_relative_to(Path(root["path"]).resolve()) and target.suffix == ".epub"
+    verify_file_edition(app_data, tracked["id"], edition["id"])
+    with ZipFile(source) as original, ZipFile(target) as copied:
+        assert copied.read("OEBPS/chapter.xhtml") == original.read("OEBPS/chapter.xhtml")
+    assert sha256(source.read_bytes()).hexdigest() == before
+    print("downloaded_scan_copy: PASS (automatic copy kept the source and tracked the EPUB)", flush=True)
+
+
 def exercise_catalogue(page, api, base, work, app_data, *, live_provider=False):
     """Run while the authenticated browser and first instance are alive."""
     address = urlsplit(base)
@@ -376,8 +476,11 @@ def exercise_catalogue(page, api, base, work, app_data, *, live_provider=False):
             configure_providers(api, False, clear_token=True)
     else:
         configure_providers(api, False)
+        verify_missing_author_rescan(api, app_data, root)
         book, author = seed_local_catalogue(page, api, base, root, app_data)
+        verify_failed_command(api, page.request, base)
         verify_poor_local_import_selection(api, work, book)
+        verify_downloaded_copy(api, work, app_data, root, book["authorId"])
     readback = checked(api.get(f"/api/v1/book/{book['id']}"), 200, "retrievable_book_identity")
     assert readback["foreignBookId"] == book["foreignBookId"] and readback["titleSlug"] == book["titleSlug"]
     if live_provider:
