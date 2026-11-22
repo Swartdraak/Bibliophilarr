@@ -6,7 +6,7 @@ namespace Bibliophilarr.Http.Authentication
 {
     public sealed class ApiWriteAuthenticationMiddleware
     {
-        private const string ApiScheme = "API";
+        internal const string ApiScheme = "API";
         private readonly RequestDelegate _next;
 
         public ApiWriteAuthenticationMiddleware(RequestDelegate next)
@@ -16,20 +16,27 @@ namespace Bibliophilarr.Http.Authentication
 
         public async Task InvokeAsync(HttpContext context)
         {
-            var method = context.Request.Method;
-            if (context.GetEndpoint()?.Metadata.GetMetadata<VersionedApiControllerAttribute>() != null &&
-                !HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) &&
-                !HttpMethods.IsOptions(method) && !HttpMethods.IsTrace(method))
+            if (RequiresApiCredential(context) && !await HasValidApiCredentialAsync(context))
             {
-                var credential = await context.AuthenticateAsync(ApiScheme);
-                if (!credential.Succeeded)
-                {
-                    await context.ChallengeAsync(ApiScheme);
-                    return;
-                }
+                await context.ChallengeAsync(ApiScheme);
+                return;
             }
 
             await _next(context);
+        }
+
+        internal static bool RequiresApiCredential(HttpContext context)
+        {
+            var method = context.Request.Method;
+            return context.GetEndpoint()?.Metadata.GetMetadata<VersionedApiControllerAttribute>() != null &&
+                   !HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) &&
+                   !HttpMethods.IsOptions(method) && !HttpMethods.IsTrace(method);
+        }
+
+        internal static async Task<bool> HasValidApiCredentialAsync(HttpContext context)
+        {
+            var credential = await context.AuthenticateAsync(ApiScheme);
+            return credential.Succeeded;
         }
     }
 }
