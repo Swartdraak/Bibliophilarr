@@ -20,7 +20,7 @@ yarn install --frozen-lockfile
 yarn build
 
 # Run tests
-dotnet test src/Bibliophilarr.sln --filter "Category!=IntegrationTest&Category!=AutomationTest"
+dotnet test src/Bibliophilarr.sln --filter "Category!=IntegrationTest"
 yarn test:frontend
 ```
 

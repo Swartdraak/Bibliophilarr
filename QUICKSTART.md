@@ -279,11 +279,17 @@ dotnet test src/NzbDrone.Common.Test/Bibliophilarr.Common.Test.csproj \
   -p:Platform=Posix -r linux-x64 --filter "Name~should_not_follow_redirects"
 ```
 
-For the legacy shell-based test runner:
+For the packaged shell test runner, build the solution and point `TEST_DIR` to
+its test assemblies:
 
 ```bash
-./test.sh Linux Unit Test
+dotnet build src/Bibliophilarr.sln -c Release -p:Platform=Posix
+TEST_DIR="$PWD/_tests/net10.0" ./test.sh Linux Unit Test
 ```
+
+Use `Integration` in place of `Unit` to select integration cases. The
+[package browser smoke](tests/browser/CATALOGUE.md) covers signed WebUI workflows
+in its own disposable instance.
 
 Metadata extraction and import-identification verification (targeted):
 

@@ -17,11 +17,11 @@
   "files": [
     {
       "path": "linux-program/browser/check_browser.py",
-      "sha256": "ea86bfeca475fab53709691b0e7eb8b4b22d1bc7be6cdecc351718dbf3794178"
+      "sha256": "20f15baa7ad0eb97f84e69c35c31b4084d08e0460934b117a99dda8ea94a06ac"
     },
     {
       "path": "linux-program/browser/prepare.sh",
-      "sha256": "04f73514907fda1880e0d0010fe90767a1dc1956af11b73d244501e1d86fcf42"
+      "sha256": "2331ab13e81c166451bf36a0f5be6a25f6d83fe7105b2883543e7d21a42f29c6"
     },
     {
       "path": "linux-program/build/build_backend.sh",
@@ -65,7 +65,7 @@
     },
     {
       "path": "linux-program/plan_browser.json",
-      "sha256": "56ae11b2c9664756ecfaaefc2f13aa298398be270680530a62751cbdd3c7954c"
+      "sha256": "474d2b5435c12003f26eeb83eb7a18bc4c00670c2fa1ed38bc0bef1f0ab320dd"
     },
     {
       "path": "linux-program/plan_build.json",
@@ -113,9 +113,10 @@
     "build_strategy": "Build once into repo/_output/net10.0/linux-x64/publish with UI beside the launcher. Snapshot publish including publish/UI and record head.txt under /workspace/tmp/linux-program-build-output. Later stages reuse that output. Source libraries stay read-only; fixtures are approved disposable copies.",
     "known_product_blocker": "Prior exact-head evidence (acceptance-stages/t_e53b844e) recorded a linux-x64 startup crash (FileNotFoundException: Microsoft.Extensions.Primitives v10.0.0.0 at Bootstrap.GetConfiguration) at head fa61fc55. The build stage re-verifies the Primitives DLL in this candidate's publish output (B2) with startup proof as the primary assertion. If that product/build defect is still present at this candidate, the build stage startup proof and all dependent stages will fail; that requirement is recorded, not waived, and no product code is rewritten here.",
     "placeholders": "task_id/head_sha use @TASK@/@HEAD@; case-owned fresh writable data uses @CASE@ (materialized to acceptance-stages/<task>/data).",
-    "repair_input_generalization": "Corrections from linux-program-repair-input/manifest.json (case 60354f1854f5483c56e6b0d1, task t_dd7ab58b at fa61fc55) are generalized into this reusable template: provider-enablement wire names are camelCase (enableOpenLibraryProvider/enableHardcoverFallback/hardcoverApiToken) with the id=1 guard and the hard-fail after failed enablement; I3 targets /api/v1/metadata/providers/health/basic and I4 targets /api/v1/metadata/providers/health (both rows carry providerName; the bare /metadata/providers base route has no [HttpGet] action and is not a definitions endpoint); search terms are URL-quoted; the browser check asserts the served login page and the built Content/login.html asset instead of the app-root index.html. The case-owned start_app.sh corrections (reviewed, t_d325f8e1/t_dd7ab58b) were already generalized: per-case DATA_DIR/APP_PORT bindings, durable _output/net10.0/linux-x64/publish + UI, bind-address 127.0.0.1 and ASPNETCORE_URLS, and no secret values in the launcher.",
+    "repair_input_generalization": "Corrections from linux-program-repair-input/manifest.json (case 60354f1854f5483c56e6b0d1, task t_dd7ab58b at fa61fc55) are generalized into this reusable template: provider-enablement wire names are camelCase (enableOpenLibraryProvider/enableHardcoverFallback/hardcoverApiToken) with the id=1 guard and the hard-fail after failed enablement; I3 targets /api/v1/metadata/providers/health/basic and I4 targets /api/v1/metadata/providers/health (both rows carry providerName; the bare /metadata/providers base route has no [HttpGet] action and is not a definitions endpoint); search terms are URL-quoted; the browser check verifies that the login route serves the packaged top-level UI/login.html with its antiforgery token applied. The case-owned start_app.sh corrections (reviewed, t_d325f8e1/t_dd7ab58b) were already generalized: per-case DATA_DIR/APP_PORT bindings, durable _output/net10.0/linux-x64/publish + UI, bind-address 127.0.0.1 and ASPNETCORE_URLS, and no secret values in the launcher.",
     "scope": "Reusable Linux acceptance program for Swartdraak/Bibliophilarr; the registered candidate is c3a458a464301890bfd5d4e3231e0f7e7fe04b2f (source: fix(issue-426) duplicate-copy import record preservation). The harness reads the expected source head from runner-owned ONYX_STAGE_HEAD and never hardcodes a candidate SHA into executable files. Shared behavior on Linux; native Windows/macOS smoke is a separate platform stage and is out of scope here.",
-    "secrets": "No secret values are stored in this program. Credentials are projected at execution time through the runner secret_env broker (SIXLABORS_LICENSE_KEY -> SIXLABORS_LICENSE_FILE env var for the backend build via secret_file_env, a private byte-exact 0600 file whose PATH is bound to the MSBuild-recognized SIXLABORS_LICENSE_FILE variable per src/Directory.Build.props; removed on cleanup; HARDCOVER_API_KEY -> BIBLIOPHILARR_HARDCOVER_API_TOKEN env var for the integrations/workflows check steps, where it is persisted as the DB hardcoverApiToken by the provider-enablement helper). The app service itself starts with no provider secrets; provider enablement happens through the authenticated config API."
+    "secrets": "No secret values are stored in this program. Credentials are projected at execution time through the runner secret_env broker (SIXLABORS_LICENSE_KEY -> SIXLABORS_LICENSE_FILE env var for the backend build via secret_file_env, a private byte-exact 0600 file whose PATH is bound to the MSBuild-recognized SIXLABORS_LICENSE_FILE variable per src/Directory.Build.props; removed on cleanup; HARDCOVER_API_KEY -> BIBLIOPHILARR_HARDCOVER_API_TOKEN env var for the integrations/workflows check steps, where it is persisted as the DB hardcoverApiToken by the provider-enablement helper). The app service itself starts with no provider secrets; provider enablement happens through the authenticated config API.",
+    "browser_runtime": "Pre-provision the pinned Playwright Python dependency from tests/browser/requirements.txt and Chromium plus its system dependencies on the browser runner. The checks import the repository login helper, use only the disposable loopback app, and store only a prior process-start timestamp between the two steps."
   },
   "repository": "Swartdraak/Bibliophilarr",
   "repository_id": "1159029625",
@@ -125,13 +126,15 @@
         "SPA root and login page served as HTML by the static resource controller",
         "login page (frontend/src/login.html) contains a password field and is retrievable",
         "a built JS bundle referenced by the served page is retrievable (real webpack output, not a placeholder)",
-        "authenticated SPA bootstrap (/initialize.json) and public liveness (/ping) respond 200, and anonymous SPA bootstrap is denied"
+        "authenticated SPA bootstrap (/initialize.json) and public liveness (/ping) respond 200, and anonymous SPA bootstrap is denied",
+        "a real browser rejects wrong Forms credentials, then signs in and renders the Authors page",
+        "after one TERM restart, a fresh browser independently signs in to the same profile and renders Authors"
       ],
       "plan": {
         "version": 1,
         "task_id": "@TASK@",
         "head_sha": "@HEAD@",
-        "deadline_seconds": 600,
+        "deadline_seconds": 840,
         "setup": [
           {
             "name": "prepare_fresh_data",
@@ -185,10 +188,31 @@
             "name": "check_browser",
             "argv": [
               "python3",
+              "-B",
               "/workspace/linux-program/browser/check_browser.py"
             ],
             "cwd": "repo",
             "timeout_seconds": 240,
+            "env": {
+              "APP_URL": "http://127.0.0.1:8765",
+              "CASE_DIR": "/workspace/@CASE@"
+            }
+          },
+          {
+            "action": "restart",
+            "service": "bibliophilarr-app",
+            "signal": "TERM"
+          },
+          {
+            "name": "check_browser_after_restart",
+            "argv": [
+              "python3",
+              "-B",
+              "/workspace/linux-program/browser/check_browser.py",
+              "--after-restart"
+            ],
+            "cwd": "repo",
+            "timeout_seconds": 180,
             "env": {
               "APP_URL": "http://127.0.0.1:8765",
               "CASE_DIR": "/workspace/@CASE@"
@@ -199,7 +223,8 @@
       "source_references": [
         "repo/src/Bibliophilarr.Http/Frontend/StaticResourceController.cs",
         "repo/src/Bibliophilarr.Http/Frontend/InitializeJsonController.cs",
-        "repo/src/Bibliophilarr.Http/Authentication/AuthenticationController.cs"
+        "repo/src/Bibliophilarr.Http/Authentication/AuthenticationController.cs",
+        "repo/tests/browser/smoke.py"
       ]
     },
     "build": {

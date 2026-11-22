@@ -1,136 +1,54 @@
-# Updates and Branches
+# Updates and branches
 
-## Overview
+## Release channels
 
-Bibliophilarr supports configurable update branches, allowing users to choose between stable releases and development builds (when available).
+Bibliophilarr defaults to `main` for stable releases. The `master` value is a
+compatibility alias. The application also recognizes `develop` and `nightly`
+as branch values, but selecting either does not make a public build available.
+Use the latest published stable release for a supported installation.
+[Stable releases](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 
-## Default Configuration
+The repository promotes `develop` through `staging` to `main`. Staging
+candidates are for validation. A stable tag on `main` is published only after
+release approval. [Branch policy](../BRANCHING.md)
 
-As of v1.2.0, new installations default to the **`main`** branch for stable release tracking. This means:
+## Check for updates
 
-- Users receive notifications when new stable releases are published
-- Updates are available through the built-in update mechanism (binary installs) or Docker image pulls
-- Only tested, production-ready releases are delivered
+Open **System > Updates** to view the installed version and available update
+options. Some deployments use their configured services endpoint. Builds
+that support optional GitHub discovery also offer **Check GitHub for updates**
+when `Bibliophilarr__Update__PublicReleaseDiscovery=true`. This manual check
+compares the installed version to the official stable release and opens the
+release notes. It does not install the update.
+[Update discovery configuration](../docs/operations/services-endpoint-runbook.md#optional-public-release-discovery)
 
-## Available Branches
+## Upgrade by installation method
 
-| Branch | Status | Description | Release Cadence |
-|--------|--------|-------------|-----------------|
-| **main** | ✅ Active | Stable releases only. Tagged releases published via GitHub Releases, Docker (`:latest`), and npm. | On-demand (when releases are ready) |
-| **master** | ✅ Active | Alias for `main`. Recognized for backward compatibility. | Same as main |
-| **develop** | ⏸️ Configured | Development integration branch. No automated builds currently published. | Not yet implemented |
-| **nightly** | ⏸️ Configured | Bleeding-edge builds. No automated builds currently published. | Not yet implemented |
+Make a recoverable database and configuration backup before an upgrade.
+Review the release notes for runtime requirements, database migrations and
+rollback instructions. Restore the old binary together with its matching
+backup when an upgrade changed the database schema.
 
-## Changing the Update Branch
+| Installation | Update method |
+| --- | --- |
+| Native archive or service | Use the deployment's supported installer or replace its application files after stopping the service. Preserve the app-data directory and media paths. A built-in update control may be available when the installation supports it. |
+| Docker or Compose | Update the configured Bibliophilarr image to an approved release and recreate the container with the same configuration and media mounts. |
+| npm launcher | Use the release selector and checksum-verified download documented by the launcher. |
+| LXC | Follow the method used inside the container, such as a native service or Docker. |
 
-### Via Web UI
+Automatic installation defaults to off in the current development version.
+Existing installations can retain explicit settings.
+Use **Settings > General > Updates** to review the update mechanism and branch.
+[Installation](../README.md#installation) ·
+[npm launcher](../npm/bibliophilarr-launcher/README.md)
 
-1. Navigate to **Settings > General > Updates**
-2. Enable **Advanced Settings** (toggle in top-right)
-3. Under **Branch**, select your preferred branch from the dropdown
-4. Click **Save**
+## Troubleshoot an upgrade
 
-### Via Configuration File
-
-Edit `config.xml` in your Bibliophilarr data directory:
-
-```xml
-<Config>
-  <Branch>main</Branch>
-  <!-- other settings -->
-</Config>
-```
-
-Valid values: `main`, `master`, `develop`, `nightly`
-
-Restart Bibliophilarr after editing the configuration file.
-
-## Update Mechanisms
-
-### Docker
-
-Docker users update by pulling new images, not through the built-in updater:
-
-```bash
-docker pull ghcr.io/swartdraak/bibliophilarr:latest
-docker stop bibliophilarr
-docker rm bibliophilarr
-# Re-run your docker run command with the same volume mounts
-```
-
-The UI will show available updates but won't perform the update automatically. The branch setting determines which releases are shown as "available."
-
-### Binary Installs (Built-In Updater)
-
-Binary installations (Linux, macOS, Windows) use the built-in update mechanism:
-
-1. Check for updates: **System > Updates**
-2. Click **Install Latest** when an update is available
-3. Bibliophilarr will download, backup your current install, and restart with the new version
-
-**Requirements:**
-- Writable startup folder
-- Sufficient disk space for backup
-- No external processes locking Bibliophilarr files
-
-### npm Launcher
-
-The npm launcher (`bibliophilarr` package) updates separately:
-
-```bash
-npm update -g bibliophilarr
-```
-
-This updates the launcher, which will then download the appropriate Bibliophilarr binary release based on your configured branch.
-
-## Health Checks
-
-The **Release Branch Check** health check validates your configured branch. If you select an invalid or unrecognized branch, you'll see a warning in **System > Health**.
-
-Currently valid branches: `main`, `master`, `develop`, `nightly`
-
-## Troubleshooting
-
-### "No updates available" on develop/nightly
-
-**Cause**: Automated builds for `develop` and `nightly` branches are not yet published.
-
-**Solution**: Switch to `main` branch for stable releases, or monitor the repository for announcements about development build availability.
-
-### Docker update shows available but won't install
-
-**Expected behavior**: Docker installations must update by pulling new images, not through the built-in updater. See [Docker](#docker) update instructions above.
-
-### Update fails with permission error
-
-**Cause**: Bibliophilarr cannot write to its startup folder.
-
-**Solution**:
-- Ensure the user running Bibliophilarr has write permissions to the installation directory
-- On Linux, check folder ownership: `ls -la /opt/Bibliophilarr` (or your install path)
-- On Docker, ensure volume mounts preserve the correct permissions
-
-### Branch setting won't save
-
-**Cause**: Configuration file is read-only or locked.
-
-**Solution**:
-- Check `config.xml` file permissions in your data directory
-- Ensure no other process has the file locked
-- Restart Bibliophilarr and try again
-
-## Related Documentation
-
-- [RELEASE_AUTOMATION.md](../docs/operations/RELEASE_AUTOMATION.md) — Release workflow and automation
-- [BRANCH_STRATEGY.md](../docs/operations/BRANCH_STRATEGY.md) — Git branch model and protection policy
-- [ROADMAP.md](../ROADMAP.md#track-d-application-update-pipeline) — Planned update pipeline improvements
-
-## Future Plans
-
-The project plans to add automated build and publish workflows for `develop` and `nightly` branches in a future release. This will enable:
-
-- Pre-release testing on development builds
-- Early access to new features
-- Faster feedback cycles for contributors
-
-Track progress: [ROADMAP.md Track D: Application update pipeline](../ROADMAP.md#track-d-application-update-pipeline)
+- Check **System > Health** and **System > Events** for a release source or
+  local startup error.
+- Confirm that the service account can read its app data and has the
+  permissions needed by its update mechanism.
+- If recovery is required, keep the failed logs and restart the previous
+  application with its matching backup.
+- Follow the tested upgrade and recovery matrix for upcoming releases.
+  [Upgrade validation](https://github.com/Swartdraak/Bibliophilarr/issues/341)

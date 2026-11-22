@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
+  ranges fall back to filename metadata.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
@@ -29,7 +31,13 @@ process.
   dual-format monitoring answer in the in-app help.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
+- Label the Calendar feed filters, URL, copy button, and subscription link.
+- Name the Delay and Release Profile add and edit controls.
+- Give the Custom Format add-condition control and condition choices
+  accessible names.
 - Reject missing profile IDs before saving a new author through Add Book.
+- Return a validation error for a null or unavailable edition in Add Book
+  before saving the book or author.
 - Label the backup upload field and show restore errors in the dialog. Choosing
   another file clears the previous error.
 - Provider telemetry distinguishes failed Open Library text searches from
@@ -135,6 +143,7 @@ process.
   smoke covers explicit versions and both supported archive layouts.
 - Manual Import enables its actions as a folder path is entered and lets keyboard
   users leave the path field when no completion is available (#448).
+- Keep the Wanted Missing toolbar actions visible on narrow screens (#562).
 - **Build-stage preflight performed read-only-tree filesystem side effects** (Issue #428): the governed Linux acceptance-program build-stage preflight template `linux-program/build/preflight_build.sh` executed `python3 -m py_compile` on `check_build.py` (writes `build/__pycache__/...` via the bytecode-cache machinery — `PYTHONDONTWRITEBYTECODE` only gates import-time caching, not an explicit `py_compile` invocation) and `python3 -m json.tool plan_build.json > /dev/null` (a latent second write), so preflight deterministically aborted with `OSError: [Errno 30] Read-only file system` on the read-only-by-design program tree (`linux-acceptance-program.json`: "Source libraries stay read-only") before any build could start. Both checks are now in-memory: `compile(src, 'check_build.py', 'exec')` (prints `CHECK_BUILD-PARSE-OK`) and `json.loads` structural validation (prints `PLAN_TEMPLATE-PARSE-OK`) — no `py_compile`, no `json.tool` redirection, no `__pycache__`/temp-file side effect; a genuinely malformed or missing template still fails preflight (exit 1) with no weakened assertion. This change commits the reusable Linux acceptance program (`linux-acceptance-program.json` + `linux-program/`, previously workspace-side only) into the repository so the repaired template and its regression coverage are durable, and adds the read-only preflight regression test `linux-program/tests/check_preflight_readonly.sh` (read-only positive control, write-pattern scan, and malformed/missing-template negative controls; run: `bash linux-program/tests/check_preflight_readonly.sh`). No product code, no behavior change, no waiver of any acceptance criterion.
 - **Manual copy import with `replaceExistingFiles=false` replaced the original book file record** (Issue #426): re-importing a file that already backed the same book+part as a manual copy import with the "do not replace existing files" setting still recycled the original `BookFile` record — the import pipeline never consulted the flag on the incoming-file path (its only remaining uses were the dead `RemoveExistingTrackFiles` call and event emission), so the "already imported" guard (keyed on book id + part within a single import call) did not short-circuit the duplicate and `UpgradeMediaFileService.UpgradeBookFile` unconditionally deleted the prior record and inserted a new one: same bytes, new record identity. `ImportApprovedBooks.Import` now short-circuits the duplicate when `replaceExistingFiles=false` and a DB record already backs the incoming path for the same book+part (and edition): the original record and file are preserved, no upgrade/copy is issued, and the result reports the skip with the preserved record id. Explicit `replaceExistingFiles=true` keeps the existing replacement/upgrade path unchanged. Pinned by `ImportApprovedBooksDuplicateCopyFixture` (3 tests: duplicate copy import with `replaceExistingFiles=false` preserves the original record — no upgrade issued, no record deleted, no new record added, result reported as Skipped with the preserved id [RED at base: result was Imported and the upgrade was issued]; duplicate import with `replaceExistingFiles=true` still upgrades and imports; non-duplicate import with `replaceExistingFiles=false` still imports — regression guard for the normal path).
 - **Login "Incorrect Username or Password" banner never appears on a rejected-credential redirect** (Issue #284): the login page is a static asset (`frontend/src/login.html`, served verbatim by `LoginHtmlMapper` for `GET /login`). Its single inline `<script>` set the footer year with backslash-escaped quotes (`yearSpan.textContent = \"2017-\" + ...`), which is an invalid JavaScript token — the script threw `SyntaxError: Invalid or unexpected token` and never reached the block that unhides `#login-failed` when the page loads with `?loginFailed=true`. The rejected-credential redirect (302 -> `/login?loginFailed=true`) was already correct, but the banner stayed hidden because the revealing script aborted. The year line now uses plain quotes so the inline script parses and unhides the banner on the rejected-credential redirect (and still sets the footer year). Pinned by `frontend/src/Issue284/loginBannerReveal.test.js` (5 tests: no backslash-escaped quote in the shipped source; every inline script parses; the footer year is set and `#copy` unhidden; `#login-failed` unhidden on `?loginFailed=true` and stays hidden on a plain `/login`; RED 5/5 at base, GREEN 5/5 post-fix).
@@ -147,6 +156,9 @@ process.
 - **Unauthenticated v1 API under `AuthenticationMethod=None`** (Issue #287): when no API key is configured (`AuthenticationMethod=None`), an HTTP request to the v1 API with an empty or absent `X-Api-Key` was served with 200 OK instead of 401/403. The `NoAuthenticationHandler` now returns `AuthenticateResult.NoResult()` for missing/empty credentials so the fallback `AuthorizationPolicyBuilder("API").RequireAuthenticatedUser()` policy correctly rejects unauthenticated requests. The fix only affects the `None` (dev-only) configuration state; the normal `Basic`/`Forms`/`External` auth flows are unchanged. Pinned by `NoAuthenticationHandlerIssue287Fixture` (3 regression tests).
 
 ### Changed
+
+- Update the WebUI SVG icons to Font Awesome 7 and keep intrinsic widths
+  for normal icons. Controls can still request a fixed width.
 
 - Automatic application updates are opt-in on every platform. Windows now
   follows the same default. Explicit settings and environment overrides
@@ -167,6 +179,11 @@ process.
 - **macOS app-smoke RID-specific provider copy paths** (Issue #270, repair 7): the hosted `macos-latest` app-execution lane at 9cce63ab8c (repair 6) still died at first boot with a DryIoc `GetRequiredService` resolution failure inside `EventAggregator` — the provider-surface `CopyToPublishDirectory` items in `Bibliophilarr.Console.csproj` used RID-agnostic source paths (`_output/net10.0/FluentMigrator.dll`) but the build output for a RID-specific publish (`-p:RuntimeIdentifier=osx-x64`) goes to `_output/net10.0/osx-x64/FluentMigrator.dll`. On a fresh CI checkout, `_output/` does not exist, so the RID-agnostic paths silently failed to resolve and the provider assemblies were missing from the publish output, causing the app to crash at startup when FluentMigrator's `ReflectionBasedDbFactory` tried to load them by file path. This repair changes every `CopyToPublishDirectory` source path in the non-Windows-RID provider-surface group to use the RID-specific path `_output/net10.0/$(RuntimeIdentifier)/...` (which resolves to the correct RID subdirectory at publish time), so the provider assemblies are correctly copied from the build output into the publish output for every non-Windows RID. The Windows publish is byte-for-byte unaffected (the condition is the exact logical complement of the win-RID platform group). No product source, no runtime loader behavior, no new package, no dependency-version change. The `ConsoleSqliteProviderPublishIssue270Fixture` test assertions are updated to pin the RID-specific paths. The residual criterion (fresh exact-head hosted CI on both hosted lanes before merge) remains the publisher's.
 
 ### Security
+
+- Sanitize book identifiers and titles in Add Book and import-list logs.
+
+- Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
+  to their patched versions.
 
 - Database migration startup logs identify the database type and role without
   exposing connection details.

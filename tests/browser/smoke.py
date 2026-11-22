@@ -229,6 +229,46 @@ def check_routes(page, base, api, evidence):
     expect(main.get_by_role("heading", name="No books found", exact=True)).to_be_visible()
     expect(nav.get_by_role("link", name="Books", exact=True)).to_have_attribute("aria-current", "page")
 
+    print("Sidebar navigation opens distinct Calendar, Activity, Wanted and System views", flush=True)
+    print("Open Calendar from the sidebar", flush=True)
+    nav.get_by_role("link", name="Calendar", exact=True).click()
+    expect(page).to_have_url(base + "/calendar")
+    main.get_by_role("button", name="iCal Link", exact=True).click()
+    feed = page.get_by_role("dialog")
+    for label in ("Past Days", "Future Days", "Tags", "iCal Feed"):
+        expect(feed.get_by_label(label, exact=True)).to_have_count(1)
+    expect(feed.get_by_role("checkbox", name="Include Unmonitored")).to_be_visible()
+    expect(feed.get_by_role("button", name="Copy to clipboard", exact=True)).to_be_visible()
+    expect(feed.get_by_role("link", name="Subscribe to calendar", exact=True)).to_have_count(1)
+    feed.get_by_role("button", name="Close", exact=True).last.click()
+    expect(feed).to_be_hidden()
+
+    for link, route, content, child_link in (
+        ("Activity", "/activity/queue", "Queue is empty", "Queue"),
+        ("History", "/activity/history", "No history.", None),
+        ("Blocklist", "/activity/blocklist", "No history blocklist", None),
+        ("Wanted", "/wanted/missing", "No missing items", "Missing"),
+        ("Cutoff Unmet", "/wanted/cutoffunmet", "No cutoff unmet items", None),
+    ):
+        print(f"Open {link} from the sidebar", flush=True)
+        nav.get_by_role("link", name=link, exact=True).click()
+        expect(page).to_have_url(base + route)
+        expect(main.get_by_text(content, exact=True)).to_be_visible()
+        if child_link:
+            expect(nav.get_by_role("link", name=child_link, exact=True)).to_be_visible()
+
+    print("Open System health from the sidebar", flush=True)
+    nav.locator('a[href="/system/status"]').filter(has_text="System").click()
+    expect(page).to_have_url(base + "/system/status")
+    expect(main.get_by_text("Health", exact=True)).to_be_visible()
+
+    print("Open Library and Add New from the sidebar", flush=True)
+    nav.get_by_role("link", name="Library", exact=True).click()
+    expect(main.get_by_role("heading", name="Authors", exact=True)).to_be_visible()
+    nav.get_by_role("link", name="Add New", exact=True).click()
+    expect(page).to_have_url(base + "/add/search")
+    expect(main.locator('input[placeholder*="War and Peace"]')).to_be_visible()
+
     print("Library and Search bookmarks mount distinct content", flush=True)
     check_status(page.goto(base + "/library?view=table#authors"), 200, "Authenticated Library bookmark")
     expect(page).to_have_url(base + "/authors?view=table#authors")

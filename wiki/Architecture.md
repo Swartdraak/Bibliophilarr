@@ -21,7 +21,7 @@
 | `NzbDrone.Common` | Shared utilities, HTTP client, disk operations, environment info |
 | `Bibliophilarr.Api.V1` | REST API controllers and resource models |
 | `Bibliophilarr.Http` | HTTP pipeline, middleware, authentication |
-| `NzbDrone.SignalR` | Real-time event broadcasting |
+| `Bibliophilarr.SignalR` | Real-time event broadcasting, using the existing `NzbDrone.SignalR` CLR namespace |
 | `NzbDrone.Update` | Self-update mechanism |
 | `NzbDrone.Mono` / `NzbDrone.Windows` | Platform-specific implementations |
 
