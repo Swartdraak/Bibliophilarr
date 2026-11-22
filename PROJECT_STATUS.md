@@ -13,10 +13,13 @@
 
 ## Active migration and modernization work
 
-Workflow and frontend modernization remain active:
+The workflow and action modernization train closed after verifying its
+pinned checkout, labeling, Markdown lint, artifact, and image-signature
+checks. The next signed publish still requires release approval.
+[Workflow modernization](https://github.com/Swartdraak/Bibliophilarr/issues/97)
 
-- #97 Workflow and action modernization train
-- #99 Frontend toolchain modernization train
+The frontend toolchain modernization remains active.
+[Frontend modernization](https://github.com/Swartdraak/Bibliophilarr/issues/99)
 
 The .NET 10 migration validation is complete through #107. The closed
 slices cover NuGet compatibility, ASP.NET and SignalR, both Docker
