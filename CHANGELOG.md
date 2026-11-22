@@ -178,6 +178,8 @@ process.
 
 ### Security
 
+- Sanitize book identifiers and titles in Add Book and import-list logs.
+
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.
 
