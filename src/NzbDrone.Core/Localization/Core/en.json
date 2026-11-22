@@ -1104,6 +1104,7 @@
   "SuccessMyWorkIsDoneNoFilesToRename": "Success! My work is done, no files to rename.",
   "SuccessMyWorkIsDoneNoFilesToRetag": "Success! My work is done, no files to retag.",
   "SupportsRssvalueRSSIsNotSupportedWithThisIndexer": "RSS is not supported with this indexer",
+  "SubscribeToCalendar": "Subscribe to calendar",
   "SupportsSearchvalueSearchIsNotSupportedWithThisIndexer": "Search is not supported with this indexer",
   "SupportsSearchvalueWillBeUsedWhenAutomaticSearchesArePerformedViaTheUIOrByBibliophilarr": "Will be used when automatic searches are performed via the UI or by {appName}",
   "SupportsSearchvalueWillBeUsedWhenInteractiveSearchIsUsed": "Will be used when interactive search is used",

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -7,9 +8,15 @@ namespace NzbDrone.Core.MediaFiles.Azw
     {
         private readonly MobiHeader _mobiHeader;
 
+        public Azw3File(string path)
+        {
+            using var stream = File.OpenRead(path);
+            _mobiHeader = ReadMetadata(stream);
+        }
+
         public Azw3File(Stream stream)
         {
-            _mobiHeader = new MobiHeader(stream, ReadFirstSection(stream));
+            _mobiHeader = ReadMetadata(stream);
         }
 
         public string Title => _mobiHeader.Title;
@@ -25,5 +32,16 @@ namespace NzbDrone.Core.MediaFiles.Azw
         public string Language => _mobiHeader.ExtMeta.StringOrNull(524);
         public uint Version => _mobiHeader.Version;
         public uint MobiType => _mobiHeader.MobiType;
+
+        private static MobiHeader ReadMetadata(Stream stream)
+        {
+            ArgumentNullException.ThrowIfNull(stream);
+            if (!stream.CanRead || !stream.CanSeek)
+            {
+                throw new AzwTagException("Reading MOBI metadata requires a readable and seekable stream");
+            }
+
+            return new MobiHeader(stream, ReadFirstSection(stream));
+        }
     }
 }

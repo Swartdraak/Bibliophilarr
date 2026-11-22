@@ -148,6 +148,20 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
             file.BytesRead.Should().BeLessThan(metadata.Length);
         }
 
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        public void should_reject_unsupported_mobi_streams_before_reading(bool canRead, bool canSeek)
+        {
+            var file = new Mock<Stream>();
+            file.SetupGet(x => x.CanRead).Returns(canRead);
+            file.SetupGet(x => x.CanSeek).Returns(canSeek);
+
+            Action parse = () => new Azw3File(file.Object);
+
+            parse.Should().Throw<AzwTagException>().WithMessage("*readable and seekable*");
+            file.VerifyGet(x => x.Length, Times.Never());
+        }
+
         [TestCase("missing-palm-entry")]
         [TestCase("first-record-before-table-end")]
         [TestCase("reversed-records")]
