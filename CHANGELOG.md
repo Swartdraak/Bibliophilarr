@@ -36,6 +36,10 @@ process.
 
 - Report a media file read failure as an import hold and continue scanning
   the other files.
+- Resolve once-encoded provider bookmarks to canonical author, book, and
+  series pages.
+- During library import, check a trusted ebook ISBN across providers for a
+  matching release before falling back to title and author search.
 
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.

@@ -13,6 +13,12 @@ const rawAlias = 'hardcover:series:42';
 const encodedAlias = 'hardcover%3Aseries%3A42';
 const routePrefix = '/library/series/';
 const notFound = 'Series not found';
+const scopedBookmarks = [
+  ['author', 'hardcover:author:241097'],
+  ['author', 'openlibrary:author:OL42A'],
+  ['book', 'hardcover:work:52'],
+  ['book', 'inventaire:work:wd:Q42']
+];
 
 let originalUrlBase = '';
 let originalPath = '';
@@ -24,7 +30,8 @@ beforeEach(() => {
   originalState = window.history.state;
   window.Bibliophilarr.urlBase = '/library';
   createAjaxRequest.mockImplementation(({ url }) => {
-    const resolves = [encodedAlias, canonicalId, '17'].some((segment) => url === apiPrefix + segment);
+    const resolves = [encodedAlias, canonicalId, '17'].some((segment) => url === apiPrefix + segment) ||
+      scopedBookmarks.some(([entity, alias]) => url === `/catalogueidentity/${entity}/${encodeURIComponent(alias)}`);
     return {
       abortRequest: jest.fn(),
       request: {
@@ -41,15 +48,18 @@ afterEach(() => {
   createAjaxRequest.mockReset();
 });
 
-function renderBookmark(segment) {
-  window.history.replaceState(null, '', routePrefix + segment);
+function renderBookmark(segment, entity = 'series') {
+  const prefix = `/library/${entity}/`;
+  const items = entity === 'series' ? undefined : [{ canonicalId, title: 'Fixture Record' }];
+  window.history.replaceState(null, '', prefix + segment);
   const history = createBrowserHistory();
   const view = render(
     <Router history={history}>
-      <Route path={`${routePrefix}:identifier`} render={({ match }) => (
+      <Route path={`${prefix}:identifier`} render={({ match }) => (
         <CatalogueRecordRoute
-          entity="series"
+          entity={entity}
           identifier={match.params.identifier}
+          items={items}
           ready={true}
           notFound={notFound}
         >
@@ -77,6 +87,33 @@ test.each([
     expect(createAjaxRequest).toHaveBeenCalledTimes(requestCount);
     expect(history.location.pathname).toBe(routePrefix + canonicalId);
     expect(screen.getByRole('heading', { name: 'Fixture Series' })).toBeVisible();
+  } finally {
+    unmount();
+  }
+});
+
+test.each(scopedBookmarks)('resolves the once-encoded %s bookmark %s', (entity, alias) => {
+  const encoded = encodeURIComponent(alias);
+  const { history, unmount } = renderBookmark(encoded, entity);
+
+  try {
+    expect(createAjaxRequest).toHaveBeenCalledWith({ url: `/catalogueidentity/${entity}/${encoded}` });
+    expect(createAjaxRequest).toHaveBeenCalledTimes(1);
+    expect(history.location.pathname).toBe(`/library/${entity}/${canonicalId}`);
+    expect(screen.getByRole('heading', { name: 'Fixture Record' })).toBeVisible();
+  } finally {
+    unmount();
+  }
+});
+
+test.each(scopedBookmarks)('preserves twice-encoded %s bookmark %s', (entity, alias) => {
+  const doubleEncoded = encodeURIComponent(encodeURIComponent(alias));
+  const { unmount } = renderBookmark(doubleEncoded, entity);
+
+  try {
+    expect(createAjaxRequest).toHaveBeenCalledWith({ url: `/catalogueidentity/${entity}/${doubleEncoded}` });
+    expect(createAjaxRequest).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(notFound)).toBeVisible();
   } finally {
     unmount();
   }

@@ -11,13 +11,14 @@ import getPathWithUrlBase from 'Utilities/getPathWithUrlBase';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 
-const hardcoverSeriesAlias = /^hardcover(?::|%3a)series(?::|%3a)[0-9]+$/i;
+const escapedColon = /%3a/i;
+const otherEscape = /%(?!3a)/i;
 
 function getLookupSegment(entity, identifier) {
-  if (entity === 'series' && identifier.includes('%') && hardcoverSeriesAlias.test(identifier)) {
+  if (escapedColon.test(identifier) && !otherEscape.test(identifier)) {
     // History preserves escaped colons but decodes escaped percent signs.
     // Check the original browser segment before interpreting the colons.
-    const prefix = getPathWithUrlBase('/series/');
+    const prefix = getPathWithUrlBase(`/${entity}/`);
     const pathname = window.location.pathname;
     const rawIdentifier = pathname.slice(prefix.length).split('/')[0];
 
