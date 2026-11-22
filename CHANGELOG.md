@@ -115,6 +115,8 @@ process.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Reject missing profile IDs before saving a new author through Add Book.
+- Return a validation error for a null or unavailable edition in Add Book
+  before saving the book or author.
 - Label the backup upload field and show restore errors in the dialog. Choosing
   another file clears the previous error.
 - Coordinate overlapping author refreshes so they share the stored series and

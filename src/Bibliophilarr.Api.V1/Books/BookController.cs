@@ -67,6 +67,7 @@ namespace Bibliophilarr.Api.V1.Books
             _addBookService = addBookService;
 
             PostValidator.RuleFor(s => s.ForeignBookId).NotEmpty();
+            PostValidator.RuleForEach(s => s.Editions).NotNull();
 
             // Issue #276: the Author-scoped rules below dereference s.Author, which is
             // null for a payload that omits the nested Author object (the simple
