@@ -130,7 +130,7 @@ namespace NzbDrone.Core.MediaFiles
                     }
                 }
 
-                _logger.ProgressInfo("Scanning {0}", loggedFolder);
+                _logger.ProgressInfo("Discovering media files in {0}", loggedFolder);
 
                 List<IFileInfo> files;
                 try
@@ -177,7 +177,10 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             musicFilesStopwatch.Stop();
-            _logger.Trace("Finished enumerating {0} scan folders in {1}.", scannedFolders.Count, musicFilesStopwatch.Elapsed);
+            _logger.ProgressInfo("Discovered {0} media files across {1} scan folders in {2}.",
+                mediaFileList.Count,
+                scannedFolders.Count,
+                musicFilesStopwatch.Elapsed);
 
             var decisionsStopwatch = Stopwatch.StartNew();
 

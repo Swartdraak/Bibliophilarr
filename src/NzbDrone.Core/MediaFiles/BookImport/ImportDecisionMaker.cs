@@ -5,7 +5,6 @@ using System.IO.Abstractions;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
@@ -132,14 +131,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             _logger.Debug($"Using up to {maxWorkers} tag read worker(s) for {files.Count} file(s)");
 
-            var processed = 0;
+            const int progressInterval = 25;
+            var checkedFiles = 0;
+            var progressLock = new object();
             var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
+            _logger.ProgressInfo("Reading metadata for {0} files.", files.Count);
 
             Parallel.ForEach(Enumerable.Range(0, files.Count), options, index =>
             {
                 var file = files[index];
-                var current = Interlocked.Increment(ref processed);
-                _logger.ProgressInfo($"Reading file {current}/{files.Count}");
 
                 var localTrack = new LocalBook
                 {
@@ -162,6 +162,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     localTrack.Quality = new QualityModel();
                     decisionResults[index] = new ImportDecision<LocalBook>(localTrack, new Rejection("Unable to read file", holdReason: LibraryImportHoldReason.ReadError));
                     return;
+                }
+                finally
+                {
+                    // Keep progress ordered when multiple workers finish together.
+                    lock (progressLock)
+                    {
+                        checkedFiles++;
+                        if (checkedFiles % progressInterval == 0 || checkedFiles == files.Count)
+                        {
+                            _logger.ProgressInfo("Checked metadata for {0} of {1} files.", checkedFiles, files.Count);
+                        }
+                    }
                 }
 
                 var fileTrackInfo = localTrack.FileTrackInfo;
@@ -221,6 +233,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             runSummary.TagReadMs = totalWatch.ElapsedMilliseconds;
 
             localTracks.ForEach(x => x.ExistingFile = !config.NewDownload);
+
+            if (localTracks.Count > 0)
+            {
+                _logger.ProgressInfo("Matching {0} files to the catalogue.", localTracks.Count);
+            }
 
             var releases = _identificationService.Identify(localTracks, idOverrides, config, runSummary);
 

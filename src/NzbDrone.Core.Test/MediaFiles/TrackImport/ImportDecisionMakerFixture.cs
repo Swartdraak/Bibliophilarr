@@ -8,6 +8,9 @@ using System.Threading;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -424,6 +427,41 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             Subject.GetImportDecisions(_fileInfos, _idOverrides, null, _idConfig).Should().HaveCount(1);
 
             ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_report_metadata_checks_only_after_reads_finish_and_before_matching()
+        {
+            GivenAudioFiles(new[]
+            {
+                @"C:\Test\Unsorted\Fixture Audio.m4b".AsOsAgnostic(),
+                @"C:\Test\Unsorted\Fixture Ebook.epub".AsOsAgnostic()
+            });
+            GivenAugmentationSuccess();
+
+            var progress = new MemoryTarget { Layout = "${message}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Info, LogLevel.Info, progress);
+            using var logFactory = new LogFactory { Configuration = logging };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(ImportDecisionMaker)));
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(config => config.ImportTagReadWorkerCount)
+                .Returns(1);
+            Mocker.GetMock<IMetadataTagService>()
+                .Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(() =>
+                {
+                    progress.Logs.Should().NotContain("Checked metadata for 2 of 2 files.");
+                    return new ParsedTrackInfo();
+                });
+
+            Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            progress.Logs.Should().ContainInOrder(
+                "Reading metadata for 2 files.",
+                "Checked metadata for 2 of 2 files.",
+                "Matching 2 files to the catalogue.");
         }
 
         [Test]
