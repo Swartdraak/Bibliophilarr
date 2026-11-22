@@ -1,29 +1,29 @@
 using System.Collections.Generic;
+using System.IO;
 
 namespace NzbDrone.Core.MediaFiles.Azw
 {
     public class Azw3File : AzwFile
     {
-        public Azw3File(string path)
-        : base(path)
+        private readonly MobiHeader _mobiHeader;
+
+        public Azw3File(Stream stream)
         {
-            MobiHeader = new MobiHeader(GetSectionData(0));
+            _mobiHeader = new MobiHeader(stream, ReadFirstSection(stream));
         }
 
-        public string Title => MobiHeader.Title;
-        public List<string> Authors => MobiHeader.ExtMeta.StringList(100);
-        public string Author => MobiHeader.ExtMeta.StringOrNull(100);
-        public string Isbn => MobiHeader.ExtMeta.StringOrNull(104);
-        public string Asin => MobiHeader.ExtMeta.StringOrNull(113);
-        public string PublishDate => MobiHeader.ExtMeta.StringOrNull(106);
-        public string Publisher => MobiHeader.ExtMeta.StringOrNull(101);
-        public string Imprint => MobiHeader.ExtMeta.StringOrNull(102);
-        public string Description => MobiHeader.ExtMeta.StringOrNull(103);
-        public string Source => MobiHeader.ExtMeta.StringOrNull(112);
-        public string Language => MobiHeader.ExtMeta.StringOrNull(524);
-        public uint Version => MobiHeader.Version;
-        public uint MobiType => MobiHeader.MobiType;
-
-        private MobiHeader MobiHeader { get; set; }
+        public string Title => _mobiHeader.Title;
+        public List<string> Authors => _mobiHeader.ExtMeta.StringList(100);
+        public string Author => _mobiHeader.ExtMeta.StringOrNull(100);
+        public string Isbn => _mobiHeader.ExtMeta.StringOrNull(104);
+        public string Asin => _mobiHeader.ExtMeta.StringOrNull(113);
+        public string PublishDate => _mobiHeader.ExtMeta.StringOrNull(106);
+        public string Publisher => _mobiHeader.ExtMeta.StringOrNull(101);
+        public string Imprint => _mobiHeader.ExtMeta.StringOrNull(102);
+        public string Description => _mobiHeader.ExtMeta.StringOrNull(103);
+        public string Source => _mobiHeader.ExtMeta.StringOrNull(112);
+        public string Language => _mobiHeader.ExtMeta.StringOrNull(524);
+        public uint Version => _mobiHeader.Version;
+        public uint MobiType => _mobiHeader.MobiType;
     }
 }

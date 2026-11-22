@@ -1,36 +1,60 @@
+using System;
+using System.Buffers.Binary;
+using System.IO;
 using System.Text;
 
 namespace NzbDrone.Core.MediaFiles.Azw
 {
     public class MobiHeader
     {
-        public MobiHeader(byte[] header)
+        public MobiHeader(Stream stream, SectionInfo section)
         {
-            var mobi = Encoding.ASCII.GetString(header, 16, 4);
-            if (mobi != "MOBI")
+            const int palmDocHeaderLength = 16;
+            const int requiredPrefixLength = 0x84;
+
+            Span<byte> header = stackalloc byte[requiredPrefixLength];
+            Util.ReadAt(stream, section.Start, header, section.End);
+            if (!header.Slice(palmDocHeaderLength, 4).SequenceEqual("MOBI"u8))
             {
-                throw new AzwTagException("Invalid mobi header");
+                throw new AzwTagException("Invalid MOBI record header");
             }
 
-            Version = Util.GetUInt32(header, 36);
-            MobiType = Util.GetUInt32(header, 24);
-
-            var codepage = Util.GetUInt32(header, 28);
-
-            var encoding = codepage == 65001 ? Encoding.UTF8 : CodePagesEncodingProvider.Instance.GetEncoding((int)codepage);
-            Title = encoding.GetString(header, (int)Util.GetUInt32(header, 0x54), (int)Util.GetUInt32(header, 0x58));
-
-            var exthFlag = Util.GetUInt32(header, 0x80);
-            var length = Util.GetUInt32(header, 20);
-            if ((exthFlag & 0x40) > 0)
+            var headerLength = BinaryPrimitives.ReadUInt32BigEndian(header[20..]);
+            if (headerLength < requiredPrefixLength - palmDocHeaderLength)
             {
-                var exth = Util.SubArray(header, length + 16, Util.GetUInt32(header, length + 20));
-                ExtMeta = new ExtMeta(exth, encoding);
+                throw new AzwTagException("Incomplete MOBI record header");
             }
-            else
+
+            var exthStart = section.Start + palmDocHeaderLength + headerLength;
+            Util.EnsureRange(section.Start, palmDocHeaderLength + (long)headerLength, section.End);
+
+            Version = BinaryPrimitives.ReadUInt32BigEndian(header[36..]);
+            MobiType = BinaryPrimitives.ReadUInt32BigEndian(header[24..]);
+            var codePage = BinaryPrimitives.ReadUInt32BigEndian(header[28..]);
+            var encoding = codePage > int.MaxValue ? null : CodePagesEncodingProvider.Instance.GetEncoding((int)codePage);
+            if (codePage == 65001)
+            {
+                encoding = Encoding.UTF8;
+            }
+
+            if (encoding == null)
+            {
+                throw new AzwTagException("Unsupported MOBI text encoding");
+            }
+
+            var exthFlags = BinaryPrimitives.ReadUInt32BigEndian(header[0x80..]);
+            if ((exthFlags & 0x40) == 0)
             {
                 throw new AzwTagException("No EXTH header. Bibliophilarr cannot process this file.");
             }
+
+            var titleStart = section.Start + BinaryPrimitives.ReadUInt32BigEndian(header[0x54..]);
+            var titleLength = BinaryPrimitives.ReadUInt32BigEndian(header[0x58..]);
+            Util.EnsureRange(titleStart, titleLength, section.End);
+            Title = titleLength <= Util.MaxTextBytes
+                ? Util.ReadText(stream, titleStart, (int)titleLength, section.End, encoding)
+                : string.Empty;
+            ExtMeta = new ExtMeta(stream, exthStart, section.End, encoding);
         }
 
         public string Title { get; }

@@ -38,6 +38,8 @@ process.
 
 - Report a media file read failure as an import hold and continue scanning
   the other files.
+- Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
+  ranges fall back to filename metadata.
 - Resolve once-encoded provider bookmarks to canonical author, book, and
   series pages.
 - During library import, check a trusted ebook ISBN across providers for a

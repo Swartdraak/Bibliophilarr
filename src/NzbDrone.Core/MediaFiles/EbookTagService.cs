@@ -340,7 +340,8 @@ namespace NzbDrone.Core.MediaFiles
 
             try
             {
-                var book = new Azw3File(file);
+                using var stream = File.OpenRead(file);
+                var book = new Azw3File(stream);
                 result.Authors = book.Authors;
                 result.BookTitle = book.Title;
                 result.Isbn = Isbn.AsIsbn13(book.Isbn);
@@ -369,11 +370,12 @@ namespace NzbDrone.Core.MediaFiles
             }
             catch (Exception e)
             {
-                var azwFormat = Path.GetExtension(file).Equals(".mobi", StringComparison.OrdinalIgnoreCase) ? "MOBI" : "AZW3";
+                var isMobi = Path.GetExtension(file).Equals(".mobi", StringComparison.OrdinalIgnoreCase);
+                var azwFormat = isMobi ? "MOBI" : "AZW3";
                 _logger.Warn(e, "Corrupt or unreadable {0}: '{1}'. Tag parsing failed; using filename fallback. Convert or repair via Calibre to restore full metadata.", azwFormat, file);
                 result.Quality = new QualityModel
                 {
-                    Quality = Path.GetExtension(file) == ".mobi" ? Quality.MOBI : Quality.AZW3,
+                    Quality = isMobi ? Quality.MOBI : Quality.AZW3,
                     QualityDetectionSource = QualityDetectionSource.Extension
                 };
                 ApplyFilenameFallback(file, result, 0.88);
