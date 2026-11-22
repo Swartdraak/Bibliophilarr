@@ -23,6 +23,7 @@ import removeOldSelectedState from 'Utilities/Table/removeOldSelectedState';
 import selectAll from 'Utilities/Table/selectAll';
 import toggleSelected from 'Utilities/Table/toggleSelected';
 import MissingRowConnector from './MissingRowConnector';
+import styles from './Missing.css';
 
 function getMonitoredValue(props) {
   const {
@@ -164,7 +165,7 @@ class Missing extends Component {
 
     return (
       <PageContent title={translate('Missing')}>
-        <PageToolbar>
+        <PageToolbar className={styles.toolbar}>
           <PageToolbarSection>
             <PageToolbarButton
               label={translate('SearchSelected')}
