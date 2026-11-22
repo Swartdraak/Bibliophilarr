@@ -49,7 +49,7 @@ namespace NzbDrone.Core.Books
 
         private Book AddBook(Book book, bool doRefresh, bool requireSelectedEdition)
         {
-            _logger.Debug($"Adding book {book}");
+            _logger.Debug("Adding book {0} - {1}", LogSanitizer.Sanitize(book?.ForeignBookId), LogSanitizer.Sanitize(book?.Title));
 
             book = AddSkyhookData(book, requireSelectedEdition);
             var sourceWorkId = book.ForeignBookId;
@@ -151,7 +151,7 @@ namespace NzbDrone.Core.Books
                 catch (Exception ex)
                 {
                     // Could be a bad id from an import list
-                    _logger.Error(ex, "Failed to import id: {0} - {1}", a.ForeignBookId, a.Title);
+                    _logger.Error(ex, "Failed to import id: {0} - {1}", LogSanitizer.Sanitize(a.ForeignBookId), LogSanitizer.Sanitize(a.Title));
                 }
             }
 

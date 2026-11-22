@@ -358,6 +358,7 @@ process.
 - Keep Calibre connection settings and library lookup terms out of scan logs.
 - Log operation and status for Hardcover book and series searches and Open
   Library ISBN lookups without recording raw queries or provider errors.
+- Sanitize book identifiers and titles in Add Book and import-list logs.
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.
 - Patch glob and minimatch in frontend tooling. Restore the authentic
