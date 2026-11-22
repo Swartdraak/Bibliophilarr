@@ -16,6 +16,9 @@ process.
 
 ### Fixed
 
+- Confirm an unexpectedly empty Open Library bibliography page once before
+  treating the author's catalogue as incomplete.
+
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or

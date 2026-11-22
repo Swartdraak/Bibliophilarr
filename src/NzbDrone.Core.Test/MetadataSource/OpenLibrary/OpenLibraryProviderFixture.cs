@@ -261,6 +261,40 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             }
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void get_author_info_should_confirm_an_early_empty_works_page_once(bool recovers)
+        {
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 0))
+                .Returns(new OlAuthorWorksResponse
+                {
+                    Size = 2,
+                    Entries = new List<OlWorkResource> { new OlWorkResource { Key = "/works/OL1W", Title = "First Work" } }
+                });
+            var emptyPage = new OlAuthorWorksResponse { Size = 2 };
+            var secondPage = new OlAuthorWorksResponse
+            {
+                Size = 2,
+                Entries = new List<OlWorkResource> { new OlWorkResource { Key = "/works/OL2W", Title = "Second Work" } }
+            };
+            _clientMock.SetupSequence(client => client.GetAuthorWorks("OL26320A", 100, 1))
+                .Returns(emptyPage)
+                .Returns(recovers ? secondPage : emptyPage);
+
+            var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+            if (recovers)
+            {
+                lookup().Books.Value.Select(book => book.OpenLibraryWorkId).Should().BeEquivalentTo("OL1W", "OL2W");
+            }
+            else
+            {
+                lookup.Should().Throw<MetadataProviderUnavailableException>();
+            }
+
+            _clientMock.Verify(client => client.GetAuthorWorks("OL26320A", 100, 1), Times.Exactly(2));
+        }
+
         [TestCase("works failed")]
         [TestCase("search failed")]
         [TestCase("repeated")]
