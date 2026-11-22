@@ -51,6 +51,8 @@ process.
   saved catalogue when the verified bibliography remains incomplete.
 - Preserve supported provider Retry-After delays longer than 15 minutes
   during fallback metadata searches.
+- Honor Google Books fallback cooldowns when the rate-limit response has
+  an HTML body or no usable search results.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
 - Keep a provider's fallback cooldown active when an earlier request finishes
