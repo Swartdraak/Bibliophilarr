@@ -388,8 +388,9 @@ namespace NzbDrone.Core.Books
 
         protected override List<Edition> ReconcileRemoteChildren(Book local, List<Edition> candidates, List<Edition> localEditions)
         {
-            if (local.VerifiedOpenLibraryAuthorId == null ||
-                CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, local.AuthorMetadata?.Value?.ForeignAuthorId, null)?.Provider != "Hardcover")
+            if (!local.IsSupplementalBibliographyWork &&
+                (local.VerifiedOpenLibraryAuthorId == null ||
+                 CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, local.AuthorMetadata?.Value?.ForeignAuthorId, null)?.Provider != "Hardcover"))
             {
                 return candidates;
             }

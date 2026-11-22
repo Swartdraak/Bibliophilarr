@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using NLog;
@@ -368,22 +369,31 @@ namespace NzbDrone.Core.Books
         private IEnumerable<Book> GetSupplementalBibliography(Author local, Author primary, List<Book> retainedPrimary)
         {
             const CatalogueEntityKind authorKind = CatalogueEntityKind.Author;
-            if (CatalogueIdentityRepository.ParseLegacySource(authorKind, primary.ForeignAuthorId, null)?.Provider != "Hardcover")
-            {
-                return Enumerable.Empty<Book>();
-            }
-
             var metadata = local.Metadata.Value;
-            var verifiedId = GetVerifiedOpenLibraryAuthorId(metadata, primary.Metadata.Value, primary.ForeignAuthorId);
-            if (verifiedId == null || _catalogueIdentity.FindByProviderId(authorKind, "OpenLibrary", verifiedId) != metadata.Id)
+            var primarySource = CatalogueIdentityRepository.ParseLegacySource(authorKind, primary.ForeignAuthorId, null);
+            var alternateSource = primarySource?.Provider switch
+            {
+                "Hardcover" => CatalogueIdentityRepository.NormalizeSource(
+                    authorKind,
+                    "OpenLibrary",
+                    GetVerifiedOpenLibraryAuthorId(metadata, primary.Metadata.Value, primary.ForeignAuthorId),
+                    null),
+                "OpenLibrary" => GetVerifiedHardcoverAuthorSource(metadata.Id),
+                _ => null
+            };
+            if (alternateSource == null ||
+                _catalogueIdentity.FindByProviderId(authorKind, alternateSource.Provider, alternateSource.ProviderId) != metadata.Id)
             {
                 return Enumerable.Empty<Book>();
             }
 
+            var hardcover = alternateSource.Provider == "Hardcover";
+            var providerId = alternateSource.ProviderId;
+            var scopedAuthorId = hardcover ? $"hardcover:author:{providerId}" : $"openlibrary:author:{providerId}";
             Author alternate;
             try
             {
-                alternate = _orchestrator.GetAuthorInfo($"openlibrary:author:{verifiedId}");
+                alternate = _orchestrator.GetAuthorInfo(scopedAuthorId);
             }
             catch (AuthorNotFoundException)
             {
@@ -396,9 +406,9 @@ namespace NzbDrone.Core.Books
             }
 
             var source = CatalogueIdentityRepository.ParseLegacySource(authorKind, alternate?.Metadata?.Value?.ForeignAuthorId, null);
-            if (source?.Provider != "OpenLibrary" || source.ProviderId != verifiedId ||
-                alternate.Metadata.Value.OpenLibraryAuthorId != verifiedId ||
-                _catalogueIdentity.FindByProviderId(authorKind, "OpenLibrary", verifiedId) != metadata.Id)
+            if (source?.Provider != alternateSource.Provider || source.ProviderId != providerId ||
+                (hardcover ? alternate.ForeignAuthorId != scopedAuthorId : alternate.Metadata.Value.OpenLibraryAuthorId != providerId) ||
+                _catalogueIdentity.FindByProviderId(authorKind, alternateSource.Provider, providerId) != metadata.Id)
             {
                 return Enumerable.Empty<Book>();
             }
@@ -410,13 +420,25 @@ namespace NzbDrone.Core.Books
             var knownTitles = known.Select(GetBibliographyTitle).ToHashSet(StringComparer.Ordinal);
             var knownWorkIds = known.Select(BookWorkIdentity.GetOpenLibraryWorkId)
                 .Where(id => id != null).ToHashSet(StringComparer.Ordinal);
+            int? creditedHardcoverId = hardcover ? int.Parse(providerId, CultureInfo.InvariantCulture) : null;
             var proposed = _metadataProfileService.FilterBooks(alternate, local.MetadataProfileId)
-                .Where(book => IsVerifiedBibliographyWork(book, verifiedId))
+                .Where(book => IsVerifiedBibliographyWork(book, alternateSource, creditedHardcoverId))
                 .GroupBy(GetBibliographyTitle, StringComparer.Ordinal)
                 .Where(group => group.Key.Length != 0 && group.Count() == 1 && !knownTitles.Contains(group.Key))
                 .Select(group => group.Single())
                 .Where(book => !knownWorkIds.Contains(BookWorkIdentity.GetOpenLibraryWorkId(book)) && _bookService.FindById(book.ForeignBookId) == null)
                 .ToList();
+
+            if (hardcover)
+            {
+                proposed = proposed.Where(book =>
+                    !known.Any(existing => BookWorkIdentity.AreEquivalent(book, existing)) &&
+                    !proposed.Any(other => !ReferenceEquals(other, book) && BookWorkIdentity.AreEquivalent(book, other)) &&
+                    !book.PendingSourceAssociations.Any(alias => alias.Provider == "Hardcover" &&
+                        alias.Evidence == CatalogueIdentityRepository.HardcoverWorkMappingEvidence &&
+                        _catalogueIdentity.FindByProviderId(CatalogueEntityKind.Work, alias.Provider, alias.ProviderId).HasValue))
+                    .ToList();
+            }
 
             if (proposed.Count == 0)
             {
@@ -435,7 +457,41 @@ namespace NzbDrone.Core.Books
 
             var accepted = proposed.Where(book => !GetEditionIds(book).Any(reservedEditionIds.Contains)).ToList();
             _logger.Debug("Accepted {0} unclaimed works from the alternate bibliography for author {1}.", accepted.Count, local.Id);
-            return accepted;
+            return hardcover ? accepted.Select(WithoutSupplementalSeries).ToList() : accepted;
+        }
+
+        private CatalogueSourceAssociation GetVerifiedHardcoverAuthorSource(int metadataId)
+        {
+            const CatalogueEntityKind kind = CatalogueEntityKind.Author;
+            const string provider = "Hardcover";
+            if (metadataId <= 0)
+            {
+                return null;
+            }
+
+            var sources = _catalogueIdentity.GetSources(kind, metadataId)?.Where(source => source.Provider == provider).ToList();
+            if (sources?.Count != 1 || sources[0].Evidence != AuthorCanonicalizationService.BibliographyEvidence)
+            {
+                return null;
+            }
+
+            var source = CatalogueIdentityRepository.NormalizeSource(kind, provider, sources[0].ProviderId, sources[0].Evidence);
+            return int.TryParse(source?.ProviderId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id > 0
+                ? source
+                : null;
+        }
+
+        private static Book WithoutSupplementalSeries(Book book)
+        {
+            var detached = new Book { IsSupplementalBibliographyWork = true, SeriesLinks = new List<SeriesBookLink>() };
+            detached.UseMetadataFrom(book);
+            detached.Editions = (book.Editions?.Value ?? new List<Edition>()).Select(edition =>
+            {
+                var copy = new Edition { Book = detached };
+                copy.UseMetadataFrom(edition);
+                return copy;
+            }).ToList();
+            return detached;
         }
 
         private static IEnumerable<string> GetEditionIds(Book book) =>
@@ -444,11 +500,12 @@ namespace NzbDrone.Core.Books
 
         private static string GetBibliographyTitle(Book book) => book.Title?.Split(':', 2)[0].CleanAuthorName() ?? string.Empty;
 
-        private static bool IsVerifiedBibliographyWork(Book book, string verifiedId)
+        private static bool IsVerifiedBibliographyWork(Book book, CatalogueSourceAssociation authorSource, int? creditedHardcoverId)
         {
             var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, book?.ForeignBookId, null);
-            return source?.Provider == "OpenLibrary" && book.VerifiedOpenLibraryAuthorId == verifiedId &&
-                source.ProviderId == BookWorkIdentity.GetOpenLibraryWorkId(book);
+            return source?.Provider == authorSource.Provider && (creditedHardcoverId.HasValue
+                ? book.CreditedHardcoverAuthorId == creditedHardcoverId && book.ForeignBookId == $"hardcover:work:{source.ProviderId}"
+                : book.VerifiedOpenLibraryAuthorId == authorSource.ProviderId && source.ProviderId == BookWorkIdentity.GetOpenLibraryWorkId(book));
         }
 
         protected override List<Book> ReconcileRemoteChildren(Author local, List<Book> candidates, List<Book> localBooks)
@@ -495,6 +552,11 @@ namespace NzbDrone.Core.Books
                 if (ambiguous)
                 {
                     _logger.Warn("Holding work {0} for review because more than one catalogue entry matches", LogSanitizer.Sanitize(candidate.ForeignBookId));
+                    continue;
+                }
+
+                if (candidate.IsSupplementalBibliographyWork && (stored != null || current != null))
+                {
                     continue;
                 }
 

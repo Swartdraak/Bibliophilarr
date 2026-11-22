@@ -172,6 +172,11 @@ the metadata migration backlog.
 
 Refresh a tracked Hardcover author whose provider bibliography credits them as an author of a work already owned by another tracked author. Compare `GET /api/v1/book?authorId=<id>` with `GET /api/v1/book?authorId=<id>&includeShared=true`. The second response also includes the shared canonical work with its original owner, work ID, editions and monitoring policy. Bibliography membership requires an explicit author credit.
 
+An Open Library author's refresh can add unclaimed Hardcover works after
+Bibliophilarr verifies both author identities. Each added work needs an explicit
+Hardcover author credit. The author's metadata profile still applies, and
+Open Library remains the source for the primary author record and series.
+
 ## Rename no-op diagnosis (forced rename)
 
 Forced rename can execute correctly but still produce no filesystem changes when generated destination

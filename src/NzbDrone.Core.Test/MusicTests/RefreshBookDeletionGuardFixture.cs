@@ -98,6 +98,59 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_leave_an_edition_with_its_work_when_it_is_claimed_after_supplemental_bibliography_selection()
+        {
+            _book.ForeignBookId = "hardcover:work:7";
+            _book.IsSupplementalBibliographyWork = true;
+            var author = new Author { Metadata = _book.AuthorMetadata };
+            _book.Author = author;
+            var occupied = new Edition
+            {
+                Id = 101,
+                BookId = 88,
+                ForeignEditionId = "hardcover:source-edition:101",
+                Title = "Existing edition",
+                Format = "Ebook",
+                IsEbook = true,
+                Monitored = true
+            };
+            var candidate = new Edition
+            {
+                ForeignEditionId = occupied.ForeignEditionId,
+                Title = "Alternate edition",
+                Format = occupied.Format,
+                IsEbook = true
+            };
+            var novel = new Edition { ForeignEditionId = "hardcover:source-edition:102", Format = occupied.Format, IsEbook = true };
+            var remote = new Book
+            {
+                ForeignBookId = _book.ForeignBookId,
+                Title = _book.Title,
+                AuthorMetadata = _book.AuthorMetadata,
+                Editions = new List<Edition> { candidate, novel }
+            };
+
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(author.ForeignAuthorId)).Returns(author);
+
+            // This query occurs during the child refresh, after the supplemental work and its proposed editions were selected.
+            var editions = Mocker.GetMock<IEditionService>();
+            editions.Setup(service => service.GetEditionsForRefresh(_book.Id, It.Is<List<string>>(ids => ids.Contains(occupied.ForeignEditionId))))
+                .Returns(new List<Edition> { occupied });
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFilesByEdition(occupied.Id))
+                .Returns(new List<BookFile> { new BookFile { Id = 501, EditionId = occupied.Id } });
+            Mocker.SetConstant<IRefreshEditionService>(Mocker.Resolve<RefreshEditionService>());
+
+            Subject.RefreshBookInfo(_book, new List<Book> { remote }, author, false);
+
+            occupied.BookId.Should().Be(88);
+            occupied.Title.Should().Be("Existing edition");
+            occupied.Monitored.Should().BeTrue();
+            editions.Verify(service => service.InsertMany(It.Is<List<Edition>>(items => items.Count == 1 && items[0] == novel)), Times.Once());
+            editions.Verify(service => service.UpdateMany(It.Is<List<Edition>>(items => items.Any(edition => edition.Id == occupied.Id))), Times.Never());
+            editions.Verify(service => service.DeleteMany(It.Is<List<Edition>>(items => items.Any(edition => edition.Id == occupied.Id))), Times.Never());
+        }
+
+        [Test]
         public void should_refresh_a_work_with_its_verified_author_metadata_without_loading_a_bibliography()
         {
             var metadata = _book.AuthorMetadata.Value;

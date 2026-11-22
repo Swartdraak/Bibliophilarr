@@ -36,6 +36,9 @@ namespace NzbDrone.Core.Books
         [MemberwiseEqualityIgnore]
         internal string VerifiedOpenLibraryAuthorId { get; set; }
 
+        [MemberwiseEqualityIgnore]
+        internal bool IsSupplementalBibliographyWork { get; set; }
+
         CatalogueEntityKind ICatalogueIdentityModel.CatalogueKind => CatalogueEntityKind.Work;
         string ICatalogueIdentityModel.LegacyForeignId => ForeignBookId;
         string ICatalogueIdentityModel.LegacyTitleSlug => TitleSlug;

@@ -30,6 +30,8 @@ process.
   panel closed. The Auto theme updates when the system palette changes.
 - Show verified shared works in an author's bibliography while keeping each
   work's catalogue owner, editions and format status.
+- Add missing works to an Open Library author's bibliography from a verified
+  Hardcover source with explicit author credits.
 - A book-search command can target a single monitored format that is still
   missing. Scoped searches skip releases with conflicting format information.
 - Monitor ebooks and audiobooks independently in the series views. Search for
