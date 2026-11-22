@@ -16,8 +16,6 @@ process.
 
 ### Fixed
 
-- Name the remote path mapping edit action and the file browser button.
-
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
@@ -34,6 +32,7 @@ process.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Label the Calendar feed filters, URL, copy button, and subscription link.
+- Name the remote path mapping edit action and the file browser button.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
