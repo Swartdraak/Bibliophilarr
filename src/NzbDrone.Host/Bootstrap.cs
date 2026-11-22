@@ -148,8 +148,7 @@ namespace NzbDrone.Host
             var config = GetConfiguration(context);
             RejectLegacyConfigurationKeys(config);
 
-            var bindAddress = config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.BindAddress)}")
-                              ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
+            var bindAddress = GetServerBindAddress(config);
             var port = GetServerPort(config);
             var sslPort = config.GetValue<int?>($"Bibliophilarr:Server:{nameof(ServerOptions.SslPort)}")
                           ?? config.GetValue(nameof(ConfigFileProvider.SslPort), 6868);
@@ -253,7 +252,7 @@ namespace NzbDrone.Host
             return ApplicationModes.Interactive;
         }
 
-        private static IConfiguration GetConfiguration(StartupContext context)
+        internal static IConfiguration GetConfiguration(StartupContext context)
         {
             var appFolder = new AppFolderInfo(context);
             var configPath = appFolder.GetConfigPath();
@@ -289,6 +288,12 @@ namespace NzbDrone.Host
         internal static int GetServerPort(IConfiguration config)
         {
             return GetServerPortOverride(config) ?? config.GetValue(nameof(ConfigFileProvider.Port), 8787);
+        }
+
+        internal static string GetServerBindAddress(IConfiguration config)
+        {
+            return config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.BindAddress)}")
+                   ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
         }
 
         private static int? GetServerPortOverride(IConfiguration config)
