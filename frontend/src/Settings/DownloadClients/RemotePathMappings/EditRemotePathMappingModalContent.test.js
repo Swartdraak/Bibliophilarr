@@ -6,6 +6,7 @@ import EditRemotePathMappingModalContent from './EditRemotePathMappingModalConte
 
 jest.mock('Components/Portal', () => ({ children }) => children);
 jest.mock('Utilities/String/translate', () => (key) => ({
+  SettingsRemotePathMappingHostHelpText: 'Hostname or IP address used to connect to your download client.',
   SettingsRemotePathMappingRemotePath: 'Remote Path',
   SettingsRemotePathMappingLocalPath: 'Local Path'
 })[key] ?? key);
@@ -42,6 +43,7 @@ test('labels the mapping fields and lets the focused format control handle selec
   const onChange = renderMapping();
 
   expect(screen.getByRole('button', { name: 'Host client.example.invalid' })).toBeVisible();
+  expect(screen.getByText('Hostname or IP address used to connect to your download client.')).toBeVisible();
   const format = screen.getByRole('button', { name: 'Format Type Audiobook' });
   const remotePath = screen.getByRole('textbox', { name: 'Remote Path' });
   expect(remotePath).toHaveValue('/downloads');

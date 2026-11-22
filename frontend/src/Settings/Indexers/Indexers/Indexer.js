@@ -80,6 +80,7 @@ class Indexer extends Component {
     return (
       <Card
         className={styles.indexer}
+        ariaLabel={translate('EditNamedItem', { name })}
         overlayContent={true}
         onPress={this.onEditIndexerPress}
       >
