@@ -68,12 +68,14 @@ DOTNET_PARAMS=("${ASSEMBLIES[@]}" "--filter:$WHERE" "$VSTEST_PARAMS")
 
 if [ "$COVERAGE" = "Coverage" ]; then
   script_dir="$(cd "$(dirname "$0")" && pwd)"
-  settings="$script_dir/coverlet.runsettings"
+  packaged_settings="$script_dir/coverlet.runsettings"
+  source_settings="$script_dir/src/coverlet.runsettings"
+  settings="$packaged_settings"
   if [ ! -f "$settings" ]; then
-    settings="$script_dir/src/coverlet.runsettings"
+    settings="$source_settings"
   fi
   if [ ! -f "$settings" ]; then
-    echo "Missing coverlet.runsettings beside the runner or in its source directory."
+    echo "Missing coverage settings. Checked $packaged_settings and $source_settings."
     exit 1
   fi
   EXIT_CODE=0
@@ -81,6 +83,7 @@ if [ "$COVERAGE" = "Coverage" ]; then
     # Coverlet temporarily instruments shared DLLs. Complete one assembly before starting the next.
     assembly_name="$(basename "$assembly" .dll)"
     results_dir="$PWD/CoverageResults/$assembly_name"
+    mkdir -p "$results_dir" || exit 1
     dotnet test "$assembly" "--filter:$WHERE" "--logger:nunit;LogFilePath=$results_dir/TestResult.xml" \
       --settings:"$settings" --results-directory:"$results_dir" || EXIT_CODE=$?
   done
