@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Xml.Linq;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -9,6 +10,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Options;
 using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Lifecycle;
 using NzbDrone.Test.Common;
 
 namespace NzbDrone.Common.Test
@@ -116,6 +118,32 @@ namespace NzbDrone.Common.Test
             var result = Subject.Port;
 
             result.Should().Be(value);
+        }
+
+        [TestCase("", 8811, "127.0.0.1")]
+        [TestCase("<Port>8812</Port><BindAddress>127.0.0.2</BindAddress>", 8812, "127.0.0.2")]
+        public void should_preserve_nested_listener_settings_or_keep_existing_flat_values(
+            string flatSettings, int expectedPort, string expectedAddress)
+        {
+            _configFileContents = $"""
+                <Config>
+                  <Server><Port>8811</Port><BindAddress>127.0.0.1</BindAddress></Server>
+                  {flatSettings}
+                  <Theme>dark</Theme>
+                </Config>
+                """;
+
+            Subject.Port.Should().Be(expectedPort);
+            Subject.BindAddress.Should().Be(expectedAddress);
+
+            Subject.HandleAsync(new ApplicationStartedEvent());
+            Subject.HandleAsync(new ApplicationStartedEvent());
+
+            var config = XElement.Parse(_configFileContents);
+            config.Elements("Port").Should().ContainSingle().Which.Value.Should().Be(expectedPort.ToString());
+            config.Elements("BindAddress").Should().ContainSingle().Which.Value.Should().Be(expectedAddress);
+            config.Element("Server").Should().BeNull();
+            config.Element("Theme").Value.Should().Be("dark");
         }
 
         [Test]

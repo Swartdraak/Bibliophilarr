@@ -260,9 +260,16 @@ namespace NzbDrone.Host
 
             try
             {
-                return new ConfigurationBuilder()
-                    .AddXmlFile(configPath, optional: true, reloadOnChange: false)
-                    .AddInMemoryCollection(new List<KeyValuePair<string, string>> { new ("dataProtectionFolder", appFolder.GetDataProtectionPath()) })
+                var config = new ConfigurationManager();
+                config.AddXmlFile(configPath, optional: true, reloadOnChange: false);
+
+                // These fallbacks come only from the file, before environment variables are added.
+                return config.AddInMemoryCollection(new Dictionary<string, string>
+                    {
+                        ["dataProtectionFolder"] = appFolder.GetDataProtectionPath(),
+                        [nameof(ConfigFileProvider.Port)] = config[nameof(ConfigFileProvider.Port)] ?? config["Server:Port"],
+                        [nameof(ConfigFileProvider.BindAddress)] = config[nameof(ConfigFileProvider.BindAddress)] ?? config["Server:BindAddress"]
+                    })
                     .AddEnvironmentVariables()
                     .Build();
             }
