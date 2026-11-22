@@ -264,6 +264,13 @@ Operator actions (safe for migration):
 4. Capture command and telemetry snapshots in `_artifacts/` and attach them to
    release-entry evidence before promoting.
 
+## Unmapped files held for author review
+
+Search the debug log for `Import hold LowConfidence` and the file path. The
+entry shows the proposed work and edition IDs, the matching distance and the
+threshold for automatically adding an author. Compare the proposed identity
+with the file before selecting the author manually.
+
 ## Conflict-resolution explainability triage
 
 Use this section when metadata merges pick unexpected winners and operators need

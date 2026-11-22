@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -229,6 +232,11 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         [Test]
         public void should_retain_low_confidence_reason_when_holding_a_new_author_match()
         {
+            var messages = new MemoryTarget { Layout = "${message}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Debug, LogLevel.Debug, messages);
+            using var logFactory = new LogFactory { Configuration = logging };
+            Mocker.SetConstant(logFactory.GetLogger("import-author-review"));
             _config.NewDownload = false;
             _config.AddNewAuthors = true;
             _book.Id = 0;
@@ -251,6 +259,9 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
 
             result.Edition.Should().BeNull();
             result.IdentificationHoldReason.Should().Be(LibraryImportHoldReason.LowConfidence);
+            messages.Logs.Should().ContainSingle(message => message.Contains("Import hold LowConfidence") &&
+                message.Contains(tracks.Single().Path) && message.Contains(_book.ForeignBookId) &&
+                message.Contains(_audiobookEdition.ForeignEditionId));
         }
 
         [TestCase(false, false)]

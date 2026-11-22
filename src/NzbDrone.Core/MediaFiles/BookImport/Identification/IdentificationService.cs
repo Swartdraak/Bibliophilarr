@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -310,12 +311,30 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 !AuthorExistsLocally(localBookRelease.Edition, config.NewDownload) &&
                 localBookRelease.Distance.NormalizedDistance() > AutoAddAuthorDistanceThreshold)
             {
-                var authorName = localBookRelease.Edition.Book?.Value?.AuthorMetadata?.Value?.Name ?? "Unknown";
+                var edition = localBookRelease.Edition;
+                var book = edition.Book?.Value;
+                var authorName = book?.AuthorMetadata?.Value?.Name ?? "Unknown";
+                var distance = localBookRelease.Distance.NormalizedDistance();
                 _logger.Info("Rejecting match: would add author '{0}' but distance {1:F3} exceeds auto-add threshold {2:F2}. " +
                              "Add the author manually if this is correct.",
-                             authorName,
-                             localBookRelease.Distance.NormalizedDistance(),
+                             LogSanitizer.Sanitize(authorName),
+                             distance,
                              AutoAddAuthorDistanceThreshold);
+
+                if (_logger.IsDebugEnabled)
+                {
+                    var workId = LogSanitizer.Sanitize(book?.ForeignBookId);
+                    var editionId = LogSanitizer.Sanitize(edition.ForeignEditionId);
+                    foreach (var file in localBookRelease.LocalBooks)
+                    {
+                        _logger.Debug("Import hold LowConfidence file={0} work={1} edition={2} distance={3:F3} threshold={4:F2}",
+                            LogSanitizer.Sanitize(file.Path),
+                            workId,
+                            editionId,
+                            distance,
+                            AutoAddAuthorDistanceThreshold);
+                    }
+                }
 
                 // Clear the match to prevent auto-adding a low-confidence author
                 localBookRelease.IdentificationHoldReason = LibraryImportHoldReason.LowConfidence;
