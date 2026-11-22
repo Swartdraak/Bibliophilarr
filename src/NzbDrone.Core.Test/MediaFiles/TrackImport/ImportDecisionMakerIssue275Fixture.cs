@@ -359,6 +359,129 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             secondary.Verify(provider => provider.SearchForNewBook("Dark Crime", "Christine Feehan", true), Times.Once());
         }
 
+        [TestCase("summary")]
+        [TestCase("wrong work")]
+        [TestCase("untyped")]
+        [TestCase("audio")]
+        public void should_continue_trusted_library_isbn_lookup_until_a_matching_source_edition_is_found(string rejectedCandidate)
+        {
+            const string isbn = "9781442482890";
+            _idConfig.NewDownload = false;
+            _idConfig.IncludeExisting = true;
+            GivenReliableFileIsbn();
+            GivenRealBookMatchPolicy();
+
+            var (first, firstEdition) = BuildMatch();
+            first.ForeignBookId = "hardcover:work:31";
+            firstEdition.ForeignEditionId = rejectedCandidate == "summary" ? "hardcover:edition:31" : "hardcover:source-edition:71";
+            firstEdition.Title = first.Title;
+            firstEdition.Isbn13 = isbn;
+            if (rejectedCandidate == "wrong work")
+            {
+                first.Title = "A Different Work";
+                firstEdition.Title = first.Title;
+            }
+            else if (rejectedCandidate == "untyped")
+            {
+                firstEdition.Format = Edition.UnclassifiedFormat;
+                firstEdition.IsEbook = false;
+            }
+            else if (rejectedCandidate == "audio")
+            {
+                firstEdition.Format = "Audiobook";
+                firstEdition.IsEbook = false;
+            }
+
+            var (right, exact) = BuildMatch();
+            exact.ForeignEditionId = "openlibrary:edition:OL321M";
+            exact.Title = right.Title;
+            exact.Isbn13 = isbn;
+            var (primary, secondary) = GivenConfiguredProviders(new List<Book>(), new List<Book>());
+            primary.Setup(provider => provider.SearchByIsbn(isbn)).Returns(new List<Book> { first });
+            secondary.Setup(provider => provider.SearchByIsbn(isbn)).Returns(new List<Book> { right });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Author.Id.Should().Be(42);
+            decision.Item.Edition.Should().BeSameAs(exact);
+            foreach (var provider in new[] { primary, secondary })
+            {
+                provider.Verify(search => search.SearchByIsbn(isbn), Times.Once());
+                provider.Verify(search => search.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true), Times.Never());
+            }
+        }
+
+        [Test]
+        public void should_preserve_exact_isbn_provider_ambiguity_without_trying_text_search()
+        {
+            const string isbn = "9781442482890";
+            _idConfig.NewDownload = false;
+            _idConfig.IncludeExisting = true;
+            GivenReliableFileIsbn();
+            var (first, firstEdition) = BuildMatch();
+            var (second, secondEdition) = BuildMatch();
+            first.ForeignBookId = "hardcover:work:31";
+            firstEdition.ForeignEditionId = "hardcover:source-edition:71";
+            firstEdition.Isbn13 = isbn;
+            second.ForeignBookId = "hardcover:work:32";
+            second.Id = 8;
+            secondEdition.BookId = second.Id;
+            secondEdition.ForeignEditionId = "hardcover:source-edition:72";
+            secondEdition.Isbn13 = isbn;
+
+            var (primary, secondary) = GivenConfiguredProviders(new List<Book> { first }, new List<Book> { first });
+            primary.Setup(provider => provider.SearchByIsbn(isbn)).Returns(new List<Book> { first, second });
+
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Item.Edition.Should().BeNull();
+            decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+            primary.Verify(provider => provider.SearchByIsbn(isbn), Times.Once());
+            primary.Verify(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true), Times.Never());
+            secondary.Verify(provider => provider.SearchByIsbn(isbn), Times.Never());
+            secondary.Verify(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true), Times.Never());
+        }
+
+        [TestCase("ISBN miss")]
+        [TestCase("invalid checksum")]
+        [TestCase("low confidence")]
+        [TestCase("ASIN")]
+        [TestCase("Open Library ID")]
+        [TestCase("manual")]
+        [TestCase("override")]
+        public void should_keep_existing_search_behavior_when_a_trusted_isbn_is_unavailable_or_ineligible(string mode)
+        {
+            const string isbn = "9781442482890";
+            _idConfig.NewDownload = mode == "manual";
+            _idConfig.IncludeExisting = true;
+            GivenReliableFileIsbn(
+                mode == "invalid checksum" ? "9781442482891" : isbn,
+                mode == "low confidence" ? 0.6 : 0.97,
+                mode == "ASIN" ? "B000000001" : null,
+                mode == "Open Library ID" ? "OL123W" : null);
+            var (book, edition) = BuildMatch();
+            GivenFallbackWorks(book);
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            var overrides = mode == "override" ? new IdentificationOverrides { Author = book.Author.Value } : null;
+
+            var decision = GetSingleDecision(overrides);
+
+            decision.Approved.Should().BeTrue();
+            decision.Item.Edition.Should().BeSameAs(edition);
+            orchestrator.Verify(service => service.SearchForLibraryImportByIsbn(It.IsAny<string>(), It.IsAny<Func<List<Book>, bool>>()),
+                mode == "ISBN miss" ? Times.Once() : Times.Never());
+            if (_idConfig.NewDownload)
+            {
+                orchestrator.Verify(service => service.SearchForNewBook("Dark Crime", "Christine Feehan", true), Times.Once());
+            }
+            else
+            {
+                orchestrator.Verify(service => service.SearchForLibraryImport("Dark Crime", "Christine Feehan", It.IsAny<Func<List<Book>, bool>>()), Times.Once());
+            }
+        }
+
         [TestCase(false, false, true)]
         [TestCase(true, false, false)]
         [TestCase(false, true, false)]
@@ -620,7 +743,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             GetSingleDecision().Approved.Should().Be(shouldMatch);
         }
 
-        private void GivenReliableFileIsbn()
+        private void GivenReliableFileIsbn(string isbn = "9781442482890", double confidence = 0.97, string asin = null, string openLibraryId = null)
         {
             Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
                 .Returns(new ParsedTrackInfo
@@ -629,8 +752,11 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
                     BookTitleConfidence = 0.9,
                     Authors = new List<string> { "Christine Feehan" },
                     AuthorConfidence = 0.9,
-                    Isbn = "9781442482890",
-                    IsbnConfidence = 0.97
+                    Isbn = isbn,
+                    IsbnConfidence = confidence,
+                    Asin = asin,
+                    AsinConfidence = asin == null ? 0 : 0.97,
+                    OpenLibraryId = openLibraryId
                 });
         }
 
@@ -679,12 +805,14 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             var primary = new Mock<IMetadataProvider>();
             primary.SetupGet(provider => provider.ProviderName).Returns("Hardcover");
             primary.SetupGet(provider => provider.SupportsBookSearch).Returns(true);
+            primary.SetupGet(provider => provider.SupportsIsbnLookup).Returns(true);
             var primarySearch = primary.As<ISearchForNewBook>();
             primarySearch.Setup(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true)).Returns(primaryBooks);
 
             var secondary = new Mock<IMetadataProvider>();
             secondary.SetupGet(provider => provider.ProviderName).Returns("OpenLibrary");
             secondary.SetupGet(provider => provider.SupportsBookSearch).Returns(true);
+            secondary.SetupGet(provider => provider.SupportsIsbnLookup).Returns(true);
             var secondarySearch = secondary.As<ISearchForNewBook>();
             secondarySearch.Setup(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true)).Returns(secondaryBooks);
 
