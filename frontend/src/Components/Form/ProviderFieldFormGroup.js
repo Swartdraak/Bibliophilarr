@@ -89,18 +89,21 @@ function ProviderFieldFormGroup(props) {
 
   const inputType = getType(props);
   const labelable = [inputTypes.TEXT, inputTypes.PASSWORD, inputTypes.TEXT_TAG].includes(inputType);
-  const labelTarget = labelable ? inputId : undefined;
+  const hasSelectLabel = !!inputId && inputType === inputTypes.DYNAMIC_SELECT;
+  const labelTarget = labelable || hasSelectLabel ? inputId : undefined;
+  const labelId = hasSelectLabel ? `${inputId}-label` : undefined;
 
   return (
     <FormGroup
       advancedSettings={advancedSettings}
       isAdvanced={advanced}
     >
-      <FormLabel name={labelTarget}>{label}</FormLabel>
+      <FormLabel id={labelId} name={labelTarget}>{label}</FormLabel>
 
       <FormInputGroup
         type={inputType}
         inputId={labelTarget}
+        labelId={labelId}
         name={name}
         label={label}
         helpText={helpText}
