@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: April 24, 2026 (release-readiness alignment, staging frontend CI, dependency remediation)
+**Last updated**: November 23, 2026
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -9,17 +9,24 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 - Current phase: Phase 5 consolidation with Phase 6 hardening active.
 - Active delivery lanes: `develop` and `staging`.
 - Default branch posture: `main` is the default branch, release-entry branch, and the source for tagged releases.
-- Packaging scope: v1.0.0 released with binary builds (Linux x64, macOS ARM64, Windows x64), Docker image on GHCR, and npm launcher on npmjs.org.
+- Published stable version is v1.1.0. The planned v2.0.0 moves native installs
+  to .NET 10 and includes database migrations.
+  [Project status](PROJECT_STATUS.md#release-and-ci-posture)
 - Actions token posture: branch-policy and readiness workflows remain report-only when GitHub Actions integration tokens cannot read admin or Dependabot APIs.
-- Release-entry posture: promotion to `main` remains blocked until fresh dated PASS evidence exists for install, metadata dry-run, telemetry, and series persistence gates.
+- Release promotion requires the maintainer to lift the hold after fresh
+  acceptance across installation, the full dual-format libraries, metadata,
+  browser workflows, persistence, and upgrade and rollback.
+  [Release readiness](https://github.com/Swartdraak/Bibliophilarr/issues/484)
 
 ## Delivery lanes
 
 | Branch | Purpose | Required outcomes |
 |---|---|---|
-| `develop` | Active integration lane for metadata migration and operational hardening slices | `build-test`, `Markdown lint`, `label-policy`, smoke telemetry |
-| `staging` | Pre-release validation lane mirroring `develop` with tighter release-readiness scrutiny | same required contexts as `develop`, plus current readiness/drift report evidence |
-| `main` | Default branch for releases, operator runbooks, readiness reporting, and branch-policy auditing | `build-test`, `Markdown lint`, `label-policy`, smoke telemetry, successful readiness and branch-policy report runs |
+| `develop` | Integration lane for task pull requests | Protected checks and independent validation for the candidate |
+| `staging` | Consolidated candidate from `develop` | Protected checks and current release-readiness evidence |
+| `main` | Default branch and source for stable tags | Protected checks and explicit release approval |
+
+Use [BRANCHING.md](BRANCHING.md) for promotion and check requirements.
 
 ## Phase summary
 

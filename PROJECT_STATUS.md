@@ -1,6 +1,6 @@
 # Project status summary
 
-**Last verified**: 2026-11-21
+**Last verified**: 2026-11-23
 **Verification scope**: branch topology, issue and pull request state, and published release channels
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
@@ -13,16 +13,18 @@
 
 ## Active migration and modernization work
 
-The migration program remains open and intentionally tracked through these active issues:
+Workflow and frontend modernization remain active:
 
-- #96 Migration Program: .NET 8 -> .NET 10 LTS
 - #97 Workflow and action modernization train
 - #99 Frontend toolchain modernization train
-- #104 ASP.NET / SignalR runtime alignment
 
-The NuGet compatibility review (#103), Docker SDK/runtime validation (#105),
-tests/RID/platform validation (#106), and release/package validation (#107) are
-closed.
+The .NET 10 migration validation is complete through #107. The closed
+slices cover NuGet compatibility, ASP.NET and SignalR, both Docker
+architectures, native platform validation, and package rehearsal.
+The authenticated SignalR delivery test is integrated on `develop`.
+Repeat the package and runtime checks on the eventual release candidate.
+[Migration epic](https://github.com/Swartdraak/Bibliophilarr/issues/96) ·
+[SignalR verification](https://github.com/Swartdraak/Bibliophilarr/pull/507)
 
 The coordinated FluentMigrator 8.0.1 upgrade is integrated on `develop` in
 [#514](https://github.com/Swartdraak/Bibliophilarr/pull/514). Independent native
