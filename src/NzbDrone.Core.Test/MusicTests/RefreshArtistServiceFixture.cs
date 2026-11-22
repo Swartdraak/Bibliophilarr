@@ -504,6 +504,45 @@ namespace NzbDrone.Core.Test.MusicTests
             ExceptionVerification.ExpectedErrors(1);
         }
 
+        [TestCase(CatalogueIdentityRepository.LegacyLinkedEvidence)]
+        [TestCase("exact-isbn-and-title-and-author")]
+        public void should_keep_google_books_author_unchanged_when_outage_has_only_weaker_alternate_evidence(string evidence)
+        {
+            const string primaryId = "googlebooks:author:fixture-person";
+            const string alternateId = "OL42A";
+            _author.ForeignAuthorId = primaryId;
+            var incumbent = _author.Metadata.Value;
+            _author.AuthorMetadataId = incumbent.Id;
+            incumbent.OpenLibraryAuthorId = alternateId;
+            var previousSync = _author.LastInfoSync;
+            var storedSeries = _author.Series.Value;
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, incumbent.Id))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = alternateId, Evidence = evidence } });
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", alternateId))
+                .Returns(incumbent.Id);
+            var provider = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            provider.Setup(orchestrator => orchestrator.GetAuthorInfo(primaryId, true))
+                .Throws(new MetadataProviderUnavailableException("get-author-info", primaryId, new InvalidOperationException("Incomplete provider bibliography")));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            provider.Verify(orchestrator => orchestrator.GetAuthorInfo(primaryId, true), Times.Once());
+            provider.VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorService>().Verify(service => service.UpdateAuthor(It.IsAny<Author>()), Times.Never());
+            Mocker.GetMock<IAuthorService>().Verify(service => service.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once());
+            Assert.That(_author.Metadata.Value, Is.SameAs(incumbent));
+            Assert.That(_author.Series.Value, Is.SameAs(storedSeries));
+            Assert.That(_author.LastInfoSync, Is.EqualTo(previousSync));
+            ExceptionVerification.ExpectedWarns(1);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
         [TestCase("openlibrary:author:OL87654A", false)]
         [TestCase("OL87654A", true)]
         public void should_keep_monitored_provider_author_when_author_endpoint_returns_404(string foreignId, bool bulk)
@@ -739,14 +778,15 @@ namespace NzbDrone.Core.Test.MusicTests
             Assert.That(_author.Metadata.Value.Overview, Is.EqualTo("A verified biography"));
         }
 
-        [TestCase("OL42A", "OL42A", true, false, false, true)]
-        [TestCase("OL42A", "OL42A", false, false, false, false)]
-        [TestCase("OL84A", "OL42A", true, false, false, false)]
-        [TestCase("OL42A", null, true, false, false, false)]
-        [TestCase("OL42A", "OL42A", true, true, false, false)]
-        [TestCase("OL42A", "OL42A", true, false, true, false)]
+        [TestCase("OL42A", "OL42A", true, false, false, false, true)]
+        [TestCase("OL42A", "OL42A", false, false, false, false, false)]
+        [TestCase("OL84A", "OL42A", true, false, false, false, false)]
+        [TestCase("OL42A", null, true, false, false, false, false)]
+        [TestCase("OL42A", "OL42A", true, true, false, false, false)]
+        [TestCase("OL42A", "OL42A", true, false, true, false, false)]
+        [TestCase("OL42A", "OL42A", true, false, false, true, false)]
         public void should_add_only_an_unclaimed_work_from_a_verified_alternate_bibliography(
-            string returnedAuthor, string creditedAuthor, bool ownsSource, bool existingWork, bool existingEdition, bool shouldAdd)
+            string returnedAuthor, string creditedAuthor, bool ownsSource, bool existingWork, bool existingEdition, bool ownerChangesAfterLookup, bool shouldAdd)
         {
             _author.ForeignAuthorId = "hardcover:author:42";
             var metadata = _author.Metadata.Value;
@@ -779,14 +819,23 @@ namespace NzbDrone.Core.Test.MusicTests
                 },
                 Series = new List<Series>()
             };
+            var currentOwner = ownsSource ? metadata.Id : metadata.Id + 1;
             var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
             identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, metadata.Id))
                 .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL42A", Evidence = AuthorCanonicalizationService.BibliographyEvidence } });
             identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL42A"))
-                .Returns(ownsSource ? metadata.Id : metadata.Id + 1);
+                .Returns(() => currentOwner);
             Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()))
-                .Returns(alternate);
+                .Returns(() =>
+                {
+                    if (ownerChangesAfterLookup)
+                    {
+                        currentOwner = metadata.Id + 1;
+                    }
+
+                    return alternate;
+                });
             Mocker.GetMock<IMetadataProfileService>()
                 .Setup(service => service.FilterBooks(alternate, _author.MetadataProfileId))
                 .Returns(alternate.Books.Value);
