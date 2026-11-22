@@ -102,6 +102,7 @@ namespace NzbDrone.Test.Common
 
         public static void ExpectedWarns(params string[] messagePrefixes)
         {
+            Assert.That(messagePrefixes, Is.Not.Null);
             Expected(LogLevel.Warn, messagePrefixes.Length, messagePrefixes);
         }
 
@@ -145,6 +146,12 @@ namespace NzbDrone.Test.Common
 
         private static void Expected(LogLevel level, int count, IReadOnlyList<string> messagePrefixes = null)
         {
+            if (messagePrefixes != null)
+            {
+                Assert.That(messagePrefixes, Has.Count.EqualTo(count));
+                Assert.That(messagePrefixes, Has.None.Null);
+            }
+
             lock (_logs)
             {
                 var levelLogs = _logs.Where(l => l.Level == level).ToList();
