@@ -21,6 +21,7 @@ from playwright.sync_api import Error as PlaywrightError, expect, sync_playwrigh
 from catalogue_workflow import (
     LIVE_PROVIDER_TOKEN_ENV,
     exercise_catalogue,
+    reembed_imported_epub,
     verify_catalogue_after_restart,
 )
 
@@ -580,6 +581,7 @@ def run(binary, evidence, *, live_provider=False):
             assert app.poll() is None, "native app exited before the planned restart"
 
         assert app.returncode == 0, "native app did not exit cleanly after SIGTERM"
+        reembed_imported_epub(work, catalogue)
 
         with running_app(binary, data, log, port, evidence, credentials) as (app, base):
             wait_ready(app, http, base, data)
