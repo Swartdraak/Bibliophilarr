@@ -197,6 +197,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var offset = 0;
             var total = 0;
+            var confirmedEmptyPage = false;
 
             try
             {
@@ -204,9 +205,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 {
                     var (page, reportedTotal) = fetchPage(offset);
                     total = Math.Max(total, reportedTotal ?? 0);
-                    if (page?.Count == 0 && offset < total)
+                    if (!confirmedEmptyPage && page?.Count == 0 && offset < total)
                     {
                         // Confirm an unexpected gap once without discarding the earlier total.
+                        confirmedEmptyPage = true;
                         (page, reportedTotal) = fetchPage(offset);
                         total = Math.Max(total, reportedTotal ?? 0);
                     }

@@ -280,7 +280,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             };
             _clientMock.SetupSequence(client => client.GetAuthorWorks("OL26320A", 100, 1))
                 .Returns(emptyPage)
-                .Returns(recovers ? secondPage : emptyPage);
+                .Returns(recovers ? secondPage : new OlAuthorWorksResponse { Size = 1 });
 
             var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
             if (recovers)
