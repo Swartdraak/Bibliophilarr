@@ -6,10 +6,11 @@ from hashlib import sha256
 import os
 from pathlib import Path
 import sqlite3
+from tempfile import TemporaryDirectory
 import time
 from urllib.parse import quote, urlsplit
 from xml.sax.saxutils import escape, quoteattr
-from zipfile import ZIP_STORED, ZipFile
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from playwright.sync_api import expect
 
@@ -33,7 +34,7 @@ class CatalogueState:
     file_id: int
     edition_id: int
     path: Path
-    digest: str
+    payload: dict[str, str]
 
 
 def checked(response, expected, label):
@@ -290,6 +291,40 @@ def write_epub(path, title, author, identifier):
         )
 
 
+def epub_payload(path):
+    """Fingerprint each decompressed EPUB member independently of ZIP packaging."""
+    with ZipFile(path) as archive:
+        entries = archive.infolist()
+        names = [entry.filename for entry in entries]
+        assert len(names) == len(set(names)), "fixture EPUB has duplicate members"
+        assert names and names[0] == "mimetype" and entries[0].compress_type == ZIP_STORED
+        assert archive.read("mimetype") == b"application/epub+zip"
+        return {name: sha256(archive.read(name)).hexdigest() for name in names}
+
+
+def reembed_imported_epub(work, state):
+    """Repack the tracked fixture while the disposable application is stopped."""
+    target = state.path.resolve(strict=True)
+    library = work.resolve() / "catalogue-library"
+    assert target.is_relative_to(library) and not state.path.is_symlink(), "target must be inside the disposable library"
+    assert target.suffix == ".epub"
+    original_digest = sha256(target.read_bytes()).hexdigest()
+
+    with TemporaryDirectory(prefix="reembed-", dir=target.parent) as scratch:
+        rewritten = Path(scratch) / target.name
+        with ZipFile(target) as original, ZipFile(rewritten, "w") as rebuilt:
+            for name in original.namelist():
+                compression = ZIP_STORED if name == "mimetype" else ZIP_DEFLATED
+                rebuilt.writestr(name, original.read(name), compress_type=compression)
+            rebuilt.comment = b"Bibliophilarr browser smoke re-embedding"
+
+        assert sha256(rewritten.read_bytes()).hexdigest() != original_digest, "re-embedding must change the ZIP bytes"
+        assert epub_payload(rewritten) == state.payload, "re-embedding must preserve the logical EPUB payload"
+        rewritten.replace(target)
+
+    print("epub_reembedding: PASS (ZIP bytes changed, all members preserved)", flush=True)
+
+
 def verify_poor_local_import_selection(api, work, book):
     """An explicitly selected work can have a poor local match without a provider."""
     source = work / "poor-local-match.epub"
@@ -425,12 +460,12 @@ def import_fixture(api, work, app_data, root, book, author):
     verify_file_edition(app_data, tracked["id"], edition["id"])
     assert tracked["id"] > 0 and target.is_file() and target.is_relative_to(Path(root["path"]))
     assert target.suffix == ".epub" and source.is_file()
-    with ZipFile(target) as archive:
-        assert archive.testzip() is None
+    payload = epub_payload(target)
+    assert payload["OEBPS/chapter.xhtml"] == epub_payload(source)["OEBPS/chapter.xhtml"]
     print("import: PASS (command completed, EPUB and tracking record verified)", flush=True)
     return CatalogueState(
         book["id"], book["foreignBookId"], book["title"], book["titleSlug"], tracked["id"], edition["id"],
-        target, sha256(target.read_bytes()).hexdigest(),
+        target, payload,
     )
 
 
@@ -500,6 +535,6 @@ def verify_catalogue_after_restart(page, api, base, app_data, state):
     tracked, = files_for_book(api, state.book_id)
     assert tracked["id"] == state.file_id and Path(tracked["path"]) == state.path
     verify_file_edition(app_data, state.file_id, state.edition_id)
-    assert sha256(state.path.read_bytes()).hexdigest() == state.digest
+    assert epub_payload(state.path) == state.payload, "logical EPUB payload changed after restart"
     render_library_and_detail(page, base, state.title, state.title_slug)
-    print("persistence_after_restart: PASS (identity, imported file, content and browser detail)", flush=True)
+    print("persistence_after_restart: PASS (identity, re-embedded EPUB payload and browser detail)", flush=True)
