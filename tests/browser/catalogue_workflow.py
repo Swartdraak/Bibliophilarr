@@ -72,20 +72,24 @@ def initialize_root(api, work):
     ebook = next(profile for profile in quality if profile["name"].lower() == "ebook")
     profiles = checked(api.get("/api/v1/metadataprofile"), 200, "read_catalogue_metadata_profiles")
     none = next(profile for profile in profiles if profile["name"] == "None")
-    return checked(
-        api.post("/api/v1/rootfolder", data={
-            "name": "Catalogue fixture",
-            "path": str(library),
-            "defaultQualityProfileId": ebook["id"],
-            "defaultMetadataProfileId": none["id"],
-            "defaultMonitorOption": "none",
-            "defaultNewItemMonitorOption": "none",
-            "defaultTags": [],
-            "isCalibreLibrary": False,
-        }),
-        201,
-        "create_disposable_ebook_root",
-    )
+    route = "/api/v1/rootfolder"
+    payload = {
+        "name": "Catalogue fixture",
+        "path": str(library),
+        "defaultQualityProfileId": ebook["id"],
+        "defaultMetadataProfileId": none["id"],
+        "defaultMonitorOption": "none",
+        "defaultNewItemMonitorOption": "all",
+        "defaultTags": [],
+        "isCalibreLibrary": False,
+    }
+    root = checked(api.post(route, data=payload), 201, "create_disposable_ebook_root")
+    checked(api.post(route, data=payload), 400, "reject_duplicate_root")
+    roots = checked(api.get(route), 200, "read_disposable_ebook_roots")
+    persisted, = roots
+    assert persisted["id"] == root["id"] and persisted["path"] == str(library)
+    assert persisted["defaultNewItemMonitorOption"] == "all"
+    return root
 
 
 def author_at_root(author, root):
@@ -134,15 +138,18 @@ def find_live_book(page, api, base, root):
 
 
 def seed_local_catalogue(page, api, base, root, app_data):
-    author = checked(
-        api.post("/api/v1/author", data=author_at_root({
-            "authorName": FIXTURE_AUTHOR,
-            "foreignAuthorId": FIXTURE_AUTHOR_ID,
-            "titleSlug": "browser-fixture-observatory-author",
-        }, root)),
-        201,
-        "create_fixture_author",
-    )
+    route = "/api/v1/author"
+    payload = author_at_root({
+        "authorName": FIXTURE_AUTHOR,
+        "foreignAuthorId": FIXTURE_AUTHOR_ID,
+        "titleSlug": "browser-fixture-observatory-author",
+    }, root)
+    checked(api.post(route, data={**payload, "authorName": ""}), 400, "reject_invalid_author")
+    author = checked(api.post(route, data=payload), 201, "create_fixture_author")
+    checked(api.post(route, data=payload), 400, "reject_duplicate_author")
+    authors = checked(api.get(route), 200, "read_catalogue_authors")
+    persisted, = authors
+    assert persisted["id"] == author["id"] and persisted["foreignAuthorId"] == FIXTURE_AUTHOR_ID
     with sqlite3.connect((app_data / "bibliophilarr.db").as_uri() + "?mode=rw", uri=True) as db:
         metadata_id, = db.execute(
             "SELECT AuthorMetadataId FROM Authors WHERE Id = ?", (author["id"],)
