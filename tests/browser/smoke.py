@@ -233,7 +233,15 @@ def check_routes(page, base, api, evidence):
     print("Open Calendar from the sidebar", flush=True)
     nav.get_by_role("link", name="Calendar", exact=True).click()
     expect(page).to_have_url(base + "/calendar")
-    expect(main.get_by_role("button", name="iCal Link", exact=True)).to_be_visible()
+    main.get_by_role("button", name="iCal Link", exact=True).click()
+    feed = page.get_by_role("dialog")
+    for label in ("Past Days", "Future Days", "Tags", "iCal Feed"):
+        assert feed.get_by_label(label, exact=True).count() == 1, f"missing Calendar feed label: {label}"
+    expect(feed.get_by_role("checkbox", name="Include Unmonitored")).to_be_visible()
+    expect(feed.get_by_role("button", name="Copy to clipboard", exact=True)).to_be_visible()
+    assert feed.get_by_role("link", name="Subscribe to calendar", exact=True).count() == 1
+    feed.get_by_role("button", name="Close", exact=True).last.click()
+    expect(feed).to_be_hidden()
 
     for link, route, content, child_link in (
         ("Activity", "/activity/queue", "Queue is empty", "Queue"),
