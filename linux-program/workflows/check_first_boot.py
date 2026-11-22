@@ -18,8 +18,8 @@ import json
 import os
 import subprocess
 import sys
-from hashlib import sha256
 from pathlib import Path
+from secrets import token_bytes
 from urllib.parse import quote
 
 # EXPLICIT workspace root - NOT derived from __file__. Under onyx_stage_runner the
@@ -103,10 +103,13 @@ def main():
     if not failures:
         witness = data_dir.parent / 'workflow-first-start.json'
         try:
+            salt = token_bytes(16)
+            key_witness = {'version': 1, 'salt': salt.hex(),
+                           'tag': common.derive_api_key_witness(api_key, salt).hex()}
             fd = os.open(witness, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, 'w', encoding='utf-8') as stream:
                 json.dump({'startTime': process['startTime'],
-                           'apiKeyDigest': sha256(api_key.encode()).hexdigest()}, stream)
+                           'apiKeyWitness': key_witness}, stream)
         except OSError:
             check('W8_first_start_witness_written', False, 'Unable to create a new case witness')
         else:

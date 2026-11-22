@@ -12,8 +12,8 @@ Assertions (named booleans only).
 """
 import json
 import os
+import re
 import sys
-from hashlib import sha256
 from hmac import compare_digest
 from pathlib import Path
 
@@ -38,6 +38,17 @@ check = common.make_reporter(failures)
 API = common.api_root()
 
 
+def read_api_key_witness(witness):
+    if not isinstance(witness, dict):
+        return None
+    version, salt, tag = (witness.get(field) for field in ('version', 'salt', 'tag'))
+    if (type(version) is not int or version != 1
+            or not isinstance(salt, str) or not re.fullmatch(r'[0-9a-f]{32}', salt)
+            or not isinstance(tag, str) or not re.fullmatch(r'[0-9a-f]{64}', tag)):
+        return None
+    return bytes.fromhex(salt), bytes.fromhex(tag)
+
+
 def main():
     data_dir = Path(common.data_dir()).resolve()
     # P1 DB + config persisted on disk
@@ -50,16 +61,17 @@ def main():
         previous = json.loads(witness.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         previous = None
-    witness_ok = (isinstance(previous, dict) and isinstance(previous.get('startTime'), str)
-                  and bool(previous['startTime']) and isinstance(previous.get('apiKeyDigest'), str)
-                  and len(previous['apiKeyDigest']) == 64 and previous['apiKeyDigest'].isascii())
+    key_witness = read_api_key_witness(previous.get('apiKeyWitness')) if isinstance(previous, dict) else None
+    witness_ok = (key_witness is not None and isinstance(previous.get('startTime'), str)
+                  and bool(previous['startTime']))
     check('P2_first_start_witness_readable', witness_ok)
     if not witness_ok:
         common.finish(failures)
 
     # P2 API still authenticates after restart with the same key
     api_key = common.fetch_api_key()
-    same_key = bool(api_key) and compare_digest(sha256(api_key.encode()).hexdigest(), previous['apiKeyDigest'])
+    salt, expected_tag = key_witness
+    same_key = bool(api_key) and compare_digest(common.derive_api_key_witness(api_key, salt), expected_tag)
     check('P2_generated_key_unchanged', same_key)
     if not same_key:
         common.finish(failures)
