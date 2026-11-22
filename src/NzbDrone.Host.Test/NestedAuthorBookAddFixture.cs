@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -11,6 +12,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using DryIoc;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,7 +20,10 @@ using Microsoft.Extensions.Hosting;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Http.Dispatchers;
+using NzbDrone.Common.Options;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MetadataSource;
 
@@ -38,7 +43,7 @@ namespace NzbDrone.Host.Test
         private const string OtherBookTitle = "The Companion Fixture";
 
         [Test]
-        public async Task FreshAuthorRequiresAPathAndValidBookAndEditionPersistAcrossRestart()
+        public async Task AddBookRequiresAnEditionAndAnAuthorPathAndPersistsExplicitSelectionAcrossRestart()
         {
             var directory = Directory.CreateTempSubdirectory("bibliophilarr-add-book-").FullName;
             var appData = Directory.CreateDirectory(Path.Combine(directory, "data")).FullName;
@@ -119,6 +124,18 @@ namespace NzbDrone.Host.Test
                             addOptions = new { monitor = "none", searchForMissingBooks = false }
                         };
 
+                        var incompleteRequest = new Dictionary<string, object>(request);
+                        incompleteRequest.Remove("editions").Should().BeTrue();
+                        await AssertMissingEditions(client, incompleteRequest, timeout.Token);
+                        incompleteRequest["editions"] = null;
+                        await AssertMissingEditions(client, incompleteRequest, timeout.Token);
+                        incompleteRequest["editions"] = Array.Empty<object>();
+                        await AssertMissingEditions(client, incompleteRequest, timeout.Token);
+
+                        (await Get(client, "author", timeout.Token)).GetArrayLength().Should().Be(0);
+                        (await Get(client, "book", timeout.Token)).GetArrayLength().Should().Be(0);
+                        exclusions.FindByForeignId(ForeignBookId).Id.Should().Be(exclusion.Id);
+
                         var added = await Post(client, "book", request, HttpStatusCode.Created, timeout.Token);
                         exclusions.FindByForeignId(ForeignBookId).Should().BeNull();
                         bookId = added.GetProperty("id").GetInt32();
@@ -142,7 +159,9 @@ namespace NzbDrone.Host.Test
                     }
                 }
 
-                using var restarted = BuildHost(appData);
+                SQLiteConnection.ClearAllPools();
+
+                using var restarted = BuildHost(appData, useFixtureProvider: false);
                 await restarted.StartAsync(timeout.Token);
                 try
                 {
@@ -157,13 +176,45 @@ namespace NzbDrone.Host.Test
             }
             finally
             {
+                SQLiteConnection.ClearAllPools();
                 Directory.Delete(directory, recursive: true);
             }
         }
 
-        private static IHost BuildHost(string appData)
+        private static IHost BuildHost(string appData, bool useFixtureProvider = true)
         {
             var args = new[] { $"-data={appData}", "-nobrowser", "-nosingleinstancecheck" };
+            return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
+                .ConfigureServices(services =>
+                {
+                    services.PostConfigure<LogOptions>(options => options.AnalyticsEnabled = false);
+                    services.PostConfigure<PostgresOptions>(options => options.Host = null);
+                    services.PostConfigure<UpdateOptions>(options => options.PublicReleaseDiscovery = false);
+                })
+                .ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"))
+                .ConfigureContainer<IContainer>(container =>
+                {
+                    var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
+                    container.RegisterInstance(dispatcher.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+
+                    // Bootstrap may resolve the orchestrator before this callback.
+                    // Update its existing registry so every consumer uses the same provider.
+                    var registry = container.Resolve<IMetadataProviderRegistry>();
+                    foreach (var registered in registry.GetAllProviders())
+                    {
+                        registry.UnregisterProvider(registered.ProviderName);
+                    }
+
+                    if (useFixtureProvider)
+                    {
+                        registry.RegisterProvider(CreateMetadataProvider());
+                    }
+                })
+                .Build();
+        }
+
+        private static IMetadataProvider CreateMetadataProvider()
+        {
             var provider = new Mock<IMetadataProvider>();
             provider.SetupGet(p => p.ProviderName).Returns("Hardcover");
             provider.SetupGet(p => p.IsEnabled).Returns(true);
@@ -187,20 +238,7 @@ namespace NzbDrone.Host.Test
                 };
             });
 
-            return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
-                .ConfigureContainer<IContainer>(container =>
-                {
-                    // Bootstrap may resolve the orchestrator before this callback.
-                    // Update its existing registry so every consumer uses the same provider.
-                    var registry = container.Resolve<IMetadataProviderRegistry>();
-                    foreach (var registered in registry.GetAllProviders())
-                    {
-                        registry.UnregisterProvider(registered.ProviderName);
-                    }
-
-                    registry.RegisterProvider(provider.Object);
-                })
-                .Build();
+            return provider.Object;
         }
 
         private static AuthorMetadata AuthorMetadata()
@@ -281,7 +319,15 @@ namespace NzbDrone.Host.Test
             edition.GetProperty("foreignEditionId").GetString().Should().Be(editionId);
             var id = edition.GetProperty("id").GetInt32();
             id.Should().BePositive();
+            edition.GetProperty("monitored").GetBoolean().Should().BeTrue();
             return id;
+        }
+
+        private static async Task AssertMissingEditions(HttpClient client, Dictionary<string, object> request, CancellationToken cancellationToken)
+        {
+            var errors = await Post(client, "book", request, HttpStatusCode.BadRequest, cancellationToken);
+            var error = errors.EnumerateArray().Should().ContainSingle().Which;
+            error.GetProperty("propertyName").GetString().Should().Be("Editions");
         }
 
         private static async Task<int> FindProfile(HttpClient client, string path, string name, CancellationToken cancellationToken)
