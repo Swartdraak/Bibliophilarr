@@ -339,8 +339,7 @@ namespace NzbDrone.Core.MediaFiles
 
             try
             {
-                using var stream = File.OpenRead(file);
-                var book = new Azw3File(stream);
+                var book = new Azw3File(file);
                 result.Authors = book.Authors;
                 result.BookTitle = book.Title;
                 result.Isbn = Isbn.AsIsbn13(book.Isbn);
