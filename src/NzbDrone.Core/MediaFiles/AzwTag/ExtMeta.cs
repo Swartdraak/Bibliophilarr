@@ -1,101 +1,101 @@
+using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
-using NLog;
-using NzbDrone.Common.Instrumentation;
 
 namespace NzbDrone.Core.MediaFiles.Azw
 {
     public class ExtMeta
     {
-        private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(ExtMeta));
+        private readonly Dictionary<uint, List<string>> _strings = new Dictionary<uint, List<string>>();
 
-        public Dictionary<uint, ulong> IdValue { get; } = new Dictionary<uint, ulong>();
-        public Dictionary<uint, List<string>> IdString { get; } = new Dictionary<uint, List<string>>();
-        public Dictionary<uint, string> IdHex { get; } = new Dictionary<uint, string>();
-
-        public ExtMeta(byte[] ext, Encoding encoding)
+        public ExtMeta(Stream stream, long start, long sectionEnd, Encoding encoding)
         {
-            var num_items = Util.GetUInt32(ext, 8);
-            uint pos = 12;
-            for (var i = 0; i < num_items; i++)
+            const int headerLength = 12;
+            const int recordHeaderLength = 8;
+            const int maxRecords = 4096;
+
+            Span<byte> header = stackalloc byte[headerLength];
+            Util.ReadAt(stream, start, header, sectionEnd);
+            if (!header[..4].SequenceEqual("EXTH"u8))
             {
-                var id = Util.GetUInt32(ext, pos);
-                var size = Util.GetUInt32(ext, pos + 4);
-                if (IdMapping.Id_map_strings.ContainsKey(id))
-                {
-                    var a = encoding.GetString(Util.SubArray(ext, pos + 8, size - 8));
+                throw new AzwTagException("Invalid EXTH header");
+            }
 
-                    if (IdString.ContainsKey(id))
-                    {
-                        IdString[id].Add(a);
-                    }
-                    else
-                    {
-                        IdString.Add(id, new List<string> { a });
-                    }
-                }
-                else if (IdMapping.Id_map_values.ContainsKey(id))
-                {
-                    ulong a = 0;
-                    switch (size)
-                    {
-                        case 9:
-                            a = Util.GetUInt8(ext, pos + 8);
-                            break;
-                        case 10:
-                            a = Util.GetUInt16(ext, pos + 8);
-                            break;
-                        case 12:
-                            a = Util.GetUInt32(ext, pos + 8);
-                            break;
-                        case 16:
-                            a = Util.GetUInt64(ext, pos + 8);
-                            break;
-                        default:
-                            Logger.Warn("unexpected size:" + size);
-                            break;
-                    }
+            var length = BinaryPrimitives.ReadUInt32BigEndian(header[4..]);
+            var count = BinaryPrimitives.ReadUInt32BigEndian(header[8..]);
+            if (length < headerLength || count > (length - headerLength) / recordHeaderLength || count > maxRecords)
+            {
+                throw new AzwTagException("Invalid or oversized EXTH table");
+            }
 
-                    if (IdValue.ContainsKey(id))
-                    {
-                        Logger.Debug("Meta id duplicate:{0}\nPervious:{1}  \nLatter:{2}", IdMapping.Id_map_values[id], IdValue[id], a);
-                    }
-                    else
-                    {
-                        IdValue.Add(id, a);
-                    }
-                }
-                else if (IdMapping.Id_map_hex.ContainsKey(id))
-                {
-                    var a = Util.ToHexString(ext, pos + 8, size - 8);
+            Util.EnsureRange(start, length, sectionEnd);
+            var end = start + length;
+            var offset = start + headerLength;
+            var remainingAuthorBytes = Util.MaxTextBytes;
+            var remainingSupplementalBytes = 2 * Util.MaxTextBytes;
+            Span<byte> record = stackalloc byte[recordHeaderLength];
 
-                    if (IdHex.ContainsKey(id))
-                    {
-                        Logger.Debug("Meta id duplicate:{0}\nPervious:{1}  \nLatter:{2}", IdMapping.Id_map_hex[id], IdHex[id], a);
-                    }
-                    else
-                    {
-                        IdHex.Add(id, a);
-                    }
-                }
-                else
+            for (var i = 0; i < count; i++)
+            {
+                Util.ReadAt(stream, offset, record, end);
+                var id = BinaryPrimitives.ReadUInt32BigEndian(record);
+                var size = BinaryPrimitives.ReadUInt32BigEndian(record[4..]);
+                if (size < recordHeaderLength)
                 {
-                    // Unknown id
+                    throw new AzwTagException("Invalid EXTH record length");
                 }
 
-                pos += size;
+                Util.EnsureRange(offset, size, end);
+                var payloadSize = size - recordHeaderLength;
+
+                // Keep author and identifier limits independent of optional text. Only
+                // contributors are exposed as a list, so later scalar duplicates can be skipped.
+                var isAuthor = id == 100;
+                var isIdentifier = id is 104 or 113;
+                var remainingBytes = id switch
+                {
+                    100 => remainingAuthorBytes,
+                    104 or 113 => Util.MaxTextBytes,
+                    _ => remainingSupplementalBytes
+                };
+                if ((id is 100 or 101 or 102 or 103 or 104 or 106 or 112 or 113 or 524) &&
+                    payloadSize <= Math.Min(Util.MaxTextBytes, remainingBytes) &&
+                    (isAuthor || !_strings.ContainsKey(id)))
+                {
+                    var text = Util.ReadText(stream, offset + recordHeaderLength, (int)payloadSize, end, encoding);
+                    if (!_strings.TryGetValue(id, out var values))
+                    {
+                        values = new List<string>();
+                        _strings.Add(id, values);
+                    }
+
+                    values.Add(text);
+
+                    if (isAuthor)
+                    {
+                        remainingAuthorBytes -= (int)payloadSize;
+                    }
+                    else if (!isIdentifier)
+                    {
+                        remainingSupplementalBytes -= (int)payloadSize;
+                    }
+                }
+
+                offset += size;
             }
         }
 
         public string StringOrNull(uint key)
         {
-            return IdString.TryGetValue(key, out var value) ? value.FirstOrDefault() : null;
+            return _strings.TryGetValue(key, out var value) ? value.FirstOrDefault() : null;
         }
 
         public List<string> StringList(uint key)
         {
-            return IdString.TryGetValue(key, out var value) ? value : new List<string>();
+            return _strings.TryGetValue(key, out var value) ? value : new List<string>();
         }
     }
 }
