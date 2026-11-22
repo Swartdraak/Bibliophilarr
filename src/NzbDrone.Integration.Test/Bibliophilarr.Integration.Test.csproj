@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bibliophilarr.Api.V1\Bibliophilarr.Api.V1.csproj" />
+    <ProjectReference Include="..\NzbDrone.Host\Bibliophilarr.Host.csproj" />
     <ProjectReference Include="..\NzbDrone.Test.Common\Bibliophilarr.Test.Common.csproj" />
   </ItemGroup>
 </Project>

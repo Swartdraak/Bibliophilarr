@@ -48,16 +48,31 @@ namespace NzbDrone.Common.Test
         }
 
         [Test]
-        public void GetById_should_return_null_if_process_doesnt_exist()
+        public void GetById_should_return_null_after_the_owned_process_exits()
         {
-            Subject.GetProcessById(1234567).Should().BeNull();
+            using var process = StartDummyProcess();
+            var processId = process.Id;
+            try
+            {
+                Subject.GetProcessById(processId).Should().NotBeNull();
+            }
+            finally
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                }
+
+                process.WaitForExit(5000).Should().BeTrue();
+            }
+
+            Subject.GetProcessById(processId).Should().BeNull();
 
             ExceptionVerification.ExpectedWarns(1);
         }
 
         [TestCase(0)]
         [TestCase(-1)]
-        [TestCase(9999)]
         public void GetProcessById_should_return_null_for_invalid_process(int processId)
         {
             Subject.GetProcessById(processId).Should().BeNull();

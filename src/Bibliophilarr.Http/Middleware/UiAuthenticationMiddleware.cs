@@ -46,7 +46,7 @@ namespace Bibliophilarr.Http.Middleware
             // This middleware governs the anonymous-browser-UI denial ONLY: GET requests that
             // resolve to the SPA shell (StaticResourceController.Index / IndexContent). It must
             // NOT shadow:
-            //   - API endpoints (the API scheme produces its own 401 via the fallback policy),
+            //   - API and feed endpoints (authorization selects the appropriate scheme),
             //   - anonymous login, content, terminal provisioning, and liveness routes, and
             //   - non-GET UI methods (POST/PUT/etc are API/controller traffic).
             // A Forms challenge here yields 401 for an anonymous browser UI request, which is
@@ -59,6 +59,7 @@ namespace Bibliophilarr.Http.Middleware
             // not a Forms challenge that falls through to the SPA shell (index.html). The
             // exclusion is for the EXACT path /ping only: /ping/extra is still a UI-shell GET
             // (SPA catch-all) and is governed normally.
+            var endpoint = context.GetEndpoint();
             var isUiShellGet =
                 HttpMethodCompare(method, "GET") &&
                 !string.IsNullOrEmpty(path) &&
@@ -66,7 +67,8 @@ namespace Bibliophilarr.Http.Middleware
                 !path.StartsWith("/login", StringComparison.OrdinalIgnoreCase) &&
                 !path.StartsWith("/content/", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(path, "/ping", StringComparison.OrdinalIgnoreCase) &&
-                context.GetEndpoint()?.Metadata.GetMetadata<DirectTerminalBootstrapAttribute>() == null;
+                endpoint?.Metadata.GetMetadata<VersionedFeedControllerAttribute>() == null &&
+                endpoint?.Metadata.GetMetadata<DirectTerminalBootstrapAttribute>() == null;
 
             // The UI policy evaluates the Authorization header in Basic mode.
             if (isUiShellGet && _configService.AuthenticationMethod != AuthenticationType.Basic)

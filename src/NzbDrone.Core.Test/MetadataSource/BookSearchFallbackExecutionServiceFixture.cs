@@ -20,10 +20,14 @@ namespace NzbDrone.Core.Test.MetadataSource
     [TestFixture]
     public class BookSearchFallbackExecutionServiceFixture : CoreTest<BookSearchFallbackExecutionService>
     {
+        private MetadataProviderTelemetryService _telemetry;
+
         [SetUp]
         public void SetUp()
         {
             Mocker.SetConstant<IMetadataProviderRegistry>(new MetadataProviderRegistry(Array.Empty<IMetadataProvider>()));
+            _telemetry = new MetadataProviderTelemetryService();
+            Mocker.SetConstant<IMetadataProviderTelemetryService>(_telemetry);
         }
 
         [TestCase("GoogleBooks")]
@@ -49,6 +53,50 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
             Mocker.GetMock<IProviderTelemetryService>()
                 .Verify(x => x.RecordSuccess(providerName, "fallback-search", It.IsAny<double>(), It.IsAny<int>()), Times.Never());
+            _telemetry.GetOperationSnapshots().Should().BeEmpty();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_publish_actual_inventaire_fallback_results_to_operation_telemetry(bool hasMatch)
+        {
+            var books = hasMatch ? new List<Book> { new Book { Title = "Fixture Work" } } : new List<Book>();
+            var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
+            provider.SetupGet(x => x.ProviderName).Returns("Inventaire");
+            provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
+            provider.Setup(x => x.Search("Title", "Author")).Returns(books);
+
+            Subject.Search(provider.Object, "Title", "Author").Should().BeSameAs(books);
+
+            var snapshot = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            snapshot.ProviderName.Should().Be("Inventaire");
+            snapshot.OperationName.Should().Be("fallback-search");
+            snapshot.Calls.Should().Be(1);
+            snapshot.Successes.Should().Be(1);
+            snapshot.Failures.Should().Be(0);
+            snapshot.TotalResultCount.Should().Be(books.Count);
+            snapshot.FallbackHits.Should().Be(books.Count);
+            _telemetry.GetSnapshots().Should().ContainSingle().Which.Operations.Should().ContainSingle();
+        }
+
+        [Test]
+        public void should_distinguish_null_fallback_response_from_empty_results()
+        {
+            var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
+            provider.SetupGet(x => x.ProviderName).Returns("Inventaire");
+            provider.SetupGet(x => x.RateLimitInfo).Returns(new ProviderRateLimitInfo());
+            provider.Setup(x => x.Search("Title", "Author")).Returns((List<Book>)null);
+
+            Subject.Search(provider.Object, "Title", "Author").Should().BeEmpty();
+
+            var snapshot = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            snapshot.Calls.Should().Be(1);
+            snapshot.NullResults.Should().Be(1);
+            snapshot.Successes.Should().Be(0);
+            snapshot.Failures.Should().Be(0);
+            snapshot.FallbackHits.Should().Be(0);
         }
 
         [Test]
@@ -94,6 +142,101 @@ namespace NzbDrone.Core.Test.MetadataSource
             Subject.Search(provider.Object, "Title", "Author").Should().BeEmpty();
 
             provider.Verify(x => x.Search(It.IsAny<string>(), It.IsAny<string>()), Times.Once());
+
+            var telemetry = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            telemetry.Calls.Should().Be(1);
+            telemetry.Failures.Should().Be(1);
+            telemetry.Successes.Should().Be(0);
+            telemetry.FallbackHits.Should().Be(0);
+        }
+
+        [Test]
+        public void should_not_attempt_a_request_when_cooldown_starts_during_the_rate_wait()
+        {
+            const string providerName = "Inventaire";
+            var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
+            provider.SetupGet(x => x.ProviderName).Returns(providerName);
+            provider.SetupGet(x => x.RateLimitInfo)
+                .Returns(new ProviderRateLimitInfo { MaxRequests = 40, TimeWindow = TimeSpan.FromMinutes(1) });
+
+            var request = new HttpRequest("https://example.test");
+            var headers = new HttpHeader { ["Retry-After"] = "120" };
+            var response = new HttpResponse(request, headers, string.Empty, HttpStatusCode.TooManyRequests);
+            provider.Setup(x => x.Search("Throttled Title", "Author")).Throws(new TooManyRequestsException(request, response));
+            provider.Setup(x => x.Search("Waiting Title", "Author")).Returns(new List<Book>());
+
+            var waits = 0;
+            var limiter = Mocker.GetMock<IRateLimitService>();
+            limiter.Setup(x => x.WaitAndPulse("metadata-fallback", providerName, It.IsAny<TimeSpan>()))
+                .Callback(() =>
+                {
+                    // Deterministically complete the other search while this one is still in its rate wait.
+                    if (++waits == 1)
+                    {
+                        Subject.Search(provider.Object, "Throttled Title", "Author").Should().BeEmpty();
+                    }
+                });
+
+            Subject.Search(provider.Object, "Waiting Title", "Author").Should().BeEmpty();
+
+            ExceptionVerification.IgnoreWarns();
+            limiter.Verify(x => x.WaitAndPulse("metadata-fallback", providerName, It.IsAny<TimeSpan>()), Times.Exactly(2));
+            provider.Verify(x => x.Search("Throttled Title", "Author"), Times.Once());
+            provider.Verify(x => x.Search("Waiting Title", "Author"), Times.Never());
+            var health = Mocker.Resolve<IMetadataProviderRegistry>().GetProvidersHealthStatus()[providerName];
+            health.RateLimitWindowRequests.Should().Be(1);
+            health.CooldownUntilUtc.Should().BeAfter(DateTime.UtcNow);
+            var operation = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            operation.Calls.Should().Be(1);
+            operation.Failures.Should().Be(1);
+        }
+
+        [Test]
+        public void should_keep_a_cooldown_set_while_a_successful_request_was_in_flight()
+        {
+            const string providerName = "Inventaire";
+            var provider = new Mock<IBookSearchFallbackProvider>();
+            provider.SetupGet(x => x.IsFallbackEnabled).Returns(true);
+            provider.SetupGet(x => x.ProviderName).Returns(providerName);
+            provider.SetupGet(x => x.RateLimitInfo)
+                .Returns(new ProviderRateLimitInfo { MaxRequests = 40, TimeWindow = TimeSpan.FromMinutes(1) });
+
+            var request = new HttpRequest("https://example.test");
+            var headers = new HttpHeader { ["Retry-After"] = "120" };
+            var response = new HttpResponse(request, headers, string.Empty, HttpStatusCode.TooManyRequests);
+            provider.Setup(x => x.Search("Throttled Title", "Author")).Throws(new TooManyRequestsException(request, response));
+
+            var registry = Mocker.Resolve<IMetadataProviderRegistry>();
+            var candidate = new Book { Title = "In Flight Title" };
+            DateTime? deadline = null;
+            provider.Setup(x => x.Search("In Flight Title", "Author")).Returns(() =>
+            {
+                // The second request completes while the first is already executing.
+                Subject.Search(provider.Object, "Throttled Title", "Author").Should().BeEmpty();
+                deadline = registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc;
+                return new List<Book> { candidate };
+            });
+
+            var results = Subject.Search(provider.Object, "In Flight Title", "Author");
+            var healthAfterSuccess = registry.GetProvidersHealthStatus()[providerName];
+            var deadlineAfterSuccess = healthAfterSuccess.CooldownUntilUtc;
+            var requestsAfterSuccess = healthAfterSuccess.RateLimitWindowRequests;
+            var remainingAfterSuccess = healthAfterSuccess.RateLimitRemaining;
+            Subject.Search(provider.Object, "Later Title", "Author").Should().BeEmpty();
+
+            ExceptionVerification.ExpectedWarns(1);
+            results.Should().ContainSingle().Which.Should().BeSameAs(candidate);
+            deadline.Should().BeAfter(DateTime.UtcNow);
+            provider.Verify(x => x.Search("Later Title", "Author"), Times.Never());
+            deadlineAfterSuccess.Should().Be(deadline);
+            requestsAfterSuccess.Should().Be(2);
+            remainingAfterSuccess.Should().Be(38);
+            var telemetry = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            telemetry.Calls.Should().Be(2);
+            telemetry.Successes.Should().Be(1);
+            telemetry.Failures.Should().Be(1);
+            telemetry.FallbackHits.Should().Be(1);
         }
 
         [Test]

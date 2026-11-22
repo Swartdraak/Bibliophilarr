@@ -157,16 +157,16 @@ function MetadataProvider(props) {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel name="enableInventaireProvider">
+                <FormLabel name="enableInventaireFallback">
                   Enable Inventaire
                 </FormLabel>
 
                 <FormInputGroup
                   type={inputTypes.CHECK}
-                  name="enableInventaireProvider"
-                  helpText="Enable Inventaire as an additional fallback provider."
+                  name="enableInventaireFallback"
+                  helpText="Use Inventaire to search by title and author when automatic import cannot identify a book."
                   onChange={onInputChange}
-                  {...settings.enableInventaireProvider}
+                  {...settings.enableInventaireFallback}
                 />
               </FormGroup>
 
@@ -346,20 +346,6 @@ function MetadataProvider(props) {
             </FieldSet>
 
             <FieldSet legend="Import Identification Settings">
-              <FormGroup>
-                <FormLabel name="enableInventaireFallback">
-                  Enable Fallback Searches
-                </FormLabel>
-
-                <FormInputGroup
-                  type={inputTypes.CHECK}
-                  name="enableInventaireFallback"
-                  helpText="Allow fallback searches through additional providers when the primary lookup fails."
-                  onChange={onInputChange}
-                  {...settings.enableInventaireFallback}
-                />
-              </FormGroup>
-
               <FormGroup>
                 <FormLabel name="enableGoogleBooksFallback">
                   Enable Google Books Fallback

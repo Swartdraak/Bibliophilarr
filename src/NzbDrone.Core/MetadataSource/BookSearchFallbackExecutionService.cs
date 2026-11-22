@@ -30,6 +30,8 @@ namespace NzbDrone.Core.MetadataSource
     /// </summary>
     public class BookSearchFallbackExecutionService : IBookSearchFallbackExecutionService
     {
+        private const string FallbackSearchOperation = "fallback-search";
+
         // When request count reaches this fraction of the provider's MaxRequests
         // within its time window, switch to degraded (slower) request spacing.
         private const double NearCeilingRatio = 0.85;
@@ -57,6 +59,7 @@ namespace NzbDrone.Core.MetadataSource
 
         private readonly IRateLimitService _rateLimitService;
         private readonly IProviderTelemetryService _providerTelemetryService;
+        private readonly IMetadataProviderTelemetryService _operationTelemetry;
         private readonly IMetadataProviderRegistry _providerRegistry;
         private readonly ConcurrentDictionary<string, DateTime> _cooldownStore;
         private readonly ConcurrentDictionary<string, RateLimitWindowState> _rateLimitWindowStore;
@@ -65,12 +68,14 @@ namespace NzbDrone.Core.MetadataSource
 
         public BookSearchFallbackExecutionService(IRateLimitService rateLimitService,
                                                   IProviderTelemetryService providerTelemetryService,
+                                                  IMetadataProviderTelemetryService operationTelemetry,
                                                   IMetadataProviderRegistry providerRegistry,
                                                   ICacheManager cacheManager,
                                                   Logger logger)
         {
             _rateLimitService = rateLimitService;
             _providerTelemetryService = providerTelemetryService;
+            _operationTelemetry = operationTelemetry;
             _providerRegistry = providerRegistry;
             _cooldownStore = cacheManager.GetCache<ConcurrentDictionary<string, DateTime>>(GetType(), "fallbackProviderCooldowns")
                 .Get("fallbackProviderCooldowns", () => new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase));
@@ -93,10 +98,8 @@ namespace NzbDrone.Core.MetadataSource
                 return new List<Book>();
             }
 
-            if (TryGetActiveCooldown(provider.ProviderName, out var remaining))
+            if (SkipIfCoolingDown(provider))
             {
-                UpdateRateLimitHealth(provider, 0, remaining);
-                _logger.Debug("Skipping fallback provider {0} for {1:F0}s because cooldown is active", provider.ProviderName, remaining.TotalSeconds);
                 return new List<Book>();
             }
 
@@ -112,20 +115,35 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             _rateLimitService.WaitAndPulse("metadata-fallback", provider.ProviderName, GetRateLimitInterval(provider, health));
+            if (SkipIfCoolingDown(provider))
+            {
+                return new List<Book>();
+            }
+
             var rateLimitSnapshot = TrackRateLimitWindow(provider);
             UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
 
             var watch = Stopwatch.StartNew();
             var pipeline = GetOrCreateCircuitBreaker(provider.ProviderName);
+            var attempted = false;
+            var returnedNull = false;
+            var resultCount = -1;
 
             try
             {
-                var books = pipeline.Execute((_) => provider.Search(title, author) ?? new List<Book>(), CancellationToken.None);
+                var books = pipeline.Execute(_ =>
+                {
+                    attempted = true;
+                    return provider.Search(title, author);
+                }, CancellationToken.None);
+                returnedNull = books == null;
+                resultCount = books?.Count ?? 0;
                 watch.Stop();
-                _providerTelemetryService.RecordSuccess(provider.ProviderName, "fallback-search", watch.Elapsed.TotalMilliseconds, books.Count);
-                ClearCooldown(provider.ProviderName);
-                UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
-                return books;
+                _providerTelemetryService.RecordSuccess(provider.ProviderName, FallbackSearchOperation, watch.Elapsed.TotalMilliseconds, resultCount);
+
+                // Another request may have updated the window and cooldown since this one started.
+                UpdateRateLimitHealth(provider, 0, TimeSpan.Zero);
+                return books ?? new List<Book>();
             }
             catch (BrokenCircuitException)
             {
@@ -138,7 +156,7 @@ namespace NzbDrone.Core.MetadataSource
             catch (TooManyRequestsException e)
             {
                 watch.Stop();
-                _providerTelemetryService.RecordFailure(provider.ProviderName, "fallback-search", e);
+                _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
 
                 var retryAfter = e.RetryAfter > TimeSpan.Zero ? e.RetryAfter : TimeSpan.FromMinutes(5);
                 SetCooldown(provider.ProviderName, Clamp(retryAfter, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15)));
@@ -152,11 +170,11 @@ namespace NzbDrone.Core.MetadataSource
                 watch.Stop();
                 if (e.Response?.StatusCode == HttpStatusCode.RequestTimeout)
                 {
-                    _providerTelemetryService.RecordTimeout(provider.ProviderName, "fallback-search");
+                    _providerTelemetryService.RecordTimeout(provider.ProviderName, FallbackSearchOperation);
                 }
                 else
                 {
-                    _providerTelemetryService.RecordFailure(provider.ProviderName, "fallback-search", e);
+                    _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
                 }
 
                 SetCooldown(provider.ProviderName, ServerErrorCooldown);
@@ -166,7 +184,7 @@ namespace NzbDrone.Core.MetadataSource
             catch (Exception e)
             {
                 watch.Stop();
-                _providerTelemetryService.RecordFailure(provider.ProviderName, "fallback-search", e);
+                _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
 
                 var healthAfterFailure = GetHealth(provider.ProviderName);
                 if (healthAfterFailure?.ConsecutiveFailures >= 2)
@@ -177,6 +195,20 @@ namespace NzbDrone.Core.MetadataSource
                 UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
 
                 return new List<Book>();
+            }
+            finally
+            {
+                if (attempted)
+                {
+                    _operationTelemetry.Record(
+                        provider.ProviderName,
+                        FallbackSearchOperation,
+                        watch.ElapsedMilliseconds,
+                        success: resultCount >= 0 && !returnedNull,
+                        returnedNull: returnedNull,
+                        fallbackHit: resultCount > 0,
+                        resultCount: resultCount);
+                }
             }
         }
 
@@ -331,6 +363,18 @@ namespace NzbDrone.Core.MetadataSource
             return interval < DefaultInterval ? DefaultInterval : interval;
         }
 
+        private bool SkipIfCoolingDown(IBookSearchFallbackProvider provider)
+        {
+            if (!TryGetActiveCooldown(provider.ProviderName, out var remaining))
+            {
+                return false;
+            }
+
+            UpdateRateLimitHealth(provider, 0, remaining);
+            _logger.Debug("Skipping fallback provider {0} for {1:F0}s because cooldown is active", provider.ProviderName, remaining.TotalSeconds);
+            return true;
+        }
+
         private bool TryGetActiveCooldown(string providerName, out TimeSpan remaining)
         {
             remaining = TimeSpan.Zero;
@@ -353,11 +397,6 @@ namespace NzbDrone.Core.MetadataSource
 
             var until = DateTime.UtcNow.Add(duration);
             _cooldownStore.AddOrUpdate(providerName, until, (_, existing) => existing > until ? existing : until);
-        }
-
-        private void ClearCooldown(string providerName)
-        {
-            _cooldownStore.TryRemove(providerName, out _);
         }
 
         private static TimeSpan Clamp(TimeSpan value, TimeSpan min, TimeSpan max)
