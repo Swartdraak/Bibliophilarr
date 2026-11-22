@@ -363,7 +363,16 @@ namespace NzbDrone.Integration.Test.ApiTests
                 .ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"))
                 .ConfigureContainer<IContainer>(container =>
                 {
-                    container.RegisterInstance(dispatcher ?? new Mock<IHttpDispatcher>(MockBehavior.Strict).Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+                    var effectiveDispatcher = dispatcher;
+                    if (effectiveDispatcher == null)
+                    {
+                        var rejectingDispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
+                        rejectingDispatcher.Setup(client => client.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
+                            .ThrowsAsync(new InvalidOperationException("The author persistence fixture does not permit outbound HTTP."));
+                        effectiveDispatcher = rejectingDispatcher.Object;
+                    }
+
+                    container.RegisterInstance(effectiveDispatcher, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
 
                     // Bootstrap can resolve the orchestrator before this callback, so keep its registry instance.
                     var registry = container.Resolve<IMetadataProviderRegistry>();
