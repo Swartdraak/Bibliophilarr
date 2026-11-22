@@ -97,11 +97,11 @@
     },
     {
       "path": "linux-program/workflows/check_first_boot.py",
-      "sha256": "cc56f4c1dfb383ea6eafa8aee6bccde15e7f2e228b8e3f3c627ac817c058e1bc"
+      "sha256": "e0abce8a6f75b3069924d19bb6b8e0ab4d7008a61576e1852d7475484824703b"
     },
     {
       "path": "linux-program/workflows/check_persistence.py",
-      "sha256": "5277552f6f5b9a6378590a201b73ab2084b9469c6cae70340c5150bb9ebf63ec"
+      "sha256": "089d5dbb976a44e1080cd0d78c37d52353943be4ac9073a52d9146f3004235e3"
     },
     {
       "path": "linux-program/workflows/prepare.sh",

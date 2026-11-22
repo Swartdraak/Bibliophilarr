@@ -10,12 +10,16 @@ Flow (source-verified):
     because on first boot no live search provider is enabled by default (source:
     ConfigService.cs defaults; OpenLibraryProvider.IsEnabled).
   * A live-provider search then returns nonempty results (primary "find" workflow).
-  * A created backup file appears in the backup listing (backup workflow usable).
+  * The backup listing is reachable.
+  * A case-owned witness records the process start and a digest of its generated key.
 Assertions (named booleans only). Secrets/API key never printed.
 """
+import json
 import os
 import subprocess
 import sys
+from hashlib import sha256
+from pathlib import Path
 from urllib.parse import quote
 
 # EXPLICIT workspace root - NOT derived from __file__. Under onyx_stage_runner the
@@ -40,16 +44,21 @@ check = common.make_reporter(failures)
 API = common.api_root()
 
 
-def nonempty(content):
-    return bool(content)
-
-
 def main():
     api_key = common.fetch_api_key()
     if not api_key:
         check('W0_api_key_available', False, 'config.xml contains no API key')
         common.finish(failures)
     auth = common.auth_headers(api_key)
+    data_dir = Path(common.data_dir()).resolve()
+    status, process, _ = request_json('GET', API + '/system/status', headers=auth, timeout=30)
+    scope_ok = (status == 200 and isinstance(process, dict)
+                and isinstance(process.get('startTime'), str) and bool(process['startTime'])
+                and isinstance(process.get('appData'), str)
+                and Path(process['appData']).resolve() == data_dir)
+    check('W0_case_process_identified', scope_ok)
+    if not scope_ok:
+        common.finish(failures)
 
     # W1 authenticated v1 API reachable on fresh instance
     status, data, ctype = request_json('GET', API + '/config/host', headers=auth, timeout=30)
@@ -90,6 +99,18 @@ def main():
     status, data, ctype = request_json('GET', API + '/system/backup', headers=auth, timeout=30)
     check('W7_backup_listing_reachable', status == 200 and isinstance(data, list),
           f'status={status} count={len(data) if isinstance(data, list) else "n/a"}')
+
+    if not failures:
+        witness = data_dir.parent / 'workflow-first-start.json'
+        try:
+            fd = os.open(witness, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                json.dump({'startTime': process['startTime'],
+                           'apiKeyDigest': sha256(api_key.encode()).hexdigest()}, stream)
+        except OSError:
+            check('W8_first_start_witness_written', False, 'Unable to create a new case witness')
+        else:
+            check('W8_first_start_witness_written', True)
 
     common.finish(failures)
 

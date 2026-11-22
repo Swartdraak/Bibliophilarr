@@ -5,11 +5,17 @@ Run after the first-boot user exists and the app has been restarted (in-run rest
 preserve the initial run state). Proves:
   * the SQLite DB and config.xml survive in the case data dir,
   * the API still authenticates with the SAME generated key after restart,
+  * the application reports a new process start and the same case data directory,
+  * the enabled search-provider settings persist,
   * the first user persists (bootstrap endpoint stays 409, i.e. a user still exists).
 Assertions (named booleans only).
 """
+import json
 import os
 import sys
+from hashlib import sha256
+from hmac import compare_digest
+from pathlib import Path
 
 # EXPLICIT workspace root - NOT derived from __file__. Under onyx_stage_runner the
 # check cwd is 'repo' and sys.path[0] is the script directory, so a __file__-relative
@@ -33,21 +39,50 @@ API = common.api_root()
 
 
 def main():
-    data_dir = common.data_dir()
+    data_dir = Path(common.data_dir()).resolve()
     # P1 DB + config persisted on disk
-    cfg = os.path.join(data_dir, 'config.xml')
-    dbs = [os.path.join(b, f) for b, _, fs in os.walk(data_dir) for f in fs if f.endswith('.db')]
-    check('P1_db_and_config_persisted', os.path.isfile(cfg) and len(dbs) >= 1,
-          f'config={os.path.isfile(cfg)} dbs={dbs}')
+    cfg = (data_dir / 'config.xml').is_file()
+    database = (data_dir / 'bibliophilarr.db').is_file()
+    check('P1_db_and_config_persisted', cfg and database, f'config={cfg} database={database}')
+
+    witness = data_dir.parent / 'workflow-first-start.json'
+    try:
+        previous = json.loads(witness.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        previous = None
+    witness_ok = (isinstance(previous, dict) and isinstance(previous.get('startTime'), str)
+                  and bool(previous['startTime']) and isinstance(previous.get('apiKeyDigest'), str)
+                  and len(previous['apiKeyDigest']) == 64 and previous['apiKeyDigest'].isascii())
+    check('P2_first_start_witness_readable', witness_ok)
+    if not witness_ok:
+        common.finish(failures)
 
     # P2 API still authenticates after restart with the same key
     api_key = common.fetch_api_key()
-    if not api_key:
-        check('P2_api_auth_after_restart', False, 'no API key after restart')
+    same_key = bool(api_key) and compare_digest(sha256(api_key.encode()).hexdigest(), previous['apiKeyDigest'])
+    check('P2_generated_key_unchanged', same_key)
+    if not same_key:
         common.finish(failures)
-    status, data, ctype = request_json('GET', API + '/config/host', headers=common.auth_headers(api_key), timeout=30)
+    auth = common.auth_headers(api_key)
+    status, data, _ = request_json('GET', API + '/config/host', headers=auth, timeout=30)
     check('P2_api_auth_after_restart', status == 200 and isinstance(data, dict) and data.get('id') == 1,
           f'status={status} id={data.get("id") if isinstance(data, dict) else None}')
+
+    status, process, _ = request_json('GET', API + '/system/status', headers=auth, timeout=30)
+    restart_ok = (status == 200 and isinstance(process, dict)
+                  and isinstance(process.get('startTime'), str) and bool(process['startTime'])
+                  and process['startTime'] != previous['startTime']
+                  and isinstance(process.get('appData'), str)
+                  and Path(process['appData']).resolve() == data_dir)
+    check('P2_new_process_same_case_profile', restart_ok)
+    if not restart_ok:
+        common.finish(failures)
+
+    status, settings, _ = request_json('GET', API + '/config/metadataprovider', headers=auth, timeout=30)
+    providers_saved = (status == 200 and isinstance(settings, dict)
+                       and settings.get('enableOpenLibraryProvider') is True
+                       and settings.get('enableHardcoverFallback') is True)
+    check('P2_search_provider_settings_persist', providers_saved)
 
     # P3 first user persists: bootstrap endpoint still returns 409 (user exists)
     status = common.bootstrap_first_user(USERNAME, PASSWORD)
