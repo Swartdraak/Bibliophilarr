@@ -4,6 +4,8 @@ using System.Net;
 using FluentAssertions;
 using Moq;
 using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
@@ -111,6 +113,29 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             result.Should().NotBeNull();
             result.Docs.Should().HaveCount(1);
             Mocker.GetMock<IHttpClient>().Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void isbn_diagnostic_should_report_operation_without_the_lookup_value(bool exact)
+        {
+            const string isbn = "9781442482890";
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                new HttpResponse(request, new HttpHeader(), string.Empty, HttpStatusCode.ServiceUnavailable));
+            var messages = new MemoryTarget { Layout = "${message} ${exception}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var provider = new OpenLibraryClient(http.Object, Mocker.GetMock<IConfigService>().Object, logFactory.GetLogger(nameof(OpenLibraryClient)));
+
+            var result = exact ? provider.GetExactEditionByIsbn(isbn) : provider.GetEditionByIsbn(isbn);
+
+            result.RequestUnavailable.Should().BeTrue();
+            messages.Logs.Should().Contain(message => message.Contains("ISBN lookup"));
+            messages.Logs.Should().Contain(message => message.Contains("HTTP 503") && message.Contains("openlibrary.isbn"));
+            messages.Logs.Should().NotContain(message => message.Contains(isbn));
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Url.Path == $"/isbn/{isbn}.json")), Times.Once());
         }
 
         [TestCase("/books/OL33516062M.json")]

@@ -166,7 +166,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         private OlEditionResource GetEditionByIsbn(string isbn, bool requireMatchingRedirect)
         {
-            _logger.Debug("OpenLibrary get edition by ISBN: {0}", isbn);
+            _logger.Debug("OpenLibrary ISBN lookup (exact redirect required: {0}).", requireMatchingRedirect);
 
             var request = BuildIsbnRequest($"isbn/{isbn}.json");
             return ExecuteWithRateLimitRetry<OlEditionResource>(
@@ -251,6 +251,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             while (true)
             {
+                var logTarget = followIsbnRedirect ? endpointKey : request.Url.ToString();
                 HttpResponse response;
                 try
                 {
@@ -264,7 +265,15 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                         state.OpenUntilUtc = DateTime.UtcNow.AddSeconds(breakerDurationSeconds);
                     }
 
-                    _logger.Warn(ex, "OpenLibrary HTTP error for {0}", request.Url);
+                    if (followIsbnRedirect)
+                    {
+                        _logger.Warn("OpenLibrary HTTP error for {0}: {1}", logTarget, ex.Response?.StatusCode);
+                    }
+                    else
+                    {
+                        _logger.Warn(ex, "OpenLibrary HTTP error for {0}", logTarget);
+                    }
+
                     if (unavailable != null)
                     {
                         return unavailable();
@@ -292,7 +301,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                     if (attempts >= maxRetries)
                     {
-                        _logger.Warn("OpenLibrary rate-limit (429) exceeded retry budget for {0}", request.Url);
+                        _logger.Warn("OpenLibrary rate-limit (429) exceeded retry budget for {0}", logTarget);
 
                         if (state.ConsecutiveFailures >= breakerThreshold)
                         {
@@ -329,7 +338,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                         state.OpenUntilUtc = DateTime.UtcNow.AddSeconds(breakerDurationSeconds);
                     }
 
-                    _logger.Warn("OpenLibrary returned HTTP {0} for {1}", (int)response.StatusCode, request.Url);
+                    _logger.Warn("OpenLibrary returned HTTP {0} for {1}", (int)response.StatusCode, logTarget);
                     return unavailable?.Invoke();
                 }
 
@@ -354,7 +363,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 }
                 catch (JsonException ex)
                 {
-                    _logger.Warn(ex, "OpenLibrary: failed to deserialize response from {0}", request.Url);
+                    _logger.Warn(followIsbnRedirect ? null : ex, "OpenLibrary: failed to deserialize response from {0}", logTarget);
                     return unavailable?.Invoke();
                 }
             }

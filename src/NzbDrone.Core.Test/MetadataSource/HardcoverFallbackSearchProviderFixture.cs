@@ -8,6 +8,9 @@ using System.Text;
 using FluentAssertions;
 using Moq;
 using Newtonsoft.Json.Linq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
@@ -168,6 +171,35 @@ namespace NzbDrone.Core.Test.MetadataSource
             ExceptionVerification.ExpectedWarns(expectedWarnings);
             client.Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
             client.VerifyNoOtherCalls();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_log_series_failure_without_caller_or_provider_text(bool graphQlError)
+        {
+            const string searchTerm = "Fixture series search text";
+            const string providerText = "Fixture provider detail";
+            var payload = graphQlError
+                ? new JObject { ["errors"] = new JArray(new JObject { ["message"] = providerText }) }
+                : new JObject { ["data"] = new JObject { ["search"] = new JObject { ["error"] = providerText } } };
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString())));
+            var messages = new MemoryTarget { Layout = "${message}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var provider = new HardcoverFallbackSearchProvider(
+                Mocker.GetMock<IConfigService>().Object,
+                http.Object,
+                logFactory.GetLogger(nameof(HardcoverFallbackSearchProvider)));
+
+            provider.SearchForNewSeries(searchTerm).Should().BeNull();
+
+            messages.Logs.Should().Contain(message => message.Contains("series search") && message.Contains("error"));
+            messages.Logs.Should().NotContain(message => message.Contains(searchTerm) || message.Contains(providerText));
+            http.Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
         }
 
         [Test]

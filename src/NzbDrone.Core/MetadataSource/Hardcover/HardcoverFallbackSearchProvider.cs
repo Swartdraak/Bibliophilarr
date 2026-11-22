@@ -872,7 +872,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }.ToJson());
 
             var response = _httpClient.Post<HardcoverGraphQlResponse>(request);
-            if (!ValidateGraphQlResponse(response?.Resource, queryText))
+            if (!ValidateGraphQlResponse(response?.Resource, "series search", includeProviderDetails: false))
             {
                 return null;
             }
@@ -880,10 +880,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var payload = response.Resource.Data.Search;
             if (payload?.Error.IsNotNullOrWhiteSpace() == true)
             {
-                _logger.Debug("Hardcover series search returned provider error for query '{0}': {1}", queryText, payload.Error);
-                if (IsDeterministicSearchError(payload.Error))
+                var deterministic = IsDeterministicSearchError(payload.Error);
+                _logger.Debug("Hardcover series search returned a provider error (deterministic: {0}).", deterministic);
+                if (deterministic)
                 {
-                    RegisterDeterministicSearchError(payload.Error);
+                    RegisterDeterministicSearchError("series search query rejected");
                 }
 
                 return null;
@@ -2171,7 +2172,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
         }
 
-        private bool ValidateGraphQlResponse(HardcoverGraphQlResponse response, string queryText)
+        private bool ValidateGraphQlResponse(HardcoverGraphQlResponse response, string queryText, bool includeProviderDetails = true)
         {
             if (response == null)
             {
@@ -2181,8 +2182,15 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             if (response.Errors != null && response.Errors.Any())
             {
-                var errorMessages = string.Join("; ", response.Errors.Select(e => e.Message ?? "unknown error"));
-                _logger.Warn("Hardcover GraphQL returned error(s) for query '{0}': {1}", queryText, errorMessages);
+                if (includeProviderDetails)
+                {
+                    var errorMessages = string.Join("; ", response.Errors.Select(e => e.Message ?? "unknown error"));
+                    _logger.Warn("Hardcover GraphQL returned error(s) for query '{0}': {1}", queryText, errorMessages);
+                }
+                else
+                {
+                    _logger.Warn("Hardcover GraphQL returned {0} error(s) for {1}.", response.Errors.Count, queryText);
+                }
 
                 if (response.Data == null)
                 {
