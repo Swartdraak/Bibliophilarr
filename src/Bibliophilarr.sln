@@ -37,7 +37,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Host", "NzbDr
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Integration.Test", "NzbDrone.Integration.Test\Bibliophilarr.Integration.Test.csproj", "{6D5618FB-45B9-44AE-BF99-8EF37519CB30}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Libraries.Test", "NzbDrone.Libraries.Test\Bibliophilarr.Libraries.Test.csproj", "{1969394D-3181-404F-8E2C-E3E71A5BAD30}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Libraries.Test", "Bibliophilarr.Libraries.Test\Bibliophilarr.Libraries.Test.csproj", "{1969394D-3181-404F-8E2C-E3E71A5BAD30}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Mono.Test", "NzbDrone.Mono.Test\Bibliophilarr.Mono.Test.csproj", "{CCE9ABBC-96BA-425B-8140-DC8102290BE3}"
 EndProject
