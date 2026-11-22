@@ -29,6 +29,8 @@ process.
   dual-format monitoring answer in the in-app help.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
+- Give the Custom Format add-condition control and condition choices
+  accessible names.
 - Reject missing profile IDs before saving a new author through Add Book.
 - Return a validation error for a null or unavailable edition in Add Book
   before saving the book or author.
