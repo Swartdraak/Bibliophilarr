@@ -88,6 +88,8 @@ process.
   refresh requests as unsuccessful while continuing the rest of the batch.
 - Honor the historical server port environment variable. The canonical
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
+- Preserve port and bind address values stored inside a `Server` element in
+  `config.xml`. Existing flat values and environment overrides retain precedence.
 - Update FluentMigrator to 8.0.1 for SQLite and PostgreSQL while preserving the
   existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying
