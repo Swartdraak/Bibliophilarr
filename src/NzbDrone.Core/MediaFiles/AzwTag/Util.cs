@@ -1,61 +1,39 @@
 using System;
+using System.IO;
+using System.Text;
 
 namespace NzbDrone.Core.MediaFiles.Azw
 {
-    public static class Util
+    internal static class Util
     {
-        public static byte[] SubArray(byte[] src, ulong start, ulong length)
+        public const int MaxTextBytes = 1024 * 1024;
+
+        public static void EnsureRange(long start, long length, long end)
         {
-            var r = new byte[length];
-            for (ulong i = 0; i < length; i++)
+            if (start < 0 || length < 0 || start > end || length > end - start)
             {
-                r[i] = src[start + i];
+                throw new AzwTagException("MOBI metadata lies outside its record");
+            }
+        }
+
+        public static void ReadAt(Stream stream, long offset, Span<byte> buffer, long end)
+        {
+            EnsureRange(offset, buffer.Length, end);
+            stream.Position = offset;
+            stream.ReadExactly(buffer);
+        }
+
+        public static string ReadText(Stream stream, long offset, int length, long end, Encoding encoding)
+        {
+            EnsureRange(offset, length, end);
+            if (length == 0)
+            {
+                return string.Empty;
             }
 
-            return r;
-        }
-
-        public static string ToHexString(byte[] src, uint start, uint length)
-        {
-            //https://stackoverflow.com/a/14333437/48700
-            var c = new char[length * 2];
-            int b;
-            for (var i = 0; i < length; i++)
-            {
-                b = src[start + i] >> 4;
-                c[i * 2] = (char)(55 + b + (((b - 10) >> 31) & -7));
-                b = src[start + i] & 0xF;
-                c[(i * 2) + 1] = (char)(55 + b + (((b - 10) >> 31) & -7));
-            }
-
-            return new string(c);
-        }
-
-        public static ulong GetUInt64(byte[] src, ulong start)
-        {
-            var t = SubArray(src, start, 8);
-            Array.Reverse(t);
-            return BitConverter.ToUInt64(t, 0);
-        }
-
-        //big edian handle:
-        public static uint GetUInt32(byte[] src, ulong start)
-        {
-            var t = SubArray(src, start, 4);
-            Array.Reverse(t);
-            return BitConverter.ToUInt32(t, 0);
-        }
-
-        public static ushort GetUInt16(byte[] src, ulong start)
-        {
-            var t = SubArray(src, start, 2);
-            Array.Reverse(t);
-            return BitConverter.ToUInt16(t, 0);
-        }
-
-        public static byte GetUInt8(byte[] src, ulong start)
-        {
-            return src[start];
+            var bytes = new byte[length];
+            ReadAt(stream, offset, bytes, end);
+            return encoding.GetString(bytes);
         }
     }
 }
