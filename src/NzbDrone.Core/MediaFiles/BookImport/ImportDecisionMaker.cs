@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using System.Text;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -19,6 +21,7 @@ using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.MediaFiles.BookImport
@@ -101,12 +104,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _logger = logger;
         }
 
-        public Tuple<List<LocalBook>, List<ImportDecision<LocalBook>>> GetLocalTracks(List<IFileInfo> musicFiles, DownloadClientItem downloadClientItem, ParsedBookInfo folderInfo, FilterFilesType filter)
+        private Tuple<List<LocalBook>, List<ImportDecision<LocalBook>>> GetLocalTracks(List<IFileInfo> musicFiles, DownloadClientItem downloadClientItem, ParsedBookInfo folderInfo, ImportDecisionMakerConfig config)
         {
             var watch = new System.Diagnostics.Stopwatch();
             watch.Start();
 
-            var files = _mediaFileService.FilterUnchangedFiles(musicFiles, filter);
+            var files = _mediaFileService.FilterUnchangedFiles(musicFiles, config.Filter);
 
             _logger.Debug("Analyzing {0}/{1} files.", files.Count, musicFiles.Count);
 
@@ -138,20 +141,32 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 var current = Interlocked.Increment(ref processed);
                 _logger.ProgressInfo($"Reading file {current}/{files.Count}");
 
-                var fileTrackInfo = _metadataTagService.ReadTags(file);
-
                 var localTrack = new LocalBook
                 {
                     DownloadClientBookInfo = downloadClientItemInfo,
                     FolderTrackInfo = folderInfo,
                     Path = file.FullName,
-                    Part = fileTrackInfo.TrackNumbers.Any() ? fileTrackInfo.TrackNumbers.First() : 1,
-                    Size = file.Length,
-                    Modified = file.LastWriteTimeUtc,
-                    FileTrackInfo = fileTrackInfo,
-                    ReliableTaggedBookTitle = IdentificationService.CaptureReliableTaggedBookTitle(fileTrackInfo),
+                    Part = 1,
                     AdditionalFile = false
                 };
+
+                try
+                {
+                    localTrack.Size = file.Length;
+                    localTrack.Modified = file.LastWriteTimeUtc;
+                    localTrack.FileTrackInfo = _metadataTagService.ReadTags(file);
+                }
+                catch (Exception error) when (!config.NewDownload && (error is IOException or UnauthorizedAccessException))
+                {
+                    _logger.Warn("Could not read media file {0}: {1}", LogSanitizer.Sanitize(localTrack.Path), error.GetType().Name);
+                    localTrack.Quality = new QualityModel();
+                    decisionResults[index] = new ImportDecision<LocalBook>(localTrack, new Rejection("Unable to read file", holdReason: LibraryImportHoldReason.ReadError));
+                    return;
+                }
+
+                var fileTrackInfo = localTrack.FileTrackInfo;
+                localTrack.Part = fileTrackInfo.TrackNumbers.Any() ? fileTrackInfo.TrackNumbers.First() : 1;
+                localTrack.ReliableTaggedBookTitle = IdentificationService.CaptureReliableTaggedBookTitle(fileTrackInfo);
 
                 try
                 {
@@ -198,7 +213,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             idOverrides = idOverrides ?? new IdentificationOverrides();
             itemInfo = itemInfo ?? new ImportDecisionMakerInfo();
 
-            var trackData = GetLocalTracks(musicFiles, itemInfo.DownloadClientItem, itemInfo.ParsedBookInfo, config.Filter);
+            var trackData = GetLocalTracks(musicFiles, itemInfo.DownloadClientItem, itemInfo.ParsedBookInfo, config);
             var localTracks = trackData.Item1;
             var decisions = trackData.Item2;
 

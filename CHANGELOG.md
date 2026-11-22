@@ -34,6 +34,9 @@ process.
 
 ### Fixed
 
+- Report a media file read failure as an import hold and continue scanning
+  the other files.
+
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited

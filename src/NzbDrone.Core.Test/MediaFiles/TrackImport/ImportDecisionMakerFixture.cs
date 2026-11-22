@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
@@ -245,6 +246,39 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             var result = Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
 
             result.Single().Approved.Should().BeFalse();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_hold_an_unreadable_file_and_continue_identifying_other_formats(bool audioReadFails)
+        {
+            var audiobook = @"C:\Test\Unsorted\Fixture Audio.m4b".AsOsAgnostic();
+            var ebook = @"C:\Test\Unsorted\Fixture Ebook.epub".AsOsAgnostic();
+            var unreadable = audioReadFails ? audiobook : ebook;
+            var readable = audioReadFails ? ebook : audiobook;
+            FileSystem.AddFile(unreadable, new MockFileData("fixture bytes"));
+            FileSystem.AddFile(readable, new MockFileData("other format"));
+            _fileInfos = new[] { audiobook, ebook }.Select(path => DiskProvider.GetFileInfo(path)).ToList();
+            GivenAugmentationSuccess();
+            GivenSpecifications(_pass1);
+
+            Mocker.GetMock<IMetadataTagService>()
+                .Setup(service => service.ReadTags(It.Is<IFileInfo>(file => file.FullName == unreadable)))
+                .Throws(audioReadFails ? new IOException("Fixture read error") : new UnauthorizedAccessException("Fixture access error"));
+
+            var decisions = Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            decisions.Should().HaveCount(2);
+            var held = decisions.Single(decision => decision.Item.Path == unreadable);
+            held.Approved.Should().BeFalse();
+            held.Item.Size.Should().Be("fixture bytes".Length);
+            held.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ReadError);
+            decisions.Single(decision => decision.Item.Path == readable).Approved.Should().BeTrue();
+
+            var downloaded = new ImportDecisionMakerConfig { NewDownload = true };
+            var decideDownload = () => Subject.GetImportDecisions(_fileInfos, null, null, downloaded);
+            decideDownload.Should().Throw<AggregateException>();
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

@@ -204,13 +204,18 @@ namespace NzbDrone.Core.MediaFiles
             scannedFolders.ForEach(x => knownFiles.AddRange(_mediaFileService.GetFilesWithBasePath(x)));
 
             knownFiles = knownFiles.DistinctBy(file => file.Path, PathEqualityComparer.Instance).ToList();
+            var unreadablePaths = decisions
+                .Where(decision => decision.Rejections.Any(rejection => rejection.HoldReason == LibraryImportHoldReason.ReadError))
+                .Select(decision => decision.Item.Path)
+                .ToHashSet(PathEqualityComparer.Instance);
             var unlinkedDecisions = decisions.ExceptBy(
                 decision => decision.Item.Path,
                 knownFiles.Where(file => file.EditionId > 0),
                 file => file.Path,
                 PathEqualityComparer.Instance);
             var unmappedReasons = GetUnmappedReasons(unlinkedDecisions, importResults);
-            if (!incompleteScan && unmappedReasons.Values.Any(reason => reason is LibraryImportHoldReason.ImportFailed or LibraryImportHoldReason.ReadError))
+            if (!incompleteScan && (unreadablePaths.Count > 0 ||
+                unmappedReasons.Values.Any(reason => reason is LibraryImportHoldReason.ImportFailed or LibraryImportHoldReason.ReadError)))
             {
                 _commandResultReporter.Report(CommandResult.Unsuccessful);
             }
@@ -247,8 +252,8 @@ namespace NzbDrone.Core.MediaFiles
                           Item = decision.Item
                       },
                       PathEqualityComparer.Instance)
-                .Where(x => x.File.Size != x.Item.Size ||
-                       Math.Abs((x.File.Modified - x.Item.Modified).TotalSeconds) > 1)
+                .Where(x => !unreadablePaths.Contains(x.File.Path) &&
+                            (x.File.Size != x.Item.Size || Math.Abs((x.File.Modified - x.Item.Modified).TotalSeconds) > 1))
                 .Select(x =>
                 {
                     x.File.Size = x.Item.Size;

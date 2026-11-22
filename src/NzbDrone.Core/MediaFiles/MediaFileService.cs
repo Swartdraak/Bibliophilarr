@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using NLog;
@@ -7,6 +8,7 @@ using NzbDrone.Common;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Datastore.Events;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
@@ -207,8 +209,7 @@ namespace NzbDrone.Core.MediaFiles
             if (filter == FilterFilesType.Known)
             {
                 unwanted = combined
-                    .Where(x => x.DiskFile.Length == x.DbFile.Size &&
-                           Math.Abs((x.DiskFile.LastWriteTimeUtc - x.DbFile.Modified.ToUniversalTime()).TotalSeconds) <= 1)
+                    .Where(x => HasUnchangedFileInfo(x.DiskFile, x.DbFile))
                     .Select(x => x.DiskFile)
                     .ToList();
                 _logger.Trace($"{unwanted.Count} unchanged existing files");
@@ -216,8 +217,7 @@ namespace NzbDrone.Core.MediaFiles
             else if (filter == FilterFilesType.Matched)
             {
                 unwanted = combined
-                    .Where(x => x.DiskFile.Length == x.DbFile.Size &&
-                           Math.Abs((x.DiskFile.LastWriteTimeUtc - x.DbFile.Modified.ToUniversalTime()).TotalSeconds) <= 1 &&
+                    .Where(x => HasUnchangedFileInfo(x.DiskFile, x.DbFile) &&
                            (x.DbFile.Edition == null || (x.DbFile.Edition.IsLoaded && x.DbFile.Edition.Value != null)))
                     .Select(x => x.DiskFile)
                     .ToList();
@@ -229,6 +229,24 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             return files.Except(unwanted).ToList();
+        }
+
+        private static bool HasUnchangedFileInfo(IFileInfo diskFile, BookFile knownFile)
+        {
+            if (knownFile.UnmappedReason == LibraryImportHoldReason.ReadError)
+            {
+                return false;
+            }
+
+            try
+            {
+                return diskFile.Length == knownFile.Size &&
+                       Math.Abs((diskFile.LastWriteTimeUtc - knownFile.Modified.ToUniversalTime()).TotalSeconds) <= 1;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
         }
 
         public BookFile Get(int id)

@@ -762,6 +762,40 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 files.Count == 1 && files[0].UnmappedReason == LibraryImportHoldReason.ImportFailed)), Times.Once);
         }
 
+        [Test]
+        public void should_preserve_existing_file_and_report_a_failed_read()
+        {
+            GivenAuthorFolder();
+            var path = Path.Combine(_author.Path, "linked.m4b");
+            GivenFiles(new[] { path });
+            var existing = new BookFile
+            {
+                Id = 42,
+                Path = path,
+                EditionId = 19,
+                Size = 1234,
+                Modified = DateTime.UtcNow,
+                Quality = new QualityModel(Quality.M4B)
+            };
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(service => service.GetFilesWithBasePath(_author.Path))
+                .Returns(new List<BookFile> { existing });
+            var failedRead = new ImportDecision<LocalBook>(
+                new LocalBook { Path = path },
+                new Rejection("fixture read failure", holdReason: LibraryImportHoldReason.ReadError));
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(service => service.GetImportDecisions(It.IsAny<List<IFileInfo>>(), null, null, It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(new List<ImportDecision<LocalBook>> { failedRead });
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.UpdateScannedFileInfo(It.Is<List<BookFile>>(files => files.Count == 0)), Times.Once);
+            existing.EditionId.Should().Be(19);
+            existing.Size.Should().Be(1234);
+            existing.Quality.Quality.Should().Be(Quality.M4B);
+        }
+
         [TestCase(null, LibraryImportHoldReason.ReviewRequired)]
         [TestCase(LibraryImportHoldReason.LowConfidence, LibraryImportHoldReason.LowConfidence)]
         [TestCase(LibraryImportHoldReason.AuthorBibliographyUnavailable, LibraryImportHoldReason.AuthorBibliographyUnavailable)]
