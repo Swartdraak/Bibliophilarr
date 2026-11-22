@@ -13,7 +13,7 @@
     <ProjectReference Include="..\Bibliophilarr.Api.V1\Bibliophilarr.Api.V1.csproj" />
     <ProjectReference Include="..\NzbDrone.Common\Bibliophilarr.Common.csproj" />
     <ProjectReference Include="..\NzbDrone.Core\Bibliophilarr.Core.csproj" />
-    <ProjectReference Include="..\NzbDrone.SignalR\Bibliophilarr.SignalR.csproj" />
+    <ProjectReference Include="..\Bibliophilarr.SignalR\Bibliophilarr.SignalR.csproj" />
     <ProjectReference Include="..\Bibliophilarr.Http\Bibliophilarr.Http.csproj" />
   </ItemGroup>
   <ItemGroup>
