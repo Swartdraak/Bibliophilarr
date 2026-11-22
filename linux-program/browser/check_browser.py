@@ -1,120 +1,172 @@
 #!/usr/bin/env python3
-"""check_browser.py - real UI/backend assertions (HTTP against the served SPA + API).
+"""Check the governed browser stage before and after its owned app restart."""
 
-Proves the frontend is actually deployed and the backend/UI contract works:
-  * the SPA root and the login page are served as HTML by the static resource controller,
-  * a built JS asset is retrievable (real webpack output, not a placeholder),
-  * the built frontend content entry (Content/login.html from frontend/src/login.html,
-    which carries the password field) is retrievable as HTML,
-  * the API surface the SPA bootstraps from (/initialize.json, /ping) responds,
-  * the login form route renders with a password field (login UI present).
-Native Windows/macOS smoke is intentionally OUT of scope (separate platform stage).
-Assertions (named booleans only).
-"""
-import http.cookiejar
+import argparse
+from hashlib import pbkdf2_hmac
 import json
 import os
+from pathlib import Path
 import re
-import secrets
 import sys
-import urllib.request
+from urllib.parse import urlsplit
 
-# EXPLICIT workspace root - NOT derived from __file__. Under onyx_stage_runner the
-# check cwd is 'repo' and sys.path[0] is the script directory, so a __file__-relative
-# 'harness' root resolves to a non-existent per-stage path (F4). Fixed verified path:
+from playwright.sync_api import expect, sync_playwright
+
+# Stage scripts are materialized outside the checkout by the governed runner.
 WORKSPACE = '/workspace'
 HARNESS_DIR = os.path.join(WORKSPACE, 'linux-program', 'harness')
 COMMON = os.path.join(HARNESS_DIR, 'common.py')
 if not os.path.isfile(COMMON):
-    print(f'FATAL: shared harness module missing at verified path {COMMON}', flush=True)
+    print('FATAL: shared browser harness module is missing', flush=True)
     sys.exit(2)
 sys.path.insert(0, HARNESS_DIR)
+sys.path.insert(0, os.path.join(WORKSPACE, 'repo', 'tests', 'browser'))
 import common  # noqa: E402
+from smoke import login  # noqa: E402
 
+USERNAME = 'governed-browser-fixture'
 BASE = common.app_url().rstrip('/')
 failures = []
 check = common.make_reporter(failures)
 
 
-def main():
-    auth = common.auth_headers(common.fetch_api_key() or '')
-    config_url = common.api_root() + '/config/host'
-    status, config, _ = common.request_json('GET', config_url, headers=auth)
-    check('BR0_host_config_readable', status == 200 and isinstance(config, dict),
-          f'status={status}')
-    if failures:
-        common.finish(failures)
+def browser_checks(page, auth, *, after_restart):
+    root = page.request.get(BASE + '/', max_redirects=0)
+    root_html = root.text()
+    if not after_restart:
+        check('BR1_spa_root_html', root.status == 200 and 'html' in root.headers.get('content-type', ''),
+              f'status={root.status}')
+        status, ctype, raw = common.get(BASE + '/login', timeout=30)
+        check('BR2_login_page_html_with_password',
+              status == 200 and 'html' in ctype.lower() and b'password' in raw.lower(), f'status={status}')
+        # Webpack places login.html beside index.html. The login route serves
+        # that template with the framework token and cache-breaker URLs applied.
+        template = Path(common.PUB) / 'UI' / 'login.html'
+        built = template.read_text(encoding='utf-8') if template.is_file() else ''
+        script = re.search(r'<script type="text/javascript">(.*?)</script>', built, re.DOTALL)
+        rendered = raw.decode('utf-8', 'replace')
+        check('BR3_built_login_asset_served', status == 200 and script is not None and
+              bool(script.group(1).strip()) and script.group(1).strip() in rendered and
+              '__LOGIN_TOKEN__' in built and '__LOGIN_TOKEN__' not in rendered, f'status={status}')
 
-    password = secrets.token_urlsafe(24)
-    config.update(authenticationMethod='forms', authenticationRequired='enabled',
-                  username='browser-check', password=password, passwordConfirmation=password)
-    status, _, _ = common.put_json(config_url + '/1', config, headers=auth)
-    check('BR0_forms_config_saved', status == 202, f'status={status}')
-    if failures:
-        common.finish(failures)
+        js_ref = re.search(r'["\'](/?[\w\-./]+\.js)["\']', root_html)
+        bundle = page.request.get(BASE + '/' + js_ref.group(1).lstrip('/'), max_redirects=0) if js_ref else None
+        check('BR4_built_js_bundle_served', bundle is not None and bundle.status == 200 and len(bundle.body()) > 200,
+              f'status={bundle.status if bundle else 0}')
 
-    cookies = http.cookiejar.CookieJar()
-    session = urllib.request.build_opener(urllib.request.ProxyHandler({}),
-                                          urllib.request.HTTPCookieProcessor(cookies))
-    status, _, _ = common.get_form(BASE + '/login',
-                                   {'username': 'browser-check', 'password': password},
-                                   opener=session)
-    check('BR0_forms_session_created', status == 200 and any(cookies),
-          f'status={status} cookie_present={any(cookies)}')
-
-    # BR1 SPA root served as HTML (UI policy route)
-    status, ctype, raw = common.get(BASE + '/', timeout=30, opener=session)
-    ok = status == 200 and 'html' in (ctype or '').lower()
-    check('BR1_spa_root_html', ok, f'status={status} content_type={ctype} bytes={len(raw)}')
-
-    # BR2 login page served as HTML (AllowAnonymous route) with a password field
-    status, ctype, raw = common.get(BASE + '/login', timeout=30)
-    text = raw.decode('utf-8', 'replace')
-    has_pw = 'password' in text.lower()
-    ok = status == 200 and 'html' in (ctype or '').lower() and has_pw
-    check('BR2_login_page_html_with_password', ok,
-          f'status={status} content_type={ctype} bytes={len(raw)} password_field={has_pw}')
-
-    # BR3 built frontend content entry retrievable (Content/login.html is the built
-    # asset for frontend/src/login.html; source: StaticResourceController.cs
-    # [HttpGet("content/{**path}")] -> MapResource("Content/" + path))
-    status, ctype, raw = common.get(BASE + '/content/login.html', timeout=30)
-    ok = status == 200 and 'html' in (ctype or '').lower()
-    check('BR3_built_login_asset_served', ok, f'status={status} content_type={ctype} bytes={len(raw)}')
-
-    # BR4 a built JS bundle is retrievable (webpack output present and served)
-    # Find a .js reference inside the login/root HTML, else probe the assets dir.
-    js_ref = None
-    for page in (BASE + '/login', BASE + '/'):
-        s, c, r = common.get(page, timeout=30, opener=session)
-        m = re.search(r'["\'](/?[\w\-./]+\.js)["\']', r.decode('utf-8', 'replace'))
-        if m:
-            js_ref = m.group(1).lstrip('/')
-            break
-    js_status, js_ctype, js_raw = (0, '', b'')
-    if js_ref:
-        js_status, js_ctype, js_raw = common.get(BASE + '/' + js_ref, timeout=30)
-    check('BR4_built_js_bundle_served',
-          js_status == 200 and len(js_raw) > 200,
-          f'js_ref={js_ref} status={js_status} bytes={len(js_raw)}')
-
-    # BR5 API bootstrap endpoints the SPA relies on
     anonymous_status, _, anonymous_body = common.get(BASE + '/initialize.json', timeout=30)
-    check('BR5_anonymous_bootstrap_requires_auth',
-          anonymous_status == 401 and b'"apiKey"' not in anonymous_body,
-          f'status={anonymous_status}')
-    s1, _, raw = common.get(BASE + '/initialize.json', timeout=30, opener=session)
-    s2, _, _ = common.get(BASE + '/ping', timeout=30)
+    initializer = page.request.get(BASE + '/initialize.json', max_redirects=0)
+    ping_status, _, ping_body = common.get(BASE + '/ping', timeout=30)
     try:
-        bootstrap = json.loads(raw)
-    except (ValueError, UnicodeError):
-        bootstrap = {}
-    check('BR5_api_bootstrap_endpoints',
-          s1 == 200 and s2 == 200 and isinstance(bootstrap, dict) and
-          bool(bootstrap.get('apiKey')) and bootstrap.get('apiKey') == auth['X-Api-Key'] and
+        bootstrap = initializer.json() if initializer.status == 200 else {}
+        ping_ok = ping_status == 200 and json.loads(ping_body).get('status') == 'OK'
+    except (ValueError, TypeError, AttributeError):
+        bootstrap, ping_ok = {}, False
+    anonymous_name = 'BR6_anonymous_bootstrap_requires_auth_after_restart' if after_restart else 'BR5_anonymous_bootstrap_requires_auth'
+    signed_name = 'BR6_api_bootstrap_endpoints_after_restart' if after_restart else 'BR5_api_bootstrap_endpoints'
+    check(anonymous_name, anonymous_status == 401 and b'"apiKey"' not in anonymous_body, f'status={anonymous_status}')
+    check(signed_name, root.status == 200 and initializer.status == 200 and ping_ok and
+          isinstance(bootstrap, dict) and bootstrap.get('apiKey') == auth['X-Api-Key'] and
           str(bootstrap.get('apiRoot', '')).endswith('/api/v1'),
-          f'initialize={s1} ping={s2}')
+          f'initialize={initializer.status} ping={ping_status}')
 
+
+def run(after_restart):
+    address = urlsplit(BASE)
+    if (address.scheme, address.netloc, address.path, address.query, address.fragment) != (
+        'http', f'127.0.0.1:{address.port}', '', '', ''
+    ) or not address.port:
+        check('browser_loopback_origin', False)
+        return
+
+    api_key = common.fetch_api_key()
+    check('browser_generated_key_available', bool(api_key))
+    if not api_key:
+        return
+    auth = common.auth_headers(api_key)
+    code, status, _ = common.request_json('GET', common.api_root() + '/system/status', headers=auth, timeout=30)
+    data_dir = Path(common.data_dir()).resolve()
+    scope_ok = (code == 200 and isinstance(status, dict) and bool(status.get('startTime')) and
+                Path(status.get('appData') or '/').resolve() == data_dir and
+                data_dir.is_relative_to(Path(WORKSPACE)) and data_dir != Path(WORKSPACE))
+    check('browser_case_profile', scope_ok)
+    if not scope_ok:
+        return
+
+    # Both phases derive the same synthetic password from the disposable
+    # profile's generated key without writing either value to step state.
+    fixture_key = pbkdf2_hmac('sha256', api_key.encode(), b'bibliophilarr/governed-browser/v2', 600_000)
+    password = 'Fx9!' + fixture_key.hex()
+    witness = data_dir.parent / 'browser-first-start.txt'
+    config_url = common.api_root() + '/config/host'
+    status_code, config, _ = common.request_json('GET', config_url, headers=auth, timeout=30)
+    if after_restart:
+        try:
+            previous_start = witness.read_text(encoding='utf-8').strip()
+        except (OSError, UnicodeError):
+            check('BR6_new_process_same_profile', False, 'First-start witness missing or unreadable')
+            return
+        check('BR6_new_process_same_profile', bool(previous_start) and previous_start != status['startTime'])
+        check('BR6_forms_config_retained', status_code == 200 and isinstance(config, dict) and
+              config.get('authenticationMethod') == 'forms' and config.get('authenticationRequired') == 'enabled')
+        check('BR6_bootstrap_user_retained', common.bootstrap_first_user(USERNAME, password) == 409)
+    else:
+        check('BR0_host_config_readable', status_code == 200 and isinstance(config, dict), f'status={status_code}')
+        if failures:
+            return
+        check('BR0_first_user_persisted', common.bootstrap_first_user(USERNAME, password) == 200)
+        check('BR0_duplicate_bootstrap_rejected', common.bootstrap_first_user(USERNAME, password) == 409)
+        if failures:
+            return
+        config.update(authenticationMethod='forms', authenticationRequired='enabled',
+                      username=USERNAME, password=password, passwordConfirmation=password)
+        code, _, _ = common.put_json(config_url + '/1', config, headers=auth)
+        check('BR0_forms_config_saved', code == 202, f'status={code}')
+
+    if failures:
+        return
+
+    status_code, _, _ = common.get(BASE + '/authors', timeout=30)
+    # An anonymous non-browser request is denied. A real browser is challenged
+    # with the login page and must submit its form token.
+    challenge_name = 'BR6_anonymous_authors_denied' if after_restart else 'BR0_anonymous_authors_denied'
+    check(challenge_name, status_code == 401, f'status={status_code}')
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            context = browser.new_context(service_workers='block')
+            context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(BASE + '/') else route.abort())
+            page = context.new_page()
+            page.set_default_timeout(15000)
+            page.goto(BASE + '/authors')
+            expect(page).to_have_url(re.compile(r'/login\?.*returnUrl='))
+            if not after_restart:
+                login(page, USERNAME, 'incorrect-fixture-password', rejected=True)
+                check('BR0_wrong_password_rejected', True)
+            login(page, USERNAME, password, rejected=False)
+            name = 'BR6_independent_forms_session_after_restart' if after_restart else 'BR0_forms_session_created'
+            check(name, True)
+            expect(page.get_by_role('main').get_by_role('heading', name='Authors', exact=True)).to_be_visible()
+            rendered_name = 'BR6_authors_rendered_after_restart' if after_restart else 'BR0_authors_rendered'
+            check(rendered_name, True)
+            browser_checks(page, auth, after_restart=after_restart)
+        finally:
+            browser.close()
+
+    if not after_restart and not failures:
+        with witness.open('x', encoding='utf-8') as stream:
+            stream.write(status['startTime'] + '\n')
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--after-restart', action='store_true')
+    args = parser.parse_args()
+    try:
+        run(args.after_restart)
+    except Exception as error:
+        # Browser errors can contain form values. Preserve a safe failure type.
+        check('browser_execution', False, type(error).__name__)
     common.finish(failures)
 
 
