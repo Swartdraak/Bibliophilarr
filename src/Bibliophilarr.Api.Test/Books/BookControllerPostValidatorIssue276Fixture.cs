@@ -73,6 +73,21 @@ namespace NzbDrone.Api.Test.Books
         }
 
         [Test]
+        public void post_validator_should_report_null_edition_at_its_index()
+        {
+            var controller = new ValidatorExposer(Mock.Of<IQualityProfileService>(), Mock.Of<IMetadataProfileService>());
+            var resource = new BookResource
+            {
+                ForeignBookId = "hardcover:work:13",
+                Editions = new List<EditionResource> { new EditionResource { ForeignEditionId = "hardcover:source-edition:7" }, null }
+            };
+
+            var failures = controller.ExposedPostValidator.Validate(resource).Errors;
+
+            Assert.That(failures.Select(failure => failure.PropertyName), Is.EqualTo(new[] { "Editions[1]" }));
+        }
+
+        [Test]
         public void post_validator_with_null_author_should_complete_with_failures_not_throw()
         {
             var controller = new ValidatorExposer(

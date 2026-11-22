@@ -112,6 +112,7 @@ class DelayProfile extends Component {
         <div className={styles.actions}>
           <Link
             className={id === 1 ? styles.editButton : undefined}
+            aria-label={translate(id === 1 ? 'EditDefaultDelayProfile' : 'EditDelayProfile')}
             onPress={this.onEditDelayProfilePress}
           >
             <Icon name={icons.EDIT} />

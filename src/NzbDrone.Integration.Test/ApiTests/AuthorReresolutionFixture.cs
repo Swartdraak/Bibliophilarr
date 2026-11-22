@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -10,7 +11,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Bibliophilarr.Api.V1.Author;
+using Bibliophilarr.Api.V1.Config;
 using Bibliophilarr.Api.V1.RootFolders;
+using Bibliophilarr.Api.V1.Search;
 using DryIoc;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -19,17 +22,27 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Http;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.Options;
 using NzbDrone.Common.Serializer;
+using NzbDrone.Common.TPL;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.Hardcover;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Host;
 using NzbDrone.Test.Common.Categories;
 using AuthorModel = NzbDrone.Core.Books.Author;
+using HttpClient = System.Net.Http.HttpClient;
 
 namespace NzbDrone.Integration.Test.ApiTests
 {
@@ -134,6 +147,189 @@ namespace NzbDrone.Integration.Test.ApiTests
             }
         }
 
+        [Test]
+        public async Task should_persist_provider_settings_and_fall_back_after_a_primary_401()
+        {
+            const string configPath = "config/metadataprovider";
+            const string tokenVariable = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
+            const string syntheticToken = "biblio-offline-provider-fixture";
+            const string positiveTerm = "Fixture fallback work";
+            const string negativeTerm = "Fixture provider miss";
+            var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
+            var calls = new ConcurrentQueue<string>();
+            dispatcher.Setup(client => client.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
+                .Returns((HttpRequest request, CookieContainer _) =>
+                {
+                    calls.Enqueue(request.Url.Host);
+                    var headers = new HttpHeader { ContentType = "application/json" };
+
+                    if (request.Url.Host == "api.hardcover.app" && request.Url.Path == "/v1/graphql" && request.Method == HttpMethod.Post)
+                    {
+                        var configuredTokenUsed = request.Headers.GetSingleValue("authorization") == $"Bearer {syntheticToken}";
+                        configuredTokenUsed.Should().BeTrue("the persisted synthetic token must be used");
+                        return Task.FromResult(new HttpResponse(request, headers, "{}", HttpStatusCode.Unauthorized));
+                    }
+
+                    if (request.Url.Host == "openlibrary.org" && request.Url.Path == "/search.json" && request.Method == HttpMethod.Get)
+                    {
+                        var query = request.Url.Query.TrimStart('?').Split('&');
+                        var hit = query.Contains($"q={Uri.EscapeDataString(positiveTerm.ToLowerInvariant())}");
+                        var miss = query.Contains($"q={Uri.EscapeDataString(negativeTerm.ToLowerInvariant())}");
+                        (hit || miss).Should().BeTrue("the normal search term must reach the Open Library adapter");
+                        var body = hit
+                            ? """{"numFound":1,"docs":[{"key":"/works/OL276330W","title":"Fixture fallback work","author_key":["OL276330A"],"author_name":["Fixture Provider Author"]}]}"""
+                            : """{"numFound":0,"docs":[]}""";
+                        return Task.FromResult(new HttpResponse(request, headers, body));
+                    }
+
+                    throw new InvalidOperationException("Unexpected outbound call in the offline metadata fixture.");
+                });
+
+            var workspace = Directory.CreateTempSubdirectory("bibliophilarr-provider-330-");
+            var data = workspace.FullName;
+            var apiKey = Guid.NewGuid().ToString("N");
+            var args = new[] { $"-data={data}", "-nobrowser", "-nosingleinstancecheck" };
+            var previousToken = Environment.GetEnvironmentVariable(tokenVariable);
+            Environment.SetEnvironmentVariable(tokenVariable, null);
+            try
+            {
+                new XElement("Config",
+                    new XElement("BindAddress", "127.0.0.1"),
+                    new XElement("Port", 0),
+                    new XElement("ApiKey", apiKey))
+                    .Save(Path.Combine(data, "config.xml"));
+
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+                var cancellationToken = timeout.Token;
+                using (var host = BuildHost(args, dispatcher.Object))
+                {
+                    await host.StartAsync(cancellationToken);
+                    try
+                    {
+                        using var client = CreateClient(host, apiKey);
+                        var config = await client.GetFromJsonAsync<MetadataProviderConfigResource>(configPath, STJson.GetSerializerSettings(), cancellationToken);
+                        config.EnableHardcoverFallback = true;
+                        config.HardcoverApiToken = syntheticToken;
+                        config.EnableOpenLibraryProvider = true;
+                        config.EnableGoogleBooksProvider = false;
+                        config.EnableGoogleBooksFallback = false;
+                        config.EnableInventaireProvider = false;
+                        config.EnableInventaireFallback = false;
+                        config.MetadataProviderPriorityOrder = "Hardcover,OpenLibrary";
+                        using var saved = await client.PutAsJsonAsync($"{configPath}/{config.Id}", config, STJson.GetSerializerSettings(), cancellationToken);
+                        saved.StatusCode.Should().Be(HttpStatusCode.Accepted);
+                        await AssertProviderConfig(client, syntheticToken, cancellationToken);
+                    }
+                    finally
+                    {
+                        await host.StopAsync(CancellationToken.None);
+                    }
+                }
+
+                SQLiteConnection.ClearAllPools();
+                using var restartedHost = BuildHost(args, dispatcher.Object);
+                await restartedHost.StartAsync(cancellationToken);
+                try
+                {
+                    using var client = CreateClient(restartedHost, apiKey);
+                    await AssertProviderConfig(client, syntheticToken, cancellationToken);
+                    calls.Should().BeEmpty();
+
+                    (await Search(client, "xy", cancellationToken)).Should().BeEmpty();
+                    (await GetEntitySearchTelemetry(client, cancellationToken)).Should().BeEmpty();
+                    calls.Should().BeEmpty();
+
+                    var messages = new MemoryTarget { Layout = "${message}" };
+                    var capture = new LoggingConfiguration();
+                    capture.AddRuleForAllLevels(messages);
+                    var settings = LogManager.Configuration;
+                    try
+                    {
+                        LogManager.Configuration = capture;
+                        var result = await Search(client, positiveTerm, cancellationToken);
+                        var book = result.Select(item => item.Book).Where(item => item != null).Should().ContainSingle().Which;
+                        book.ForeignBookId.Should().Be("openlibrary:work:OL276330W");
+                        book.Title.Should().Be(positiveTerm);
+                        calls.ToArray().Should().Equal("api.hardcover.app", "api.hardcover.app", "openlibrary.org");
+
+                        var log = messages.Logs.ToList();
+                        var failureIndex = log.FindIndex(message => message.Contains("Metadata provider 'Hardcover' failed during search-for-new-entity"));
+                        failureIndex.Should().BeGreaterThanOrEqualTo(0);
+                        log.FindIndex(message => message.Contains("OpenLibraryProvider.SearchForNewBook"))
+                            .Should().BeGreaterThan(failureIndex);
+
+                        (await Search(client, negativeTerm, cancellationToken)).Should().BeEmpty();
+                    }
+                    finally
+                    {
+                        LogManager.Configuration = settings;
+                    }
+
+                    calls.ToArray().Should().Equal(
+                        "api.hardcover.app",
+                        "api.hardcover.app",
+                        "openlibrary.org",
+                        "api.hardcover.app",
+                        "api.hardcover.app",
+                        "openlibrary.org");
+                    var telemetry = await GetEntitySearchTelemetry(client, cancellationToken);
+                    var hardcover = telemetry.Single(provider => provider.ProviderName == "Hardcover");
+                    hardcover.Calls.Should().Be(2);
+                    hardcover.Failures.Should().Be(2);
+                    hardcover.Successes.Should().Be(0);
+                    var openLibrary = telemetry.Single(provider => provider.ProviderName == "OpenLibrary");
+                    openLibrary.Calls.Should().Be(2);
+                    openLibrary.Successes.Should().Be(2);
+                    openLibrary.Failures.Should().Be(0);
+                    openLibrary.FallbackHits.Should().Be(1);
+                    openLibrary.TotalResultCount.Should().Be(2);
+                }
+                finally
+                {
+                    await restartedHost.StopAsync(CancellationToken.None);
+                }
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(tokenVariable, previousToken);
+                SQLiteConnection.ClearAllPools();
+                await DeleteWorkspace(workspace);
+            }
+        }
+
+        private static async Task AssertProviderConfig(HttpClient client, string expectedToken, CancellationToken cancellationToken)
+        {
+            var config = await client.GetFromJsonAsync<MetadataProviderConfigResource>(
+                "config/metadataprovider",
+                STJson.GetSerializerSettings(),
+                cancellationToken);
+            config.EnableHardcoverFallback.Should().BeTrue();
+            config.EnableOpenLibraryProvider.Should().BeTrue();
+            config.EnableGoogleBooksProvider.Should().BeFalse();
+            config.EnableGoogleBooksFallback.Should().BeFalse();
+            config.EnableInventaireFallback.Should().BeFalse();
+            config.MetadataProviderPriorityOrder.Should().Be("Hardcover,OpenLibrary");
+            var tokenMatches = config.HardcoverApiToken == expectedToken;
+            tokenMatches.Should().BeTrue("the synthetic token must survive config round-trip");
+        }
+
+        private static Task<List<SearchResource>> Search(HttpClient client, string term, CancellationToken cancellationToken)
+        {
+            return client.GetFromJsonAsync<List<SearchResource>>(
+                $"search?term={Uri.EscapeDataString(term)}",
+                STJson.GetSerializerSettings(),
+                cancellationToken);
+        }
+
+        private static async Task<List<MetadataProviderOperationTelemetrySnapshot>> GetEntitySearchTelemetry(HttpClient client, CancellationToken cancellationToken)
+        {
+            var results = await client.GetFromJsonAsync<List<MetadataProviderOperationTelemetrySnapshot>>(
+                "metadata/providers/telemetry/operations",
+                STJson.GetSerializerSettings(),
+                cancellationToken);
+            return results.Where(operation => operation.OperationName == "search-for-new-entity").ToList();
+        }
+
         private static async Task DeleteWorkspace(DirectoryInfo workspace)
         {
             for (var attempt = 1; ; attempt++)
@@ -152,6 +348,11 @@ namespace NzbDrone.Integration.Test.ApiTests
 
         private static IHost BuildHost(string[] args, params IMetadataProvider[] providers)
         {
+            return BuildHost(args, null, providers);
+        }
+
+        private static IHost BuildHost(string[] args, IHttpDispatcher dispatcher, params IMetadataProvider[] providers)
+        {
             return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
                 .ConfigureServices(services =>
                 {
@@ -162,11 +363,16 @@ namespace NzbDrone.Integration.Test.ApiTests
                 .ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"))
                 .ConfigureContainer<IContainer>(container =>
                 {
-                    // Test HTTP requests use the real loopback client. The app itself has no network fixture.
-                    var dispatcher = new Mock<IHttpDispatcher>();
-                    dispatcher.Setup(client => client.GetResponseAsync(It.IsAny<NzbDrone.Common.Http.HttpRequest>(), It.IsAny<CookieContainer>()))
-                        .ThrowsAsync(new InvalidOperationException("The author persistence fixture does not permit outbound HTTP."));
-                    container.RegisterInstance(dispatcher.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+                    var effectiveDispatcher = dispatcher;
+                    if (effectiveDispatcher == null)
+                    {
+                        var rejectingDispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
+                        rejectingDispatcher.Setup(client => client.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
+                            .ThrowsAsync(new InvalidOperationException("The author persistence fixture does not permit outbound HTTP."));
+                        effectiveDispatcher = rejectingDispatcher.Object;
+                    }
+
+                    container.RegisterInstance(effectiveDispatcher, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
 
                     // Bootstrap can resolve the orchestrator before this callback, so keep its registry instance.
                     var registry = container.Resolve<IMetadataProviderRegistry>();
@@ -181,6 +387,20 @@ namespace NzbDrone.Integration.Test.ApiTests
                     foreach (var provider in providers)
                     {
                         registry.RegisterProvider(provider);
+                    }
+
+                    if (dispatcher != null)
+                    {
+                        var configuration = container.Resolve<IConfigService>();
+                        var http = new NzbDrone.Common.Http.HttpClient(
+                            Array.Empty<IHttpRequestInterceptor>(),
+                            container.Resolve<ICacheManager>(),
+                            container.Resolve<IRateLimitService>(),
+                            dispatcher,
+                            LogManager.GetLogger(nameof(HttpClient)));
+                        var openLibrary = new OpenLibraryClient(http, configuration, LogManager.GetLogger(nameof(OpenLibraryClient)));
+                        registry.RegisterProvider(new OpenLibraryProvider(openLibrary, configuration, LogManager.GetLogger(nameof(OpenLibraryProvider))));
+                        registry.RegisterProvider(new HardcoverFallbackSearchProvider(configuration, http, LogManager.GetLogger(nameof(HardcoverFallbackSearchProvider))));
                     }
                 })
                 .Build();
