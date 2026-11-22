@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Mark a queued manual import as unsuccessful when none of its selected files
+  passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
