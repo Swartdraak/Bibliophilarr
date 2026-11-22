@@ -37,8 +37,8 @@ backup when an upgrade changed the database schema.
 | LXC | Follow the method used inside the container, such as a native service or Docker. |
 
 Automatic installation defaults to off in the current development version.
-Existing installations can retain explicit settings. Use **Settings > General
-> Updates** to review the update mechanism and branch.
+Existing installations can retain explicit settings.
+Use **Settings > General > Updates** to review the update mechanism and branch.
 [Installation](../README.md#installation) ·
 [npm launcher](../npm/bibliophilarr-launcher/README.md)
 
