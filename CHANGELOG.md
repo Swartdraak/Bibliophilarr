@@ -150,6 +150,9 @@ process.
 
 ### Changed
 
+- Update the WebUI SVG icons to Font Awesome 7 and keep intrinsic widths
+  for normal icons. Controls can still request a fixed width.
+
 - Automatic application updates are opt-in on every platform. Windows now
   follows the same default. Explicit settings and environment overrides
   continue to apply.
