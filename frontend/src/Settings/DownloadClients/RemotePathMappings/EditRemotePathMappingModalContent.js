@@ -77,7 +77,7 @@ function EditRemotePathMappingModalContent(props) {
                   name="host"
                   inputId={hostId}
                   labelId={`${hostId}-label`}
-                  helpText={translate('HostHelpText')}
+                  helpText={translate('SettingsRemotePathMappingHostHelpText')}
                   {...host}
                   values={downloadClientHosts}
                   onChange={onInputChange}

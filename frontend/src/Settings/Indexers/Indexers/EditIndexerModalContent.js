@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, { useState } from 'react';
 import Form from 'Components/Form/Form';
 import FormGroup from 'Components/Form/FormGroup';
 import FormInputGroup from 'Components/Form/FormInputGroup';
@@ -14,10 +14,14 @@ import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { inputTypes, kinds } from 'Helpers/Props';
 import AdvancedSettingsButton from 'Settings/AdvancedSettingsButton';
+import getUniqueElementId from 'Utilities/getUniqueElementId';
 import translate from 'Utilities/String/translate';
 import styles from './EditIndexerModalContent.css';
 
 function EditIndexerModalContent(props) {
+  const [formId] = useState(getUniqueElementId);
+  const nameId = `${formId}-name`;
+
   const {
     advancedSettings,
     isFetching,
@@ -75,7 +79,7 @@ function EditIndexerModalContent(props) {
           !isFetching && !error &&
             <Form {...otherProps}>
               <FormGroup>
-                <FormLabel>
+                <FormLabel name={nameId}>
                   {translate('Name')}
                 </FormLabel>
 
@@ -83,6 +87,7 @@ function EditIndexerModalContent(props) {
                   type={inputTypes.TEXT}
                   name="name"
                   {...name}
+                  inputId={nameId}
                   onChange={onInputChange}
                 />
               </FormGroup>
@@ -144,6 +149,7 @@ function EditIndexerModalContent(props) {
                       provider="indexer"
                       providerData={item}
                       {...field}
+                      inputId={`${formId}-provider-${field.name}`}
                       onChange={onFieldChange}
                     />
                   );
