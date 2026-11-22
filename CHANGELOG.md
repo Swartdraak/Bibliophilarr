@@ -16,6 +16,9 @@ process.
 
 ### Fixed
 
+- Mark a queued manual import as unsuccessful when none of its selected files
+  passes preparation.
+
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
