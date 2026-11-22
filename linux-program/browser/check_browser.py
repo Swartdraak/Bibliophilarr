@@ -2,7 +2,7 @@
 """Check the governed browser stage before and after its owned app restart."""
 
 import argparse
-from hashlib import sha256
+from hashlib import pbkdf2_hmac
 import json
 import os
 from pathlib import Path
@@ -94,13 +94,18 @@ def run(after_restart):
         return
 
     # Both phases derive the same synthetic password from the disposable
-    # profile's random key. Neither value is written to report or step state.
-    password = 'Fx9!' + sha256(b'bibliophilarr/governed-browser-password/v1\0' + api_key.encode()).hexdigest()
+    # profile's generated key without writing either value to step state.
+    fixture_key = pbkdf2_hmac('sha256', api_key.encode(), b'bibliophilarr/governed-browser/v2', 600_000)
+    password = 'Fx9!' + fixture_key.hex()
     witness = data_dir.parent / 'browser-first-start.txt'
     config_url = common.api_root() + '/config/host'
     status_code, config, _ = common.request_json('GET', config_url, headers=auth, timeout=30)
     if after_restart:
-        previous_start = witness.read_text(encoding='utf-8').strip()
+        try:
+            previous_start = witness.read_text(encoding='utf-8').strip()
+        except (OSError, UnicodeError):
+            check('BR6_new_process_same_profile', False, 'First-start witness missing or unreadable')
+            return
         check('BR6_new_process_same_profile', bool(previous_start) and previous_start != status['startTime'])
         check('BR6_forms_config_retained', status_code == 200 and isinstance(config, dict) and
               config.get('authenticationMethod') == 'forms' and config.get('authenticationRequired') == 'enabled')
