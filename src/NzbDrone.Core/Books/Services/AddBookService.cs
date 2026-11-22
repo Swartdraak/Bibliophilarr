@@ -44,9 +44,14 @@ namespace NzbDrone.Core.Books
 
         public Book AddBook(Book book, bool doRefresh = true)
         {
+            return AddBook(book, doRefresh, requireSelectedEdition: true);
+        }
+
+        private Book AddBook(Book book, bool doRefresh, bool requireSelectedEdition)
+        {
             _logger.Debug($"Adding book {book}");
 
-            book = AddSkyhookData(book);
+            book = AddSkyhookData(book, requireSelectedEdition);
 
             // we allow adding extra editions, so check if the book already exists
             var dbBook = _bookService.FindById(book.ForeignBookId);
@@ -124,7 +129,7 @@ namespace NzbDrone.Core.Books
                 a.Added = added;
                 try
                 {
-                    addedBooks.Add(AddBook(a, doRefresh));
+                    addedBooks.Add(AddBook(a, doRefresh, requireSelectedEdition: false));
                 }
                 catch (Exception ex)
                 {
@@ -136,7 +141,7 @@ namespace NzbDrone.Core.Books
             return addedBooks;
         }
 
-        private Book AddSkyhookData(Book newBook)
+        private Book AddSkyhookData(Book newBook, bool requireSelectedEdition)
         {
             var selectedEdition = newBook.GetPreferredEdition();
 
@@ -166,14 +171,32 @@ namespace NzbDrone.Core.Books
                                               });
             }
 
+            var providerEditions = tuple.Item2.Editions?.Value?.Where(edition => edition != null).ToList() ?? new List<Edition>();
+            var editionToMonitor = providerEditions.Find(edition => edition.ForeignEditionId == editionId);
+
+            if (requireSelectedEdition && !string.IsNullOrWhiteSpace(editionId) && editionToMonitor == null)
+            {
+                var openLibraryId = OpenLibraryIdNormalizer.NormalizeEditionId(editionId);
+                if (openLibraryId != null)
+                {
+                    editionToMonitor = providerEditions.Find(edition =>
+                        OpenLibraryIdNormalizer.NormalizeEditionId(edition.ForeignEditionId) == openLibraryId);
+                }
+
+                if (editionToMonitor == null)
+                {
+                    throw new ValidationException(new List<ValidationFailure>
+                    {
+                        new ("Editions", "The selected edition is unavailable. Search for the book again and choose an available edition.")
+                    });
+                }
+            }
+
             newBook.UseMetadataFrom(tuple.Item2);
             newBook.Added = DateTime.UtcNow;
-
-            newBook.Editions = tuple.Item2.Editions.Value;
-            newBook.Editions.Value.ForEach(x => x.Monitored = false);
-
-            var editionToMonitor = newBook.Editions.Value.FirstOrDefault(x => x.ForeignEditionId == editionId) ??
-                                   newBook.GetPreferredEdition();
+            newBook.Editions = providerEditions;
+            providerEditions.ForEach(edition => edition.Monitored = false);
+            editionToMonitor ??= newBook.GetPreferredEdition();
 
             if (editionToMonitor != null)
             {
