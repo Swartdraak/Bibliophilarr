@@ -572,7 +572,7 @@ def exercise_catalogue(page, api, base, work, app_data, *, live_provider=None):
             live_book = LiveBookIdentity(saved["id"], saved["foreignBookId"], edition["foreignEditionId"], edition["id"])
             book, author = seed_local_catalogue(page, api, base, root, app_data, existing_author_ids=(saved["authorId"],))
     else:
-        reason = f"{token_env} is absent" if token_env else "opt-in live mode required"
+        reason = f"{token_env} is unset or blank" if token_env else "opt-in live mode required"
         print(f"real_provider_search/add_book: SKIP ({reason})", flush=True)
         configure_providers(api)
         verify_missing_author_rescan(api, app_data, root)
