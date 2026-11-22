@@ -236,10 +236,10 @@ def check_routes(page, base, api, evidence):
     main.get_by_role("button", name="iCal Link", exact=True).click()
     feed = page.get_by_role("dialog")
     for label in ("Past Days", "Future Days", "Tags", "iCal Feed"):
-        assert feed.get_by_label(label, exact=True).count() == 1, f"missing Calendar feed label: {label}"
+        expect(feed.get_by_label(label, exact=True)).to_have_count(1)
     expect(feed.get_by_role("checkbox", name="Include Unmonitored")).to_be_visible()
     expect(feed.get_by_role("button", name="Copy to clipboard", exact=True)).to_be_visible()
-    assert feed.get_by_role("link", name="Subscribe to calendar", exact=True).count() == 1
+    expect(feed.get_by_role("link", name="Subscribe to calendar", exact=True)).to_have_count(1)
     feed.get_by_role("button", name="Close", exact=True).last.click()
     expect(feed).to_be_hidden()
 
