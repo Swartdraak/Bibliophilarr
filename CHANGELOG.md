@@ -30,6 +30,8 @@ process.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Name the Delay and Release Profile add and edit controls.
+- Give the Custom Format add-condition control and condition choices
+  accessible names.
 - Reject missing profile IDs before saving a new author through Add Book.
 - Return a validation error for a null or unavailable edition in Add Book
   before saving the book or author.
