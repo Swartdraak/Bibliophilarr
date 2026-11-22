@@ -327,6 +327,13 @@ The **Enable Inventaire** setting controls title and author fallback during auto
 4. Confirm API tests and targeted core fixtures pass in CI for metadata changes.
 5. Confirm no legacy Goodreads symbols are present in guarded source paths via release-entry gate output.
 
+The native integration suite uses the real provider adapters with local
+responses to verify Hardcover HTTP 401 fallback, Open Library results, and
+metadata settings after restart. Its minimum-length check verifies that
+a two-character search produces no provider traffic. Use the separate
+credentialed browser workflow for a live provider check.
+[Browser workflow](../../tests/browser/CATALOGUE.md)
+
 ## Removed legacy features
 
 - Goodreads import-list providers are removed.
