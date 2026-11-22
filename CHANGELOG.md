@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Name indexer template actions so keyboard users can choose a provider.
+
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
