@@ -230,7 +230,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     {
                         importResults.Add(HasUnverifiedEbookIsbn(localTrack, alreadyImported.ImportDecision.Item)
                             ? new ImportResult(importDecision, LibraryImportHoldReason.UnverifiedEditionIdentifier, "The embedded ISBN does not identify the occupied ebook edition")
-                            : new ImportResult(importDecision, LibraryImportHoldReason.DuplicateInScan, "Book has already been imported"));
+                            : new ImportResult(importDecision, LibraryImportHoldReason.DuplicateInScan, "Another file in this scan already occupies this edition and part for the same media format"));
                         continue;
                     }
 
@@ -783,7 +783,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private static bool HasUnverifiedEbookIsbn(LocalBook file, LocalBook retained)
         {
             if (!file.ExistingFile || !retained.ExistingFile || ImportFormat.ForPath(file.Path) != FormatType.Ebook ||
-                !IsCompleteFile(file) || !IsCompleteFile(retained) || file.Size <= 0 || retained.Size <= 0 || file.Size == retained.Size)
+                !IsCompleteFile(file) || !IsCompleteFile(retained) || file.Size <= 0 || retained.Size <= 0)
             {
                 return false;
             }

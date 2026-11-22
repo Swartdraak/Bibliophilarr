@@ -550,7 +550,9 @@ namespace NzbDrone.Core.Test.MediaFiles
         [TestCase(null, null, 1000, true, true)]
         [TestCase("9781455546176", null, 1000, true, false)]
         [TestCase(null, "9781455546176", 1000, true, false)]
-        [TestCase(null, null, 2000, true, false)]
+        [TestCase(null, null, 2000, true, true)]
+        [TestCase("9781442482890", "9781442482890", 2000, true, true)]
+        [TestCase("9781455546176", "9781455546176", 2000, true, false)]
         [TestCase(null, null, 1000, false, false)]
         public void should_distinguish_unverified_ebook_isbn_from_a_scan_duplicate(string retainedIsbn, string editionIsbn, int heldSize, bool existing, bool review)
         {

@@ -45,6 +45,9 @@ process.
   series pages.
 - During library import, check a trusted ebook ISBN across providers for a
   matching release before falling back to title and author search.
+- Report unverified ebook edition identifiers even when competing files have
+  the same size. Explain when another file already occupies the same edition
+  and part.
 
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
