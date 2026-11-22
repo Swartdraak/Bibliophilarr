@@ -178,7 +178,7 @@ namespace NzbDrone.Api.Test.Authentication
         }
 
         [Test]
-        public async Task should_discover_the_version_marker_on_the_reviewed_post_routes()
+        public async Task should_require_an_explicit_credential_on_each_reviewed_post_route()
         {
             var reviewedActions = new (Type Controller, string Method, int Posts)[]
             {
@@ -197,6 +197,12 @@ namespace NzbDrone.Api.Test.Authentication
                 (typeof(UpdateController), nameof(UpdateController.CheckPublicRelease), 1)
             };
             var builder = WebApplication.CreateBuilder();
+            builder.Services.AddSingleton(Mock.Of<IConfigFileProvider>(config => config.ApiKey == "local-fixture-key"));
+            builder.Services.AddAuthentication().AddApiKey("API", options =>
+            {
+                options.HeaderName = "X-Api-Key";
+                options.QueryName = "apikey";
+            });
             builder.Services.AddControllers().AddApplicationPart(typeof(SystemController).Assembly);
             await using var app = builder.Build();
             app.MapControllers();
@@ -213,6 +219,27 @@ namespace NzbDrone.Api.Test.Authentication
                     action.Metadata.GetMetadata<VersionedApiControllerAttribute>().Should().NotBeNull(
                         "{0} requires the explicit API credential", action.DisplayName);
                     action.Metadata.GetMetadata<HttpMethodMetadata>().HttpMethods.Should().Equal(HttpMethods.Post);
+
+                    using var scope = app.Services.CreateScope();
+                    var context = new DefaultHttpContext
+                    {
+                        RequestServices = scope.ServiceProvider,
+                        User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("user", "fixture") }, "Forms"))
+                    };
+                    context.Request.Method = HttpMethods.Post;
+                    context.SetEndpoint(action);
+
+                    var reachedDownstream = false;
+                    var middleware = new ApiWriteAuthenticationMiddleware(_ =>
+                    {
+                        reachedDownstream = true;
+                        return Task.CompletedTask;
+                    });
+
+                    await middleware.InvokeAsync(context);
+
+                    reachedDownstream.Should().BeFalse("{0} requires an explicit API credential", action.DisplayName);
+                    context.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized, "{0} refuses a Forms session alone", action.DisplayName);
                 }
             }
         }
