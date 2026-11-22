@@ -30,6 +30,7 @@ process.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Label the Calendar feed filters, URL, copy button, and subscription link.
+- Name the edit action on each saved download client.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
