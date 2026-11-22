@@ -54,6 +54,9 @@ namespace NzbDrone.Core.MetadataSource
         // Cooldown after receiving a 5xx server error before retrying.
         private static readonly TimeSpan ServerErrorCooldown = TimeSpan.FromMinutes(2);
 
+        // Provider health represents the remaining delay as integer seconds.
+        private static readonly TimeSpan MaximumRetryAfterCooldown = TimeSpan.FromSeconds(int.MaxValue);
+
         // Cooldown after a non-server failure (e.g. timeout, parse error).
         private static readonly TimeSpan FailureCooldown = TimeSpan.FromSeconds(45);
 
@@ -159,10 +162,11 @@ namespace NzbDrone.Core.MetadataSource
                 _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
 
                 var retryAfter = e.RetryAfter > TimeSpan.Zero ? e.RetryAfter : TimeSpan.FromMinutes(5);
-                SetCooldown(provider.ProviderName, Clamp(retryAfter, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15)));
-                UpdateRateLimitHealth(provider, rateLimitSnapshot, retryAfter);
+                var cooldown = Clamp(retryAfter, TimeSpan.FromSeconds(30), MaximumRetryAfterCooldown);
+                SetCooldown(provider.ProviderName, cooldown);
+                UpdateRateLimitHealth(provider, rateLimitSnapshot, cooldown);
 
-                _logger.Warn("Fallback provider {0} returned 429, dampening queries for {1:F0}s", provider.ProviderName, retryAfter.TotalSeconds);
+                _logger.Warn("Fallback provider {0} returned 429, dampening queries for {1:F0}s", provider.ProviderName, cooldown.TotalSeconds);
                 return new List<Book>();
             }
             catch (HttpException e) when (e.Response?.StatusCode == HttpStatusCode.RequestTimeout || e.Response?.HasHttpServerError == true)

@@ -20,6 +20,8 @@ process.
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
+- Honor longer provider Retry-After values during fallback searches and report
+  the applied wait in provider health and logs.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
 - Include automatic import fallback searches in provider operation telemetry.
