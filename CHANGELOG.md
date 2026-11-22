@@ -343,6 +343,10 @@ process.
 - Keep Calibre connection settings and library lookup terms out of scan logs.
 - Log operation and status for Hardcover book and series searches and Open
   Library ISBN lookups without recording raw queries or provider errors.
+- Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
+  to their patched versions.
+- Patch glob and minimatch in frontend tooling. Restore the authentic
+  js-tokens archive and verify package identity before CI installs.
 - Database migration startup logs identify the database type and role without
   exposing connection details.
 - New and changed account passwords use salted PBKDF2. Existing accounts
