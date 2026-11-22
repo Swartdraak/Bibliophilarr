@@ -27,6 +27,7 @@ process.
   automatic library import.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
   dual-format monitoring answer in the in-app help.
+- Update the in-app introduction to describe Bibliophilarr's library workflow.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Label the Calendar feed filters, URL, copy button, and subscription link.
