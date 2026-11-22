@@ -319,7 +319,7 @@ PackageTests()
     local runtime="$2"
 
     mkdir -p "$testPackageFolder/$framework/$runtime/publish"
-    cp test.sh "$testPackageFolder/$framework/$runtime/publish"
+    cp test.sh src/coverlet.runsettings "$testPackageFolder/$framework/$runtime/publish"
 
     rm -f $testPackageFolder/$framework/$runtime/*.log.config
 

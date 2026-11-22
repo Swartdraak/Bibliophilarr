@@ -287,9 +287,12 @@ dotnet build src/Bibliophilarr.sln -c Release -p:Platform=Posix
 TEST_DIR="$PWD/_tests/net10.0" ./test.sh Linux Unit Test
 ```
 
-Use `Integration` in place of `Unit` to select integration cases. The
-[package browser smoke](tests/browser/CATALOGUE.md) covers signed WebUI workflows
-in its own disposable instance.
+Use `Integration` in place of `Unit` to select integration cases or
+`Coverage` in place of `Test` to write coverage reports to `CoverageResults/`.
+When using an unpacked RID test package, run its `test.sh` from the directory
+containing the test assemblies. The package includes its coverage settings.
+The [package browser smoke](tests/browser/CATALOGUE.md) covers signed WebUI
+workflows in its own disposable instance.
 
 Metadata extraction and import-identification verification (targeted):
 
