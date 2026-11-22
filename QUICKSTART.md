@@ -292,7 +292,7 @@ Use `Integration` in place of `Unit` to select integration cases or
 When using an unpacked RID test package, run its `test.sh` from the directory
 containing the test assemblies. The package includes the coverage settings,
 OpenAPI specification and build inputs used by the repository contract
-tests.
+tests. Coverage uses the packaged symbols for Bibliophilarr assemblies.
 The [package browser smoke](tests/browser/CATALOGUE.md) covers signed WebUI
 workflows in its own disposable instance.
 
