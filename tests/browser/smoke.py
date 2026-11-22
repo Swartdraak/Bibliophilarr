@@ -21,6 +21,7 @@ from playwright.sync_api import Error as PlaywrightError, expect, sync_playwrigh
 from catalogue_workflow import (
     LIVE_PROVIDER_TOKEN_ENV,
     exercise_catalogue,
+    reembed_imported_epub,
     verify_catalogue_after_restart,
 )
 
@@ -515,6 +516,10 @@ def run(binary, evidence, *, live_provider=False):
             check_native_profile(http, api, base, data, key, "Startup")
             check_status(http.get(base + "/authors", max_redirects=0), 401, "Anonymous library")
             check_status(http.get(base + "/api/v1/search?term=fixture", max_redirects=0), 401, "Anonymous API search")
+            root_url = base + "/api/v1/rootfolder"
+            check_status(http.get(root_url, max_redirects=0), 401, "Root folders without an API key")
+            check_status(http.get(root_url, max_redirects=0, headers={"X-Api-Key": "wrong-fixture-key"}),
+                         401, "Root folders with the wrong API key")
             denied = check_status(http.get(base + "/initialize.json", max_redirects=0), 401, "Anonymous initializer")
             assert key.encode() not in denied.body()
             check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 400,
@@ -576,6 +581,7 @@ def run(binary, evidence, *, live_provider=False):
             assert app.poll() is None, "native app exited before the planned restart"
 
         assert app.returncode == 0, "native app did not exit cleanly after SIGTERM"
+        reembed_imported_epub(work, catalogue)
 
         with running_app(binary, data, log, port, evidence, credentials) as (app, base):
             wait_ready(app, http, base, data)
