@@ -19,6 +19,7 @@ class Icon extends PureComponent {
       size,
       title,
       isSpinning,
+      fixedWidth,
       ...otherProps
     } = this.props;
 
@@ -26,10 +27,12 @@ class Icon extends PureComponent {
       <FontAwesomeIcon
         className={classNames(
           className,
-          styles[kind]
+          styles[kind],
+          !fixedWidth && 'fa-width-auto'
         )}
         icon={name}
         spin={isSpinning}
+        fixedWidth={fixedWidth}
         style={{
           fontSize: `${size}px`
         }}

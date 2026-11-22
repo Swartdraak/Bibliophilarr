@@ -77,6 +77,7 @@ class ReleaseProfile extends Component {
       <Card
         className={styles.releaseProfile}
         overlayContent={true}
+        ariaLabel={translate('EditReleaseProfile')}
         onPress={this.onEditReleaseProfilePress}
       >
         <div>
