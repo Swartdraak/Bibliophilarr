@@ -53,6 +53,10 @@ if mount --bind "$program" "$mountpoint" 2>/dev/null; then
   mounted=true
   mount -o remount,bind,ro "$mountpoint"
   test_program="$mountpoint"
+  echo 'PASS: program fixture is mounted read-only'
+elif [[ "${REQUIRE_READONLY_BIND:-0}" == 1 ]]; then
+  echo 'FAIL: read-only bind mount required but unavailable' >&2
+  exit 1
 else
   echo 'SKIP: read-only bind mount unavailable. Checking file hashes in the writable fixture.'
   test_program="$program"

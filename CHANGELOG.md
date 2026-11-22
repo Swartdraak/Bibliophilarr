@@ -168,6 +168,9 @@ process.
 
 ### Security
 
+- Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
+  to their patched versions.
+
 - Database migration startup logs identify the database type and role without
   exposing connection details.
 - New and changed account passwords use salted PBKDF2. Existing accounts
