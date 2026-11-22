@@ -30,7 +30,8 @@ def check_lock(path):
 
     failures = []
     checked = 0
-    for entry in re.split(r"\n(?:[\t ]*\n)+", lock):
+    # Yarn can write adjacent selectors with no intervening blank line.
+    for entry in re.split(r"(?=^[^\s#][^\n]*:$)", lock, flags=re.MULTILINE):
         resolved = re.search(r'^  resolved "([^"]+)"$', entry, re.MULTILINE)
         if not resolved:
             continue
