@@ -186,6 +186,12 @@ def running_app(binary, app_data, log_path, port, evidence, credentials):
                 raise TimeoutError("application did not stop after SIGTERM")
 
 
+def collect_page_errors(page):
+    errors = []
+    page.on("pageerror", lambda error: errors.append(type(error).__name__))
+    return errors
+
+
 def login(page, username, password, *, rejected, return_path="/authors"):
     print(f"Checking {'rejected' if rejected else 'successful'} Forms submission", flush=True)
     page.get_by_placeholder("Username").fill(username)
@@ -595,8 +601,7 @@ def run(binary, evidence, *, live_provider=False):
             context = browser.new_context(viewport={"width": 1366, "height": 900}, service_workers="block")
             context.route("**/*", lambda route: route.continue_() if route.request.url.startswith(base + "/") else route.abort())
             page = context.new_page()
-            errors = []
-            page.on("pageerror", lambda error: errors.append(type(error).__name__))
+            errors = collect_page_errors(page)
             page.goto(base + "/authors")
             expect(page).to_have_url(re.compile(r"/login\?.*returnUrl="))
             login(page, username, "deliberately-wrong", rejected=True)
