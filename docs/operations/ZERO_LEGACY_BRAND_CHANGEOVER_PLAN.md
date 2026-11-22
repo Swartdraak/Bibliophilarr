@@ -172,9 +172,9 @@ Recommended branch naming:
 
 The source folder work uses a separate path inventory. `legacy-brand-audit.sh` checks the previous public product token. Use Git's tracked path list to measure the `NzbDrone` folder work. [Tracking issue #193](https://github.com/Swartdraak/Bibliophilarr/issues/193)
 
-### Baseline and mapping
+### Historical baseline and move status
 
-The `develop` tree at `2fe71a264bbdd43ab0ec73b450b254611f62139a` has 25 C# projects. Twenty-one use source folders under `src/NzbDrone*`. The solution includes 24 projects and references 20 of those folders. `NzbDrone.Automation.Test` is the remaining project and must be accounted for when scanning the repository. `Bibliophilarr.Api.V1`, `Bibliophilarr.Http`, and the two projects under `ServiceHelpers` already have separate paths.
+The table preserves the original inventory from `develop` at `2fe71a264bbdd43ab0ec73b450b254611f62139a` and shows the Libraries project move. That original tree had 25 C# projects, with 21 under `src/NzbDrone*`. Its solution included 24 projects and referenced 20 of those legacy folders. The original `NzbDrone.Automation.Test` was outside the solution. The API, HTTP and two ServiceHelpers projects already had separate paths.
 
 The per-project inventory uses the evaluated MSBuild assembly and root namespace properties. The console entry shows its Linux build name. The console assembly is `Bibliophilarr.Console` when targeting Windows. Source files can use explicit namespaces independent of the root property. A folder divergence takes precedence in the status when both the path and root namespace use legacy names.
 
@@ -196,7 +196,7 @@ The per-project inventory uses the evaluated MSBuild assembly and root namespace
 | `src/NzbDrone.Host.Test` | `Bibliophilarr.Host.Test.csproj` | `Bibliophilarr.Host.Test` | `NzbDrone.Host.Test` | folder-diverged |
 | `src/NzbDrone.Host` | `Bibliophilarr.Host.csproj` | `Bibliophilarr.Host` | `NzbDrone.Host` | folder-diverged |
 | `src/NzbDrone.Integration.Test` | `Bibliophilarr.Integration.Test.csproj` | `Bibliophilarr.Integration.Test` | `NzbDrone.Integration.Test` | folder-diverged |
-| `src/NzbDrone.Libraries.Test` | `Bibliophilarr.Libraries.Test.csproj` | `Bibliophilarr.Libraries.Test` | `NzbDrone.Libraries.Test` | folder-diverged |
+| `src/NzbDrone.Libraries.Test` → `src/Bibliophilarr.Libraries.Test` | `Bibliophilarr.Libraries.Test.csproj` | `Bibliophilarr.Libraries.Test` | `NzbDrone.Libraries.Test` | namespace-diverged after move |
 | `src/NzbDrone.Mono.Test` | `Bibliophilarr.Mono.Test.csproj` | `Bibliophilarr.Mono.Test` | `NzbDrone.Mono.Test` | folder-diverged |
 | `src/NzbDrone.Mono` | `Bibliophilarr.Mono.csproj` | `Bibliophilarr.Mono` | `NzbDrone.Mono` | folder-diverged |
 | `src/NzbDrone.SignalR` | `Bibliophilarr.SignalR.csproj` | `Bibliophilarr.SignalR` | `NzbDrone.SignalR` | folder-diverged |
