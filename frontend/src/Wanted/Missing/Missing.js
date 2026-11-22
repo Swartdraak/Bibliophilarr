@@ -23,8 +23,8 @@ import getSelectedIds from 'Utilities/Table/getSelectedIds';
 import removeOldSelectedState from 'Utilities/Table/removeOldSelectedState';
 import selectAll from 'Utilities/Table/selectAll';
 import toggleSelected from 'Utilities/Table/toggleSelected';
-import styles from './Missing.css';
 import MissingRowConnector from './MissingRowConnector';
+import styles from './Missing.css';
 
 function getMonitoredValue(props) {
   const {
