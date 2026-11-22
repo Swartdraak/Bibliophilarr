@@ -516,6 +516,10 @@ def run(binary, evidence, *, live_provider=False):
             check_native_profile(http, api, base, data, key, "Startup")
             check_status(http.get(base + "/authors", max_redirects=0), 401, "Anonymous library")
             check_status(http.get(base + "/api/v1/search?term=fixture", max_redirects=0), 401, "Anonymous API search")
+            root_url = base + "/api/v1/rootfolder"
+            check_status(http.get(root_url, max_redirects=0), 401, "Root folders without an API key")
+            check_status(http.get(root_url, max_redirects=0, headers={"X-Api-Key": "wrong-fixture-key"}),
+                         401, "Root folders with the wrong API key")
             denied = check_status(http.get(base + "/initialize.json", max_redirects=0), 401, "Anonymous initializer")
             assert key.encode() not in denied.body()
             check_status(http.post(base + "/bootstrap", form=credentials, max_redirects=0), 400,

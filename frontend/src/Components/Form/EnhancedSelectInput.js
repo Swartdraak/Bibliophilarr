@@ -339,7 +339,7 @@ class EnhancedSelectInput extends Component {
     } = this.state;
 
     const isMultiSelect = Array.isArray(value);
-    const selectedOption = getSelectedOption(selectedIndex, values);
+    const singleSelectedOption = isMultiSelect ? undefined : getSelectedOption(selectedIndex, values);
     const selectedValueId = labelId && inputId ? `${inputId}-value` : undefined;
     let selectedValue = value;
 
@@ -422,12 +422,12 @@ class EnhancedSelectInput extends Component {
                           value={selectedValue}
                           values={values}
                           {...selectedValueOptions}
-                          {...selectedOption}
+                          {...singleSelectedOption}
                           id={selectedValueId}
                           isDisabled={isDisabled}
                           isMultiSelect={isMultiSelect}
                         >
-                          {selectedOption ? selectedOption.value : null}
+                          {singleSelectedOption ? singleSelectedOption.value : null}
                         </SelectedValueComponent>
 
                         <div
