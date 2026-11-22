@@ -2,6 +2,7 @@
 // Please do not change this file!
 interface CssExports {
   'activeFilter': string;
+  'attentionAnnouncement': string;
   'description': string;
   'details': string;
   'empty': string;

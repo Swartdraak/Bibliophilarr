@@ -97,7 +97,11 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
         <Icon name={icons.BELL} />
         {hasAttention && <span className={styles.indicator} aria-hidden="true" />}
       </button>
-      <span id="task-notifications-attention" className={styles.attentionAnnouncement} role="status">
+      <span
+        id="task-notifications-attention"
+        className={styles.attentionAnnouncement}
+        role="status"
+      >
         {hasAttention ? translate('TaskNotificationsAttention') : ''}
       </span>
 
