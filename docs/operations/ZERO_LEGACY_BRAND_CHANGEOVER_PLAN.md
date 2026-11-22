@@ -174,7 +174,7 @@ The source folder work uses a separate path inventory. `legacy-brand-audit.sh` c
 
 ### Historical baseline and move status
 
-The table preserves the original inventory from `develop` at `2fe71a264bbdd43ab0ec73b450b254611f62139a` and shows the Libraries project move and the retirement of the former Automation project. That original tree had 25 C# projects, with 21 under `src/NzbDrone*`. Its solution included 24 projects and referenced 20 of those legacy folders. The original `NzbDrone.Automation.Test` was outside the solution. The API, HTTP and two ServiceHelpers projects already had separate paths.
+The table preserves the original inventory from `develop` at `2fe71a264bbdd43ab0ec73b450b254611f62139a` and shows the Libraries, API test and SignalR project moves and the retirement of the former Automation project. That original tree had 25 C# projects, with 21 under `src/NzbDrone*`. Its solution included 24 projects and referenced 20 of those legacy folders. The original `NzbDrone.Automation.Test` was outside the solution. The API, HTTP and two ServiceHelpers projects already had separate paths.
 
 The per-project inventory uses the evaluated MSBuild assembly and root namespace properties. The console entry shows its Linux build name. The console assembly is `Bibliophilarr.Console` when targeting Windows. Source files can use explicit namespaces independent of the root property. A folder divergence takes precedence in the status when both the path and root namespace use legacy names.
 
@@ -186,7 +186,7 @@ The per-project inventory uses the evaluated MSBuild assembly and root namespace
 | --- | --- | --- | --- | --- |
 | `src/Bibliophilarr.Api.V1` | `Bibliophilarr.Api.V1.csproj` | `Bibliophilarr.Api.V1` | `NzbDrone.Api.V1` | namespace-diverged |
 | `src/Bibliophilarr.Http` | `Bibliophilarr.Http.csproj` | `Bibliophilarr.Http` | `NzbDrone.Http` | namespace-diverged |
-| `src/NzbDrone.Api.Test` | `Bibliophilarr.Api.Test.csproj` | `Bibliophilarr.Api.Test` | `NzbDrone.Api.Test` | folder-diverged |
+| `src/NzbDrone.Api.Test` → `src/Bibliophilarr.Api.Test` | `Bibliophilarr.Api.Test.csproj` | `Bibliophilarr.Api.Test` | `NzbDrone.Api.Test` | namespace-diverged after move |
 | `src/NzbDrone.Automation.Test` | `Bibliophilarr.Automation.Test.csproj` | `Bibliophilarr.Automation.Test` | `NzbDrone.Automation.Test` | retired |
 | `src/NzbDrone.Common.Test` | `Bibliophilarr.Common.Test.csproj` | `Bibliophilarr.Common.Test` | `NzbDrone.Common.Test` | folder-diverged |
 | `src/NzbDrone.Common` | `Bibliophilarr.Common.csproj` | `Bibliophilarr.Common` | `NzbDrone.Common` | folder-diverged |
@@ -199,7 +199,7 @@ The per-project inventory uses the evaluated MSBuild assembly and root namespace
 | `src/NzbDrone.Libraries.Test` → `src/Bibliophilarr.Libraries.Test` | `Bibliophilarr.Libraries.Test.csproj` | `Bibliophilarr.Libraries.Test` | `NzbDrone.Libraries.Test` | namespace-diverged after move |
 | `src/NzbDrone.Mono.Test` | `Bibliophilarr.Mono.Test.csproj` | `Bibliophilarr.Mono.Test` | `NzbDrone.Mono.Test` | folder-diverged |
 | `src/NzbDrone.Mono` | `Bibliophilarr.Mono.csproj` | `Bibliophilarr.Mono` | `NzbDrone.Mono` | folder-diverged |
-| `src/NzbDrone.SignalR` | `Bibliophilarr.SignalR.csproj` | `Bibliophilarr.SignalR` | `NzbDrone.SignalR` | folder-diverged |
+| `src/NzbDrone.SignalR` → `src/Bibliophilarr.SignalR` | `Bibliophilarr.SignalR.csproj` | `Bibliophilarr.SignalR` | `NzbDrone.SignalR` | namespace-diverged after move |
 | `src/NzbDrone.Test.Common` | `Bibliophilarr.Test.Common.csproj` | `Bibliophilarr.Test.Common` | `NzbDrone.Test.Common` | folder-diverged |
 | `src/NzbDrone.Test.Dummy` | `Bibliophilarr.Test.Dummy.csproj` | `Bibliophilarr.Test.Dummy` | `NzbDrone.Test.Dummy` | folder-diverged |
 | `src/NzbDrone.Update.Test` | `Bibliophilarr.Update.Test.csproj` | `Bibliophilarr.Update.Test` | `NzbDrone.Update.Test` | folder-diverged |
@@ -210,7 +210,7 @@ The per-project inventory uses the evaluated MSBuild assembly and root namespace
 | `src/ServiceHelpers/ServiceInstall` | `ServiceInstall.csproj` | `ServiceInstall` | `ServiceInstall` | aligned |
 | `src/ServiceHelpers/ServiceUninstall` | `ServiceUninstall.csproj` | `ServiceUninstall` | `ServiceUninstall` | aligned |
 
-For each physical move, replace the folder prefix with `Bibliophilarr` and keep the suffix. The first move brings the Libraries test project from its baseline path to [src/Bibliophilarr.Libraries.Test](../../src/Bibliophilarr.Libraries.Test/Bibliophilarr.Libraries.Test.csproj). It keeps the solution project name, file name, GUID, and CLR namespace. The moved project is namespace-diverged. With the old Automation project retired, 19 legacy project folders remain, all referenced by the solution. [#566](https://github.com/Swartdraak/Bibliophilarr/issues/566) · [Solution](../../src/Bibliophilarr.sln)
+For each physical move, replace the folder prefix with `Bibliophilarr` and keep the suffix. The first move brings the Libraries test project from its baseline path to [src/Bibliophilarr.Libraries.Test](../../src/Bibliophilarr.Libraries.Test/Bibliophilarr.Libraries.Test.csproj). It keeps the solution project name, file name, GUID, and CLR namespace. The Libraries, API test and SignalR projects remain namespace-diverged. With three folder moves and the Automation project retired, 17 legacy project folders remain, all referenced by the solution. [#566](https://github.com/Swartdraak/Bibliophilarr/issues/566) · [Solution](../../src/Bibliophilarr.sln)
 
 Preserve project and assembly identity through the moves. MSBuild derives output classification and the current `RootNamespace` from project names in `Directory.Build.props`. The Console project also sets a non-Windows assembly name of `Bibliophilarr` and references the Host icon by source path. Existing migration discovery filters and custom format type lookup depend on exact namespaces. Review CLR namespaces, persisted type names, and resource identities as separate compatibility work. [Build properties](../../src/Directory.Build.props) · [Console project](../../src/NzbDrone.Console/Bibliophilarr.Console.csproj) · [Migration discovery](../../src/NzbDrone.Core/Datastore/Migration/Framework/MigrationController.cs) · [Custom format converter](../../src/NzbDrone.Core/Datastore/Converters/CustomFormatSpecificationConverter.cs)
 
@@ -220,8 +220,8 @@ Hard-coded paths in the baseline show up in CI, test governance, labeling, and r
 
 1. Publish the contributor path map and use the solution entry point to discover paths. Run `dotnet sln src/Bibliophilarr.sln list` and validate links. [Contributor guidance](../../CONTRIBUTING.md#naming-convergence-policy)
 2. Move `NzbDrone.Libraries.Test` alone. Update its solution path, restore and build the solution, and run the moved test project and the existing test runner entry point. Compare the test assembly's name and discovered test count before and after.
-3. Move the remaining test and test-support projects one at a time. Start with the API test after tracing its direct CI and `.onyx/project.yaml` commands. [#572](https://github.com/Swartdraak/Bibliophilarr/issues/572) tracks that move. For shared test support, update every consuming `ProjectReference` in the same PR. Run the affected fixtures and platform jobs. The historical Automation test project was outside the solution and is replaced by the [package browser smoke](../../tests/browser/CATALOGUE.md). [#568](https://github.com/Swartdraak/Bibliophilarr/issues/568)
-4. Move runtime libraries one at a time, starting with `NzbDrone.SignalR` after the test sample. [#573](https://github.com/Swartdraak/Bibliophilarr/issues/573) tracks that move. Move the application, Console, Host, platform, updater, and Core folders in separate PRs. For each, include every source path consumer and run the corresponding native startup, package or migration workflow before promotion. [Branching policy](../../BRANCHING.md)
+3. Move the remaining test and test-support projects one at a time. The [API test project](../../src/Bibliophilarr.Api.Test/Bibliophilarr.Api.Test.csproj) moves with its direct CI and `.onyx/project.yaml` commands. [#572](https://github.com/Swartdraak/Bibliophilarr/issues/572) tracks that move. For shared test support, update every consuming `ProjectReference` in the same PR. Run the affected fixtures and platform jobs. The historical Automation test project was outside the solution and is replaced by the [package browser smoke](../../tests/browser/CATALOGUE.md). [#568](https://github.com/Swartdraak/Bibliophilarr/issues/568)
+4. Move runtime libraries one at a time, starting with the [SignalR project](../../src/Bibliophilarr.SignalR/Bibliophilarr.SignalR.csproj) after the test sample. [#573](https://github.com/Swartdraak/Bibliophilarr/issues/573) tracks that move. Move the application, Console, Host, platform, updater, and Core folders in separate PRs. For each, include every source path consumer and run the corresponding native startup, package or migration workflow before promotion. [Branching policy](../../BRANCHING.md)
 
 Search solution paths, relative `ProjectReference` and resource items, workflow commands and globs, `.onyx/project.yaml`, the labeler, hooks, release-gate path rules, and operator instructions before each move. Run these from the repository root and substitute the folder being moved.
 
