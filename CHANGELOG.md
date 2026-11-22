@@ -16,8 +16,8 @@ process.
 
 ### Fixed
 
-- Confirm an unexpectedly empty Open Library bibliography page once before
-  treating the author's catalogue as incomplete.
+- Mark a queued manual import as unsuccessful when none of its selected files
+  passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
@@ -27,6 +27,8 @@ process.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
 - Include automatic import fallback searches in provider operation telemetry.
+- Confirm an unexpectedly empty Open Library bibliography page once before
+  treating the author's catalogue as incomplete.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
