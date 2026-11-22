@@ -27,6 +27,12 @@ jobs:
         working-directory: .
         run: bash scripts/ops/check_http_binding.sh
 
+      - name: Verify Linux acceptance preflight on a read-only mount
+        working-directory: .
+        run: >-
+          sudo --non-interactive unshare --mount --net --propagation private
+          env REQUIRE_READONLY_BIND=1 bash linux-program/tests/check_preflight_readonly.sh
+
       - name: Setup .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
