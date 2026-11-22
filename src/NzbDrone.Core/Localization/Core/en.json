@@ -828,6 +828,7 @@
   "QueueIsEmpty": "Queue is empty",
   "Queued": "Queued",
   "TaskNotifications": "Task notifications",
+  "TaskNotificationsAttention": "Recent tasks need attention.",
   "TaskNotificationsLoading": "Loading recent tasks…",
   "TaskUserAgentTooltip": "Application that requested this task",
   "TasksNeedAttention": "Needs attention",

@@ -36,6 +36,15 @@
   background-color: var(--warningColor);
 }
 
+.attentionAnnouncement {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .panel {
   position: absolute;
   top: calc(100% + 5px);
@@ -163,4 +172,16 @@
   gap: 10px;
 
   border-top: 1px solid var(--workspaceBorderColor);
+
+  & > a,
+  & > a:hover {
+    color: var(--textColor);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  & > a:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+  }
 }

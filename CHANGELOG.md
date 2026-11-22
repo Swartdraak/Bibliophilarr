@@ -26,7 +26,8 @@ process.
 - Show discovery, completed metadata checks and catalogue matching as
   separate stages in library scan progress.
 - Open recent background tasks from the WebUI header and filter for tasks
-  that need attention. The Auto theme updates when the system palette changes.
+  that need attention. Screen readers can hear the attention notice with the
+  panel closed. The Auto theme updates when the system palette changes.
 - Show verified shared works in an author's bibliography while keeping each
   work's catalogue owner, editions and format status.
 - A book-search command can target a single monitored format that is still

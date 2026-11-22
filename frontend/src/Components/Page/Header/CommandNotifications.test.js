@@ -10,6 +10,30 @@ jest.mock('Store/Actions/commandActions', () => ({
   fetchCommands: jest.fn(() => ({ type: 'loadCommandHistory' }))
 }));
 
+test('announces a task needing attention while the notification panel is closed', () => {
+  const tree = (commands) => (
+    <MemoryRouter>
+      <CommandNotifications commands={commands} />
+    </MemoryRouter>
+  );
+  const { rerender } = render(tree([
+    { id: 1, status: 'failed', body: { sendUpdatesToClient: false } }
+  ]));
+  const launcher = screen.getByRole('button', { name: 'TaskNotifications' });
+  expect(launcher).not.toHaveAccessibleDescription();
+  const announcement = screen.getByRole('status');
+  expect(announcement).toBeEmptyDOMElement();
+
+  rerender(tree([
+    { id: 2, status: 'completed', result: 'unsuccessful' }
+  ]));
+
+  expect(launcher).toHaveAttribute('aria-expanded', 'false');
+  expect(launcher).toHaveAccessibleDescription('TaskNotificationsAttention');
+  expect(screen.getByRole('status')).toBe(announcement);
+  expect(announcement).toHaveTextContent('TaskNotificationsAttention');
+});
+
 test('filters unsuccessful tasks and returns focus to the launcher when dismissed', () => {
   window.Bibliophilarr.urlBase = '';
   const commands = [

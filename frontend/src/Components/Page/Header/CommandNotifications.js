@@ -56,6 +56,7 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
   }, [open]);
 
   const recent = commands.filter((command) => (command.body?.sendUpdatesToClient ?? command.sendUpdatesToClient) !== false);
+  const hasAttention = recent.some(needsAttention);
   const visible = recent.filter((command) => !attentionOnly || needsAttention(command))
     .sort((left, right) => right.id - left.id).slice(0, 12);
   let emptyMessage = attentionOnly ? 'NoTasksNeedAttention' : 'NoRecentTasks';
@@ -82,6 +83,7 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
         ref={launcher}
         className={classNames(styles.launcher, open && styles.launcherOpen)}
         aria-label={translate('TaskNotifications')}
+        aria-describedby={hasAttention ? 'task-notifications-attention' : undefined}
         aria-expanded={open}
         aria-controls={open ? 'task-notifications' : undefined}
         onClick={(event) => {
@@ -93,8 +95,11 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
         }}
       >
         <Icon name={icons.BELL} />
-        {recent.some(needsAttention) && <span className={styles.indicator} aria-hidden="true" />}
+        {hasAttention && <span className={styles.indicator} aria-hidden="true" />}
       </button>
+      <span id="task-notifications-attention" className={styles.attentionAnnouncement} role="status">
+        {hasAttention ? translate('TaskNotificationsAttention') : ''}
+      </span>
 
       {open &&
         <section
