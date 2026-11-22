@@ -69,11 +69,14 @@ namespace NzbDrone.Core.Test.MetadataSource
         [TestCase("unexpected empty")]
         public void author_hydration_should_reject_later_incomplete_pages(string failure)
         {
+            var offsets = new List<int>();
             Mocker.GetMock<IHttpClient>()
                 .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
-                    if (GetOffset(request) == 0)
+                    var offset = GetOffset(request);
+                    offsets.Add(offset);
+                    if (offset == 0)
                     {
                         return CreatePage(request, 2, 0, 1);
                     }
@@ -89,6 +92,73 @@ namespace NzbDrone.Core.Test.MetadataSource
             var lookup = () => Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
 
             lookup.Should().Throw<MetadataProviderUnavailableException>();
+            offsets.Should().Equal(failure == "unexpected empty" ? new[] { 0, 1, 1 } : new[] { 0, 1 });
+        }
+
+        [TestCase(18)]
+        [TestCase(1)]
+        [TestCase(0)]
+        public void author_hydration_should_confirm_only_one_empty_page_after_partial_results(int recoveredVolumes)
+        {
+            const int total = 160;
+            var offsets = new List<int>();
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var offset = GetOffset(request);
+                    offsets.Add(offset);
+                    request.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
+                    request.RateLimitKey.Should().Be("GoogleBooks");
+
+                    return offset switch
+                    {
+                        0 or 40 or 80 => CreatePage(request, total, offset, 40),
+                        120 => CreatePage(request, total, 118, 24),
+                        144 when offsets.Count == 6 => CreatePage(request, total, 142, recoveredVolumes),
+                        144 or 145 or 162 => CreatePage(request, total, 0, 0),
+                        _ => throw new InvalidOperationException($"Unexpected offset {offset}.")
+                    };
+                });
+
+            if (recoveredVolumes == 18)
+            {
+                var author = Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
+
+                author.Books.Value.Select(book => book.ForeignBookId)
+                    .Should().BeEquivalentTo(Enumerable.Range(0, total).Select(index => $"googlebooks:work:volume-{index}"));
+                offsets.Should().Equal(0, 40, 80, 120, 144, 144, 162);
+                return;
+            }
+
+            var lookup = () => Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
+
+            lookup.Should().Throw<MetadataProviderUnavailableException>();
+            offsets.Should().Equal(recoveredVolumes == 0
+                ? new[] { 0, 40, 80, 120, 144, 144 }
+                : new[] { 0, 40, 80, 120, 144, 144, 145 });
+        }
+
+        [TestCase(0)]
+        [TestCase(2)]
+        public void author_hydration_should_not_confirm_an_empty_first_page(int total)
+        {
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => CreatePage(request, total, 0, 0));
+
+            var lookup = () => Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
+
+            if (total == 0)
+            {
+                lookup.Should().Throw<AuthorNotFoundException>();
+            }
+            else
+            {
+                lookup.Should().Throw<MetadataProviderUnavailableException>();
+            }
+
+            http.Verify(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.Once);
         }
 
         [Test]
@@ -112,7 +182,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             var lookup = () => Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
 
             lookup.Should().Throw<MetadataProviderUnavailableException>();
-            offsets.Should().Equal(0, 2, 3);
+            offsets.Should().Equal(0, 2, 3, 3);
         }
 
         [TestCase(false)]
@@ -148,7 +218,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 var lookup = () => Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
 
                 lookup.Should().Throw<MetadataProviderUnavailableException>();
-                offsets.Should().Equal(0, 2, 4);
+                offsets.Should().Equal(0, 2, 4, 4);
             }
         }
 

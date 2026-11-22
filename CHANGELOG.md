@@ -47,6 +47,8 @@ process.
 
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
+- Confirm an early empty Google Books bibliography page once. Keep the
+  saved catalogue when the verified bibliography remains incomplete.
 - Preserve supported provider Retry-After delays longer than 15 minutes
   during fallback metadata searches.
 - Recheck provider cooldowns before dispatching fallback requests that waited
