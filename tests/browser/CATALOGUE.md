@@ -26,12 +26,28 @@ incorrect API keys, and the rejection of duplicate and invalid records. It then
 checks author refresh, a rescan with an absent author, readable failure of an
 invalid command, and copy import of a second generated EPUB.
 
-For a credentialed run, supply `HARDCOVER_API_KEY` from the operator's
-secret store and add `--live-provider`. The app needs network access to
-Hardcover. The harness configures Hardcover through the app's API, submits a
-search in the browser, creates the returned book through the add API, and
-clears the credential before import and restart.
+For an opt-in credentialed run, load the relevant environment variable from
+the operator's secret store and select one provider.
 
-Both modes use disposable application data and a synthetic EPUB. On failure,
-the evidence directory retains application logs with the fixture login, app
-API key and live provider token redacted.
+| Option | Credential |
+| --- | --- |
+| `--live-provider` or `--live-provider hardcover` | `HARDCOVER_API_KEY` |
+| `--live-provider googlebooks` | `GOOGLE_BOOKS_API_KEY` |
+
+The app needs network access to the selected provider. The harness enables it
+through the normal metadata settings API, submits the search in the browser,
+and creates the matched book through the add API. The Google Books check
+requires the exact work and author plus an edition identity belonging to the
+returned volume. It submits that edition explicitly and verifies it after
+restart. The synthetic EPUB uses a separate fixture for Google Books because
+the live volume can be print-only.
+
+An absent or blank selected credential reports a live skip and runs the offline
+workflow. An opted-in credentialed request can consume the selected provider's
+quota, including any automatic refresh triggered by adding the book. The
+harness disables the providers and clears both possible credentials before
+import and restart. Ordinary CI remains offline.
+
+Both modes use disposable application data and a synthetic EPUB. Failure
+artifacts include application logs with the fixture login, app API key, and
+both live-provider credentials redacted.

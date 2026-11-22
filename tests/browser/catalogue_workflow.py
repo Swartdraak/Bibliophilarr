@@ -1,10 +1,11 @@
 """Catalogue checks for the disposable production browser smoke app."""
 
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from hashlib import sha256
 import os
 from pathlib import Path
+import re
 import sqlite3
 from tempfile import TemporaryDirectory
 import time
@@ -20,9 +21,20 @@ FIXTURE_TITLE = "The Fixture Observatory"
 FIXTURE_AUTHOR_ID = "fixture:author:observatory"
 FIXTURE_BOOK_ID = "fixture:work:observatory"
 FIXTURE_EDITION_ID = "fixture:edition:observatory"
-LIVE_PROVIDER_TOKEN_ENV = "HARDCOVER_API_KEY"
+LIVE_PROVIDER_TOKEN_ENVS = {
+    "hardcover": "HARDCOVER_API_KEY",
+    "googlebooks": "GOOGLE_BOOKS_API_KEY",
+}
 LIVE_AUTHOR = "Jane Austen"
 LIVE_TITLE = "Pride and Prejudice"
+
+
+@dataclass(frozen=True)
+class LiveBookIdentity:
+    book_id: int
+    foreign_book_id: str
+    foreign_edition_id: str
+    edition_id: int
 
 
 @dataclass(frozen=True)
@@ -35,6 +47,7 @@ class CatalogueState:
     edition_id: int
     path: Path
     payload: dict[str, str]
+    live_book: LiveBookIdentity | None = None
 
 
 def checked(response, expected, label):
@@ -43,27 +56,38 @@ def checked(response, expected, label):
     return response.json()
 
 
-def configure_providers(api, live, *, clear_token=False):
+def verify_provider_config(settings, provider=None, token=""):
+    assert settings["enableHardcoverFallback"] is (provider == "hardcover"), "Hardcover enable state"
+    assert settings["enableGoogleBooksProvider"] is (provider == "googlebooks"), "Google Books enable state"
+    for field in (
+        "enableOpenLibraryProvider", "enableGoogleBooksFallback",
+        "enableInventaireProvider", "enableInventaireFallback",
+    ):
+        assert settings[field] is False, f"{field} must be disabled"
+    assert not token or provider in LIVE_PROVIDER_TOKEN_ENVS
+    expected_hardcover = token if provider == "hardcover" else ""
+    expected_google = token if provider == "googlebooks" else ""
+    assert (settings.get("hardcoverApiToken") or "") == expected_hardcover, "Hardcover credential state"
+    assert (settings.get("googleBooksApiKey") or "") == expected_google, "Google Books credential state"
+
+
+def configure_providers(api, provider=None, token=""):
+    assert provider is None or (provider in LIVE_PROVIDER_TOKEN_ENVS and token)
     route = "/api/v1/config/metadataprovider"
     settings = checked(api.get(route), 200, "read_metadata_provider_config")
     settings.update(
-        enableHardcoverFallback=live,
+        enableHardcoverFallback=provider == "hardcover",
         enableOpenLibraryProvider=False,
+        enableGoogleBooksProvider=provider == "googlebooks",
         enableGoogleBooksFallback=False,
+        enableInventaireProvider=False,
         enableInventaireFallback=False,
+        hardcoverApiToken=token if provider == "hardcover" else "",
+        googleBooksApiKey=token if provider == "googlebooks" else "",
     )
-    if live:
-        token = os.environ.get(LIVE_PROVIDER_TOKEN_ENV)
-        if not token or not token.strip():
-            raise RuntimeError("The opt-in live workflow requires HARDCOVER_API_KEY")
-        settings["hardcoverApiToken"] = token.strip()
-    if clear_token:
-        settings["hardcoverApiToken"] = ""
 
     saved = checked(api.put(route + "/1", data=settings), 202, "save_metadata_provider_config")
-    assert saved["enableHardcoverFallback"] is live
-    if clear_token:
-        assert not saved.get("hardcoverApiToken")
+    verify_provider_config(saved, provider, token)
 
 
 def initialize_root(api, work):
@@ -105,7 +129,21 @@ def author_at_root(author, root):
     }
 
 
-def find_live_book(page, api, base, root):
+def google_result_edition(row):
+    work_id = row.get("foreignId") or ""
+    volume = re.fullmatch(r"googlebooks:work:([A-Za-z0-9_-]+)", work_id)
+    if not volume:
+        return None
+
+    book = row.get("book") or {}
+    expected = f"googlebooks:edition:{volume.group(1)}"
+    editions = [item for item in book.get("editions") or [] if item.get("foreignEditionId") == expected]
+    if book.get("foreignBookId") == work_id and len(editions) == 1:
+        return editions[0]
+    return None
+
+
+def find_live_book(page, api, base, root, provider):
     page.goto(base + "/add/search", wait_until="domcontentloaded")
     field = page.get_by_role("main").locator('input[placeholder*="War and Peace"]')
     with page.expect_response(
@@ -113,17 +151,19 @@ def find_live_book(page, api, base, root):
         and response.request.method == "GET",
         timeout=90000,
     ) as search:
-        field.fill(f"{LIVE_TITLE} {LIVE_AUTHOR}")
+        field.fill(LIVE_TITLE if provider == "googlebooks" else f"{LIVE_TITLE} {LIVE_AUTHOR}")
     items = checked(search.value, 200, "real_provider_search_http")
-    result = next(
+    result = next((
         row for row in items
         if (row.get("book") or {}).get("title", "").casefold() == LIVE_TITLE.casefold()
         and ((row["book"].get("author") or {}).get("authorName", "").casefold() == LIVE_AUTHOR.casefold())
-        and row.get("foreignId", "").startswith("hardcover:")
-    )
+        and (row.get("foreignId") or "").startswith(f"{provider}:")
+        and (provider != "googlebooks" or google_result_edition(row) is not None)
+    ), None)
+    assert result is not None, f"{provider} did not return the exact work with a usable identity"
     expect(page.get_by_role("main").get_by_text(result["book"]["title"], exact=True).first).to_be_visible()
     author = result["book"]["author"]
-    assert author["foreignAuthorId"].startswith("hardcover:")
+    assert author["foreignAuthorId"].startswith(f"{provider}:author:")
     print("real_provider_search: PASS (provider identity and browser result verified)", flush=True)
     payload = {
         **result["book"],
@@ -132,9 +172,18 @@ def find_live_book(page, api, base, root):
         "monitored": False,
         "addOptions": {"searchForNewBook": False},
     }
+    if provider == "googlebooks":
+        edition = google_result_edition(result)
+        payload["foreignEditionId"] = edition["foreignEditionId"]
+        payload["editions"] = [{**edition, "monitored": True}]
+
     book = checked(api.post("/api/v1/book", data=payload, timeout=90000), 201, "add_book_http")
     assert book["id"] > 0 and book["authorId"] > 0
     assert book["foreignBookId"] == result["foreignId"]
+    if provider == "googlebooks":
+        assert book["foreignEditionId"] == payload["foreignEditionId"]
+        stored, = [item for item in book["editions"] if item["foreignEditionId"] == payload["foreignEditionId"]]
+        assert stored["id"] > 0 and stored["monitored"] is True
     return book, LIVE_AUTHOR
 
 
@@ -228,7 +277,7 @@ def seed_fixture_book(api, app_data, author_id, *, foreign_id, foreign_edition_i
     return book
 
 
-def seed_local_catalogue(page, api, base, root, app_data):
+def seed_local_catalogue(page, api, base, root, app_data, *, existing_author_ids=()):
     route = "/api/v1/author"
     payload = author_at_root({
         "authorName": FIXTURE_AUTHOR,
@@ -239,8 +288,9 @@ def seed_local_catalogue(page, api, base, root, app_data):
     author = checked(api.post(route, data=payload), 201, "create_fixture_author")
     checked(api.post(route, data=payload), 400, "reject_duplicate_author")
     authors = checked(api.get(route), 200, "read_catalogue_authors")
-    persisted, = authors
-    assert persisted["id"] == author["id"] and persisted["foreignAuthorId"] == FIXTURE_AUTHOR_ID
+    assert sorted(item["id"] for item in authors) == sorted([author["id"], *existing_author_ids])
+    persisted, = [item for item in authors if item["id"] == author["id"]]
+    assert persisted["foreignAuthorId"] == FIXTURE_AUTHOR_ID
     verify_author_refresh(api, app_data, author)
     book = seed_fixture_book(api, app_data, author["id"], foreign_id=FIXTURE_BOOK_ID,
                             foreign_edition_id=FIXTURE_EDITION_ID, slug="browser-fixture-observatory",
@@ -250,7 +300,6 @@ def seed_local_catalogue(page, api, base, root, app_data):
     search.fill(FIXTURE_TITLE)
     expect(page.get_by_role("option").get_by_text(FIXTURE_TITLE, exact=True)).to_be_visible()
     print("local_catalogue_search: PASS (deterministic fixture)", flush=True)
-    print("real_provider_search/add_book: SKIP (opt-in live mode required)", flush=True)
     return book, FIXTURE_AUTHOR
 
 
@@ -495,7 +544,7 @@ def verify_downloaded_copy(api, work, app_data, root, author_id):
     print("downloaded_scan_copy: PASS (automatic copy kept the source and tracked the EPUB)", flush=True)
 
 
-def exercise_catalogue(page, api, base, work, app_data, *, live_provider=False):
+def exercise_catalogue(page, api, base, work, app_data, *, live_provider=None):
     """Run while the authenticated browser and first instance are alive."""
     address = urlsplit(base)
     assert address.scheme == "http" and address.hostname == "127.0.0.1" and address.port
@@ -503,33 +552,55 @@ def exercise_catalogue(page, api, base, work, app_data, *, live_provider=False):
     assert app_data.parent == work and (app_data / "bibliophilarr.db").is_file()
     page.set_viewport_size({"width": 1366, "height": 900})
     root = initialize_root(api, work)
-    if live_provider:
+    token_env = LIVE_PROVIDER_TOKEN_ENVS.get(live_provider)
+    token = os.environ.get(token_env, "").strip() if token_env else ""
+    live_book = None
+    if token:
         try:
-            configure_providers(api, True)
-            book, author = find_live_book(page, api, base, root)
+            configure_providers(api, live_provider, token)
+            book, author = find_live_book(page, api, base, root, live_provider)
         finally:
-            configure_providers(api, False, clear_token=True)
+            configure_providers(api)
+
+        saved = checked(api.get(f"/api/v1/book/{book['id']}"), 200, "read_live_provider_book")
+        assert saved["foreignBookId"] == book["foreignBookId"] and saved["titleSlug"] == book["titleSlug"]
+        print("add_book: PASS (201 and retrievable matching identity)", flush=True)
+        if live_provider == "googlebooks":
+            # The provider's volume can be print-only. The EPUB fixture has its own typed edition.
+            edition, = [item for item in saved["editions"] if item["foreignEditionId"] == book["foreignEditionId"]]
+            assert edition["id"] > 0 and edition["monitored"] is True
+            live_book = LiveBookIdentity(saved["id"], saved["foreignBookId"], edition["foreignEditionId"], edition["id"])
+            book, author = seed_local_catalogue(page, api, base, root, app_data, existing_author_ids=(saved["authorId"],))
     else:
-        configure_providers(api, False)
+        reason = f"{token_env} is absent" if token_env else "opt-in live mode required"
+        print(f"real_provider_search/add_book: SKIP ({reason})", flush=True)
+        configure_providers(api)
         verify_missing_author_rescan(api, app_data, root)
         book, author = seed_local_catalogue(page, api, base, root, app_data)
         verify_failed_command(api, page.request, base)
         verify_poor_local_import_selection(api, work, book)
         verify_downloaded_copy(api, work, app_data, root, book["authorId"])
+
     readback = checked(api.get(f"/api/v1/book/{book['id']}"), 200, "retrievable_book_identity")
     assert readback["foreignBookId"] == book["foreignBookId"] and readback["titleSlug"] == book["titleSlug"]
-    if live_provider:
-        print("add_book: PASS (201 and retrievable matching identity)", flush=True)
     invalid = checked(api.post("/api/v1/book", data={"title": "Invalid fixture"}), 400, "negative_input_http")
     assert isinstance(invalid, list) and any(entry.get("propertyName") == "ForeignBookId" for entry in invalid)
     print("negative_input: PASS (documented 400 and ForeignBookId validation)", flush=True)
     render_library_and_detail(page, base, book["title"], book["titleSlug"])
     print("library_detail: PASS (library row and detail rendered)", flush=True)
-    return import_fixture(api, work, app_data, root, readback, author)
+    state = import_fixture(api, work, app_data, root, readback, author)
+    return replace(state, live_book=live_book) if live_book else state
 
 
 def verify_catalogue_after_restart(page, api, base, app_data, state):
     """Run after the existing smoke harness SIGTERMs and restarts the app on the same port."""
+    if state.live_book:
+        identity = state.live_book
+        saved = checked(api.get(f"/api/v1/book/{identity.book_id}"), 200, "read_restarted_live_provider_book")
+        assert saved["foreignBookId"] == identity.foreign_book_id
+        edition, = [item for item in saved["editions"] if item["foreignEditionId"] == identity.foreign_edition_id]
+        assert edition["id"] == identity.edition_id and edition["monitored"] is True
+
     book = checked(api.get(f"/api/v1/book/{state.book_id}"), 200, "read_restarted_catalogue")
     assert book["foreignBookId"] == state.foreign_book_id and book["titleSlug"] == state.title_slug
     tracked, = files_for_book(api, state.book_id)
