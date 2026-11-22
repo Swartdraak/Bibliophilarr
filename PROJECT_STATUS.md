@@ -18,8 +18,11 @@ pinned checkout, labeling, Markdown lint, artifact, and image-signature
 checks. The next signed publish still requires release approval.
 [Workflow modernization](https://github.com/Swartdraak/Bibliophilarr/issues/97)
 
-The frontend toolchain modernization remains active.
-[Frontend modernization](https://github.com/Swartdraak/Bibliophilarr/issues/99)
+The frontend toolchain modernization closed after integrating formatter,
+cleanup, stylesheet, build-command and icon tooling upgrades on `develop`.
+The production bundle and watch build were verified. WebUI modernization
+and signed feature validation continue.
+[Frontend toolchain closeout](https://github.com/Swartdraak/Bibliophilarr/issues/99)
 
 The .NET 10 migration validation is complete through #107. The closed
 slices cover NuGet compatibility, ASP.NET and SignalR, both Docker
