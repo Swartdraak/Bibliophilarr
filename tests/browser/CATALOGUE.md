@@ -11,8 +11,11 @@ python tests/browser/smoke.py \
 
 Ordinary CI runs with loopback only. It seeds one book and edition in a
 disposable SQLite database, then exercises local search, library and detail
-views, input validation, manual import, and tracked EPUB persistence. Live
-provider search and book creation are reported as skipped in this mode.
+views, input validation, manual import, and tracked EPUB persistence. After the
+app stops, the harness repacks the imported fixture EPUB and proves the ZIP
+bytes changed. After restart, it confirms every decompressed member and the
+tracked file identity are unchanged. Live provider search and book creation
+are reported as skipped in this mode.
 
 The browser also opens Metadata from Settings, saves a changed provider timeout,
 and verifies it after reload and restart. After logout, the same route returns
