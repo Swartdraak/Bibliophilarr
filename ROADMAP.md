@@ -1,6 +1,6 @@
 # Bibliophilarr Roadmap
 
-**Last Updated**: April 24, 2026 (release-readiness alignment, staging frontend CI, dependency remediation)
+**Last updated**: November 23, 2026
 
 This roadmap reflects the repository's actual delivery posture. Bibliophilarr is no longer in a planning-only state. The project is operating in Phase 5 consolidation with Phase 6 hardening active, while provider migration work continues incrementally on the active delivery lanes.
 
@@ -9,17 +9,24 @@ This roadmap reflects the repository's actual delivery posture. Bibliophilarr is
 - Current phase: Phase 5 consolidation with Phase 6 hardening active.
 - Active delivery lanes: `develop` and `staging`.
 - Default branch posture: `main` is the default branch, release-entry branch, and the source for tagged releases.
-- Packaging scope: v1.0.0 released with binary builds (Linux x64, macOS ARM64, Windows x64), Docker image on GHCR, and npm launcher on npmjs.org.
+- Published stable version is v1.1.0. The planned v2.0.0 moves native installs
+  to .NET 10 and includes database migrations.
+  [Project status](PROJECT_STATUS.md#release-and-ci-posture)
 - Actions token posture: branch-policy and readiness workflows remain report-only when GitHub Actions integration tokens cannot read admin or Dependabot APIs.
-- Release-entry posture: promotion to `main` remains blocked until fresh dated PASS evidence exists for install, metadata dry-run, telemetry, and series persistence gates.
+- Release promotion requires the maintainer to lift the hold after fresh
+  acceptance across installation, the full dual-format libraries, metadata,
+  browser workflows, persistence, and upgrade and rollback.
+  [Release readiness](https://github.com/Swartdraak/Bibliophilarr/issues/484)
 
 ## Delivery lanes
 
 | Branch | Purpose | Required outcomes |
 |---|---|---|
-| `develop` | Active integration lane for metadata migration and operational hardening slices | `build-test`, `Markdown lint`, `label-policy`, smoke telemetry |
-| `staging` | Pre-release validation lane mirroring `develop` with tighter release-readiness scrutiny | same required contexts as `develop`, plus current readiness/drift report evidence |
-| `main` | Default branch for releases, operator runbooks, readiness reporting, and branch-policy auditing | `build-test`, `Markdown lint`, `label-policy`, smoke telemetry, successful readiness and branch-policy report runs |
+| `develop` | Integration lane for task pull requests | Protected checks and independent validation for the candidate |
+| `staging` | Consolidated candidate from `develop` | Protected checks and current release-readiness evidence |
+| `main` | Default branch and source for stable tags | Protected checks and explicit release approval |
+
+Use [BRANCHING.md](BRANCHING.md) for promotion and check requirements.
 
 ## Phase summary
 
@@ -161,11 +168,11 @@ according to EOL urgency, coupling risk, and prerequisite dependencies.
 | DMQ-006 | `FluentAssertions` | 5.10.3 → 8.x | [#44](https://github.com/Swartdraak/Bibliophilarr/pull/44) | Backend / Test | High | Update assertion syntax across 100+ test files, validate API compatibility | Phase 6-7 | **complete** |
 | DMQ-007 | `FluentMigrator.Runner` | 3.3.2 → 8.0.1 | [#45](https://github.com/Swartdraak/Bibliophilarr/pull/45) | Backend | High | Audit migration discovery and upgrade all three packages together | Phase 7 | Integrated on `develop` in [#514](https://github.com/Swartdraak/Bibliophilarr/pull/514) |
 | DMQ-008 | `FluentMigrator.Runner.Postgres` | 3.3.2 → 8.0.1 | [#46](https://github.com/Swartdraak/Bibliophilarr/pull/46) | Backend | High | Preserve the existing generic PostgreSQL dialect and verify upgrade and backup restore | Phase 7 | Integrated on `develop` in [#514](https://github.com/Swartdraak/Bibliophilarr/pull/514) |
-| DMQ-009 | `@fortawesome/free-solid-svg-icons` | 6.7.2 → 7.x | [#52](https://github.com/Swartdraak/Bibliophilarr/pull/52) | Frontend | Medium | Audit icon import paths, verify tree-shaking output size, validate icon rendering in key pages | Phase 6-7 | planned |
-| DMQ-010 | `postcss-mixins` | 9.0.4 → 12.x | [#53](https://github.com/Swartdraak/Bibliophilarr/pull/53) | Frontend / Build | Medium | Validate PostCSS plugin compatibility and build output parity in `frontend/build/webpack.config.js` | Phase 6-7 | planned |
-| DMQ-011 | `webpack-cli` | 5.1.4 → 7.x | [#54](https://github.com/Swartdraak/Bibliophilarr/pull/54) | Frontend / Build | High | Validate webpack 5 + cli 7 compatibility, npm scripts, and CI frontend build behavior | Phase 6-7 | planned |
-| DMQ-012 | `rimraf` | 5.0.10 → 6.x | [#55](https://github.com/Swartdraak/Bibliophilarr/pull/55) | Tooling | Medium | Validate Node engine constraints and cross-platform cleanup scripts in build/release flows | Phase 6-7 | planned |
-| DMQ-013 | `prettier` | 2.8.8 → 3.x | [#56](https://github.com/Swartdraak/Bibliophilarr/pull/56) | Frontend / Docs | High | Run formatting impact audit; update lint/format config and avoid mass unrelated churn | Phase 6-7 | planned |
+| DMQ-009 | `@fortawesome/free-solid-svg-icons` and related SVG packages | 6.7.2 → 7.3.1 | [#52](https://github.com/Swartdraak/Bibliophilarr/pull/52) | Frontend | Medium | Preserve intrinsic width by default, keep the compatible React wrapper, and validate rendered icons | Phase 6-7 | **complete** |
+| DMQ-010 | `postcss-mixins` | 9.0.4 → 12.1.2 | [#53](https://github.com/Swartdraak/Bibliophilarr/pull/53) | Frontend / Build | Medium | Verified identical production CSS output and passing frontend suite | Phase 6-7 | **complete** |
+| DMQ-011 | `webpack-cli` | 5.1.4 → 7.2.3 | [#54](https://github.com/Swartdraak/Bibliophilarr/pull/54) | Frontend / Build | High | Verified development watch and an eval-free production build with Webpack 5 | Phase 6-7 | **complete** |
+| DMQ-012 | `rimraf` | 6.1.4 | [#55](https://github.com/Swartdraak/Bibliophilarr/pull/55) | Tooling | Medium | Restrict cleanup to generated UI output and preserve unrelated maps | Phase 6-7 | Integrated in [#512](https://github.com/Swartdraak/Bibliophilarr/pull/512) |
+| DMQ-013 | `prettier` | 3.8.1 | [#56](https://github.com/Swartdraak/Bibliophilarr/pull/56) | Frontend / Docs | High | Verified the formatter upgrade with regression coverage | Phase 6-7 | Integrated in [#350](https://github.com/Swartdraak/Bibliophilarr/pull/350) |
 | DMQ-014 | `FluentMigrator.Runner.SQLite` | 3.3.2 → 8.0.1 | [#57](https://github.com/Swartdraak/Bibliophilarr/pull/57) | Backend | High | Preserve the SQLite adapter and verify previous-stable upgrade and backup restore | Phase 7 | Integrated on `develop` in [#514](https://github.com/Swartdraak/Bibliophilarr/pull/514) |
 | DMQ-015 | `FluentValidation` | 9.5.4 → 12.x | [#58](https://github.com/Swartdraak/Bibliophilarr/pull/58) | Backend | High | Audit validator API changes and request-pipeline behavior; update SignalR and API validation paths | Phase 6-7 | planned |
 | DMQ-016 | `Ical.Net` | 4.3.1 → 5.x | [#59](https://github.com/Swartdraak/Bibliophilarr/pull/59) | Backend | Medium | Validate parser behavior and recurrence handling in calendar import and scheduling surfaces | Phase 6-7 | in progress — active migration slice in [#95](https://github.com/Swartdraak/Bibliophilarr/issues/95), [#94](https://github.com/Swartdraak/Bibliophilarr/pull/94) |
