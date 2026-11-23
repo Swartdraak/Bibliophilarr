@@ -29,6 +29,8 @@ process.
 - Include automatic import fallback searches in provider operation telemetry.
 - Confirm an unexpectedly empty Open Library bibliography page once before
   treating the author's catalogue as incomplete.
+- Verify Open Library author bibliographies against distinct work IDs so
+  overlapping pages cannot hide missing works.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
