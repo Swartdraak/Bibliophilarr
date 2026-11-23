@@ -131,5 +131,15 @@ namespace NzbDrone.Core.MetadataSource
             ConsecutiveFailures = 0;
             LastChecked = DateTime.UtcNow;
         }
+
+        internal ProviderHealthStatus WithCooldown(DateTime? deadline, DateTime now)
+        {
+            var status = (ProviderHealthStatus)MemberwiseClone();
+            status.CooldownUntilUtc = deadline is { } expires && expires > now ? expires : null;
+            status.RetryAfterRemainingSeconds = status.CooldownUntilUtc is { } activeDeadline
+                ? (int)Math.Min(int.MaxValue, Math.Ceiling((activeDeadline - now).TotalSeconds))
+                : 0;
+            return status;
+        }
     }
 }

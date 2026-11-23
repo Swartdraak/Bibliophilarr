@@ -198,6 +198,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<NzbDrone.Core.Download.DownloadClientItem>(),
                     It.IsAny<ImportMode>()),
                 Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
 
         [Test]
@@ -246,6 +247,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<NzbDrone.Core.Download.DownloadClientItem>(),
                     It.IsAny<ImportMode>()),
                 Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
     }
 
@@ -404,6 +406,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<DownloadClientItem>(),
                     It.IsAny<ImportMode>()),
                 Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
 
         [Test]
@@ -455,6 +458,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<DownloadClientItem>(),
                     It.IsAny<ImportMode>()),
                 Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
     }
 }

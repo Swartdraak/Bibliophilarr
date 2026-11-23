@@ -32,35 +32,17 @@ namespace NzbDrone.Api.Test.Middleware
         }
 
         [Test]
-        public void csp_should_omit_unsafe_eval_for_release_builds_so_the_production_bundle_cannot_be_blank_blocked()
+        public void csp_should_match_the_script_policy_for_the_build_configuration()
         {
             var scriptSrc = GetScriptSrc(GetCsp());
 
-            // This fixture is compiled as Release (Bibliophilarr.Test.OutputType
-            // convention), so BuildInfo.IsDebug is false — exactly the Release
-            // CSP branch a shipped binary uses.
-            NzbDrone.Common.EnvironmentInfo.BuildInfo.IsDebug.Should().BeFalse();
             scriptSrc.Should().Contain("'self'");
             scriptSrc.Should().Contain("'unsafe-inline'");
-            scriptSrc.Should().NotContain("'unsafe-eval'");
-        }
-
-        [Test]
-        public void csp_should_allow_unsafe_eval_only_for_debug_builds_that_ship_the_eval_source_map_bundle()
-        {
-            // Documented symmetric half of the #252 consistency rule: a Debug
-            // build ships the eval-source-map dev bundle (eval() calls), so a
-            // Debug binary MUST keep 'unsafe-eval' in the CSP. This branch is
-            // exercised when the fixture is compiled as Debug (e.g. a
-            // Debug-configuration test run); it self-skips under Release.
-            if (!NzbDrone.Common.EnvironmentInfo.BuildInfo.IsDebug)
-            {
-                return;
-            }
-
-            var scriptSrc = GetScriptSrc(GetCsp());
-
+#if DEBUG
             scriptSrc.Should().Contain("'unsafe-eval'");
+#else
+            scriptSrc.Should().NotContain("'unsafe-eval'");
+#endif
         }
     }
 }

@@ -9,8 +9,10 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MetadataSource.GoogleBooks;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -244,6 +246,15 @@ namespace NzbDrone.Core.MetadataSource
                         return result;
                     }
                 }
+                catch (GoogleBooksRequestOnCooldownException)
+                {
+                    // No upstream request was made. Continue to another search provider.
+                }
+                catch (MetadataProviderUnavailableException ex) when (ex.InnerException is GoogleBooksRequestOnCooldownException)
+                {
+                    // A scoped lookup must stay unavailable, without counting this skip as a failure.
+                    throw;
+                }
                 catch (AuthorNotFoundException ex) when (operationName == AuthorInfoOperation)
                 {
                     stopwatch.Stop();
@@ -471,7 +482,7 @@ namespace NzbDrone.Core.MetadataSource
                 {
                     try
                     {
-                        var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
+                        var results = SearchSupplementaryProviderByIsbn(provider, edition.Isbn13);
                         var matchedAsin = results?
                             .SelectMany(b => b.Editions?.Value ?? new List<Edition>())
                             .Select(e => e.Asin)
@@ -540,7 +551,7 @@ namespace NzbDrone.Core.MetadataSource
                 {
                     try
                     {
-                        var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
+                        var results = SearchSupplementaryProviderByIsbn(provider, edition.Isbn13);
                         var matchedBook = results?.FirstOrDefault();
                         var matchedEdition = matchedBook?.Editions?.Value?.FirstOrDefault();
 
@@ -594,6 +605,32 @@ namespace NzbDrone.Core.MetadataSource
                             edition.Isbn13);
                     }
                 }
+            }
+        }
+
+        private List<Book> SearchSupplementaryProviderByIsbn(IMetadataProvider provider, string isbn)
+        {
+            var search = (ISearchForNewBook)provider;
+            if (provider is not GoogleBooksFallbackSearchProvider)
+            {
+                return search.SearchByIsbn(isbn);
+            }
+
+            const string operation = "enrich-edition-by-isbn";
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                return search.SearchByIsbn(isbn);
+            }
+            catch (GoogleBooksRequestOnCooldownException)
+            {
+                return null;
+            }
+            catch (HttpException ex) when (ex is TooManyRequestsException or GoogleBooksServerErrorException)
+            {
+                _telemetry.Record(provider.ProviderName, operation, watch.ElapsedMilliseconds, false, false, false);
+                _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operation);
+                return null;
             }
         }
 

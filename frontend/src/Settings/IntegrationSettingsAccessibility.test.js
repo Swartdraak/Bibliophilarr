@@ -2,24 +2,31 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { createStore } from 'redux';
+import PathInput from 'Components/Form/PathInput';
 import DownloadClients from 'Settings/DownloadClients/DownloadClients/DownloadClients';
 import RemotePathMappings from 'Settings/DownloadClients/RemotePathMappings/RemotePathMappings';
 import ImportLists from 'Settings/ImportLists/ImportLists/ImportLists';
+import AddIndexerItem from 'Settings/Indexers/Indexers/AddIndexerItem';
 import EditIndexerModalContent from 'Settings/Indexers/Indexers/EditIndexerModalContent';
 import Indexers from 'Settings/Indexers/Indexers/Indexers';
 import * as keyCodes from 'Utilities/Constants/keyCodes';
 
 jest.mock('Components/Portal', () => ({ children }) => children);
+jest.mock('Components/FileBrowser/FileBrowserModal', () => ({ isOpen }) => (
+  isOpen ? <div role="dialog" aria-label="Path browser" /> : null
+));
 jest.mock('Store/Actions/providerOptionActions', () => ({
   clearOptions: () => ({ type: 'clearProviderOptions' }),
   fetchOptions: () => ({ type: 'fetchProviderOptions' })
 }));
-jest.mock('Utilities/String/translate', () => (key, { name } = {}) => ({
+jest.mock('Utilities/String/translate', () => (key, { host, name, remotePath } = {}) => ({
   AddDownloadClient: 'Add Download Client',
   AddIndexer: 'Add Indexer',
   AddList: 'Add List',
   AddRemotePathMapping: 'Add Remote Path Mapping',
-  EditNamedItem: `Edit ${name}`
+  BrowsePath: 'Browse for a path',
+  EditNamedItem: `Edit ${name}`,
+  EditRemotePathMappingForPath: `Edit path mapping for ${remotePath} on ${host}`
 })[key] ?? key);
 
 jest.mock('Settings/Indexers/Indexers/AddIndexerModal', () => ({ isOpen }) => (
@@ -71,6 +78,52 @@ test.each([
 
   fireEvent.click(screen.getByRole('button', { name: addName }));
   expect(screen.getByRole('dialog', { name: dialogName })).toBeVisible();
+});
+
+test('names the saved remote path mapping edit action', () => {
+  render(
+    <RemotePathMappings
+      isFetching={false}
+      isPopulated={true}
+      items={[{ id: 1, host: 'download-client', remotePath: '/downloads', localPath: '/library/incoming' }]}
+      onConfirmDeleteRemotePathMapping={jest.fn()}
+    />
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Edit path mapping for /downloads on download-client' }));
+  expect(screen.getByRole('dialog', { name: 'Remote path mapping editor' })).toBeVisible();
+});
+
+test('names the path browse action and opens the file browser', () => {
+  render(
+    <PathInput
+      name="localPath"
+      paths={[]}
+      includeFiles={false}
+      onChange={jest.fn()}
+      onFetchPaths={jest.fn()}
+      onClearPaths={jest.fn()}
+    />
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Browse for a path' }));
+  expect(screen.getByRole('dialog', { name: 'Path browser' })).toBeVisible();
+});
+
+test('names the indexer template action and selects its implementation', () => {
+  const onIndexerSelect = jest.fn();
+
+  render(
+    <AddIndexerItem
+      implementation="Newznab"
+      implementationName="Newznab"
+      infoLink=""
+      onIndexerSelect={onIndexerSelect}
+    />
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Newznab' }));
+  expect(onIndexerSelect).toHaveBeenCalledWith({ implementation: 'Newznab' });
 });
 
 test('names each saved indexer edit button and opens the chosen indexer', () => {
