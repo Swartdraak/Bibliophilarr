@@ -26,6 +26,8 @@ process.
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
+- Honor longer provider Retry-After values during fallback searches and report
+  the applied wait in provider health and logs.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
 - Honor Google Books fallback cooldowns before decoding provider responses.
@@ -172,6 +174,8 @@ process.
 
 ### Changed
 
+- Run deterministic book identification tests in the standard suite and
+  remove the manual-only legacy music fixtures.
 - Update the WebUI SVG icons to Font Awesome 7 and keep intrinsic widths
   for normal icons. Controls can still request a fixed width.
 
