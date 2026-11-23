@@ -97,8 +97,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                 });
 
             Mocker.GetMock<IHttpClient>()
-                .Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
-                .Returns<HttpRequest>(request => new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload));
         }
 
         [Test]
@@ -129,7 +129,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Verify(x => x.SearchForNewBook("The Cuckoo's Calling", "Robert Galbraith", It.IsAny<bool>()), Times.Once());
 
             Mocker.GetMock<IHttpClient>()
-                .Verify(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.AtLeastOnce());
+                .Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.AtLeastOnce());
         }
 
         [Test]
@@ -151,7 +151,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                 });
 
             Mocker.GetMock<IHttpClient>()
-                .Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
                     var payload = "{" +
@@ -163,7 +163,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                                   "\"printType\":\"BOOK\"," +
                                   "\"imageLinks\":{\"thumbnail\":\"https://google.example/cover.jpg\"}}}]}";
 
-                    return new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload));
+                    return new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload);
                 });
 
             var edition = new LocalEdition
@@ -189,7 +189,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             candidates[0].Edition.Images[0].Url.Should().Be("https://inventaire.example/cover.jpg");
 
             Mocker.GetMock<IHttpClient>()
-                .Verify(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.Never());
+                .Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Never());
 
             Mocker.GetMock<IHttpClient>()
                 .Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never());
@@ -199,11 +199,11 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void should_try_hardcover_after_google_books_returns_no_candidates()
         {
             Mocker.GetMock<IHttpClient>()
-                .Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
                     var emptyPayload = "{\"items\":[]}";
-                    return new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, emptyPayload));
+                    return new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, emptyPayload);
                 });
 
             Mocker.GetMock<IHttpClient>()
@@ -247,7 +247,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             candidates[0].Edition.Book.Value.AuthorMetadata.Value.Name.Should().Be("Robert Galbraith");
 
             Mocker.GetMock<IHttpClient>()
-                .Verify(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.AtLeastOnce());
+                .Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.AtLeastOnce());
 
             Mocker.GetMock<IHttpClient>()
                 .Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.AtLeastOnce());
