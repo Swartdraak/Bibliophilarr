@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Net;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -16,6 +17,7 @@ using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaCoverTests
 {
@@ -256,6 +258,123 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             Mocker.GetMock<IHttpClient>()
                 .Verify(client => client.DownloadFile(availableCover, It.IsAny<string>(), It.IsAny<string>()), Times.Once());
+        }
+
+        [TestCase(MediaCoverEntity.Author, HttpStatusCode.NotFound, false, true, true, ".jpg")]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, true, true, ".jpg")]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.Gone, false, true, true, ".jpg")]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, true, false, true, ".jpg")]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.TooManyRequests, false, false, true, ".jpg")]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.RequestTimeout, false, false, true, ".jpg")]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.ServiceUnavailable, false, false, true, ".jpg")]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, false, false, ".jpg")]
+        [TestCase(MediaCoverEntity.Author, HttpStatusCode.NotFound, false, false, false, ".jpg")]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, false, true, ".svg")]
+        public void should_cache_a_source_bound_secondary_only_after_definitive_absence(
+            MediaCoverEntity entity, HttpStatusCode status, bool existingCache, bool expectSecondary, bool verified, string extension)
+        {
+            const string primaryUrl = "https://covers.example/old.jpg";
+            var secondaryUrl = "https://covers.example/verified" + extension;
+            var entityId = entity == MediaCoverEntity.Author ? _author.Id : _book.Id;
+            var coverType = entity == MediaCoverEntity.Author ? MediaCoverTypes.Poster : MediaCoverTypes.Cover;
+            var primary = new MediaCover.MediaCover(coverType, primaryUrl) { SourceProvider = "Hardcover" };
+            var secondary = new MediaCover.MediaCover(coverType, secondaryUrl) { SourceProvider = "Hardcover" };
+
+            if (entity == MediaCoverEntity.Author)
+            {
+                _author.Metadata.Value.Id = 3;
+                _author.Metadata.Value.ForeignAuthorId = "hardcover:author:701";
+                primary.SourceId = _author.Metadata.Value.ForeignAuthorId;
+                secondary.SourceId = primary.SourceId;
+                _author.Metadata.Value.Images = new List<MediaCover.MediaCover> { primary, secondary };
+                Mocker.GetMock<IBookService>().Setup(service => service.GetBooksByAuthor(_author.Id)).Returns(new List<Book>());
+            }
+            else
+            {
+                _edition.BookId = _book.Id;
+                _edition.ForeignEditionId = "hardcover:edition:801";
+                primary.SourceId = _edition.ForeignEditionId;
+                _edition.Images = new List<MediaCover.MediaCover> { primary };
+                secondary.SourceId = "hardcover:edition:802";
+                _book.Editions.Value.Add(new Edition
+                {
+                    Id = 9,
+                    BookId = _book.Id,
+                    ForeignEditionId = secondary.SourceId,
+                    Images = new List<MediaCover.MediaCover> { secondary }
+                });
+            }
+
+            if (!verified)
+            {
+                secondary.SourceId = entity == MediaCoverEntity.Author ? "hardcover:author:702" : "hardcover:edition:803";
+            }
+
+            var originalSource = secondary.SourceId;
+            var request = new HttpRequest(primaryUrl);
+            var failure = new HttpException(new HttpResponse(request, new HttpHeader(), string.Empty, status));
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(value => value.Get(It.Is<HttpRequest>(candidate => candidate.Url.FullUri == primaryUrl))).Throws(failure);
+
+            var primaryPath = Subject.GetCoverPath(entityId, entity, coverType, ".jpg");
+            var directory = Path.GetDirectoryName(primaryPath);
+            var stale = Path.Combine(directory, $"{coverType.ToString().ToLowerInvariant()}.source-{new string('a', 64)}.jpg");
+            var unrelated = Path.Combine(directory, "unrelated.jpg");
+            var cachedPaths = new HashSet<string>();
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(value => value.FileExists(It.IsAny<string>()))
+                .Returns((string path) => (existingCache && path == primaryPath) || cachedPaths.Contains(path));
+            disk.Setup(value => value.FolderExists(directory)).Returns(true);
+            disk.Setup(value => value.GetFiles(directory, true)).Returns(Array.Empty<string>());
+            disk.Setup(value => value.GetFiles(directory, false))
+                .Returns(() => cachedPaths.Concat(new[] { stale, unrelated, primaryPath }).ToArray());
+            disk.Setup(value => value.GetFileSize(It.IsAny<string>())).Returns(1024);
+            disk.Setup(value => value.FileGetLastWrite(It.IsAny<string>())).Returns(new DateTime(2026, 1, 1));
+            client.Setup(value => value.DownloadFile(secondaryUrl, It.IsAny<string>(), It.IsAny<string>()))
+                .Callback<string, string, string>((_, path, _) => cachedPaths.Add(path));
+
+            if (entity == MediaCoverEntity.Author)
+            {
+                Subject.HandleAsync(new AuthorRefreshCompleteEvent(_author));
+            }
+            else
+            {
+                Subject.EnsureBookCovers(_book);
+            }
+
+            ExceptionVerification.ExpectedWarns(1);
+            client.Verify(value => value.DownloadFile(secondaryUrl, It.IsAny<string>(), It.IsAny<string>()),
+                expectSecondary ? Times.Once() : Times.Never());
+            cachedPaths.Should().NotContain(primaryPath);
+            disk.Verify(value => value.DeleteFile(primaryPath), Times.Never());
+            disk.Verify(value => value.DeleteFile(unrelated), Times.Never());
+            disk.Verify(value => value.DeleteFile(stale), Times.Once());
+
+            if (expectSecondary)
+            {
+                Subject.ConvertToLocalUrls(entityId, entity, new[] { primary, secondary });
+                secondary.Url.Should().Contain("/MediaCover/").And.Contain("?lastWrite=");
+                secondary.RemoteUrl.Should().Be(secondaryUrl);
+                secondary.SourceId.Should().Be(originalSource);
+                primary.Url.Should().NotBe(secondary.Url);
+            }
+        }
+
+        [Test]
+        public void should_preserve_cached_files_when_refresh_has_no_image_references()
+        {
+            _author.Metadata.Value.Images.Clear();
+            _edition.Images.Clear();
+            Mocker.GetMock<IBookService>().Setup(service => service.GetBooksByAuthor(_author.Id)).Returns(new List<Book> { _book });
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(value => value.FolderExists(It.IsAny<string>())).Returns(true);
+            disk.Setup(value => value.GetFileSize(It.IsAny<string>())).Returns(1024);
+            disk.Setup(value => value.GetFiles(It.IsAny<string>(), It.IsAny<bool>()))
+                .Returns((string folder, bool _) => new[] { Path.Combine(folder, "cover.jpg"), Path.Combine(folder, "poster.jpg") });
+
+            Subject.HandleAsync(new AuthorRefreshCompleteEvent(_author));
+
+            disk.Verify(value => value.DeleteFile(It.IsAny<string>()), Times.Never());
         }
 
         [Test]

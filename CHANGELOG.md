@@ -43,6 +43,8 @@ process.
   work into its confirmed owner. Hold ambiguous legacy owners for review.
 - Use available cached member covers for series artwork before trying remote
   cover references.
+- Cache one verified alternate cover or portrait after a definitive missing
+  primary image. Preserve cached images when a refresh returns no references.
 - Report a media file read failure as an import hold and continue scanning
   the other files.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
