@@ -61,6 +61,8 @@ process.
 - Retry a trusted EPUB ISBN after an initial identity rejection when a verified
   provider edition belongs to the same stored author and work. Keep competing
   editions and unresolved author identities held for review.
+- Allow two equal-size ebook files to link to distinct verified ISBN editions
+  of the same work during a library scan.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files

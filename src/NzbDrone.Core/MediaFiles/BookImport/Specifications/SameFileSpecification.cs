@@ -1,6 +1,7 @@
 using System.Linq;
 using NLog;
 using NzbDrone.Common;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Parser.Model;
@@ -45,11 +46,37 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                     continue;
                 }
 
+                if (incomingFormat == FormatType.Ebook && storedFormat == FormatType.Ebook &&
+                    HasDistinctVerifiedEbookEdition(localBook, bookFile))
+                {
+                    continue;
+                }
+
                 _logger.Debug("'{0}' Has the same filesize as existing file", localBook.Path);
                 return Decision.RejectWithHoldReason("Has the same filesize as existing file", LibraryImportHoldReason.SameSizeAsExisting);
             }
 
             return Decision.Accept();
+        }
+
+        private static bool HasDistinctVerifiedEbookEdition(LocalBook localBook, BookFile bookFile)
+        {
+            var edition = localBook.Edition;
+            var tags = localBook.FileTrackInfo;
+            if (!localBook.ExistingFile || edition is not { Id: > 0, BookId: > 0 } ||
+                bookFile.EditionId <= 0 || bookFile.EditionId == edition.Id ||
+                tags?.IsbnConfidence is not >= 0.9 || ImportFormat.ForEdition(edition) != FormatType.Ebook)
+            {
+                return false;
+            }
+
+            var existingEdition = bookFile.Edition?.Value;
+            var incomingIsbn = Isbn.AsIsbn13(edition.Isbn13);
+            var existingIsbn = Isbn.AsIsbn13(existingEdition?.Isbn13);
+
+            return existingEdition?.Id == bookFile.EditionId && existingEdition.BookId == edition.BookId &&
+                   ImportFormat.ForEdition(existingEdition) == FormatType.Ebook && incomingIsbn != null &&
+                   existingIsbn != null && incomingIsbn != existingIsbn && Isbn.AreEquivalent(tags.Isbn, incomingIsbn);
         }
     }
 }
