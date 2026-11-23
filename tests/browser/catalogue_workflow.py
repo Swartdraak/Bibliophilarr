@@ -377,6 +377,26 @@ def verify_poor_local_import_selection(api, work, book):
                        event["message"].startswith("Error identifying release")
                        for event in recent if event["logger"] in ("IdentificationService", "ImportDecisionMaker"))
         print("poor_local_import_without_providers: PASS (remote fallback and explicit per-file rejection)", flush=True)
+
+        queued_import = catalogue_command(api, "ManualImport", files=[{
+            "path": str(source), "bookId": book["id"], "authorId": 0,
+        }], importMode="copy", replaceExistingFiles=False)
+        assert queued_import["result"] == "unsuccessful" and queued_import["ended"], "Unresolved command reported success"
+        assert not queued_import.get("exception"), "Unresolved command crashed"
+        assert not files_for_book(api, book["id"])
+        unmapped = checked(api.get("/api/v1/bookfile", params={"unmapped": "true"}),
+                           200, "read_unmapped_after_unsuccessful_command")
+        assert all(Path(row["path"]) != source for row in unmapped)
+        assert sha256(source.read_bytes()).hexdigest() == original_digest
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if any(event["id"] > before and event["logger"] == "ManualImportService" and
+                   event["message"] == "No files were eligible for manual import." for event in events()):
+                break
+            time.sleep(0.15)
+        else:
+            raise AssertionError("Missing the unsuccessful manual import event")
+        print("unresolved_manual_import_command: PASS (unsuccessful result, event and unchanged file)", flush=True)
     finally:
         checked(api.put(config_route + "/1", data=settings), 202, "restore_poor_match_threshold")
 

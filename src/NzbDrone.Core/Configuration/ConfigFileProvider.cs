@@ -431,6 +431,7 @@ namespace NzbDrone.Core.Configuration
                             throw new InvalidConfigFileException($"{_configFile} is invalid. Please delete the config file and Bibliophilarr will recreate it.");
                         }
 
+                        NormalizeServerValues(config[0]);
                         return xDoc;
                     }
 
@@ -447,6 +448,32 @@ namespace NzbDrone.Core.Configuration
             catch (UnauthorizedAccessException ex)
             {
                 throw new AccessDeniedConfigFileException($"Bibliophilarr does not have access to config file: {_configFile}. Please fix permissions", ex);
+            }
+        }
+
+        private static void NormalizeServerValues(XElement config)
+        {
+            var servers = config.Elements("Server").ToList();
+            if (servers.Count != 1)
+            {
+                return;
+            }
+
+            foreach (var key in new[] { nameof(Port), nameof(BindAddress) })
+            {
+                var values = servers[0].Elements(key).ToList();
+                if (values.Count != 1 || values[0].HasElements || values[0].HasAttributes)
+                {
+                    continue;
+                }
+
+                var nested = values[0];
+                if (config.Element(key) == null)
+                {
+                    config.Add(new XElement(nested));
+                }
+
+                nested.Remove();
             }
         }
 
