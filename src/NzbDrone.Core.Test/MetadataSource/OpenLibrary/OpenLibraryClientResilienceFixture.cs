@@ -63,11 +63,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var registry = new MetadataProviderRegistry(new[] { provider });
             var telemetry = new MetadataProviderTelemetryService();
             var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, logger);
-            if (status != HttpStatusCode.OK)
-            {
-                ExceptionVerification.IgnoreWarns();
-            }
-
             if (searchAuthors)
             {
                 orchestrator.SearchForNewAuthor(term);
@@ -95,6 +90,20 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             entry.TotalResultCount.Should().Be(0);
             var expectedRequests = status == HttpStatusCode.TooManyRequests ? 2 : 1;
             Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.Is<HttpRequest>(value => value.Url.Path == path)), Times.Exactly(expectedRequests));
+            if (status is HttpStatusCode.ServiceUnavailable or HttpStatusCode.TooManyRequests)
+            {
+                var providerWarning = status == HttpStatusCode.TooManyRequests
+                    ? "OpenLibrary rate-limit (429) exceeded retry budget"
+                    : "OpenLibrary returned HTTP 503";
+                ExceptionVerification.ExpectedWarns(
+                    providerWarning,
+                    $"Metadata provider 'OpenLibrary' failed during {expectedOperation}",
+                    $"All providers failed for operation {expectedOperation}");
+            }
+            else
+            {
+                ExceptionVerification.ExpectedWarns(0);
+            }
         }
 
         [Test]

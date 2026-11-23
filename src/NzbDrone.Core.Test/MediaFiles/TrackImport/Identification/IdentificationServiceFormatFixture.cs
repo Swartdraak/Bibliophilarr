@@ -756,8 +756,14 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
 
             release.Edition.Should().BeNull();
             release.IdentificationHoldReason.Should().BeNull();
-            tracks.Single().Edition.Should().BeNull();
+            var track = release.LocalBooks.Should().ContainSingle().Which;
+            track.Should().BeSameAs(tracks.Single());
+            track.Edition.Should().BeNull();
+            track.Author.Should().BeSameAs(_author);
+            track.Book.Should().BeSameAs(_book);
             summary.Errors.Should().Be(0);
+            Mocker.GetMock<ICandidateService>()
+                .Verify(service => service.GetRemoteCandidates(release, _overrides, It.IsAny<Func<Edition, bool>>(), false), Times.Once);
         }
 
         [Test]

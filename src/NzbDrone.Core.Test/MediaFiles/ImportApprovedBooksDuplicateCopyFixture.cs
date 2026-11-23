@@ -11,6 +11,7 @@ using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles
 {
@@ -218,6 +219,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>()
                 .Verify(x => x.AddMany(It.Is<List<BookFile>>(files =>
                     files.Count == 1 && files[0].Path == second.Item.Path)), Times.Once);
+            ExceptionVerification.ExpectedWarns(firstImportThrows ? 1 : 0, "Couldn't import book");
         }
 
         [Test]
