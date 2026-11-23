@@ -219,6 +219,11 @@ namespace NzbDrone.Core.Books
                 transaction) == ownerId;
         }
 
+        public static CatalogueSourceAssociation NormalizeProviderSearchId(CatalogueEntityKind kind, string identifier)
+        {
+            return ParseLegacySource(kind, identifier, null);
+        }
+
         internal static CatalogueSourceAssociation ParseLegacySource(CatalogueEntityKind kind, string scopedId, string evidence)
         {
             if (string.IsNullOrWhiteSpace(scopedId))

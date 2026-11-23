@@ -67,7 +67,7 @@ namespace NzbDrone.Api.Test.Search
 
             var coverMapper = new Mock<IMapCoversToLocal>();
 
-            var controller = new SearchController(searchProxy.Object, fileNameBuilder.Object, coverMapper.Object, _telemetry);
+            var controller = new SearchController(searchProxy.Object, fileNameBuilder.Object, coverMapper.Object, _telemetry, Mock.Of<ICatalogueIdentityRepository>());
 
             var result = controller.Search("anne");
 
@@ -84,6 +84,108 @@ namespace NzbDrone.Api.Test.Search
         }
 
         [Test]
+        public void should_return_one_result_for_each_normalized_provider_identity_and_keep_namesakes()
+        {
+            var results = SearchWithResults(
+                SearchAuthor("hardcover:author:41"),
+                SearchAuthor("hardcover:author:041"),
+                SearchAuthor("hardcover:author:42"),
+                new Book { ForeignBookId = "hardcover:work:41", Title = "Same title" },
+                new Book { ForeignBookId = "hardcover:work:041", Title = "Same title" },
+                new Book { ForeignBookId = "hardcover:work:42", Title = "Same title" },
+                new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:41", Title = "Same title" },
+                new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:041", Title = "Same title" },
+                new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:42", Title = "Same title" });
+
+            results.Select(result => result.ForeignId).Should().Equal(
+                "hardcover:author:41",
+                "hardcover:author:42",
+                "hardcover:work:41",
+                "hardcover:work:42",
+                "hardcover:series:41",
+                "hardcover:series:42");
+        }
+
+        private static Author SearchAuthor(string providerId)
+        {
+            return new Author
+            {
+                Metadata = new AuthorMetadata
+                {
+                    Name = "Jeff Fixture",
+                    ForeignAuthorId = providerId
+                }
+            };
+        }
+
+        [Test]
+        public void should_group_verified_cross_provider_aliases_and_keep_the_first_payload()
+        {
+            const string canonicalId = "a0e693a449884a6981ff7a7f9f855a00";
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "41")).Returns(11);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL300A")).Returns(11);
+            identity.Setup(repository => repository.FindByRoute(CatalogueEntityKind.Work, canonicalId)).Returns(12);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "41")).Returns(12);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL300W")).Returns(12);
+            var firstEdition = new Edition { ForeignEditionId = "hardcover:source-edition:15", Title = "First edition" };
+
+            var results = SearchWithCatalogueResults(identity.Object,
+                SearchAuthor("hardcover:author:41"),
+                SearchAuthor("openlibrary:author:OL300A"),
+                SearchAuthor("hardcover:author:42"),
+                new Book
+                {
+                    ForeignBookId = "hardcover:work:41",
+                    Title = "First result",
+                    CanonicalId = canonicalId,
+                    Editions = new List<Edition> { firstEdition }
+                },
+                new Book { ForeignBookId = "openlibrary:work:OL300W", Title = "Alternate payload" },
+                new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:41", Title = "Other entity type" });
+
+            results.Select(result => result.ForeignId).Should().Equal(
+                "hardcover:author:41",
+                "hardcover:author:42",
+                "hardcover:work:41",
+                "hardcover:series:41");
+            results[2].Book.Editions.Should().ContainSingle().Which.ForeignEditionId.Should().Be(firstEdition.ForeignEditionId);
+        }
+
+        [Test]
+        public void should_use_the_typed_source_when_canonical_id_has_no_catalogue_owner()
+        {
+            const string unpersistedCanonicalId = "a0e693a449884a6981ff7a7f9f855a00";
+
+            var results = SearchWithResults(
+                new Book { ForeignBookId = "hardcover:work:41", Title = "First result", CanonicalId = unpersistedCanonicalId },
+                new Book { ForeignBookId = "hardcover:work:41", Title = "Repeated source" },
+                new Book { ForeignBookId = "hardcover:work:42", Title = "Other work", CanonicalId = unpersistedCanonicalId });
+
+            results.Select(result => result.ForeignId).Should().Equal("hardcover:work:41", "hardcover:work:42");
+            results[0].Book.Title.Should().Be("First result");
+        }
+
+        [Test]
+        public void should_keep_results_when_identity_is_unknown_or_verified_sources_disagree()
+        {
+            const string canonicalId = "a0e693a449884a6981ff7a7f9f855a00";
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.FindByRoute(CatalogueEntityKind.Work, canonicalId)).Returns(11);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "41")).Returns(12);
+
+            var results = SearchWithCatalogueResults(identity.Object,
+                SearchAuthor(null),
+                SearchAuthor(null),
+                new Book { ForeignBookId = "hardcover:work:41", CanonicalId = canonicalId },
+                new Book { ForeignBookId = "hardcover:work:41" },
+                new Book { ForeignBookId = "googlebooks:work:Ab13" },
+                new Book { ForeignBookId = "googlebooks:work:ab13" });
+
+            results.Should().HaveCount(6);
+        }
+
+        [Test]
         public void should_issue_only_the_requested_search_and_keep_series_provider_identity()
         {
             var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
@@ -93,7 +195,7 @@ namespace NzbDrone.Api.Test.Search
                     new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:10", Title = "Fixture", Slug = "fixture" },
                     new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:11", Title = "Fixture", Slug = "another-fixture" }
                 });
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>());
 
             var results = (List<SearchResource>)controller.Search(" Fixture ", "series");
 
@@ -117,7 +219,7 @@ namespace NzbDrone.Api.Test.Search
                 proxy.Setup(search => search.SearchForNewBook("Fixture", null, false)).Returns(new List<Book>());
             }
 
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>());
 
             ((List<SearchResource>)controller.Search("Fixture", scope)).Should().BeEmpty();
             proxy.Invocations.Should().ContainSingle();
@@ -129,7 +231,7 @@ namespace NzbDrone.Api.Test.Search
             var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
             proxy.Setup(search => search.SearchForNewSeries("Unavailable")).Returns((List<SeriesSearchSummary>)null);
             proxy.Setup(search => search.SearchForNewSeries("Empty")).Returns(new List<SeriesSearchSummary>());
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>());
 
             controller.Search("Unavailable", "series").Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(503);
             ((List<SearchResource>)controller.Search("Empty", "series")).Should().BeEmpty();
@@ -146,7 +248,7 @@ namespace NzbDrone.Api.Test.Search
                 new Book { Title = "Second alphabetically", ForeignBookId = "hardcover:work:8" },
                 new Book { Title = "First alphabetically", ForeignBookId = "hardcover:work:9" }
             });
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry);
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>());
 
             var results = (List<SearchResource>)controller.Search("hardcover:series:24", "series-books");
 
@@ -349,7 +451,7 @@ namespace NzbDrone.Api.Test.Search
                         image.Url = "/artwork/" + System.IO.Path.GetFileName(image.Url);
                     }
                 });
-            var controller = new SearchController(searchProxy.Object, Mock.Of<IBuildFileNames>(), coverMapper.Object, _telemetry);
+            var controller = new SearchController(searchProxy.Object, Mock.Of<IBuildFileNames>(), coverMapper.Object, _telemetry, Mock.Of<ICatalogueIdentityRepository>());
 
             var result = ((List<SearchResource>)controller.Search("fixture")).Should().ContainSingle().Which.Book;
 
@@ -609,7 +711,8 @@ namespace NzbDrone.Api.Test.Search
                 searchProxy.Object,
                 fileNameBuilder.Object,
                 coverMapper.Object,
-                new SearchTelemetryService());
+                new SearchTelemetryService(),
+                Mock.Of<ICatalogueIdentityRepository>());
 
             var result = controller.Search("hobbit");
 
@@ -620,6 +723,11 @@ namespace NzbDrone.Api.Test.Search
         // Helper: build a SearchController wired with a stub provider that returns
         // the given entities, then invoke Search and return the result list.
         private static List<SearchResource> SearchWithResults(params object[] entities)
+        {
+            return SearchWithCatalogueResults(Mock.Of<ICatalogueIdentityRepository>(), entities);
+        }
+
+        private static List<SearchResource> SearchWithCatalogueResults(ICatalogueIdentityRepository catalogueIdentity, params object[] entities)
         {
             var searchProxy = new Mock<IMetadataProviderOrchestrator>();
             searchProxy.Setup(v => v.SearchForNewEntity(It.IsAny<string>()))
@@ -635,7 +743,8 @@ namespace NzbDrone.Api.Test.Search
                 searchProxy.Object,
                 fileNameBuilder.Object,
                 coverMapper.Object,
-                new SearchTelemetryService());
+                new SearchTelemetryService(),
+                catalogueIdentity);
 
             var result = controller.Search("hobbit");
             return (List<SearchResource>)result;

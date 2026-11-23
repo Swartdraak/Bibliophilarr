@@ -802,7 +802,6 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 var authorId = author.ForeignAuthorId;
                 var authorName = author.Metadata.Value.Name?.Trim();
 
-                // Deduplicate by both ID and normalized name
                 if (authorId.IsNotNullOrWhiteSpace() && seenAuthorIds.Add(authorId))
                 {
                     if (authorName.IsNotNullOrWhiteSpace())
@@ -814,25 +813,31 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
             }
 
-            // Then search for books
             var books = SearchForNewBook(title, null, false);
             foreach (var book in books)
             {
-                // Add author from book results if not already present (by ID or name)
+                var metadata = book?.Author?.Value?.Metadata?.Value;
+                if (TryParseNumericHardcoverAuthorId(metadata?.ForeignAuthorId, out _) && metadata.Name.IsNotNullOrWhiteSpace())
+                {
+                    seenAuthorNames.Add(metadata.Name.Trim());
+                }
+            }
+
+            foreach (var book in books)
+            {
                 if (book?.Author?.Value?.Metadata?.Value != null)
                 {
                     var bookAuthor = book.Author.Value;
                     var authorId = bookAuthor.ForeignAuthorId;
                     var authorName = bookAuthor.Metadata.Value.Name?.Trim();
 
-                    // Skip if we've already seen this author by ID or by name
-                    var isNewById = authorId.IsNotNullOrWhiteSpace() && !seenAuthorIds.Contains(authorId);
-                    var isNewByName = authorName.IsNotNullOrWhiteSpace() && !seenAuthorNames.Contains(authorName);
-
-                    if (isNewById && isNewByName)
+                    // A name-only hit is ambiguous whenever an identified author has that name.
+                    var identified = TryParseNumericHardcoverAuthorId(authorId, out _);
+                    if (authorId.IsNotNullOrWhiteSpace() &&
+                        !seenAuthorIds.Contains(authorId) &&
+                        (identified || (authorName.IsNotNullOrWhiteSpace() && seenAuthorNames.Add(authorName))))
                     {
                         seenAuthorIds.Add(authorId);
-                        seenAuthorNames.Add(authorName);
                         output.Add(bookAuthor);
                     }
                 }

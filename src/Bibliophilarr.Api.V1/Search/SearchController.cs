@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Common.Instrumentation;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
@@ -26,13 +27,19 @@ namespace Bibliophilarr.Api.V1.Search
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IMapCoversToLocal _coverMapper;
         private readonly ISearchTelemetryService _searchTelemetry;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
 
-        public SearchController(IMetadataProviderOrchestrator searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper, ISearchTelemetryService searchTelemetry)
+        public SearchController(IMetadataProviderOrchestrator searchProxy,
+                                IBuildFileNames fileNameBuilder,
+                                IMapCoversToLocal coverMapper,
+                                ISearchTelemetryService searchTelemetry,
+                                ICatalogueIdentityRepository catalogueIdentity)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
             _coverMapper = coverMapper;
             _searchTelemetry = searchTelemetry;
+            _catalogueIdentity = catalogueIdentity;
         }
 
         [HttpGet]
@@ -98,8 +105,15 @@ namespace Bibliophilarr.Api.V1.Search
             }
 
             var id = 1;
+            var seen = new HashSet<(CatalogueEntityKind Kind, string Identity)>();
             foreach (var result in results)
             {
+                var identity = GetSearchIdentity(result);
+                if (identity.HasValue && !seen.Add(identity.Value))
+                {
+                    continue;
+                }
+
                 var resource = new SearchResource();
                 resource.Id = id++;
 
@@ -159,6 +173,34 @@ namespace Bibliophilarr.Api.V1.Search
 
                 yield return resource;
             }
+        }
+
+        private (CatalogueEntityKind Kind, string Identity)? GetSearchIdentity(object result)
+        {
+            var (kind, canonicalId, providerId) = result switch
+            {
+                NzbDrone.Core.Books.Author author => (CatalogueEntityKind.Author, author.Metadata?.Value?.CanonicalId, author.Metadata?.Value?.ForeignAuthorId),
+                NzbDrone.Core.Books.Book book => (CatalogueEntityKind.Work, book.CanonicalId, book.ForeignBookId),
+                SeriesSearchSummary series => (CatalogueEntityKind.Series, null, series.ForeignSeriesId),
+                _ => default((CatalogueEntityKind, string, string))
+            };
+
+            var canonical = Guid.TryParseExact(canonicalId, "N", out var canonicalGuid) ? canonicalGuid.ToString("N") : null;
+            var source = CatalogueIdentityRepository.NormalizeProviderSearchId(kind, providerId);
+            var canonicalOwner = canonical == null ? null : _catalogueIdentity.FindByRoute(kind, canonical);
+            var sourceOwner = source == null ? null : _catalogueIdentity.FindByProviderId(kind, source.Provider, source.ProviderId);
+
+            if (canonicalOwner.HasValue && sourceOwner.HasValue && canonicalOwner != sourceOwner)
+            {
+                return null;
+            }
+
+            if ((canonicalOwner ?? sourceOwner) is { } owner)
+            {
+                return (kind, $"owner:{owner.ToString(CultureInfo.InvariantCulture)}");
+            }
+
+            return source == null ? null : (kind, $"source:{source.Provider}:{source.ProviderId}");
         }
     }
 }

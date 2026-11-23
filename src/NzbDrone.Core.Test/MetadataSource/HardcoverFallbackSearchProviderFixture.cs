@@ -373,6 +373,45 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_keep_numeric_namesakes_and_skip_ambiguous_name_only_author_hits()
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                var query = JObject.Parse(Encoding.UTF8.GetString(request.ContentData)).Value<string>("query");
+                if (query.StartsWith("query SearchAuthors", StringComparison.Ordinal))
+                {
+                    return CreateJsonResponse(request, JObject.Parse("""{"data":{"search":{"ids":[41]}}}"""));
+                }
+
+                query.Should().StartWith("query GetAuthors");
+                return CreateJsonResponse(request, JObject.Parse("""
+                    {"data":{"authors":[{"id":41,"name":"Jeff Example","image":{"url":"https://covers.example/41.jpg"}}]}}
+                    """));
+            });
+
+            client.Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, """
+                    {"data":{"search":{"results":{"hits":[
+                        {"document":{"id":"1","title":"Ambiguous","author_names":["Jeff Example"]}},
+                        {"document":{"id":"2","title":"Known","contributions":[{"author":{"id":41,"name":"Jeff Example"}}]}},
+                        {"document":{"id":"3","title":"Namesake","contributions":[{"author":{"id":42,"name":"Jeff Example"}}]}},
+                        {"document":{"id":"4","title":"Another ambiguous work","author_names":["Jeff Novel"]}},
+                        {"document":{"id":"5","title":"Later identified","contributions":[{"author":{"id":43,"name":"Jeff Novel"}}]}}
+                    ]}}}}
+                    """)));
+
+            var results = Subject.SearchForNewEntity("Jeff");
+            var authors = results.OfType<Author>().ToList();
+
+            authors.Select(author => author.ForeignAuthorId).Should().Equal("hardcover:author:41", "hardcover:author:42", "hardcover:author:43");
+            authors[0].Metadata.Value.Images.Should().ContainSingle().Which.RemoteUrl.Should().Be("https://covers.example/41.jpg");
+            results.OfType<Book>().Should().HaveCount(5);
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(2));
+            client.Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
+        [Test]
         public void should_map_search_results_from_graphql_response()
         {
             HttpRequest capturedRequest = null;
