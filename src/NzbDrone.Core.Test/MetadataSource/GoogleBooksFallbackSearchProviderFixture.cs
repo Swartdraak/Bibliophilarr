@@ -9,6 +9,7 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
@@ -23,6 +24,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         [SetUp]
         public void SetUp()
         {
+            Mocker.SetConstant<TimeProvider>(TimeProvider.System);
             Mocker.GetMock<IConfigService>()
                 .SetupGet(x => x.EnableGoogleBooksFallback)
                 .Returns(true);
@@ -44,17 +46,21 @@ namespace NzbDrone.Core.Test.MetadataSource
                     request,
                     new HttpHeader { ContentType = contentType },
                     $"<html>{bodyMarker}</html>",
-                    HttpStatusCode.BadGateway));
+                    HttpStatusCode.OK));
             var messages = new MemoryTarget { Layout = "${message}|${exception:format=ToString}" };
             var configuration = new LoggingConfiguration();
             configuration.AddRule(LogLevel.Warn, LogLevel.Fatal, messages);
             using var logFactory = new LogFactory { Configuration = configuration };
-            var provider = new GoogleBooksFallbackSearchProvider(config.Object, http.Object, logFactory.GetLogger(nameof(GoogleBooksFallbackSearchProvider)));
+            var provider = new GoogleBooksFallbackSearchProvider(
+                config.Object,
+                http.Object,
+                Mocker.Resolve<ICacheManager>(),
+                logFactory.GetLogger(nameof(GoogleBooksFallbackSearchProvider)));
 
             provider.Search(title, author).Should().BeEmpty();
 
             var log = messages.Logs.Should().ContainSingle().Which;
-            log.Should().StartWith("Google Books fallback search failed (InvalidOperationException).");
+            log.Should().StartWith("Google Books search failed (GoogleBooksUnexpectedHtmlException).");
             log.Should().NotContain(title).And.NotContain(author).And.NotContain(key).And.NotContain(bodyMarker);
             http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
         }
@@ -65,7 +71,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             const int total = 413;
             var offsets = new List<int>();
             Mocker.GetMock<IHttpClient>()
-                .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(client => client.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
                     var offset = GetOffset(request);
@@ -104,7 +110,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         public void author_hydration_should_reject_later_incomplete_pages(string failure)
         {
             Mocker.GetMock<IHttpClient>()
-                .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(client => client.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
                     if (GetOffset(request) == 0)
@@ -130,7 +136,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         {
             var offsets = new List<int>();
             Mocker.GetMock<IHttpClient>()
-                .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(client => client.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
                     var offset = GetOffset(request);
@@ -155,7 +161,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         {
             var offsets = new List<int>();
             Mocker.GetMock<IHttpClient>()
-                .Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(client => client.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
                     var offset = GetOffset(request);
@@ -191,13 +197,13 @@ namespace NzbDrone.Core.Test.MetadataSource
             return int.Parse(request.Url.Query.TrimStart('?').Split('&').Single(part => part.StartsWith("startIndex=", StringComparison.Ordinal)).Substring("startIndex=".Length));
         }
 
-        private static HttpResponse<GoogleBooksSearchResponse> CreatePage(
+        private static HttpResponse CreatePage(
             HttpRequest request, int total, int offset, int count, HttpStatusCode status = HttpStatusCode.OK)
         {
             return CreatePage(request, total, Enumerable.Range(offset, count), status);
         }
 
-        private static HttpResponse<GoogleBooksSearchResponse> CreatePage(
+        private static HttpResponse CreatePage(
             HttpRequest request, int total, IEnumerable<int> volumeIndices, HttpStatusCode status = HttpStatusCode.OK)
         {
             var payload = JsonSerializer.Serialize(new
@@ -209,8 +215,83 @@ namespace NzbDrone.Core.Test.MetadataSource
                     volumeInfo = new { title = $"Book {index}", authors = new[] { "Author Name" }, description = "Volume synopsis" }
                 })
             });
-            return new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(
-                request, new HttpHeader { ContentType = "application/json" }, payload, status));
+            return new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload, status);
+        }
+
+        [Test]
+        public void should_keep_definitive_volume_not_found_separate_from_a_shared_google_cooldown()
+        {
+            const string bookId = "googlebooks:work:fixture-volume";
+            var http = Mocker.GetMock<IHttpClient>();
+            var headers = new HttpHeader { ContentType = "text/html", ["Retry-After"] = "180" };
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, headers, "<html>missing</html>", HttpStatusCode.NotFound));
+
+            Action initial = () => Subject.GetBookInfo(bookId);
+            initial.Should().Throw<BookNotFoundException>();
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, headers, "<html>rate limited</html>", HttpStatusCode.TooManyRequests));
+            initial.Should().Throw<MetadataProviderUnavailableException>().WithInnerException<TooManyRequestsException>();
+
+            var secondInstance = new GoogleBooksFallbackSearchProvider(
+                Mocker.GetMock<IConfigService>().Object,
+                http.Object,
+                Mocker.Resolve<ICacheManager>(),
+                LogManager.GetCurrentClassLogger());
+            Action held = () => secondInstance.GetBookInfo(bookId);
+            held.Should().Throw<MetadataProviderUnavailableException>();
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
+        [Test]
+        public void should_admit_a_google_request_exactly_when_the_shared_cooldown_expires()
+        {
+            const string bookId = "googlebooks:work:fixture-volume";
+            var clock = new FixtureTimeProvider();
+            var http = Mocker.GetMock<IHttpClient>();
+            var request = new HttpRequest("https://example.test");
+            var rateLimitHeaders = new HttpHeader { ContentType = "application/json", ["Retry-After"] = "180" };
+            http.SetupSequence(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns(new HttpResponse(request, rateLimitHeaders, "{}", HttpStatusCode.TooManyRequests))
+                .Returns(new HttpResponse(
+                    request,
+                    new HttpHeader { ContentType = "application/json" },
+                    """{"id":"fixture-volume","volumeInfo":{"title":"Fixture book","authors":["Fixture Author"]}}"""));
+            var provider = new GoogleBooksFallbackSearchProvider(
+                Mocker.GetMock<IConfigService>().Object,
+                http.Object,
+                Mocker.Resolve<ICacheManager>(),
+                LogManager.GetCurrentClassLogger(),
+                clock);
+
+            Action lookup = () => provider.GetBookInfo(bookId);
+            lookup.Should().Throw<MetadataProviderUnavailableException>().WithInnerException<TooManyRequestsException>();
+
+            clock.UtcNow = clock.UtcNow.AddSeconds(179);
+            lookup.Should().Throw<MetadataProviderUnavailableException>();
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+
+            clock.UtcNow = clock.UtcNow.AddSeconds(1);
+            provider.GetBookInfo(bookId).Item2.ForeignBookId.Should().Be(bookId);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
+        [Test]
+        public void should_reject_mixed_case_html_without_retaining_google_request_or_body()
+        {
+            const string apiKey = "fixture-private-api-key";
+            const string author = "Fixture%20Private%20Name";
+            const string body = "<html>private-body</html>";
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.GoogleBooksApiKey).Returns(apiKey);
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, new HttpHeader { ContentType = "TeXt/HtMl; charset=utf-8" }, body));
+
+            Action lookup = () => Subject.GetAuthorInfo("googlebooks:author:" + author);
+            var failure = lookup.Should().Throw<MetadataProviderUnavailableException>().Which.InnerException;
+            failure.Message.Should().Be("Google Books returned unexpected HTML content.");
+            failure.ToString().Should().NotContain(apiKey).And.NotContain("private-body").And.NotContain("www.googleapis.com");
         }
 
         [Test]
@@ -242,6 +323,13 @@ namespace NzbDrone.Core.Test.MetadataSource
             books[0].Editions.Value[0].TitleSlug.Should().Be("googlebooks-edition-gb-123");
             books[0].Editions.Value[0].Images.Should().ContainSingle();
             books[0].Editions.Value[0].Images[0].Url.Should().Be("https://books.google.example/cover-thumb.jpg");
+        }
+
+        private sealed class FixtureTimeProvider : TimeProvider
+        {
+            public DateTimeOffset UtcNow { get; set; } = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+            public override DateTimeOffset GetUtcNow() => UtcNow;
         }
     }
 }

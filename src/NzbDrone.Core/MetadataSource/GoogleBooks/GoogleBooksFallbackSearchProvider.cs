@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using NLog;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
@@ -30,12 +33,24 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
         private readonly IHttpClient _httpClient;
         private readonly IHttpRequestBuilderFactory _requestBuilder;
         private readonly Logger _logger;
+        private readonly RequestState _requestState;
 
-        public GoogleBooksFallbackSearchProvider(IConfigService configService, IHttpClient httpClient, Logger logger)
+        public GoogleBooksFallbackSearchProvider(IConfigService configService, IHttpClient httpClient, ICacheManager cacheManager, Logger logger)
+            : this(configService, httpClient, cacheManager, logger, TimeProvider.System)
+        {
+        }
+
+        internal GoogleBooksFallbackSearchProvider(IConfigService configService,
+                                                   IHttpClient httpClient,
+                                                   ICacheManager cacheManager,
+                                                   Logger logger,
+                                                   TimeProvider timeProvider)
         {
             _configService = configService;
             _httpClient = httpClient;
             _logger = logger;
+            _requestState = cacheManager.GetCache<RequestState>(typeof(GoogleBooksFallbackSearchProvider))
+                .Get("GoogleBooksRequestState", () => new RequestState(timeProvider));
 
             _requestBuilder = new HttpRequestBuilder("https://www.googleapis.com/books/v1/volumes")
                 .Accept(HttpAccept.Json)
@@ -52,6 +67,8 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
         public bool SupportsIsbnLookup => true;
         public bool SupportsSeriesInfo => false;
         public bool SupportsCoverImages => true;
+
+        internal DateTime RequestCooldownUntilUtc => _requestState.CooldownUntilUtc;
 
         public ProviderRateLimitInfo RateLimitInfo => new ProviderRateLimitInfo
         {
@@ -165,7 +182,15 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
 
             var token = NormalizeGoogleBookToken(foreignBookId);
 
-            var volume = GetVolume(token);
+            GoogleBooksVolumeResource volume;
+            try
+            {
+                volume = GetVolume(token);
+            }
+            catch (Exception ex) when (ex is TooManyRequestsException or GoogleBooksRequestOnCooldownException or GoogleBooksServerErrorException)
+            {
+                throw new MetadataProviderUnavailableException("get-book-info", foreignBookId, ex);
+            }
 
             if (volume == null)
             {
@@ -327,42 +352,52 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 httpRequest.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
                 httpRequest.SuppressHttpError = true;
 
-                GoogleBooksSearchResponse response;
-
+                HttpResponse<GoogleBooksSearchResponse> httpResponse;
                 try
                 {
-                    var httpResponse = reportRateLimit
-                        ? GetFallbackSearchPage(httpRequest)
-                        : _httpClient.Get<GoogleBooksSearchResponse>(httpRequest);
-                    response = httpResponse?.Resource;
-                    if (isBibliography)
-                    {
-                        if (httpResponse == null || httpResponse.HasHttpError || response?.TotalItems == null)
-                        {
-                            throw new InvalidOperationException($"Google Books did not return a bibliography page at index {pageStart}.");
-                        }
-
-                        highestReportedTotal = Math.Max(highestReportedTotal, response.TotalItems.Value);
-                    }
+                    httpResponse = GetVolumeResponse<GoogleBooksSearchResponse>(httpRequest);
                 }
-                catch (Exception ex) when (!(reportRateLimit && ex is TooManyRequestsException) &&
-                                           !(reportTransportFailure && MetadataProviderOrchestrator.IsTransportError(ex)))
+                catch (Exception ex) when (ex is TooManyRequestsException or GoogleBooksRequestOnCooldownException or GoogleBooksServerErrorException)
                 {
                     if (isBibliography)
                     {
                         throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, ex);
                     }
 
-                    if (reportRateLimit)
+                    if (reportRateLimit && ex is GoogleBooksRequestOnCooldownException && allItems.Count > 0)
                     {
-                        _logger.Warn("Google Books fallback search failed ({0}).", ex.GetType().Name);
-                    }
-                    else
-                    {
-                        _logger.Warn(ex, "GoogleBooks search failed for query '{0}'", query);
+                        break;
                     }
 
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    var failure = SanitizePageFailure(ex);
+                    if (isBibliography)
+                    {
+                        throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, failure);
+                    }
+
+                    if (reportTransportFailure && MetadataProviderOrchestrator.IsTransportError(failure))
+                    {
+                        throw failure;
+                    }
+
+                    _logger.Warn("Google Books search failed ({0}).", failure.GetType().Name);
                     break;
+                }
+
+                var response = httpResponse?.Resource;
+                if (isBibliography)
+                {
+                    if (httpResponse == null || httpResponse.HasHttpError || response?.TotalItems == null)
+                    {
+                        var failure = new InvalidOperationException($"Google Books did not return a bibliography page at index {pageStart}.");
+                        throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, failure);
+                    }
+
+                    highestReportedTotal = Math.Max(highestReportedTotal, response.TotalItems.Value);
                 }
 
                 var page = response?.Items ?? new List<GoogleBooksVolumeResource>();
@@ -411,21 +446,57 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             return isBibliography ? allItems : allItems.Take(searchLimit).ToList();
         }
 
-        private HttpResponse<GoogleBooksSearchResponse> GetFallbackSearchPage(HttpRequest request)
+        private static Exception SanitizePageFailure(Exception failure)
         {
-            var response = _httpClient.Get(request);
-            if (response?.StatusCode == HttpStatusCode.TooManyRequests)
+            if (failure is GoogleBooksUnexpectedHtmlException)
             {
-                // Report the rate limit without retaining the URL, API key or response body.
-                throw new TooManyRequestsException(response.Headers["Retry-After"]);
+                return failure;
             }
 
-            if (response?.Headers.ContentType?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true)
+            return MetadataProviderOrchestrator.IsTransportError(failure)
+                ? new HttpRequestException("Google Books transport failed.")
+                : new InvalidOperationException("Google Books response could not be decoded.");
+        }
+
+        private HttpResponse<T> GetVolumeResponse<T>(HttpRequest request, bool allowNotFound = false)
+            where T : new()
+        {
+            HttpResponse response;
+
+            // Keep the admission check and dispatch under the same provider gate. The HTTP
+            // rate wait is inside Get, so requests behind a 429 recheck before reaching it.
+            lock (_requestState)
             {
-                throw new InvalidOperationException("Google Books returned HTML from fallback search.");
+                if (_requestState.CooldownUntilUtc > _requestState.UtcNow)
+                {
+                    throw new GoogleBooksRequestOnCooldownException();
+                }
+
+                response = _httpClient.Get(request);
+                if (response?.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    var failure = new TooManyRequestsException(response.Headers["Retry-After"]);
+                    _requestState.CooldownUntilUtc = _requestState.UtcNow.Add(BookSearchFallbackExecutionService.GetRateLimitCooldown(failure.RetryAfter));
+                    throw failure;
+                }
             }
 
-            return response == null ? null : new HttpResponse<GoogleBooksSearchResponse>(response);
+            if (response?.HasHttpServerError == true)
+            {
+                throw new GoogleBooksServerErrorException(response.StatusCode);
+            }
+
+            if (response == null || (allowNotFound && response.StatusCode == HttpStatusCode.NotFound))
+            {
+                return null;
+            }
+
+            if (response.Headers.ContentType?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new GoogleBooksUnexpectedHtmlException();
+            }
+
+            return new HttpResponse<T>(response);
         }
 
         private GoogleBooksVolumeResource GetVolume(string token)
@@ -450,11 +521,11 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 httpRequest.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
                 httpRequest.SuppressHttpError = true;
 
-                return _httpClient.Get<GoogleBooksVolumeResource>(httpRequest).Resource;
+                return GetVolumeResponse<GoogleBooksVolumeResource>(httpRequest, allowNotFound: true)?.Resource;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not TooManyRequestsException and not GoogleBooksRequestOnCooldownException and not GoogleBooksServerErrorException)
             {
-                _logger.Warn(ex, "GoogleBooks get volume failed for token '{0}'", token);
+                _logger.Warn("Google Books volume lookup failed ({0}).", SanitizePageFailure(ex).GetType().Name);
                 return null;
             }
         }
@@ -667,6 +738,33 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             }
 
             return candidateName.Trim().Equals(expectedName.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private sealed class GoogleBooksUnexpectedHtmlException : Exception
+        {
+            public GoogleBooksUnexpectedHtmlException()
+                : base("Google Books returned unexpected HTML content.")
+            {
+            }
+        }
+
+        private sealed class RequestState
+        {
+            private readonly TimeProvider _timeProvider;
+            private long _cooldownUntilTicks;
+
+            public RequestState(TimeProvider timeProvider)
+            {
+                _timeProvider = timeProvider;
+            }
+
+            public DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
+
+            public DateTime CooldownUntilUtc
+            {
+                get => new DateTime(Interlocked.Read(ref _cooldownUntilTicks), DateTimeKind.Utc);
+                set => Interlocked.Exchange(ref _cooldownUntilTicks, value.Ticks);
+            }
         }
     }
 

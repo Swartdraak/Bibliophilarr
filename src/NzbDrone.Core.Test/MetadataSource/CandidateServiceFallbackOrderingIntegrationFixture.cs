@@ -4,6 +4,7 @@ using FluentAssertions;
 using Moq;
 using NLog;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -51,7 +52,11 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Returns("[\":\\\\s*Book\\\\s*\\\\d+$\"]");
 
             var inventaire = new InventaireFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object, LogManager.GetCurrentClassLogger());
-            var googleBooks = new GoogleBooksFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object, LogManager.GetCurrentClassLogger());
+            var googleBooks = new GoogleBooksFallbackSearchProvider(
+                Mocker.GetMock<IConfigService>().Object,
+                Mocker.GetMock<IHttpClient>().Object,
+                Mocker.Resolve<ICacheManager>(),
+                LogManager.GetCurrentClassLogger());
             var hardcover = new HardcoverFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object, LogManager.GetCurrentClassLogger());
 
             var emptySecondary = new Mock<IBookSearchFallbackProvider>();
