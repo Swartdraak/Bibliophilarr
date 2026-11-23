@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NLog;
@@ -68,7 +69,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             }
 
             var query = BuildQuery(title, author);
-            return SearchVolumes(query, 10, 0)
+            return SearchVolumes(query, 10, 0, reportRateLimit: true)
                 .Select(MapBook)
                 .Where(b => b != null)
                 .DistinctBy(x => x.ForeignBookId)
@@ -288,7 +289,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             return queryParts.ConcatToString(" ").Trim();
         }
 
-        private List<GoogleBooksVolumeResource> SearchVolumes(string query, int maxResults, int startIndex, string bibliographyAuthorId = null, bool reportTransportFailure = false)
+        private List<GoogleBooksVolumeResource> SearchVolumes(string query, int maxResults, int startIndex, string bibliographyAuthorId = null, bool reportTransportFailure = false, bool reportRateLimit = false)
         {
             if (query.IsNullOrWhiteSpace())
             {
@@ -330,7 +331,9 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
 
                 try
                 {
-                    var httpResponse = _httpClient.Get<GoogleBooksSearchResponse>(httpRequest);
+                    var httpResponse = reportRateLimit
+                        ? GetFallbackSearchPage(httpRequest)
+                        : _httpClient.Get<GoogleBooksSearchResponse>(httpRequest);
                     response = httpResponse?.Resource;
                     if (isBibliography)
                     {
@@ -342,14 +345,23 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                         highestReportedTotal = Math.Max(highestReportedTotal, response.TotalItems.Value);
                     }
                 }
-                catch (Exception ex) when (!(reportTransportFailure && MetadataProviderOrchestrator.IsTransportError(ex)))
+                catch (Exception ex) when (!(reportRateLimit && ex is TooManyRequestsException) &&
+                                           !(reportTransportFailure && MetadataProviderOrchestrator.IsTransportError(ex)))
                 {
                     if (isBibliography)
                     {
                         throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, ex);
                     }
 
-                    _logger.Warn(ex, "GoogleBooks search failed for query '{0}'", query);
+                    if (reportRateLimit)
+                    {
+                        _logger.Warn("Google Books fallback search failed ({0}).", ex.GetType().Name);
+                    }
+                    else
+                    {
+                        _logger.Warn(ex, "GoogleBooks search failed for query '{0}'", query);
+                    }
+
                     break;
                 }
 
@@ -397,6 +409,23 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             }
 
             return isBibliography ? allItems : allItems.Take(searchLimit).ToList();
+        }
+
+        private HttpResponse<GoogleBooksSearchResponse> GetFallbackSearchPage(HttpRequest request)
+        {
+            var response = _httpClient.Get(request);
+            if (response?.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                // Report the rate limit without retaining the URL, API key or response body.
+                throw new TooManyRequestsException(response.Headers["Retry-After"]);
+            }
+
+            if (response?.Headers.ContentType?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new InvalidOperationException("Google Books returned HTML from fallback search.");
+            }
+
+            return response == null ? null : new HttpResponse<GoogleBooksSearchResponse>(response);
         }
 
         private GoogleBooksVolumeResource GetVolume(string token)

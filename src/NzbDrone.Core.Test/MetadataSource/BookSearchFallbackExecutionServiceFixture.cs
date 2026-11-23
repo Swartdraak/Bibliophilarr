@@ -106,9 +106,9 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .SetupGet(x => x.EnableGoogleBooksFallback)
                 .Returns(true);
             Mocker.GetMock<IHttpClient>()
-                .Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Setup(x => x.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
-                    new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(request, new HttpHeader(), "{\"items\":[]}")));
+                    new HttpResponse(request, new HttpHeader(), "{\"items\":[]}"));
 
             var provider = Mocker.Resolve<GoogleBooksFallbackSearchProvider>();
 
@@ -117,7 +117,75 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IRateLimitService>()
                 .Verify(x => x.WaitAndPulse("metadata-fallback", "GoogleBooks", It.IsAny<TimeSpan>()), Times.Once());
             Mocker.GetMock<IHttpClient>()
-                .Verify(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()), Times.Once());
+                .Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
+        [TestCase(false, "180", 180)]
+        [TestCase(true, "180", 180)]
+        [TestCase(false, null, 300)]
+        [TestCase(true, null, 300)]
+        public void should_enforce_google_fallback_rate_limit_before_decoding_the_response(bool html, string retryAfter, int cooldownSeconds)
+        {
+            const string providerName = "GoogleBooks";
+            const string apiKey = "synthetic-private-api-key";
+            const string firstTitle = "private-first-candidate";
+            const string responseMarker = "private-response-marker";
+
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(x => x.EnableGoogleBooksFallback).Returns(true);
+            config.SetupGet(x => x.GoogleBooksApiKey).Returns(apiKey);
+            var http = Mocker.GetMock<IHttpClient>();
+
+            HttpResponse RateLimit(HttpRequest request)
+            {
+                var headers = new HttpHeader { ContentType = html ? "text/html" : "application/json" };
+                if (retryAfter != null)
+                {
+                    headers["Retry-After"] = retryAfter;
+                }
+
+                var content = html ? $"<html>{responseMarker}</html>" : $"{{\"error\":{{\"message\":\"{responseMarker}\"}}}}";
+                request.SuppressHttpError.Should().BeTrue();
+                return new HttpResponse(request, headers, content, HttpStatusCode.TooManyRequests);
+            }
+
+            http.Setup(x => x.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(RateLimit);
+            http.Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var response = RateLimit(request);
+                    if (html)
+                    {
+                        throw new UnexpectedHtmlContentException(response);
+                    }
+
+                    return new HttpResponse<GoogleBooksSearchResponse>(response);
+                });
+
+            var provider = Mocker.Resolve<GoogleBooksFallbackSearchProvider>();
+            var registry = Mocker.Resolve<IMetadataProviderRegistry>();
+            var started = DateTime.UtcNow;
+
+            Subject.Search(provider, firstTitle, "Author").Should().BeEmpty();
+            var deadline = registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc;
+            Subject.Search(provider, "second candidate", "Another Author").Should().BeEmpty();
+
+            http.Invocations.Should().ContainSingle("Google must not receive another fallback request during cooldown");
+            deadline.Should().BeOnOrAfter(started.AddSeconds(cooldownSeconds));
+            deadline.Should().BeOnOrBefore(DateTime.UtcNow.AddSeconds(cooldownSeconds));
+            registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc.Should().Be(deadline);
+            http.Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
+            http.VerifyNoOtherCalls();
+            var telemetry = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            telemetry.Calls.Should().Be(1);
+            telemetry.Failures.Should().Be(1);
+            telemetry.Successes.Should().Be(0);
+            Mocker.GetMock<IProviderTelemetryService>()
+                .Verify(x => x.RecordFailure(providerName, "fallback-search", It.Is<TooManyRequestsException>(failure =>
+                    failure.Request == null && failure.Response == null &&
+                    !failure.ToString().Contains(apiKey) && !failure.ToString().Contains(firstTitle) &&
+                    !failure.ToString().Contains(responseMarker))), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
