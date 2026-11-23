@@ -10,6 +10,7 @@ This document is the high-level navigation contract for the repository. It is no
 | `src/` | .NET application source, API, domain logic, integrations, services, and .NET tests/projects |
 | `frontend/` | React/WebUI source, styles, UI state, client-side behavior, frontend tests |
 | `tests/` | Cross-cutting fixtures, profiles, disposable stack assets, integration/evidence helpers not owned by a single .NET project |
+| `linux-program/` | Governed Linux acceptance stages and their shared runner helpers |
 | `scripts/` | Developer, CI, audit, migration, diagnostics, and operational automation |
 | `docs/` | Approved project documentation, operational runbooks, audit/evidence material |
 | `wiki/` | Versioned project guides linked from the live GitHub Wiki |
