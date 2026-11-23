@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NUnit.Framework;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Exceptions;
 using NzbDrone.Common.Options;
 using NzbDrone.Host;
@@ -70,6 +72,56 @@ namespace NzbDrone.App.Test
                 Assert.That(GetServerOptions(config).Port, Is.EqualTo(expectedOverride));
                 Assert.That(config["Port"], Is.EqualTo("8790"));
             });
+        }
+
+        [TestCase(null, null, 8811, "127.0.0.1")]
+        [TestCase("8812", "127.0.0.2", 8812, "127.0.0.2")]
+        [NonParallelizable]
+        public void should_apply_nested_xml_settings_to_the_listener_with_environment_precedence(
+            string portOverride, string addressOverride, int expectedPort, string expectedAddress)
+        {
+            var directory = Directory.CreateTempSubdirectory();
+            var variables = new Dictionary<string, string>
+            {
+                ["BIBLIOPHILARR__SERVER__PORT"] = portOverride,
+                ["BIBLIOPHILARR__SERVER__BINDADDRESS"] = addressOverride,
+                ["BIBLIOPHILARR_SERVER__PORT"] = null,
+                ["PORT"] = null,
+                ["BINDADDRESS"] = null
+            };
+            var previous = new Dictionary<string, string>();
+
+            try
+            {
+                foreach (var (name, value) in variables)
+                {
+                    previous[name] = Environment.GetEnvironmentVariable(name);
+                    Environment.SetEnvironmentVariable(name, value);
+                }
+
+                var configPath = Path.Combine(directory.FullName, "config.xml");
+                File.WriteAllText(configPath, "<Config><Server><Port>8811</Port><BindAddress>127.0.0.1</BindAddress></Server></Config>");
+
+                var config = Bootstrap.GetConfiguration(new StartupContext($"--data={directory.FullName}"));
+                var port = Bootstrap.GetServerPort(config);
+                var address = Bootstrap.GetServerBindAddress(config);
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(port, Is.EqualTo(expectedPort));
+                    Assert.That(address, Is.EqualTo(expectedAddress));
+                    Assert.That(Bootstrap.BuildUrl("http", address, port), Is.EqualTo($"http://{expectedAddress}:{expectedPort}"));
+                });
+            }
+            finally
+            {
+                foreach (var (name, value) in previous)
+                {
+                    Environment.SetEnvironmentVariable(name, value);
+                }
+
+                directory.Delete(true);
+            }
         }
 
         [TestCase("invalid", "8811")]

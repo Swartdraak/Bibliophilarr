@@ -49,7 +49,7 @@
     },
     {
       "path": "linux-program/harness/common.py",
-      "sha256": "523ca7ae704ee50ba6fac15a99fb76d71d46a74029766bcab3f706ae25a94c54"
+      "sha256": "e26cf72770e3e1e5bf06fddf89d13f818522cf5c6432a412060148bf8c33a348"
     },
     {
       "path": "linux-program/harness/enable_providers.py",
@@ -97,11 +97,11 @@
     },
     {
       "path": "linux-program/workflows/check_first_boot.py",
-      "sha256": "cc56f4c1dfb383ea6eafa8aee6bccde15e7f2e228b8e3f3c627ac817c058e1bc"
+      "sha256": "236ef97aa2b7dd80537ee3ac391a9db4b87bf06a89c6369e8e3f472735f185b6"
     },
     {
       "path": "linux-program/workflows/check_persistence.py",
-      "sha256": "5277552f6f5b9a6378590a201b73ab2084b9469c6cae70340c5150bb9ebf63ec"
+      "sha256": "13b97bcc49a9f33532a1131bc128f3b07da56b00a144440567d262a10bf64027"
     },
     {
       "path": "linux-program/workflows/prepare.sh",

@@ -11,7 +11,7 @@ namespace NzbDrone.Core.Books
             return canonical != null && canonical == AsIsbn13(second);
         }
 
-        private static string AsIsbn13(string value)
+        public static string AsIsbn13(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
             {

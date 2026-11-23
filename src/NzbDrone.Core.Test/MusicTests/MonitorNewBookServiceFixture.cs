@@ -6,6 +6,7 @@ using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.BookTests
 {
@@ -75,6 +76,7 @@ namespace NzbDrone.Core.Test.BookTests
             var result = Subject.ShouldMonitorNewBook(_books[0], _books, outOfRange);
 
             result.Should().BeFalse("out-of-range values must fall back to the safe no-monitor default");
+            ExceptionVerification.ExpectedWarns(1, "Unknown NewItemMonitorTypes value");
         }
 
         [Test]
@@ -83,6 +85,7 @@ namespace NzbDrone.Core.Test.BookTests
             var negative = (NewItemMonitorTypes)(-1);
 
             Subject.ShouldMonitorNewBook(_books[0], _books, negative).Should().BeFalse();
+            ExceptionVerification.ExpectedWarns(1, "Unknown NewItemMonitorTypes value");
         }
 
         [Test]
@@ -92,6 +95,7 @@ namespace NzbDrone.Core.Test.BookTests
             var tooLarge = (NewItemMonitorTypes)99;
 
             Subject.ShouldMonitorNewBook(_books[0], _books, tooLarge).Should().BeFalse();
+            ExceptionVerification.ExpectedWarns(1, "Unknown NewItemMonitorTypes value");
         }
     }
 }
