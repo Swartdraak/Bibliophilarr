@@ -17,7 +17,7 @@
   "files": [
     {
       "path": "linux-program/browser/check_browser.py",
-      "sha256": "20f15baa7ad0eb97f84e69c35c31b4084d08e0460934b117a99dda8ea94a06ac"
+      "sha256": "52bb29313789a8777adce5664d956273331e65719090d0df0c949fa9b688e0a8"
     },
     {
       "path": "linux-program/browser/prepare.sh",
