@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Commands;
@@ -8,6 +9,7 @@ using NzbDrone.Core.Messaging.Commands;
 namespace Bibliophilarr.Api.V1.Books
 {
     [V1ApiController("rename")]
+    [ValidateApiWriteAntiforgery]
     public class RenameBookController : Controller
     {
         private readonly IRenameBookFileService _renameBookFileService;

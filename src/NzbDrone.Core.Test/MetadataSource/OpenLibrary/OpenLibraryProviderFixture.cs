@@ -261,6 +261,97 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             }
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void get_author_info_should_confirm_an_early_empty_works_page_once(bool recovers)
+        {
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 0))
+                .Returns(new OlAuthorWorksResponse
+                {
+                    Size = 2,
+                    Entries = new List<OlWorkResource> { new OlWorkResource { Key = "/works/OL1W", Title = "First Work" } }
+                });
+            var emptyPage = new OlAuthorWorksResponse { Size = 2 };
+            var secondPage = new OlAuthorWorksResponse
+            {
+                Size = 2,
+                Entries = new List<OlWorkResource> { new OlWorkResource { Key = "/works/OL2W", Title = "Second Work" } }
+            };
+            _clientMock.SetupSequence(client => client.GetAuthorWorks("OL26320A", 100, 1))
+                .Returns(emptyPage)
+                .Returns(recovers ? secondPage : new OlAuthorWorksResponse { Size = 1 });
+
+            var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+            if (recovers)
+            {
+                lookup().Books.Value.Select(book => book.OpenLibraryWorkId).Should().BeEquivalentTo("OL1W", "OL2W");
+            }
+            else
+            {
+                lookup.Should().Throw<MetadataProviderUnavailableException>();
+            }
+
+            _clientMock.Verify(client => client.GetAuthorWorks("OL26320A", 100, 1), Times.Exactly(2));
+        }
+
+        [TestCase(true, true)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(false, false)]
+        public void get_author_info_should_require_distinct_work_ids_after_overlapping_pages(bool useWorksEndpoint, bool recovers)
+        {
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
+            var offsets = new List<int>();
+
+            List<OlSearchDoc> ReadPage(int offset)
+            {
+                offsets.Add(offset);
+                return offset switch
+                {
+                    0 => BuildSearchDocs(2, 1),
+                    2 => BuildSearchDocs(2, 2),
+                    4 when recovers && offsets.Count == 4 => BuildSearchDocs(1, 4),
+                    4 => new List<OlSearchDoc>(),
+                    _ => throw new System.InvalidOperationException($"Unexpected offset {offset}.")
+                };
+            }
+
+            if (useWorksEndpoint)
+            {
+                _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, It.IsAny<int>()))
+                    .Returns((string _, int _, int offset) => new OlAuthorWorksResponse
+                    {
+                        Size = offset == 4 ? 3 : 4,
+                        Entries = ReadPage(offset).Select(doc => new OlWorkResource { Key = doc.Key, Title = doc.Title }).ToList()
+                    });
+            }
+            else
+            {
+                _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, It.IsAny<int>()))
+                    .Returns((string _, int _, int offset) => new OlSearchResponse
+                    {
+                        NumFound = offset == 4 ? 3 : 4,
+                        NumFoundExact = true,
+                        Docs = ReadPage(offset)
+                    });
+            }
+
+            var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+            if (recovers)
+            {
+                lookup().Books.Value.Select(book => book.OpenLibraryWorkId).Should().BeEquivalentTo("OL1W", "OL2W", "OL3W", "OL4W");
+            }
+            else
+            {
+                lookup.Should().Throw<MetadataProviderUnavailableException>()
+                    .WithInnerException<System.InvalidOperationException>()
+                    .WithMessage("*at offset 4 with 3 distinct works before the reported total 4.");
+            }
+
+            offsets.Should().Equal(0, 2, 4, 4);
+        }
+
         [TestCase("works failed")]
         [TestCase("search failed")]
         [TestCase("repeated")]

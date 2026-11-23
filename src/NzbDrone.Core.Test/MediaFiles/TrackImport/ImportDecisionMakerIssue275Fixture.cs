@@ -296,6 +296,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Rejections.Should().ContainSingle()
                 .Which.Reason.Should().Be($"Couldn't find similar book for [{Path.GetDirectoryName(_filePath)}]");
             decision.Approved.Should().BeFalse();
+            ExceptionVerification.ExpectedWarns(1, "Issue #275: direct catalogue lookup failed");
         }
 
         [Test]

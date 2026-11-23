@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Core.Books;
@@ -14,6 +15,7 @@ using NzbDrone.Core.Qualities;
 namespace Bibliophilarr.Api.V1.ManualImport
 {
     [V1ApiController]
+    [ValidateApiWriteAntiforgery]
     public class ManualImportController : Controller
     {
         private readonly IAuthorService _authorService;

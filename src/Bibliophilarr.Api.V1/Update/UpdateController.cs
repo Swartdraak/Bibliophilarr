@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Update;
@@ -11,6 +12,7 @@ using NzbDrone.Core.Update.History;
 namespace Bibliophilarr.Api.V1.Update
 {
     [V1ApiController]
+    [ValidateApiWriteAntiforgery]
     public class UpdateController : Controller
     {
         private readonly IRecentUpdateProvider _recentUpdateProvider;
