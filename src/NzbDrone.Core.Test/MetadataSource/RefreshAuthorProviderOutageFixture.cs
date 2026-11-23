@@ -81,15 +81,15 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .SetupGet(settings => settings.EnableGoogleBooksProvider).Returns(true);
 
             var http = Mocker.GetMock<IHttpClient>();
-            http.Setup(client => client.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request =>
                 {
                     var isFirstPage = request.Url.Query.EndsWith("startIndex=0", StringComparison.Ordinal);
                     var json = isFirstPage
                         ? @"{""totalItems"":2,""items"":[{""id"":""volume-a"",""volumeInfo"":{""title"":""Book A"",""authors"":[""Author Name""]}}]}"
                         : @"{""totalItems"":2,""items"":[]}";
-                    return new HttpResponse<GoogleBooksSearchResponse>(new HttpResponse(
-                        request, new HttpHeader { ContentType = "application/json" }, json, HttpStatusCode.OK));
+                    return new HttpResponse(
+                        request, new HttpHeader { ContentType = "application/json" }, json, HttpStatusCode.OK);
                 });
             Mocker.GetMock<IMetadataProviderRegistry>()
                 .Setup(registry => registry.GetProviders()).Returns(new IMetadataProvider[] { Mocker.Resolve<GoogleBooksFallbackSearchProvider>() });
@@ -109,9 +109,9 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             Subject.Execute(new RefreshAuthorCommand(stored.Id));
 
-            http.Verify(client => client.Get<GoogleBooksSearchResponse>(It.Is<HttpRequest>(request =>
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request =>
                 request.Url.Query.EndsWith("startIndex=0", StringComparison.Ordinal))), Times.Once);
-            http.Verify(client => client.Get<GoogleBooksSearchResponse>(It.Is<HttpRequest>(request =>
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request =>
                 request.Url.Query.EndsWith("startIndex=1", StringComparison.Ordinal))), Times.Exactly(2));
             http.VerifyNoOtherCalls();
             authors.Verify(service => service.GetAuthors(It.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new[] { stored.Id }))), Times.Once);
