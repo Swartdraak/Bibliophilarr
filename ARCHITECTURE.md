@@ -13,6 +13,7 @@ This document is the high-level navigation contract for the repository. It is no
 | `linux-program/` | Governed Linux acceptance stages and their shared runner helpers |
 | `scripts/` | Developer, CI, audit, migration, diagnostics, and operational automation |
 | `docs/` | Approved project documentation, operational runbooks, audit/evidence material |
+| `wiki/` | Versioned project guides linked from the live GitHub Wiki |
 | `npm/` | npm launcher/package-specific content |
 | `.devcontainer/` | Reproducible development-container configuration |
 | `.vscode/` | Workspace settings and developer/editor integration |
