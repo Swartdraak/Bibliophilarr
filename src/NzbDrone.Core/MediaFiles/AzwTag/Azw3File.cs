@@ -1,29 +1,47 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace NzbDrone.Core.MediaFiles.Azw
 {
     public class Azw3File : AzwFile
     {
+        private readonly MobiHeader _mobiHeader;
+
         public Azw3File(string path)
-        : base(path)
         {
-            MobiHeader = new MobiHeader(GetSectionData(0));
+            using var stream = File.OpenRead(path);
+            _mobiHeader = ReadMetadata(stream);
         }
 
-        public string Title => MobiHeader.Title;
-        public List<string> Authors => MobiHeader.ExtMeta.StringList(100);
-        public string Author => MobiHeader.ExtMeta.StringOrNull(100);
-        public string Isbn => MobiHeader.ExtMeta.StringOrNull(104);
-        public string Asin => MobiHeader.ExtMeta.StringOrNull(113);
-        public string PublishDate => MobiHeader.ExtMeta.StringOrNull(106);
-        public string Publisher => MobiHeader.ExtMeta.StringOrNull(101);
-        public string Imprint => MobiHeader.ExtMeta.StringOrNull(102);
-        public string Description => MobiHeader.ExtMeta.StringOrNull(103);
-        public string Source => MobiHeader.ExtMeta.StringOrNull(112);
-        public string Language => MobiHeader.ExtMeta.StringOrNull(524);
-        public uint Version => MobiHeader.Version;
-        public uint MobiType => MobiHeader.MobiType;
+        public Azw3File(Stream stream)
+        {
+            _mobiHeader = ReadMetadata(stream);
+        }
 
-        private MobiHeader MobiHeader { get; set; }
+        public string Title => _mobiHeader.Title;
+        public List<string> Authors => _mobiHeader.ExtMeta.StringList(100);
+        public string Author => _mobiHeader.ExtMeta.StringOrNull(100);
+        public string Isbn => _mobiHeader.ExtMeta.StringOrNull(104);
+        public string Asin => _mobiHeader.ExtMeta.StringOrNull(113);
+        public string PublishDate => _mobiHeader.ExtMeta.StringOrNull(106);
+        public string Publisher => _mobiHeader.ExtMeta.StringOrNull(101);
+        public string Imprint => _mobiHeader.ExtMeta.StringOrNull(102);
+        public string Description => _mobiHeader.ExtMeta.StringOrNull(103);
+        public string Source => _mobiHeader.ExtMeta.StringOrNull(112);
+        public string Language => _mobiHeader.ExtMeta.StringOrNull(524);
+        public uint Version => _mobiHeader.Version;
+        public uint MobiType => _mobiHeader.MobiType;
+
+        private static MobiHeader ReadMetadata(Stream stream)
+        {
+            ArgumentNullException.ThrowIfNull(stream);
+            if (!stream.CanRead || !stream.CanSeek)
+            {
+                throw new AzwTagException("Reading MOBI metadata requires a readable and seekable stream");
+            }
+
+            return new MobiHeader(stream, ReadFirstSection(stream));
+        }
     }
 }

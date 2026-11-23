@@ -1,183 +1,171 @@
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using FluentAssertions;
-using FluentValidation.Results;
 using Moq;
-using Newtonsoft.Json;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
-using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Configuration;
-using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation.Aggregators;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
-using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
-using NzbDrone.Core.Profiles.Metadata;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
-using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 {
     [TestFixture]
-    public class IdentificationServiceFixture : DbTest
+    public class IdentificationServiceFixture : CoreTest<IdentificationService>
     {
-        private AuthorService _authorService;
-        private AddAuthorService _addAuthorService;
-        private RefreshAuthorService _refreshAuthorService;
-
-        private IdentificationService _Subject;
-
         [SetUp]
         public void SetUp()
         {
-            UseRealHttp();
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.IdentificationWorkerCount).Returns(1);
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.EnableDualFormatTracking).Returns(true);
+            Mocker.GetMock<IMediaFileService>().Setup(x => x.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile>());
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetCandidates(It.IsAny<int>(), It.IsAny<string>())).Returns(new List<Edition>());
 
-            // Resolve all the parts we need
-            Mocker.SetConstant<IAuthorRepository>(Mocker.Resolve<AuthorRepository>());
-            Mocker.SetConstant<IAuthorMetadataRepository>(Mocker.Resolve<AuthorMetadataRepository>());
-            Mocker.SetConstant<IBookRepository>(Mocker.Resolve<BookRepository>());
-            Mocker.SetConstant<IImportListExclusionRepository>(Mocker.Resolve<ImportListExclusionRepository>());
-            Mocker.SetConstant<IMediaFileRepository>(Mocker.Resolve<MediaFileRepository>());
-
-            Mocker.GetMock<IMetadataProfileService>().Setup(x => x.Exists(It.IsAny<int>())).Returns(true);
-
-            _authorService = Mocker.Resolve<AuthorService>();
-            Mocker.SetConstant<IAuthorService>(_authorService);
-            Mocker.SetConstant<IAuthorMetadataService>(Mocker.Resolve<AuthorMetadataService>());
-            Mocker.SetConstant<IBookService>(Mocker.Resolve<BookService>());
-            Mocker.SetConstant<IImportListExclusionService>(Mocker.Resolve<ImportListExclusionService>());
-            Mocker.SetConstant<IMediaFileService>(Mocker.Resolve<MediaFileService>());
-
-            Mocker.SetConstant<IConfigService>(Mocker.Resolve<IConfigService>());
-            Mocker.GetMock<IConfigService>().SetupGet(x => x.EnableOpenLibraryProvider).Returns(true);
-            Mocker.SetConstant<IProvideAuthorInfo>(Mocker.Resolve<OpenLibraryProvider>());
-            Mocker.SetConstant<IProvideBookInfo>(Mocker.Resolve<OpenLibraryProvider>());
-
-            _addAuthorService = Mocker.Resolve<AddAuthorService>();
-
-            Mocker.SetConstant<IRefreshBookService>(Mocker.Resolve<RefreshBookService>());
-            _refreshAuthorService = Mocker.Resolve<RefreshAuthorService>();
-
-            Mocker.GetMock<IAddAuthorValidator>().Setup(x => x.Validate(It.IsAny<Author>())).Returns(new ValidationResult());
+            // Only the catalogue and provider boundaries are synthetic. Grouping,
+            // candidate selection, filename augmentation and distance are real.
+            var provider = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            provider.Setup(x => x.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+                .Returns(new List<Book>());
+            provider.Setup(x => x.SearchByIsbn(It.IsAny<string>())).Returns(new List<Book>());
+            Mocker.SetConstant(provider.Object);
+            Mocker.SetConstant<IEnumerable<IBookSearchFallbackProvider>>(new List<IBookSearchFallbackProvider>());
+            Mocker.SetConstant<IMetadataQueryNormalizationService>(Mocker.Resolve<MetadataQueryNormalizationService>());
 
             Mocker.SetConstant<ITrackGroupingService>(Mocker.Resolve<TrackGroupingService>());
             Mocker.SetConstant<ICandidateService>(Mocker.Resolve<CandidateService>());
-
-            // set up the augmenters
-            var aggregators = new List<IAggregate<LocalEdition>>
-            {
-                Mocker.Resolve<AggregateFilenameInfo>()
-            };
-            Mocker.SetConstant<IEnumerable<IAggregate<LocalEdition>>>(aggregators);
+            Mocker.SetConstant<IEnumerable<IAggregate<LocalEdition>>>(new[] { Mocker.Resolve<AggregateFilenameInfo>() });
             Mocker.SetConstant<IAugmentingService>(Mocker.Resolve<AugmentingService>());
-
-            _Subject = Mocker.Resolve<IdentificationService>();
         }
 
-        private void GivenMetadataProfile(MetadataProfile profile)
+        [Test]
+        public void should_match_each_same_title_file_to_the_correct_author_and_edition()
         {
-            Mocker.GetMock<IMetadataProfileService>().Setup(x => x.Get(profile.Id)).Returns(profile);
+            var firstEdition = new Edition { Id = 101, ForeignEditionId = "hardcover:edition:101", Format = "Audiobook" };
+            var secondEdition = new Edition { Id = 202, ForeignEditionId = "hardcover:edition:202", Format = "Audiobook" };
+            var firstWork = GivenBook(1, "Rowan Vale", "The Distant Light", firstEdition);
+            var secondWork = GivenBook(2, "Miriam North", "The Distant Light", secondEdition);
+            var firstPart = TaggedFile("/library/Rowan Vale - The Distant Light - Part 01.m4b", firstWork, Quality.M4B, 1);
+            var secondPart = TaggedFile("/library/Rowan Vale - The Distant Light - Part 02.m4b", firstWork, Quality.M4B, 2);
+            var thirdPart = TaggedFile("/library/Miriam North - The Distant Light - Part 01.m4b", secondWork, Quality.M4B, 1);
+            var fourthPart = TaggedFile("/library/Miriam North - The Distant Light - Part 02.m4b", secondWork, Quality.M4B, 2);
+
+            var results = Identify(firstPart, secondPart, thirdPart, fourthPart);
+
+            AssertAssignment(results, firstWork, firstEdition, firstPart, secondPart);
+            AssertAssignment(results, secondWork, secondEdition, thirdPart, fourthPart);
         }
 
-        private List<Author> GivenAuthors(List<AuthorTestCase> authors)
+        [Test]
+        public void should_match_exact_ebook_isbn_and_keep_the_audiobook_edition_separate()
         {
-            var outp = new List<Author>();
-            for (var i = 0; i < authors.Count; i++)
+            var otherEbook = new Edition { Id = 101, ForeignEditionId = "hardcover:edition:101", Format = "EPUB", IsEbook = true, Isbn13 = "9780140328721" };
+            var audiobook = new Edition { Id = 102, ForeignEditionId = "hardcover:edition:102", Format = "Audiobook" };
+            var ebook = new Edition { Id = 103, ForeignEditionId = "hardcover:edition:103", Format = "EPUB", IsEbook = true, Isbn13 = "9780306406157" };
+            var book = GivenBook(1, "Rowan Vale", "The Distant Light", otherEbook, audiobook, ebook);
+            var ebookFile = TaggedFile("/library/Rowan Vale - The Distant Light.epub", book, Quality.EPUB);
+            ebookFile.FileTrackInfo.Isbn = ebook.Isbn13;
+            ebookFile.FileTrackInfo.IsbnConfidence = 1;
+            var audioFile = TaggedFile("/library/Rowan Vale - The Distant Light.m4b", book, Quality.M4B);
+
+            var results = Identify(ebookFile, audioFile);
+
+            AssertAssignment(results, book, ebook, ebookFile);
+            AssertAssignment(results, book, audiobook, audioFile);
+        }
+
+        [Test]
+        public void should_leave_an_audiobook_unassigned_when_only_an_ebook_edition_exists()
+        {
+            var ebook = new Edition { Id = 101, ForeignEditionId = "hardcover:edition:101", Format = "EPUB", IsEbook = true };
+            var book = GivenBook(1, "Rowan Vale", "The Distant Light", ebook);
+            var audioFile = TaggedFile("/library/Rowan Vale - The Distant Light.m4b", book, Quality.M4B);
+
+            var result = Identify(audioFile).Should().ContainSingle().Which;
+
+            result.LocalBooks.Should().ContainSingle().Which.Should().BeSameAs(audioFile);
+            result.Edition.Should().BeNull();
+            audioFile.Edition.Should().BeNull();
+            audioFile.Book.Should().BeNull();
+            audioFile.Author.Should().BeNull();
+        }
+
+        private Book GivenBook(int id, string authorName, string title, params Edition[] editions)
+        {
+            var metadata = new AuthorMetadata { Id = id, Name = authorName, ForeignAuthorId = $"hardcover:author:{id}" };
+            var author = new Author { Id = id, AuthorMetadataId = metadata.Id, Metadata = metadata };
+            var book = new Book
             {
-                var meta = authors[i].MetadataProfile;
-                meta.Id = i + 1;
-                GivenMetadataProfile(meta);
-                outp.Add(GivenAuthor(authors[i].Author, meta.Id));
+                Id = id,
+                Title = title,
+                ForeignBookId = $"hardcover:work:{id}",
+                AuthorMetadataId = metadata.Id,
+                AuthorMetadata = metadata,
+                Author = author,
+                Editions = editions.ToList()
+            };
+
+            foreach (var edition in editions)
+            {
+                edition.BookId = book.Id;
+                edition.Book = book;
+                edition.Title = title;
+                edition.Monitored = true;
+                edition.BookFiles = new List<BookFile>();
             }
 
-            return outp;
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetCandidates(authorName)).Returns(new List<Author> { author });
+            Mocker.GetMock<IBookService>().Setup(x => x.GetCandidates(metadata.Id, title)).Returns(new List<Book> { book });
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(book.Id)).Returns(editions.ToList());
+
+            return book;
         }
 
-        private Author GivenAuthor(string foreignAuthorId, int metadataProfileId)
+        private static LocalBook TaggedFile(string path, Book book, Quality quality, int part = 1)
         {
-            var author = _addAuthorService.AddAuthor(new Author
+            return new LocalBook
             {
-                Metadata = new AuthorMetadata
+                Path = path,
+                Part = part,
+                Quality = new QualityModel(quality),
+                FileTrackInfo = new ParsedTrackInfo
                 {
-                    ForeignAuthorId = foreignAuthorId
-                },
-                Path = @"c:\test".AsOsAgnostic(),
-                MetadataProfileId = metadataProfileId
-            });
-
-            var command = new RefreshAuthorCommand
-            {
-                AuthorId = author.Id,
-                Trigger = CommandTrigger.Unspecified
-            };
-
-            _refreshAuthorService.Execute(command);
-
-            return _authorService.FindById(foreignAuthorId);
-        }
-
-        public static class IdTestCaseFactory
-        {
-            // for some reason using Directory.GetFiles causes nUnit to error
-            private static string[] files =
-            {
-                "FilesWithMBIds.json",
-                "PreferMissingToBadMatch.json",
-                "InconsistentTyposInBook.json",
-                "SucceedWhenManyBooksHaveSameTitle.json",
-                "PenalizeUnknownMedia.json",
-                "CorruptFile.json",
-                "FilesWithoutTags.json"
-            };
-
-            public static IEnumerable TestCases
-            {
-                get
-                {
-                    foreach (var file in files)
-                    {
-                        yield return new TestCaseData(file).SetName($"should_match_tracks_{file.Replace(".json", "")}");
-                    }
+                    BookTitle = book.Title,
+                    TrackNumbers = new[] { part },
+                    Authors = new List<string> { book.AuthorMetadata.Value.Name },
+                    BookTitleConfidence = 1,
+                    AuthorConfidence = 1
                 }
-            }
+            };
         }
 
-        // these are slow to run so only do so manually
-        [Explicit]
-        [TestCaseSource(typeof(IdTestCaseFactory), "TestCases")]
-        public void should_match_tracks(string file)
+        private List<LocalEdition> Identify(params LocalBook[] files)
         {
-            var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "Files", "Identification", file);
-            var testcase = JsonConvert.DeserializeObject<IdTestCase>(File.ReadAllText(path));
-
-            var authors = GivenAuthors(testcase.LibraryAuthors);
-            var specifiedAuthor = authors.SingleOrDefault(x => x.Metadata.Value.ForeignAuthorId == testcase.Author);
-            var idOverrides = new IdentificationOverrides { Author = specifiedAuthor };
-
-            var tracks = testcase.Tracks.Select(x => new LocalBook
+            return Subject.Identify(files.ToList(), new IdentificationOverrides(), new ImportDecisionMakerConfig
             {
-                Path = x.Path.AsOsAgnostic(),
-                FileTrackInfo = x.FileTrackInfo
-            }).ToList();
+                KeepAllEditions = true
+            });
+        }
 
-            var config = new ImportDecisionMakerConfig
+        private static void AssertAssignment(List<LocalEdition> results, Book book, Edition edition, params LocalBook[] files)
+        {
+            var group = results.Single(result => result.LocalBooks.Contains(files[0]));
+            group.LocalBooks.Select(file => file.Path).Should().BeEquivalentTo(files.Select(file => file.Path));
+            group.Edition.Should().BeSameAs(edition);
+
+            foreach (var file in files)
             {
-                NewDownload = testcase.NewDownload,
-                SingleRelease = testcase.SingleRelease,
-                IncludeExisting = false
-            };
-
-            var result = _Subject.Identify(tracks, idOverrides, config);
-
-            result.Should().HaveCount(testcase.ExpectedMusicBrainzReleaseIds.Count);
+                group.LocalBooks.Should().Contain(file);
+                file.Edition.Should().BeSameAs(edition);
+                file.Book.Should().BeSameAs(book);
+                file.Author.Should().BeSameAs(book.Author.Value);
+            }
         }
     }
 }

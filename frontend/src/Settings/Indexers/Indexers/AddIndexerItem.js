@@ -42,6 +42,7 @@ class AddIndexerItem extends Component {
       >
         <Link
           className={styles.underlay}
+          aria-label={implementationName}
           onPress={this.onIndexerSelect}
         />
 
