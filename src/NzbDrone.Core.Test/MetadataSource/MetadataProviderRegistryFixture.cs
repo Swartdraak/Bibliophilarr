@@ -6,9 +6,12 @@ using FluentAssertions;
 using Moq;
 using NLog;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.GoogleBooks;
 
 namespace NzbDrone.Core.Test.MetadataSource
 {
@@ -120,6 +123,55 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             health["OpenLibrary"].Health.Should().Be(ProviderHealth.Degraded);
             health["OpenLibrary"].SuccessRate.Should().Be(0.6);
+        }
+
+        [Test]
+        public void should_report_remaining_seconds_from_the_active_deadline()
+        {
+            var registry = new MetadataProviderRegistry(new[] { new TestBookSearchProvider("Inventaire", 10, true) });
+            var deadline = DateTime.UtcNow.AddMinutes(25);
+            var stored = new ProviderHealthStatus
+            {
+                Health = ProviderHealth.Degraded,
+                CooldownUntilUtc = deadline,
+                RetryAfterRemainingSeconds = 1800
+            };
+            registry.UpdateProviderHealth("Inventaire", stored);
+
+            var health = registry.GetProvidersHealthStatus()["Inventaire"];
+
+            health.CooldownUntilUtc.Should().Be(deadline);
+            health.RetryAfterRemainingSeconds.Should().BeInRange(1490, 1500);
+            health.Health.Should().Be(ProviderHealth.Degraded);
+            stored.RetryAfterRemainingSeconds.Should().Be(1800);
+        }
+
+        [TestCase("Inventaire", true)]
+        [TestCase("GoogleBooks", true)]
+        [TestCase("GoogleBooks", false)]
+        public void should_clear_inactive_deadlines_and_remaining_seconds(string providerName, bool withPastDeadline)
+        {
+            var google = new GoogleBooksFallbackSearchProvider(Mock.Of<IConfigService>(), Mock.Of<IHttpClient>(), new CacheManager(), LogManager.GetCurrentClassLogger());
+            var registry = new MetadataProviderRegistry(new IMetadataProvider[]
+            {
+                new TestBookSearchProvider("Inventaire", 10, true),
+                google
+            });
+            var lastChecked = DateTime.UtcNow.AddMinutes(-1);
+            registry.UpdateProviderHealth(providerName, new ProviderHealthStatus
+            {
+                Health = ProviderHealth.Degraded,
+                LastChecked = lastChecked,
+                CooldownUntilUtc = withPastDeadline ? lastChecked : null,
+                RetryAfterRemainingSeconds = 27
+            });
+
+            var health = registry.GetProvidersHealthStatus()[providerName];
+
+            health.CooldownUntilUtc.Should().BeNull();
+            health.RetryAfterRemainingSeconds.Should().Be(0);
+            health.LastChecked.Should().Be(lastChecked);
+            health.Health.Should().Be(ProviderHealth.Degraded);
         }
 
         [Test]
