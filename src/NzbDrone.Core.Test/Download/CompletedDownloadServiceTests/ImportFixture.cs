@@ -175,6 +175,7 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Import(_trackedDownload);
 
             _trackedDownload.State.Should().Be(TrackedDownloadState.ImportPending);
+            ExceptionVerification.ExpectedWarns(1, "No importable files found for");
         }
 
         [Test]
@@ -407,6 +408,7 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
 
             _trackedDownload.ZeroFileRetryCount.Should().Be(2);
             _trackedDownload.State.Should().Be(TrackedDownloadState.ImportPending);
+            ExceptionVerification.ExpectedWarns(1, "No importable files found for");
         }
 
         [Test]
@@ -431,6 +433,7 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             // Verify a history event is published so the terminal state survives restart
             Mocker.GetMock<IEventAggregator>()
                   .Verify(v => v.PublishEvent(It.IsAny<BookImportIncompleteEvent>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(1, "No importable files found for");
         }
 
         [Test]
@@ -461,6 +464,7 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             message.Should().Contain(_trackedDownload.DownloadItem.OutputPath.FullPath);
             message.Should().Contain("remote path mapping");
             message.Should().Contain("supported extension");
+            ExceptionVerification.ExpectedWarns(1, "No importable files found for");
         }
 
         [Test]
@@ -486,6 +490,7 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                .WithMessage("*remote path mapping*")
                .WithMessage("*supported extension*")
                .WithMessage("*queue format*");
+            ExceptionVerification.ExpectedWarns(1, "No importable files found for");
         }
     }
 }
