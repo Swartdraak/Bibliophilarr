@@ -17,7 +17,7 @@
   "files": [
     {
       "path": "linux-program/browser/check_browser.py",
-      "sha256": "20f15baa7ad0eb97f84e69c35c31b4084d08e0460934b117a99dda8ea94a06ac"
+      "sha256": "52bb29313789a8777adce5664d956273331e65719090d0df0c949fa9b688e0a8"
     },
     {
       "path": "linux-program/browser/prepare.sh",
@@ -33,7 +33,7 @@
     },
     {
       "path": "linux-program/build/check_build.py",
-      "sha256": "0da89bb927060d271163cc422a0fc828ca928cae828e670ad9a67cbb72fd42bd"
+      "sha256": "e957a1535c78b49b89ba2720721c1972faac5879238c58e919ca282b90fae597"
     },
     {
       "path": "linux-program/build/durabilize_output.sh",
