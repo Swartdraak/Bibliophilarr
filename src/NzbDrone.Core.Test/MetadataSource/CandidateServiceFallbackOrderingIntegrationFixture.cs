@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using NLog;
@@ -104,6 +105,83 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IHttpClient>()
                 .Setup(x => x.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request => new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload));
+        }
+
+        [TestCase("/library/Asin Route Fixture.epub", "Ebook", true, "B0171WIS9Y", true)]
+        [TestCase("/library/Asin Route Fixture.m4b", "Audiobook", true, "B0171WIS9Y", true)]
+        [TestCase("/imports/Asin Route Fixture.epub", "Ebook", false, "B0171WIS9Y", false)]
+        [TestCase("/library/Asin Route Fixture.epub", "Ebook", true, "0306406152", false)]
+        public void should_limit_b0_asin_routing_to_scoped_providers_in_library_scans(
+            string path, string format, bool libraryScan, string asin, bool skipGoogle)
+        {
+            const string title = "Asin Route Fixture";
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableGoogleBooksProvider).Returns(true);
+            var http = Mocker.GetMock<IHttpClient>();
+            var payload = """
+                {"items":[{"id":"asin-route-fixture","volumeInfo":{"title":"Asin Route Fixture",
+                "authors":["Route Writer"],"printType":"BOOK",
+                "industryIdentifiers":[{"type":"OTHER","identifier":"B0171WIS9Y"}]}}]}
+                """;
+            var headers = new HttpHeader { ContentType = "application/json" };
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, headers, payload));
+            var google = new GoogleBooksFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, http.Object, Mocker.Resolve<ICacheManager>(), LogManager.GetCurrentClassLogger());
+            var hardcover = new HardcoverFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, http.Object, LogManager.GetCurrentClassLogger());
+            var ebook = format == "Ebook";
+            var hardcoverPayload = """
+                {"data":{"search":{"error":null,"ids":[42],"results":{"found":1,"hits":[{"document":{
+                "id":"42","title":"Asin Route Fixture","author_names":["Route Writer"],
+                "has_ebook":EBOOK_SUPPORTED,"has_audiobook":AUDIO_SUPPORTED}}]}}}}
+                """.Replace("EBOOK_SUPPORTED", ebook ? "true" : "false").Replace("AUDIO_SUPPORTED", ebook ? "false" : "true");
+            HttpRequest hardcoverRequest = null;
+            http.Setup(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    hardcoverRequest = request;
+                    return new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, headers, hardcoverPayload));
+                });
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(service => service.GetProviders()).Returns(new IMetadataProvider[] { google, hardcover });
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry.Object, telemetry, LogManager.GetCurrentClassLogger());
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(orchestrator);
+            var release = new LocalEdition
+            {
+                LocalBooks = new List<LocalBook>
+                {
+                    new LocalBook
+                    {
+                        Path = path,
+                        FileTrackInfo = new ParsedTrackInfo { BookTitle = title, Authors = new List<string> { "Route Writer" }, Asin = asin }
+                    }
+                }
+            };
+
+            // Enumerate through the direct identifier route. The later title lookup is a separate operation.
+            var candidate = Subject.GetRemoteCandidates(release, null, forLibraryScan: libraryScan).First();
+            var operations = telemetry.GetOperationSnapshots();
+            if (skipGoogle)
+            {
+                candidate.Edition.ForeignEditionId.Should().Be("hardcover:edition:42");
+                candidate.Edition.Format.Should().Be(format);
+                candidate.Edition.Asin.Should().BeNull();
+                http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Never());
+                http.Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+                using var request = JsonDocument.Parse(hardcoverRequest.ContentData);
+                request.RootElement.GetProperty("variables").GetProperty("query").GetString().Should().Be(asin);
+                operations.Should().NotContain(operation => operation.ProviderName == "GoogleBooks");
+                operations.Should().ContainSingle(operation => operation.ProviderName == "Hardcover" &&
+                    operation.OperationName == "search-by-asin" && operation.Calls == 1 && operation.Successes == 1);
+            }
+            else
+            {
+                candidate.Edition.ForeignEditionId.Should().Be("googlebooks:edition:asin-route-fixture");
+                candidate.Edition.Asin.Should().Be("B0171WIS9Y");
+                http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Url.Query.Contains("q=" + asin + "&"))), Times.Once());
+                http.Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never());
+                operations.Should().ContainSingle(operation => operation.ProviderName == "GoogleBooks" &&
+                    operation.OperationName == "search-by-asin" && operation.Calls == 1 && operation.Successes == 1);
+            }
         }
 
         [Test]

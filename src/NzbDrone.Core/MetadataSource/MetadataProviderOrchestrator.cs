@@ -152,6 +152,21 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.SupportsBookSearch);
         }
 
+        public List<Book> SearchForLibraryImportByAsin(string asin)
+        {
+            if (asin?.Length != 10 || !asin.StartsWith("B0", StringComparison.OrdinalIgnoreCase) || !asin.All(char.IsAsciiLetterOrDigit))
+            {
+                return SearchByAsin(asin);
+            }
+
+            // Google Books has no field-scoped Amazon ASIN search. Preserve its ordinary
+            // search results, but reserve the library's identifier request for other providers.
+            return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
+                provider => provider.SearchByAsin(asin),
+                "search-by-asin",
+                provider => provider.SupportsBookSearch && !string.Equals(provider.ProviderName, "GoogleBooks", StringComparison.OrdinalIgnoreCase));
+        }
+
         public List<Book> SearchByExternalId(string idType, string id)
         {
             return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(

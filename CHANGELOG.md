@@ -49,6 +49,8 @@ process.
   the other files.
 - Preserve occupied audiobook parts through automatic retries. Link a held file
   only when its original tag confirms the part and the selected edition has a free slot.
+- Skip Google Books free-text lookups for Amazon ASINs during automatic library
+  identification. Continue using configured providers and structured title searches.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files

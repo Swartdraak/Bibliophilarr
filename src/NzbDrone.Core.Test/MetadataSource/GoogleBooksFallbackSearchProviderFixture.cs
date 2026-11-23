@@ -376,7 +376,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                           "\"publishedDate\":\"1965-01-01\"," +
                           "\"printType\":\"BOOK\"," +
                           "\"industryIdentifiers\":[{" +
-                          "\"type\":\"ISBN_13\",\"identifier\":\"9780441013593\"}]," +
+                          "\"type\":\"ISBN_13\",\"identifier\":\"9780441013593\"},{" +
+                          "\"type\":\"OTHER\",\"identifier\":\"B0171WIS9Y\"}]," +
                           "\"imageLinks\":{" +
                           "\"thumbnail\":\"https://books.google.example/cover-thumb.jpg\"}}}]}";
 
@@ -391,6 +392,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             books[0].TitleSlug.Should().Be("googlebooks-work-gb-123");
             books[0].Editions.Value.Should().ContainSingle();
             books[0].Editions.Value[0].TitleSlug.Should().Be("googlebooks-edition-gb-123");
+            books[0].Editions.Value[0].Asin.Should().Be("B0171WIS9Y");
             books[0].Editions.Value[0].Images.Should().ContainSingle();
             books[0].Editions.Value[0].Images[0].Url.Should().Be("https://books.google.example/cover-thumb.jpg");
         }

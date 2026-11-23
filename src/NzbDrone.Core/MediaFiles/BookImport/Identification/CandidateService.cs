@@ -340,7 +340,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 try
                 {
-                    remoteBooks = _metadataOrchestrator.SearchByAsin(asin);
+                    remoteBooks = forLibraryScan
+                        ? _metadataOrchestrator.SearchForLibraryImportByAsin(asin)
+                        : _metadataOrchestrator.SearchByAsin(asin);
                 }
                 catch (OpenLibraryException e)
                 {
