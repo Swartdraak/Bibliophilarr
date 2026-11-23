@@ -23,8 +23,8 @@ path. This revision replaces every implicit script-relative root with EXPLICITLY
 workspace paths: the shared harness module is imported from the fixed, verified workspace
 path HARNESS_DIR, and the assertion paths (APP_URL, DATA_DIR, PUB_DIR, PUB, BINARY) are
 resolved from fixed workspace constants (plus the plan-provided APP_URL/CASE_DIR env)
-rather than from the script location. All B1-B8 assertions are preserved byte-for-byte in
-semantics; each is emitted with flush=True and a genuine failure still exits 1.
+rather than from the script location. Each B1-B8 assertion is emitted with
+flush=True and a genuine failure still exits 1.
 No secret values printed (API key asserted nonempty only).
 """
 import json
@@ -104,19 +104,15 @@ def main():
     check('B4_config_xml_generated', ok, detail)
 
     # B5 SQLite main DB created in the fresh data dir
-    db_hits = []
-    for base, _, files in os.walk(DATA_DIR):
-        for f in files:
-            if f.endswith('.db'):
-                p = os.path.join(base, f)
-                try:
-                    with open(p, 'rb') as fh:
-                        hdr = fh.read(15)
-                except Exception:
-                    hdr = b''
-                db_hits.append((os.path.relpath(p, DATA_DIR), hdr == b'SQLite format 3'))
-    check('B5_sqlite_db_created', any(valid for _, valid in db_hits),
-          f'db_files={db_hits}')
+    main_db = os.path.join(DATA_DIR, 'bibliophilarr.db')
+    sqlite_header = b'SQLite format 3\0'
+    try:
+        with open(main_db, 'rb') as fh:
+            valid_main_db = fh.read(len(sqlite_header)) == sqlite_header
+    except OSError:
+        valid_main_db = False
+    check('B5_sqlite_db_created', valid_main_db,
+          f'bibliophilarr.db exists={os.path.isfile(main_db)} sqlite_header_valid={valid_main_db}')
 
     # B6 /ping liveness (unauthenticated)
     status, ctype, raw = get(APP_URL + '/ping')
