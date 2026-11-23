@@ -271,6 +271,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     idOverrides.Author == null && idOverrides.Book == null && idOverrides.Edition == null)
                 {
                     localBookRelease.IdentificationHoldReason = LibraryImportHoldReason.ProviderIdentityConflict;
+                    localBookRelease.RejectedProviderCandidates = true;
                 }
 
                 // can't find any candidates even after using remote search

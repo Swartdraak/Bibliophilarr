@@ -348,6 +348,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             release.IdentificationHoldReason.Should().Be(findRemotely
                 ? LibraryImportHoldReason.ProviderIdentityConflict
                 : null);
+            release.RejectedProviderCandidates.Should().Be(findRemotely);
         }
 
         [TestCase(FilterFilesType.None, false, 1.0, false)]

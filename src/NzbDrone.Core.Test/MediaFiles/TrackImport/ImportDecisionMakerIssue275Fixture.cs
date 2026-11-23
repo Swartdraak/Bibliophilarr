@@ -412,6 +412,117 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             }
         }
 
+        [TestCase("exact")]
+        [TestCase("unknown work")]
+        [TestCase("different author")]
+        [TestCase("verified author source")]
+        [TestCase("unverified author source")]
+        [TestCase("ambiguous")]
+        [TestCase("ambiguous edition")]
+        [TestCase("occupied isbn")]
+        [TestCase("untrusted isbn")]
+        public void should_recover_only_a_verified_local_work_after_remote_candidates_were_ineligible(string outcome)
+        {
+            const string isbn = "9781442482890";
+            _idConfig.NewDownload = false;
+            _idConfig.IncludeExisting = true;
+            GivenReliableFileIsbn(confidence: outcome == "untrusted isbn" ? 0.5 : 0.97);
+            GivenRealBookMatchPolicy();
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides _, ImportDecisionMakerConfig _, ImportRunSummary _) =>
+                    new List<LocalEdition>
+                    {
+                        new LocalEdition(tracks)
+                        {
+                            IdentificationHoldReason = LibraryImportHoldReason.ProviderIdentityConflict,
+                            RejectedProviderCandidates = true
+                        }
+                    });
+
+            var (wrong, wrongEdition) = BuildMatch();
+            wrong.Id = 0;
+            wrong.ForeignBookId = "hardcover:work:31";
+            wrong.Title = "Different Work";
+            wrongEdition.Isbn13 = isbn;
+            wrongEdition.ForeignEditionId = "hardcover:source-edition:71";
+
+            var (stored, storedEdition) = BuildMatch();
+            if (outcome == "occupied isbn")
+            {
+                storedEdition.Isbn13 = isbn;
+                storedEdition.ForeignEditionId = "openlibrary:edition:OL987M";
+            }
+
+            stored.CanonicalId = "a0e693a449884a6981ff7a7f9f855a00";
+            stored.Author.Value.AuthorMetadataId = stored.AuthorMetadataId;
+            var (source, exact) = BuildMatch();
+            source.Id = 0;
+            source.ForeignBookId = "openlibrary:work:OL123W";
+            source.Author.Value.AuthorMetadataId = outcome == "different author" ? 99 : stored.AuthorMetadataId;
+            if (outcome is "verified author source" or "unverified author source")
+            {
+                source.Author.Value.Metadata.Value.ForeignAuthorId = "hardcover:author:79";
+            }
+
+            exact.Id = 0;
+            exact.BookId = 0;
+            exact.Title = source.Title;
+            exact.Isbn13 = isbn;
+            exact.ForeignEditionId = "openlibrary:edition:OL321M";
+
+            if (outcome == "ambiguous edition")
+            {
+                source.Editions.Value.Add(new Edition
+                {
+                    ForeignEditionId = "openlibrary:edition:OL987M", Isbn13 = isbn, IsEbook = true, Title = source.Title
+                });
+            }
+
+            var (alternate, alternateEdition) = BuildMatch();
+            alternate.Id = 0;
+            alternate.ForeignBookId = "openlibrary:work:OL124W";
+            alternateEdition.Isbn13 = isbn;
+            alternateEdition.ForeignEditionId = "openlibrary:edition:OL322M";
+
+            var (primary, secondary) = GivenConfiguredProviders(new List<Book>(), new List<Book>());
+            primary.Setup(provider => provider.SearchByIsbn(isbn)).Returns(new List<Book> { wrong });
+            secondary.Setup(provider => provider.SearchByIsbn(isbn))
+                .Returns(outcome == "ambiguous" ? new List<Book> { source, alternate } : new List<Book> { source });
+
+            if (outcome != "unknown work")
+            {
+                Mocker.GetMock<IBookService>().Setup(service => service.FindById(source.ForeignBookId)).Returns(stored);
+            }
+
+            if (outcome == "verified author source")
+            {
+                Mocker.GetMock<IAuthorService>().Setup(service => service.FindById("hardcover:author:79")).Returns(stored.Author.Value);
+            }
+
+            var decision = GetSingleDecision();
+
+            var shouldMap = outcome is "exact" or "verified author source";
+            decision.Approved.Should().Be(shouldMap);
+            if (shouldMap)
+            {
+                decision.Item.Book.Should().BeSameAs(stored);
+                decision.Item.Edition.Should().BeSameAs(exact);
+            }
+            else
+            {
+                decision.Item.Edition.Should().BeNull();
+                decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+            }
+
+            foreach (var provider in new[] { primary, secondary })
+            {
+                provider.Verify(search => search.SearchByIsbn(isbn), outcome == "untrusted isbn" ? Times.Never() : Times.Once());
+                provider.Verify(search => search.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true),
+                    outcome == "untrusted isbn" ? Times.Once() : Times.Never());
+            }
+        }
+
         [Test]
         public void should_preserve_exact_isbn_provider_ambiguity_without_trying_text_search()
         {

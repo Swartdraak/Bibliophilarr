@@ -58,6 +58,9 @@ process.
 - Preserve edition monitoring when a part retry uses a linked audiobook for comparison.
 - Skip Google Books free-text lookups for Amazon ASINs during automatic library
   identification. Continue using configured providers and structured title searches.
+- Retry a trusted EPUB ISBN after an initial identity rejection when a verified
+  provider edition belongs to the same stored author and work. Keep competing
+  editions and unresolved author identities held for review.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files

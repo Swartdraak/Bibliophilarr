@@ -36,6 +36,7 @@ namespace NzbDrone.Core.Parser.Model
         public bool NewDownload { get; set; }
 
         internal LibraryImportHoldReason? IdentificationHoldReason { get; set; }
+        internal bool RejectedProviderCandidates { get; set; }
 
         public void PopulateMatch(bool keepAllEditions)
         {
