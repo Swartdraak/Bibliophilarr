@@ -814,6 +814,85 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                     files.Count == 1 && files[0].UnmappedReason == expectedReason)));
         }
 
+        [TestCase(LibraryImportHoldReason.AuthorBibliographyUnavailable, false)]
+        [TestCase(LibraryImportHoldReason.ReadError, true)]
+        public void should_keep_the_prior_audiobook_slot_hold_across_an_unsuccessful_retry(
+            LibraryImportHoldReason currentReason, bool shouldReportFailure)
+        {
+            GivenAuthorFolder();
+            var path = Path.Combine(_author.Path, "held.m4b");
+            GivenFiles(new[] { path });
+            GivenRejections(holdReason: currentReason);
+            var held = new BookFile { Id = 41, Path = path, Part = 2, UnmappedReason = LibraryImportHoldReason.DuplicateInScan };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetFilesWithBasePath(_author.Path)).Returns(new List<BookFile> { held });
+
+            Subject.Scan(new List<string> { _author.Path }, FilterFilesType.Matched);
+
+            held.UnmappedReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            mediaFiles.Verify(service => service.SetUnmappedReasons(It.Is<List<BookFile>>(files => files.Count == 0)), Times.Once());
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful),
+                shouldReportFailure ? Times.Once() : Times.Never());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_preserve_a_newer_reason_after_a_stale_occupied_retry_is_denied(bool retainFreshReason)
+        {
+            GivenAuthorFolder();
+            var path = Path.Combine(_author.Path, "stale.m4b");
+            GivenFiles(new[] { path });
+            var latest = new BookFile { Id = 41, Path = path, Part = 2, UnmappedReason = LibraryImportHoldReason.ConflictingIdentity };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetFilesWithBasePath(_author.Path)).Returns(new List<BookFile> { latest });
+            var decision = new ImportDecision<LocalBook>(new LocalBook { Path = path });
+            var decisions = new List<ImportDecision<LocalBook>> { decision };
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(service => service.GetImportDecisions(It.IsAny<List<IFileInfo>>(), null, null, It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(decisions);
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(service => service.Import(decisions, false, null, ImportMode.Auto))
+                .Returns(new List<ImportResult>
+                {
+                    new ImportResult(decision, LibraryImportHoldReason.DuplicateInScan, "Occupied part was not linked")
+                    {
+                        PreserveExistingUnmappedReason = retainFreshReason
+                    }
+                });
+
+            Subject.Scan(new List<string> { _author.Path }, FilterFilesType.Matched);
+
+            latest.UnmappedReason.Should().Be(retainFreshReason
+                ? LibraryImportHoldReason.ConflictingIdentity
+                : LibraryImportHoldReason.DuplicateInScan);
+            mediaFiles.Verify(service => service.SetUnmappedReasons(It.Is<List<BookFile>>(files =>
+                files.Count == (retainFreshReason ? 0 : 1))), Times.Once());
+        }
+
+        [Test]
+        public void should_preserve_both_rows_when_a_held_audiobook_path_is_ambiguous()
+        {
+            GivenAuthorFolder();
+            var path = Path.Combine(_author.Path, "ambiguous.m4b");
+            GivenFiles(new[] { path });
+            GivenRejections(holdReason: LibraryImportHoldReason.DuplicateInScan);
+            var legacy = new BookFile { Id = 41, Path = path, Size = 1, UnmappedReason = LibraryImportHoldReason.LowConfidence };
+            var occupied = new BookFile { Id = 42, Path = Path.Combine(_author.Path, ".", "ambiguous.m4b"), Size = 2, UnmappedReason = LibraryImportHoldReason.DuplicateInScan };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetFilesWithBasePath(_author.Path))
+                .Returns(new List<BookFile> { legacy, occupied });
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            mediaFiles.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+            mediaFiles.Verify(service => service.UpdateScannedFileInfo(It.Is<List<BookFile>>(files => files.Count == 0)), Times.Once());
+            mediaFiles.Verify(service => service.SetUnmappedReasons(It.Is<List<BookFile>>(files => files.Count == 0)), Times.Once());
+            legacy.Size.Should().Be(1);
+            occupied.Size.Should().Be(2);
+            legacy.UnmappedReason.Should().Be(LibraryImportHoldReason.LowConfidence);
+            occupied.UnmappedReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+        }
+
         [Test]
         public void should_update_info_for_changed_known_files()
         {

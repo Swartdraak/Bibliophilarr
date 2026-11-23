@@ -133,6 +133,71 @@ namespace NzbDrone.Core.Test.MediaFiles
             Db.All<BookFile>().Should().HaveCount(10);
         }
 
+        [Test]
+        public void should_link_only_an_unchanged_unmapped_audio_part_that_is_free_in_the_exact_edition()
+        {
+            var audio = Db.Insert(new Edition
+            {
+                BookId = _book.Id,
+                ForeignEditionId = "fixture-audio-edition",
+                Title = "Fixture audio",
+                TitleSlug = "fixture-audio",
+                Format = "Audiobook"
+            });
+            var other = Db.Insert(new Edition
+            {
+                BookId = _book.Id,
+                ForeignEditionId = "fixture-ebook-edition",
+                Title = "Fixture ebook",
+                TitleSlug = "fixture-ebook",
+                Format = "Ebook",
+                IsEbook = true
+            });
+            Db.Insert(new BookFile { Path = "/library/existing.m4b", EditionId = audio.Id, Part = 1, Quality = new QualityModel(Quality.M4B) });
+            Db.Insert(new BookFile { Path = "/library/unrelated.epub", EditionId = other.Id, Part = 2, Quality = new QualityModel(Quality.EPUB) });
+            var collision = Db.Insert(new BookFile
+            {
+                Path = "/library/hold.m4b",
+                Part = 1,
+                UnmappedReason = LibraryImportHoldReason.DuplicateInScan,
+                Quality = new QualityModel(Quality.M4B)
+            });
+            var free = Db.Insert(new BookFile
+            {
+                Path = "/library/free.m4b",
+                Part = 2,
+                UnmappedReason = LibraryImportHoldReason.DuplicateInScan,
+                Quality = new QualityModel(Quality.M4B)
+            });
+            var competing = Db.Insert(new BookFile
+            {
+                Path = "/library/competing.m4b",
+                Part = 2,
+                UnmappedReason = LibraryImportHoldReason.DuplicateInScan,
+                Quality = new QualityModel(Quality.M4B)
+            });
+            var wrongOwner = new Edition { Id = audio.Id, BookId = _book.Id + 1, Format = audio.Format };
+            var changedFormat = new Edition { Id = audio.Id, BookId = _book.Id, Format = "MP3" };
+            var stalePart = new BookFile { Id = free.Id, Path = free.Path, Part = 3, UnmappedReason = free.UnmappedReason };
+            var stalePath = new BookFile { Id = free.Id, Path = free.Path + ".moved.m4b", Part = free.Part, UnmappedReason = free.UnmappedReason };
+
+            Subject.TryLinkUnmappedAudiobookPart(collision, audio).Should().BeFalse();
+            Subject.TryLinkUnmappedAudiobookPart(free, wrongOwner).Should().BeFalse();
+            Subject.TryLinkUnmappedAudiobookPart(free, changedFormat).Should().BeFalse();
+            Subject.TryLinkUnmappedAudiobookPart(stalePart, audio).Should().BeFalse();
+            Subject.TryLinkUnmappedAudiobookPart(stalePath, audio).Should().BeFalse();
+            Subject.TryLinkUnmappedAudiobookPart(free, audio).Should().BeTrue();
+            Subject.TryLinkUnmappedAudiobookPart(competing, audio).Should().BeFalse();
+
+            Subject.Get(collision.Id).EditionId.Should().Be(0);
+            Subject.Get(collision.Id).UnmappedReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            Subject.Get(free.Id).EditionId.Should().Be(audio.Id);
+            Subject.Get(free.Id).Part.Should().Be(2);
+            Subject.Get(free.Id).UnmappedReason.Should().BeNull();
+            Subject.Get(competing.Id).EditionId.Should().Be(0);
+            Subject.GetFilesByEdition(other.Id).Should().ContainSingle();
+        }
+
         [TestCase("Print")]
         [TestCase(null)]
         public void should_repair_only_the_unchanged_file_and_edition_in_the_same_work(string previousFormat)

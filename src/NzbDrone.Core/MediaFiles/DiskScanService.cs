@@ -192,7 +192,11 @@ namespace NzbDrone.Core.MediaFiles
             };
 
             var decisions = _importDecisionMaker.GetImportDecisions(mediaFileList, null, null, config);
-            decisions.ForEach(decision => decision.Item.IsUnattendedLibraryImport = addNewAuthors);
+            foreach (var decision in decisions)
+            {
+                decision.Item.IsLibraryScan = true;
+                decision.Item.IsUnattendedLibraryImport = addNewAuthors;
+            }
 
             decisionsStopwatch.Stop();
             _logger.Debug("Import decisions complete [{0}]", decisionsStopwatch.Elapsed);
@@ -205,6 +209,14 @@ namespace NzbDrone.Core.MediaFiles
             // Note that knownFiles will include anything imported just now
             var knownFiles = new List<BookFile>();
             scannedFolders.ForEach(x => knownFiles.AddRange(_mediaFileService.GetFilesWithBasePath(x)));
+
+            // Never assign refreshed metadata or a hold reason to an arbitrary row for a held audio path.
+            var ambiguousHeldAudiobookPaths = knownFiles
+                .GroupBy(file => file.Path, PathEqualityComparer.Instance)
+                .Where(group => group.Any(IsPriorOccupiedAudiobookPart) &&
+                                group.Select(file => file.Id).Distinct().Take(2).Count() == 2)
+                .Select(group => group.Key)
+                .ToHashSet(PathEqualityComparer.Instance);
 
             knownFiles = knownFiles.DistinctBy(file => file.Path, PathEqualityComparer.Instance).ToList();
             var unreadablePaths = decisions
@@ -246,6 +258,7 @@ namespace NzbDrone.Core.MediaFiles
 
             // finally update info on size/modified for existing files
             var updatedFiles = knownFiles
+                .Where(file => !ambiguousHeldAudiobookPaths.Contains(file.Path))
                 .Join(decisions,
                       x => x.Path,
                       x => x.Item.Path,
@@ -269,7 +282,15 @@ namespace NzbDrone.Core.MediaFiles
 
             _mediaFileService.UpdateScannedFileInfo(updatedFiles);
 
+            // A later unapproved scan could otherwise remove the evidence that this slot needs a guarded retry.
+            var retainReasonPaths = importResults?.Where(result => result.PreserveExistingUnmappedReason)
+                .Select(result => result.ImportDecision.Item.Path)
+                .ToHashSet(PathEqualityComparer.Instance);
+
             var changedReasons = knownFiles.Where(file => file.EditionId == 0 &&
+                !IsPriorOccupiedAudiobookPart(file) &&
+                !ambiguousHeldAudiobookPaths.Contains(file.Path) &&
+                retainReasonPaths?.Contains(file.Path) != true &&
                 unmappedReasons.TryGetValue(file.Path, out var reason) && file.UnmappedReason != reason).ToList();
             changedReasons.ForEach(file => file.UnmappedReason = unmappedReasons[file.Path]);
             _mediaFileService.SetUnmappedReasons(changedReasons);
@@ -289,6 +310,12 @@ namespace NzbDrone.Core.MediaFiles
 
             importStopwatch.Stop();
             _logger.Debug("Library import finished for {0} scan folders in {1}.", scannedFolders.Count, importStopwatch.Elapsed);
+        }
+
+        private static bool IsPriorOccupiedAudiobookPart(BookFile file)
+        {
+            return file.EditionId == 0 && file.UnmappedReason == LibraryImportHoldReason.DuplicateInScan &&
+                   ImportFormat.ForPath(file.Path) == FormatType.Audiobook;
         }
 
         private Dictionary<string, LibraryImportHoldReason> GetUnmappedReasons(IEnumerable<ImportDecision<LocalBook>> decisions, List<ImportResult> importResults)

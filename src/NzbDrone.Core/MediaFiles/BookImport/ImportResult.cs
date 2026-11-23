@@ -13,6 +13,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
         internal LibraryImportHoldReason? HoldReason { get; }
 
+        internal bool PreserveExistingUnmappedReason { get; set; }
+
         public ImportResultType Result
         {
             get

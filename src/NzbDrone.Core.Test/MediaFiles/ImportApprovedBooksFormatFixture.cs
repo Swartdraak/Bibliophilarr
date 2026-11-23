@@ -7,11 +7,14 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
+using NzbDrone.Core.MediaFiles.Events;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
@@ -673,6 +676,163 @@ namespace NzbDrone.Core.Test.MediaFiles
             mediaFiles.Verify(service => service.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
             mediaFiles.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
             Mocker.GetMock<IMetadataTagService>().Verify(service => service.WriteTags(It.IsAny<BookFile>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_preserve_a_prior_occupied_audiobook_part_on_scan_retry_without_preparing_the_book()
+        {
+            GivenAudiobookImport();
+            var track = _approvedDecisions[0].Item;
+            track.ExistingFile = true;
+            track.IsLibraryScan = true;
+            track.RawTaggedPart = track.Part;
+            var stored = new BookFile
+            {
+                Id = 21,
+                Path = track.Path,
+                Part = track.Part,
+                UnmappedReason = LibraryImportHoldReason.DuplicateInScan
+            };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetFileWithPath(track.Path)).Returns(stored);
+            mediaFiles.Setup(service => service.GetUnmappedFiles()).Returns(new List<BookFile> { stored });
+            mediaFiles.Setup(service => service.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile> { stored });
+            mediaFiles.Setup(service => service.TryLinkUnmappedFile(stored, _audiobookEdition)).Returns(true);
+
+            var result = Subject.Import(_approvedDecisions, false).Should().ContainSingle().Which;
+
+            result.Result.Should().Be(ImportResultType.Skipped);
+            result.HoldReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            stored.EditionId.Should().Be(0);
+            stored.UnmappedReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            _audiobookEdition.Monitored.Should().BeTrue();
+            _ebookEdition.Monitored.Should().BeTrue();
+            mediaFiles.Verify(service => service.TryLinkUnmappedFile(stored, _audiobookEdition), Times.Never());
+            mediaFiles.Verify(service => service.TryLinkUnmappedAudiobookPart(stored, _audiobookEdition), Times.Once());
+            mediaFiles.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+            Mocker.GetMock<IEditionService>().Verify(service => service.SetMonitored(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IEditionService>().Verify(service => service.SetMonitoredByFormat(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<BookEditedEvent>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<BookImportedEvent>()), Times.Never());
+            Mocker.GetMock<IMetadataTagService>().Verify(service => service.WriteTags(It.IsAny<BookFile>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [TestCase(1, 0, true, ImportResultType.Skipped)]
+        [TestCase(0, 0, true, ImportResultType.Skipped)]
+        [TestCase(0, 2, true, ImportResultType.Skipped)]
+        [TestCase(1, 2, true, ImportResultType.Skipped)]
+        [TestCase(2, 2, true, ImportResultType.Imported)]
+        [TestCase(1, 1, false, ImportResultType.Imported)]
+        public void should_hold_a_changed_part_and_preserve_explicit_import_behavior(int storedPart, int decisionPart, bool fromScan, ImportResultType expected)
+        {
+            GivenAudiobookImport();
+            var track = _approvedDecisions[0].Item;
+            track.ExistingFile = true;
+            track.IsLibraryScan = fromScan;
+            track.Part = decisionPart;
+            track.RawTaggedPart = decisionPart > 0 ? decisionPart : null;
+            var stored = new BookFile
+            {
+                Id = 21,
+                Path = track.Path,
+                Part = storedPart,
+                UnmappedReason = LibraryImportHoldReason.DuplicateInScan
+            };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetFileWithPath(track.Path)).Returns(stored);
+            mediaFiles.Setup(service => service.GetUnmappedFiles()).Returns(new List<BookFile> { stored });
+            mediaFiles.Setup(service => service.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile> { stored });
+            mediaFiles.Setup(service => service.TryLinkUnmappedFile(stored, _audiobookEdition)).Returns(true);
+            mediaFiles.Setup(service => service.TryLinkUnmappedAudiobookPart(stored, _audiobookEdition)).Returns(true);
+
+            var result = Subject.Import(_approvedDecisions, false).Should().ContainSingle().Which;
+
+            result.Result.Should().Be(expected);
+            if (expected == ImportResultType.Skipped)
+            {
+                result.HoldReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            }
+
+            mediaFiles.Verify(service => service.TryLinkUnmappedFile(stored, _audiobookEdition), fromScan ? Times.Never() : Times.Once());
+            mediaFiles.Verify(service => service.TryLinkUnmappedAudiobookPart(stored, _audiobookEdition),
+                fromScan && decisionPart > 0 && storedPart == decisionPart ? Times.Once() : Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<TrackImportedEvent>()),
+                expected == ImportResultType.Imported ? Times.Once() : Times.Never());
+            stored.Part.Should().Be(storedPart);
+        }
+
+        [TestCase(null, false)]
+        [TestCase(2, false)]
+        [TestCase(1, true)]
+        public void should_keep_prior_audiobook_hold_without_corroborated_part_and_eligible_target(int? rawPart, bool missingAuthor)
+        {
+            GivenAudiobookImport();
+            var track = _approvedDecisions.Single().Item;
+            track.ExistingFile = true;
+            track.IsLibraryScan = true;
+            track.Part = 1;
+            track.RawTaggedPart = rawPart;
+            track.FileTrackInfo = new ParsedTrackInfo { TrackNumbers = new[] { 1 } };
+            if (missingAuthor)
+            {
+                track.Author = null;
+            }
+
+            var held = new BookFile { Id = 21, Path = track.Path, Part = 1, UnmappedReason = LibraryImportHoldReason.DuplicateInScan };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetUnmappedFiles()).Returns(new List<BookFile> { held });
+            mediaFiles.Setup(service => service.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile> { held });
+            mediaFiles.Setup(service => service.TryLinkUnmappedAudiobookPart(held, _audiobookEdition)).Returns(true);
+            mediaFiles.Setup(service => service.TryLinkUnmappedFile(held, _audiobookEdition)).Returns(true);
+
+            var result = Subject.Import(_approvedDecisions, false).Should().ContainSingle().Which;
+
+            result.Result.Should().Be(missingAuthor ? ImportResultType.Rejected : ImportResultType.Skipped);
+            result.HoldReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            held.EditionId.Should().Be(0);
+            held.UnmappedReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            mediaFiles.Verify(service => service.TryLinkUnmappedAudiobookPart(It.IsAny<BookFile>(), It.IsAny<Edition>()), Times.Never());
+            mediaFiles.Verify(service => service.TryLinkUnmappedFile(It.IsAny<BookFile>(), It.IsAny<Edition>()), Times.Never());
+            mediaFiles.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+            Mocker.GetMock<IEditionService>().Verify(service => service.SetMonitored(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IEditionService>().Verify(service => service.SetMonitoredByFormat(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<BookEditedEvent>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Never());
+        }
+
+        [TestCase(LibraryImportHoldReason.DuplicateInScan)]
+        [TestCase(LibraryImportHoldReason.LowConfidence)]
+        [TestCase(null)]
+        public void should_hold_a_scan_retry_when_multiple_rows_resolve_to_its_path(LibraryImportHoldReason? otherReason)
+        {
+            GivenAudiobookImport();
+            var track = _approvedDecisions.Single().Item;
+            track.ExistingFile = true;
+            track.IsLibraryScan = true;
+            track.RawTaggedPart = track.Part;
+            var first = new BookFile { Id = 21, Path = track.Path, Part = track.Part, UnmappedReason = LibraryImportHoldReason.DuplicateInScan };
+            var variantPath = Path.Combine(Path.GetDirectoryName(track.Path), ".", Path.GetFileName(track.Path));
+            var otherEditionId = otherReason == null ? _audiobookEdition.Id : 0;
+            var second = new BookFile { Id = 22, Path = variantPath, Part = track.Part, UnmappedReason = otherReason, EditionId = otherEditionId };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetUnmappedFiles()).Returns(new List<BookFile> { first });
+            mediaFiles.Setup(service => service.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile> { first, second });
+            mediaFiles.Setup(service => service.TryLinkUnmappedAudiobookPart(It.IsAny<BookFile>(), _audiobookEdition)).Returns(true);
+
+            var result = Subject.Import(_approvedDecisions, false).Should().ContainSingle().Which;
+
+            result.Result.Should().Be(ImportResultType.Skipped);
+            result.HoldReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            first.EditionId.Should().Be(0);
+            second.EditionId.Should().Be(otherEditionId);
+            first.UnmappedReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            second.UnmappedReason.Should().Be(otherReason);
+            mediaFiles.Verify(service => service.TryLinkUnmappedAudiobookPart(It.IsAny<BookFile>(), It.IsAny<Edition>()), Times.Never());
+            mediaFiles.Verify(service => service.TryLinkUnmappedFile(It.IsAny<BookFile>(), It.IsAny<Edition>()), Times.Never());
+            mediaFiles.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<BookEditedEvent>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Never());
         }
 
         [Test]

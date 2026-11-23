@@ -37,6 +37,7 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFileWithPath(List<string> path);
         BookFile GetFileWithPath(string path);
         bool TryLinkUnmappedFile(BookFile file, Edition edition);
+        bool TryLinkUnmappedAudiobookPart(BookFile file, Edition edition);
         void SetUnmappedReasons(List<BookFile> files);
         bool TryRepairUnsupportedEditionLink(BookFile file, Edition edition);
         void UpdateMediaInfo(List<BookFile> bookFiles);
@@ -114,15 +115,12 @@ namespace NzbDrone.Core.MediaFiles
 
         public bool TryLinkUnmappedFile(BookFile file, Edition edition)
         {
-            if (!_mediaFileRepository.TryLinkUnmappedFile(file, edition))
-            {
-                return false;
-            }
+            return CompleteUnmappedLink(file, edition, _mediaFileRepository.TryLinkUnmappedFile(file, edition));
+        }
 
-            file.EditionId = edition.Id;
-            file.Edition = edition;
-            file.UnmappedReason = null;
-            return true;
+        public bool TryLinkUnmappedAudiobookPart(BookFile file, Edition edition)
+        {
+            return CompleteUnmappedLink(file, edition, _mediaFileRepository.TryLinkUnmappedAudiobookPart(file, edition));
         }
 
         public void SetUnmappedReasons(List<BookFile> files)
@@ -229,6 +227,19 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             return files.Except(unwanted).ToList();
+        }
+
+        private static bool CompleteUnmappedLink(BookFile file, Edition edition, bool linked)
+        {
+            if (!linked)
+            {
+                return false;
+            }
+
+            file.EditionId = edition.Id;
+            file.Edition = edition;
+            file.UnmappedReason = null;
+            return true;
         }
 
         private static bool HasUnchangedFileInfo(IFileInfo diskFile, BookFile knownFile)

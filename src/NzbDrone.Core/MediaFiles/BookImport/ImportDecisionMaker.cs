@@ -179,6 +179,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 var fileTrackInfo = localTrack.FileTrackInfo;
                 localTrack.Part = fileTrackInfo.TrackNumbers.Any() ? fileTrackInfo.TrackNumbers.First() : 1;
                 localTrack.ReliableTaggedBookTitle = IdentificationService.CaptureReliableTaggedBookTitle(fileTrackInfo);
+                if (ImportFormat.ForPath(localTrack.Path) == FormatType.Audiobook &&
+                    fileTrackInfo.DiscNumber <= 1 && fileTrackInfo.DiscCount <= 1)
+                {
+                    // Filename augmentation can modify the track numbers, so retain the original tag evidence.
+                    var taggedParts = fileTrackInfo.TrackNumbers.Where(part => part > 0).Distinct().Take(2).ToArray();
+                    if (taggedParts.Length == 1)
+                    {
+                        localTrack.RawTaggedPart = taggedParts[0];
+                    }
+                }
 
                 try
                 {

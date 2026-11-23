@@ -182,6 +182,40 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
                   });
         }
 
+        [TestCase("2", 0, 0, 2)]
+        [TestCase("2,2", 1, 1, 2)]
+        [TestCase("", 0, 0, null)]
+        [TestCase("1,2", 0, 0, null)]
+        [TestCase("2", 2, 0, null)]
+        [TestCase("2", 1, 2, null)]
+        public void should_capture_only_an_unambiguous_original_audiobook_track_number_before_augmentation(
+            string originalTrackNumbers, int discNumber, int discCount, int? expected)
+        {
+            var path = @"C:\Test\Unsorted\Fixture Audio.m4b".AsOsAgnostic();
+            GivenAudioFiles(new[] { path });
+            var original = new ParsedTrackInfo
+            {
+                TrackNumbers = originalTrackNumbers.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToArray(),
+                DiscNumber = discNumber,
+                DiscCount = discCount
+            };
+            Mocker.GetMock<IMetadataTagService>()
+                .Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(original);
+            Mocker.GetMock<IAugmentingService>()
+                .Setup(service => service.Augment(It.IsAny<LocalBook>(), It.IsAny<bool>()))
+                .Callback<LocalBook, bool>((track, _) =>
+                {
+                    track.FileTrackInfo.TrackNumbers = new[] { 1 };
+                    track.Book = _localTrack.Book;
+                });
+
+            var decision = Subject.GetImportDecisions(_fileInfos, _idOverrides, null, _idConfig).Should().ContainSingle().Which;
+
+            decision.Item.FileTrackInfo.TrackNumbers.Should().Equal(1);
+            decision.Item.RawTaggedPart.Should().Be(expected);
+        }
+
         [Test]
         public void should_call_all_book_specifications()
         {

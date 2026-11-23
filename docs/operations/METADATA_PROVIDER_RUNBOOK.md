@@ -276,6 +276,14 @@ entry shows the proposed work and edition IDs, the matching distance and the
 threshold for automatically adding an author. Compare the proposed identity
 with the file before selecting the author manually.
 
+## Audiobook part holds
+
+`DuplicateInScan` indicates that another file occupied the same audiobook edition
+and part. An automatic retry requires an original track tag that confirms the
+stored part and a free slot in the selected edition. A later match or read
+failure leaves the occupied-part hold in Unmapped Files. System events and the
+task result report the failure from that scan.
+
 ## Conflict-resolution explainability triage
 
 Use this section when metadata merges pick unexpected winners and operators need

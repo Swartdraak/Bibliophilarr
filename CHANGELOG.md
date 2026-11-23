@@ -47,6 +47,8 @@ process.
   primary image. Preserve cached images when a refresh returns no references.
 - Report a media file read failure as an import hold and continue scanning
   the other files.
+- Preserve occupied audiobook parts through automatic retries. Link a held file
+  only when its original tag confirms the part and the selected edition has a free slot.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files

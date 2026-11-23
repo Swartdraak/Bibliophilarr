@@ -1,10 +1,13 @@
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using Dapper;
 using NzbDrone.Common;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Messaging.Events;
 
 namespace NzbDrone.Core.MediaFiles
@@ -20,6 +23,7 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFileWithPath(List<string> paths);
         BookFile GetFileWithPath(string path);
         bool TryLinkUnmappedFile(BookFile file, Edition edition);
+        bool TryLinkUnmappedAudiobookPart(BookFile file, Edition edition);
         void SetUnmappedReasons(List<BookFile> files);
         bool TryRepairUnsupportedEditionLink(BookFile file, Edition previous, Edition edition);
         void DeleteFilesByBook(int bookId);
@@ -131,6 +135,60 @@ namespace NzbDrone.Core.MediaFiles
                 WHERE "Id" = @FileId AND "Path" = @Path AND "EditionId" = 0
                   AND EXISTS (SELECT 1 FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId)
                 """, new { FileId = file.Id, file.Path, EditionId = edition.Id, edition.BookId }) == 1;
+        }
+
+        public bool TryLinkUnmappedAudiobookPart(BookFile file, Edition edition)
+        {
+            if (file.Part <= 0 || file.UnmappedReason != LibraryImportHoldReason.DuplicateInScan ||
+                ImportFormat.ForPath(file.Path) != FormatType.Audiobook || ImportFormat.ForEdition(edition) != FormatType.Audiobook)
+            {
+                return false;
+            }
+
+            const string linkSql = """
+                UPDATE "BookFiles"
+                SET "EditionId" = @EditionId, "UnmappedReason" = NULL
+                WHERE "Id" = @FileId AND "Path" = @Path AND "EditionId" = 0
+                  AND "UnmappedReason" = @Reason AND "Part" = @Part
+                  AND EXISTS (
+                      SELECT 1 FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId
+                      AND "Format" = @Format AND "IsEbook" = @IsEbook)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM "BookFiles" WHERE "EditionId" = @EditionId AND "Part" = @Part)
+                """;
+            var parameters = new
+            {
+                FileId = file.Id,
+                file.Path,
+                file.Part,
+                Reason = (int)LibraryImportHoldReason.DuplicateInScan,
+                EditionId = edition.Id,
+                edition.BookId,
+                edition.Format,
+                edition.IsEbook
+            };
+
+            using var connection = _database.OpenConnection();
+            if (_database.DatabaseType != DatabaseType.PostgreSQL)
+            {
+                return connection.Execute(linkSql, parameters) == 1;
+            }
+
+            // Different held rows can compete for the same part. Lock the edition
+            // before the next READ COMMITTED statement checks its occupied parts.
+            using var transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
+            const string lockEditionSql = """
+                SELECT "Id" FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId
+                  AND "Format" = @Format AND "IsEbook" = @IsEbook FOR UPDATE
+                """;
+            if (!connection.ExecuteScalar<int?>(lockEditionSql, parameters, transaction).HasValue)
+            {
+                return false;
+            }
+
+            var linked = connection.Execute(linkSql, parameters, transaction) == 1;
+            transaction.Commit();
+            return linked;
         }
 
         public void SetUnmappedReasons(List<BookFile> files)
