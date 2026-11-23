@@ -89,8 +89,11 @@ function MetadataProvidersHealth(props) {
                 items.map((item) => {
                   return (
                     <TableRow key={item.providerName}>
-                      <TableRowCell>{item.providerName}</TableRowCell>
-                      <TableRowCell>{item.priority}</TableRowCell>
+                      <TableRowCell>
+                        {item.providerName}
+                        {item.isFallbackOnly ? <div>{translate('MetadataProviderFallbackOnly')}</div> : null}
+                      </TableRowCell>
+                      <TableRowCell>{item.isFallbackOnly ? '—' : item.priority}</TableRowCell>
                       <TableRowCell>{item.isEnabled ? 'Yes' : 'No'}</TableRowCell>
                       <TableRowCell>{formatHitRate(item.telemetry)}</TableRowCell>
                       <TableRowCell>{item.telemetry ? item.telemetry.calls : 0}</TableRowCell>
