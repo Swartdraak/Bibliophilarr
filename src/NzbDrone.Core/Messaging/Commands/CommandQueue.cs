@@ -30,14 +30,7 @@ namespace NzbDrone.Core.Messaging.Commands
 
         public IEnumerator<CommandModel> GetEnumerator()
         {
-            List<CommandModel> copy = null;
-
-            lock (_mutex)
-            {
-                copy = new List<CommandModel>(_items);
-            }
-
-            return copy.GetEnumerator();
+            return All().GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -47,14 +40,10 @@ namespace NzbDrone.Core.Messaging.Commands
 
         public List<CommandModel> All()
         {
-            List<CommandModel> rval = null;
-
             lock (_mutex)
             {
-                rval = _items;
+                return new List<CommandModel>(_items);
             }
-
-            return rval;
         }
 
         public CommandModel Find(int id)

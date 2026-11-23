@@ -70,6 +70,9 @@ namespace NzbDrone.Core.Test.Messaging.Commands
             Subject.All().Should().Equal(liveCommand, recoveredCommand);
             Subject.Get(liveCommand.Id).Should().BeSameAs(liveCommand);
             Subject.Get(liveCommand.Id).Status.Should().Be(liveStatus);
+            Mocker.GetMock<ICommandRepository>().Verify(
+                repository => repository.OrphanStarted(It.Is<IReadOnlyCollection<int>>(ids => ids.SequenceEqual(new[] { liveCommand.Id }))),
+                Times.Once);
         }
 
         [Test]

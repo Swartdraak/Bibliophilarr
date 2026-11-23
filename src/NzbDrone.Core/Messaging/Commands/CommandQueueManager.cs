@@ -312,9 +312,13 @@ namespace NzbDrone.Core.Messaging.Commands
 
         public void Handle(ApplicationStartedEvent message)
         {
-            _logger.Trace("Orphaning incomplete commands");
-            _repo.OrphanStarted();
-            Requeue();
+            lock (_commandQueue)
+            {
+                _logger.Trace("Orphaning incomplete commands");
+                var liveCommandIds = _commandQueue.All().Select(command => command.Id).ToArray();
+                _repo.OrphanStarted(liveCommandIds);
+                Requeue();
+            }
         }
     }
 }

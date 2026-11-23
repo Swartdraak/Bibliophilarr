@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Dapper;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
@@ -9,7 +10,7 @@ namespace NzbDrone.Core.Messaging.Commands
     public interface ICommandRepository : IBasicRepository<CommandModel>
     {
         void Trim();
-        void OrphanStarted();
+        void OrphanStarted(IReadOnlyCollection<int> liveCommandIds);
         List<CommandModel> Queued();
         void Start(CommandModel command);
         void End(CommandModel command);
@@ -29,20 +30,20 @@ namespace NzbDrone.Core.Messaging.Commands
             Delete(c => c.EndedAt < date);
         }
 
-        public void OrphanStarted()
+        public void OrphanStarted(IReadOnlyCollection<int> liveCommandIds)
         {
-            var sql = @"UPDATE ""Commands"" SET ""Status"" = @Orphaned, ""EndedAt"" = @Ended WHERE ""Status"" = @Started";
-            var args = new
-            {
-                Orphaned = (int)CommandStatus.Orphaned,
-                Started = (int)CommandStatus.Started,
-                Ended = DateTime.UtcNow
-            };
+            const string select = @"SELECT ""Id"" FROM ""Commands"" WHERE ""Status"" = @Started";
+            const string update = @"UPDATE ""Commands"" SET ""Status"" = @Orphaned, ""EndedAt"" = @Ended WHERE ""Id"" = @Id AND ""Status"" = @Started";
+            const int started = (int)CommandStatus.Started;
+            var ended = DateTime.UtcNow;
 
-            using (var conn = _database.OpenConnection())
-            {
-                conn.Execute(sql, args);
-            }
+            using var conn = _database.OpenConnection();
+            using var transaction = conn.BeginTransaction();
+            var interrupted = conn.Query<int>(select, new { Started = started }, transaction)
+                .Except(liveCommandIds)
+                .Select(id => new { Id = id, Started = started, Ended = ended, Orphaned = (int)CommandStatus.Orphaned });
+            conn.Execute(update, interrupted, transaction);
+            transaction.Commit();
         }
 
         public List<CommandModel> Queued()
