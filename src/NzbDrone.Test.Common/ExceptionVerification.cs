@@ -94,9 +94,16 @@ namespace NzbDrone.Test.Common
             Expected(LogLevel.Fatal, count);
         }
 
-        public static void ExpectedWarns(int count)
+        public static void ExpectedWarns(int count, string messagePrefix = null)
         {
-            Expected(LogLevel.Warn, count);
+            var prefixes = messagePrefix == null ? null : Enumerable.Repeat(messagePrefix, count).ToArray();
+            Expected(LogLevel.Warn, count, prefixes);
+        }
+
+        public static void ExpectedWarns(params string[] messagePrefixes)
+        {
+            Assert.That(messagePrefixes, Is.Not.Null);
+            Expected(LogLevel.Warn, messagePrefixes.Length, messagePrefixes);
         }
 
         public static void IgnoreWarns()
@@ -137,19 +144,24 @@ namespace NzbDrone.Test.Common
             }
         }
 
-        private static void Expected(LogLevel level, int count)
+        private static void Expected(LogLevel level, int count, IReadOnlyList<string> messagePrefixes = null)
         {
+            if (messagePrefixes != null)
+            {
+                Assert.That(messagePrefixes, Has.Count.EqualTo(count));
+                Assert.That(messagePrefixes, Has.None.Null);
+            }
+
             lock (_logs)
             {
                 var levelLogs = _logs.Where(l => l.Level == level).ToList();
 
-                if (levelLogs.Count != count)
+                if (levelLogs.Count != count ||
+                    (messagePrefixes != null && levelLogs.Where((log, index) =>
+                        !log.FormattedMessage.StartsWith(messagePrefixes[index], StringComparison.Ordinal)).Any()))
                 {
-                    var message = string.Format("{0} {1}(s) were expected but {2} were logged.\n\r{3}",
-                        count,
-                        level,
-                        levelLogs.Count,
-                        GetLogsString(levelLogs));
+                    var expectation = messagePrefixes == null ? string.Empty : $" starting with [{string.Join(", ", messagePrefixes)}]";
+                    var message = $"{count} {level}(s){expectation} were expected but {levelLogs.Count} were logged.\n\r{GetLogsString(levelLogs)}";
 
                     message = "\n\r****************************************************************************************\n\r"
                         + message +

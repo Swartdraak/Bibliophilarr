@@ -13,6 +13,7 @@ import sys
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from hashlib import pbkdf2_hmac
 
 sys.path.insert(0, '/opt/onyx-testkit')
 from onyx_http_check import request_json  # noqa: E402
@@ -122,6 +123,10 @@ def fetch_api_key():
         return root.findtext('ApiKey', '').strip()
     except (OSError, ET.ParseError):
         return None
+
+
+def derive_api_key_witness(api_key, salt):
+    return pbkdf2_hmac('sha256', api_key.encode(), salt, 600_000)
 
 
 def auth_headers(api_key):

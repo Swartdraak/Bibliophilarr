@@ -1,6 +1,7 @@
 using System.IO;
 using System.Threading.Tasks;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.Authentication;
 using Bibliophilarr.Http.Validation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
@@ -17,6 +18,7 @@ using NzbDrone.Core.Update;
 namespace Bibliophilarr.Api.V1.System
 {
     [V1ApiController]
+    [ValidateApiWriteAntiforgery]
     public class SystemController : Controller
     {
         private readonly IAppFolderInfo _appFolderInfo;

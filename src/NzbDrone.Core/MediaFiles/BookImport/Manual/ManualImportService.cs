@@ -48,6 +48,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
         private readonly IDownloadedBooksImportService _downloadedTracksImportService;
         private readonly IProvideImportItemService _provideImportItemService;
         private readonly IEventAggregator _eventAggregator;
+        private readonly ICommandResultReporter _commandResultReporter;
         private readonly Logger _logger;
 
         public ManualImportService(IDiskProvider diskProvider,
@@ -66,6 +67,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                                    IDownloadedBooksImportService downloadedTracksImportService,
                                    IProvideImportItemService provideImportItemService,
                                    IEventAggregator eventAggregator,
+                                   ICommandResultReporter commandResultReporter,
                                    Logger logger)
         {
             _diskProvider = diskProvider;
@@ -84,6 +86,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             _downloadedTracksImportService = downloadedTracksImportService;
             _provideImportItemService = provideImportItemService;
             _eventAggregator = eventAggregator;
+            _commandResultReporter = commandResultReporter;
             _logger = logger;
         }
 
@@ -390,6 +393,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             var importedTrackedDownload = new List<ManuallyImportedFile>();
             var bookIds = message.Files.GroupBy(e => e.BookId).ToList();
             var fileCount = 0;
+            var hasPreparedFile = false;
 
             foreach (var importBookId in bookIds)
             {
@@ -502,6 +506,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                             "The file would be left unmapped (EditionId=0)."));
                     }
 
+                    hasPreparedFile |= importDecision.Approved;
                     bookImportDecisions.Add(importDecision);
                     fileCount += 1;
                 }
@@ -533,6 +538,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             }
 
             _logger.ProgressTrace("Manually imported {0} files", imported.Count);
+            if (message.Files.Count > 0 && !hasPreparedFile)
+            {
+                _logger.ProgressInfo("No files were eligible for manual import.");
+                _commandResultReporter.Report(CommandResult.Unsuccessful);
+            }
 
             foreach (var groupedTrackedDownload in importedTrackedDownload.GroupBy(i => i.TrackedDownload.DownloadItem.DownloadId).ToList())
             {

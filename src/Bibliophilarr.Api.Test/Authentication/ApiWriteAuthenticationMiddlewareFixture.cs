@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -240,6 +241,53 @@ namespace NzbDrone.Api.Test.Authentication
 
                     reachedDownstream.Should().BeFalse("{0} requires an explicit API credential", action.DisplayName);
                     context.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized, "{0} refuses a Forms session alone", action.DisplayName);
+
+                    await AssertRegisteredRequestForgeryFilter(action, app.Services);
+                }
+            }
+        }
+
+        private static async Task AssertRegisteredRequestForgeryFilter(Endpoint endpoint, IServiceProvider services)
+        {
+            const string key = "local-fixture-key";
+            var descriptor = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>();
+            var filters = descriptor.FilterDescriptors.Select(item => item.Filter).ToList();
+            var filter = filters.OfType<ValidateApiWriteAntiforgeryAttribute>()
+                .Should().ContainSingle("{0} must enforce request-forgery protection in MVC", endpoint.DisplayName).Which;
+
+            foreach (var credential in new[] { null, "X-Api-Key", "Authorization", "apikey" })
+            {
+                using var scope = services.CreateScope();
+                var context = new DefaultHttpContext
+                {
+                    RequestServices = scope.ServiceProvider,
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("user", "fixture") }, "Forms"))
+                };
+                context.Request.Method = HttpMethods.Post;
+                context.SetEndpoint(endpoint);
+                if (credential == "apikey")
+                {
+                    context.Request.QueryString = QueryString.Create(credential, key);
+                }
+                else if (credential != null)
+                {
+                    context.Request.Headers[credential] = credential == "Authorization" ? $"Bearer {key}" : key;
+                }
+
+                var actionContext = new ActionContext(context, new RouteData(), descriptor);
+                var filterContext = new AuthorizationFilterContext(actionContext, filters);
+                await filter.OnAuthorizationAsync(filterContext);
+
+                if (credential == null)
+                {
+                    var challenge = filterContext.Result.Should().BeOfType<ChallengeResult>().Which;
+                    challenge.AuthenticationSchemes.Should().Equal("API");
+                    await challenge.ExecuteResultAsync(actionContext);
+                    context.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+                }
+                else
+                {
+                    filterContext.Result.Should().BeNull("{0} remains accepted by {1}", credential, endpoint.DisplayName);
                 }
             }
         }
