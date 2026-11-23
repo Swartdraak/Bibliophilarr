@@ -1,16 +1,13 @@
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
-using System.Linq;
-using System.Reflection;
 using Dapper;
-using FluentMigrator;
 using Microsoft.Extensions.Logging.Abstractions;
 using NLog;
 using NUnit.Framework;
 using NzbDrone.Core.Datastore;
-using NzbDrone.Core.Datastore.Migration;
 using NzbDrone.Core.Datastore.Migration.Framework;
+using NzbDrone.Test.Common.Datastore;
 
 namespace NzbDrone.Core.Test.Datastore.Migration
 {
@@ -44,7 +41,7 @@ namespace NzbDrone.Core.Test.Datastore.Migration
             Migrate(new MigrationContext(MigrationType.Main));
 
             using var connection = OpenExistingDatabase();
-            AssertCompleteMigration(connection);
+            SqliteDatabase.AssertCompleteMainMigration(connection);
         }
 
         [Test]
@@ -83,7 +80,7 @@ namespace NzbDrone.Core.Test.Datastore.Migration
 
             using var reopened = OpenExistingDatabase();
             Assert.That(reappliedVersions, Is.Empty);
-            AssertCompleteMigration(reopened);
+            SqliteDatabase.AssertCompleteMainMigration(reopened);
             Assert.That(reopened.Query<string>("SELECT \"Path\" FROM \"RootFolders\""), Is.EqualTo(new[] { root }));
             Assert.That(reopened.QuerySingle<(int Id, string Name, string Path)>("""
                 SELECT a."Id", am."Name", a."Path"
@@ -112,22 +109,6 @@ namespace NzbDrone.Core.Test.Datastore.Migration
             var connection = new SQLiteConnection(connectionString.ConnectionString);
             connection.Open();
             return connection;
-        }
-
-        internal static void AssertCompleteMigration(SQLiteConnection connection)
-        {
-            var expectedVersions = typeof(InitialSetup).Assembly.GetTypes()
-                .Where(type => type.Namespace == typeof(InitialSetup).Namespace && !type.IsAbstract && type.IsSubclassOf(typeof(NzbDroneMigrationBase)))
-                .Select(type => type.GetCustomAttribute<MigrationAttribute>()?.Version
-                    ?? throw new AssertionException($"Migration type {type.FullName} is missing {nameof(MigrationAttribute)}"))
-                .OrderBy(version => version)
-                .ToArray();
-
-            // Migration 34 was released as version 158. Preserve the whole published baseline.
-            var historicalVersions = Enumerable.Range(1, 49).Where(version => version != 34).Select(version => (long)version).Append(158);
-            Assert.That(historicalVersions.Except(expectedVersions), Is.Empty);
-            Assert.That(connection.Query<long>("SELECT \"Version\" FROM \"VersionInfo\" ORDER BY \"Version\""), Is.EqualTo(expectedVersions));
-            Assert.That(connection.Query<string>("PRAGMA integrity_check"), Is.EqualTo(new[] { "ok" }));
         }
     }
 }
