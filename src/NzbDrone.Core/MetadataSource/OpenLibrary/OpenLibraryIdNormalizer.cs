@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
@@ -60,6 +61,33 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             return LooksLikeAuthorId(normalized)
                 ? EnsureToken(normalized, "A")
+                : null;
+        }
+
+        public static string NormalizeEditionId(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            const string editionPrefix = "openlibrary:edition:";
+            const string booksPath = "/books/";
+            var token = value.Trim();
+            if (token.StartsWith(editionPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                token = token[editionPrefix.Length..];
+            }
+            else if (token.StartsWith(booksPath, StringComparison.Ordinal))
+            {
+                token = token[booksPath.Length..];
+            }
+
+            return token.Length > 3 &&
+                token.StartsWith("OL", StringComparison.OrdinalIgnoreCase) &&
+                token.EndsWith("M", StringComparison.OrdinalIgnoreCase) &&
+                token[2..^1].All(char.IsAsciiDigit)
+                ? token.ToUpperInvariant()
                 : null;
         }
 

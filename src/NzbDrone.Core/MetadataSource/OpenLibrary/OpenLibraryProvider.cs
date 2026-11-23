@@ -197,23 +197,32 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var offset = 0;
             var total = 0;
+            var confirmedEmptyPage = false;
 
             try
             {
                 while (true)
                 {
                     var (page, reportedTotal) = fetchPage(offset);
+                    total = Math.Max(total, reportedTotal ?? 0);
+                    if (!confirmedEmptyPage && page?.Count == 0 && seen.Count < total)
+                    {
+                        // Confirm an unexpected gap once without discarding the earlier total.
+                        confirmedEmptyPage = true;
+                        (page, reportedTotal) = fetchPage(offset);
+                        total = Math.Max(total, reportedTotal ?? 0);
+                    }
+
                     if (page == null)
                     {
                         throw new InvalidOperationException($"Open Library did not return a bibliography page at offset {offset}.");
                     }
 
-                    total = Math.Max(total, reportedTotal ?? 0);
                     if (page.Count == 0)
                     {
-                        if (offset < total)
+                        if (seen.Count < total)
                         {
-                            throw new InvalidOperationException($"Open Library ended its bibliography at offset {offset} before the reported total {total}.");
+                            throw new InvalidOperationException($"Open Library ended its bibliography at offset {offset} with {seen.Count} distinct works before the reported total {total}.");
                         }
 
                         return results;
@@ -235,7 +244,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     }
 
                     offset += page.Count;
-                    if (total > 0 && offset >= total)
+                    if (total > 0 && seen.Count >= total)
                     {
                         return results;
                     }

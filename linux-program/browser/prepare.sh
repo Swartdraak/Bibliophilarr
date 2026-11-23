@@ -7,6 +7,8 @@ CASE_DIR="${CASE_DIR:?CASE_DIR env must be set by the plan}"
 PUB=/workspace/repo/_output/net10.0/linux-x64/publish
 [ -x "$PUB/Bibliophilarr" ] || fail "durable binary missing: $PUB/Bibliophilarr"
 [ -d "$PUB/UI" ] || fail "durable UI missing: $PUB/UI"
+python3 -B -c 'from playwright.sync_api import sync_playwright' >/dev/null 2>&1 ||
+  fail "pinned Playwright package must be provisioned in the browser runner"
 mkdir -p "$CASE_DIR/app-data"
 [ -d "$CASE_DIR/app-data" ] && [ -z "$(ls -A "$CASE_DIR/app-data")" ] || fail "case data dir must be fresh/empty"
 echo "PREPARE-BROWSER-OK: case data dir $CASE_DIR/app-data, durable build present"

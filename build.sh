@@ -317,9 +317,25 @@ PackageTests()
 {
     local framework="$1"
     local runtime="$2"
+    local testPublishFolder="$testPackageFolder/$framework/$runtime/publish"
+    local sourceFile
+    local sourceFixtures=(
+        src/Bibliophilarr.sln
+        src/Bibliophilarr.Api.V1/openapi.json
+        src/Directory.Build.props
+        src/Directory.Packages.props
+        src/NzbDrone.Common/Composition/AssemblyLoader.cs
+        src/NzbDrone.Console/Bibliophilarr.Console.csproj
+    )
 
-    mkdir -p "$testPackageFolder/$framework/$runtime/publish"
-    cp test.sh "$testPackageFolder/$framework/$runtime/publish"
+    mkdir -p "$testPublishFolder"
+    cp test.sh src/coverlet.runsettings "$testPublishFolder"
+
+    # Repository contract tests resolve these inputs relative to an ancestor of the assemblies.
+    for sourceFile in "${sourceFixtures[@]}"; do
+        mkdir -p "$testPublishFolder/$(dirname "$sourceFile")"
+        cp "$sourceFile" "$testPublishFolder/$sourceFile"
+    done
 
     rm -f $testPackageFolder/$framework/$runtime/*.log.config
 

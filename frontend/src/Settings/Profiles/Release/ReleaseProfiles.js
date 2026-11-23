@@ -55,6 +55,7 @@ class ReleaseProfiles extends Component {
           <div className={styles.releaseProfiles}>
             <Card
               className={styles.addReleaseProfile}
+              ariaLabel={translate('AddReleaseProfile')}
               onPress={this.onAddReleaseProfilePress}
             >
               <div className={styles.center}>
