@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.Authentication;
 using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Crypto;
@@ -14,6 +15,7 @@ using NzbDrone.Http.REST.Attributes;
 namespace Bibliophilarr.Api.V1.System.Backup
 {
     [V1ApiController("system/backup")]
+    [ValidateApiWriteAntiforgery]
     public class BackupController : Controller
     {
         private readonly IBackupService _backupService;
