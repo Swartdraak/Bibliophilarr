@@ -110,15 +110,12 @@ class AddNewBookSearchResult extends Component {
         />
 
         <div className={styles.overlay}>
-          {
-            !isSmallScreen &&
-              <BookCover
-                className={styles.poster}
-                images={images}
-                size={250}
-                lazy={false}
-              />
-          }
+          <BookCover
+            className={styles.poster}
+            images={images}
+            size={250}
+            lazy={false}
+          />
 
           <div className={styles.content}>
             <div className={styles.titleRow}>

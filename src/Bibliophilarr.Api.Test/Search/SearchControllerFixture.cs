@@ -153,6 +153,82 @@ namespace NzbDrone.Api.Test.Search
         }
 
         [Test]
+        public void should_map_verified_fallback_art_without_replacing_existing_art_or_selected_editions()
+        {
+            var firstAuthor = SearchAuthor("hardcover:author:41");
+            var alternateAuthor = SearchAuthor("openlibrary:author:OL300A");
+            var poster = new MediaCover(MediaCoverTypes.Poster, "https://covers.example/fallback-author.jpg");
+            alternateAuthor.Metadata.Value.Images = new List<MediaCover>
+            {
+                new MediaCover(MediaCoverTypes.Banner, "https://covers.example/other-art.jpg"),
+                new MediaCover(MediaCoverTypes.Poster, "relative-placeholder.jpg"),
+                poster
+            };
+
+            var firstBook = new Book
+            {
+                ForeignBookId = "hardcover:work:41",
+                Editions = new List<Edition> { new Edition { ForeignEditionId = "hardcover:source-edition:15", Title = "Selected edition" } }
+            };
+            var alternateBook = new Book
+            {
+                ForeignBookId = "hardcover:work:041",
+                Editions = new List<Edition>
+                {
+                    new Edition
+                    {
+                        Title = "Alternate edition",
+                        Images = new List<MediaCover> { new MediaCover(MediaCoverTypes.Cover, "https://covers.example/fallback-book.jpg") }
+                    }
+                }
+            };
+            var bookWithArt = new Book
+            {
+                ForeignBookId = "hardcover:work:42",
+                Editions = new List<Edition>
+                {
+                    new Edition
+                    {
+                        Title = "Book with a cover",
+                        Images = new List<MediaCover> { new MediaCover(MediaCoverTypes.Cover, "https://covers.example/representative.jpg") }
+                    }
+                }
+            };
+            var unusedAlternative = new Book { ForeignBookId = "hardcover:work:042", Editions = alternateBook.Editions };
+
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "41")).Returns(11);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL300A")).Returns(11);
+            var proxy = new Mock<IMetadataProviderOrchestrator>();
+            proxy.Setup(search => search.SearchForNewEntity("Fixture"))
+                .Returns(new List<object> { firstAuthor, firstBook, bookWithArt, alternateAuthor, alternateBook, unusedAlternative });
+
+            var covers = new Mock<IMapCoversToLocal>();
+            covers.Setup(mapper => mapper.ConvertToLocalUrls(0, It.IsAny<MediaCoverEntity>(), It.IsAny<IEnumerable<MediaCover>>()))
+                .Callback<int, MediaCoverEntity, IEnumerable<MediaCover>>((_, _, images) =>
+                {
+                    foreach (var image in images)
+                    {
+                        image.RemoteUrl = image.Url;
+                        image.Url = "/MediaCoverProxy/fixture.jpg";
+                    }
+                });
+
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), covers.Object, _telemetry, identity.Object);
+            var results = (List<SearchResource>)controller.Search("Fixture");
+
+            results.Select(result => result.ForeignId).Should().Equal("hardcover:author:41", "hardcover:work:41", "hardcover:work:42");
+            results[0].Author.RemotePoster.Should().Be("https://covers.example/fallback-author.jpg");
+            results[0].Author.Images.Should().ContainSingle().Which.Url.Should().Be("/MediaCoverProxy/fixture.jpg");
+            results[1].Book.RemoteCover.Should().Be("https://covers.example/fallback-book.jpg");
+            results[1].Book.Editions.Should().ContainSingle().Which.ForeignEditionId.Should().Be("hardcover:source-edition:15");
+            results[2].Book.Images.Should().ContainSingle().Which.RemoteUrl.Should().Be("https://covers.example/representative.jpg");
+            poster.Url.Should().Be("https://covers.example/fallback-author.jpg");
+            covers.Verify(mapper => mapper.ConvertToLocalUrls(0, MediaCoverEntity.Author, It.IsAny<IEnumerable<MediaCover>>()), Times.Once);
+            covers.Verify(mapper => mapper.ConvertToLocalUrls(0, MediaCoverEntity.Book, It.IsAny<IEnumerable<MediaCover>>()), Times.Exactly(2));
+        }
+
+        [Test]
         public void should_use_the_typed_source_when_canonical_id_has_no_catalogue_owner()
         {
             const string unpersistedCanonicalId = "a0e693a449884a6981ff7a7f9f855a00";

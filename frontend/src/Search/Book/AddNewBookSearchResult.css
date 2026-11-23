@@ -102,3 +102,13 @@
     overflow: hidden;
   }
 }
+
+@media only screen and (max-width: $breakpointSmall) {
+  .poster {
+    flex: 0 0 54px;
+    margin-right: 10px;
+    width: 54px;
+    height: 80px;
+    object-fit: contain;
+  }
+}

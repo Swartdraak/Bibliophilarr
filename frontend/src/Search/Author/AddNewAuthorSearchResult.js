@@ -102,17 +102,13 @@ class AddNewAuthorSearchResult extends Component {
         />
 
         <div className={styles.overlay}>
-          {
-            isSmallScreen ?
-              null :
-              <AuthorPoster
-                className={styles.poster}
-                images={images}
-                size={250}
-                overflow={true}
-                lazy={false}
-              />
-          }
+          <AuthorPoster
+            className={styles.poster}
+            images={images}
+            size={250}
+            overflow={true}
+            lazy={false}
+          />
 
           <div className={styles.content}>
             <div className={styles.nameRow}>

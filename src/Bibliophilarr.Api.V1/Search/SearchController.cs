@@ -9,6 +9,7 @@ using Bibliophilarr.Http.ErrorManagement;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
@@ -104,16 +105,13 @@ namespace Bibliophilarr.Api.V1.Search
                 yield break;
             }
 
-            var id = 1;
-            var seen = new HashSet<(CatalogueEntityKind Kind, string Identity)>();
-            foreach (var result in results)
-            {
-                var identity = GetSearchIdentity(result);
-                if (identity.HasValue && !seen.Add(identity.Value))
-                {
-                    continue;
-                }
+            var groups = results.Select((result, index) => (Result: result, Identity: GetSearchIdentity(result), Index: index))
+                .GroupBy(hit => (hit.Identity, UngroupedIndex: hit.Identity.HasValue ? -1 : hit.Index), hit => hit.Result);
 
+            var id = 1;
+            foreach (var group in groups)
+            {
+                var result = group.First();
                 var resource = new SearchResource();
                 resource.Id = id++;
 
@@ -122,9 +120,12 @@ namespace Bibliophilarr.Api.V1.Search
                     resource.Author = author.ToResource();
                     resource.ForeignId = author.ForeignAuthorId;
 
+                    var poster = SelectSearchArtwork(
+                        resource.Author.Images,
+                        MediaCoverTypes.Poster,
+                        group.Skip(1).OfType<NzbDrone.Core.Books.Author>()
+                            .SelectMany(alternate => alternate.Metadata?.Value?.Images ?? Enumerable.Empty<MediaCover>()));
                     _coverMapper.ConvertToLocalUrls(resource.Author.Id, MediaCoverEntity.Author, resource.Author.Images);
-
-                    var poster = resource.Author.Images.FirstOrDefault(c => c.CoverType == MediaCoverTypes.Poster);
 
                     if (poster != null)
                     {
@@ -145,9 +146,12 @@ namespace Bibliophilarr.Api.V1.Search
                     resource.Book.Author = bookAuthor?.ToResource();
                     resource.ForeignId = book.ForeignBookId;
 
+                    var cover = SelectSearchArtwork(
+                        resource.Book.Images,
+                        MediaCoverTypes.Cover,
+                        group.Skip(1).OfType<NzbDrone.Core.Books.Book>()
+                            .SelectMany(alternate => BookEditionSelector.GetBookImages(alternate.Editions?.Value)));
                     _coverMapper.ConvertToLocalUrls(resource.Book.Id, MediaCoverEntity.Book, resource.Book.Images);
-
-                    var cover = resource.Book.Images.FirstOrDefault(c => c.CoverType == MediaCoverTypes.Cover);
 
                     if (cover != null)
                     {
@@ -173,6 +177,27 @@ namespace Bibliophilarr.Api.V1.Search
 
                 yield return resource;
             }
+        }
+
+        private static MediaCover SelectSearchArtwork(List<MediaCover> images, MediaCoverTypes coverType, IEnumerable<MediaCover> alternateImages)
+        {
+            var existing = images.FirstOrDefault(image => image?.CoverType == coverType && !string.IsNullOrWhiteSpace(image.Url));
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            var fallback = alternateImages.FirstOrDefault(image => image?.CoverType == coverType &&
+                Uri.TryCreate(image.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https");
+
+            if (fallback == null)
+            {
+                return null;
+            }
+
+            var cover = fallback.JsonClone();
+            images.Add(cover);
+            return cover;
         }
 
         private (CatalogueEntityKind Kind, string Identity)? GetSearchIdentity(object result)

@@ -41,6 +41,8 @@ process.
 
 - Show one search result for each verified author, book, or series. Keep distinct
   authors who share a name.
+- Use available verified artwork on author and book search results, including
+  on small screens.
 - Use persisted verified Hardcover remaps when reconciling a single legacy
   work into its confirmed owner. Hold ambiguous legacy owners for review.
 - Use available cached member covers for series artwork before trying remote
