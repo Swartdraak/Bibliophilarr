@@ -28,6 +28,41 @@ describe('author series', () => {
     expect(getSeriesRepresentativeCovers(books, links.slice(-1))).toEqual([]);
   });
 
+  test.each(['', '/library'])('prioritizes cached linked covers without changing their relative order for URL base "%s"', (urlBase) => {
+    const previousUrlBase = window.Bibliophilarr.urlBase;
+    window.Bibliophilarr.urlBase = urlBase;
+
+    try {
+      const makeBook = (id, url) => ({
+        id,
+        title: `Volume ${id}`,
+        images: [{ coverType: 'cover', url: `${urlBase}${url}` }]
+      });
+      const unstamped = makeBook(1, '/MediaCover/Books/1/cover.jpg');
+      const proxyBooks = Array.from({ length: 8 }, (_, index) => {
+        const id = index + 2;
+
+        return makeBook(id, `/MediaCoverProxy/hash-${id}/image.jpg`);
+      });
+      const cached = makeBook(10, '/MediaCover/Books/10/cover.jpg?lastWrite=638999870000000000');
+      const laterCached = makeBook(11, '/MediaCover/Books/11/cover.png?lastWrite=638999870000000001');
+      const books = [unstamped, ...proxyBooks, cached, laterCached];
+      const toLinks = (members) => members.map((book) => ({ bookId: book.id, position: String(book.id) }));
+      const toCover = (book) => ({ bookTitle: book.title, url: book.images[0].url });
+
+      expect(getSeriesRepresentativeCovers(books, toLinks(books).reverse())).toEqual(
+        [cached, laterCached, unstamped, ...proxyBooks.slice(0, 5)].map(toCover)
+      );
+
+      const firstCached = makeBook(1, '/MediaCover/Books/1/cover.jpg?lastWrite=638999870000000002');
+      const booksWithFirstCover = [firstCached, ...books.slice(1)];
+
+      expect(getSeriesRepresentativeCovers(booksWithFirstCover, toLinks(booksWithFirstCover))[0]).toEqual(toCover(firstCached));
+    } finally {
+      window.Bibliophilarr.urlBase = previousUrlBase;
+    }
+  });
+
   test('uses author-scoped artwork when the global library omits alternate-edition covers', () => {
     const libraryBooks = [{ id: 2, title: 'Volume two', images: [] }];
     const authorBooks = [{ id: 2, title: 'Volume two', images: [{ coverType: 'cover', url: '/alternate.png' }] }];

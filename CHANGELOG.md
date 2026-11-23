@@ -39,6 +39,8 @@ process.
 
 ### Fixed
 
+- Use available cached member covers for series artwork before trying remote
+  cover references.
 - Report a media file read failure as an import hold and continue scanning
   the other files.
 - Mark a queued manual import as unsuccessful when none of its selected files

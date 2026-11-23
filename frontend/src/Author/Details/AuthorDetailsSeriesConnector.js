@@ -12,6 +12,7 @@ import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
 import createDimensionsSelector from 'Store/Selectors/createDimensionsSelector';
 import createExecutingCommandsSelector from 'Store/Selectors/createExecutingCommandsSelector';
 import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
+import getPathWithUrlBase from 'Utilities/getPathWithUrlBase';
 import AuthorDetailsSeries from './AuthorDetailsSeries';
 import SeriesFormatActions from './SeriesFormatActions';
 import useSeriesBookDetails from './useSeriesBookDetails';
@@ -50,16 +51,24 @@ export function getSeriesRepresentativeCovers(books, links, artworkBooks = books
   });
 
   const urls = new Set();
-  return orderedLinks.flatMap((link) => {
-    const book = booksById.get(link.bookId);
-    return (book?.images ?? []).filter((image) => {
-      if (image.coverType !== 'cover' || !image.url || urls.has(image.url)) {
-        return false;
+  const cachedCovers = [];
+  const otherCovers = [];
+
+  for (const { bookId } of orderedLinks) {
+    const book = booksById.get(bookId);
+    const coverPath = getPathWithUrlBase(`/MediaCover/Books/${bookId}/cover.`);
+
+    for (const { coverType, url } of book?.images ?? []) {
+      if (coverType === 'cover' && url && !urls.has(url)) {
+        urls.add(url);
+        // The API stamps only nonempty files in the book cover cache.
+        const candidates = url.startsWith(coverPath) && (/\?lastWrite=\d+$/).test(url) ? cachedCovers : otherCovers;
+        candidates.push({ url, bookTitle: book.title });
       }
-      urls.add(image.url);
-      return true;
-    }).map(({ url }) => ({ url, bookTitle: book.title }));
-  }).slice(0, 8);
+    }
+  }
+
+  return [...cachedCovers, ...otherCovers].slice(0, 8);
 }
 
 function createMapStateToProps() {
