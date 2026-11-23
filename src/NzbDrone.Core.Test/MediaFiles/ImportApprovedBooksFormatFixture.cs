@@ -348,10 +348,14 @@ namespace NzbDrone.Core.Test.MediaFiles
             _author.MonitorNewItems = (NewItemMonitorTypes)3;
             _book.Id = 0;
             _book.ForeignBookId = "test-foreign-book-id";
+            _ebookEdition.ForeignEditionId = "fixture-ebook-edition";
+            _audiobookEdition.ForeignEditionId = "fixture-audiobook-edition";
 
+            Mocker.SetConstant<IMonitorNewBookService>(new MonitorNewBookService(TestLogger));
             Mocker.GetMock<IBookService>()
-                .Setup(s => s.FindById(It.IsAny<string>()))
-                .Returns((Book)null);
+                .SetupSequence(service => service.FindById(_book.ForeignBookId))
+                .Returns((Book)null)
+                .Returns(_book);
             Mocker.GetMock<IBookService>()
                 .Setup(s => s.GetBooksByAuthor(It.IsAny<int>()))
                 .Returns(new List<Book>());
@@ -369,9 +373,14 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             var results = Subject.Import(_approvedDecisions, false);
 
-            results.Should().NotBeNull();
-            Mocker.GetMock<IMonitorNewBookService>()
-                .Verify(v => v.ShouldMonitorNewBook(It.IsAny<Book>(), It.IsAny<List<Book>>(), (NewItemMonitorTypes)3), Times.Once());
+            results.Should().ContainSingle().Which.Result.Should().Be(ImportResultType.Imported);
+            _book.Id.Should().Be(1000);
+            _book.Monitored.Should().BeFalse();
+            var importedPath = _approvedDecisions[0].Item.Path;
+            Mocker.GetMock<IMediaFileService>()
+                .Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
+                    files.Count == 1 && files[0].Path == importedPath && files[0].EditionId == _ebookEdition.Id)), Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Unknown NewItemMonitorTypes value");
         }
     }
 }

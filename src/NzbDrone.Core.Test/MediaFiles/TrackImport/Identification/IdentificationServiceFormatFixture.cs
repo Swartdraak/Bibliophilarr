@@ -232,8 +232,23 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             _overrides.Edition = _audiobookEdition;
             var tracks = CreateEbookLocalBooks();
 
-            Subject.Identify(tracks, _overrides, _config).Single().Edition.Should().BeNull();
-            tracks.Single().Edition.Should().BeNull();
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), _overrides, _config.IncludeExisting))
+                .Returns(new List<CandidateEdition> { new CandidateEdition { Edition = _audiobookEdition, ExistingFiles = new List<BookFile>() } });
+            Mocker.GetMock<ICandidateService>()
+                .Setup(service => service.GetRemoteCandidates(It.IsAny<LocalEdition>(), _overrides))
+                .Returns(new List<CandidateEdition>());
+
+            var release = Subject.Identify(tracks, _overrides, _config).Single();
+
+            release.Edition.Should().BeNull();
+            var track = release.LocalBooks.Should().ContainSingle().Which;
+            track.Should().BeSameAs(tracks.Single());
+            track.Edition.Should().BeNull();
+            track.Author.Should().BeSameAs(_author);
+            track.Book.Should().BeSameAs(_book);
+            Mocker.GetMock<ICandidateService>()
+                .Verify(service => service.GetRemoteCandidates(release, _overrides), Times.Once);
         }
 
         [Test]
