@@ -4,7 +4,9 @@ using System.Linq;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Test.Framework;
 
@@ -36,6 +38,38 @@ namespace NzbDrone.Core.Test.Messaging.Commands
                   {
                       return commands.SingleOrDefault(e => e.Id == c);
                   });
+        }
+
+        [TestCase(CommandStatus.Queued)]
+        [TestCase(CommandStatus.Started)]
+        public void should_recover_queued_commands_without_adding_another_copy_of_a_live_command(CommandStatus liveStatus)
+        {
+            var liveCommand = Subject.Push(new BackfillOpenLibraryIdsCommand());
+            liveCommand.Status = liveStatus;
+            var persistedCopy = new CommandModel
+            {
+                Id = liveCommand.Id,
+                Name = liveCommand.Name,
+                Body = new BackfillOpenLibraryIdsCommand(),
+                Status = CommandStatus.Queued
+            };
+            var recoveredCommand = new CommandModel
+            {
+                Id = liveCommand.Id + 1,
+                Name = "RefreshMonitoredDownloads",
+                Body = new RefreshMonitoredDownloadsCommand(),
+                Status = CommandStatus.Queued
+            };
+            Mocker.GetMock<ICommandRepository>()
+                .Setup(repository => repository.Queued())
+                .Returns(new List<CommandModel> { persistedCopy, recoveredCommand });
+
+            Subject.Handle(new ApplicationStartedEvent());
+            Subject.Requeue();
+
+            Subject.All().Should().Equal(liveCommand, recoveredCommand);
+            Subject.Get(liveCommand.Id).Should().BeSameAs(liveCommand);
+            Subject.Get(liveCommand.Id).Status.Should().Be(liveStatus);
         }
 
         [Test]

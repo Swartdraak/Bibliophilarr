@@ -217,9 +217,15 @@ namespace NzbDrone.Core.Messaging.Commands
 
         public void Requeue()
         {
-            foreach (var command in _repo.Queued())
+            lock (_commandQueue)
             {
-                _commandQueue.Add(command);
+                foreach (var command in _repo.Queued())
+                {
+                    if (_commandQueue.Find(command.Id) == null)
+                    {
+                        _commandQueue.Add(command);
+                    }
+                }
             }
         }
 

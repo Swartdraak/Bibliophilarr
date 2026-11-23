@@ -16,6 +16,7 @@ process.
 
 ### Fixed
 
+- Keep a single execution when startup restores a task that is already queued.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files

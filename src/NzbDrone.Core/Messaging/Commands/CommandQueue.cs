@@ -59,7 +59,10 @@ namespace NzbDrone.Core.Messaging.Commands
 
         public CommandModel Find(int id)
         {
-            return All().FirstOrDefault(q => q.Id == id);
+            lock (_mutex)
+            {
+                return _items.FirstOrDefault(q => q.Id == id);
+            }
         }
 
         public void RemoveMany(IEnumerable<CommandModel> commands)
