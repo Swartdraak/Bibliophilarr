@@ -64,15 +64,14 @@ process.
 - Report unverified ebook edition identifiers even when competing files have
   the same size. Explain when another file already occupies the same edition
   and part.
-
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Confirm an early empty Google Books bibliography page once. Keep the
   saved catalogue when the verified bibliography remains incomplete.
-- Preserve supported provider Retry-After delays longer than 15 minutes
-  during fallback metadata searches.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
+- Honor longer provider Retry-After values during fallback searches and report
+  the applied wait in provider health and logs.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
 - Honor Google Books fallback cooldowns before decoding provider responses.
@@ -352,6 +351,8 @@ process.
 
 ### Changed
 
+- Run deterministic book identification tests in the standard suite and
+  remove the manual-only legacy music fixtures.
 - Update the WebUI SVG icons to Font Awesome 7 and keep intrinsic widths
   for normal icons. Controls can still request a fixed width.
 

@@ -55,7 +55,7 @@ namespace NzbDrone.Core.MetadataSource
         // Cooldown after receiving a 5xx server error before retrying.
         private static readonly TimeSpan ServerErrorCooldown = TimeSpan.FromMinutes(2);
 
-        // Maximum Retry-After cooldown representable by provider health's integer seconds.
+        // Provider health represents the remaining delay as integer seconds.
         private static readonly TimeSpan MaximumRetryAfterCooldown = TimeSpan.FromSeconds(int.MaxValue);
 
         // Cooldown after a non-server failure (e.g. timeout, parse error).

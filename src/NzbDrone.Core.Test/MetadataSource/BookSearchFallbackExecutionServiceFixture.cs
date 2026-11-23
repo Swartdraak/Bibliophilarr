@@ -195,9 +195,10 @@ namespace NzbDrone.Core.Test.MetadataSource
             ExceptionVerification.ExpectedWarns(1);
         }
 
-        [TestCase(true, true)]
-        [TestCase(false, false)]
-        public void should_share_google_cooldown_across_detail_search_and_bibliography(bool throttleFromDetail, bool html)
+        [TestCase(true, true, 180)]
+        [TestCase(false, false, 180)]
+        [TestCase(true, true, 72096)]
+        public void should_share_google_cooldown_across_detail_search_and_bibliography(bool throttleFromDetail, bool html, int cooldownSeconds)
         {
             const string bookId = "googlebooks:work:fixture-volume";
             const string authorId = "googlebooks:author:Fixture%20Author";
@@ -212,7 +213,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             registry.RegisterProvider(provider);
             registry.RegisterProvider(otherProvider.Object);
             var http = Mocker.GetMock<IHttpClient>();
-            var headers = new HttpHeader { ContentType = html ? "text/html" : "application/json", ["Retry-After"] = "180" };
+            var headers = new HttpHeader { ContentType = html ? "text/html" : "application/json", ["Retry-After"] = cooldownSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture) };
             var body = html ? "<html>upstream private data</html>" : "{\"error\":{\"message\":\"upstream private data\"}}";
 
             HttpResponse RateLimit(HttpRequest request) => new HttpResponse(request, headers, body, HttpStatusCode.TooManyRequests);
@@ -222,6 +223,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             http.Setup(x => x.Get<GoogleBooksSearchResponse>(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request => new HttpResponse<GoogleBooksSearchResponse>(RateLimit(request)));
 
+            var started = DateTime.UtcNow;
             if (throttleFromDetail)
             {
                 Action initial = () => provider.GetBookInfo(bookId);
@@ -235,8 +237,11 @@ namespace NzbDrone.Core.Test.MetadataSource
                 initial.Should().Throw<TooManyRequestsException>();
             }
 
-            var deadline = registry.GetProvidersHealthStatus()[provider.ProviderName].CooldownUntilUtc;
-            deadline.Should().BeAfter(DateTime.UtcNow);
+            var health = registry.GetProvidersHealthStatus()[provider.ProviderName];
+            var deadline = health.CooldownUntilUtc;
+            deadline.Should().BeOnOrAfter(started.AddSeconds(cooldownSeconds));
+            deadline.Should().BeOnOrBefore(DateTime.UtcNow.AddSeconds(cooldownSeconds));
+            health.RetryAfterRemainingSeconds.Should().BeInRange(1, cooldownSeconds);
             Action lookupBook = () => provider.GetBookInfo(bookId);
             Action lookupAuthor = () => provider.GetAuthorInfo(authorId);
             lookupBook.Should().Throw<MetadataProviderUnavailableException>();
