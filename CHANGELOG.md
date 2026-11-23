@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Enforce the explicit API key at the MVC action for affected versioned writes,
+  including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files
   passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
