@@ -220,6 +220,7 @@ namespace NzbDrone.Core.MetadataSource
         {
             lock (_syncRoot)
             {
+                var now = DateTime.UtcNow;
                 var registered = _providers
                     .ToDictionary(
                         x => x.Key,
@@ -228,21 +229,16 @@ namespace NzbDrone.Core.MetadataSource
 
                 foreach (var kvp in _healthOverrides)
                 {
-                    registered[kvp.Key] = kvp.Value;
+                    registered[kvp.Key] = kvp.Value.WithCooldown(kvp.Value.CooldownUntilUtc, now);
                 }
 
                 if (_providers.TryGetValue("GoogleBooks", out var provider) && provider is GoogleBooksFallbackSearchProvider google)
                 {
-                    var now = DateTime.UtcNow;
                     var deadline = google.RequestCooldownUntilUtc;
                     var googleHealth = registered[provider.ProviderName];
-                    if (deadline > now && (!googleHealth.CooldownUntilUtc.HasValue || deadline >= googleHealth.CooldownUntilUtc.Value))
+                    if (deadline > now && deadline > (googleHealth.CooldownUntilUtc ?? DateTime.MinValue))
                     {
                         registered[provider.ProviderName] = googleHealth.WithCooldown(deadline, now);
-                    }
-                    else if (deadline == googleHealth.CooldownUntilUtc && deadline <= now)
-                    {
-                        registered[provider.ProviderName] = googleHealth.WithCooldown(null, now);
                     }
                 }
 
