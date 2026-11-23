@@ -22,7 +22,7 @@ if not os.path.isfile(COMMON):
 sys.path.insert(0, HARNESS_DIR)
 sys.path.insert(0, os.path.join(WORKSPACE, 'repo', 'tests', 'browser'))
 import common  # noqa: E402
-from smoke import login  # noqa: E402
+from smoke import collect_page_errors, login  # noqa: E402
 
 USERNAME = 'governed-browser-fixture'
 BASE = common.app_url().rstrip('/')
@@ -137,6 +137,7 @@ def run(after_restart):
             context = browser.new_context(service_workers='block')
             context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(BASE + '/') else route.abort())
             page = context.new_page()
+            page_errors = collect_page_errors(page)
             page.set_default_timeout(15000)
             page.goto(BASE + '/authors')
             expect(page).to_have_url(re.compile(r'/login\?.*returnUrl='))
@@ -150,6 +151,8 @@ def run(after_restart):
             rendered_name = 'BR6_authors_rendered_after_restart' if after_restart else 'BR0_authors_rendered'
             check(rendered_name, True)
             browser_checks(page, auth, after_restart=after_restart)
+            error_check = 'BR6_no_uncaught_page_errors' if after_restart else 'BR5_no_uncaught_page_errors'
+            check(error_check, not page_errors, f'count={len(page_errors)}')
         finally:
             browser.close()
 
