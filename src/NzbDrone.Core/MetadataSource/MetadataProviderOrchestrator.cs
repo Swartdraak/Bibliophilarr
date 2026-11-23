@@ -9,9 +9,11 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.MetadataSource.GoogleBooks;
 using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser;
@@ -386,6 +388,15 @@ namespace NzbDrone.Core.MetadataSource
                         return result;
                     }
                 }
+                catch (GoogleBooksRequestOnCooldownException)
+                {
+                    // No upstream request was made. Continue to another search provider.
+                }
+                catch (MetadataProviderUnavailableException ex) when (ex.InnerException is GoogleBooksRequestOnCooldownException)
+                {
+                    // A scoped lookup must stay unavailable, without counting this skip as a failure.
+                    throw;
+                }
                 catch (AuthorNotFoundException ex) when (operationName == AuthorInfoOperation)
                 {
                     stopwatch.Stop();
@@ -623,7 +634,7 @@ namespace NzbDrone.Core.MetadataSource
                         {
                             // Remember this attempt even if the provider lookup fails.
                             exactMatches.Add(key, default);
-                            var results = ((ISearchForNewBook)provider).SearchByIsbn(edition.Isbn13);
+                            var results = SearchSupplementaryProviderByIsbn(provider, edition.Isbn13);
                             var matches = GetExactIsbnMatches(results, isbn).Take(2).ToList();
                             if (matches.Count == 1)
                             {
@@ -863,6 +874,32 @@ namespace NzbDrone.Core.MetadataSource
         private static bool IsPoster(MediaCover.MediaCover image)
         {
             return image?.CoverType == MediaCoverTypes.Poster && image.Url.IsNotNullOrWhiteSpace();
+        }
+
+        private List<Book> SearchSupplementaryProviderByIsbn(IMetadataProvider provider, string isbn)
+        {
+            var search = (ISearchForNewBook)provider;
+            if (provider is not GoogleBooksFallbackSearchProvider)
+            {
+                return search.SearchByIsbn(isbn);
+            }
+
+            const string operation = "enrich-edition-by-isbn";
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                return search.SearchByIsbn(isbn);
+            }
+            catch (GoogleBooksRequestOnCooldownException)
+            {
+                return null;
+            }
+            catch (HttpException ex) when (ex is TooManyRequestsException or GoogleBooksServerErrorException)
+            {
+                _telemetry.Record(provider.ProviderName, operation, watch.ElapsedMilliseconds, false, false, false);
+                _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operation);
+                return null;
+            }
         }
 
         /// <summary>

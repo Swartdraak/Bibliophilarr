@@ -45,6 +45,8 @@ process.
   cover references.
 - Report a media file read failure as an import hold and continue scanning
   the other files.
+- Enforce the explicit API key at the MVC action for affected versioned writes,
+  including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files
   passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
@@ -63,12 +65,14 @@ process.
   saved catalogue when the verified bibliography remains incomplete.
 - Preserve supported provider Retry-After delays longer than 15 minutes
   during fallback metadata searches.
-- Honor Google Books fallback cooldowns when the rate-limit response has
-  an HTML body or no usable search results.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
+- Honor Google Books fallback cooldowns before decoding provider responses.
+  Keep search queries, credentials and response bodies out of failure warnings.
+- Share the Google Books rate-limit deadline across search and volume requests.
+  Record upstream server errors as failures and continue with available providers.
 - Include automatic import fallback searches in provider operation telemetry.
 - Confirm an unexpectedly empty Open Library bibliography page once before
   treating the author's catalogue as incomplete.
