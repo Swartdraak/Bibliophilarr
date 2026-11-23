@@ -40,9 +40,11 @@ process.
 ### Fixed
 
 - Show one search result for each verified author, book, or series. Keep distinct
-  authors who share a name.
+  authors who share a name, and open the existing catalogue page for verified
+  provider aliases.
 - Use available verified artwork on author and book search results, including
-  on small screens.
+  on small screens. Series results can show a cover from a verified catalogue
+  member.
 - Use persisted verified Hardcover remaps when reconciling a single legacy
   work into its confirmed owner. Hold ambiguous legacy owners for review.
 - Use available cached member covers for series artwork before trying remote

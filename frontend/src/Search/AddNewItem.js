@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
+import SeriesRepresentativeCover from 'Author/Details/SeriesRepresentativeCover';
 import Alert from 'Components/Alert';
 import TextInput from 'Components/Form/TextInput';
 import Icon from 'Components/Icon';
@@ -201,6 +202,7 @@ class AddNewItem extends Component {
                         <AddNewAuthorSearchResultConnector
                           key={item.id}
                           {...author}
+                          catalogueOwnerId={item.catalogueOwnerId}
                         />
                       );
                     } else if (item.book) {
@@ -210,6 +212,7 @@ class AddNewItem extends Component {
                         <AddNewBookSearchResultConnector
                           key={item.id}
                           {...book}
+                          catalogueOwnerId={item.catalogueOwnerId}
                         />
                       );
                     }
@@ -217,7 +220,11 @@ class AddNewItem extends Component {
                     if (item.series) {
                       const { slug, title } = item.series;
                       return (
-                        <div key={item.id} className={styles.seriesResult}>
+                        <div key={item.series.foreignSeriesId} className={styles.seriesResult}>
+                          <SeriesRepresentativeCover
+                            covers={item.seriesCovers}
+                            className={styles.seriesResultCover}
+                          />
                           <h3>{title}</h3>
                           <Button
                             aria-label={translate('SeriesViewBooksFor', [title])}

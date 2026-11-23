@@ -9,6 +9,14 @@ describe('createExistingBookSelector', () => {
     expect(selector(state, props)).toBeUndefined();
   });
 
+  test('opens the catalogue work when search returns a verified provider alias', () => {
+    const selector = createExistingBookSelector();
+    const book = { id: 42, foreignBookId: 'openlibrary:work:OW123' };
+    const state = { books: { items: [book] } };
+
+    expect(selector(state, { catalogueOwnerId: 42, foreignBookId: 'hardcover:work:964' })).toBe(book);
+  });
+
   test('returns the local record when book foreignBookId matches', () => {
     const selector = createExistingBookSelector();
     const book = {
@@ -39,6 +47,21 @@ describe('createExistingAuthorSelector', () => {
     };
 
     expect(selector(state, { foreignAuthorId: author.foreignAuthorId, titleSlug: 'old-author-slug' })).toBe(author);
+  });
+
+  test('opens the catalogue author when search returns a verified provider alias', () => {
+    const selector = createExistingAuthorSelector();
+    const author = { id: 23, authorMetadataId: 17, foreignAuthorId: 'hardcover:author:55' };
+    const state = { authors: { items: [author] } };
+
+    expect(selector(state, { catalogueOwnerId: 17, foreignAuthorId: 'hardcover:author:82' })).toBe(author);
+  });
+
+  test('keeps a distinct provider author with the same slug available to add', () => {
+    const selector = createExistingAuthorSelector();
+    const state = { authors: { items: [{ foreignAuthorId: 'hardcover:author:55', titleSlug: 'same-name' }] } };
+
+    expect(selector(state, { foreignAuthorId: 'hardcover:author:82', titleSlug: 'same-name' })).toBeUndefined();
   });
 
   test('allows a matching legacy slug when the result has no provider ID', () => {

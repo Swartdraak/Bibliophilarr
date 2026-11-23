@@ -63,7 +63,18 @@
 }
 
 .seriesResult {
+  display: flow-root;
   margin-bottom: 16px;
+}
+
+.seriesResultCover {
+  float: inline-start;
+  width: 44px;
+  height: 66px;
+  margin-inline-end: 12px;
+
+  border-radius: 3px;
+  object-fit: contain;
 }
 
 .seriesResult a {

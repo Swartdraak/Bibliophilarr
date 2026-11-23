@@ -29,18 +29,21 @@ namespace Bibliophilarr.Api.V1.Search
         private readonly IMapCoversToLocal _coverMapper;
         private readonly ISearchTelemetryService _searchTelemetry;
         private readonly ICatalogueIdentityRepository _catalogueIdentity;
+        private readonly ISeriesRepository _seriesRepository;
 
         public SearchController(IMetadataProviderOrchestrator searchProxy,
                                 IBuildFileNames fileNameBuilder,
                                 IMapCoversToLocal coverMapper,
                                 ISearchTelemetryService searchTelemetry,
-                                ICatalogueIdentityRepository catalogueIdentity)
+                                ICatalogueIdentityRepository catalogueIdentity,
+                                ISeriesRepository seriesRepository)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
             _coverMapper = coverMapper;
             _searchTelemetry = searchTelemetry;
             _catalogueIdentity = catalogueIdentity;
+            _seriesRepository = seriesRepository;
         }
 
         [HttpGet]
@@ -114,6 +117,7 @@ namespace Bibliophilarr.Api.V1.Search
                 var result = group.First();
                 var resource = new SearchResource();
                 resource.Id = id++;
+                resource.CatalogueOwnerId = group.Key.Identity?.OwnerId;
 
                 if (result is NzbDrone.Core.Books.Author author)
                 {
@@ -167,6 +171,10 @@ namespace Bibliophilarr.Api.V1.Search
                 {
                     resource.Series = series;
                     resource.ForeignId = series.ForeignSeriesId;
+                    if (resource.CatalogueOwnerId is int seriesId)
+                    {
+                        resource.SeriesCovers = GetSeriesCovers(seriesId);
+                    }
                 }
                 else
                 {
@@ -200,7 +208,48 @@ namespace Bibliophilarr.Api.V1.Search
             return cover;
         }
 
-        private (CatalogueEntityKind Kind, string Identity)? GetSearchIdentity(object result)
+        private List<SeriesSearchCoverResource> GetSeriesCovers(int seriesId)
+        {
+            var covers = new List<SeriesSearchCoverResource>();
+            var urls = new HashSet<string>(StringComparer.Ordinal);
+            var links = _seriesRepository.Find(seriesId)?.LinkItems?.Value ?? new List<SeriesBookLink>();
+
+            foreach (var link in links.Where(link => link.SeriesId == seriesId && link.BookId > 0)
+                         .OrderByDescending(link => link.IsPrimary)
+                         .ThenBy(link => link.SeriesPosition > 0 ? link.SeriesPosition : int.MaxValue)
+                         .ThenBy(link => link.BookId)
+                         .Take(6))
+            {
+                var book = link.Book?.Value;
+                if (book?.Id != link.BookId || string.IsNullOrWhiteSpace(book.Title))
+                {
+                    continue;
+                }
+
+                var cover = BookEditionSelector.GetBookImages(book.Editions?.Value)
+                    .FirstOrDefault(image => image.CoverType == MediaCoverTypes.Cover &&
+                        Uri.TryCreate(image.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https");
+                if (cover == null)
+                {
+                    continue;
+                }
+
+                cover = cover.JsonClone();
+                _coverMapper.ConvertToLocalUrls(book.Id, MediaCoverEntity.Book, new[] { cover });
+                if (!string.IsNullOrWhiteSpace(cover.Url) && urls.Add(cover.Url))
+                {
+                    covers.Add(new SeriesSearchCoverResource { BookTitle = book.Title, Url = cover.Url });
+                    if (covers.Count == 2)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return covers;
+        }
+
+        private (CatalogueEntityKind Kind, int? OwnerId, string SourceIdentity)? GetSearchIdentity(object result)
         {
             var (kind, canonicalId, providerId) = result switch
             {
@@ -222,10 +271,10 @@ namespace Bibliophilarr.Api.V1.Search
 
             if ((canonicalOwner ?? sourceOwner) is { } owner)
             {
-                return (kind, $"owner:{owner.ToString(CultureInfo.InvariantCulture)}");
+                return (kind, owner, null);
             }
 
-            return source == null ? null : (kind, $"source:{source.Provider}:{source.ProviderId}");
+            return source == null ? null : (kind, null, $"{source.Provider}:{source.ProviderId}");
         }
     }
 }
