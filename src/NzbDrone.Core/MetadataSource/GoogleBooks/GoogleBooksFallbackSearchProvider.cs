@@ -353,7 +353,15 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                         throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, ex);
                     }
 
-                    _logger.Warn(ex, "GoogleBooks search failed for query '{0}'", query);
+                    if (reportRateLimit)
+                    {
+                        _logger.Warn("Google Books fallback search failed ({0}).", ex.GetType().Name);
+                    }
+                    else
+                    {
+                        _logger.Warn(ex, "GoogleBooks search failed for query '{0}'", query);
+                    }
+
                     break;
                 }
 
@@ -412,9 +420,9 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 throw new TooManyRequestsException(response.Headers["Retry-After"]);
             }
 
-            if (response?.Headers.ContentType?.Contains("text/html") == true)
+            if (response?.Headers.ContentType?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true)
             {
-                throw new UnexpectedHtmlContentException(response);
+                throw new InvalidOperationException("Google Books returned HTML from fallback search.");
             }
 
             return response == null ? null : new HttpResponse<GoogleBooksSearchResponse>(response);

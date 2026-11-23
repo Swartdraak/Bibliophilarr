@@ -5,6 +5,9 @@ using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
@@ -23,6 +26,37 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IConfigService>()
                 .SetupGet(x => x.EnableGoogleBooksFallback)
                 .Returns(true);
+        }
+
+        [TestCase("text/html; charset=utf-8")]
+        [TestCase("Text/Html; charset=utf-8")]
+        public void should_log_html_fallback_failures_without_private_request_or_response_data(string contentType)
+        {
+            const string title = "private-fixture-title";
+            const string author = "private-fixture-author";
+            const string key = "private-fixture-api-key";
+            const string bodyMarker = "private-fixture-response";
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(value => value.GoogleBooksApiKey).Returns(key);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(
+                    request,
+                    new HttpHeader { ContentType = contentType },
+                    $"<html>{bodyMarker}</html>",
+                    HttpStatusCode.BadGateway));
+            var messages = new MemoryTarget { Layout = "${message}|${exception:format=ToString}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRule(LogLevel.Warn, LogLevel.Fatal, messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var provider = new GoogleBooksFallbackSearchProvider(config.Object, http.Object, logFactory.GetLogger(nameof(GoogleBooksFallbackSearchProvider)));
+
+            provider.Search(title, author).Should().BeEmpty();
+
+            var log = messages.Logs.Should().ContainSingle().Which;
+            log.Should().StartWith("Google Books fallback search failed (InvalidOperationException).");
+            log.Should().NotContain(title).And.NotContain(author).And.NotContain(key).And.NotContain(bodyMarker);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
         }
 
         [Test]
