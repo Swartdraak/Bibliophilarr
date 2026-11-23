@@ -112,7 +112,20 @@ namespace NzbDrone.Core.Books
             }
             catch (MetadataProviderUnavailableException ex)
             {
-                _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
+                if (ex.AuthorBibliographyProgress is { } progress)
+                {
+                    _logger.Warn(
+                        "Author bibliography for '{0}' ended at offset {1} with {2} distinct entries of {3} reported. Keeping the existing author and metadata.",
+                        LogSanitizer.Sanitize(foreignId),
+                        progress.PageOffset,
+                        progress.DistinctEntries,
+                        progress.ReportedTotal);
+                }
+                else
+                {
+                    _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
+                }
+
                 throw;
             }
         }

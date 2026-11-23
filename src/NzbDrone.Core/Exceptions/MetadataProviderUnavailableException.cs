@@ -17,18 +17,24 @@ namespace NzbDrone.Core.Exceptions
         public string Operation { get; }
         public string EntityId { get; }
         internal bool AuthoritativeBibliographyEndedEarly { get; }
+        internal (int PageOffset, int DistinctEntries, int ReportedTotal)? AuthorBibliographyProgress { get; }
 
         public MetadataProviderUnavailableException(string operation, string entityId, Exception innerException)
             : this(operation, entityId, innerException, false)
         {
         }
 
-        internal MetadataProviderUnavailableException(string operation, string entityId, Exception innerException, bool authoritativeBibliographyEndedEarly)
+        internal MetadataProviderUnavailableException(string operation,
+                                                      string entityId,
+                                                      Exception innerException,
+                                                      bool authoritativeBibliographyEndedEarly,
+                                                      (int PageOffset, int DistinctEntries, int ReportedTotal)? authorBibliographyProgress = null)
             : base($"All metadata providers failed for operation '{operation}' (entity '{entityId}') before a complete response was available. The entity was kept with its existing metadata.", innerException)
         {
             Operation = operation;
             EntityId = entityId;
             AuthoritativeBibliographyEndedEarly = authoritativeBibliographyEndedEarly;
+            AuthorBibliographyProgress = authorBibliographyProgress;
         }
     }
 }

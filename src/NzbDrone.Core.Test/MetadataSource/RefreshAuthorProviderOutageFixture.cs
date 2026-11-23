@@ -131,7 +131,9 @@ namespace NzbDrone.Core.Test.MetadataSource
             operation.Failures.Should().Be(1);
             operation.NullResults.Should().Be(0);
             telemetry.HasRecentTransportOutage().Should().BeFalse();
-            ExceptionVerification.ExpectedWarns(2);
+            ExceptionVerification.ExpectedWarns(
+                "Metadata provider 'GoogleBooks' failed during get-author-info",
+                $"Author bibliography for '{authorId}' ended at offset 1 with 1 distinct entries of 2 reported. Keeping the existing author and metadata.");
             ExceptionVerification.ExpectedErrors(1);
         }
     }

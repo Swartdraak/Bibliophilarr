@@ -416,7 +416,12 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
 
                         var failure = new InvalidOperationException(
                             $"Google Books ended its bibliography at index {pageStart} with {seenVolumeIds.Count} distinct volumes, below its highest reported total {highestReportedTotal}.");
-                        throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, failure);
+                        throw new MetadataProviderUnavailableException(
+                            "get-author-info",
+                            bibliographyAuthorId,
+                            failure,
+                            authoritativeBibliographyEndedEarly: false,
+                            authorBibliographyProgress: retriedEmptyPage ? (pageStart, seenVolumeIds.Count, highestReportedTotal) : null);
                     }
 
                     break;

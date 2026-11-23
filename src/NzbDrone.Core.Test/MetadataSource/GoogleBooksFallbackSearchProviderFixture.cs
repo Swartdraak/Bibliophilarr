@@ -131,7 +131,17 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             var lookup = () => Subject.GetAuthorInfo("googlebooks:author:Author%20Name");
 
-            lookup.Should().Throw<MetadataProviderUnavailableException>();
+            var error = lookup.Should().Throw<MetadataProviderUnavailableException>().Which;
+            error.AuthoritativeBibliographyEndedEarly.Should().BeFalse();
+            if (failure == "unexpected empty")
+            {
+                error.AuthorBibliographyProgress.Should().Be((1, 1, 2));
+            }
+            else
+            {
+                error.AuthorBibliographyProgress.Should().BeNull();
+            }
+
             offsets.Should().Equal(failure == "unexpected empty" ? new[] { 0, 1, 1 } : new[] { 0, 1 });
         }
 
