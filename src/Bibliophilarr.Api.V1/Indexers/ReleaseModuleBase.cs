@@ -1,10 +1,12 @@
 using System.Collections.Generic;
+using Bibliophilarr.Http.Authentication;
 using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.DecisionEngine;
 
 namespace Bibliophilarr.Api.V1.Indexers
 {
+    [ValidateApiWriteAntiforgery]
     public abstract class ReleaseControllerBase : RestController<ReleaseResource>
     {
         [NonAction]
