@@ -33,7 +33,7 @@
     },
     {
       "path": "linux-program/build/check_build.py",
-      "sha256": "0da89bb927060d271163cc422a0fc828ca928cae828e670ad9a67cbb72fd42bd"
+      "sha256": "e957a1535c78b49b89ba2720721c1972faac5879238c58e919ca282b90fae597"
     },
     {
       "path": "linux-program/build/durabilize_output.sh",
