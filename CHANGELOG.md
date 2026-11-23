@@ -49,6 +49,7 @@ process.
   the other files.
 - Preserve occupied audiobook parts through automatic retries. Link a held file
   only when its original tag confirms the part and the selected edition has a free slot.
+- Preserve edition monitoring when a part retry uses a linked audiobook for comparison.
 - Skip Google Books free-text lookups for Amazon ASINs during automatic library
   identification. Continue using configured providers and structured title searches.
 - Enforce the explicit API key at the MVC action for affected versioned writes,

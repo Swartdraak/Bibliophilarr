@@ -121,7 +121,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             RejectIncompatibleFormats(decisions);
 
-            var bookDecisions = decisions.Where(e => e.Approved && !audiobookPartRetries.ContainsKey(e))
+            var retryEditionIds = audiobookPartRetries.Keys.Where(decision => decision.Approved)
+                .Select(decision => decision.Item.Edition.Id).ToHashSet();
+            var comparisonFiles = decisions.Where(decision => decision.Approved && decision.Item.IsLibraryScan &&
+                decision.Item.ExistingFile && decision.Item.AdditionalFile && retryEditionIds.Contains(decision.Item.Edition.Id)).ToHashSet();
+            importResults.AddRange(comparisonFiles.Select(decision => new ImportResult(decision, "The linked audiobook file was used for comparison during a part retry")));
+
+            var bookDecisions = decisions.Where(e => e.Approved && !audiobookPartRetries.ContainsKey(e) && !comparisonFiles.Contains(e))
                 .GroupBy(e => new
                 {
                     ForeignBookId = e.Item.Book.ForeignBookId,
@@ -206,7 +212,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
             }
 
-            var qualifiedImports = decisions.Where(c => c.Approved)
+            var qualifiedImports = decisions.Where(c => c.Approved && !comparisonFiles.Contains(c))
                 .GroupBy(c => c.Item.Author.Id, (i, s) => s
                          .OrderByDescending(c => c.Item.Quality, new QualityModelComparer(s.First().Item.Author.QualityProfile))
                          .ThenByDescending(c => c.Item.Size))

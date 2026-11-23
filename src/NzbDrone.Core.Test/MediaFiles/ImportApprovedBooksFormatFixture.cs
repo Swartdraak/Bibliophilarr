@@ -801,6 +801,51 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<TrackImportedEvent>()), Times.Never());
         }
 
+        [Test]
+        public void should_not_change_monitoring_for_a_linked_comparison_file_during_an_occupied_part_retry()
+        {
+            GivenAudiobookImport();
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableDualFormatTracking).Returns(true);
+            _audiobookEdition.Monitored = false;
+            var track = _approvedDecisions.Single().Item;
+            track.ExistingFile = true;
+            track.IsLibraryScan = true;
+            track.RawTaggedPart = track.Part;
+            var comparison = new LocalBook
+            {
+                Author = _author,
+                Book = _book,
+                Edition = _audiobookEdition,
+                Path = Path.Combine(_author.Path, "Linked Part 01.m4b"),
+                Part = track.Part,
+                Quality = track.Quality,
+                ExistingFile = true,
+                AdditionalFile = true,
+                IsLibraryScan = true
+            };
+            _approvedDecisions.Add(new ImportDecision<LocalBook>(comparison));
+
+            var stored = new BookFile { Id = 21, Path = track.Path, Part = track.Part, UnmappedReason = LibraryImportHoldReason.DuplicateInScan };
+            var linked = new BookFile { Id = 22, Path = comparison.Path, Part = comparison.Part, EditionId = _audiobookEdition.Id };
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetUnmappedFiles()).Returns(new List<BookFile> { stored });
+            mediaFiles.Setup(service => service.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile> { stored });
+            mediaFiles.Setup(service => service.GetFileWithPath(comparison.Path)).Returns(linked);
+            Mocker.GetMock<IEditionService>().Setup(service => service.SetMonitoredByFormat(_audiobookEdition))
+                .Callback(() => _audiobookEdition.Monitored = true)
+                .Returns(new List<Edition> { _ebookEdition, _audiobookEdition });
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().HaveCount(2).And.OnlyContain(result => result.Result == ImportResultType.Skipped);
+            results.Single(result => result.ImportDecision.Item == track).HoldReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            _audiobookEdition.Monitored.Should().BeFalse();
+            _ebookEdition.Monitored.Should().BeTrue();
+            linked.EditionId.Should().Be(_audiobookEdition.Id);
+            mediaFiles.Verify(service => service.TryRepairUnsupportedEditionLink(linked, _audiobookEdition), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(events => events.PublishEvent(It.IsAny<BookEditedEvent>()), Times.Never());
+        }
+
         [TestCase(LibraryImportHoldReason.DuplicateInScan)]
         [TestCase(LibraryImportHoldReason.LowConfidence)]
         [TestCase(null)]
