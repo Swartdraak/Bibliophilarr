@@ -5,6 +5,7 @@ import { createStore } from 'redux';
 import DownloadClients from 'Settings/DownloadClients/DownloadClients/DownloadClients';
 import RemotePathMappings from 'Settings/DownloadClients/RemotePathMappings/RemotePathMappings';
 import ImportLists from 'Settings/ImportLists/ImportLists/ImportLists';
+import AddIndexerItem from 'Settings/Indexers/Indexers/AddIndexerItem';
 import EditIndexerModalContent from 'Settings/Indexers/Indexers/EditIndexerModalContent';
 import Indexers from 'Settings/Indexers/Indexers/Indexers';
 import * as keyCodes from 'Utilities/Constants/keyCodes';
@@ -71,6 +72,22 @@ test.each([
 
   fireEvent.click(screen.getByRole('button', { name: addName }));
   expect(screen.getByRole('dialog', { name: dialogName })).toBeVisible();
+});
+
+test('names the indexer template action and selects its implementation', () => {
+  const onIndexerSelect = jest.fn();
+
+  render(
+    <AddIndexerItem
+      implementation="Newznab"
+      implementationName="Newznab"
+      infoLink=""
+      onIndexerSelect={onIndexerSelect}
+    />
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Newznab' }));
+  expect(onIndexerSelect).toHaveBeenCalledWith({ implementation: 'Newznab' });
 });
 
 test('names each saved indexer edit button and opens the chosen indexer', () => {
