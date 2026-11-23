@@ -39,6 +39,8 @@ process.
 
 ### Fixed
 
+- Use persisted verified Hardcover remaps when reconciling a single legacy
+  work into its confirmed owner. Hold ambiguous legacy owners for review.
 - Use available cached member covers for series artwork before trying remote
   cover references.
 - Report a media file read failure as an import hold and continue scanning

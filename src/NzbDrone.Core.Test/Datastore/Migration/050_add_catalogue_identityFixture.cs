@@ -3,9 +3,13 @@ using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Migration;
+using NzbDrone.Core.Datastore.Migration.Framework;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.Datastore.Migration
@@ -56,6 +60,104 @@ namespace NzbDrone.Core.Test.Datastore.Migration
             db.Query<SeriesBookLink>("""
                 SELECT "SeriesId", "BookId", "Position" FROM "SeriesBookLink"
                 """).Should().ContainSingle(link => link.SeriesId == 31 && link.BookId == 25 && link.Position == "1");
+        }
+
+        [TestCase("Hardcover", "905", CatalogueIdentityRepository.HardcoverWorkMappingEvidence, true, false, false, TestName = "should_reconcile_a_single_legacy_work_into_the_verified_owner")]
+        [TestCase("Hardcover", "905", CatalogueIdentityRepository.HardcoverWorkMappingEvidence, true, true, false, TestName = "should_refuse_reversing_a_verified_remap")]
+        [TestCase("Hardcover", "905", CatalogueIdentityRepository.HardcoverWorkMappingEvidence, false, false, false, TestName = "should_refuse_a_remap_with_two_suppressed_legacy_owners")]
+        [TestCase("Hardcover", "906", CatalogueIdentityRepository.HardcoverWorkMappingEvidence, true, false, false, TestName = "should_refuse_a_verified_remap_for_a_different_primary")]
+        [TestCase("GoogleBooks", "905", CatalogueIdentityRepository.HardcoverWorkMappingEvidence, true, false, false, TestName = "should_refuse_a_remap_from_a_different_provider")]
+        [TestCase("Hardcover", "905", "corroborated-work-match", true, false, false, TestName = "should_refuse_an_unverified_remap_claim")]
+        [TestCase("Hardcover", "905", CatalogueIdentityRepository.HardcoverWorkMappingEvidence, true, false, true, TestName = "should_refuse_conflicting_open_library_works_with_a_shared_untyped_isbn")]
+        public void should_require_directional_and_unambiguous_persisted_remap(
+            string provider,
+            string providerId,
+            string evidence,
+            bool removeOtherLegacyRow,
+            bool reverse,
+            bool conflictingOpenLibrary)
+        {
+            var database = WithTestDb(new MigrationContext(MigrationType)
+            {
+                BeforeMigration = migration =>
+                {
+                    if (migration is add_catalogue_identity)
+                    {
+                        migration.Execute.Sql("""
+                            INSERT INTO "AuthorMetadata" ("Id", "ForeignAuthorId", "Name", "TitleSlug", "Status", "Images", "Aliases", "SortName", "NameLastFirst", "SortNameLastFirst")
+                            VALUES (21, 'hardcover:author:507', 'Test Author', 'hardcover-author-507', 0, '[]', '[]', 'test author', 'Author, Test', 'author test');
+                            INSERT INTO "Books" ("Id", "AuthorMetadataId", "ForeignBookId", "TitleSlug", "Title", "CleanTitle", "Monitored", "AnyEditionOk")
+                            VALUES (25, 21, 'hardcover:work:905', 'original-one', 'Test Work', 'testwork', TRUE, TRUE),
+                                   (26, 21, 'HardCover:work:00905', 'original-two', 'Test Work', 'testwork', TRUE, TRUE),
+                                   (27, 21, 'hardcover:work:987', 'canonical', 'Test Work', 'testwork', TRUE, TRUE);
+                            """);
+                    }
+                }
+            });
+
+            var identity = Mocker.Resolve<CatalogueIdentityRepository>();
+            identity.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "905").Should().BeNull();
+            var books = database.All<Book>().ToDictionary(book => book.Id);
+            var canonical = books[27];
+            var original = books[25];
+            if (removeOtherLegacyRow)
+            {
+                database.Delete(books[26]);
+            }
+
+            identity.TryAddSource(CatalogueEntityKind.Work, canonical.Id, provider, providerId, evidence).Should().BeTrue();
+            identity.FindByProviderId(CatalogueEntityKind.Work, provider, providerId).Should().Be(canonical.Id);
+
+            var ebook = database.Insert(new Edition { BookId = canonical.Id, ForeignEditionId = "hardcover:edition:981", Title = "Book", TitleSlug = "ebook", IsEbook = true });
+            var audio = database.Insert(new Edition { BookId = original.Id, ForeignEditionId = "hardcover:edition:951", Title = "Book", TitleSlug = "audio", Format = "Audiobook" });
+            var ebookFile = database.Insert(new BookFile { Path = "/synthetic-book/a.epub", EditionId = ebook.Id, Quality = new QualityModel(Quality.EPUB) });
+            var audioFile = database.Insert(new BookFile { Path = "/synthetic-book/b.m4b", EditionId = audio.Id, Quality = new QualityModel(Quality.M4B) });
+            if (conflictingOpenLibrary)
+            {
+                canonical.OpenLibraryWorkId = "OL501W";
+                original.OpenLibraryWorkId = "OL502W";
+                database.Update(canonical);
+                database.Update(original);
+                database.Insert(new Edition { BookId = canonical.Id, ForeignEditionId = "hardcover:edition:982", Title = "Book", TitleSlug = "reference-a", Isbn13 = "9780141439518" });
+                database.Insert(new Edition { BookId = original.Id, ForeignEditionId = "hardcover:edition:952", Title = "Book", TitleSlug = "reference-b", Isbn13 = "9780141439518" });
+            }
+
+            var service = Mocker.Resolve<CatalogueWorkReconciliationService>();
+            var command = new ReconcileCatalogueWorksCommand
+            {
+                SourceBookId = reverse ? canonical.Id : original.Id,
+                TargetBookId = reverse ? original.Id : canonical.Id
+            };
+            var allowed = provider == "Hardcover" && providerId == "905" &&
+                          evidence == CatalogueIdentityRepository.HardcoverWorkMappingEvidence &&
+                          removeOtherLegacyRow && !reverse && !conflictingOpenLibrary;
+            var action = () => service.Execute(command);
+
+            if (allowed)
+            {
+                action.Should().NotThrow();
+                database.All<Book>().Should().HaveCount(2);
+                command.DryRun = false;
+                action.Should().NotThrow();
+
+                database.All<Book>().Should().ContainSingle().Which.CanonicalId.Should().Be(canonical.CanonicalId);
+                database.All<Edition>().Should().OnlyContain(edition => edition.BookId == canonical.Id);
+                identity.FindByRoute(CatalogueEntityKind.Work, original.CanonicalId).Should().Be(canonical.Id);
+            }
+            else
+            {
+                action.Should().Throw<InvalidOperationException>();
+                command.DryRun = false;
+                action.Should().Throw<InvalidOperationException>();
+
+                database.All<Book>().Should().HaveCount(removeOtherLegacyRow ? 2 : 3);
+                database.All<Edition>().Single(edition => edition.Id == audio.Id).BookId.Should().Be(original.Id);
+                identity.FindByRoute(CatalogueEntityKind.Work, original.CanonicalId).Should().Be(original.Id);
+            }
+
+            identity.FindByProviderId(CatalogueEntityKind.Work, provider, providerId).Should().Be(canonical.Id);
+            database.All<BookFile>().ToDictionary(file => file.Id, file => file.EditionId).Should()
+                .Contain(ebookFile.Id, ebook.Id).And.Contain(audioFile.Id, audio.Id);
         }
 
         [Test]

@@ -416,6 +416,28 @@ legacy single-format behavior is preserved exactly.
 See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) (TD-DUAL-FORMAT-001) for full
 architecture details.
 
+### Reconcile verified legacy work records
+
+Use the numeric IDs from the book API to identify the legacy source record and
+the verified target. Send a preview through the authenticated
+`POST /api/v1/command` endpoint.
+
+```json
+{
+  "name": "ReconcileCatalogueWorks",
+  "sourceBookId": 101,
+  "targetBookId": 202,
+  "dryRun": true
+}
+```
+
+Check the command result at `GET /api/v1/command/{id}` and review its event
+before approving an apply with `dryRun` set to `false`. Omitting `dryRun`
+selects preview mode. The command checks the verified provider identity, author,
+series and monitoring state. A successful apply keeps the target work identity
+and preserves both formats, edition IDs, file IDs and tracked paths. The source
+bookmark resolves to the target after the merge.
+
 ## Container resource limits
 
 Recommended resource allocations for Docker and Kubernetes deployments:

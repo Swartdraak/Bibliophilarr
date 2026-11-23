@@ -35,6 +35,7 @@ namespace NzbDrone.Core.Books
                 return;
             }
 
+            BindVerifiedLegacyRemap(connection, transaction, source, target);
             Reconcile(connection, transaction, source, target, command.DryRun);
             if (command.DryRun)
             {
@@ -44,6 +45,73 @@ namespace NzbDrone.Core.Books
 
             transaction.Commit();
             _logger.Info("Reconciled work {0} into {1}, retaining both formats and existing edition and file IDs.", source.Id, target.Id);
+        }
+
+        private static void BindVerifiedLegacyRemap(IDbConnection connection, IDbTransaction transaction, Book source, Book target)
+        {
+            if (source == null || target == null || source.Id == target.Id ||
+                source.AuthorMetadataId <= 0 || source.AuthorMetadataId != target.AuthorMetadataId)
+            {
+                return;
+            }
+
+            var original = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, source.ForeignBookId, null);
+            var canonical = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, target.ForeignBookId, null);
+            if (original?.Provider != "Hardcover" || canonical?.Provider != "Hardcover" ||
+                original.ProviderId == canonical.ProviderId)
+            {
+                return;
+            }
+
+            var keys = new[] { original.ProviderId, canonical.ProviderId };
+            var associations = connection.Query<(int BookId, string ProviderId, string Evidence)>(
+                """
+                SELECT "BookId", "ProviderId", "Evidence"
+                FROM "WorkSourceAssociations"
+                WHERE "Provider" = 'Hardcover' AND "ProviderId" IN @Keys
+                """,
+                new { Keys = keys },
+                transaction).ToList();
+            var originalAssociation = associations.SingleOrDefault(association => association.ProviderId == original.ProviderId);
+            var canonicalAssociation = associations.SingleOrDefault(association => association.ProviderId == canonical.ProviderId);
+
+            if (canonicalAssociation.BookId > 0 && canonicalAssociation.BookId != target.Id)
+            {
+                throw new InvalidOperationException("The selected target's provider identity belongs to another work.");
+            }
+
+            if (originalAssociation.BookId == 0 || originalAssociation.BookId == source.Id)
+            {
+                return;
+            }
+
+            if (originalAssociation.BookId != target.Id || canonicalAssociation.BookId != target.Id ||
+                originalAssociation.Evidence != CatalogueIdentityRepository.HardcoverWorkMappingEvidence)
+            {
+                throw new InvalidOperationException("The selected source's provider identity has no verified remap to the selected target.");
+            }
+
+            // Earlier migrations can leave conflicting raw legacy keys outside the unique association table.
+            // Normalize the raw rows with the same rules used to store provider identities.
+            var legacyOwners = connection.Query<(int Id, string ForeignBookId)>(
+                    """SELECT "Id", "ForeignBookId" FROM "Books" """,
+                    transaction: transaction,
+                    buffered: false)
+                .Where(row =>
+                {
+                    var primary = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, row.ForeignBookId, null);
+                    return primary?.Provider == "Hardcover" && keys.Contains(primary.ProviderId);
+                })
+                .Select(row => row.Id)
+                .Take(3)
+                .ToList();
+            if (legacyOwners.Count != 2 || !legacyOwners.Contains(source.Id) || !legacyOwners.Contains(target.Id))
+            {
+                throw new InvalidOperationException("The remap has competing legacy work owners.");
+            }
+
+            original.Evidence = originalAssociation.Evidence;
+            target.PendingSourceAssociations.Add(original);
         }
 
         internal static void Reconcile(IDbConnection connection, IDbTransaction transaction, Book source, Book target, bool dryRun)
