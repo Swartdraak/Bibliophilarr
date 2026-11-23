@@ -72,6 +72,7 @@ class RemotePathMapping extends Component {
 
         <div className={styles.actions}>
           <Link
+            aria-label={translate('EditRemotePathMappingForPath', { host, remotePath })}
             onPress={this.onEditRemotePathMappingPress}
           >
             <Icon name={icons.EDIT} />
