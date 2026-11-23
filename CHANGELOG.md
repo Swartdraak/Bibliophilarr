@@ -165,6 +165,8 @@ process.
 
 ### Changed
 
+- Run deterministic book identification tests in the standard suite and
+  remove the manual-only legacy music fixtures.
 - Update the WebUI SVG icons to Font Awesome 7 and keep intrinsic widths
   for normal icons. Controls can still request a fixed width.
 
