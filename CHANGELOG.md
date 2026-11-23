@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Enforce the explicit API key at the MVC action for affected versioned writes,
+  including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files
   passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
@@ -26,9 +28,15 @@ process.
   for the rate limiter.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
+- Honor Google Books fallback cooldowns before decoding provider responses.
+  Keep search queries, credentials and response bodies out of failure warnings.
+- Share the Google Books rate-limit deadline across search and volume requests.
+  Record upstream server errors as failures and continue with available providers.
 - Include automatic import fallback searches in provider operation telemetry.
 - Confirm an unexpectedly empty Open Library bibliography page once before
   treating the author's catalogue as incomplete.
+- Verify Open Library author bibliographies against distinct work IDs so
+  overlapping pages cannot hide missing works.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
@@ -89,6 +97,8 @@ process.
   refresh requests as unsuccessful while continuing the rest of the batch.
 - Honor the historical server port environment variable. The canonical
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
+- Preserve port and bind address values stored inside a `Server` element in
+  `config.xml`. Existing flat values and environment overrides retain precedence.
 - Update FluentMigrator to 8.0.1 for SQLite and PostgreSQL while preserving the
   existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying

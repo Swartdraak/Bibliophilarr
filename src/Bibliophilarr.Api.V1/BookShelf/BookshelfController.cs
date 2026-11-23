@@ -1,12 +1,14 @@
 using System;
 using System.Linq;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Books;
 
 namespace Bibliophilarr.Api.V1.Bookshelf
 {
     [V1ApiController]
+    [ValidateApiWriteAntiforgery]
     public class BookshelfController : Controller
     {
         private readonly IAuthorService _authorService;

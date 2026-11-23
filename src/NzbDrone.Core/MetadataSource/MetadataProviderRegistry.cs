@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using NLog;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.MetadataSource.GoogleBooks;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -230,6 +231,21 @@ namespace NzbDrone.Core.MetadataSource
                     registered[kvp.Key] = kvp.Value;
                 }
 
+                if (_providers.TryGetValue("GoogleBooks", out var provider) && provider is GoogleBooksFallbackSearchProvider google)
+                {
+                    var now = DateTime.UtcNow;
+                    var deadline = google.RequestCooldownUntilUtc;
+                    var googleHealth = registered[provider.ProviderName];
+                    if (deadline > now && (!googleHealth.CooldownUntilUtc.HasValue || deadline >= googleHealth.CooldownUntilUtc.Value))
+                    {
+                        registered[provider.ProviderName] = googleHealth.WithCooldown(deadline, now);
+                    }
+                    else if (deadline == googleHealth.CooldownUntilUtc && deadline <= now)
+                    {
+                        registered[provider.ProviderName] = googleHealth.WithCooldown(null, now);
+                    }
+                }
+
                 return registered;
             }
         }
@@ -411,7 +427,10 @@ namespace NzbDrone.Core.MetadataSource
                 return false;
             }
 
-            return health.CooldownUntilUtc.HasValue && health.CooldownUntilUtc.Value > DateTime.UtcNow;
+            // Google enforces shared 429 holds in the adapter and fallback server failures
+            // in the fallback executor. Keep the adapter routable for IDs it owns.
+            return provider is not GoogleBooksFallbackSearchProvider &&
+                   health.CooldownUntilUtc.HasValue && health.CooldownUntilUtc.Value > DateTime.UtcNow;
         }
 
         private int GetHealthRank(IMetadataProvider provider)
