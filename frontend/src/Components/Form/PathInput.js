@@ -3,6 +3,7 @@ import React, { Component } from 'react';
 import FileBrowserModal from 'Components/FileBrowser/FileBrowserModal';
 import Icon from 'Components/Icon';
 import { icons } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import AutoSuggestInput from './AutoSuggestInput';
 import FormInputButton from './FormInputButton';
 import styles from './PathInput.css';
@@ -168,6 +169,7 @@ class PathInput extends Component {
             <div>
               <FormInputButton
                 className={styles.fileBrowserButton}
+                aria-label={translate('BrowsePath')}
                 onPress={this.onFileBrowserOpenPress}
               >
                 <Icon name={icons.FOLDER_OPEN} />

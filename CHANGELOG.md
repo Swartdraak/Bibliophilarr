@@ -16,15 +16,31 @@ process.
 
 ### Fixed
 
+- Enforce the explicit API key at the MVC action for affected versioned writes,
+  including queue, backup, and system operations.
+- Mark a queued manual import as unsuccessful when none of its selected files
+  passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
+- Honor longer provider Retry-After values during fallback searches and report
+  the applied wait in provider health and logs.
+- Show the current time remaining on provider cooldowns and clear expired holds
+  from provider health.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
+- Honor Google Books fallback cooldowns before decoding provider responses.
+  Keep search queries, credentials and response bodies out of failure warnings.
+- Share the Google Books rate-limit deadline across search and volume requests.
+  Record upstream server errors as failures and continue with available providers.
 - Include automatic import fallback searches in provider operation telemetry.
+- Confirm an unexpectedly empty Open Library bibliography page once before
+  treating the author's catalogue as incomplete.
+- Verify Open Library author bibliographies against distinct work IDs so
+  overlapping pages cannot hide missing works.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
@@ -32,6 +48,8 @@ process.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Label the Calendar feed filters, URL, copy button, and subscription link.
+- Give the Add Indexer template buttons accessible names.
+- Name the remote path mapping edit action and the file browser button.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
@@ -84,6 +102,8 @@ process.
   refresh requests as unsuccessful while continuing the rest of the batch.
 - Honor the historical server port environment variable. The canonical
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
+- Preserve port and bind address values stored inside a `Server` element in
+  `config.xml`. Existing flat values and environment overrides retain precedence.
 - Update FluentMigrator to 8.0.1 for SQLite and PostgreSQL while preserving the
   existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying
@@ -157,6 +177,8 @@ process.
 
 ### Changed
 
+- Run deterministic book identification tests in the standard suite and
+  remove the manual-only legacy music fixtures.
 - Update the WebUI SVG icons to Font Awesome 7 and keep intrinsic widths
   for normal icons. Controls can still request a fixed width.
 

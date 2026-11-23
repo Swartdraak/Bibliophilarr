@@ -19,7 +19,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Api.V1", "Bib
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Http", "Bibliophilarr.Http\Bibliophilarr.Http.csproj", "{F8A02FD4-A7A4-40D0-BB81-6319105A3302}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Api.Test", "NzbDrone.Api.Test\Bibliophilarr.Api.Test.csproj", "{E2EA47B1-6996-417D-A6EC-28C4F202715C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Api.Test", "Bibliophilarr.Api.Test\Bibliophilarr.Api.Test.csproj", "{E2EA47B1-6996-417D-A6EC-28C4F202715C}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Common.Test", "NzbDrone.Common.Test\Bibliophilarr.Common.Test.csproj", "{A628FEA4-75CC-4039-8823-27258C55D2BF}"
 EndProject
@@ -39,11 +39,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Integration.T
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Libraries.Test", "Bibliophilarr.Libraries.Test\Bibliophilarr.Libraries.Test.csproj", "{1969394D-3181-404F-8E2C-E3E71A5BAD30}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Mono.Test", "NzbDrone.Mono.Test\Bibliophilarr.Mono.Test.csproj", "{CCE9ABBC-96BA-425B-8140-DC8102290BE3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Mono.Test", "Bibliophilarr.Mono.Test\Bibliophilarr.Mono.Test.csproj", "{CCE9ABBC-96BA-425B-8140-DC8102290BE3}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Mono", "NzbDrone.Mono\Bibliophilarr.Mono.csproj", "{504CD0A8-523B-4A0E-99BE-C179DECA9B76}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.SignalR", "NzbDrone.SignalR\Bibliophilarr.SignalR.csproj", "{B30BE76E-4D20-47AA-9E03-E32613D888CC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.SignalR", "Bibliophilarr.SignalR\Bibliophilarr.SignalR.csproj", "{B30BE76E-4D20-47AA-9E03-E32613D888CC}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bibliophilarr.Test.Common", "NzbDrone.Test.Common\Bibliophilarr.Test.Common.csproj", "{B8706292-5BE8-4099-94CA-F26DDD3757E0}"
 EndProject
