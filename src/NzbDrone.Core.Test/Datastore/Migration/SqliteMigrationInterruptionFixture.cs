@@ -9,6 +9,7 @@ using NLog;
 using NUnit.Framework;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Migration.Framework;
+using NzbDrone.Test.Common.Datastore;
 
 namespace NzbDrone.Core.Test.Datastore.Migration
 {
@@ -76,7 +77,7 @@ namespace NzbDrone.Core.Test.Datastore.Migration
 
                 using var recoveredDatabase = new SQLiteConnection(connectionString.ConnectionString);
                 recoveredDatabase.Open();
-                SqliteMigrationRecoveryFixture.AssertCompleteMigration(recoveredDatabase);
+                SqliteDatabase.AssertCompleteMainMigration(recoveredDatabase);
                 Assert.That(recoveredDatabase.QuerySingle<int>("SELECT COUNT(*) FROM \"Config\" WHERE \"Key\" = @key", new { key = TransactionMarkerKey }), Is.Zero);
             }
             finally

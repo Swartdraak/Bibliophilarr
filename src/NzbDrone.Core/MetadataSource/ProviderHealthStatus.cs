@@ -135,9 +135,9 @@ namespace NzbDrone.Core.MetadataSource
         internal ProviderHealthStatus WithCooldown(DateTime? deadline, DateTime now)
         {
             var status = (ProviderHealthStatus)MemberwiseClone();
-            status.CooldownUntilUtc = deadline;
-            status.RetryAfterRemainingSeconds = deadline.HasValue
-                ? (int)Math.Ceiling((deadline.Value - now).TotalSeconds)
+            status.CooldownUntilUtc = deadline is { } expires && expires > now ? expires : null;
+            status.RetryAfterRemainingSeconds = status.CooldownUntilUtc is { } activeDeadline
+                ? (int)Math.Min(int.MaxValue, Math.Ceiling((activeDeadline - now).TotalSeconds))
                 : 0;
             return status;
         }
