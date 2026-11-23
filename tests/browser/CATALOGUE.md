@@ -45,8 +45,9 @@ the live volume can be print-only.
 An absent or blank selected credential reports a live skip and runs the offline
 workflow. An opted-in credentialed request can consume the selected provider's
 quota, including any automatic refresh triggered by adding the book. The
-harness disables the providers and clears both possible credentials before
-import and restart. Ordinary CI remains offline.
+harness waits for the queued Google Books author refresh to finish before
+disabling the providers and clearing both credentials. It clears them before
+offline import and restart. Ordinary CI remains offline.
 
 Both modes use disposable application data and a synthetic EPUB. Failure
 artifacts include application logs with the fixture login, app API key, and

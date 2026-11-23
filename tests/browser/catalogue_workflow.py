@@ -194,8 +194,11 @@ def read_author_row(app_data, author_id):
 
 def catalogue_command(api, name, *, expected_status="completed", **body):
     queued = checked(api.post("/api/v1/command", data={"name": name, **body}), 201, f"queue_{name}")
-    command_id = queued["id"]
-    deadline = time.monotonic() + 30
+    return wait_catalogue_command(api, queued["id"], name, expected_status=expected_status)
+
+
+def wait_catalogue_command(api, command_id, name, *, expected_status="completed", timeout=30):
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         command = checked(api.get(f"/api/v1/command/{command_id}"), 200, f"read_{name}_state")
         assert command["id"] == command_id and command["name"] == name
@@ -205,6 +208,19 @@ def catalogue_command(api, name, *, expected_status="completed", **body):
         time.sleep(0.25)
 
     raise TimeoutError(f"{name} did not finish")
+
+
+def wait_for_added_google_author(api, author_id):
+    commands = checked(api.get("/api/v1/command"), 200, "read_google_book_add_commands")
+    refresh, = [
+        command for command in commands
+        if command["name"] == "RefreshAuthor" and (command.get("body") or {}).get("authorId") == author_id
+    ]
+    completed = wait_catalogue_command(api, refresh["id"], "RefreshAuthor", timeout=120)
+    assert completed["result"] == "successful" and not completed.get("exception"), (
+        "Google Books could not complete the author refresh triggered by Add Book"
+    )
+    print("google_book_author_refresh: PASS (settled before credentials were cleared)", flush=True)
 
 
 def verify_missing_author_rescan(api, app_data, root):
@@ -579,6 +595,9 @@ def exercise_catalogue(page, api, base, work, app_data, *, live_provider=None):
         try:
             configure_providers(api, live_provider, token)
             book, author = find_live_book(page, api, base, root, live_provider)
+            if live_provider == "googlebooks":
+                # Add Book queues a bibliography refresh for the new author's provider.
+                wait_for_added_google_author(api, book["authorId"])
         finally:
             configure_providers(api)
 
