@@ -16,19 +16,34 @@ process.
 
 ### Fixed
 
+- Enforce the explicit API key at the MVC action for affected versioned writes,
+  including queue, backup, and system operations.
+- Mark a queued manual import as unsuccessful when none of its selected files
+  passes preparation.
+- Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
+  ranges fall back to filename metadata.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
+- Honor Google Books fallback cooldowns before decoding provider responses.
+  Keep search queries, credentials and response bodies out of failure warnings.
+- Share the Google Books rate-limit deadline across search and volume requests.
+  Record upstream server errors as failures and continue with available providers.
 - Include automatic import fallback searches in provider operation telemetry.
+- Confirm an unexpectedly empty Open Library bibliography page once before
+  treating the author's catalogue as incomplete.
+- Verify Open Library author bibliographies against distinct work IDs so
+  overlapping pages cannot hide missing works.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
   dual-format monitoring answer in the in-app help.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
+- Label the Calendar feed filters, URL, copy button, and subscription link.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
@@ -81,6 +96,8 @@ process.
   refresh requests as unsuccessful while continuing the rest of the batch.
 - Honor the historical server port environment variable. The canonical
   `BIBLIOPHILARR__SERVER__PORT` takes precedence when both are present.
+- Preserve port and bind address values stored inside a `Server` element in
+  `config.xml`. Existing flat values and environment overrides retain precedence.
 - Update FluentMigrator to 8.0.1 for SQLite and PostgreSQL while preserving the
   existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying
@@ -176,6 +193,8 @@ process.
 - **macOS app-smoke RID-specific provider copy paths** (Issue #270, repair 7): the hosted `macos-latest` app-execution lane at 9cce63ab8c (repair 6) still died at first boot with a DryIoc `GetRequiredService` resolution failure inside `EventAggregator` — the provider-surface `CopyToPublishDirectory` items in `Bibliophilarr.Console.csproj` used RID-agnostic source paths (`_output/net10.0/FluentMigrator.dll`) but the build output for a RID-specific publish (`-p:RuntimeIdentifier=osx-x64`) goes to `_output/net10.0/osx-x64/FluentMigrator.dll`. On a fresh CI checkout, `_output/` does not exist, so the RID-agnostic paths silently failed to resolve and the provider assemblies were missing from the publish output, causing the app to crash at startup when FluentMigrator's `ReflectionBasedDbFactory` tried to load them by file path. This repair changes every `CopyToPublishDirectory` source path in the non-Windows-RID provider-surface group to use the RID-specific path `_output/net10.0/$(RuntimeIdentifier)/...` (which resolves to the correct RID subdirectory at publish time), so the provider assemblies are correctly copied from the build output into the publish output for every non-Windows RID. The Windows publish is byte-for-byte unaffected (the condition is the exact logical complement of the win-RID platform group). No product source, no runtime loader behavior, no new package, no dependency-version change. The `ConsoleSqliteProviderPublishIssue270Fixture` test assertions are updated to pin the RID-specific paths. The residual criterion (fresh exact-head hosted CI on both hosted lanes before merge) remains the publisher's.
 
 ### Security
+
+- Sanitize book identifiers and titles in Add Book and import-list logs.
 
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.

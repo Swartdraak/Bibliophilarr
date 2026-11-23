@@ -114,7 +114,7 @@ class CalendarLinkModalContent extends Component {
         <ModalBody>
           <Form>
             <FormGroup>
-              <FormLabel>
+              <FormLabel name="unmonitored">
                 {translate('IncludeUnmonitored')}
               </FormLabel>
 
@@ -128,7 +128,7 @@ class CalendarLinkModalContent extends Component {
             </FormGroup>
 
             <FormGroup>
-              <FormLabel>
+              <FormLabel name="pastDays">
                 {translate('PastDays')}
               </FormLabel>
 
@@ -142,7 +142,7 @@ class CalendarLinkModalContent extends Component {
             </FormGroup>
 
             <FormGroup>
-              <FormLabel>
+              <FormLabel name="futureDays">
                 {translate('FutureDays')}
               </FormLabel>
 
@@ -156,13 +156,14 @@ class CalendarLinkModalContent extends Component {
             </FormGroup>
 
             <FormGroup>
-              <FormLabel>
+              <FormLabel name="calendarFeedTags">
                 {translate('Tags')}
               </FormLabel>
 
               <FormInputGroup
                 type={inputTypes.TAG}
                 name="tags"
+                inputId="calendarFeedTags"
                 value={tags}
                 helpText={translate('TagsHelpText')}
                 onChange={this.onInputChange}
@@ -172,7 +173,7 @@ class CalendarLinkModalContent extends Component {
             <FormGroup
               size={sizes.LARGE}
             >
-              <FormLabel>
+              <FormLabel name="iCalHttpUrl">
                 {translate('ICalFeed')}
               </FormLabel>
 
@@ -186,12 +187,14 @@ class CalendarLinkModalContent extends Component {
                 buttons={[
                   <ClipboardButton
                     key="copy"
+                    aria-label={translate('CopyToClipboard')}
                     value={iCalHttpUrl}
                     kind={kinds.DEFAULT}
                   />,
 
                   <FormInputButton
                     key="webcal"
+                    aria-label={translate('SubscribeToCalendar')}
                     kind={kinds.DEFAULT}
                     to={iCalWebCalUrl}
                     target="_blank"

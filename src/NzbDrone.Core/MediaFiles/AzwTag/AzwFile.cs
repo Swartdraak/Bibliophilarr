@@ -1,40 +1,40 @@
 using System;
+using System.Buffers.Binary;
 using System.IO;
-using System.Text;
 
 namespace NzbDrone.Core.MediaFiles.Azw
 {
     public class AzwFile
     {
-        public byte[] RawData { get; }
-        public ushort SectionCount { get; private set; }
-        public SectionInfo[] Info { get; private set; }
-        public string Ident { get; private set; }
-
-        protected AzwFile(string path)
+        protected static SectionInfo ReadFirstSection(Stream stream)
         {
-            RawData = File.ReadAllBytes(path);
-            GetSectionInfo();
-        }
+            const int palmHeaderLength = 78;
+            const int tableEntryLength = 8;
 
-        protected void GetSectionInfo()
-        {
-            Ident = Encoding.ASCII.GetString(RawData, 0x3c, 8);
-            SectionCount = Math.Min(Util.GetUInt16(RawData, 76), (ushort)1);
-
-            if (Ident != "BOOKMOBI" || SectionCount == 0)
+            var fileLength = stream.Length;
+            Span<byte> header = stackalloc byte[palmHeaderLength];
+            Util.ReadAt(stream, 0, header, fileLength);
+            var recordCount = BinaryPrimitives.ReadUInt16BigEndian(header[76..]);
+            if (!header.Slice(60, 8).SequenceEqual("BOOKMOBI"u8) || recordCount == 0)
             {
-                throw new AzwTagException("Invalid mobi header");
+                throw new AzwTagException("Invalid MOBI Palm database header");
             }
 
-            Info = new SectionInfo[SectionCount];
-            Info[0].Start_addr = Util.GetUInt32(RawData, 78);
-            Info[0].End_addr = Util.GetUInt32(RawData, 78 + 8);
-        }
+            var tableEnd = palmHeaderLength + (recordCount * tableEntryLength);
+            Util.EnsureRange(0, tableEnd, fileLength);
 
-        protected byte[] GetSectionData(uint i)
-        {
-            return Util.SubArray(RawData, Info[i].Start_addr, Info[i].Length);
+            Span<byte> entries = stackalloc byte[tableEntryLength * 2];
+            var relevantEntries = recordCount == 1 ? entries[..tableEntryLength] : entries;
+            Util.ReadAt(stream, palmHeaderLength, relevantEntries, fileLength);
+
+            var start = BinaryPrimitives.ReadUInt32BigEndian(relevantEntries);
+            var end = recordCount == 1 ? fileLength : BinaryPrimitives.ReadUInt32BigEndian(relevantEntries[tableEntryLength..]);
+            if (start < tableEnd || end <= start || end > fileLength)
+            {
+                throw new AzwTagException("Invalid MOBI first record bounds");
+            }
+
+            return new SectionInfo(start, end);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.Authentication;
 using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Download;
@@ -8,6 +9,7 @@ using NzbDrone.Core.Download.Pending;
 namespace Bibliophilarr.Api.V1.Queue
 {
     [V1ApiController("queue")]
+    [ValidateApiWriteAntiforgery]
     public class QueueActionController : Controller
     {
         private readonly IPendingReleaseService _pendingReleaseService;
