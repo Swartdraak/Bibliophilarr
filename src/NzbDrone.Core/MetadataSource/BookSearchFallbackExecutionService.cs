@@ -10,6 +10,7 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.TPL;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.MetadataSource.GoogleBooks;
 using Polly;
 using Polly.CircuitBreaker;
 
@@ -120,7 +121,8 @@ namespace NzbDrone.Core.MetadataSource
                 return new List<Book>();
             }
 
-            var rateLimitSnapshot = TrackRateLimitWindow(provider);
+            var google = provider as GoogleBooksFallbackSearchProvider;
+            var rateLimitSnapshot = google == null ? TrackRateLimitWindow(provider) : 0;
             UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
 
             var watch = Stopwatch.StartNew();
@@ -153,19 +155,33 @@ namespace NzbDrone.Core.MetadataSource
                 UpdateRateLimitHealth(provider, rateLimitSnapshot, CircuitBreakerBreakDuration);
                 return new List<Book>();
             }
+            catch (GoogleBooksRequestOnCooldownException)
+            {
+                attempted = false;
+                SkipIfCoolingDown(provider);
+                return new List<Book>();
+            }
             catch (TooManyRequestsException e)
             {
                 watch.Stop();
                 _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
 
                 var retryAfter = e.RetryAfter > TimeSpan.Zero ? e.RetryAfter : TimeSpan.FromMinutes(5);
-                SetCooldown(provider.ProviderName, Clamp(retryAfter, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15)));
-                UpdateRateLimitHealth(provider, rateLimitSnapshot, retryAfter);
+                if (google == null)
+                {
+                    SetCooldown(provider.ProviderName, GetRateLimitCooldown(retryAfter));
+                }
+                else
+                {
+                    retryAfter = GetRateLimitCooldown(retryAfter);
+                }
 
+                UpdateRateLimitHealth(provider, rateLimitSnapshot, google == null ? retryAfter : TimeSpan.Zero);
                 _logger.Warn("Fallback provider {0} returned 429, dampening queries for {1:F0}s", provider.ProviderName, retryAfter.TotalSeconds);
                 return new List<Book>();
             }
-            catch (HttpException e) when (e.Response?.StatusCode == HttpStatusCode.RequestTimeout || e.Response?.HasHttpServerError == true)
+            catch (HttpException e) when (e is GoogleBooksServerErrorException ||
+                                          e.Response?.StatusCode == HttpStatusCode.RequestTimeout || e.Response?.HasHttpServerError == true)
             {
                 watch.Stop();
                 if (e.Response?.StatusCode == HttpStatusCode.RequestTimeout)
@@ -200,6 +216,11 @@ namespace NzbDrone.Core.MetadataSource
             {
                 if (attempted)
                 {
+                    if (google != null)
+                    {
+                        UpdateRateLimitHealth(provider, TrackRateLimitWindow(provider), TimeSpan.Zero);
+                    }
+
                     _operationTelemetry.Record(
                         provider.ProviderName,
                         FallbackSearchOperation,
@@ -293,6 +314,14 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             var cooldownUntil = cooldownRemaining > TimeSpan.Zero ? now.Add(cooldownRemaining) : (DateTime?)null;
+            if (provider is GoogleBooksFallbackSearchProvider google &&
+                google.RequestCooldownUntilUtc > now &&
+                (!cooldownUntil.HasValue || google.RequestCooldownUntilUtc > cooldownUntil.Value))
+            {
+                cooldownUntil = google.RequestCooldownUntilUtc;
+                cooldownRemaining = cooldownUntil.Value - now;
+            }
+
             var health = GetHealth(provider.ProviderName) ?? new ProviderHealthStatus();
 
             health.RateLimitWindowRequests = requests;
@@ -365,27 +394,28 @@ namespace NzbDrone.Core.MetadataSource
 
         private bool SkipIfCoolingDown(IBookSearchFallbackProvider provider)
         {
-            if (!TryGetActiveCooldown(provider.ProviderName, out var remaining))
+            if (!TryGetActiveCooldown(provider, out var remaining))
             {
                 return false;
             }
 
-            UpdateRateLimitHealth(provider, 0, remaining);
+            UpdateRateLimitHealth(provider, 0, TimeSpan.Zero);
             _logger.Debug("Skipping fallback provider {0} for {1:F0}s because cooldown is active", provider.ProviderName, remaining.TotalSeconds);
             return true;
         }
 
-        private bool TryGetActiveCooldown(string providerName, out TimeSpan remaining)
+        private bool TryGetActiveCooldown(IBookSearchFallbackProvider provider, out TimeSpan remaining)
         {
-            remaining = TimeSpan.Zero;
+            var now = DateTime.UtcNow;
+            _cooldownStore.TryGetValue(provider.ProviderName, out var until);
 
-            if (_cooldownStore.TryGetValue(providerName, out var until) && until > DateTime.UtcNow)
+            if (provider is GoogleBooksFallbackSearchProvider google && google.RequestCooldownUntilUtc > until)
             {
-                remaining = until - DateTime.UtcNow;
-                return true;
+                until = google.RequestCooldownUntilUtc;
             }
 
-            return false;
+            remaining = until > now ? until - now : TimeSpan.Zero;
+            return remaining > TimeSpan.Zero;
         }
 
         private void SetCooldown(string providerName, TimeSpan duration)
@@ -397,6 +427,12 @@ namespace NzbDrone.Core.MetadataSource
 
             var until = DateTime.UtcNow.Add(duration);
             _cooldownStore.AddOrUpdate(providerName, until, (_, existing) => existing > until ? existing : until);
+        }
+
+        internal static TimeSpan GetRateLimitCooldown(TimeSpan retryAfter)
+        {
+            var duration = retryAfter > TimeSpan.Zero ? retryAfter : TimeSpan.FromMinutes(5);
+            return Clamp(duration, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15));
         }
 
         private static TimeSpan Clamp(TimeSpan value, TimeSpan min, TimeSpan max)

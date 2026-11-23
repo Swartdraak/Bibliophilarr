@@ -28,6 +28,10 @@ process.
   for the rate limiter.
 - Keep a provider's fallback cooldown active when an earlier request finishes
   successfully.
+- Honor Google Books fallback cooldowns before decoding provider responses.
+  Keep search queries, credentials and response bodies out of failure warnings.
+- Share the Google Books rate-limit deadline across search and volume requests.
+  Record upstream server errors as failures and continue with available providers.
 - Include automatic import fallback searches in provider operation telemetry.
 - Confirm an unexpectedly empty Open Library bibliography page once before
   treating the author's catalogue as incomplete.
