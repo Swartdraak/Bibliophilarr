@@ -49,11 +49,6 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var registry = new MetadataProviderRegistry(new[] { provider });
             var telemetry = new MetadataProviderTelemetryService();
             var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, logger);
-            if (status != HttpStatusCode.OK)
-            {
-                ExceptionVerification.IgnoreWarns();
-            }
-
             if (searchAuthors)
             {
                 orchestrator.SearchForNewAuthor(term);
@@ -72,6 +67,18 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             entry.NullResults.Should().Be(0);
             entry.TotalResultCount.Should().Be(0);
             Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+            if (status == HttpStatusCode.ServiceUnavailable)
+            {
+                var operation = searchAuthors ? "search-for-new-author" : "search-for-new-book";
+                ExceptionVerification.ExpectedWarns(
+                    "OpenLibrary returned HTTP 503",
+                    $"Metadata provider 'OpenLibrary' failed during {operation}",
+                    $"All providers failed for operation {operation}");
+            }
+            else
+            {
+                ExceptionVerification.ExpectedWarns(0);
+            }
         }
 
         [Test]

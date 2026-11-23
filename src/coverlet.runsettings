@@ -5,7 +5,10 @@
       <DataCollector friendlyName="XPlat code coverage">
         <Configuration>
           <Format>opencover</Format>
+          <!-- Detached packages include portable symbols for Bibliophilarr assemblies. -->
+          <Include>[Bibliophilarr]*,[Bibliophilarr.*]*</Include>
           <Exclude>[Bibliophilarr.*.Test]*,[Bibliophilarr.Test.*]*,[Bibliophilarr.Api.V1]*</Exclude>
+          <ExcludeAssembliesWithoutSources>None</ExcludeAssembliesWithoutSources>
         </Configuration>
       </DataCollector>
     </DataCollectors>

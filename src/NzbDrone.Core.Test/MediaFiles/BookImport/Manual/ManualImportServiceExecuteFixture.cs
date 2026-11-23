@@ -9,6 +9,7 @@ using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.RootFolders;
@@ -91,6 +92,77 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                 .Returns(new List<ImportResult>());
         }
 
+        [TestCase(0, 42)]
+        [TestCase(1, 0)]
+        [TestCase(1, 42)]
+        public void should_report_an_unsuccessful_command_when_no_file_passed_preparation(int authorId, int bookId)
+        {
+            var command = new ManualImportCommand
+            {
+                Files = new List<ManualImportFile>
+                {
+                    new ManualImportFile { Path = _filePath, AuthorId = authorId, BookId = bookId }
+                },
+                ImportMode = ImportMode.Copy
+            };
+
+            Subject.Execute(command);
+
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<ICommandResultReporter>().Verify(r => r.Report(CommandResult.Unsuccessful), Times.Once());
+            Mocker.GetMock<IImportApprovedBooks>().Verify(
+                i => i.Import(
+                    It.Is<List<ImportDecision<LocalBook>>>(d => d.Any(x => x.Approved)),
+                    It.IsAny<bool>(),
+                    It.IsAny<DownloadClientItem>(),
+                    It.IsAny<ImportMode>()),
+                Times.Never());
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        public void should_leave_command_result_unchanged_when_a_file_passed_preparation(bool includeInvalidFile, bool preserveDuplicate)
+        {
+            var edition = new Edition { Id = 7, BookId = _book.Id, ForeignEditionId = "OL123M", IsEbook = true };
+            Mocker.GetMock<IEditionService>()
+                .Setup(e => e.GetEditionByForeignEditionId(edition.ForeignEditionId))
+                .Returns(edition);
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(i => i.Import(It.Is<List<ImportDecision<LocalBook>>>(d => d.Count == 1 && d[0].Approved), false, null, ImportMode.Copy))
+                .Returns<List<ImportDecision<LocalBook>>, bool, DownloadClientItem, ImportMode>((decisions, _, _, _) =>
+                    new List<ImportResult>
+                    {
+                        preserveDuplicate ? new ImportResult(decisions[0], "Existing copy preserved") : new ImportResult(decisions[0])
+                    });
+
+            var command = new ManualImportCommand
+            {
+                Files = new List<ManualImportFile>
+                {
+                    new ManualImportFile { Path = _filePath, AuthorId = _author.Id, BookId = _book.Id, ForeignEditionId = edition.ForeignEditionId }
+                },
+                ImportMode = ImportMode.Copy
+            };
+            if (includeInvalidFile)
+            {
+                command.Files.Add(new ManualImportFile { Path = _filePath + ".epub", BookId = _book.Id });
+            }
+
+            Subject.Execute(command);
+
+            ExceptionVerification.ExpectedWarns(includeInvalidFile ? 1 : 0);
+            Mocker.GetMock<IImportApprovedBooks>().Verify(
+                i => i.Import(
+                    It.Is<List<ImportDecision<LocalBook>>>(d => d.Count == 1 && d[0].Approved &&
+                        d[0].Item.Path == _filePath && d[0].Item.Edition == edition),
+                    false,
+                    null,
+                    ImportMode.Copy),
+                Times.Once());
+            Mocker.GetMock<ICommandResultReporter>().Verify(r => r.Report(It.IsAny<CommandResult>()), Times.Never());
+        }
+
         [Test]
         public void should_not_call_import_when_book_mapped_but_no_edition_resolved()
         {
@@ -126,6 +198,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<NzbDrone.Core.Download.DownloadClientItem>(),
                     It.IsAny<ImportMode>()),
                 Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
 
         [Test]
@@ -174,6 +247,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<NzbDrone.Core.Download.DownloadClientItem>(),
                     It.IsAny<ImportMode>()),
                 Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
     }
 
@@ -332,6 +406,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<DownloadClientItem>(),
                     It.IsAny<ImportMode>()),
                 Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
 
         [Test]
@@ -383,6 +458,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<DownloadClientItem>(),
                     It.IsAny<ImportMode>()),
                 Times.Once);
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
     }
 }
