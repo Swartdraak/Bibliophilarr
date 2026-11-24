@@ -11,7 +11,10 @@
         "/workspace/linux-program/integrations/prepare.sh"
       ],
       "cwd": "repo",
-      "timeout_seconds": 120
+      "timeout_seconds": 120,
+      "env": {
+        "CASE_DIR": "/workspace/@CASE@"
+      }
     }
   ],
   "services": [

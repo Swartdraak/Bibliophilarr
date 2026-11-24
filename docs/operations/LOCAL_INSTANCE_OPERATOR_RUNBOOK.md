@@ -57,7 +57,7 @@ different location. Confirm the actual path via `GET /api/v1/system/status` → 
 
 ## Database access
 
-The main database is a SQLite file. Use the `sqlite3` CLI for read-only inspection:
+For the default SQLite backend, the main database is a file. Use the `sqlite3` CLI for read-only inspection:
 
 ```bash
 cd ~/.config/Bibliophilarr
@@ -88,6 +88,31 @@ sqlite3 bibliophilarr.db \
 > **Safety:** Always open the DB read-only when the instance is running. Never write to
 > the DB while the instance is up — the SQLite lock will conflict and may corrupt state.
 > Stop the instance before any manual DB edits.
+
+## Backup and recovery
+
+### SQLite backups
+
+The built-in ZIP contains the main `bibliophilarr.db`, `config.xml`,
+and version information. Use **System → Backups** to create or restore a ZIP.
+Keep a separate backup of your media.
+
+### PostgreSQL backups
+
+The built-in ZIP contains only `config.xml` and version information.
+A successful backup or restore in the WebUI only covers those application files.
+Use PostgreSQL's backup tooling for the configured main, log, and cache databases.
+For a coordinated snapshot, stop Bibliophilarr, back up the databases with
+`pg_dump`, and keep the matching application data directory and any database
+settings supplied outside it. Store these backups securely because application
+settings can contain credentials.
+
+For PostgreSQL recovery, keep Bibliophilarr stopped while restoring the databases
+with matching PostgreSQL tooling, such as `pg_restore` for custom-format dumps.
+Reinstate the matching application profile and database settings, then start the
+corresponding Bibliophilarr version. The WebUI Restore action restarts the app
+automatically, so complete the database recovery separately before starting the
+app again.
 
 ## Log inspection
 

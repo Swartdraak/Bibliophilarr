@@ -48,6 +48,9 @@ jobs:
           python3 scripts/check_yarn_lock_identity.py
           yarn install --frozen-lockfile
 
+      - name: Check TypeScript
+        run: yarn tsc --noEmit -p frontend/tsconfig.json
+
       - name: Test
         run: yarn test:frontend
 
