@@ -13,7 +13,8 @@ namespace NzbDrone.Core.MediaCover
         Skipped,
         Recovered,
         Unavailable,
-        Deferred
+        Deferred,
+        DeferredAfterRequest
     }
 
     public interface IOpenLibraryBookCoverCache
@@ -93,7 +94,7 @@ namespace NzbDrone.Core.MediaCover
             {
                 RecordCoverRequestFailure(coverUrl, e.Response);
                 return e.Response?.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable or HttpStatusCode.RequestTimeout
-                    ? OpenLibraryCoverRecovery.Deferred
+                    ? OpenLibraryCoverRecovery.DeferredAfterRequest
                     : OpenLibraryCoverRecovery.Unavailable;
             }
             catch (Exception e) when (e is WebException or IOException or ImageFormatException)

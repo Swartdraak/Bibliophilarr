@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
@@ -67,6 +69,38 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             editionService.VerifyNoOtherCalls();
         }
 
+        [TestCase(OpenLibraryCoverRecovery.Deferred, 0, 1)]
+        [TestCase(OpenLibraryCoverRecovery.DeferredAfterRequest, 1, 2)]
+        public void should_resume_at_an_unattempted_cover_and_advance_past_an_upstream_cooldown(
+            OpenLibraryCoverRecovery firstResult, int nextCursor, int nextBookId)
+        {
+            var books = new List<Book> { StoredBook(1), StoredBook(2) };
+            var editions = books.Select(book => StoredEdition(book)).ToList();
+            var repo = Mocker.GetMock<IBookRepository>();
+            repo.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(books);
+            repo.Setup(repository => repository.GetArtworkRetryPage(1, 64)).Returns(books.Skip(1).ToList());
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
+                .Returns(editions);
+            var attempted = new List<int>();
+            var cache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
+            cache.SetupSequence(service => service.IsCoolingDown).Returns(false).Returns(true).Returns(false);
+            cache.Setup(service => service.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Returns<int, string, string, Func<bool>, TimeSpan>((id, _, _, _, _) =>
+                {
+                    attempted.Add(id);
+                    return attempted.Count == 1 ? firstResult : OpenLibraryCoverRecovery.Recovered;
+                });
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            attempted.Should().Equal(1);
+            repo.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Once);
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            attempted[1].Should().Be(nextBookId);
+            repo.Verify(repository => repository.GetArtworkRetryPage(nextCursor, 64), nextCursor == 0 ? Times.Exactly(2) : Times.Once());
+        }
+
         [Test]
         public void should_retry_a_deferred_selection_from_the_current_catalogue_after_recreating_the_handler()
         {
@@ -107,6 +141,53 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             called.Should().Be(2);
             repo.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Exactly(2));
+        }
+
+        [Test]
+        public async Task should_not_run_a_requeued_tick_while_the_cancelled_handler_is_still_recovering()
+        {
+            var book = StoredBook(65);
+            var edition = StoredEdition(book);
+            var repo = Mocker.GetMock<IBookRepository>();
+            repo.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Book> { book });
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
+                .Returns(new List<Edition> { edition });
+
+            using var release = new ManualResetEventSlim();
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var requests = 0;
+            Mocker.GetMock<IOpenLibraryBookCoverCache>()
+                .Setup(cache => cache.TryRecover(book.Id, edition.Images[0].Url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Returns(() =>
+                {
+                    if (Interlocked.Increment(ref requests) == 1)
+                    {
+                        entered.TrySetResult();
+                        release.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    }
+
+                    return OpenLibraryCoverRecovery.Deferred;
+                });
+
+            var handler = Subject;
+            var first = Task.Run(() => handler.Execute(new RetryOpenLibraryBookCoversCommand()));
+            try
+            {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+                // The command queue has marked the first command cancelled and can dispatch its replacement.
+                await Task.Run(() => handler.Execute(new RetryOpenLibraryBookCoversCommand())).WaitAsync(TimeSpan.FromSeconds(2));
+                requests.Should().Be(1);
+                repo.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Once);
+            }
+            finally
+            {
+                release.Set();
+                await first;
+            }
+
+            handler.Execute(new RetryOpenLibraryBookCoversCommand());
+            requests.Should().Be(2);
         }
 
         [Test]

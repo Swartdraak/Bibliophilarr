@@ -452,11 +452,19 @@ namespace NzbDrone.Core.MediaCover
             var books = _bookService.GetBooksByAuthor(message.Author.Id);
             foreach (var book in books)
             {
-                EnsureBookCovers(book);
-                var monitored = book.Editions?.Value?.SingleOrDefault(x => x.Monitored);
-                var currentCover = OpenLibraryMissingBookCover.GetSingleCover(monitored?.Images);
-                var retrySuffix = OpenLibraryMissingBookCover.GetRetryFileSuffix(book.ForeignBookId, monitored?.ForeignEditionId, currentCover?.Url);
-                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, monitored?.Images ?? new List<MediaCover>(), retrySuffix);
+                var selected = OpenLibraryMissingBookCover.SelectUnambiguousEdition(book.Editions?.Value);
+                if (selected == null)
+                {
+                    continue;
+                }
+
+                if (selected.Monitored)
+                {
+                    EnsureBookCovers(book);
+                }
+
+                var retrySuffix = OpenLibraryMissingBookCover.SelectArtwork(book, selected)?.FileSuffix;
+                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, selected.Images ?? new List<MediaCover>(), retrySuffix);
             }
 
             _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));
@@ -620,6 +628,11 @@ namespace NzbDrone.Core.MediaCover
                 {
                     expectedPaths.Add(GetCoverPath(entityId, coverEntity, cover.CoverType, cover.Extension, height));
                 }
+            }
+
+            if (coverEntity == MediaCoverEntity.Book && OpenLibraryMissingBookCover.IsValidRetryFileSuffix(retrySuffix))
+            {
+                expectedPaths.Add(GetCoverPath(entityId, coverEntity, MediaCoverTypes.Cover, retrySuffix));
             }
 
             foreach (var existing in _diskProvider.GetFiles(directory, true))

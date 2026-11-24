@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using NzbDrone.Common.Cache;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Messaging.Commands;
-using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.MediaCover
 {
@@ -23,6 +23,7 @@ namespace NzbDrone.Core.MediaCover
         private readonly IOpenLibraryBookCoverCache _covers;
         private readonly ICached<bool> _unavailable;
         private int _afterId;
+        private int _executing;
 
         public RetryOpenLibraryBookCoversService(IConfigService configService,
                                                  IBookRepository books,
@@ -38,6 +39,24 @@ namespace NzbDrone.Core.MediaCover
         }
 
         public void Execute(RetryOpenLibraryBookCoversCommand message)
+        {
+            // A cancelled command releases its queue slot before a synchronous artwork request ends.
+            if (Interlocked.Exchange(ref _executing, 1) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                RetryMissingCovers();
+            }
+            finally
+            {
+                Volatile.Write(ref _executing, 0);
+            }
+        }
+
+        private void RetryMissingCovers()
         {
             if (!_configService.EnableOpenLibraryProvider || _covers.IsCoolingDown)
             {
@@ -87,6 +106,14 @@ namespace NzbDrone.Core.MediaCover
                         return;
                     }
 
+                    if (result == OpenLibraryCoverRecovery.DeferredAfterRequest)
+                    {
+                        // The host must cool down. Visit the next cover when requests resume
+                        // and reconsider this one when the scan wraps.
+                        _afterId = book.Id;
+                        return;
+                    }
+
                     if (result == OpenLibraryCoverRecovery.Unavailable)
                     {
                         _unavailable.Set(artwork.FileSuffix, true, TimeSpan.FromHours(24));
@@ -104,24 +131,8 @@ namespace NzbDrone.Core.MediaCover
 
         private static (int EditionId, string CoverUrl, string FileSuffix)? SelectArtwork(Book book, List<Edition> editions)
         {
-            // Database result order is not part of the preferred edition contract.
-            // Defer to the normal artwork flow if two editions could be selected.
-            var monitored = editions.Where(edition => edition.Monitored).Take(2).ToList();
-            var selected = monitored.Count == 1 ? monitored[0] : editions.Count == 1 ? editions[0] : null;
-            if (selected is not { Id: > 0 } || selected.BookId != book.Id)
-            {
-                return null;
-            }
-
-            if (!string.IsNullOrWhiteSpace(book.OpenLibraryWorkId) &&
-                book.ForeignBookId != $"openlibrary:work:{OpenLibraryIdNormalizer.NormalizeWorkId(book.OpenLibraryWorkId)}")
-            {
-                return null;
-            }
-
-            var cover = OpenLibraryMissingBookCover.GetSingleCover(selected.Images);
-            var suffix = OpenLibraryMissingBookCover.GetRetryFileSuffix(book.ForeignBookId, selected.ForeignEditionId, cover?.Url);
-            return suffix == null ? null : (selected.Id, cover.Url, suffix);
+            var selected = OpenLibraryMissingBookCover.SelectUnambiguousEdition(editions);
+            return OpenLibraryMissingBookCover.SelectArtwork(book, selected);
         }
     }
 }

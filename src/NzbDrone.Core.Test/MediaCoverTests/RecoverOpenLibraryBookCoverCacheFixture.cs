@@ -8,6 +8,8 @@ using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Test.Framework;
 using SixLabors.ImageSharp;
@@ -19,6 +21,60 @@ namespace NzbDrone.Core.Test.MediaCoverTests
     [TestFixture]
     public class RecoverOpenLibraryBookCoverCacheFixture : CoreTest<MediaCoverService>
     {
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_keep_only_the_current_nonempty_retry_file_after_an_author_refresh_without_network(bool populated)
+        {
+            var profile = TempFolder;
+            Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(profile);
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(service => service.FolderExists(It.IsAny<string>())).Returns<string>(Directory.Exists);
+            disk.Setup(service => service.FileExists(It.IsAny<string>())).Returns<string>(File.Exists);
+            disk.Setup(service => service.GetFileSize(It.IsAny<string>())).Returns<string>(p => new FileInfo(p).Length);
+            disk.Setup(service => service.GetFiles(It.IsAny<string>(), true))
+                .Returns<string, bool>((path, _) => Directory.GetFiles(path, "*", SearchOption.AllDirectories));
+            disk.Setup(service => service.DeleteFile(It.IsAny<string>())).Callback<string>(File.Delete);
+            const int bookId = 4;
+            const string workId = "openlibrary:work:OL31W";
+            const string editionId = "OL-work-OL31W";
+            const string coverUrl = "https://covers.openlibrary.org/b/id/31-L.jpg";
+            const string staleUrl = "https://covers.openlibrary.org/b/id/32-L.jpg";
+            var current = Subject.GetCoverPath(
+                bookId,
+                MediaCoverEntity.Book,
+                MediaCoverTypes.Cover,
+                OpenLibraryMissingBookCover.GetRetryFileSuffix(workId, editionId, coverUrl));
+            var stale = Subject.GetCoverPath(
+                bookId,
+                MediaCoverEntity.Book,
+                MediaCoverTypes.Cover,
+                OpenLibraryMissingBookCover.GetRetryFileSuffix(workId, editionId, staleUrl));
+            var normal = Subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg");
+            Directory.CreateDirectory(Path.GetDirectoryName(current));
+            File.WriteAllText(current, populated ? "current artwork" : string.Empty);
+            File.WriteAllText(stale, "stale artwork");
+            File.WriteAllText(normal, "existing normal artwork");
+
+            var author = new Author { Id = 1, Metadata = new AuthorMetadata() };
+            var edition = new Edition
+            {
+                Id = 10,
+                BookId = bookId,
+                ForeignEditionId = editionId,
+                Monitored = false,
+                Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, coverUrl) }
+            };
+            var book = new Book { Id = bookId, ForeignBookId = workId, Editions = new List<Edition> { edition } };
+            Mocker.GetMock<IBookService>().Setup(service => service.GetBooksByAuthor(author.Id)).Returns(new List<Book> { book });
+
+            Subject.HandleAsync(new AuthorRefreshCompleteEvent(author));
+
+            File.Exists(current).Should().Be(populated);
+            File.Exists(stale).Should().BeFalse();
+            File.ReadAllText(normal).Should().Be("existing normal artwork");
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Never);
+        }
+
         [Test]
         public void should_publish_only_the_current_successfully_decoded_book_cover_and_never_overwrite_normal_art()
         {

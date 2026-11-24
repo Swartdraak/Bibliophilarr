@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using NzbDrone.Core.Books;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.MediaCover
 {
@@ -20,6 +22,36 @@ namespace NzbDrone.Core.MediaCover
             var covers = images?.Where(image => image?.CoverType == MediaCoverTypes.Cover && !string.IsNullOrWhiteSpace(image.Url))
                 .DistinctBy(image => image.Url).Take(2).ToList();
             return covers?.Count == 1 ? covers[0] : null;
+        }
+
+        public static Edition SelectUnambiguousEdition(IList<Edition> editions)
+        {
+            if (editions == null)
+            {
+                return null;
+            }
+
+            // Database result order is not part of the preferred edition contract.
+            var monitored = editions.Where(edition => edition.Monitored).Take(2).ToList();
+            return monitored.Count == 1 ? monitored[0] : editions.Count == 1 ? editions[0] : null;
+        }
+
+        public static (int EditionId, string CoverUrl, string FileSuffix)? SelectArtwork(Book book, Edition selected)
+        {
+            if (selected is not { Id: > 0 } || selected.BookId != book.Id)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(book.OpenLibraryWorkId) &&
+                book.ForeignBookId != $"openlibrary:work:{OpenLibraryIdNormalizer.NormalizeWorkId(book.OpenLibraryWorkId)}")
+            {
+                return null;
+            }
+
+            var cover = GetSingleCover(selected.Images);
+            var suffix = GetRetryFileSuffix(book.ForeignBookId, selected.ForeignEditionId, cover?.Url);
+            return suffix == null ? null : (selected.Id, cover.Url, suffix);
         }
 
         public static string GetRetryFileSuffix(string workId, string editionId, string coverUrl)
