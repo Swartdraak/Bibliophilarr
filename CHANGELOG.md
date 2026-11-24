@@ -16,6 +16,12 @@ process.
 
 ### Fixed
 
+- Save a new book and its editions together. If an edition already belongs to
+  another book, keep the existing data and import exclusions.
+- Preserve stored bibliographies when Hardcover's exact author lookup or Open
+  Library's works feed cannot verify the books shown in search.
+- Allow equal-size ebooks and audiobooks of the same work to be tracked
+  independently when both file formats are recognized.
 - Use the current author and artwork when processing a delayed author refresh.
   Keep current portraits and skip refresh events for removed authors.
 - Retry missing Open Library artwork for unambiguous stored book editions in

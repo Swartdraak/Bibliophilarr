@@ -76,9 +76,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 .DistinctBy(b => b.ForeignBookId)
                 .ToList();
 
-            if (!books.Any() && workDocsById.Any())
+            if (books.Count == 0 && workDocsById.Count > 0)
             {
-                books = BuildBooksFromSearchDocFallback(workDocsById.Values, metadata);
+                throw new MetadataProviderUnavailableException(
+                    "get-author-info",
+                    $"openlibrary:author:{normalizedAuthorId}",
+                    new InvalidOperationException("Open Library did not confirm the author's bibliography in the works feed."));
             }
 
             var series = BuildAuthorSeries(books);
@@ -90,25 +93,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Books = books,
                 Series = series
             };
-        }
-
-        private static List<Book> BuildBooksFromSearchDocFallback(IEnumerable<OlSearchDoc> docs, AuthorMetadata metadata)
-        {
-            return (docs ?? Enumerable.Empty<OlSearchDoc>())
-                .Select(OpenLibraryMapper.MapSearchDocToBook)
-                .Where(book => book != null)
-                .Select(book =>
-                {
-                    book.AuthorMetadata = metadata;
-                    if (book.Author?.Value != null)
-                    {
-                        book.Author.Value.Metadata = metadata;
-                    }
-
-                    return book;
-                })
-                .DistinctBy(book => book.ForeignBookId)
-                .ToList();
         }
 
         private static List<Series> BuildAuthorSeries(IEnumerable<Book> books)
