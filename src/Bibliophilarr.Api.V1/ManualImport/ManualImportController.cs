@@ -6,10 +6,12 @@ using Bibliophilarr.Http.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using NzbDrone.Common;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
 using NzbDrone.Core.Qualities;
 
@@ -159,16 +161,17 @@ namespace Bibliophilarr.Api.V1.ManualImport
         private List<ManualImportResource> UpdateImportItems(List<ManualImportUpdateResource> resources)
         {
             var items = new List<ManualImportItem>();
+            var rejected = new List<ManualImportResource>();
             foreach (var resource in resources)
             {
-                items.Add(new ManualImportItem
+                var item = new ManualImportItem
                 {
                     Id = resource.Id,
                     Path = resource.Path,
                     Name = resource.Name,
                     Author = resource.AuthorId.HasValue ? _authorService.GetAuthor(resource.AuthorId.Value) : null,
                     Book = resource.BookId.HasValue ? _bookService.GetBook(resource.BookId.Value) : null,
-                    Edition = resource.ForeignEditionId == null ? null : _editionService.GetEditionByForeignEditionId(resource.ForeignEditionId),
+                    Edition = string.IsNullOrWhiteSpace(resource.ForeignEditionId) ? null : _editionService.GetEditionByForeignEditionId(resource.ForeignEditionId),
                     Quality = resource.Quality,
                     ReleaseGroup = resource.ReleaseGroup,
                     IndexerFlags = resource.IndexerFlags,
@@ -176,10 +179,54 @@ namespace Bibliophilarr.Api.V1.ManualImport
                     AdditionalFile = resource.AdditionalFile,
                     ReplaceExistingFiles = resource.ReplaceExistingFiles,
                     DisableReleaseSwitching = resource.DisableReleaseSwitching
-                });
+                };
+
+                var rejection = GetSelectedEditionRejection(resource.ForeignEditionId, item);
+                if (rejection == null)
+                {
+                    items.Add(item);
+                    continue;
+                }
+
+                item.Rejections = new[] { rejection };
+                var heldItem = item.ToResource();
+                heldItem.ForeignEditionId = resource.ForeignEditionId;
+                rejected.Add(heldItem);
             }
 
-            return _manualImportService.UpdateItems(items).Select(x => x.ToResource()).ToList();
+            if (items.Count == 0)
+            {
+                return rejected;
+            }
+
+            var rejectedPaths = rejected.Select(item => item.Path).ToHashSet(PathEqualityComparer.Instance);
+            return _manualImportService.UpdateItems(items)
+                .Where(item => !rejectedPaths.Contains(item.Path))
+                .Select(item => item.ToResource())
+                .Concat(rejected)
+                .ToList();
+        }
+
+        private static Rejection GetSelectedEditionRejection(string selectedId, ManualImportItem item)
+        {
+            if (selectedId == null)
+            {
+                return null;
+            }
+
+            if (item.Edition == null)
+            {
+                return new Rejection("The selected edition could not be resolved. Refresh the book and select an edition again.");
+            }
+
+            if (item.Book == null || item.Edition.BookId != item.Book.Id)
+            {
+                return new Rejection("The selected edition belongs to a different book. Select an edition for this book.");
+            }
+
+            return ImportFormat.IsCompatible(item.Path, item.Edition)
+                ? null
+                : new Rejection("File format does not match the selected edition");
         }
     }
 }

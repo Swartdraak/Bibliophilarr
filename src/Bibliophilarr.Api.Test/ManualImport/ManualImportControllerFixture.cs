@@ -130,8 +130,10 @@ namespace NzbDrone.Api.Test.ManualImport
                 Path = "/root/Author/Book1.epub",
                 Author = new Author { Id = 1, Name = "Test Author" },
                 Book = new Book { Id = 42, Title = "Test Book" },
-                Edition = new Edition { Id = 9, ForeignEditionId = "OL321M" }
+                Edition = new Edition { Id = 9, BookId = 42, ForeignEditionId = "OL321M" }
             };
+            _bookService.Setup(service => service.GetBook(42)).Returns(mockItem.Book);
+            _editionService.Setup(service => service.GetEditionByForeignEditionId("OL321M")).Returns(mockItem.Edition);
             _manualImportService
                 .Setup(s => s.UpdateItems(It.IsAny<List<ManualImportItem>>()))
                 .Returns(new List<ManualImportItem> { mockItem });
@@ -180,6 +182,67 @@ namespace NzbDrone.Api.Test.ManualImport
             rows.Select(row => row.Id).Should().Equal(101, 102);
             rows[0].Rejections.Select(rejection => rejection.Reason).Should().Equal("Couldn't find similar book");
             rows[1].Rejections.Should().HaveCount(allRejected ? 1 : 0);
+        }
+
+        [TestCase("selected-edition", null, true, 422, "could not be resolved")]
+        [TestCase("selected-edition", null, false, 202, "could not be resolved")]
+        [TestCase("selected-edition", 43, true, 422, "belongs to a different book")]
+        [TestCase("selected-edition", 42, true, 422, "File format does not match")]
+        [TestCase(" ", 42, true, 422, "could not be resolved")]
+        public void should_hold_an_unavailable_or_incompatible_selected_edition(string selectedEditionId, int? editionBookId, bool reportRejectionStatus, int status, string reason)
+        {
+            var preferred = new Edition { BookId = 42, ForeignEditionId = "existing-ebook", IsEbook = true };
+            _bookService.Setup(service => service.GetBook(42))
+                .Returns(new Book { Id = 42, Editions = new List<Edition> { preferred } });
+            if (editionBookId.HasValue)
+            {
+                _editionService.Setup(service => service.GetEditionByForeignEditionId(selectedEditionId))
+                    .Returns(new Edition { BookId = editionBookId.Value, ForeignEditionId = selectedEditionId, Format = "Audiobook" });
+            }
+
+            var result = (ObjectResult)_controller.UpdateItems(new List<ManualImportUpdateResource>
+            {
+                new ManualImportUpdateResource
+                {
+                    Id = 101,
+                    Path = "/root/Author/Book.epub",
+                    BookId = 42,
+                    ForeignEditionId = selectedEditionId
+                }
+            }, reportRejectionStatus);
+
+            result.StatusCode.Should().Be(status);
+            var row = ((IEnumerable<ManualImportResource>)result.Value).Should().ContainSingle().Which;
+            row.Id.Should().Be(101);
+            row.ForeignEditionId.Should().Be(selectedEditionId);
+            row.Rejections.Should().ContainSingle().Which.Reason.Should().Contain(reason);
+            _manualImportService.Verify(service => service.UpdateItems(It.IsAny<List<ManualImportItem>>()), Times.Never);
+        }
+
+        [Test]
+        public void should_keep_the_valid_preview_in_a_batch_with_a_missing_selection()
+        {
+            var book = new Book { Id = 42, Title = "Selected book" };
+            var edition = new Edition { BookId = 42, ForeignEditionId = "known-ebook", IsEbook = true };
+            _bookService.Setup(service => service.GetBook(42)).Returns(book);
+            _editionService.Setup(service => service.GetEditionByForeignEditionId(edition.ForeignEditionId)).Returns(edition);
+            _manualImportService.Setup(service => service.UpdateItems(It.IsAny<List<ManualImportItem>>()))
+                .Returns((List<ManualImportItem> files) => files);
+
+            var result = (ObjectResult)_controller.UpdateItems(new List<ManualImportUpdateResource>
+            {
+                new ManualImportUpdateResource { Id = 101, Path = "/root/Author/Held.epub", BookId = 42, ForeignEditionId = "missing" },
+                new ManualImportUpdateResource { Id = 102, Path = "/root/Author/Valid.epub", BookId = 42, ForeignEditionId = edition.ForeignEditionId }
+            }, true);
+
+            result.StatusCode.Should().Be(202);
+            var rows = ((IEnumerable<ManualImportResource>)result.Value).ToDictionary(row => row.Id);
+            rows[101].ForeignEditionId.Should().Be("missing");
+            rows[101].Rejections.Should().ContainSingle();
+            rows[102].ForeignEditionId.Should().Be(edition.ForeignEditionId);
+            rows[102].Rejections.Should().BeNullOrEmpty();
+            _manualImportService.Verify(service => service.UpdateItems(It.Is<List<ManualImportItem>>(files =>
+                files.Count == 1 && files[0].Id == 102 && files[0].Edition == edition)), Times.Once);
         }
 
         [Test]
