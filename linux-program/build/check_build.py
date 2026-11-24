@@ -47,12 +47,11 @@ sys.path.insert(0, HARNESS_DIR)
 sys.path.insert(0, '/opt/onyx-testkit')
 import common  # noqa: E402
 
-# APP_URL / DATA_DIR / PUB_DIR are explicitly verified workspace paths: APP_URL and
-# CASE_DIR (-> DATA_DIR) arrive from the runner plan step env; PUB_DIR/PUB/BINARY are
+# APP_URL / DATA_DIR / PUB are explicitly verified workspace paths: APP_URL and
+# CASE_DIR (-> DATA_DIR) arrive from the runner plan step env; PUB/BINARY are
 # fixed workspace build-output paths defined in the shared harness module.
 APP_URL = common.app_url()
 DATA_DIR = common.data_dir()
-PUB_DIR = common.PUB_DIR
 PUB = common.PUB
 
 failures = []
@@ -71,10 +70,9 @@ def main():
           f'binary={os.path.isfile(common.BINARY)} deps={os.path.isfile(os.path.join(PUB, "Bibliophilarr.Host.deps.json"))}')
 
     # B2 prior-defect recheck: Primitives DLL in this exact-head publish
-    prims = [p for p in (os.path.join(PUB, 'Microsoft.Extensions.Primitives.dll'),
-                         os.path.join(PUB_DIR, 'Microsoft.Extensions.Primitives.dll'))
-             if os.path.isfile(p)]
-    check('B2_primitives_dll_present', bool(prims), f'found={prims}')
+    primitives = os.path.join(PUB, 'Microsoft.Extensions.Primitives.dll')
+    check('B2_primitives_dll_present', os.path.isfile(primitives),
+          f'publish DLL: {primitives}')
 
     # B3 durable UI assets present
     ui = os.path.join(PUB, 'UI')
