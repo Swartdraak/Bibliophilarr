@@ -34,6 +34,9 @@ process.
   including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files
   passes preparation.
+- Hold an unresolved manual-import edition selection and continue importing
+  valid files in the same batch. When the edition is omitted, use a compatible
+  monitored edition of the selected work.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Continue reading and matching audio files when the optional ffprobe utility

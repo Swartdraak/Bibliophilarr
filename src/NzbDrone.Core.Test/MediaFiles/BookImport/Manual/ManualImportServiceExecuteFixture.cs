@@ -6,6 +6,7 @@ using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
@@ -327,9 +328,9 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
         public void should_default_to_monitored_edition_when_book_id_set_and_foreign_edition_null()
         {
             // A book with a monitored edition; the client omits the edition entirely.
-            var monitored = new Edition { Id = 7, ForeignEditionId = "OL123M", Monitored = true };
-            var other = new Edition { Id = 8, ForeignEditionId = "OL999M", Monitored = false };
-            _book.Editions = new List<Edition> { other, monitored };
+            var monitored = new Edition { Id = 7, BookId = _book.Id, ForeignEditionId = "OL123M", Monitored = true, Format = "ebook", IsEbook = true };
+            var audio = new Edition { Id = 8, BookId = _book.Id, ForeignEditionId = "OL999M", Monitored = true, Format = "audiobook" };
+            _book.Editions = new List<Edition> { audio, monitored };
 
             Mocker.GetMock<IEditionService>()
                 .Setup(e => e.GetEditionByForeignEditionId(null))
@@ -459,6 +460,136 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     It.IsAny<ImportMode>()),
                 Times.Once);
             ExceptionVerification.ExpectedWarns(1, "Manual import of");
+        }
+
+        [TestCase(false, null)]
+        [TestCase(true, null)]
+        [TestCase(true, 0)]
+        [TestCase(true, 2)]
+        public void should_hold_a_stale_selected_edition_and_continue_valid_files(bool includeValidSibling, int? providerMatches)
+        {
+            const string staleEditionId = "OL321M";
+            var siblingPath = "/root/Test Author/Valid Ebook.epub";
+            var ebook = new Edition { Id = 7, BookId = _book.Id, ForeignEditionId = "OL123M", Monitored = true, Format = "ebook", IsEbook = true };
+            _book.AnyEditionOk = true;
+            _book.Editions = new List<Edition> { ebook };
+            Mocker.GetMock<IEditionService>()
+                .Setup(service => service.GetEditionByForeignEditionId(ebook.ForeignEditionId))
+                .Returns(ebook);
+            var providerLookup = Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(orchestrator => orchestrator.GetBookInfo(_book.ForeignBookId));
+            if (!providerMatches.HasValue)
+            {
+                providerLookup.Throws(new BookNotFoundException(_book.ForeignBookId));
+            }
+            else
+            {
+                var remoteBook = new Book
+                {
+                    ForeignBookId = _book.ForeignBookId,
+                    Editions = providerMatches == 0
+                        ? new List<Edition> { ebook }
+                        : new List<Edition>
+                        {
+                            new Edition { ForeignEditionId = staleEditionId, Format = "ebook", IsEbook = true },
+                            new Edition { ForeignEditionId = staleEditionId, Format = "audiobook" }
+                        }
+                };
+                providerLookup.Returns(System.Tuple.Create("openlibrary", remoteBook, new List<AuthorMetadata>()));
+            }
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(disk => disk.GetFileInfo(siblingPath))
+                .Returns(Mock.Of<IFileInfo>(info => info.FullName == siblingPath));
+            var decisions = new List<ImportDecision<LocalBook>>();
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(importer => importer.Import(It.IsAny<List<ImportDecision<LocalBook>>>(), false, null, ImportMode.Copy))
+                .Returns<List<ImportDecision<LocalBook>>, bool, DownloadClientItem, ImportMode>((items, _, _, _) =>
+                {
+                    decisions.AddRange(items);
+                    return items.Where(item => item.Approved).Select(item => new ImportResult(item)).ToList();
+                });
+
+            var command = new ManualImportCommand
+            {
+                Files = new List<ManualImportFile>
+                {
+                    new ManualImportFile
+                    {
+                        Path = _filePath,
+                        AuthorId = _author.Id,
+                        BookId = _book.Id,
+                        ForeignEditionId = staleEditionId,
+                        DisableReleaseSwitching = true
+                    }
+                },
+                ImportMode = ImportMode.Copy
+            };
+            if (includeValidSibling)
+            {
+                command.Files.Add(new ManualImportFile
+                {
+                    Path = siblingPath,
+                    AuthorId = _author.Id,
+                    BookId = _book.Id,
+                    ForeignEditionId = ebook.ForeignEditionId
+                });
+            }
+
+            Subject.Execute(command);
+
+            var staleDecision = decisions.Single(item => item.Item.Path == _filePath);
+            Assert.That(staleDecision.Approved, Is.False);
+            Assert.That(staleDecision.Item.Edition, Is.Null);
+            Assert.That(staleDecision.Rejections.Select(rejection => rejection.Reason),
+                Does.Contain("The selected edition could not be resolved. Refresh the book and select an edition again."));
+            var approved = decisions.Where(item => item.Approved).ToList();
+            Assert.That(approved.Select(item => item.Item.Path), Is.EqualTo(includeValidSibling ? new[] { siblingPath } : System.Array.Empty<string>()));
+            if (includeValidSibling)
+            {
+                Assert.That(approved.Single().Item.Edition.Id, Is.EqualTo(ebook.Id));
+            }
+
+            Assert.That(_book.AnyEditionOk, Is.True);
+            Mocker.GetMock<IBookService>().Verify(service => service.UpdateBook(It.IsAny<Book>()), Times.Never());
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful),
+                includeValidSibling ? Times.Never() : Times.Once());
+            ExceptionVerification.ExpectedWarns(1, "Manual import of");
+        }
+
+        [Test]
+        public void should_keep_release_switching_disabled_for_a_resolved_selection()
+        {
+            var ebook = new Edition { ForeignEditionId = "OL321M", Format = "ebook", IsEbook = true };
+            _book.AnyEditionOk = true;
+            var providerBook = new Book { ForeignBookId = _book.ForeignBookId, Editions = new List<Edition> { ebook } };
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(orchestrator => orchestrator.GetBookInfo(_book.ForeignBookId))
+                .Returns(System.Tuple.Create("openlibrary", providerBook, new List<AuthorMetadata>()));
+
+            Subject.Execute(new ManualImportCommand
+            {
+                Files = new List<ManualImportFile>
+                {
+                    new ManualImportFile
+                    {
+                        Path = _filePath,
+                        AuthorId = _author.Id,
+                        BookId = _book.Id,
+                        ForeignEditionId = ebook.ForeignEditionId,
+                        DisableReleaseSwitching = true
+                    }
+                },
+                ImportMode = ImportMode.Copy
+            });
+
+            Mocker.GetMock<IImportApprovedBooks>().Verify(importer => importer.Import(
+                It.Is<List<ImportDecision<LocalBook>>>(items => items.Single().Approved && items.Single().Item.Edition == ebook),
+                false,
+                null,
+                ImportMode.Copy), Times.Once());
+            Mocker.GetMock<IBookService>().Verify(service => service.UpdateBook(
+                It.Is<Book>(book => book.Id == _book.Id && !book.AnyEditionOk)), Times.Once());
         }
     }
 }
