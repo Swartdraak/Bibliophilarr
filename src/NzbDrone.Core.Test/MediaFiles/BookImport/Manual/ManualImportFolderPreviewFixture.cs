@@ -85,6 +85,52 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
             result.Rejections.Should().BeEmpty();
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_preserve_a_local_match_when_the_selected_owner_fills_a_missing_author(bool singleFile)
+        {
+            _candidate.Author = null;
+
+            var result = Scan(singleFile, _owner);
+            result.Author.Should().BeSameAs(_owner);
+            result.Book.Should().BeSameAs(_work);
+            result.Edition.Should().BeSameAs(_edition);
+            result.Rejections.Should().BeEmpty();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_hold_a_match_when_identification_returns_an_unresolved_provider_author(bool singleFile)
+        {
+            _candidate.Author = new Author { Metadata = _owner.Metadata };
+
+            AssertHeld(Scan(singleFile, _owner));
+        }
+
+        [Test]
+        public void should_hold_a_match_when_the_selected_author_does_not_own_the_work()
+        {
+            _candidate.Author = null;
+            var selected = new Author
+            {
+                Id = 24,
+                AuthorMetadataId = 21,
+                Metadata = new AuthorMetadata { Name = _owner.Name, ForeignAuthorId = "OL21A" }
+            };
+
+            AssertHeld(Scan(author: selected));
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase(" ")]
+        public void should_hold_a_local_edition_that_cannot_be_selected_by_the_import_command(string foreignEditionId)
+        {
+            _edition.ForeignEditionId = foreignEditionId;
+
+            AssertHeld(Scan());
+        }
+
         [Test]
         public void should_keep_the_existing_rejection_for_a_truly_unresolved_file()
         {
@@ -175,9 +221,9 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
             AssertHeld(Scan());
         }
 
-        private ManualImportItem Scan()
+        private ManualImportItem Scan(bool singleFile = false, Author author = null)
         {
-            return Subject.GetMediaFiles(_folder, null, null, FilterFilesType.Matched, true).Single();
+            return Subject.GetMediaFiles(singleFile ? _candidate.Path : _folder, null, author, FilterFilesType.Matched, true).Single();
         }
 
         private static void AssertHeld(ManualImportItem result)

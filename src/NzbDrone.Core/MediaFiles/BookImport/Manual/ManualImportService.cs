@@ -238,15 +238,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                 return;
             }
 
-            var localOwnerMatches = item.Author is { Id: > 0, AuthorMetadataId: > 0 } &&
-                                    item.Book is { Id: > 0 } && item.Author.AuthorMetadataId == item.Book.AuthorMetadataId &&
-                                    (authorOverride == null || item.Author.Id == authorOverride.Id);
+            var owner = item.Author ?? authorOverride;
+            var localOwnerMatches = owner is { Id: > 0, AuthorMetadataId: > 0 } &&
+                                    item.Book is { Id: > 0 } && owner.AuthorMetadataId == item.Book.AuthorMetadataId &&
+                                    (authorOverride == null || owner.Id == authorOverride.Id);
             var edition = item.Edition;
             if (localOwnerMatches && edition is { Id: 0 } && edition.ForeignEditionId.IsNotNullOrWhiteSpace())
             {
                 edition = _editionService.GetEditionByForeignEditionId(edition.ForeignEditionId);
             }
 
+            // The preview and manual import command use the foreign ID to carry the exact edition.
             if (localOwnerMatches && edition is { Id: > 0 } && edition.BookId == item.Book.Id &&
                 edition.ForeignEditionId.IsNotNullOrWhiteSpace() && ImportFormat.IsCompatible(item.Path, edition))
             {
