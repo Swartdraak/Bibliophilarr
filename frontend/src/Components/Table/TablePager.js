@@ -6,6 +6,7 @@ import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import LoadingIndicator from 'Components/Loading/LoadingIndicator';
 import { icons } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import styles from './TablePager.css';
 
 class TablePager extends Component {
@@ -89,6 +90,7 @@ class TablePager extends Component {
                 isFirstPage && styles.disabledPageButton
               )}
               isDisabled={isFirstPage}
+              aria-label={translate('FirstPage')}
               onPress={onFirstPagePress}
             >
               <Icon name={icons.PAGE_FIRST} />
@@ -100,6 +102,7 @@ class TablePager extends Component {
                 isFirstPage && styles.disabledPageButton
               )}
               isDisabled={isFirstPage}
+              aria-label={translate('PreviousPage')}
               onPress={onPreviousPagePress}
             >
               <Icon name={icons.PAGE_PREVIOUS} />
@@ -136,6 +139,7 @@ class TablePager extends Component {
                 isLastPage && styles.disabledPageButton
               )}
               isDisabled={isLastPage}
+              aria-label={translate('NextPage')}
               onPress={onNextPagePress}
             >
               <Icon name={icons.PAGE_NEXT} />
@@ -147,6 +151,7 @@ class TablePager extends Component {
                 isLastPage && styles.disabledPageButton
               )}
               isDisabled={isLastPage}
+              aria-label={translate('LastPage')}
               onPress={onLastPagePress}
             >
               <Icon name={icons.PAGE_LAST} />
