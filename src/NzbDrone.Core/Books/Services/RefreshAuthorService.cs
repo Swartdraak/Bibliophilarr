@@ -861,10 +861,13 @@ namespace NzbDrone.Core.Books
             return series;
         }
 
-        private void RefreshSelectedAuthors(List<int> authorIds, bool isNew, CommandTrigger trigger)
+        private void RefreshSelectedAuthors(List<int> authorIds, bool isNew, CommandTrigger trigger, bool reportSummary)
         {
             var updated = false;
-            var refreshFailed = false;
+            var noMatch = 0;
+            var incompleteBibliographies = 0;
+            var unavailableMetadata = 0;
+            var otherFailures = 0;
             var authors = _authorService.GetAuthors(authorIds);
 
             foreach (var author in authors)
@@ -876,15 +879,43 @@ namespace NzbDrone.Core.Books
                     {
                         updated |= RefreshEntityInfo(author, null, data, true, false, null);
                     }
+                    else
+                    {
+                        noMatch++;
+                    }
                 }
                 catch (Exception e)
                 {
-                    refreshFailed = true;
+                    switch (e)
+                    {
+                        case MetadataProviderUnavailableException unavailable when unavailable.AuthorBibliographyProgress.HasValue || unavailable.AuthoritativeBibliographyEndedEarly:
+                            incompleteBibliographies++;
+                            break;
+                        case MetadataProviderUnavailableException:
+                            unavailableMetadata++;
+                            break;
+                        default:
+                            otherFailures++;
+                            break;
+                    }
+
                     _logger.Error(e, "Couldn't refresh info for {0}", author);
                 }
             }
 
-            CompleteRefresh(authorIds, isNew, trigger, updated, refreshFailed);
+            var failures = incompleteBibliographies + unavailableMetadata + otherFailures;
+            CompleteRefresh(authorIds, isNew, trigger, updated, failures > 0);
+            if (reportSummary)
+            {
+                _logger.ProgressInfo(
+                    "Author refresh checked {0}. Completed {1}, no metadata match {2}, incomplete bibliography {3}, provider metadata unavailable {4}, other refresh errors {5}.",
+                    authors.Count,
+                    authors.Count - noMatch - failures,
+                    noMatch,
+                    incompleteBibliographies,
+                    unavailableMetadata,
+                    otherFailures);
+            }
         }
 
         private void CompleteRefresh(List<int> authorIds, bool isNew, CommandTrigger trigger, bool updated, bool refreshFailed)
@@ -898,7 +929,7 @@ namespace NzbDrone.Core.Books
 
         public void Execute(BulkRefreshAuthorCommand message)
         {
-            RefreshSelectedAuthors(message.AuthorIds, message.AreNewAuthors, message.Trigger);
+            RefreshSelectedAuthors(message.AuthorIds, message.AreNewAuthors, message.Trigger, reportSummary: true);
         }
 
         public void Execute(RefreshAuthorCommand message)
@@ -908,7 +939,7 @@ namespace NzbDrone.Core.Books
 
             if (message.AuthorId.HasValue)
             {
-                RefreshSelectedAuthors(new List<int> { message.AuthorId.Value }, isNew, trigger);
+                RefreshSelectedAuthors(new List<int> { message.AuthorId.Value }, isNew, trigger, reportSummary: false);
             }
             else
             {

@@ -300,6 +300,8 @@ process.
   provider identity matches the library and the search result has no artwork.
 - Explain import holds caused by a guide, a different series volume, or a
   mismatch with the embedded title and filename in the library import log.
+- Summarize bulk author refresh outcomes, including unavailable providers and
+  incomplete bibliographies, in the task message and logs.
 - Google Books author refresh keeps existing catalogue entries when overlapping
   pages or a shrinking result count leave the bibliography incomplete.
   System Events reports the page offset, received count and reported total
