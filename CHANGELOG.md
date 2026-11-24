@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Update DryIoc and migrate host startup to the supported service-provider
+  adapter. Keep the package's compile-time examples out of the build.
 - Keep each live task active once while startup restores queued tasks and marks
   interrupted tasks from the previous process.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
