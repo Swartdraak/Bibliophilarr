@@ -31,6 +31,11 @@ Check provider diagnostics first:
 - `GET /api/v1/metadata/providers/telemetry`
 - `GET /api/v1/metadata/providers/telemetry/operations`
 
+The health endpoint and System diagnostics include fallback-only providers,
+such as Inventaire, even before their first request. The API sets
+`isFallbackOnly` and uses a priority of `0` for these rows. The WebUI shows
+their enabled state and book-search scope.
+
 For services used only in automatic import fallback, check basic health and
 the `fallback-search` operation. Operation counts distinguish matches,
 successful empty lists, null responses and failed requests. Disabled

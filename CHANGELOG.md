@@ -86,6 +86,8 @@ process.
   for the rate limiter.
 - Honor longer provider Retry-After values during fallback searches and report
   the applied wait in provider health and logs.
+- Show Inventaire in metadata diagnostics with its fallback scope and enabled
+  state.
 - Show the current time remaining on provider cooldowns and clear expired holds
   from provider health.
 - Keep a provider's fallback cooldown active when an earlier request finishes
@@ -154,6 +156,7 @@ process.
 - Label the Calendar feed filters, URL, copy button, and subscription link.
 - Give the Add Indexer template buttons accessible names.
 - Name the remote path mapping edit action and the file browser button.
+- Name the edit action on each saved download client.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
