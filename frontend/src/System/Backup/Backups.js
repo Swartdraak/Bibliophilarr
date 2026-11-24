@@ -101,6 +101,10 @@ class Backups extends Component {
         </PageToolbar>
 
         <PageContentBody>
+          <Alert kind={kinds.INFO}>
+            {translate('BackupDatabaseScope')}
+          </Alert>
+
           {
             isFetching && !isPopulated &&
               <LoadingIndicator />
