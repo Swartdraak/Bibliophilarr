@@ -32,8 +32,8 @@ process.
   interrupted tasks from the previous process.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
-- Mark a queued manual import as unsuccessful when none of its selected files
-  passes preparation.
+- Report queued manual imports as unsuccessful when they neither import a file
+  nor preserve an existing one. Summarize recognized format and file errors.
 - Hold an unresolved manual-import edition selection and continue importing
   valid files in the same batch. When the edition is omitted, use a compatible
   monitored edition of the selected work.
