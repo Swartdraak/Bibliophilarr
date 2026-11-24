@@ -104,6 +104,8 @@ process.
   including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files
   passes preparation.
+- Reject a selected edition owned by a different work before changing edition
+  monitoring or importing the file.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Continue reading and matching audio files when the optional ffprobe utility

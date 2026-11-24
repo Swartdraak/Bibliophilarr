@@ -1049,7 +1049,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             {
                 foreach (var decision in decisions)
                 {
-                    decision.Reject(new Rejection("The selected edition belongs to a different work", RejectionType.Temporary));
+                    decision.Reject(new Rejection("The selected edition belongs to a different work", RejectionType.Permanent));
                 }
 
                 return null;
