@@ -137,7 +137,7 @@ Planned entry conditions:
 | Import throughput optimization | bulk media identification/import throughput is improved on production-shaped libraries without quality regression | in progress — Slice A1 (run telemetry) complete |
 | Docker hardening | base image pinning, non-root runtime, health check, Node integrity verification, OCI labels, vendor label | complete |
 | CI/CD supply-chain hardening | third-party actions pinned to SHA, workflow permissions scoped to job-level, version pins centralized | complete |
-| Legacy branding cleanup | remove remaining Sonarr/Readarr/Radarr/Lidarr/Prowlarr branding from frontend UI, donations, logos, and icon assets | complete |
+| Legacy branding cleanup | remove inherited product branding from the WebUI, donation links, logos, and icons | complete |
 | Frontend test infrastructure | install jest + @testing-library/react; add initial test suite for critical flows; add CI step and coverage thresholds | complete |
 | Async migration (sync-over-async) | convert 10+ `.GetAwaiter().GetResult()` sites to true async/await and propagate CancellationToken | assessed — no action required (all patterns acceptable) |
 | RestSharp → HttpClient migration | replace unmaintained RestSharp 106.15 with System.Net.Http.HttpClient via interface wrapper | complete |

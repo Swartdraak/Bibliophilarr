@@ -143,6 +143,7 @@ class AuthorIndexRow extends Component {
                 <VirtualTableSelectCell
                   inputClassName={styles.checkInput}
                   id={id}
+                  ariaLabel={authorName}
                   key={name}
                   isSelected={isSelected}
                   isDisabled={false}

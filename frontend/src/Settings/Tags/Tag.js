@@ -137,7 +137,7 @@ class Tag extends Component {
               {
                 downloadClientIds.length ?
                   <div>
-                    {downloadClientIds.length} download client{indexerIds.length > 1 && 's'}
+                    {downloadClientIds.length} download client{downloadClientIds.length > 1 && 's'}
                   </div> :
                   null
               }

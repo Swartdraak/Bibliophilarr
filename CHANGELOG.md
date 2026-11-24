@@ -16,6 +16,16 @@ process.
 
 ### Fixed
 
+- Retry missing Open Library artwork for unambiguous stored book editions in
+  bounded batches, without refreshing book metadata or replacing existing art.
+- Report Hardcover's shared request cooldown in provider health and distinguish
+  requests held locally from upstream rate limits.
+- Honor longer Open Library artwork cooldowns specified by Retry-After on rate
+  limits and temporary outages.
+- Clarify built-in backup contents and external PostgreSQL recovery on the
+  Backups page, restore dialog, and in-app guides.
+- Align configuration, logging, dependency injection, and Windows service
+  packages with the supported .NET 10 runtime.
 - Update DryIoc and migrate host startup to the supported service-provider
   adapter. Keep the package's compile-time examples out of the build.
 - Keep each live task active once while startup restores queued tasks and marks
@@ -26,6 +36,8 @@ process.
   passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
+- Continue reading and matching audio files when the optional ffprobe utility
+  is unavailable.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
@@ -55,12 +67,18 @@ process.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Label the Calendar feed filters, URL, copy button, and subscription link.
+- Name the shared first, previous, next, and last page controls for assistive
+  technology.
 - Give the Add Indexer template buttons accessible names.
 - Name the remote path mapping edit action and the file browser button.
 - Name the edit action on each saved download client.
+- Use the linked download client count for the singular or plural label on
+  each tag card.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
+- Use the visible settings labels and row names for keyboard and screen-reader
+  navigation in the Author and Book bulk editors.
 - Reject missing profile IDs before saving a new author through Add Book.
 - Return a validation error for a null or unavailable edition in Add Book
   before saving the book or author.
@@ -97,6 +115,9 @@ process.
 - Google Books author refresh keeps existing catalogue entries when overlapping
   pages or a shrinking result count leave the bibliography incomplete.
 - Name, URL, credentials, and tags in connection forms have associated labels.
+- Size autocomplete menus to the available space on the side where they open.
+- Label the quality profile name and release restriction fields. Release
+  profile edit buttons identify their restrictions and indexer when available.
 - Name the Add controls for indexers, download clients, and remote path
   mappings for assistive technology. Keep Newznab category selection usable
   with the keyboard and explain which host a remote path mapping uses.
@@ -209,6 +230,8 @@ process.
 - **macOS app-smoke RID-specific provider copy paths** (Issue #270, repair 7): the hosted `macos-latest` app-execution lane at 9cce63ab8c (repair 6) still died at first boot with a DryIoc `GetRequiredService` resolution failure inside `EventAggregator` — the provider-surface `CopyToPublishDirectory` items in `Bibliophilarr.Console.csproj` used RID-agnostic source paths (`_output/net10.0/FluentMigrator.dll`) but the build output for a RID-specific publish (`-p:RuntimeIdentifier=osx-x64`) goes to `_output/net10.0/osx-x64/FluentMigrator.dll`. On a fresh CI checkout, `_output/` does not exist, so the RID-agnostic paths silently failed to resolve and the provider assemblies were missing from the publish output, causing the app to crash at startup when FluentMigrator's `ReflectionBasedDbFactory` tried to load them by file path. This repair changes every `CopyToPublishDirectory` source path in the non-Windows-RID provider-surface group to use the RID-specific path `_output/net10.0/$(RuntimeIdentifier)/...` (which resolves to the correct RID subdirectory at publish time), so the provider assemblies are correctly copied from the build output into the publish output for every non-Windows RID. The Windows publish is byte-for-byte unaffected (the condition is the exact logical complement of the win-RID platform group). No product source, no runtime loader behavior, no new package, no dependency-version change. The `ConsoleSqliteProviderPublishIssue270Fixture` test assertions are updated to pin the RID-specific paths. The residual criterion (fresh exact-head hosted CI on both hosted lanes before merge) remains the publisher's.
 
 ### Security
+
+- Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
 
 - Sanitize book identifiers and titles in Add Book and import-list logs.
 
