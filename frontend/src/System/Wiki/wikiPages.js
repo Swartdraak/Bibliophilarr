@@ -387,8 +387,9 @@ const wikiPages = [
           'To set up Prowlarr integration:'
         ],
         list: [
-          'In Prowlarr, open Settings → Apps → Add and select Readarr, the name Prowlarr uses for this connector.',
-          'Enter your Bibliophilarr API URL and API key.',
+          'In Prowlarr, open Settings → Apps → Add and choose the Readarr connector.',
+          'Enter the Bibliophilarr server URL in Prowlarr’s Readarr Server field. Include the port and any configured URL base. Prowlarr adds /api/v1 to its requests.',
+          'Enter your Bibliophilarr API key in Prowlarr’s API Key field.',
           'Prowlarr will automatically push indexer configurations to Bibliophilarr.',
           'Prowlarr also provides unified search history across all your *arr applications.'
         ]
