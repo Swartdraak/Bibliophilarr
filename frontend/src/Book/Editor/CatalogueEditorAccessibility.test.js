@@ -1,12 +1,19 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
 import { createStore } from 'redux';
 import AuthorEditorFooter from 'Author/Editor/AuthorEditorFooter';
+import AuthorIndexOverview from 'Author/Index/Overview/AuthorIndexOverview';
+import AuthorIndexPoster from 'Author/Index/Posters/AuthorIndexPoster';
 import AuthorIndexRow from 'Author/Index/Table/AuthorIndexRow';
 import BookEditorFooter from 'Book/Editor/BookEditorFooter';
+import BookIndexOverview from 'Book/Index/Overview/BookIndexOverview';
+import BookIndexPoster from 'Book/Index/Posters/BookIndexPoster';
 import BookIndexRow from 'Book/Index/Table/BookIndexRow';
 
+jest.mock('react-text-truncate', () => ({ text }) => text ?? null);
+jest.mock('Author/Delete/DeleteAuthorModal', () => () => null);
 jest.mock('Author/Edit/EditAuthorModalConnector', () => () => null);
 jest.mock('Author/Editor/Delete/DeleteAuthorModal', () => () => null);
 jest.mock('Author/Editor/Tags/TagsModal', () => () => null);
@@ -17,6 +24,7 @@ jest.mock('Components/Measure', () => ({ children }) => children);
 jest.mock('Components/Portal', () => ({ children }) => children);
 jest.mock('Settings/MediaManagement/RootFolder/EditRootFolderModalConnector', () => () => null);
 jest.mock('Store/Actions/Settings/rootFolders', () => ({ fetchRootFolders: () => ({ type: 'STUB_ROOTS' }) }));
+jest.mock('Utilities/createAjaxRequest', () => () => ({ request: { done: jest.fn() } }));
 jest.mock('Utilities/String/translate', () => (key) => ({
   MetadataProfile: 'Metadata Profile',
   MonitorAuthor: 'Monitor Author',
@@ -131,4 +139,78 @@ test('names the real editor row checkboxes and retains ID and shift selection', 
   expect(change).toHaveBeenLastCalledWith({ id: 11, value: true, shiftKey: false });
   fireEvent.click(screen.getByRole('checkbox', { name: 'Marshland Almanac (Arden Orchard)' }), { shiftKey: true });
   expect(change).toHaveBeenLastCalledWith({ id: 21, value: true, shiftKey: true });
+});
+test.each([
+  ['Posters', AuthorIndexPoster, BookIndexPoster],
+  ['Overview', AuthorIndexOverview, BookIndexOverview]
+])('names author and book selection in the %s layout without changing the selected ID', (_, AuthorItem, BookItem) => {
+  const onSelectedChange = jest.fn();
+  const shared = {
+    isEditorActive: true,
+    isSelected: false,
+    monitored: true,
+    showSearchAction: false,
+    onSelectedChange,
+    onSearchPress: jest.fn(),
+    qualityProfile: {},
+    statistics: { bookCount: 1, bookFileCount: 1, totalBookCount: 1 },
+    sortKey: 'title',
+    images: [],
+    posterWidth: 100,
+    posterHeight: 150,
+    rowHeight: 200,
+    overviewOptions: {
+      detailedProgressBar: false,
+      showAdded: false,
+      showBookCount: false,
+      showPath: false,
+      showReleaseDate: false,
+      showSizeOnDisk: false
+    },
+    isSmallScreen: false,
+    detailedProgressBar: false,
+    showMonitored: false,
+    showQualityProfile: false,
+    showRelativeDates: false,
+    shortDateFormat: 'MMM D',
+    longDateFormat: 'MMM D, YYYY',
+    timeFormat: 'HH:mm'
+  };
+
+  render(
+    <MemoryRouter>
+      <AuthorItem
+        {...shared}
+        id={11}
+        status="continuing"
+        authorName="Arden Orchard"
+        authorNameLastFirst="Orchard, Arden"
+        titleSlug="arden-orchard"
+        metadataProfile={{}}
+        path="/fixture/library"
+        showTitle="always"
+        isRefreshingAuthor={false}
+        isSearchingAuthor={false}
+        onRefreshAuthorPress={jest.fn()}
+      />
+      <BookItem
+        {...shared}
+        id={21}
+        authorId={11}
+        author={{ authorName: 'Arden Orchard' }}
+        title="Marshland Almanac"
+        titleSlug="marshland-almanac"
+        showTitle={true}
+        showAuthor={true}
+        isRefreshingBook={false}
+        isSearchingBook={false}
+        onRefreshBookPress={jest.fn()}
+      />
+    </MemoryRouter>
+  );
+
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Arden Orchard', exact: true }));
+  expect(onSelectedChange).toHaveBeenLastCalledWith({ id: 11, value: true, shiftKey: false });
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Marshland Almanac (Arden Orchard)', exact: true }), { shiftKey: true });
+  expect(onSelectedChange).toHaveBeenLastCalledWith({ id: 21, value: true, shiftKey: true });
 });
