@@ -252,7 +252,7 @@ class BookIndexRow extends Component {
                       }
 
                       const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
-                      const fileCountLabel = fs.fileCount > 0 ? ` (${fs.fileCount} file${fs.fileCount !== 1 ? 's' : ''})` : '';
+                      const fileCountLabel = fs.fileCount > 0 ? ` (${fs.fileCount} file${fs.fileCount === 1 ? '' : 's'})` : '';
 
                       return (
                         <Label
