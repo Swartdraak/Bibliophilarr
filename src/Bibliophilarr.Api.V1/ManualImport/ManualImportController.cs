@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.Authentication;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Core.Books;
@@ -44,7 +45,9 @@ namespace Bibliophilarr.Api.V1.ManualImport
         }
 
         [HttpPost]
-        public IActionResult UpdateItems([FromBody] List<ManualImportUpdateResource> resource)
+        [ProducesResponseType(typeof(List<ManualImportResource>), StatusCodes.Status202Accepted)]
+        [ProducesResponseType(typeof(List<ManualImportResource>), StatusCodes.Status422UnprocessableEntity)]
+        public IActionResult UpdateItems([FromBody] List<ManualImportUpdateResource> resource, [FromQuery] bool reportRejectionStatus = false)
         {
             // Honest success semantics (issue #295): do NOT return a silent 202 when
             // every submitted item is un-importable.  When no item carries a usable
@@ -73,7 +76,13 @@ namespace Bibliophilarr.Api.V1.ManualImport
                 return BadRequest(rejections);
             }
 
-            return Accepted(UpdateImportItems(resource));
+            var preview = UpdateImportItems(resource);
+            if (reportRejectionStatus && preview.Count > 0 && preview.All(item => item.Rejections?.Any() == true))
+            {
+                return UnprocessableEntity(preview);
+            }
+
+            return Accepted(preview);
         }
 
         [HttpGet]
