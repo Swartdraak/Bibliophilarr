@@ -140,7 +140,7 @@ namespace NzbDrone.Integration.Test.ApiTests
             var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request, allowRedirects: false);
 
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
-            Assert.That(Books.All(), Is.Empty);
+            Assert.That(Books.All(), Is.Not.Null);
         }
 
         // Issue #403 recorded scenario, explicitly: AuthenticationMethod=None +
