@@ -146,7 +146,7 @@ class HistoryRow extends Component {
 
               return (
                 <TableRowCell key={name}>
-                  {qualityId !== null ? (
+                  {qualityId === null ? null : (
                     <Label
                       kind={kinds.DEFAULT}
                       size={sizes.SMALL}
@@ -158,7 +158,7 @@ class HistoryRow extends Component {
                       />
                       {' '}{formatShort}
                     </Label>
-                  ) : null}
+                  )}
                 </TableRowCell>
               );
             }

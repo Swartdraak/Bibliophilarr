@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using System.Threading;
 using NLog;
@@ -50,16 +51,17 @@ namespace NzbDrone.Core.MediaCover
         private readonly IConfigFileProvider _configFileProvider;
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
+        private readonly TimeProvider _timeProvider;
 
         private readonly string _coverRootFolder;
 
         private static readonly ConcurrentDictionary<string, CoverThrottleState> _coverThrottle = new ConcurrentDictionary<string, CoverThrottleState>(StringComparer.OrdinalIgnoreCase);
 
-        private sealed class CoverThrottleState
+        private sealed class CoverThrottleState(DateTime now)
         {
             public readonly object Sync = new object();
             public double Tokens = CoverTokenBurst;
-            public DateTime LastRefillUtc = DateTime.UtcNow;
+            public DateTime LastRefillUtc = now;
             public DateTime CooldownUntilUtc = DateTime.MinValue;
             public int ConsecutiveFailures;
         }
@@ -86,6 +88,21 @@ namespace NzbDrone.Core.MediaCover
                                  IConfigFileProvider configFileProvider,
                                  IEventAggregator eventAggregator,
                                  Logger logger)
+            : this(mediaCoverProxy, resizer, bookService, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System)
+        {
+        }
+
+        internal MediaCoverService(IMediaCoverProxy mediaCoverProxy,
+                                   IImageResizer resizer,
+                                   IBookService bookService,
+                                   IHttpClient httpClient,
+                                   IDiskProvider diskProvider,
+                                   IAppFolderInfo appFolderInfo,
+                                   ICoverExistsSpecification coverExistsSpecification,
+                                   IConfigFileProvider configFileProvider,
+                                   IEventAggregator eventAggregator,
+                                   Logger logger,
+                                   TimeProvider timeProvider)
         {
             _mediaCoverProxy = mediaCoverProxy;
             _resizer = resizer;
@@ -96,6 +113,7 @@ namespace NzbDrone.Core.MediaCover
             _configFileProvider = configFileProvider;
             _eventAggregator = eventAggregator;
             _logger = logger;
+            _timeProvider = timeProvider;
 
             _coverRootFolder = appFolderInfo.GetMediaCoverPath();
         }
@@ -319,7 +337,7 @@ namespace NzbDrone.Core.MediaCover
             }
             catch (HttpException ex)
             {
-                RecordCoverRequestFailure(cover.Url, ex.Response?.StatusCode);
+                RecordCoverRequestFailure(cover.Url, ex.Response);
                 throw;
             }
 
@@ -462,7 +480,7 @@ namespace NzbDrone.Core.MediaCover
             }
             catch (HttpException ex)
             {
-                RecordCoverRequestFailure(url, ex.Response?.StatusCode);
+                RecordCoverRequestFailure(url, ex.Response);
                 throw;
             }
         }
@@ -551,8 +569,8 @@ namespace NzbDrone.Core.MediaCover
                 return;
             }
 
-            var now = DateTime.UtcNow;
-            var state = _coverThrottle.GetOrAdd(host, _ => new CoverThrottleState());
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var state = _coverThrottle.GetOrAdd(host, static (_, timestamp) => new CoverThrottleState(timestamp), now);
 
             lock (state.Sync)
             {
@@ -583,24 +601,26 @@ namespace NzbDrone.Core.MediaCover
                 return;
             }
 
-            var state = _coverThrottle.GetOrAdd(host, _ => new CoverThrottleState());
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var state = _coverThrottle.GetOrAdd(host, static (_, timestamp) => new CoverThrottleState(timestamp), now);
             lock (state.Sync)
             {
                 state.ConsecutiveFailures = 0;
-                if (state.CooldownUntilUtc < DateTime.UtcNow)
+                if (state.CooldownUntilUtc < now)
                 {
                     state.CooldownUntilUtc = DateTime.MinValue;
                 }
             }
         }
 
-        private void RecordCoverRequestFailure(string url, HttpStatusCode? statusCode)
+        private void RecordCoverRequestFailure(string url, HttpResponse response)
         {
             if (!TryGetCoverHost(url, out var host))
             {
                 return;
             }
 
+            var statusCode = response?.StatusCode;
             if (statusCode != HttpStatusCode.TooManyRequests &&
                 statusCode != HttpStatusCode.ServiceUnavailable &&
                 statusCode != HttpStatusCode.RequestTimeout)
@@ -608,8 +628,8 @@ namespace NzbDrone.Core.MediaCover
                 return;
             }
 
-            var state = _coverThrottle.GetOrAdd(host, _ => new CoverThrottleState());
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var state = _coverThrottle.GetOrAdd(host, static (_, timestamp) => new CoverThrottleState(timestamp), now);
 
             lock (state.Sync)
             {
@@ -618,7 +638,22 @@ namespace NzbDrone.Core.MediaCover
                 var baseSeconds = statusCode == HttpStatusCode.TooManyRequests ? 15 : 8;
                 var penalty = Math.Min(45, state.ConsecutiveFailures * 4);
                 var jitterMillis = ComputeJitterMilliseconds(host);
-                state.CooldownUntilUtc = now.AddSeconds(baseSeconds + penalty).AddMilliseconds(jitterMillis);
+                var deadline = now.AddSeconds(baseSeconds + penalty).AddMilliseconds(jitterMillis);
+
+                if (statusCode != HttpStatusCode.RequestTimeout &&
+                    RetryConditionHeaderValue.TryParse(response.Headers["Retry-After"], out var retryAfter))
+                {
+                    var providerDeadline = retryAfter.Date?.UtcDateTime ?? now.Add(retryAfter.Delta.GetValueOrDefault());
+                    if (providerDeadline > deadline)
+                    {
+                        deadline = providerDeadline;
+                    }
+                }
+
+                if (deadline > state.CooldownUntilUtc)
+                {
+                    state.CooldownUntilUtc = deadline;
+                }
             }
         }
 

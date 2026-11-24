@@ -34,6 +34,14 @@ namespace NzbDrone.Common.Test.Http
             var second = Assert.ThrowsAsync<TooManyRequestsException>(() => CreateClient(cache).ExecuteAsync(PrepareRequest(Endpoint, "work lookup")));
             var third = Assert.ThrowsAsync<TooManyRequestsException>(() => CreateClient(cache).ExecuteAsync(PrepareRequest(Endpoint, "author bibliography")));
 
+            first.IsLocallySuppressed.Should().BeFalse();
+            second.IsLocallySuppressed.Should().BeTrue();
+            third.IsLocallySuppressed.Should().BeTrue();
+            first.HardcoverCooldownUntilUtc.Should().Be(HardcoverRateLimitGate.Get(cache).CooldownUntilUtc);
+            second.HardcoverCooldownUntilUtc.Should().Be(first.HardcoverCooldownUntilUtc);
+            third.HardcoverCooldownUntilUtc.Should().Be(first.HardcoverCooldownUntilUtc);
+            first.ToString().Should().NotContain(body);
+
             foreach (var failure in new[] { first, second, third })
             {
                 failure.RetryAfter.TotalSeconds.Should().BeInRange(seconds - 10, seconds);
@@ -82,8 +90,8 @@ namespace NzbDrone.Common.Test.Http
             var second = client.ExecuteAsync(next);
             response.SetResult(new HttpResponse(initial, new HttpHeader(), LongDelayBody, HttpStatusCode.TooManyRequests));
 
-            Assert.ThrowsAsync<TooManyRequestsException>(async () => await first);
-            Assert.ThrowsAsync<TooManyRequestsException>(async () => await second);
+            Assert.ThrowsAsync<TooManyRequestsException>(async () => await first).IsLocallySuppressed.Should().BeFalse();
+            Assert.ThrowsAsync<TooManyRequestsException>(async () => await second).IsLocallySuppressed.Should().BeTrue();
             Mocker.GetMock<IHttpDispatcher>().Verify(
                 dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Once());
             Mocker.GetMock<IRateLimitService>().Verify(service => service.WaitAndPulseAsync("api.hardcover.app", It.IsAny<string>(), initial.RateLimit),
@@ -105,6 +113,9 @@ namespace NzbDrone.Common.Test.Http
 
             first.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
             held.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+            first.IsLocallySuppressed.Should().BeFalse();
+            held.IsLocallySuppressed.Should().BeTrue();
+            first.ToString().Should().NotContain(LongDelayBody);
             Mocker.GetMock<IHttpDispatcher>().Verify(
                 dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Exactly(3));
         }
@@ -124,7 +135,7 @@ namespace NzbDrone.Common.Test.Http
                 .Setup(dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
                 .ReturnsAsync((HttpRequest request, CookieContainer _) =>
                 {
-                    var headers = new HttpHeader();
+                    var headers = new HttpHeader { ContentType = "application/json" };
                     if (retryAfter != null)
                     {
                         headers["Retry-After"] = retryAfter;

@@ -12,6 +12,7 @@ on:
       - 'frontend/src/Author/Details/AuthorDetailsSeries*'
       - 'src/Bibliophilarr.Http/Authentication/**'
       - 'src/Directory.Packages.props'
+      - 'src/NzbDrone.Core/Datastore/Migration/**'
       - 'src/NzbDrone.Core/Books/Services/BookWorkIdentity.cs'
       - 'src/NzbDrone.Core/Books/Services/Refresh*Service.cs'
       - 'src/NzbDrone.Core/MediaFiles/BookImport/**'
@@ -21,10 +22,20 @@ on:
       - 'distribution/windows/setup/**'
       - 'scripts/ops/check_release_assets.py'
       - 'scripts/ops/create_release_manifest.py'
+      - 'tests/browser/portable_upgrade.py'
   push:
     branches:
       - staging
   workflow_dispatch:
+    inputs:
+      portable_upgrade_lane:
+        description: Windows paired upgrade or the native Apple Silicon v1.1.0 predecessor repro (#341)
+        required: true
+        type: choice
+        default: windows-upgrade
+        options:
+          - windows-upgrade
+          - macos-predecessor
 
 permissions:
   contents: read
@@ -41,3 +52,82 @@ jobs:
       core-version: '0.0.0'
     secrets:
       SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+
+  portable-upgrade:
+    name: Portable upgrade and rollback (${{ matrix.rid }})
+    needs: package
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        # The original macOS asset cannot boot. Keep that native reproduction
+        # strict and selectable while retaining Windows on every rehearsal.
+        include: >-
+          ${{ fromJSON(github.event_name == 'workflow_dispatch' &&
+              inputs.portable_upgrade_lane == 'macos-predecessor' &&
+              '[{"os":"macos-15","rid":"osx-arm64","suffix":".tar.gz"}]' ||
+              '[{"os":"windows-2025","rid":"win-x64","suffix":".zip"}]') }}
+    steps:
+      - name: Checkout verified source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Prepare both framework families
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+          global-json-file: global.json
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Download verified candidate packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: ${{ runner.temp }}/paired-candidate
+
+      - name: Download official portable v1.1.0
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_RID: ${{ matrix.rid }}
+          PACKAGE_SUFFIX: ${{ matrix.suffix }}
+        run: |
+          gh release download v1.1.0 --repo "$GITHUB_REPOSITORY" \
+            --pattern "bibliophilarr-1.1.0-${PACKAGE_RID}${PACKAGE_SUFFIX}" \
+            --dir "$RUNNER_TEMP/paired-stable"
+
+      - name: Verify the paired portable upgrade and rollback
+        shell: bash
+        env:
+          PACKAGE_RID: ${{ matrix.rid }}
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/paired-chromium
+        run: |
+          python -m pip install -r tests/browser/requirements.txt
+          python -m playwright install --only-shell chromium
+          candidate_sha="$(git rev-parse 'HEAD^{commit}')"
+          migrations=()
+          while IFS= read -r migration; do
+            migrations+=("$migration")
+          done < <(git ls-files 'src/NzbDrone.Core/Datastore/Migration/*.cs' |
+            sed -nE 's|.*/([0-9]{3})_[[:alnum:]_]+\.cs$|\1|p' | awk '$1 > 47 {print $1 + 0}')
+          python tests/browser/portable_upgrade.py --rid "$PACKAGE_RID" \
+            --stable-assets "$RUNNER_TEMP/paired-stable" \
+            --candidate-assets "$RUNNER_TEMP/paired-candidate" \
+            --candidate-sha "$candidate_sha" --expected-version '0.0.0.0' \
+            --expected-new-migrations "${migrations[@]}" \
+            --evidence "$RUNNER_TEMP/paired-evidence"
+
+      - name: Retain sanitized paired-upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: paired-portable-upgrade-${{ matrix.rid }}
+          path: ${{ runner.temp }}/paired-evidence/
+          if-no-files-found: warn

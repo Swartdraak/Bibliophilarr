@@ -4,10 +4,11 @@ using System.Net;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using NzbDrone.Common.Cache;
 
 namespace NzbDrone.Common.Http
 {
-    internal sealed class HardcoverRateLimitGate
+    public sealed class HardcoverRateLimitGate
     {
         private const string RetryAfterHeader = "Retry-After";
         private const int MaxBodyBytes = 4096;
@@ -20,9 +21,19 @@ namespace NzbDrone.Common.Http
         private readonly SemaphoreSlim _dispatch = new SemaphoreSlim(1, 1);
         private long _retryUntilUtcTicks;
 
-        public TimeSpan Remaining => TimeSpan.FromTicks(Math.Max(0, Interlocked.Read(ref _retryUntilUtcTicks) - DateTimeOffset.UtcNow.UtcTicks));
+        private HardcoverRateLimitGate()
+        {
+        }
 
-        public static bool AppliesTo(HttpRequest request)
+        public DateTime? CooldownUntilUtc => GetActiveDeadline(DateTime.UtcNow);
+
+        public static HardcoverRateLimitGate Get(ICacheManager cacheManager)
+        {
+            return cacheManager.GetCache<HardcoverRateLimitGate>(typeof(HardcoverRateLimitGate))
+                .Get("graphql", () => new HardcoverRateLimitGate());
+        }
+
+        internal static bool AppliesTo(HttpRequest request)
         {
             return string.Equals(request.Url.Scheme, "https", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(request.Url.Host, "api.hardcover.app", StringComparison.OrdinalIgnoreCase) &&
@@ -30,22 +41,27 @@ namespace NzbDrone.Common.Http
                 string.Equals(request.Url.Path, "/v1/graphql", StringComparison.Ordinal);
         }
 
-        public HttpResponse GetHeldResponse(HttpRequest request)
+        internal HttpResponse GetHeldResponse(HttpRequest request)
         {
-            var remaining = Remaining;
-            if (remaining <= TimeSpan.Zero)
+            var now = DateTime.UtcNow;
+            if (GetActiveDeadline(now) is not { } deadline)
             {
                 return null;
             }
 
             var headers = new HttpHeader
             {
-                [RetryAfterHeader] = Math.Ceiling(remaining.TotalSeconds).ToString(CultureInfo.InvariantCulture)
+                [RetryAfterHeader] = Math.Ceiling((deadline - now).TotalSeconds).ToString(CultureInfo.InvariantCulture)
             };
-            return new HttpResponse(request, headers, "Hardcover cooldown is active.", HttpStatusCode.TooManyRequests);
+            return new HttpResponse(request, headers, "Hardcover cooldown is active.", HttpStatusCode.TooManyRequests)
+            {
+                IsLocallySuppressed = true,
+                OmitContentFromDiagnostics = true,
+                HardcoverCooldownUntilUtc = deadline
+            };
         }
 
-        public async Task<HttpResponse> DispatchAsync(HttpRequest request, Func<Task<HttpResponse>> send)
+        internal async Task<HttpResponse> DispatchAsync(HttpRequest request, Func<Task<HttpResponse>> send)
         {
             await _dispatch.WaitAsync();
             try
@@ -61,7 +77,9 @@ namespace NzbDrone.Common.Http
                 {
                     var now = DateTimeOffset.UtcNow;
                     var retryAfter = ReadRetryAfter(response, now);
-                    Interlocked.Exchange(ref _retryUntilUtcTicks, now.Add(retryAfter).UtcTicks);
+                    var deadline = now.Add(retryAfter).UtcDateTime;
+                    Interlocked.Exchange(ref _retryUntilUtcTicks, deadline.Ticks);
+                    response.HardcoverCooldownUntilUtc = deadline;
                 }
 
                 return response;
@@ -70,6 +88,12 @@ namespace NzbDrone.Common.Http
             {
                 _dispatch.Release();
             }
+        }
+
+        private DateTime? GetActiveDeadline(DateTime now)
+        {
+            var ticks = Interlocked.Read(ref _retryUntilUtcTicks);
+            return ticks > now.Ticks ? new DateTime(ticks, DateTimeKind.Utc) : null;
         }
 
         private static TimeSpan ReadRetryAfter(HttpResponse response, DateTimeOffset now)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
@@ -7,6 +8,9 @@ using System.Net;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Disk;
@@ -16,6 +20,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 
@@ -52,6 +57,196 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             _httpResponse = new HttpResponse(null, new HttpHeader(), "");
             Mocker.GetMock<IHttpClient>().Setup(c => c.Get(It.IsAny<HttpRequest>())).Returns(_httpResponse);
+        }
+
+        [TestCase(HttpStatusCode.TooManyRequests, false)]
+        [TestCase(HttpStatusCode.ServiceUnavailable, true)]
+        public void should_honor_a_longer_retry_after_without_adding_an_artwork_request(HttpStatusCode status, bool bodyFailure)
+        {
+            var url = UseNewOpenLibraryCover();
+            var clock = new FixtureClock();
+            var retryAt = clock.UtcNow.AddMinutes(3);
+            var failure = CreateCoverHttpFailure(url, status, bodyFailure ? retryAt.ToString("r", CultureInfo.InvariantCulture) : "180");
+            var http = Mocker.GetMock<IHttpClient>();
+
+            if (bodyFailure)
+            {
+                http.SetupSequence(client => client.DownloadFile(url, It.IsAny<string>(), It.IsAny<string>())).Throws(failure).Pass();
+            }
+            else
+            {
+                http.SetupSequence(client => client.Get(It.IsAny<HttpRequest>())).Throws(failure).Returns(_httpResponse);
+            }
+
+            using var logs = CaptureCooldownDiagnostics(out var messages);
+            var subject = CreateService(clock);
+
+            subject.EnsureBookCovers(_book);
+            subject.EnsureBookCovers(_book);
+
+            var diagnostic = messages.Logs.Single(message => message.Contains("host cooldown active until", StringComparison.Ordinal));
+            var deadline = diagnostic.Split("host cooldown active until ")[1];
+            DateTimeOffset.Parse(deadline, CultureInfo.InvariantCulture).Should().Be(retryAt);
+
+            clock.UtcNow = retryAt.AddMilliseconds(-1);
+            subject.EnsureBookCovers(_book);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once);
+
+            clock.UtcNow = retryAt;
+            subject.EnsureBookCovers(_book);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+            http.Verify(client => client.DownloadFile(url, It.IsAny<string>(), It.IsAny<string>()), bodyFailure ? Times.Exactly(2) : Times.Once());
+            http.VerifyNoOtherCalls();
+        }
+
+        [TestCase(HttpStatusCode.TooManyRequests, null, 19)]
+        [TestCase(HttpStatusCode.ServiceUnavailable, "not an HTTP date", 12)]
+        [TestCase(HttpStatusCode.TooManyRequests, "1", 19)]
+        [TestCase(HttpStatusCode.ServiceUnavailable, "Thu, 01 Jan 2004 00:00:00 GMT", 12)]
+        [TestCase(HttpStatusCode.RequestTimeout, "180", 12)]
+        public void should_keep_the_local_cooldown_for_missing_invalid_or_shorter_retry_after(
+            HttpStatusCode status, string retryAfter, int fallbackSeconds)
+        {
+            var url = UseNewOpenLibraryCover();
+            var clock = new FixtureClock();
+            var failure = CreateCoverHttpFailure(url, status, retryAfter);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.SetupSequence(client => client.Get(It.IsAny<HttpRequest>())).Throws(failure).Returns(_httpResponse);
+            using var logs = CaptureCooldownDiagnostics(out _);
+            var subject = CreateService(clock);
+
+            subject.EnsureBookCovers(_book);
+            clock.UtcNow = clock.UtcNow.AddSeconds(fallbackSeconds).AddMilliseconds(-1);
+            subject.EnsureBookCovers(_book);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once);
+
+            clock.UtcNow = clock.UtcNow.AddMilliseconds(402);
+            subject.EnsureBookCovers(_book);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+            http.Verify(client => client.DownloadFile(url, It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+            http.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_keep_the_four_request_burst_and_resume_when_the_cover_budget_refills()
+        {
+            UseNewOpenLibraryCover();
+            var clock = new FixtureClock();
+            var http = Mocker.GetMock<IHttpClient>();
+            Mocker.GetMock<ICoverExistsSpecification>()
+                .Setup(specification => specification.AlreadyExists(It.IsAny<DateTime?>(), It.IsAny<long?>(), It.IsAny<string>()))
+                .Returns(true);
+            var subject = CreateService(clock);
+
+            for (var i = 0; i < 5; i++)
+            {
+                subject.EnsureBookCovers(_book);
+            }
+
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(4));
+            clock.UtcNow = clock.UtcNow.AddMilliseconds(899);
+            subject.EnsureBookCovers(_book);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(4));
+
+            clock.UtcNow = clock.UtcNow.AddMilliseconds(402);
+            subject.EnsureBookCovers(_book);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(5));
+            http.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_not_shorten_a_longer_retry_after_when_an_in_flight_request_fails()
+        {
+            var url = UseNewOpenLibraryCover();
+            var alternate = url.Replace("1-L.jpg", "2-L.jpg", StringComparison.Ordinal);
+            var otherBook = new Book
+            {
+                Id = _book.Id + 1,
+                Editions = new List<Edition>
+                {
+                    new Edition
+                    {
+                        Monitored = true,
+                        Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, alternate) }
+                    }
+                }
+            };
+            var clock = new FixtureClock();
+            var http = Mocker.GetMock<IHttpClient>();
+            using var logs = CaptureCooldownDiagnostics(out _);
+            var subject = CreateService(clock);
+            var shortFailure = CreateCoverHttpFailure(url, HttpStatusCode.ServiceUnavailable, "1");
+            http.Setup(client => client.Get(It.Is<HttpRequest>(request => request.Url.FullUri == url)))
+                .Returns(() =>
+                {
+                    subject.EnsureBookCovers(otherBook);
+                    throw shortFailure;
+                });
+            http.Setup(client => client.Get(It.Is<HttpRequest>(request => request.Url.FullUri == alternate)))
+                .Throws(CreateCoverHttpFailure(alternate, HttpStatusCode.TooManyRequests, "180"));
+
+            subject.EnsureBookCovers(_book);
+            clock.UtcNow = clock.UtcNow.AddMinutes(1);
+            subject.EnsureBookCovers(_book);
+
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Url.FullUri == url)), Times.Once);
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Url.FullUri == alternate)), Times.Once);
+            http.VerifyNoOtherCalls();
+        }
+
+        private string UseNewOpenLibraryCover()
+        {
+            var url = $"https://{Guid.NewGuid():N}.covers.openlibrary.org/b/id/1-L.jpg";
+            _edition.Images[0].Url = url;
+            return url;
+        }
+
+        private static HttpException CreateCoverHttpFailure(string url, HttpStatusCode status, string retryAfter)
+        {
+            var request = new HttpRequest(url);
+            var headers = new HttpHeader();
+            if (retryAfter != null)
+            {
+                headers["Retry-After"] = retryAfter;
+            }
+
+            var response = new HttpResponse(request, headers, string.Empty, status);
+            return status == HttpStatusCode.TooManyRequests
+                ? new TooManyRequestsException(request, response)
+                : new HttpException(request, response);
+        }
+
+        private LogFactory CaptureCooldownDiagnostics(out MemoryTarget messages)
+        {
+            messages = new MemoryTarget { Layout = "${message}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRule(LogLevel.Debug, LogLevel.Debug, messages);
+            var logFactory = new LogFactory { Configuration = configuration };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(MediaCoverService)));
+            return logFactory;
+        }
+
+        private MediaCoverService CreateService(TimeProvider clock)
+        {
+            return new MediaCoverService(
+                Mocker.Resolve<IMediaCoverProxy>(),
+                Mocker.Resolve<IImageResizer>(),
+                Mocker.Resolve<IBookService>(),
+                Mocker.Resolve<IHttpClient>(),
+                Mocker.Resolve<IDiskProvider>(),
+                Mocker.Resolve<IAppFolderInfo>(),
+                Mocker.Resolve<ICoverExistsSpecification>(),
+                Mocker.Resolve<IConfigFileProvider>(),
+                Mocker.Resolve<IEventAggregator>(),
+                Mocker.Resolve<Logger>(),
+                clock);
+        }
+
+        private sealed class FixtureClock : TimeProvider
+        {
+            public DateTimeOffset UtcNow { get; set; } = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+            public override DateTimeOffset GetUtcNow() => UtcNow;
         }
 
         [TestCase(".png")]

@@ -42,6 +42,10 @@ process.
 
 ### Fixed
 
+- Report Hardcover's shared request cooldown in provider health and distinguish
+  requests held locally from upstream rate limits.
+- Honor longer Open Library artwork cooldowns specified by Retry-After on rate
+  limits and temporary outages.
 - Retain the recorded low-confidence or incomplete-bibliography reason when a
   matched-only scan finds no work for the same unchanged file.
 - Recover one missing Open Library bibliography work when exact search results
@@ -440,6 +444,7 @@ process.
 
 ### Security
 
+- Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
 - Require an API credential for versioned API writes and protect Forms
   sign-in and sign-out with browser verification tokens.
 - Keep Calibre connection settings and library lookup terms out of scan logs.

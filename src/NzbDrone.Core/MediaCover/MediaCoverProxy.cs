@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using NzbDrone.Common.Cache;
-using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 
@@ -31,7 +30,8 @@ namespace NzbDrone.Core.MediaCover
 
         public string RegisterUrl(string url)
         {
-            if (url.IsNullOrWhiteSpace())
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed) ||
+                (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
             {
                 return null;
             }
@@ -61,13 +61,6 @@ namespace NzbDrone.Core.MediaCover
         public byte[] GetImage(string hash)
         {
             var url = GetUrl(hash);
-
-            if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
-            {
-                var filePath = new Uri(url).LocalPath;
-                return File.ReadAllBytes(filePath);
-            }
-
             var request = new HttpRequest(url);
 
             return _httpClient.Get(request).ResponseData;

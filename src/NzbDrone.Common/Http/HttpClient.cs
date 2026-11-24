@@ -63,8 +63,7 @@ namespace NzbDrone.Common.Http
             ServicePointManager.DefaultConnectionLimit = 12;
 #pragma warning restore SYSLIB0014
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
-            _hardcoverRateLimitGate = cacheManager.GetCache<HardcoverRateLimitGate>(typeof(HardcoverRateLimitGate))
-                .Get("graphql", () => new HardcoverRateLimitGate());
+            _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager);
         }
 
         public virtual async Task<HttpResponse> ExecuteAsync(HttpRequest request)
@@ -109,16 +108,23 @@ namespace NzbDrone.Common.Http
 
             if (!request.SuppressHttpError && response.HasHttpError && (request.SuppressHttpErrorStatusCodes == null || !request.SuppressHttpErrorStatusCodes.Contains(response.StatusCode)))
             {
-                if (request.LogHttpError)
+                if (request.LogHttpError && !response.IsLocallySuppressed)
                 {
-                    _logger.Warn("HTTP Error - {0}", response);
+                    if (response.HardcoverCooldownUntilUtc is { } deadline)
+                    {
+                        _logger.Warn("Hardcover GraphQL returned HTTP 429. Requests held until {0:O}", deadline);
+                    }
+                    else
+                    {
+                        _logger.Warn("HTTP Error - {0}", response);
+                    }
                 }
 
                 if ((int)response.StatusCode == 429)
                 {
-                    if (HardcoverRateLimitGate.AppliesTo(response.Request))
+                    if (response.HardcoverCooldownUntilUtc is { } hardcoverDeadline)
                     {
-                        throw new TooManyRequestsException(request, response, _hardcoverRateLimitGate.Remaining);
+                        throw new TooManyRequestsException(request, response, hardcoverDeadline);
                     }
 
                     throw new TooManyRequestsException(request, response);
@@ -170,7 +176,7 @@ namespace NzbDrone.Common.Http
                 response = interceptor.PostResponse(response);
             }
 
-            if (request.LogResponseContent && response.ResponseData != null)
+            if (request.LogResponseContent && !response.OmitContentFromDiagnostics && response.ResponseData != null)
             {
                 _logger.Trace("Response content ({0} bytes): {1}", response.ResponseData.Length, response.Content);
             }
@@ -189,6 +195,10 @@ namespace NzbDrone.Common.Http
 
             var stopWatch = Stopwatch.StartNew();
             var response = await _httpDispatcher.GetResponseAsync(request, cookieContainer);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests && HardcoverRateLimitGate.AppliesTo(request))
+            {
+                response.OmitContentFromDiagnostics = true;
+            }
 
             HandleResponseCookies(response, cookieContainer);
 

@@ -1,7 +1,7 @@
 # Project status summary
 
-**Last verified**: 2026-11-23
-**Verification scope**: branch topology, issue and pull request state, and published release channels
+**Last verified**: 2026-11-24
+**Verification scope**: branch protection, issue and pull request state, native acceptance, and published release channels
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
 ## Current operational state
@@ -54,6 +54,25 @@ restore. Forced migration interruption remains tracked in
   libraries in the same profile, and verify independent ebook and audiobook
   tracking. Check provider bibliography coverage, rendered artwork, unmapped
   reasons, and authenticated behavior after restart.
+- The earlier completed draft replay accounted for 75 ebooks and 458
+  audiobooks. After the matched-only follow-up, 54 ebooks and 405 audiobooks
+  had links to the expected format. Seventeen works held both formats.
+  Offline restart preserved the audited associations.
+  [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7120060055)
+- The next fresh run tracked every file again. The first audiobook scan linked
+  343 files to audiobook editions. After the matched-only follow-up, 54 ebooks
+  and 397 audiobooks had typed links. Seventeen works held independent editions
+  and files for both formats. The remaining 82 files have recorded hold
+  reasons. Signed offline restart preserved all 533 ownership records and the
+  audited catalogue identities. Bibliography, artwork, unresolved matches, and
+  a separate fresh replay of the newer draft remain open.
+  [Current replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
+- The closed replay decoded all 7,586 cached images. Among 414 works with
+  linked files, 42 had an image reference without a usable cached image and
+  62 lacked a reference. The retained logs connect rate-limit deferrals to
+  missing cached artwork for 692 catalogue works and one author. Completing
+  the deferred downloads and improving source coverage remain open.
+  [Artwork audit](https://github.com/Swartdraak/Bibliophilarr/issues/207#issuecomment-7128247998)
 - The next promotion follows `develop -> staging` through a pull request.
   Validate installation, metadata, full-library matching, and release evidence
   on the consolidated revision.
@@ -69,7 +88,16 @@ restore. Forced migration interruption remains tracked in
 - Protected branches require backend CI, Markdown lint, PR metadata, Linux, Windows, macOS and RID portability, and metadata telemetry smoke. Frontend, workflow lint and CodeQL results also inform release readiness.
 - Native Windows and macOS startup and configuration round-trip passed after the
   SQLite packaging fixes in [#413](https://github.com/Swartdraak/Bibliophilarr/pull/413).
-- The complete bibliography refresh landed in
+- The Linux SQLite upgrade from published v1.1.0 and rollback with a matching
+  backup passed. On PostgreSQL, v1.1.0 failed migration 45 during a fresh
+  install. The draft recovered that schema and passed a separate fresh PostgreSQL
+  test, dual-format file import, restart, and external database restore. Native
+  Windows x64 portable upgrade from published v1.1.0 passed with both formats,
+  preserved settings and file identities, and rollback from the matching backup.
+  The published Apple Silicon predecessor could not load its native SQLite
+  library at first startup, so its upgrade and rollback stay open.
+  [Upgrade and recovery tracking](https://github.com/Swartdraak/Bibliophilarr/issues/341#issuecomment-7122113917)
+- The bibliography refresh implementation landed in
   [#456](https://github.com/Swartdraak/Bibliophilarr/pull/456). The live Hardcover
   benchmark retained all 2,060 work IDs and 150 series.
 - The Open Library benchmark retained all 132 source works and the author’s
