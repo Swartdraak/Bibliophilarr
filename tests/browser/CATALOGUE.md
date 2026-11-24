@@ -65,5 +65,23 @@ assertions and the driver uses a bounded TLS provider fixture in a private
 loopback namespace. Trust applies only to the launched app. Keep the safe
 `dual-format-sigterm.json` receipt with the browser test evidence.
 
-This verifies graceful native app recovery for #328. Full-host SIGKILL during
-startup migration and the original governed recovery run are separate checks.
+The same packaged test is available through the canonical test script:
+
+```bash
+./test.sh Linux Recovery Test <packaged-binary> <Playwright-Python> <evidence-directory>
+```
+
+Use the Linux package with production UI and the Python interpreter from the
+pinned browser-test environment. Install Chromium as described above. Set
+`PLAYWRIGHT_BROWSERS_PATH` if you use a custom browser location. If the packaged
+app needs a runtime installed outside its default search path, set
+`DOTNET_ROOT` and the architecture-specific variable, such as
+`DOTNET_ROOT_X64`, to that runtime directory.
+
+This lane requires Linux network and mount namespace tools, OpenSSL and
+non-interactive sudo from a regular user. It creates temporary TLS material
+and bounds provider traffic to loopback. The normal unit and integration test
+commands keep their existing prerequisites.
+
+This covers the graceful native recovery portion of #328. The canonical Host
+test suite covers SIGKILL during startup migration on a separate fresh profile.
