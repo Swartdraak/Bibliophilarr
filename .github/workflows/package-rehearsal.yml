@@ -20,6 +20,15 @@ on:
     branches:
       - staging
   workflow_dispatch:
+    inputs:
+      portable_upgrade_lane:
+        description: Windows paired upgrade or the native Apple Silicon v1.1.0 predecessor repro (#341)
+        required: true
+        type: choice
+        default: windows-upgrade
+        options:
+          - windows-upgrade
+          - macos-predecessor
 
 permissions:
   contents: read
@@ -43,15 +52,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
-      fail-fast: false
       matrix:
-        include:
-          - os: windows-2025
-            rid: win-x64
-            suffix: .zip
-          - os: macos-15
-            rid: osx-arm64
-            suffix: .tar.gz
+        # The original macOS asset cannot boot. Keep that native reproduction
+        # strict and selectable while retaining Windows on every rehearsal.
+        include: >-
+          ${{ fromJSON(github.event_name == 'workflow_dispatch' &&
+              inputs.portable_upgrade_lane == 'macos-predecessor' &&
+              '[{"os":"macos-15","rid":"osx-arm64","suffix":".tar.gz"}]' ||
+              '[{"os":"windows-2025","rid":"win-x64","suffix":".zip"}]') }}
     steps:
       - name: Checkout verified source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
