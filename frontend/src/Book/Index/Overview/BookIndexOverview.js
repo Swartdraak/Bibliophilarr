@@ -102,6 +102,7 @@ class BookIndexOverview extends Component {
     const {
       id,
       title,
+      author,
       monitored,
       titleSlug,
       canonicalId,
@@ -162,17 +163,11 @@ class BookIndexOverview extends Component {
                   <CheckInput
                     className={styles.checkInput}
                     name={id.toString()}
+                    ariaLabel={author?.authorName ? `${title} (${author.authorName})` : title}
                     value={isSelected}
                     onChange={this.onChange}
                   />
                 </div>
-            }
-            {
-              status === 'ended' &&
-                <div
-                  className={styles.ended}
-                  title={translate('Ended')}
-                />
             }
 
             <Link
@@ -261,6 +256,7 @@ class BookIndexOverview extends Component {
                 timeFormat={timeFormat}
                 {...overviewOptions}
                 {...otherProps}
+                author={author}
               />
             </div>
           </div>
@@ -286,6 +282,7 @@ class BookIndexOverview extends Component {
 BookIndexOverview.propTypes = {
   id: PropTypes.number.isRequired,
   title: PropTypes.string.isRequired,
+  author: PropTypes.object,
   monitored: PropTypes.bool.isRequired,
   titleSlug: PropTypes.string.isRequired,
   canonicalId: PropTypes.string,

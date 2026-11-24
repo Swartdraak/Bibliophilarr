@@ -153,6 +153,7 @@ class BookIndexPoster extends Component {
                   <CheckInput
                     className={styles.checkInput}
                     name={id.toString()}
+                    ariaLabel={author?.authorName ? `${title} (${author.authorName})` : title}
                     value={isSelected}
                     onChange={this.onChange}
                   />

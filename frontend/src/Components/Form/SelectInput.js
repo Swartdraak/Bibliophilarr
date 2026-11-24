@@ -23,6 +23,7 @@ class SelectInput extends Component {
       className,
       disabledClassName,
       name,
+      labelId,
       value,
       values,
       isDisabled,
@@ -42,6 +43,7 @@ class SelectInput extends Component {
         )}
         disabled={isDisabled}
         name={name}
+        aria-labelledby={labelId}
         value={value}
         autoFocus={autoFocus}
         onChange={this.onChange}
@@ -77,6 +79,7 @@ SelectInput.propTypes = {
   className: PropTypes.string,
   disabledClassName: PropTypes.string,
   name: PropTypes.string.isRequired,
+  labelId: PropTypes.string,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.func]).isRequired,
   values: PropTypes.arrayOf(PropTypes.object).isRequired,
   isDisabled: PropTypes.bool,

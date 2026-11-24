@@ -204,12 +204,14 @@ class AuthorEditorFooter extends Component {
           <div className={styles.dropdownContainer}>
             <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
+                id="author-editor-monitored-label"
                 label={translate('MonitorAuthor')}
                 isSaving={isSaving && monitored !== NO_CHANGE}
               />
 
               <SelectInput
                 name="monitored"
+                labelId="author-editor-monitored-label"
                 value={monitored}
                 values={monitoredOptions}
                 isDisabled={!selectedCount}
@@ -219,12 +221,14 @@ class AuthorEditorFooter extends Component {
 
             <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
+                id="author-editor-monitorNewItems-label"
                 label={translate('MonitorNewItems')}
                 isSaving={isSaving && monitored !== NO_CHANGE}
               />
 
               <MonitorNewItemsSelectInput
                 name="monitorNewItems"
+                labelId="author-editor-monitorNewItems-label"
                 value={monitorNewItems}
                 includeNoChange={true}
                 isDisabled={!selectedCount}
@@ -236,12 +240,14 @@ class AuthorEditorFooter extends Component {
               className={styles.inputContainer}
             >
               <AuthorEditorFooterLabel
+                id="author-editor-metadataProfileId-label"
                 label={translate('MetadataProfile')}
                 isSaving={isSaving && metadataProfileId !== NO_CHANGE}
               />
 
               <MetadataProfileSelectInputConnector
                 name="metadataProfileId"
+                labelId="author-editor-metadataProfileId-label"
                 value={metadataProfileId}
                 includeNoChange={true}
                 includeNone={true}
@@ -252,12 +258,14 @@ class AuthorEditorFooter extends Component {
 
             <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
+                id="author-editor-ebookQualityProfileId-label"
                 label={translate('QualityProfileEbook')}
                 isSaving={isSaving && ebookQualityProfileId !== NO_CHANGE}
               />
 
               <QualityProfileSelectInputConnector
                 name="ebookQualityProfileId"
+                labelId="author-editor-ebookQualityProfileId-label"
                 value={ebookQualityProfileId}
                 includeNoChange={true}
                 isDisabled={!selectedCount}
@@ -267,12 +275,14 @@ class AuthorEditorFooter extends Component {
 
             <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
+                id="author-editor-audiobookQualityProfileId-label"
                 label={translate('QualityProfileAudiobook')}
                 isSaving={isSaving && audiobookQualityProfileId !== NO_CHANGE}
               />
 
               <QualityProfileSelectInputConnector
                 name="audiobookQualityProfileId"
+                labelId="author-editor-audiobookQualityProfileId-label"
                 value={audiobookQualityProfileId}
                 includeNoChange={true}
                 isDisabled={!selectedCount}
@@ -282,12 +292,15 @@ class AuthorEditorFooter extends Component {
 
             <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
+                id="author-editor-ebookRootFolderPath-label"
                 label={translate('RootFolderEbook')}
                 isSaving={isSaving && ebookRootFolderPath !== NO_CHANGE}
               />
 
               <RootFolderSelectInputConnector
                 name="ebookRootFolderPath"
+                labelId="author-editor-ebookRootFolderPath-label"
+                inputId="author-editor-ebookRootFolderPath"
                 value={ebookRootFolderPath}
                 includeNoChange={true}
                 isDisabled={!selectedCount}
@@ -298,12 +311,15 @@ class AuthorEditorFooter extends Component {
 
             <div className={styles.inputContainer}>
               <AuthorEditorFooterLabel
+                id="author-editor-audiobookRootFolderPath-label"
                 label={translate('RootFolderAudiobook')}
                 isSaving={isSaving && audiobookRootFolderPath !== NO_CHANGE}
               />
 
               <RootFolderSelectInputConnector
                 name="audiobookRootFolderPath"
+                labelId="author-editor-audiobookRootFolderPath-label"
+                inputId="author-editor-audiobookRootFolderPath"
                 value={audiobookRootFolderPath}
                 includeNoChange={true}
                 isDisabled={!selectedCount}

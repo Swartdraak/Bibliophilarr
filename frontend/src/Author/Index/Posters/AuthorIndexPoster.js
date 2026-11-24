@@ -144,6 +144,7 @@ class AuthorIndexPoster extends Component {
                   <CheckInput
                     className={styles.checkInput}
                     name={id.toString()}
+                    ariaLabel={authorName}
                     value={isSelected}
                     onChange={this.onChange}
                   />

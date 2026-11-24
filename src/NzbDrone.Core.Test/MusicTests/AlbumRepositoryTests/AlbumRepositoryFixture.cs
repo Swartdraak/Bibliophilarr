@@ -158,6 +158,14 @@ namespace NzbDrone.Core.Test.MusicTests.BookRepositoryTests
         }
 
         [Test]
+        public void artwork_retry_should_page_by_primary_key()
+        {
+            _bookRepo.GetArtworkRetryPage(0, 1).Select(book => book.Id).Should().Equal(_book.Id);
+            _bookRepo.GetArtworkRetryPage(_book.Id, 1).Select(book => book.Id).Should().Equal(_bookSpecial.Id);
+            _bookRepo.GetArtworkRetryPage(_bookSpecial.Id, 1).Should().BeEmpty();
+        }
+
+        [Test]
         public void should_update_only_the_requested_book_and_format()
         {
             _bookRepo.SetFormatMonitored(new[] { _book.Id }, FormatType.Ebook, false);

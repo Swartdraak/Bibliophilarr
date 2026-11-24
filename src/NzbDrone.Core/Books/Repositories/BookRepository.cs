@@ -15,6 +15,7 @@ namespace NzbDrone.Core.Books
     public interface IBookRepository : IBasicRepository<Book>
     {
         List<Book> GetBooks(int authorId);
+        List<Book> GetArtworkRetryPage(int afterId, int pageSize);
         List<Book> GetLastBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetNextBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetBooksByAuthorMetadataId(int authorMetadataId);
@@ -45,6 +46,19 @@ namespace NzbDrone.Core.Books
         public BookRepository(IMainDatabase database, IEventAggregator eventAggregator)
             : base(database, eventAggregator)
         {
+        }
+
+        public List<Book> GetArtworkRetryPage(int afterId, int pageSize)
+        {
+            var page = new PagingSpec<Book>
+            {
+                Page = 1,
+                PageSize = Math.Clamp(pageSize, 1, 128),
+                SortKey = "Books.Id",
+                SortDirection = SortDirection.Ascending
+            };
+            page.FilterExpressions.Add(book => book.Id > afterId);
+            return GetPagedRecords(Builder(), page, PagedQuery);
         }
 
         public List<Book> GetBooks(int authorId)

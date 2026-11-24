@@ -42,6 +42,8 @@ process.
 
 ### Fixed
 
+- Retry missing Open Library artwork for unambiguous stored book editions in
+  bounded batches, without refreshing book metadata or replacing existing art.
 - Report Hardcover's shared request cooldown in provider health and distinguish
   requests held locally from upstream rate limits.
 - Honor longer Open Library artwork cooldowns specified by Retry-After on rate
@@ -196,6 +198,8 @@ process.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
+- Use the visible settings labels and row names for keyboard and screen-reader
+  navigation in the Author and Book bulk editors.
 - Reject missing profile IDs before saving a new author through Add Book.
 - Return a validation error for a null or unavailable edition in Add Book
   before saving the book or author.

@@ -24,13 +24,15 @@ namespace NzbDrone.Core.MediaCover
         void ConvertToLocalUrls(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> covers);
         string GetCoverPath(int entityId, MediaCoverEntity coverEntity, MediaCoverTypes coverType, string extension, int? height = null);
         void EnsureBookCovers(Book book);
+        void MapRecoveredBookCover(int bookId, string workId, string editionId, IEnumerable<MediaCover> images);
     }
 
-    public class MediaCoverService :
+    public partial class MediaCoverService :
         IHandleAsync<AuthorRefreshCompleteEvent>,
         IHandleAsync<AuthorDeletedEvent>,
         IHandleAsync<BookDeletedEvent>,
-        IMapCoversToLocal
+        IMapCoversToLocal,
+        IOpenLibraryBookCoverCache
     {
         private const string USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 10; SM-G975U Build/QP1A.190711.020)";
         private const string OpenLibraryCoversHost = "covers.openlibrary.org";
@@ -54,6 +56,7 @@ namespace NzbDrone.Core.MediaCover
         private readonly TimeProvider _timeProvider;
 
         private readonly string _coverRootFolder;
+        private readonly string _coverRetryStagingFolder;
 
         private static readonly ConcurrentDictionary<string, CoverThrottleState> _coverThrottle = new ConcurrentDictionary<string, CoverThrottleState>(StringComparer.OrdinalIgnoreCase);
 
@@ -116,6 +119,7 @@ namespace NzbDrone.Core.MediaCover
             _timeProvider = timeProvider;
 
             _coverRootFolder = appFolderInfo.GetMediaCoverPath();
+            _coverRetryStagingFolder = Path.Combine(appFolderInfo.GetAppDataPath(), "MediaCoverRetry");
         }
 
         public string GetCoverPath(int entityId, MediaCoverEntity coverEntity, MediaCoverTypes coverType, string extension, int? height = null)
@@ -523,7 +527,9 @@ namespace NzbDrone.Core.MediaCover
             foreach (var book in books)
             {
                 EnsureBookCovers(book);
-                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, GetBookCoverCandidates(book).Take(1));
+                var selected = OpenLibraryMissingBookCover.SelectUnambiguousEdition(book.Editions?.Value);
+                var retrySuffix = OpenLibraryMissingBookCover.SelectArtwork(book, selected)?.FileSuffix;
+                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, GetBookCoverCandidates(book).Take(1), retrySuffix);
             }
 
             _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));
@@ -724,7 +730,7 @@ namespace NzbDrone.Core.MediaCover
                    (path.EndsWith(".part", StringComparison.OrdinalIgnoreCase) && IsAlternativePath(path[..^5]));
         }
 
-        private void ReconcileCoverFiles(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> expectedCovers)
+        private void ReconcileCoverFiles(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> expectedCovers, string retrySuffix = null)
         {
             var directory = coverEntity == MediaCoverEntity.Book ? GetBookCoverPath(entityId) : GetAuthorCoverPath(entityId);
             if (!_diskProvider.FolderExists(directory))
@@ -743,13 +749,24 @@ namespace NzbDrone.Core.MediaCover
                 }
             }
 
-            if (expectedPaths.Count == 0)
+            var hasExpectedOrdinaryArt = expectedPaths.Count > 0;
+            if (coverEntity == MediaCoverEntity.Book && OpenLibraryMissingBookCover.IsValidRetryFileSuffix(retrySuffix))
+            {
+                expectedPaths.Add(GetCoverPath(entityId, coverEntity, MediaCoverTypes.Cover, retrySuffix));
+            }
+
+            if (expectedPaths.Count == 0 && coverEntity != MediaCoverEntity.Book)
             {
                 return;
             }
 
             foreach (var existing in _diskProvider.GetFiles(directory, true).Where(file => !IsAlternativeDownload(file)))
             {
+                if (!hasExpectedOrdinaryArt && !OpenLibraryMissingBookCover.IsRetryCoverFile(Path.GetFileName(existing)))
+                {
+                    continue;
+                }
+
                 var isExpected = expectedPaths.Contains(existing);
                 var isZeroByte = _diskProvider.FileExists(existing) && _diskProvider.GetFileSize(existing) == 0;
 
