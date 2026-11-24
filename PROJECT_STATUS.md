@@ -67,6 +67,12 @@ restore. Forced migration interruption remains tracked in
   audited catalogue identities. Bibliography, artwork, unresolved matches, and
   a separate fresh replay of the newer draft remain open.
   [Current replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
+- The closed replay decoded all 7,586 cached images. Among 414 works with
+  linked files, 42 had an image reference without a usable cached image and
+  62 lacked a reference. The retained logs connect rate-limit deferrals to
+  missing cached artwork for 692 catalogue works and one author. Completing
+  the deferred downloads and improving source coverage remain open.
+  [Artwork audit](https://github.com/Swartdraak/Bibliophilarr/issues/207#issuecomment-7128247998)
 - The next promotion follows `develop -> staging` through a pull request.
   Validate installation, metadata, full-library matching, and release evidence
   on the consolidated revision.
