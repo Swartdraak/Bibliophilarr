@@ -5,6 +5,8 @@ namespace NzbDrone.Common.Http
     public class TooManyRequestsException : HttpException
     {
         public TimeSpan RetryAfter { get; private set; }
+        public bool IsLocallySuppressed => Response?.IsLocallySuppressed == true;
+        public DateTime? HardcoverCooldownUntilUtc { get; }
 
         public TooManyRequestsException(HttpRequest request, HttpResponse response)
             : base(request, response)
@@ -31,6 +33,13 @@ namespace NzbDrone.Common.Http
             }
 
             return TimeSpan.Zero;
+        }
+
+        internal TooManyRequestsException(HttpRequest request, HttpResponse response, DateTime hardcoverCooldownUntilUtc)
+            : base(request, response)
+        {
+            HardcoverCooldownUntilUtc = hardcoverCooldownUntilUtc;
+            RetryAfter = TimeSpan.FromTicks(Math.Max(0, hardcoverCooldownUntilUtc.Ticks - DateTime.UtcNow.Ticks));
         }
     }
 }

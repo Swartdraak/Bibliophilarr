@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Threading;
 using NLog;
 using NzbDrone.Common.Disk;
@@ -22,13 +23,15 @@ namespace NzbDrone.Core.MediaCover
         void ConvertToLocalUrls(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> covers);
         string GetCoverPath(int entityId, MediaCoverEntity coverEntity, MediaCoverTypes coverType, string extension, int? height = null);
         void EnsureBookCovers(Book book);
+        void MapRecoveredBookCover(int bookId, string workId, string editionId, IEnumerable<MediaCover> images);
     }
 
-    public class MediaCoverService :
+    public partial class MediaCoverService :
         IHandleAsync<AuthorRefreshCompleteEvent>,
         IHandleAsync<AuthorDeletedEvent>,
         IHandleAsync<BookDeletedEvent>,
-        IMapCoversToLocal
+        IMapCoversToLocal,
+        IOpenLibraryBookCoverCache
     {
         private const string USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 10; SM-G975U Build/QP1A.190711.020)";
         private const string OpenLibraryCoversHost = "covers.openlibrary.org";
@@ -44,16 +47,18 @@ namespace NzbDrone.Core.MediaCover
         private readonly IConfigFileProvider _configFileProvider;
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
+        private readonly TimeProvider _timeProvider;
 
         private readonly string _coverRootFolder;
+        private readonly string _coverRetryStagingFolder;
 
         private static readonly ConcurrentDictionary<string, CoverThrottleState> _coverThrottle = new ConcurrentDictionary<string, CoverThrottleState>(StringComparer.OrdinalIgnoreCase);
 
-        private sealed class CoverThrottleState
+        private sealed class CoverThrottleState(DateTime now)
         {
             public readonly object Sync = new object();
             public double Tokens = CoverTokenBurst;
-            public DateTime LastRefillUtc = DateTime.UtcNow;
+            public DateTime LastRefillUtc = now;
             public DateTime CooldownUntilUtc = DateTime.MinValue;
             public int ConsecutiveFailures;
         }
@@ -80,6 +85,21 @@ namespace NzbDrone.Core.MediaCover
                                  IConfigFileProvider configFileProvider,
                                  IEventAggregator eventAggregator,
                                  Logger logger)
+            : this(mediaCoverProxy, resizer, bookService, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System)
+        {
+        }
+
+        internal MediaCoverService(IMediaCoverProxy mediaCoverProxy,
+                                   IImageResizer resizer,
+                                   IBookService bookService,
+                                   IHttpClient httpClient,
+                                   IDiskProvider diskProvider,
+                                   IAppFolderInfo appFolderInfo,
+                                   ICoverExistsSpecification coverExistsSpecification,
+                                   IConfigFileProvider configFileProvider,
+                                   IEventAggregator eventAggregator,
+                                   Logger logger,
+                                   TimeProvider timeProvider)
         {
             _mediaCoverProxy = mediaCoverProxy;
             _resizer = resizer;
@@ -90,8 +110,10 @@ namespace NzbDrone.Core.MediaCover
             _configFileProvider = configFileProvider;
             _eventAggregator = eventAggregator;
             _logger = logger;
+            _timeProvider = timeProvider;
 
             _coverRootFolder = appFolderInfo.GetMediaCoverPath();
+            _coverRetryStagingFolder = Path.Combine(appFolderInfo.GetAppDataPath(), "MediaCoverRetry");
         }
 
         public string GetCoverPath(int entityId, MediaCoverEntity coverEntity, MediaCoverTypes coverType, string extension, int? height = null)
@@ -279,7 +301,7 @@ namespace NzbDrone.Core.MediaCover
             }
             catch (HttpException ex)
             {
-                RecordCoverRequestFailure(cover.Url, ex.Response?.StatusCode);
+                RecordCoverRequestFailure(cover.Url, ex.Response);
                 throw;
             }
 
@@ -307,7 +329,7 @@ namespace NzbDrone.Core.MediaCover
             }
             catch (HttpException ex)
             {
-                RecordCoverRequestFailure(cover.Url, ex.Response?.StatusCode);
+                RecordCoverRequestFailure(cover.Url, ex.Response);
                 throw;
             }
 
@@ -399,7 +421,7 @@ namespace NzbDrone.Core.MediaCover
             }
             catch (HttpException ex)
             {
-                RecordCoverRequestFailure(url, ex.Response?.StatusCode);
+                RecordCoverRequestFailure(url, ex.Response);
                 throw;
             }
         }
@@ -430,9 +452,19 @@ namespace NzbDrone.Core.MediaCover
             var books = _bookService.GetBooksByAuthor(message.Author.Id);
             foreach (var book in books)
             {
-                EnsureBookCovers(book);
-                var monitored = book.Editions?.Value?.SingleOrDefault(x => x.Monitored);
-                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, monitored?.Images ?? new List<MediaCover>());
+                var selected = OpenLibraryMissingBookCover.SelectUnambiguousEdition(book.Editions?.Value);
+                if (selected == null)
+                {
+                    continue;
+                }
+
+                if (selected.Monitored)
+                {
+                    EnsureBookCovers(book);
+                }
+
+                var retrySuffix = OpenLibraryMissingBookCover.SelectArtwork(book, selected)?.FileSuffix;
+                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, selected.Images ?? new List<MediaCover>(), retrySuffix);
             }
 
             _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));
@@ -463,8 +495,8 @@ namespace NzbDrone.Core.MediaCover
                 return;
             }
 
-            var now = DateTime.UtcNow;
-            var state = _coverThrottle.GetOrAdd(host, _ => new CoverThrottleState());
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var state = _coverThrottle.GetOrAdd(host, static (_, timestamp) => new CoverThrottleState(timestamp), now);
 
             lock (state.Sync)
             {
@@ -495,24 +527,26 @@ namespace NzbDrone.Core.MediaCover
                 return;
             }
 
-            var state = _coverThrottle.GetOrAdd(host, _ => new CoverThrottleState());
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var state = _coverThrottle.GetOrAdd(host, static (_, timestamp) => new CoverThrottleState(timestamp), now);
             lock (state.Sync)
             {
                 state.ConsecutiveFailures = 0;
-                if (state.CooldownUntilUtc < DateTime.UtcNow)
+                if (state.CooldownUntilUtc < now)
                 {
                     state.CooldownUntilUtc = DateTime.MinValue;
                 }
             }
         }
 
-        private void RecordCoverRequestFailure(string url, HttpStatusCode? statusCode)
+        private void RecordCoverRequestFailure(string url, HttpResponse response)
         {
             if (!TryGetCoverHost(url, out var host))
             {
                 return;
             }
 
+            var statusCode = response?.StatusCode;
             if (statusCode != HttpStatusCode.TooManyRequests &&
                 statusCode != HttpStatusCode.ServiceUnavailable &&
                 statusCode != HttpStatusCode.RequestTimeout)
@@ -520,8 +554,8 @@ namespace NzbDrone.Core.MediaCover
                 return;
             }
 
-            var state = _coverThrottle.GetOrAdd(host, _ => new CoverThrottleState());
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var state = _coverThrottle.GetOrAdd(host, static (_, timestamp) => new CoverThrottleState(timestamp), now);
 
             lock (state.Sync)
             {
@@ -530,7 +564,22 @@ namespace NzbDrone.Core.MediaCover
                 var baseSeconds = statusCode == HttpStatusCode.TooManyRequests ? 15 : 8;
                 var penalty = Math.Min(45, state.ConsecutiveFailures * 4);
                 var jitterMillis = ComputeJitterMilliseconds(host);
-                state.CooldownUntilUtc = now.AddSeconds(baseSeconds + penalty).AddMilliseconds(jitterMillis);
+                var deadline = now.AddSeconds(baseSeconds + penalty).AddMilliseconds(jitterMillis);
+
+                if (statusCode != HttpStatusCode.RequestTimeout &&
+                    RetryConditionHeaderValue.TryParse(response.Headers["Retry-After"], out var retryAfter))
+                {
+                    var providerDeadline = retryAfter.Date?.UtcDateTime ?? now.Add(retryAfter.Delta.GetValueOrDefault());
+                    if (providerDeadline > deadline)
+                    {
+                        deadline = providerDeadline;
+                    }
+                }
+
+                if (deadline > state.CooldownUntilUtc)
+                {
+                    state.CooldownUntilUtc = deadline;
+                }
             }
         }
 
@@ -562,7 +611,7 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
-        private void ReconcileCoverFiles(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> expectedCovers)
+        private void ReconcileCoverFiles(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> expectedCovers, string retrySuffix = null)
         {
             var directory = coverEntity == MediaCoverEntity.Book ? GetBookCoverPath(entityId) : GetAuthorCoverPath(entityId);
             if (!_diskProvider.FolderExists(directory))
@@ -579,6 +628,11 @@ namespace NzbDrone.Core.MediaCover
                 {
                     expectedPaths.Add(GetCoverPath(entityId, coverEntity, cover.CoverType, cover.Extension, height));
                 }
+            }
+
+            if (coverEntity == MediaCoverEntity.Book && OpenLibraryMissingBookCover.IsValidRetryFileSuffix(retrySuffix))
+            {
+                expectedPaths.Add(GetCoverPath(entityId, coverEntity, MediaCoverTypes.Cover, retrySuffix));
             }
 
             foreach (var existing in _diskProvider.GetFiles(directory, true))

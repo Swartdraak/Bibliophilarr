@@ -17,7 +17,6 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using NUnit.Framework;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Integration.Test.Client;
@@ -52,14 +51,13 @@ namespace NzbDrone.Integration.Test
         public WantedClient WantedMissing;
         public WantedClient WantedCutoffUnmet;
 
-        public IntegrationTestBase()
+        static IntegrationTestBase()
         {
-            new StartupContext();
-
-            LogManager.Configuration = new LoggingConfiguration();
             var consoleTarget = new ConsoleTarget { Layout = "${level}: ${message} ${exception}" };
-            LogManager.Configuration.AddTarget(consoleTarget.GetType().Name, consoleTarget);
-            LogManager.Configuration.LoggingRules.Add(new LoggingRule("*", LogLevel.Trace, consoleTarget));
+            var configuration = new LoggingConfiguration();
+            configuration.AddTarget(consoleTarget.GetType().Name, consoleTarget);
+            configuration.AddRule(LogLevel.Trace, LogLevel.Fatal, consoleTarget);
+            LogManager.Configuration = configuration;
         }
 
         public string TempDirectory { get; private set; }

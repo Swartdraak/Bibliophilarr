@@ -44,6 +44,7 @@ namespace NzbDrone.Common.Http
         private readonly Logger _logger;
         private readonly IRateLimitService _rateLimitService;
         private readonly ICached<CookieContainer> _cookieContainerCache;
+        private readonly HardcoverRateLimitGate _hardcoverRateLimitGate;
         private readonly List<IHttpRequestInterceptor> _requestInterceptors;
         private readonly IHttpDispatcher _httpDispatcher;
 
@@ -62,6 +63,7 @@ namespace NzbDrone.Common.Http
             ServicePointManager.DefaultConnectionLimit = 12;
 #pragma warning restore SYSLIB0014
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
+            _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager);
         }
 
         public virtual async Task<HttpResponse> ExecuteAsync(HttpRequest request)
@@ -106,13 +108,25 @@ namespace NzbDrone.Common.Http
 
             if (!request.SuppressHttpError && response.HasHttpError && (request.SuppressHttpErrorStatusCodes == null || !request.SuppressHttpErrorStatusCodes.Contains(response.StatusCode)))
             {
-                if (request.LogHttpError)
+                if (request.LogHttpError && !response.IsLocallySuppressed)
                 {
-                    _logger.Warn("HTTP Error - {0}", response);
+                    if (response.HardcoverCooldownUntilUtc is { } deadline)
+                    {
+                        _logger.Warn("Hardcover GraphQL returned HTTP 429. Requests held until {0:O}", deadline);
+                    }
+                    else
+                    {
+                        _logger.Warn("HTTP Error - {0}", response);
+                    }
                 }
 
                 if ((int)response.StatusCode == 429)
                 {
+                    if (response.HardcoverCooldownUntilUtc is { } hardcoverDeadline)
+                    {
+                        throw new TooManyRequestsException(request, response, hardcoverDeadline);
+                    }
+
                     throw new TooManyRequestsException(request, response);
                 }
                 else
@@ -146,6 +160,32 @@ namespace NzbDrone.Common.Http
                 request = interceptor.PreRequest(request);
             }
 
+            var hardcoverGate = HardcoverRateLimitGate.AppliesTo(request) ? _hardcoverRateLimitGate : null;
+            var held = hardcoverGate?.GetHeldResponse(request);
+            if (held != null)
+            {
+                return held;
+            }
+
+            var response = hardcoverGate == null
+                ? await DispatchRateLimitedRequestAsync(request, cookieContainer)
+                : await hardcoverGate.DispatchAsync(request, () => DispatchRateLimitedRequestAsync(request, cookieContainer));
+
+            foreach (var interceptor in _requestInterceptors)
+            {
+                response = interceptor.PostResponse(response);
+            }
+
+            if (request.LogResponseContent && !response.OmitContentFromDiagnostics && response.ResponseData != null)
+            {
+                _logger.Trace("Response content ({0} bytes): {1}", response.ResponseData.Length, response.Content);
+            }
+
+            return response;
+        }
+
+        private async Task<HttpResponse> DispatchRateLimitedRequestAsync(HttpRequest request, CookieContainer cookieContainer)
+        {
             if (request.RateLimit != TimeSpan.Zero)
             {
                 await _rateLimitService.WaitAndPulseAsync(request.Url.Host, request.RateLimitKey, request.RateLimit);
@@ -154,25 +194,16 @@ namespace NzbDrone.Common.Http
             _logger.Trace(request);
 
             var stopWatch = Stopwatch.StartNew();
-
             var response = await _httpDispatcher.GetResponseAsync(request, cookieContainer);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests && HardcoverRateLimitGate.AppliesTo(request))
+            {
+                response.OmitContentFromDiagnostics = true;
+            }
 
             HandleResponseCookies(response, cookieContainer);
 
             stopWatch.Stop();
-
             _logger.Trace("{0} ({1} ms)", response, stopWatch.ElapsedMilliseconds);
-
-            foreach (var interceptor in _requestInterceptors)
-            {
-                response = interceptor.PostResponse(response);
-            }
-
-            if (request.LogResponseContent && response.ResponseData != null)
-            {
-                _logger.Trace("Response content ({0} bytes): {1}", response.ResponseData.Length, response.Content);
-            }
-
             return response;
         }
 
