@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using FluentAssertions;
 using FluentValidation;
+using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
@@ -59,6 +62,19 @@ namespace NzbDrone.Core.Test.BooksTests
             var result = Subject.AddBook(RequestBook(editionId));
 
             result.Editions.Value.Where(edition => edition.Monitored).Should().ContainSingle().Which.Should().BeSameAs(_second);
+        }
+
+        [Test]
+        public void should_keep_exclusions_when_the_book_could_not_be_saved()
+        {
+            var conflict = new NzbDroneClientException(HttpStatusCode.Conflict, "A provider edition is already present in the catalogue.");
+            Mocker.GetMock<IBookService>()
+                .Setup(service => service.AddBook(It.IsAny<Book>(), true))
+                .Throws(conflict);
+
+            Assert.Throws<NzbDroneClientException>(() => Subject.AddBook(RequestBook("OL303M"))).Should().BeSameAs(conflict);
+
+            Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
         }
 
         [Test]
