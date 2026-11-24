@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
 using System.Linq;
@@ -37,6 +36,7 @@ namespace NzbDrone.Host.Test
     [NonParallelizable]
     public class MetadataProviderUnauthorizedFallbackFixture
     {
+        private const string HardcoverTokenVariable = "BIBLIOPHILARR_HARDCOVER_API_TOKEN";
         private const string ConfigRoute = "/api/v1/config/metadataprovider";
         private const string SearchRoute = "/api/v1/search?term=Orchard";
         private const string OperationRoute = "/api/v1/metadata/providers/telemetry/operations";
@@ -53,10 +53,6 @@ namespace NzbDrone.Host.Test
         [Test]
         public async Task should_fall_back_after_a_primary_401_and_only_count_provider_attempts_on_signed_valid_search()
         {
-            Assert.That(
-                Environment.GetEnvironmentVariable("BIBLIOPHILARR_HARDCOVER_API_TOKEN") is null,
-                Is.True,
-                "Run the offline fixture without ambient Hardcover credentials");
             var profile = Directory.CreateTempSubdirectory("bibliophilarr-provider-fallback-");
             var providerToken = Guid.NewGuid().ToString("N");
             var dispatches = new ConcurrentQueue<string>();
@@ -64,8 +60,10 @@ namespace NzbDrone.Host.Test
             dispatcher.Setup(x => x.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
                 .ReturnsAsync((HttpRequest request, CookieContainer _) => Dispatch(request, providerToken, dispatches));
 
+            var previousToken = Environment.GetEnvironmentVariable(HardcoverTokenVariable);
             try
             {
+                Environment.SetEnvironmentVariable(HardcoverTokenVariable, null);
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(75));
                 var token = timeout.Token;
                 string key;
@@ -130,6 +128,7 @@ namespace NzbDrone.Host.Test
             }
             finally
             {
+                Environment.SetEnvironmentVariable(HardcoverTokenVariable, previousToken);
                 SQLiteConnection.ClearAllPools();
                 profile.Delete(recursive: true);
             }
@@ -222,7 +221,10 @@ namespace NzbDrone.Host.Test
         private static async Task SaveProviderSettings(HttpClient client, string key, string providerToken, CancellationToken token)
         {
             using var config = await Send(client, HttpMethod.Get, ConfigRoute, key, token);
-            var resource = JsonNode.Parse((await ReadJson(config, HttpStatusCode.OK, token)).GetRawText()).AsObject();
+            var response = await ReadJson(config, HttpStatusCode.OK, token);
+            var id = response.GetProperty("id").GetInt32();
+            Assert.That(id, Is.Positive);
+            var resource = JsonNode.Parse(response.GetRawText()).AsObject();
             resource["enableHardcoverFallback"] = true;
             resource["hardcoverApiToken"] = providerToken;
             resource["enableOpenLibraryProvider"] = true;
@@ -232,7 +234,7 @@ namespace NzbDrone.Host.Test
             resource["enableInventaireFallback"] = false;
             resource["metadataProviderRetryBudget"] = 0;
             resource["openLibrarySearchRetryBudget"] = 0;
-            using var saved = await Send(client, HttpMethod.Put, ConfigRoute + "/1", key, token, JsonContent.Create(resource));
+            using var saved = await Send(client, HttpMethod.Put, $"{ConfigRoute}/{id}", key, token, JsonContent.Create(resource));
             Assert.That(saved.StatusCode, Is.EqualTo(HttpStatusCode.Accepted));
         }
 
@@ -260,7 +262,9 @@ namespace NzbDrone.Host.Test
                     entry.GetProperty("fallbackHits").GetInt64(),
                     entry.GetProperty("totalResultCount").GetInt64()));
             Assert.That(operations.Keys, Is.SubsetOf(new[] { "Hardcover", "OpenLibrary" }));
-            return (operations.GetValueOrDefault("Hardcover"), operations.GetValueOrDefault("OpenLibrary"));
+            operations.TryGetValue("Hardcover", out var hardcover);
+            operations.TryGetValue("OpenLibrary", out var openLibrary);
+            return (hardcover, openLibrary);
         }
 
         private static async Task<HttpResponseMessage> Send(HttpClient client, HttpMethod method, string path, string key, CancellationToken token, HttpContent body = null)
