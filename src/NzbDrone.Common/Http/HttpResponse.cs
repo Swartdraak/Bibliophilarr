@@ -35,6 +35,9 @@ namespace NzbDrone.Common.Http
         public HttpStatusCode StatusCode { get; private set; }
         public Version Version { get; private set; }
         public byte[] ResponseData { get; private set; }
+        public bool IsLocallySuppressed { get; internal set; }
+        internal bool OmitContentFromDiagnostics { get; set; }
+        internal DateTime? HardcoverCooldownUntilUtc { get; set; }
 
         private string _content;
 
@@ -89,7 +92,8 @@ namespace NzbDrone.Common.Http
         {
             var result = $"Res: HTTP/{Version} [{Request.Method}] {Request.Url}: {(int)StatusCode}.{StatusCode} ({ResponseData?.Length ?? 0} bytes)";
 
-            if (HasHttpError && Headers.ContentType.IsNotNullOrWhiteSpace() && !Headers.ContentType.Equals("text/html", StringComparison.InvariantCultureIgnoreCase))
+            if (!OmitContentFromDiagnostics && HasHttpError &&
+                Headers.ContentType.IsNotNullOrWhiteSpace() && !Headers.ContentType.Equals("text/html", StringComparison.InvariantCultureIgnoreCase))
             {
                 result += Environment.NewLine + Content;
             }
@@ -104,6 +108,9 @@ namespace NzbDrone.Common.Http
         public HttpResponse(HttpResponse response)
             : base(response.Request, response.Headers, response.ResponseData, response.StatusCode, response.Version)
         {
+            IsLocallySuppressed = response.IsLocallySuppressed;
+            OmitContentFromDiagnostics = response.OmitContentFromDiagnostics;
+            HardcoverCooldownUntilUtc = response.HardcoverCooldownUntilUtc;
             Resource = Json.Deserialize<T>(response.Content);
         }
 
