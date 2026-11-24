@@ -35,7 +35,10 @@ Repeat the package and runtime checks on the eventual release candidate.
 The coordinated FluentMigrator 8.0.1 upgrade is integrated on `develop` in
 [#514](https://github.com/Swartdraak/Bibliophilarr/pull/514). Independent native
 tests covered SQLite and PostgreSQL startup, upgrade, restart and backup
-restore. Forced migration interruption remains tracked in
+restore. The Linux Host test interrupts an owned startup process inside a
+SQLite migration transaction and reopens the same profile through the full
+host. It checks rollback, the complete schema, and generated API key
+persistence across healthy starts. The original governed recovery campaign remains tracked in
 [#328](https://github.com/Swartdraak/Bibliophilarr/issues/328).
 
 ## Governance and documentation tracks

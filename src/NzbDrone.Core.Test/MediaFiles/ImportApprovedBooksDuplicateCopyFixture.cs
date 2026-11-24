@@ -215,6 +215,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Assert.That(results, Has.Count.EqualTo(2));
             Assert.That(results.Single(x => x.ImportDecision == first).Result, Is.EqualTo(ImportResultType.Skipped));
+            Assert.That(results.Single(x => x.ImportDecision == first).PreservedExistingFileId, Is.EqualTo(firstImportThrows ? (int?)null : _existing.Id));
             Assert.That(results.Single(x => x.ImportDecision == second).Result, Is.EqualTo(ImportResultType.Imported));
             Mocker.GetMock<IMediaFileService>()
                 .Verify(x => x.AddMany(It.Is<List<BookFile>>(files =>
@@ -233,6 +234,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Assert.That(results, Has.Count.EqualTo(1));
             Assert.That(results[0].Result, Is.EqualTo(ImportResultType.Skipped));
             Assert.That(results[0].Errors, Has.Count.EqualTo(1));
+            Assert.That(results[0].PreservedExistingFileId, Is.EqualTo(_existing.Id));
 
             // The preserved original record identity must be cited in the skip reason.
             Assert.That(results[0].Errors[0], Does.Contain("101"));
@@ -283,6 +285,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Assert.That(results, Has.Count.EqualTo(1));
             Assert.That(results[0].Result, Is.EqualTo(ImportResultType.Skipped));
             Assert.That(results[0].Errors[0], Does.Contain("101"));
+            Assert.That(results[0].PreservedExistingFileId, Is.EqualTo(_existing.Id));
             Mocker.GetMock<IMediaFileService>()
                 .Verify(m => m.AddMany(It.Is<List<BookFile>>(l => l.Count > 0)), Times.Never);
         }

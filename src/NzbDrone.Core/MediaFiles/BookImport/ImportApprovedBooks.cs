@@ -302,8 +302,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                 localTrack.Book,
                                 preservedId);
 
-                            importResults.Add(new ImportResult(
+                            importResults.Add(ImportResult.ExistingFilePreserved(
                                 importDecision,
+                                preservedId,
                                 $"Skipped: file already imported as book file {previousFile.Id} (original record preserved, replaceExistingFiles=false)"));
 
                             continue;
@@ -367,7 +368,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         {
                             var preservedId = moveResult.PreservedFile.Id;
                             _logger.ProgressInfo("Skipping import: existing book file {0} is preserved", preservedId);
-                            importResults.Add(new ImportResult(importDecision, $"Skipped: existing book file {preservedId} is preserved (replaceExistingFiles=false)"));
+                            importResults.Add(ImportResult.ExistingFilePreserved(importDecision, preservedId, $"Skipped: existing book file {preservedId} is preserved (replaceExistingFiles=false)"));
                             continue;
                         }
 
@@ -382,7 +383,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         {
                             if (!replaceExisting)
                             {
-                                importResults.Add(new ImportResult(importDecision, $"Skipped: existing book file {previousFile.Id} is preserved (replaceExistingFiles=false)"));
+                                importResults.Add(ImportResult.ExistingFilePreserved(importDecision, previousFile.Id, $"Skipped: existing book file {previousFile.Id} is preserved (replaceExistingFiles=false)"));
                                 continue;
                             }
 
