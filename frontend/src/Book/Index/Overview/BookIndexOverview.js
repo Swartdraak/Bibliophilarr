@@ -167,13 +167,6 @@ class BookIndexOverview extends Component {
                   />
                 </div>
             }
-            {
-              status === 'ended' &&
-                <div
-                  className={styles.ended}
-                  title={translate('Ended')}
-                />
-            }
 
             <Link
               className={styles.link}

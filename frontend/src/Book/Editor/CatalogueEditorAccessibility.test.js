@@ -177,7 +177,7 @@ test.each([
     timeFormat: 'HH:mm'
   };
 
-  render(
+  const catalogue = (
     <MemoryRouter>
       <AuthorItem
         {...shared}
@@ -208,6 +208,16 @@ test.each([
       />
     </MemoryRouter>
   );
+
+  const existingStatus = jest.replaceProperty(window, 'status', 'ended');
+
+  try {
+    render(catalogue);
+  } finally {
+    existingStatus.restore();
+  }
+
+  expect(screen.queryByTitle('Ended')).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('checkbox', { name: 'Arden Orchard', exact: true }));
   expect(onSelectedChange).toHaveBeenLastCalledWith({ id: 11, value: true, shiftKey: false });
