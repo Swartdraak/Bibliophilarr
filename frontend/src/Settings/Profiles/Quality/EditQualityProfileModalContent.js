@@ -14,6 +14,7 @@ import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { inputTypes, kinds, sizes } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
+import getUniqueElementId from 'Utilities/getUniqueElementId';
 import translate from 'Utilities/String/translate';
 import QualityProfileFormatItems from './QualityProfileFormatItems';
 import QualityProfileItems from './QualityProfileItems';
@@ -39,6 +40,8 @@ class EditQualityProfileModalContent extends Component {
 
   constructor(props, context) {
     super(props, context);
+
+    this.nameInputId = getUniqueElementId();
 
     this.state = {
       headerHeight: 0,
@@ -159,13 +162,14 @@ class EditQualityProfileModalContent extends Component {
                   <div className={styles.formGroupsContainer}>
                     <div className={styles.formGroupWrapper}>
                       <FormGroup size={sizes.EXTRA_SMALL}>
-                        <FormLabel size={sizes.SMALL}>
+                        <FormLabel name={this.nameInputId} size={sizes.SMALL}>
                           Name
                         </FormLabel>
 
                         <FormInputGroup
                           type={inputTypes.TEXT}
                           name="name"
+                          inputId={this.nameInputId}
                           {...name}
                           onChange={onInputChange}
                         />
