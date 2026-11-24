@@ -98,7 +98,7 @@ Action at critical:
 1. Reduce blast radius by reordering providers:
    - Put most reliable provider first in `metadataProviderPriorityOrder`.
 2. Temporarily disable failing provider:
-   - `enableOpenLibraryProvider` or `enableInventaireFallback`.
+   - Use the [provider switches](#provider-emergency-disablement) for the service that is failing.
 3. Tighten timeout and retry settings:
    - Lower `metadataProviderTimeoutSeconds`.
    - Lower `metadataProviderRetryBudget` during sustained outage.
@@ -156,8 +156,26 @@ SELECT
   (SELECT COUNT(*) FROM "SeriesBookLink") AS series_link_count;
 ```
 
-If both counts remain zero after refresh, treat this as a metadata ingestion defect and escalate to
-the metadata migration backlog.
+Use these totals to check whether the catalogue has any series data. For an
+individual author, compare the API's member links and positions with a known
+series from the provider. If the provider supplies matching series data and a
+successful refresh leaves the links missing, record the provider, author ID,
+and work IDs for investigation.
+
+## Incomplete author bibliographies
+
+Inspect the author refresh command and its provider log before starting another
+scan. A premature end to pagination can leave a refresh unsuccessful while
+existing author metadata remains available. Record the provider, the page offset,
+the number of distinct entries returned, and the reported total when the log
+includes them. An HTTP success on the last page does not establish that the
+provider returned the advertised bibliography.
+
+Check provider health for any active rate limit. Wait until the reported retry
+time before refreshing the affected author again. Check the author's work and
+series lists after the retry and use the Files view to verify that existing ebook
+and audiobook assignments are still present. Preserve the import holds while
+the provider response is incomplete or work identity is uncertain.
 
 ## Rename no-op diagnosis (forced rename)
 
@@ -295,8 +313,12 @@ Escalation criteria:
 
 For emergency provider disablement, use the persisted metadata-provider configuration exposed in the UI and API:
 
+- `enableHardcoverFallback` maps to **Enable Hardcover Provider** and controls
+  Hardcover metadata requests.
 - `enableOpenLibraryProvider`
-- `enableGoogleBooksProvider`
+- `enableGoogleBooksProvider` and `enableGoogleBooksFallback` control the Google
+  Books provider and its separate import fallback. Turn both off to pause Google
+  Books metadata requests.
 - `enableInventaireFallback`
 
 The **Enable Inventaire** setting controls title and author fallback during automatic import. The configuration API still reads and writes `enableInventaireProvider` for compatibility with existing clients. That deprecated field has no effect on provider requests.
