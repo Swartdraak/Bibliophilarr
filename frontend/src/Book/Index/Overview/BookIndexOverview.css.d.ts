@@ -6,7 +6,6 @@ interface CssExports {
   'content': string;
   'details': string;
   'editorSelect': string;
-  'ended': string;
   'info': string;
   'link': string;
   'overview': string;

@@ -46,6 +46,7 @@ class VirtualTableSelectCell extends Component {
       className,
       inputClassName,
       id,
+      ariaLabel,
       isSelected,
       isDisabled,
       ...otherProps
@@ -59,6 +60,7 @@ class VirtualTableSelectCell extends Component {
         <CheckInput
           className={inputClassName}
           name={id.toString()}
+          ariaLabel={ariaLabel}
           value={isSelected}
           isDisabled={isDisabled}
           onChange={this.onChange}
@@ -72,6 +74,7 @@ VirtualTableSelectCell.propTypes = {
   className: PropTypes.string.isRequired,
   inputClassName: PropTypes.string.isRequired,
   id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  ariaLabel: PropTypes.string,
   isSelected: PropTypes.bool.isRequired,
   isDisabled: PropTypes.bool.isRequired,
   onSelectedChange: PropTypes.func.isRequired

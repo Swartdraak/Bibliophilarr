@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-      "ignoreDeprecations": "6.0",
       "target": "esnext",
       "allowJs": true,
       "checkJs": false,
@@ -25,7 +24,6 @@
   },
   "include": [
       "./src/**/*",
-      "./.eslintrc.js",
       "./build/webpack.config.js",
       "./typings/*.ts"
   ],

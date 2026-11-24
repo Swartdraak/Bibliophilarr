@@ -98,12 +98,14 @@ class BookEditorFooter extends Component {
       <PageContentFooter>
         <div className={styles.inputContainer}>
           <BookEditorFooterLabel
+            id="book-editor-monitored-label"
             label={translate('MonitorBook')}
             isSaving={isSaving && monitored !== NO_CHANGE}
           />
 
           <SelectInput
             name="monitored"
+            labelId="book-editor-monitored-label"
             value={monitored}
             values={monitoredOptions}
             isDisabled={!selectedCount}

@@ -255,6 +255,17 @@ namespace NzbDrone.Core.MetadataSource
                     // A scoped lookup must stay unavailable, without counting this skip as a failure.
                     throw;
                 }
+                catch (TooManyRequestsException ex) when (ex.IsLocallySuppressed)
+                {
+                    if (throwOnTransportFailure)
+                    {
+                        throw new MetadataProviderUnavailableException(operationName, entityId, ex);
+                    }
+                }
+                catch (MetadataProviderUnavailableException ex) when (ex.InnerException is TooManyRequestsException { IsLocallySuppressed: true })
+                {
+                    throw;
+                }
                 catch (AuthorNotFoundException ex) when (operationName == AuthorInfoOperation)
                 {
                     stopwatch.Stop();
@@ -270,6 +281,11 @@ namespace NzbDrone.Core.MetadataSource
                     stopwatch.Stop();
                     _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, false, false);
                     _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operationName);
+                    if (throwOnTransportFailure && ex is TooManyRequestsException { HardcoverCooldownUntilUtc: not null })
+                    {
+                        throw new MetadataProviderUnavailableException(operationName, entityId, ex);
+                    }
+
                     var isTransport = IsTransportError(ex);
                     if (isTransport)
                     {
