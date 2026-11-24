@@ -17,14 +17,13 @@ import subprocess
 import tarfile
 from tempfile import TemporaryDirectory
 from threading import Thread
-import time
 import wave
 from urllib.parse import quote, urlsplit
 from xml.etree import ElementTree
 
 from playwright.sync_api import expect, sync_playwright
 
-from catalogue_workflow import configure_providers, initialize_root, write_epub
+from catalogue_workflow import configure_providers, initialize_root, wait_catalogue_command, write_epub
 from smoke import check_status, free_port, wait_ready
 
 
@@ -238,13 +237,8 @@ def fixture_import(api, inbox, author, book):
             "files": [{"path": str(source), "authorId": author, "bookId": book,
                        "foreignEditionId": EDITIONS[source.suffix][0], "quality": entry["quality"], "indexerFlags": 0}],
         }), 201, "enqueue copy import").json()
-        response = check_status(api.get(f"/api/v1/command/{command['id']}"), 200, "import state").json()
-        for _ in range(100):
-            if response["status"] in ("completed", "failed", "aborted"):
-                break
-            time.sleep(.2)
-            response = api.get(f"/api/v1/command/{command['id']}").json()
-        assert response["status"] == "completed" and response["result"] == "successful", "Stable import failed"
+        completed = wait_catalogue_command(api, command["id"], "ManualImport")
+        assert completed["result"] == "successful", "Stable import failed"
     return {path.suffix: digest(path) for path in (epub, audio)}
 
 
