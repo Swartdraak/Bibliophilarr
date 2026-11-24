@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from playwright.sync_api import expect, sync_playwright
 
+from browser_add_book import VOLUME, VOLUME_RESOURCE, run_browser_add_book
 from catalogue_workflow import (
     author_at_root, checked, configure_providers, files_for_book, initialize_root,
     wait_catalogue_command, write_epub, write_tagged_wav,
@@ -42,8 +43,9 @@ EDITIONS = {
 
 
 @contextmanager
-def provider_fixture(tls):
-    assert {item[4][0] for item in socket.getaddrinfo("openlibrary.org", 443)} == {"127.0.0.1"}
+def provider_fixture(tls, *, google_key=None):
+    hostname = "www.googleapis.com" if google_key else "openlibrary.org"
+    assert {item[4][0] for item in socket.getaddrinfo(hostname, 443)} == {"127.0.0.1"}
     calls, unexpected = [], []
     author_path, work_path = f"/authors/{AUTHOR_KEY}", f"/works/{WORK_KEY}"
     entries = [{"key": f"/books/{source}", "title": TITLE, "physical_format": format_name,
@@ -66,7 +68,14 @@ def provider_fixture(tls):
             payload = routes.get(parsed.path)
             if parsed.path == "/search.json" and parse_qs(parsed.query).get("q") == [f"author_key:{AUTHOR_KEY}"]:
                 payload = {"numFound": 0, "numFoundExact": True, "start": 0, "docs": []}
-            if (payload is None or self.headers.get("Host") != "openlibrary.org" or
+            if google_key:
+                payload = None
+                if parse_qs(parsed.query).get("key") == [google_key]:
+                    if parsed.path == "/books/v1/volumes":
+                        payload = {"totalItems": 1, "items": [VOLUME_RESOURCE]}
+                    elif parsed.path == f"/books/v1/volumes/{VOLUME}":
+                        payload = VOLUME_RESOURCE
+            if (payload is None or self.headers.get("Host") != hostname or
                     any(self.headers.get(h) for h in ("Authorization", "Cookie", "X-Api-Key"))):
                 unexpected.append(True)
                 self.send_error(404)
@@ -319,12 +328,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for option in ("binary", "evidence", "tls", "migrations"):
         parser.add_argument("--" + option, type=Path, required=True)
+    parser.add_argument("--browser-book-add", action="store_true")
     args = parser.parse_args()
     os.umask(0o077)
     args.evidence.mkdir(parents=True, exist_ok=True)
+    stage = "Packaged dual-format SIGTERM recovery"
     try:
-        run(args.binary.resolve(strict=True), args.evidence, args.tls.resolve(strict=True),
-            migration_versions(args.migrations.resolve(strict=True)))
+        binary = args.binary.resolve(strict=True)
+        tls = args.tls.resolve(strict=True)
+        run(binary, args.evidence, tls, migration_versions(args.migrations.resolve(strict=True)))
+        if args.browser_book_add:
+            stage = "Browser Add New synthetic source edition"
+            run_browser_add_book(binary, args.evidence, tls, provider_fixture)
     except Exception as error:
-        raise SystemExit(f"Packaged dual-format SIGTERM recovery failed ({type(error).__name__}). "
-                         "See the last checkpoint.") from None
+        raise SystemExit(f"{stage} failed ({type(error).__name__}). See the last checkpoint.") from None

@@ -178,7 +178,7 @@ jobs:
           evidence="$RUNNER_TEMP/browser-smoke-evidence"
           ./test.sh Linux Recovery Test \
             _artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr \
-            "$RUNNER_TEMP/browser-smoke-venv/bin/python" "$evidence" 2>&1 | tee -a "$evidence/results.log"
+            "$RUNNER_TEMP/browser-smoke-venv/bin/python" "$evidence" --browser-book-add 2>&1 | tee -a "$evidence/results.log"
 
       - name: Upload safe browser evidence
         if: always()

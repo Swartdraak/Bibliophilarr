@@ -27,8 +27,8 @@ mkdir -p -- "$evidence"
 tls="$(mktemp -d -t bibliophilarr-dual-format-tls.XXXXXXXX)"
 trap 'rm -rf -- "$tls"' EXIT
 mkdir "$tls/empty-trust"
-printf '%s\n' '127.0.0.1 localhost openlibrary.org' > "$tls/hosts"
-printf '%s\n' 'subjectAltName=DNS:openlibrary.org' 'extendedKeyUsage=serverAuth' > "$tls/extensions"
+printf '%s\n' '127.0.0.1 localhost openlibrary.org www.googleapis.com' > "$tls/hosts"
+printf '%s\n' 'subjectAltName=DNS:openlibrary.org,DNS:www.googleapis.com' 'extendedKeyUsage=serverAuth' > "$tls/extensions"
 openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
   -subj '/CN=Bibliophilarr test fixture CA' -keyout "$tls/ca.key" -out "$tls/ca.crt" > "$tls/cert.log" 2>&1
 openssl req -newkey rsa:2048 -nodes -sha256 -subj '/CN=openlibrary.org' \
@@ -36,6 +36,7 @@ openssl req -newkey rsa:2048 -nodes -sha256 -subj '/CN=openlibrary.org' \
 openssl x509 -req -CAcreateserial -days 1 -sha256 -in "$tls/leaf.csr" -CA "$tls/ca.crt" \
   -CAkey "$tls/ca.key" -extfile "$tls/extensions" -out "$tls/leaf.crt" >> "$tls/cert.log" 2>&1
 openssl verify -CAfile "$tls/ca.crt" -verify_hostname openlibrary.org "$tls/leaf.crt"
+openssl verify -CAfile "$tls/ca.crt" -verify_hostname www.googleapis.com "$tls/leaf.crt"
 
 # Keep fixture mounts and port settings inside the private namespaces. The
 # app, browser and fixture run as the original user with no capabilities.
