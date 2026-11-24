@@ -8,6 +8,8 @@
     <PackageReference Include="DryIoc.Microsoft.DependencyInjection" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Moq" />
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="NLog" />
