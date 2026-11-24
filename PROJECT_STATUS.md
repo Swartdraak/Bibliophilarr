@@ -85,11 +85,11 @@ restore. Forced migration interruption remains tracked in
   backup passed. On PostgreSQL, v1.1.0 failed migration 45 during a fresh
   install. The draft recovered that schema and passed a separate fresh PostgreSQL
   test, dual-format file import, restart, and external database restore. Native
-  Windows and macOS upgrade rehearsal remains open. The hosted Windows test
-  upgraded a tagged dual-format v1.1.0 profile through migrations 48 and 49.
-  Restart and rollback need a verified rehearsal. The published Apple Silicon
-  archive could not load its native SQLite library at first startup.
-  [Upgrade and recovery tracking](https://github.com/Swartdraak/Bibliophilarr/issues/341)
+  Windows x64 portable upgrade from published v1.1.0 passed with both formats,
+  preserved settings and file identities, and rollback from the matching backup.
+  The published Apple Silicon predecessor could not load its native SQLite
+  library at first startup, so its upgrade and rollback stay open.
+  [Upgrade and recovery tracking](https://github.com/Swartdraak/Bibliophilarr/issues/341#issuecomment-7122113917)
 - The bibliography refresh implementation landed in
   [#456](https://github.com/Swartdraak/Bibliophilarr/pull/456). The live Hardcover
   benchmark retained all 2,060 work IDs and 150 series.
