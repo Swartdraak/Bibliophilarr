@@ -80,6 +80,8 @@ process.
   editions and unresolved author identities held for review.
 - Allow two equal-size ebook files to link to distinct verified ISBN editions
   of the same work during a library scan.
+- Align configuration, logging, dependency injection, and Windows service
+  packages with the supported .NET 10 runtime.
 - Update DryIoc and migrate host startup to the supported service-provider
   adapter. Keep the package's compile-time examples out of the build.
 - Keep each live task active once while startup restores queued tasks and marks

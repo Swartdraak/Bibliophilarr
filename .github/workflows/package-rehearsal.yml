@@ -11,6 +11,7 @@ on:
       - 'frontend/src/login.html'
       - 'frontend/src/Author/Details/AuthorDetailsSeries*'
       - 'src/Bibliophilarr.Http/Authentication/**'
+      - 'src/Directory.Packages.props'
       - 'src/NzbDrone.Core/Books/Services/BookWorkIdentity.cs'
       - 'src/NzbDrone.Core/Books/Services/Refresh*Service.cs'
       - 'src/NzbDrone.Core/MediaFiles/BookImport/**'
