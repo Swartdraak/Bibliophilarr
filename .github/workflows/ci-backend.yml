@@ -293,7 +293,7 @@ jobs:
           dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
           --configuration Debug --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~RootFolderFixture|FullyQualifiedName~ConfigWireContractFixture'
+          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~ApiAuthzContractIssue403AnonymousApiGetFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~RootFolderFixture|FullyQualifiedName~ConfigWireContractFixture'
 
       - name: Run catalogue and provider integration fixtures
         run: >-
