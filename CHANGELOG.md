@@ -73,6 +73,8 @@ process.
   editions and unresolved author identities held for review.
 - Allow two equal-size ebook files to link to distinct verified ISBN editions
   of the same work during a library scan.
+- Keep each live task active once while startup restores queued tasks and marks
+  interrupted tasks from the previous process.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
 - Mark a queued manual import as unsuccessful when none of its selected files
