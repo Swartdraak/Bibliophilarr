@@ -28,6 +28,8 @@ process.
   passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
+- Continue reading and matching audio files when the optional ffprobe utility
+  is unavailable.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
