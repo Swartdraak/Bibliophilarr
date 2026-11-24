@@ -73,7 +73,7 @@
     },
     {
       "path": "linux-program/plan_integrations.json",
-      "sha256": "df1d48ace94df4b967a474f682d73606b83c06a033ee6a3d6f2cb1e5d255eed8"
+      "sha256": "2d4a3a352fa0b451472d8629b8b2f7b513da44e0f2ee5aa3b3acf3bdac4a61b4"
     },
     {
       "path": "linux-program/plan_recovery.json",
@@ -360,7 +360,10 @@
               "/workspace/linux-program/integrations/prepare.sh"
             ],
             "cwd": "repo",
-            "timeout_seconds": 120
+            "timeout_seconds": 120,
+            "env": {
+              "CASE_DIR": "/workspace/@CASE@"
+            }
           }
         ],
         "services": [
