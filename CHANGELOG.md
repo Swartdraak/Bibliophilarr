@@ -34,6 +34,9 @@ process.
   including queue, backup, and system operations.
 - Report queued manual imports as unsuccessful when they neither import a file
   nor preserve an existing one. Summarize recognized format and file errors.
+- Hold an unresolved manual-import edition selection and continue importing
+  valid files in the same batch. When the edition is omitted, use a compatible
+  monitored edition of the selected work.
 - Reject a selected edition owned by a different work before changing edition
   monitoring or importing the file.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
