@@ -99,6 +99,7 @@ process.
 - Google Books author refresh keeps existing catalogue entries when overlapping
   pages or a shrinking result count leave the bibliography incomplete.
 - Name, URL, credentials, and tags in connection forms have associated labels.
+- Size autocomplete menus to the available space on the side where they open.
 - Name the Add controls for indexers, download clients, and remote path
   mappings for assistive technology. Keep Newznab category selection usable
   with the keyboard and explain which host a remote path mapping uses.
