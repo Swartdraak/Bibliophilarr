@@ -6,6 +6,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Parser.Model;
@@ -261,6 +262,40 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .Verify(s => s.SetMonitored(storedEdition), compatible ? Times.Once() : Times.Never());
             Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files =>
                 files.Count == 1 && files[0].EditionId == storedEdition.Id)), compatible ? Times.Once() : Times.Never());
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_reject_a_selected_edition_owned_by_a_different_work(bool resolveByForeignId)
+        {
+            Mocker.GetMock<IConfigService>().Setup(s => s.EnableDualFormatTracking).Returns(true);
+            GivenAudiobookImport();
+
+            var otherWork = new Book { Id = _book.Id + 1, Author = _author };
+            var storedEdition = new Edition
+            {
+                Id = 30,
+                Book = otherWork,
+                BookId = otherWork.Id,
+                ForeignEditionId = "other-work-audio",
+                Format = "Audiobook",
+                Monitored = true
+            };
+            _approvedDecisions[0].Item.Edition = resolveByForeignId
+                ? new Edition { ForeignEditionId = storedEdition.ForeignEditionId, Format = "Audiobook" }
+                : storedEdition;
+            Mocker.GetMock<IEditionService>().Setup(s => s.GetEditionByForeignEditionId(storedEdition.ForeignEditionId)).Returns(storedEdition);
+            Mocker.GetMock<IEditionService>().Setup(s => s.SetMonitoredByFormat(storedEdition)).Returns(new List<Edition> { storedEdition });
+
+            var result = Subject.Import(_approvedDecisions, false).Should().ContainSingle().Which;
+
+            result.Result.Should().Be(ImportResultType.Rejected);
+            result.Errors.Should().Equal("The selected edition belongs to a different work");
+            result.ImportDecision.Rejections.Should().ContainSingle().Which.Type.Should().Be(RejectionType.Permanent);
+            Mocker.GetMock<IEditionService>().Verify(s => s.SetMonitoredByFormat(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IEditionService>().Verify(s => s.SetMonitored(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IUpgradeMediaFiles>().Verify(s => s.UpgradeBookFile(It.IsAny<BookFile>(), It.IsAny<LocalBook>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
         }
 
         [TestCase(true)]

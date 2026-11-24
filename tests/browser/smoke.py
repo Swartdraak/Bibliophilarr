@@ -131,7 +131,7 @@ def free_port():
 
 
 @contextmanager
-def running_app(binary, app_data, log_path, port, evidence, credentials):
+def running_app(binary, app_data, log_path, port, evidence, credentials, *, tls_ca=None):
     app_data.mkdir(exist_ok=True)
     base = f"http://127.0.0.1:{port}"
     env = {
@@ -145,6 +145,13 @@ def running_app(binary, app_data, log_path, port, evidence, credentials):
         BIBLIOPHILARR__SERVER__BINDADDRESS="127.0.0.1",
         BIBLIOPHILARR__LOG__ANALYTICSENABLED="false",
     )
+    if tls_ca is not None:
+        trust_dir = tls_ca.parent / "empty-trust"
+        if not tls_ca.is_file():
+            raise FileNotFoundError(f"Missing private CA certificate: {tls_ca}")
+        if not trust_dir.is_dir():
+            raise FileNotFoundError(f"Missing private CA directory: {trust_dir}")
+        env.update(SSL_CERT_FILE=str(tls_ca), SSL_CERT_DIR=str(trust_dir))
     with log_path.open("ab") as log:
         process = subprocess.Popen(
             [str(binary), f"/data={app_data}", "/nobrowser", "/nosingleinstancecheck"],
