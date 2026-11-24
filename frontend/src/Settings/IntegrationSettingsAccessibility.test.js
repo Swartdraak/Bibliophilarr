@@ -47,7 +47,9 @@ jest.mock('Settings/DownloadClients/RemotePathMappings/EditRemotePathMappingModa
 jest.mock('Settings/Indexers/Indexers/EditIndexerModalConnector', () => ({ id, isOpen }) => (
   isOpen ? <div role="dialog" aria-label={`Indexer editor ${id}`} /> : null
 ));
-jest.mock('Settings/DownloadClients/DownloadClients/EditDownloadClientModalConnector', () => () => null);
+jest.mock('Settings/DownloadClients/DownloadClients/EditDownloadClientModalConnector', () => ({ id, isOpen }) => (
+  isOpen ? <div role="dialog" aria-label={`Download client editor ${id}`} /> : null
+));
 jest.mock('Settings/ImportLists/ImportLists/EditImportListModalConnector', () => () => null);
 
 test.each([
@@ -155,6 +157,28 @@ test('names each saved indexer edit button and opens the chosen indexer', () => 
   fireEvent.click(screen.getByRole('button', { name: 'Edit Audiobook Feed' }));
   expect(screen.getByRole('dialog', { name: 'Indexer editor 2' })).toBeVisible();
   expect(screen.queryByRole('dialog', { name: 'Indexer editor 1' })).not.toBeInTheDocument();
+});
+
+test('names each saved download client edit button and opens the chosen client', () => {
+  const defaults = { enable: true, priority: 1, tags: [] };
+
+  render(
+    <DownloadClients
+      isFetching={false}
+      isPopulated={true}
+      items={[
+        { ...defaults, id: 1, name: 'Library Torrents' },
+        { ...defaults, id: 2, name: 'Library Usenet' }
+      ]}
+      tagList={[]}
+      onConfirmDeleteDownloadClient={jest.fn()}
+    />
+  );
+
+  expect(screen.getByRole('button', { name: 'Edit Library Torrents' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Library Usenet' }));
+  expect(screen.getByRole('dialog', { name: 'Download client editor 2' })).toBeVisible();
+  expect(screen.queryByRole('dialog', { name: 'Download client editor 1' })).not.toBeInTheDocument();
 });
 
 function field(name, label, type, value) {
