@@ -34,7 +34,7 @@ namespace NzbDrone.Host.Test
 {
     [TestFixture]
     [NonParallelizable]
-    public class NestedAuthorBookAddFixture
+    public partial class NestedAuthorBookAddFixture
     {
         private const string ForeignAuthorId = "hardcover:author:92627";
         private const string ForeignBookId = "hardcover:work:92628";
@@ -327,7 +327,7 @@ namespace NzbDrone.Host.Test
             }
         }
 
-        private static IHost BuildHost(string appData, bool useFixtureProvider = true, Func<string> offeredAudiobook = null)
+        private static IHost BuildHost(string appData, bool useFixtureProvider = true, Func<string> offeredAudiobook = null, bool emptyAuthorBibliography = false)
         {
             var args = new[] { $"-data={appData}", "-nobrowser", "-nosingleinstancecheck" };
             return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
@@ -353,13 +353,13 @@ namespace NzbDrone.Host.Test
 
                     if (useFixtureProvider)
                     {
-                        registry.RegisterProvider(CreateMetadataProvider(offeredAudiobook));
+                        registry.RegisterProvider(CreateMetadataProvider(offeredAudiobook, emptyAuthorBibliography));
                     }
                 })
                 .Build();
         }
 
-        private static IMetadataProvider CreateMetadataProvider(Func<string> offeredAudiobook)
+        private static IMetadataProvider CreateMetadataProvider(Func<string> offeredAudiobook, bool emptyAuthorBibliography)
         {
             var provider = new Mock<IMetadataProvider>();
             provider.SetupGet(p => p.ProviderName).Returns("Hardcover");
@@ -376,6 +376,7 @@ namespace NzbDrone.Host.Test
                     {
                         ForeignEditionId = editionId,
                         Format = "Audiobook",
+                        Language = "en",
                         Title = BookTitle,
                         TitleSlug = "existing-work-audiobook"
                     });
@@ -387,6 +388,16 @@ namespace NzbDrone.Host.Test
             provider.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo(ForeignAuthorId, It.IsAny<bool>())).Returns(() =>
             {
                 var metadata = AuthorMetadata();
+                if (emptyAuthorBibliography)
+                {
+                    return new Author
+                    {
+                        Metadata = metadata,
+                        Books = new List<Book>(),
+                        Series = new List<Series>()
+                    };
+                }
+
                 var book = BookMetadata(ForeignBookId, ForeignEditionId, BookTitle).Item2;
                 book.AuthorMetadata = metadata;
                 book.Author.Value.Metadata = metadata;

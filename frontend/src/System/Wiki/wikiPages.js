@@ -8,7 +8,7 @@ const wikiPages = [
       {
         heading: 'Welcome to Bibliophilarr',
         paragraphs: [
-          'Bibliophilarr manages ebook and audiobook libraries. It monitors your favorite authors, automatically downloads new releases, and organizes both formats. It uses open metadata providers and tracks ebooks and audiobooks independently.',
+          'Bibliophilarr manages ebook and audiobook libraries. It monitors authors and tracks ebook and audiobook availability independently. It searches configured indexers for releases, sends them to your download clients, and imports and organizes the files.',
           'This guide walks you through initial setup after your first launch.'
         ]
       },

@@ -296,6 +296,19 @@ tests. Coverage uses the packaged symbols for Bibliophilarr assemblies.
 The [package browser smoke](tests/browser/CATALOGUE.md) covers signed WebUI
 workflows in its own disposable instance.
 
+Verify authenticated copy import and restart persistence for both formats of
+one work in a disposable SQLite profile:
+
+```bash
+dotnet test src/NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj \
+  -p:Platform=Posix \
+  --filter 'FullyQualifiedName~ShouldPreserveApiImportedEbookAndAudiobookAcrossHostReopen'
+```
+
+The fixture creates and stops the host, reopens the same database, and checks
+both editions, file associations, format status, and file bytes. It uses
+fixture metadata and a temporary library.
+
 Metadata extraction and import-identification verification (targeted):
 
 ```bash
