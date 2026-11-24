@@ -13,6 +13,7 @@ using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.Commands;
@@ -40,6 +41,8 @@ namespace NzbDrone.Core.MediaFiles
         public static readonly Regex ExcludedSubFoldersRegex = new Regex(@"(?:\\|\/|^)(?:extras|@eadir|extrafanart|plex versions|\.[^\\/]+)(?:\\|\/)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         public static readonly Regex ExcludedFilesRegex = new Regex(@"^\._|^Thumbs\.db$|^\.DS_store$|\.partial~$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        private static readonly DateTime PostgresTimestampEpoch = new (2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         private readonly IDiskProvider _diskProvider;
         private readonly ICalibreProxy _calibre;
         private readonly IMediaFileService _mediaFileService;
@@ -50,6 +53,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IRootFolderService _rootFolderService;
         private readonly IEventAggregator _eventAggregator;
         private readonly ICommandResultReporter _commandResultReporter;
+        private readonly IConnectionStringFactory _connectionStringFactory;
         private readonly Logger _logger;
 
         public DiskScanService(IDiskProvider diskProvider,
@@ -62,6 +66,7 @@ namespace NzbDrone.Core.MediaFiles
                                IMediaFileTableCleanupService mediaFileTableCleanupService,
                                IEventAggregator eventAggregator,
                                ICommandResultReporter commandResultReporter,
+                               IConnectionStringFactory connectionStringFactory,
                                Logger logger)
         {
             _diskProvider = diskProvider;
@@ -75,6 +80,7 @@ namespace NzbDrone.Core.MediaFiles
             _rootFolderService = rootFolderService;
             _eventAggregator = eventAggregator;
             _commandResultReporter = commandResultReporter;
+            _connectionStringFactory = connectionStringFactory;
             _logger = logger;
         }
 
@@ -256,6 +262,31 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug($"Inserted {newFiles.Count} new unmatched trackfiles");
 
+            // A later unapproved scan could otherwise remove the evidence that this slot needs a guarded retry.
+            var retainReasonPaths = importResults?.Where(result => result.PreserveExistingUnmappedReason)
+                .Select(result => result.ImportDecision.Item.Path)
+                .ToHashSet(PathEqualityComparer.Instance);
+
+            var changedReasons = knownFiles.Where(file => file.EditionId == 0 &&
+                !IsPriorOccupiedAudiobookPart(file) &&
+                !ambiguousHeldAudiobookPaths.Contains(file.Path) &&
+                retainReasonPaths?.Contains(file.Path) != true &&
+                unmappedReasons.TryGetValue(file.Path, out var reason) && file.UnmappedReason != reason).ToList();
+
+            // A matched-only rescan cannot retest an earlier author-add failure.
+            if (filter == FilterFilesType.Matched && !addNewAuthors)
+            {
+                var scannedFiles = decisions.ToLookup(decision => decision.Item.Path, PathEqualityComparer.Instance);
+                var retainedReasonCount = changedReasons.RemoveAll(file =>
+                    (file.UnmappedReason is LibraryImportHoldReason.LowConfidence or LibraryImportHoldReason.AuthorBibliographyUnavailable) &&
+                    unmappedReasons[file.Path] == LibraryImportHoldReason.NoAcceptedWork &&
+                    scannedFiles[file.Path].All(decision => IsSameScannedFile(file, decision.Item)));
+                if (retainedReasonCount > 0)
+                {
+                    _logger.Debug("Retained an earlier import hold for {0} unchanged files after the matched-only scan found no accepted work.", retainedReasonCount);
+                }
+            }
+
             // finally update info on size/modified for existing files
             var updatedFiles = knownFiles
                 .Where(file => !ambiguousHeldAudiobookPaths.Contains(file.Path))
@@ -282,16 +313,6 @@ namespace NzbDrone.Core.MediaFiles
 
             _mediaFileService.UpdateScannedFileInfo(updatedFiles);
 
-            // A later unapproved scan could otherwise remove the evidence that this slot needs a guarded retry.
-            var retainReasonPaths = importResults?.Where(result => result.PreserveExistingUnmappedReason)
-                .Select(result => result.ImportDecision.Item.Path)
-                .ToHashSet(PathEqualityComparer.Instance);
-
-            var changedReasons = knownFiles.Where(file => file.EditionId == 0 &&
-                !IsPriorOccupiedAudiobookPart(file) &&
-                !ambiguousHeldAudiobookPaths.Contains(file.Path) &&
-                retainReasonPaths?.Contains(file.Path) != true &&
-                unmappedReasons.TryGetValue(file.Path, out var reason) && file.UnmappedReason != reason).ToList();
             changedReasons.ForEach(file => file.UnmappedReason = unmappedReasons[file.Path]);
             _mediaFileService.SetUnmappedReasons(changedReasons);
 
@@ -310,6 +331,29 @@ namespace NzbDrone.Core.MediaFiles
 
             importStopwatch.Stop();
             _logger.Debug("Library import finished for {0} scan folders in {1}.", scannedFolders.Count, importStopwatch.Elapsed);
+        }
+
+        private bool IsSameScannedFile(BookFile stored, LocalBook scanned)
+        {
+            if (stored.Size != scanned.Size || stored.Modified == default || scanned.Modified == default ||
+                stored.Modified.Kind != DateTimeKind.Utc || scanned.Modified.Kind != DateTimeKind.Utc)
+            {
+                return false;
+            }
+
+            if (stored.Modified == scanned.Modified)
+            {
+                return true;
+            }
+
+            if (_connectionStringFactory.MainDbConnection.DatabaseType != DatabaseType.PostgreSQL)
+            {
+                return false;
+            }
+
+            // Npgsql truncates fractional microseconds toward the PostgreSQL epoch.
+            var sinceEpoch = scanned.Modified - PostgresTimestampEpoch;
+            return stored.Modified.Ticks == scanned.Modified.Ticks - (sinceEpoch.Ticks % TimeSpan.TicksPerMicrosecond);
         }
 
         private static bool IsPriorOccupiedAudiobookPart(BookFile file)

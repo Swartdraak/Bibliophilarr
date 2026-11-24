@@ -42,6 +42,8 @@ process.
 
 ### Fixed
 
+- Retain the recorded low-confidence or incomplete-bibliography reason when a
+  matched-only scan finds no work for the same unchanged file.
 - Recover one missing Open Library bibliography work when exact search results
   agree with the available work list and the direct record verifies author credit.
 - Avoid repeated lookups for the same incomplete author bibliography within a
