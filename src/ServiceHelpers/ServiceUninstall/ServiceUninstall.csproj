@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Keep application data and identity dependencies out of this standalone launcher. -->
-    <PackageReference Remove="Microsoft.Data.SqlClient;Microsoft.IdentityModel.JsonWebTokens;System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Remove="Microsoft.Data.SqlClient;Microsoft.IdentityModel.JsonWebTokens;System.IdentityModel.Tokens.Jwt;System.Drawing.Common;System.Security.Cryptography.Pkcs" />
   </ItemGroup>
 </Project>
 

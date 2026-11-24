@@ -97,6 +97,8 @@
 
     <!-- Output to _output and _tests respectively -->
     <OutputPath Condition="'$(BibliophilarrProject)'=='true'">$(BibliophilarrRootDir)_output\</OutputPath>
+    <!-- Standalone service helpers must not overwrite the application's dependency files. -->
+    <OutputPath Condition="'$(MSBuildProjectName)'=='ServiceInstall' Or '$(MSBuildProjectName)'=='ServiceUninstall'">$(BibliophilarrRootDir)_output\service-helpers\$(MSBuildProjectName)\</OutputPath>
     <OutputPath Condition="'$(BibliophilarrOutputType)'=='Test'">$(BibliophilarrRootDir)_tests\</OutputPath>
     <OutputPath Condition="'$(BibliophilarrOutputType)'=='Update'">$(BibliophilarrRootDir)_output\$(AppUpdateName)\</OutputPath>
 
