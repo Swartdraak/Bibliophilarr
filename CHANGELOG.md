@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Honor longer Open Library artwork cooldowns specified by Retry-After on rate
+  limits and temporary outages.
 - Clarify built-in backup contents and external PostgreSQL recovery on the
   Backups page, restore dialog, and in-app guides.
 - Align configuration, logging, dependency injection, and Windows service
