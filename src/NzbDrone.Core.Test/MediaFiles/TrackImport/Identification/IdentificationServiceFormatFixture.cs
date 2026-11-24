@@ -290,12 +290,19 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Mocker.GetMock<IAuthorService>().Verify(service => service.FindByName("Test Author"), newDownload ? Times.Once() : Times.Never());
         }
 
-        [TestCase(false, false, "Teacher's Guide, with Poster")]
-        [TestCase(true, false, "Teacher’s Guide, with Poster")]
-        [TestCase(true, true, "Teaching Guide")]
-        [TestCase(false, true, "Reading Guide")]
-        public void should_reject_a_guide_when_the_embedded_title_identifies_its_base_work(bool findRemotely, bool guideOnWorkOnly, string guideSuffix)
+        [TestCase(false, false, true, "Teacher's Guide, with Poster")]
+        [TestCase(true, false, true, "Teacher’s Guide, with Poster")]
+        [TestCase(true, false, false, "Teacher’s Guide, with Poster")]
+        [TestCase(true, true, false, "Teaching Guide")]
+        [TestCase(false, true, true, "Reading Guide")]
+        public void should_reject_a_guide_when_the_embedded_title_identifies_its_base_work(bool findRemotely, bool guideOnWorkOnly, bool newDownload, string guideSuffix)
         {
+            _config.NewDownload = newDownload;
+            if (!newDownload)
+            {
+                _overrides = new IdentificationOverrides();
+            }
+
             var guideTitle = $"Test Book: {guideSuffix}";
             _book.Title = guideTitle;
             _audiobookEdition.Title = guideOnWorkOnly ? "Test Book" : guideTitle;
@@ -305,6 +312,9 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             var result = IdentifyAudioTitle("Test Book");
 
             result.Edition.Should().BeNull();
+            result.ProviderIdentityConflictDetail.Should().Be(findRemotely && !newDownload
+                ? "Provider candidates identify a guide for the embedded title. Select the intended work manually."
+                : null);
         }
 
         [Test]
@@ -335,10 +345,11 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             IdentifyAudioTitle(fileTitle, confidence).Edition.Should().BeSameAs(_audiobookEdition);
         }
 
-        [TestCase(false, "The Primal Hunter 7", "The Primal Hunter 3")]
-        [TestCase(true, "Elven Star", "Serpent Mage")]
-        [TestCase(false, "Winter", "Cinder")]
-        public void should_skip_wrong_matched_retry_work_when_raw_title_and_filename_agree(bool findRemotely, string observedTitle, string candidateTitle)
+        [TestCase(false, "The Primal Hunter 7", "The Primal Hunter 3", null)]
+        [TestCase(true, "The Primal Hunter Book 7", "The Primal Hunter Book 3", "Provider candidates name a different volume of the same series. Select the intended work manually.")]
+        [TestCase(true, "Elven Star", "Serpent Mage", "Provider candidates disagree with the embedded title and filename. Select the intended work manually.")]
+        [TestCase(false, "Winter", "Cinder", null)]
+        public void should_skip_wrong_matched_retry_work_when_raw_title_and_filename_agree(bool findRemotely, string observedTitle, string candidateTitle, string conflictDetail)
         {
             GivenRetryCandidate(candidateTitle, findRemotely);
             var tracks = CreateRetryTracks(observedTitle, $"Test Author - {observedTitle}");
@@ -349,6 +360,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             release.IdentificationHoldReason.Should().Be(findRemotely
                 ? LibraryImportHoldReason.ProviderIdentityConflict
                 : null);
+            release.ProviderIdentityConflictDetail.Should().Be(conflictDetail);
             release.RejectedProviderCandidates.Should().Be(findRemotely);
         }
 

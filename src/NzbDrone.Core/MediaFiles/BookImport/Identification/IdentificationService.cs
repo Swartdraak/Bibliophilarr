@@ -212,18 +212,34 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 ? null
                 : localBookRelease.LocalBooks.Select(track => libraryAuthors.GetValueOrDefault(track)).Where(author => author != null).ToHashSet();
 
-            bool AllowsEdition(Edition edition) =>
-                AllowsGuideMatch(taggedBookTitle, edition, idOverrides.Edition) &&
-                (corroboratedAuthors == null || AllowsLibraryScanMatch(localBookRelease, taggedBookTitle, corroboratedAuthors, edition));
+            string FindIdentityConflict(Edition edition)
+            {
+                if (!AllowsGuideMatch(taggedBookTitle, edition, idOverrides.Edition))
+                {
+                    return "Provider candidates identify a guide for the embedded title. Select the intended work manually.";
+                }
 
-            var providerIdentityConflict = false;
+                return corroboratedAuthors == null
+                    ? null
+                    : FindLibraryScanIdentityConflict(localBookRelease, taggedBookTitle, corroboratedAuthors, edition);
+            }
+
+            string providerIdentityConflict = null;
             var providerAuthorUnavailable = false;
 
             bool AllowsRemoteEdition(Edition edition)
             {
-                if (!AllowsEdition(edition))
+                if (FindIdentityConflict(edition) is { } conflict)
                 {
-                    providerIdentityConflict = true;
+                    if (providerIdentityConflict == null)
+                    {
+                        providerIdentityConflict = conflict;
+                    }
+                    else if (providerIdentityConflict != conflict)
+                    {
+                        providerIdentityConflict = "Provider candidates conflict with this file in multiple ways. Select the intended work manually.";
+                    }
+
                     return false;
                 }
 
@@ -238,7 +254,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             var localCandidates = _candidateService.GetDbCandidatesFromTags(localBookRelease, idOverrides, config.IncludeExisting)
                 .Where(candidate => localBookRelease.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, candidate.Edition)))
-                .Where(candidate => AllowsEdition(candidate.Edition))
+                .Where(candidate => FindIdentityConflict(candidate.Edition) == null)
                 .ToList();
 
             IEnumerable<CandidateEdition> candidateReleases = localCandidates;
@@ -267,11 +283,20 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             if (!seenCandidate)
             {
-                if (providerIdentityConflict && !providerAuthorUnavailable && !config.NewDownload &&
+                if (providerIdentityConflict != null && !providerAuthorUnavailable && !config.NewDownload &&
                     idOverrides.Author == null && idOverrides.Book == null && idOverrides.Edition == null)
                 {
                     localBookRelease.IdentificationHoldReason = LibraryImportHoldReason.ProviderIdentityConflict;
+                    localBookRelease.ProviderIdentityConflictDetail = providerIdentityConflict;
                     localBookRelease.RejectedProviderCandidates = true;
+
+                    if (_logger.IsDebugEnabled)
+                    {
+                        foreach (var file in localBookRelease.LocalBooks)
+                        {
+                            _logger.Debug("Import hold ProviderIdentityConflict file={0} detail={1}", LogSanitizer.Sanitize(file.Path), providerIdentityConflict);
+                        }
+                    }
                 }
 
                 // can't find any candidates even after using remote search
@@ -541,7 +566,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return series.Success && series.Groups[1].Value == workTitle;
         }
 
-        private bool AllowsLibraryScanMatch(LocalEdition release, string taggedTitle, IReadOnlySet<string> corroboratedAuthors, Edition edition)
+        private string FindLibraryScanIdentityConflict(LocalEdition release, string taggedTitle, IReadOnlySet<string> corroboratedAuthors, Edition edition)
         {
             var book = edition?.Book?.Value;
             var workTitle = ImportDecisionMaker.NormalizeLibraryIdentity(book?.Title);
@@ -549,7 +574,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (HasConflictingCandidateOrdinal(taggedTitle, workTitle, editionTitle))
             {
                 _logger.Debug("Skipping library scan candidate {0} because it names a different volume of the same series", edition);
-                return false;
+                return "Provider candidates name a different volume of the same series. Select the intended work manually.";
             }
 
             var author = book?.AuthorMetadata?.Value?.Name ?? book?.Author?.Value?.Name;
@@ -559,10 +584,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 !HasNonconflictingEditionIdentifier(release, edition))
             {
                 _logger.Debug("Skipping library scan candidate {0} because its title contradicts the embedded title and filename", edition);
-                return false;
+                return "Provider candidates disagree with the embedded title and filename. Select the intended work manually.";
             }
 
-            return true;
+            return null;
         }
 
         internal static bool HasConflictingCandidateOrdinal(string taggedTitle, string normalizedWorkTitle, string normalizedEditionTitle)

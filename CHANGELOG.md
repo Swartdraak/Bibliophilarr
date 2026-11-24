@@ -292,6 +292,8 @@ process.
   configured order. They return an empty list when no provider returns a match.
 - Reuse saved book covers and author portraits in Add New when an exact
   provider identity matches the library and the search result has no artwork.
+- Explain import holds caused by a guide, a different series volume, or a
+  mismatch with the embedded title and filename in the library import log.
 - Google Books author refresh keeps existing catalogue entries when overlapping
   pages or a shrinking result count leave the bibliography incomplete.
   System Events reports the page offset, received count and reported total
