@@ -20,6 +20,8 @@ process.
   another book, keep the existing data and import exclusions.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
   Library's works feed cannot verify the books shown in search.
+- Resolve Open Library title results to a verified ebook or audiobook edition
+  when adding them to the library.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked
   independently when both file formats are recognized.
 - Use the current author and artwork when processing a delayed author refresh.
