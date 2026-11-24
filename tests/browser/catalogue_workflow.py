@@ -7,8 +7,10 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import struct
 from tempfile import TemporaryDirectory
 import time
+import wave
 from urllib.parse import quote, urlsplit
 from xml.sax.saxutils import escape, quoteattr
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
@@ -354,6 +356,22 @@ def write_epub(path, title, author, identifier):
             '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Fixture</title></head>'
             "<body><p>A synthetic chapter for the Bibliophilarr browser workflow.</p></body></html>",
         )
+
+
+def write_tagged_wav(path, title, author):
+    with wave.open(str(path), "wb") as pcm:
+        pcm.setparams((1, 2, 22050, 0, "NONE", "not compressed"))
+        pcm.writeframes(b"\x00\x00" * 22050 * 6)
+    # RIFF INFO tags let both releases identify the fixture with their embedded tag reader.
+    def riff_chunk(name, data):
+        return name + struct.pack("<I", len(data)) + data + (b"\0" if len(data) % 2 else b"")
+
+    info = b"INFO" + b"".join(
+        riff_chunk(name, value.encode("ascii") + b"\0")
+        for name, value in ((b"INAM", title), (b"IPRD", title), (b"IART", author))
+    )
+    audio_bytes = path.read_bytes() + riff_chunk(b"LIST", info)
+    path.write_bytes(audio_bytes[:4] + struct.pack("<I", len(audio_bytes) - 8) + audio_bytes[8:])
 
 
 def epub_payload(path):
