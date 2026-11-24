@@ -695,6 +695,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 edition = dbEdition;
             }
 
+            if (edition != null && edition.BookId != book.Id)
+            {
+                foreach (var decision in decisions)
+                {
+                    decision.Reject(new Rejection("The selected edition belongs to a different work", RejectionType.Permanent));
+                }
+
+                return null;
+            }
+
             foreach (var decision in decisions)
             {
                 decision.Item.Edition = edition;

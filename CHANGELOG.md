@@ -37,6 +37,8 @@ process.
 - Hold an unresolved manual-import edition selection and continue importing
   valid files in the same batch. When the edition is omitted, use a compatible
   monitored edition of the selected work.
+- Reject a selected edition owned by a different work before changing edition
+  monitoring or importing the file.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Continue reading and matching audio files when the optional ffprobe utility
