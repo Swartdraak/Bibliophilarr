@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using DryIoc;
+using DryIoc.Microsoft.DependencyInjection;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -338,8 +339,9 @@ namespace NzbDrone.Host.Test
                     services.PostConfigure<UpdateOptions>(options => options.PublicReleaseDiscovery = false);
                 })
                 .ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"))
-                .ConfigureContainer<IContainer>(container =>
+                .ConfigureContainer<DryIocServiceProvider>(serviceProvider =>
                 {
+                    var container = serviceProvider.Container;
                     var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
                     container.RegisterInstance(dispatcher.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
 

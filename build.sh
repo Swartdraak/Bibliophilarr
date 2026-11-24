@@ -164,10 +164,6 @@ PackageLinux()
 
     PackageFiles "$folder" "$framework" "$runtime"
 
-    echo "Removing Service helpers"
-    rm -f $folder/ServiceUninstall.*
-    rm -f $folder/ServiceInstall.*
-
     echo "Removing $APP_WINDOWS_NAME"
     rm "$folder/$APP_WINDOWS_NAME".*
 
@@ -191,10 +187,6 @@ PackageMacOS()
     local folder=$artifactsFolder/$runtime/$framework/$APP_INTERNAL_NAME
 
     PackageFiles "$folder" "$framework" "$runtime"
-
-    echo "Removing Service helpers"
-    rm -f $folder/ServiceUninstall.*
-    rm -f $folder/ServiceInstall.*
 
     echo "Removing $APP_WINDOWS_NAME"
     rm "$folder/$APP_WINDOWS_NAME".*
@@ -242,6 +234,12 @@ PackageWindows()
     local folder=$artifactsFolder/$runtime/$framework/$APP_INTERNAL_NAME
     
     PackageFiles "$folder" "$framework" "$runtime"
+
+    echo "Adding standalone Service helpers"
+    local helper
+    for helper in ServiceInstall ServiceUninstall; do
+        cp "$outputFolder/service-helpers/$helper/$framework/$runtime/publish/$helper".* "$folder/"
+    done
 
     echo "Removing $APP_MONO_NAME"
     rm -f "$folder/$APP_MONO_NAME".*

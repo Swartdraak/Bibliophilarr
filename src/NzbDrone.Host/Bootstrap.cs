@@ -93,9 +93,9 @@ namespace NzbDrone.Host
                         {
                             new HostBuilder()
                                 .UseServiceProviderFactory(new DryIocServiceProviderFactory(new Container(rules => rules.WithNzbDroneRules())))
-                                .ConfigureContainer<IContainer>(c =>
+                                .ConfigureContainer<DryIocServiceProvider>(provider =>
                                 {
-                                    c.AutoAddServices(Bootstrap.ASSEMBLIES)
+                                    provider.Container.AutoAddServices(Bootstrap.ASSEMBLIES)
                                         .AddNzbDroneLogger()
                                         .AddDatabase()
                                         .AddStartupContext(startupContext)
@@ -169,9 +169,9 @@ namespace NzbDrone.Host
             return new HostBuilder()
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseServiceProviderFactory(new DryIocServiceProviderFactory(new Container(rules => rules.WithNzbDroneRules())))
-                .ConfigureContainer<IContainer>(c =>
+                .ConfigureContainer<DryIocServiceProvider>(provider =>
                 {
-                    c.AutoAddServices(Bootstrap.ASSEMBLIES)
+                    provider.Container.AutoAddServices(Bootstrap.ASSEMBLIES)
                         .AddNzbDroneLogger()
                         .AddDatabase()
                         .AddStartupContext(context)
