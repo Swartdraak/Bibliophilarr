@@ -112,6 +112,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var audiobookPartRetries = GetAudiobookPartRetries(decisions, replaceExisting);
             foreach (var decision in audiobookPartRetries.Keys.Where(d => !HasPersistedAudiobookTarget(d.Item)))
             {
+                LogAudiobookPartHold("no-persisted-target", decision.Item, retainedPart: audiobookPartRetries[decision]?.Part);
                 decision.Reject(new Rejection(AudioPartRetryHold, holdReason: LibraryImportHoldReason.DuplicateInScan));
             }
 
@@ -243,6 +244,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     if (alreadyImported != null)
                     {
+                        if (localTrack.IsLibraryScan && format == FormatType.Audiobook)
+                        {
+                            LogAudiobookPartHold("occupied-in-scan", localTrack, alreadyImported.ImportDecision.Item);
+                        }
+
                         importResults.Add(HasUnverifiedEbookIsbn(localTrack, alreadyImported.ImportDecision.Item)
                             ? new ImportResult(importDecision, LibraryImportHoldReason.UnverifiedEditionIdentifier, "The embedded ISBN does not identify the occupied ebook edition")
                             : new ImportResult(importDecision, LibraryImportHoldReason.DuplicateInScan, "Another file in this scan already occupies this edition and part for the same media format"));
@@ -255,6 +261,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                             localTrack.RawTaggedPart != localTrack.Part ||
                             !_mediaFileService.TryLinkUnmappedAudiobookPart(heldFile, localTrack.Edition))
                         {
+                            LogAudiobookPartHold("retry-not-linked", localTrack, retainedPart: heldFile?.Part);
                             importResults.Add(new ImportResult(importDecision, LibraryImportHoldReason.DuplicateInScan, AudioPartRetryHold));
                             continue;
                         }
@@ -499,6 +506,33 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             return importResults;
+        }
+
+        private void LogAudiobookPartHold(string stage, LocalBook candidate, LocalBook incumbent = null, int? retainedPart = null)
+        {
+            if (!_logger.IsDebugEnabled)
+            {
+                return;
+            }
+
+            static string Describe(LocalBook track)
+            {
+                var pathFingerprint = string.IsNullOrEmpty(track.Path)
+                    ? "unknown"
+                    : Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(track.Path)));
+                var taggedPart = track.RawTaggedPart?.ToString(CultureInfo.InvariantCulture) ?? "unknown";
+                var effectiveDisc = track.FileTrackInfo?.DiscNumber ?? 0;
+                var effectiveTrack = track.FileTrackInfo?.TrackNumbers?.FirstOrDefault() ?? 0;
+                return $"pathSha256={pathFingerprint} rawSingleDiscPart={taggedPart} " +
+                       FormattableString.Invariant($"effectiveDisc={effectiveDisc} effectiveTrack={effectiveTrack} assignedPart={track.Part}");
+            }
+
+            _logger.Debug(
+                "DuplicateInScan audiobook stage={0} candidate=[{1}] incumbent=[{2}] retainedCandidatePart={3}",
+                stage,
+                Describe(candidate),
+                incumbent == null ? "unobserved" : Describe(incumbent),
+                retainedPart?.ToString(CultureInfo.InvariantCulture) ?? "unknown");
         }
 
         private static void RejectIncompatibleFormats(IEnumerable<ImportDecision<LocalBook>> decisions)

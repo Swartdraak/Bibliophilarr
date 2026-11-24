@@ -5,6 +5,9 @@ using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
@@ -692,6 +695,53 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_keep_two_disc_slot_collision_and_log_only_safe_ordinals()
+        {
+            GivenAudiobookImport();
+            using var logFactory = CaptureDebugMessages(out var messages);
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetUnmappedFiles()).Returns(new List<BookFile>());
+            var first = _approvedDecisions.Single();
+            first.Item.Size = 2000;
+            first.Item.IsLibraryScan = true;
+            first.Item.ExistingFile = true;
+            first.Item.FileTrackInfo.DiscNumber = 1;
+            first.Item.FileTrackInfo.TrackNumbers = new[] { 1 };
+            first.Item.FileTrackInfo.ReleaseMBId = "private-release-id";
+
+            var second = AddDigitalFallbackFile(first, "private-disc-2.m4b", new ParsedTrackInfo
+            {
+                DiscNumber = 2,
+                TrackNumbers = new[] { 1 },
+                ReleaseMBId = "private-release-id"
+            });
+            second.Item.Size = 1000;
+            second.Item.IsLibraryScan = true;
+            second.Item.ExistingFile = true;
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.ImportDecision == first && result.Result == ImportResultType.Imported);
+            results.Single(result => result.ImportDecision == second).HoldReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            var diagnostic = messages.Logs.Should().ContainSingle(message => message.StartsWith("DuplicateInScan audiobook", StringComparison.Ordinal)).Which;
+            diagnostic.Should().Contain("stage=occupied-in-scan")
+                .And.MatchRegex(@"candidate=\[pathSha256=[0-9a-f]{64} rawSingleDiscPart=unknown effectiveDisc=2 effectiveTrack=1 assignedPart=1\]")
+                .And.MatchRegex(@"incumbent=\[pathSha256=[0-9a-f]{64} rawSingleDiscPart=unknown effectiveDisc=1 effectiveTrack=1 assignedPart=1\]")
+                .And.NotContain(first.Item.Path)
+                .And.NotContain(second.Item.Path)
+                .And.NotContain("private-release-id");
+        }
+
+        private LogFactory CaptureDebugMessages(out MemoryTarget messages)
+        {
+            messages = new MemoryTarget { Layout = "${message}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Debug, LogLevel.Debug, messages);
+            var logFactory = new LogFactory { Configuration = logging };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(ImportApprovedBooks)));
+            return logFactory;
+        }
+
+        [Test]
         public void should_import_untagged_parts_as_part_of_one_identified_audiobook()
         {
             GivenAudiobookImport();
@@ -794,6 +844,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         public void should_preserve_a_prior_occupied_audiobook_part_on_scan_retry_without_preparing_the_book()
         {
             GivenAudiobookImport();
+            using var logFactory = CaptureDebugMessages(out var messages);
             var track = _approvedDecisions[0].Item;
             track.ExistingFile = true;
             track.IsLibraryScan = true;
@@ -815,6 +866,11 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             result.Result.Should().Be(ImportResultType.Skipped);
             result.HoldReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
+            var diagnostic = messages.Logs.Should().ContainSingle(message => message.StartsWith("DuplicateInScan audiobook", StringComparison.Ordinal)).Which;
+            diagnostic.Should().Contain("stage=retry-not-linked")
+                .And.Contain("rawSingleDiscPart=1")
+                .And.Contain("incumbent=[unobserved] retainedCandidatePart=1")
+                .And.NotContain(track.Path);
             stored.EditionId.Should().Be(0);
             stored.UnmappedReason.Should().Be(LibraryImportHoldReason.DuplicateInScan);
             _audiobookEdition.Monitored.Should().BeTrue();

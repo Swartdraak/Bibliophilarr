@@ -23,6 +23,9 @@ process.
   size.
 - Show import execution failures separately from uncertain matches and
   summarize unmapped reasons in scan progress.
+- Record available disc and track numbers and the assigned part in debug logs
+  when an audiobook import encounters an occupied part. The diagnostic uses
+  path fingerprints for the files involved.
 - Distinguish competing provider matches from conflicting stored identities in
   import decisions. Debug logs record candidate format and trusted identifier
   agreement for low-confidence new-author matches.
