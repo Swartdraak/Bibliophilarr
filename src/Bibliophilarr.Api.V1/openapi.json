@@ -4544,6 +4544,17 @@
         "tags": [
           "ManualImport"
         ],
+        "parameters": [
+          {
+            "name": "reportRejectionStatus",
+            "in": "query",
+            "description": "If true, use HTTP 422 for nonempty previews with no accepted selections.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4573,8 +4584,34 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Selection preview. Apply accepted selections separately with the ManualImport command. Without reportRejectionStatus, this status also carries wholly rejected rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ManualImportResource"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed or no submitted item supplies a usable catalogue book ID."
+          },
+          "422": {
+            "description": "Requested with reportRejectionStatus=true and every returned selection was rejected. The preview rows include their original IDs and per-item rejections.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ManualImportResource"
+                  }
+                }
+              }
+            }
           }
         }
       },

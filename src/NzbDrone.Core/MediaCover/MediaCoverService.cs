@@ -47,6 +47,7 @@ namespace NzbDrone.Core.MediaCover
         private readonly IMediaCoverProxy _mediaCoverProxy;
         private readonly IImageResizer _resizer;
         private readonly IBookService _bookService;
+        private readonly IAuthorRepository _authorRepository;
         private readonly IHttpClient _httpClient;
         private readonly IDiskProvider _diskProvider;
         private readonly ICoverExistsSpecification _coverExistsSpecification;
@@ -85,6 +86,7 @@ namespace NzbDrone.Core.MediaCover
         public MediaCoverService(IMediaCoverProxy mediaCoverProxy,
                                  IImageResizer resizer,
                                  IBookService bookService,
+                                 IAuthorRepository authorRepository,
                                  IHttpClient httpClient,
                                  IDiskProvider diskProvider,
                                  IAppFolderInfo appFolderInfo,
@@ -93,13 +95,14 @@ namespace NzbDrone.Core.MediaCover
                                  IEventAggregator eventAggregator,
                                  Logger logger,
                                  ICatalogueIdentityRepository catalogueIdentity)
-            : this(mediaCoverProxy, resizer, bookService, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System, catalogueIdentity)
+            : this(mediaCoverProxy, resizer, bookService, authorRepository, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System, catalogueIdentity)
         {
         }
 
         internal MediaCoverService(IMediaCoverProxy mediaCoverProxy,
                                    IImageResizer resizer,
                                    IBookService bookService,
+                                   IAuthorRepository authorRepository,
                                    IHttpClient httpClient,
                                    IDiskProvider diskProvider,
                                    IAppFolderInfo appFolderInfo,
@@ -113,6 +116,7 @@ namespace NzbDrone.Core.MediaCover
             _mediaCoverProxy = mediaCoverProxy;
             _resizer = resizer;
             _bookService = bookService;
+            _authorRepository = authorRepository;
             _httpClient = httpClient;
             _diskProvider = diskProvider;
             _coverExistsSpecification = coverExistsSpecification;
@@ -513,9 +517,14 @@ namespace NzbDrone.Core.MediaCover
 
         public void HandleAsync(AuthorRefreshCompleteEvent message)
         {
-            var author = message.Author;
-            var metadata = author.Metadata?.Value;
-            if (metadata?.Images?.Count > 0)
+            var author = _authorRepository.Find(message.Author.Id);
+            var metadata = author?.Metadata?.Value;
+            if (metadata?.Images == null || author.AuthorMetadataId != message.Author.AuthorMetadataId)
+            {
+                return;
+            }
+
+            if (metadata.Images.Count > 0)
             {
                 var alternatives = metadata.Images.Where(cover => cover?.CoverType == MediaCoverTypes.Poster)
                     .DistinctBy(cover => cover.Url).Skip(1)
@@ -527,7 +536,7 @@ namespace NzbDrone.Core.MediaCover
                 ReconcileAlternativeFiles(author.Id, MediaCoverEntity.Author, alternatives);
             }
 
-            var books = _bookService.GetBooksByAuthor(message.Author.Id);
+            var books = _bookService.GetBooksByAuthor(author.Id);
             foreach (var book in books)
             {
                 EnsureBookCovers(book);
@@ -538,7 +547,7 @@ namespace NzbDrone.Core.MediaCover
                 ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, GetBookCoverCandidates(book).Take(1), retrySuffix);
             }
 
-            _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));
+            _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(author));
         }
 
         private static IEnumerable<MediaCover> GetBookCoverCandidates(Book book)

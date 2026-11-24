@@ -47,6 +47,10 @@ process.
 
 - Cache a verified alternate Hardcover edition cover when the primary cover
   is missing.
+- Allow equal-size ebooks and audiobooks of the same work to be tracked
+  independently when both file formats are recognized.
+- Use the current author and artwork when processing a delayed author refresh.
+  Keep current portraits and skip refresh events for removed authors.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art. Recover covers for
   verified Open Library works with generated audiobook editions while retaining
@@ -107,6 +111,8 @@ process.
   including queue, backup, and system operations.
 - Report queued manual imports as unsuccessful when they neither import a file
   nor preserve an existing one. Summarize recognized format and file errors.
+- Keep per-file rejection reasons visible when every Manual Import selection
+  is rejected. API clients can opt in to HTTP 422 for this preview.
 - Hold an unresolved manual-import edition selection and continue importing
   valid files in the same batch. When the edition is omitted, use a compatible
   monitored edition of the selected work.
@@ -206,6 +212,8 @@ process.
   technology.
 - Give the Add Indexer template buttons accessible names.
 - Name the remote path mapping edit action and the file browser button.
+- Give the standard book and author folder naming example buttons distinct
+  accessible names.
 - Name the edit action on each saved download client.
 - Use the linked download client count for the singular or plural label on
   each tag card.

@@ -27,7 +27,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                 return Decision.Accept();
             }
 
-            var incomingFormat = ImportFormat.ForPath(localBook.Path);
+            var incomingFormat = localBook.Size > 0 ? ImportFormat.ForPath(localBook.Path) : null;
             foreach (var bookFile in bookFiles)
             {
                 if (bookFile == null)
