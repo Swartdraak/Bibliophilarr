@@ -56,13 +56,23 @@ namespace NzbDrone.Integration.Test
                 using var bootstrapDenied = await client.SendAsync(bootstrapNavigation);
                 Assert.That(bootstrapDenied.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
 
-                using var badForm = LoginForm(username, "invalid-password");
+                using var tokenResponse = await client.GetAsync("bootstrap");
+                Assert.That(tokenResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+                using var tokens = JsonDocument.Parse(await tokenResponse.Content.ReadAsStringAsync());
+                var requestToken = tokens.RootElement.GetProperty("requestToken").GetString();
+                Assert.That(requestToken, Is.Not.Null.And.Not.Empty);
+
+                using var unsignedForm = LoginForm(username, password);
+                using var unsigned = await client.PostAsync("login", unsignedForm);
+                Assert.That(unsigned.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
+                using var badForm = LoginForm(username, "invalid-password", requestToken);
                 using var rejected = await client.PostAsync("login", badForm);
                 Assert.That(rejected.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
                 Assert.That(rejected.Headers.Location?.OriginalString, Does.Contain("loginFailed=true"));
                 Assert.That(rejected.Headers.Contains("Set-Cookie"), Is.False);
 
-                using var validForm = LoginForm(username, password);
+                using var validForm = LoginForm(username, password, requestToken);
                 using var login = await client.PostAsync("login", validForm);
                 Assert.That(login.StatusCode, Is.EqualTo(HttpStatusCode.Redirect));
                 Assert.That(login.Headers.Location?.OriginalString, Is.EqualTo("/"));
@@ -124,13 +134,19 @@ namespace NzbDrone.Integration.Test
             Assert.That(payload.RootElement.GetProperty("apiKey").GetString() == ApiKey, Is.True, "bootstrap should use the configured API key");
         }
 
-        private static FormUrlEncodedContent LoginForm(string username, string password)
+        private static FormUrlEncodedContent LoginForm(string username, string password, string requestToken = null)
         {
-            return new FormUrlEncodedContent(new Dictionary<string, string>
+            var fields = new Dictionary<string, string>
             {
                 ["username"] = username,
                 ["password"] = password
-            });
+            };
+            if (requestToken != null)
+            {
+                fields["__RequestVerificationToken"] = requestToken;
+            }
+
+            return new FormUrlEncodedContent(fields);
         }
     }
 }
