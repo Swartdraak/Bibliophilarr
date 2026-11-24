@@ -54,12 +54,17 @@ restore. Forced migration interruption remains tracked in
   libraries in the same profile, and verify independent ebook and audiobook
   tracking. Check provider bibliography coverage, rendered artwork, unmapped
   reasons, and authenticated behavior after restart.
-- The completed draft replay accounted for 75 ebooks and 458 audiobooks. After
+- The earlier completed draft replay accounted for 75 ebooks and 458 audiobooks. After
   the matched-only follow-up, 54 ebooks and 405 audiobooks had links to the
   expected format. Seventeen works held both formats. Offline restart preserved
   the audited associations. Bibliography, artwork, unresolved work matches,
   and the fresh replay of the updated draft remain open.
   [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7120060055)
+- The next fresh run tracked every file again. The first audiobook scan linked
+  343 files to audiobook editions and recorded reasons for the other 115. The
+  first ebook scan and its separate follow-up linked 53 ebooks. Audiobook
+  follow-up and restart verification are separate from these first-pass results.
+  [Import comparison](https://github.com/Swartdraak/Bibliophilarr/issues/206#issuecomment-7121501538)
 - The next promotion follows `develop -> staging` through a pull request.
   Validate installation, metadata, full-library matching, and release evidence
   on the consolidated revision.
@@ -79,7 +84,9 @@ restore. Forced migration interruption remains tracked in
   backup passed. On PostgreSQL, v1.1.0 failed migration 45 during a fresh
   install. The draft recovered that schema and passed a separate fresh PostgreSQL
   test, dual-format file import, restart, and external database restore. Native
-  Windows and macOS upgrade rehearsal remains open.
+  Windows and macOS upgrade rehearsal remains open. The published Windows ZIP
+  failed untagged audio discovery without ffprobe. The published Apple Silicon
+  archive could not load its native SQLite library at first startup.
   [Upgrade and recovery tracking](https://github.com/Swartdraak/Bibliophilarr/issues/341)
 - The complete bibliography refresh landed in
   [#456](https://github.com/Swartdraak/Bibliophilarr/pull/456). The live Hardcover
