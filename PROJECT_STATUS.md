@@ -37,9 +37,14 @@ The coordinated FluentMigrator 8.0.1 upgrade is integrated on `develop` in
 tests covered SQLite and PostgreSQL startup, upgrade, restart and backup
 restore. The Linux Host test interrupts an owned startup process inside a
 SQLite migration transaction and reopens the same profile through the full
-host. It checks rollback, the complete schema, and generated API key
-persistence across healthy starts. The original governed recovery campaign remains tracked in
-[#328](https://github.com/Swartdraak/Bibliophilarr/issues/328).
+host. Packaged recovery now creates a fresh account and imports one file per
+format, then verifies ownership, generated API key, complete schema and file
+bytes after both SIGTERM and a separate seeded SIGKILL. The canonical recovery
+command also drives a signed Add New workflow in Chromium and verifies the
+exact edition and associated author after restart. The durable repository
+recovery issue is closed.
+[Recovery coverage](https://github.com/Swartdraak/Bibliophilarr/issues/328) ·
+[Packaged browser verification](https://github.com/Swartdraak/Bibliophilarr/pull/677)
 
 ## Governance and documentation tracks
 
@@ -69,7 +74,12 @@ persistence across healthy starts. The original governed recovery campaign remai
   reasons. Signed offline restart preserved all 533 ownership records and the
   audited catalogue identities. Bibliography, artwork, unresolved matches, and
   a separate fresh replay of the newer draft remain open.
-  [Current replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
+  [Completed replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
+- The most recent fresh profile saved all four provider configurations. It
+  remains stopped before either library root was registered. Hardcover's last
+  reported earliest retry was November 25 at 09:00 KST. Verify provider
+  availability and then repeat the full import, follow-up and restart checks.
+  [Provider status](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7130037593)
 - The closed replay decoded all 7,586 cached images. Among 414 works with
   linked files, 42 had an image reference without a usable cached image and
   62 lacked a reference. The retained logs connect rate-limit deferrals to
