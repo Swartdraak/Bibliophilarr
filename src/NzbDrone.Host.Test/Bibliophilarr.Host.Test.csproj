@@ -5,6 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Host\Bibliophilarr.Host.csproj" />
     <ProjectReference Include="..\NzbDrone.Test.Common\Bibliophilarr.Test.Common.csproj" />
+    <None Include="..\NzbDrone.Core.Test\Files\Media\nin.mp3" Link="DualFormatFixture.mp3" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
 
