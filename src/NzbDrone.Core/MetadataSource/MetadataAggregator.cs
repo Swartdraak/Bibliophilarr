@@ -348,6 +348,11 @@ namespace NzbDrone.Core.MetadataSource
 
         private void RecordTransientTelemetry(string providerName, string operation, HttpException exception)
         {
+            if (exception is TooManyRequestsException { IsLocallySuppressed: true })
+            {
+                return;
+            }
+
             if (exception?.Response?.StatusCode == HttpStatusCode.RequestTimeout)
             {
                 _providerTelemetryService.RecordTimeout(providerName, operation);

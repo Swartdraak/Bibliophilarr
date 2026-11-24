@@ -26,7 +26,7 @@ namespace NzbDrone.Common.Http
 
         public override string ToString()
         {
-            if (Response != null && Response.ResponseData != null)
+            if (Response != null && !Response.OmitContentFromDiagnostics && Response.ResponseData != null)
             {
                 return base.ToString() + Environment.NewLine + Response.Content;
             }
