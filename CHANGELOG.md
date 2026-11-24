@@ -18,6 +18,8 @@ process.
 
 - Clarify built-in backup contents and external PostgreSQL recovery on the
   Backups page, restore dialog, and in-app guides.
+- Align configuration, logging, dependency injection, and Windows service
+  packages with the supported .NET 10 runtime.
 - Update DryIoc and migrate host startup to the supported service-provider
   adapter. Keep the package's compile-time examples out of the build.
 - Keep each live task active once while startup restores queued tasks and marks
