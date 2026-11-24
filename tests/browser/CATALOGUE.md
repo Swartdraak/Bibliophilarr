@@ -71,6 +71,10 @@ and migration state. The test checks SQLite integrity and confirms no provider
 requests occurred during recovery. Bootstrap accepts the first account on fresh
 startup and rejects a second account both before and after the hard restart.
 
+Keep the safe `dual-format-sigterm.json` and `dual-format-sigkill.json`
+receipts with the browser test evidence. The Host test suite separately covers
+SIGKILL during startup migration on a fresh profile.
+
 The same packaged test is available through the canonical test script:
 
 ```bash
@@ -89,6 +93,14 @@ non-interactive sudo from a regular user. It creates temporary TLS material
 and bounds provider traffic to loopback. The normal unit and integration test
 commands keep their existing prerequisites.
 
-Keep the safe `dual-format-sigterm.json` and `dual-format-sigkill.json`
-receipts with the browser test evidence. The canonical Host test suite separately
-covers SIGKILL during startup migration on a fresh profile.
+## Browser Add New with a synthetic provider
+
+The Linux packaged recovery job also sends a normal Add New search to a local
+TLS fixture. Chromium opens the matched result, selects the root and profiles,
+and submits Add. The signed 201 response must contain the exact source edition
+and a newly created author. The signed Library and detail pages must show the
+same catalogue identities after restart. `browser-add-book.json` records this
+fixture run. Credentialed live search and the governed browser stage remain
+separate acceptance checks.
+
+Pass `--browser-book-add` after the evidence directory to include this browser-only case.
