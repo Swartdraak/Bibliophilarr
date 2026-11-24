@@ -18,7 +18,7 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 import time
 import wave
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from xml.etree import ElementTree
 
 from playwright.sync_api import expect, sync_playwright
@@ -109,7 +109,7 @@ def disallow_egress_proxy():
 
 
 @contextmanager
-def launch(binary, profile, http, base, port, proxy, logs, stage, expected_key=None, *, legacy=False):
+def launch(binary, profile, http, base, port, proxy, logs, evidence, stage, expected_key, password, *, legacy=False):
     # Retain only host/runtime variables. Do not inherit CI tokens or provider settings.
     allowed = ("PATH", "SYSTEMROOT", "WINDIR", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432",
                "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA",
@@ -122,20 +122,54 @@ def launch(binary, profile, http, base, port, proxy, logs, stage, expected_key=N
         env.update(BIBLIOPHILARR__SERVER__PORT=str(port), BIBLIOPHILARR__SERVER__BINDADDRESS="127.0.0.1",
                    BIBLIOPHILARR__LOG__ANALYTICSENABLED="false", BIBLIOPHILARR__UPDATE__PUBLICRELEASEDISCOVERY="false")
     print(f"Starting {stage}", flush=True)
-    with (logs / (stage + ".log")).open("wb") as log:
-        process = subprocess.Popen([str(binary), f"/data={profile}", "/nobrowser", "/nosingleinstancecheck"],
-                                   cwd=binary.parent, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
-        try:
+    log_path = logs / (stage + ".log")
+    process = None
+    try:
+        with log_path.open("wb") as log:
+            process = subprocess.Popen([str(binary), f"/data={profile}", "/nobrowser", "/nosingleinstancecheck"],
+                                       cwd=binary.parent, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
             key = wait_ready(process, http, base, profile)
-            assert expected_key is None or key == expected_key, "Persisted API identity changed"
+            assert key == expected_key, "Persisted API identity changed"
             yield key
             check_status(http.post(base + "/api/v1/system/shutdown", headers={"X-Api-Key": key}),
                          200, f"{stage} signed shutdown")
             assert process.wait(timeout=25) == 0, f"{stage} did not exit cleanly"
-        finally:
-            if process.poll() is None:
-                process.kill()
-                process.wait(timeout=10)
+    except Exception as error:
+        notes = {
+            "stage": stage,
+            "exception": type(error).__name__,
+            "processStarted": process is not None,
+            "exitBeforeCleanup": process.poll() if process else None,
+            "configExists": (profile / "config.xml").is_file(),
+            "databaseExists": (profile / "bibliophilarr.db").is_file(),
+            "managedProxyAttempts": proxy.attempts,
+        }
+        (evidence / (stage + "-failure.json")).write_text(json.dumps(notes, indent=2) + "\n", encoding="utf-8")
+        if log_path.is_file():
+            # The bootstrap exception can precede repeated wait/retry messages.
+            with log_path.open("rb") as log:
+                excerpt = log.read(24000)
+                if log.read(1):
+                    log.seek(-12000, os.SEEK_END)
+                    first_lines = excerpt[:12000].rpartition(b"\n")[0]
+                    last_lines = log.read(12000).partition(b"\n")[2]
+                    excerpt = first_lines + b"\n[excerpt truncated]\n" + last_lines
+            text = excerpt.decode("utf-8", errors="replace")
+            # Strip generated credentials, including any new key if identity changed.
+            observed_key = None
+            try:
+                observed_key = ElementTree.parse(profile / "config.xml").findtext("ApiKey")
+            except (OSError, ElementTree.ParseError):
+                pass
+            for value in filter(None, (expected_key, password, observed_key)):
+                for literal in (value, quote(value, safe="")):
+                    text = re.sub(re.escape(literal), "[redacted]", text, flags=re.IGNORECASE)
+            (evidence / (stage + "-failure.log")).write_text(text, encoding="utf-8")
+        raise
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait(timeout=10)
 
 
 def open_db(profile, mode="ro"):
@@ -183,7 +217,8 @@ def fixture_import(api, inbox, author, book):
     for source in (epub, audio):
         options = {"folder": str(inbox), "authorId": author, "filterExistingFiles": "false",
                    "replaceExistingFiles": "false"}
-        choices = check_status(api.get("/api/v1/manualimport", params=options), 200, "find fixture file").json()
+        response = api.get("/api/v1/manualimport", params=options)
+        choices = check_status(response, 200, f"find {source.suffix} fixture file").json()
         entry = next(row for row in choices if Path(row["path"]) == source)
         command = check_status(api.post("/api/v1/command", data={
             "name": "ManualImport", "importMode": "copy", "replaceExistingFiles": False,
@@ -282,8 +317,9 @@ def verify(args, work, baseline_binary, candidate_binary, report):
     with disallow_egress_proxy() as proxy, sync_playwright() as pw, pw.chromium.launch() as browser:
         http = pw.request.new_context()
 
-        def app(binary, name, key=None):
-            return launch(binary, profile, http, base, port, proxy, work, name, key, legacy=binary == baseline_binary)
+        def app(binary, name, key):
+            return launch(binary, profile, http, base, port, proxy, work, args.evidence, name, key, password,
+                          legacy=binary == baseline_binary)
 
         @contextmanager
         def signed(key):
