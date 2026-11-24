@@ -952,7 +952,7 @@ const wikiPages = [
           'Rescan Folders — Scan all root folders for new, changed, or deleted files.',
           'Refresh Monitored Downloads — Poll download clients for progress updates.',
           'Messaging Cleanup — Clean up UI notification messages.',
-          'Backup — Create a weekly configuration backup that includes the database when using SQLite.'
+          'Backup — Create a configuration backup at the configured interval. The archive includes the database when using SQLite.'
         ],
         note: 'You can manually trigger any task by clicking its run icon. Tasks that are currently running show their progress.'
       },
@@ -965,7 +965,8 @@ const wikiPages = [
       {
         heading: 'Backups',
         paragraphs: [
-          'Bibliophilarr creates weekly backups in the application data directory. They include configuration and version information and, when using SQLite, bibliophilarr.db.'
+          'Set the automatic backup interval to 1–7 days in Settings → General → Backups with advanced settings enabled. The default is every 7 days.',
+          'The default folder is Backups/ in the application data directory. Archives include configuration and version information and, when using SQLite, bibliophilarr.db.'
         ],
         list: [
           'Backup Now — Trigger an immediate manual backup.',
@@ -1354,7 +1355,7 @@ const wikiPages = [
       {
         heading: 'How do I backup and restore?',
         paragraphs: [
-          'Automatic backups run weekly and are stored in the application data directory under Backups/.'
+          'By default, automatic backups run every 7 days and go to Backups/ in the application data directory. Change the interval and folder in Settings → General → Backups with advanced settings enabled.'
         ],
         list: [
           'Manual backup: System → Backups → Backup Now.',

@@ -138,7 +138,7 @@ class RestoreBackupModalContent extends Component {
 
         <ModalBody>
           <Alert kind={kinds.WARNING}>
-            {translate('RestorePostgreSqlBackupScope')}
+            {translate('RestoreBackupDatabaseScope')}
           </Alert>
 
           {

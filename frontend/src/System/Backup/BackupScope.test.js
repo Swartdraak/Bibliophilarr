@@ -29,7 +29,7 @@ test('explains what the backup contains before starting a backup', () => {
 });
 
 test.each([['saved', 17], ['uploaded', undefined]])(
-  'explains PostgreSQL recovery before restoring a %s backup',
+  'explains SQLite and PostgreSQL recovery before restoring a %s backup',
   (_, id) => {
     const onRestore = jest.fn();
     render(
@@ -44,8 +44,10 @@ test.each([['saved', 17], ['uploaded', undefined]])(
       />
     );
 
+    expect(screen.getByText(/a SQLite backup ZIP restores the configuration and main database/i)).toBeVisible();
     expect(screen.getByText(/for PostgreSQL, this dialog restores configuration only/i)).toBeVisible();
     expect(screen.getByText(/restore a matching PostgreSQL database backup separately/i)).toBeVisible();
+    expect(screen.getByText(/use the corresponding application data directory/i)).toBeVisible();
     expect(screen.getByText(/will automatically restart/i)).toBeVisible();
 
     const restore = screen.getByRole('button', { name: 'Restore' });
