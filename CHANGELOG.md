@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Align configuration, logging, dependency injection, and Windows service
+  packages with the supported .NET 10 runtime.
 - Update DryIoc and migrate host startup to the supported service-provider
   adapter. Keep the package's compile-time examples out of the build.
 - Keep each live task active once while startup restores queued tasks and marks
@@ -97,6 +99,8 @@ process.
 - Google Books author refresh keeps existing catalogue entries when overlapping
   pages or a shrinking result count leave the bibliography incomplete.
 - Name, URL, credentials, and tags in connection forms have associated labels.
+- Label the quality profile name and release restriction fields. Release
+  profile edit buttons identify their restrictions and indexer when available.
 - Name the Add controls for indexers, download clients, and remote path
   mappings for assistive technology. Keep Newznab category selection usable
   with the keyboard and explain which host a remote path mapping uses.
