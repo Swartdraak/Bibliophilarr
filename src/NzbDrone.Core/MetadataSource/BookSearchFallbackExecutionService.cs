@@ -11,6 +11,7 @@ using NzbDrone.Common.Http;
 using NzbDrone.Common.TPL;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MetadataSource.GoogleBooks;
+using NzbDrone.Core.MetadataSource.Hardcover;
 using Polly;
 using Polly.CircuitBreaker;
 
@@ -68,6 +69,7 @@ namespace NzbDrone.Core.MetadataSource
         private readonly ConcurrentDictionary<string, DateTime> _cooldownStore;
         private readonly ConcurrentDictionary<string, RateLimitWindowState> _rateLimitWindowStore;
         private readonly ConcurrentDictionary<string, ResiliencePipeline<List<Book>>> _circuitBreakers;
+        private readonly HardcoverRateLimitGate _hardcoverRateLimitGate;
         private readonly Logger _logger;
 
         public BookSearchFallbackExecutionService(IRateLimitService rateLimitService,
@@ -81,6 +83,7 @@ namespace NzbDrone.Core.MetadataSource
             _providerTelemetryService = providerTelemetryService;
             _operationTelemetry = operationTelemetry;
             _providerRegistry = providerRegistry;
+            _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager);
             _cooldownStore = cacheManager.GetCache<ConcurrentDictionary<string, DateTime>>(GetType(), "fallbackProviderCooldowns")
                 .Get("fallbackProviderCooldowns", () => new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase));
             _rateLimitWindowStore = cacheManager.GetCache<ConcurrentDictionary<string, RateLimitWindowState>>(GetType(), "fallbackProviderRateLimitWindows")
@@ -125,7 +128,8 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             var google = provider as GoogleBooksFallbackSearchProvider;
-            var rateLimitSnapshot = google == null ? TrackRateLimitWindow(provider) : 0;
+            var trackWindowAfterAttempt = google != null || provider is HardcoverFallbackSearchProvider;
+            var rateLimitSnapshot = trackWindowAfterAttempt ? 0 : TrackRateLimitWindow(provider);
             UpdateRateLimitHealth(provider, rateLimitSnapshot, TimeSpan.Zero);
 
             var watch = Stopwatch.StartNew();
@@ -162,6 +166,17 @@ namespace NzbDrone.Core.MetadataSource
             {
                 attempted = false;
                 SkipIfCoolingDown(provider);
+                return new List<Book>();
+            }
+            catch (TooManyRequestsException e) when (e.IsLocallySuppressed)
+            {
+                attempted = false;
+                return new List<Book>();
+            }
+            catch (TooManyRequestsException e) when (e.HardcoverCooldownUntilUtc.HasValue)
+            {
+                watch.Stop();
+                _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
                 return new List<Book>();
             }
             catch (TooManyRequestsException e)
@@ -215,7 +230,7 @@ namespace NzbDrone.Core.MetadataSource
             {
                 if (attempted)
                 {
-                    if (google != null)
+                    if (trackWindowAfterAttempt)
                     {
                         UpdateRateLimitHealth(provider, TrackRateLimitWindow(provider), TimeSpan.Zero);
                     }
@@ -352,8 +367,7 @@ namespace NzbDrone.Core.MetadataSource
                         MinimumThroughput = CircuitBreakerFailureThreshold,
                         BreakDuration = CircuitBreakerBreakDuration,
                         ShouldHandle = new PredicateBuilder<List<Book>>()
-                            .Handle<HttpException>()
-                            .Handle<TooManyRequestsException>(),
+                            .Handle<HttpException>(exception => exception is not TooManyRequestsException { IsLocallySuppressed: true }),
                         OnOpened = args =>
                         {
                             _logger.Warn("Circuit breaker opened for provider {0}", name);
@@ -411,6 +425,12 @@ namespace NzbDrone.Core.MetadataSource
             if (provider is GoogleBooksFallbackSearchProvider google && google.RequestCooldownUntilUtc > until)
             {
                 until = google.RequestCooldownUntilUtc;
+            }
+
+            if (provider is HardcoverFallbackSearchProvider &&
+                _hardcoverRateLimitGate.CooldownUntilUtc is { } hardcoverDeadline && hardcoverDeadline > until)
+            {
+                until = hardcoverDeadline;
             }
 
             remaining = until > now ? until - now : TimeSpan.Zero;

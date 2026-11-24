@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
@@ -8,16 +9,85 @@ using NLog;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
+using NzbDrone.Common.Http.Dispatchers;
+using NzbDrone.Common.TPL;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.GoogleBooks;
+using NzbDrone.Core.MetadataSource.Hardcover;
 
 namespace NzbDrone.Core.Test.MetadataSource
 {
     [TestFixture]
     public class MetadataProviderRegistryFixture
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_report_the_same_hardcover_deadline_after_a_direct_or_fallback_response(bool fallbackFirst)
+        {
+            const string upstreamBody = """{"error":"fixture-marker: retry in 72096 seconds"}""";
+            var logger = LogManager.GetCurrentClassLogger();
+            var cache = new CacheManager();
+            var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
+            dispatcher.Setup(x => x.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
+                .ReturnsAsync((HttpRequest request, CookieContainer _) => new HttpResponse(
+                    request,
+                    new HttpHeader { ContentType = "application/json", ["Retry-After"] = "30" },
+                    upstreamBody,
+                    HttpStatusCode.TooManyRequests));
+            var pace = Mock.Of<IRateLimitService>();
+            var http = new HttpClient(Array.Empty<IHttpRequestInterceptor>(), cache, pace, dispatcher.Object, logger);
+            var config = new Mock<IConfigService>();
+            config.SetupGet(x => x.EnableHardcoverFallback).Returns(true);
+            config.SetupGet(x => x.HardcoverApiToken).Returns("synthetic-provider-token");
+            var hardcover = new HardcoverFallbackSearchProvider(config.Object, http, logger);
+            var alternate = new TestBookSearchProvider("Other", 20, true);
+            var registry = new MetadataProviderRegistry(new IMetadataProvider[] { hardcover, alternate }, config.Object, logger, cache);
+            var operationTelemetry = new MetadataProviderTelemetryService();
+            var fallback = new BookSearchFallbackExecutionService(pace, new ProviderTelemetryService(registry, logger), operationTelemetry, registry, cache, logger);
+            var orchestrator = new MetadataProviderOrchestrator(registry, operationTelemetry, logger);
+
+            var before = DateTime.UtcNow;
+            if (fallbackFirst)
+            {
+                fallback.Search(hardcover, "Fixture work", "Fixture author").Should().BeEmpty();
+            }
+            else
+            {
+                orchestrator.SearchForNewBook("Fixture work", "Fixture author").Should().BeNull();
+            }
+
+            var active = registry.GetProvidersHealthStatus()["Hardcover"];
+            active.CooldownUntilUtc.Should().BeOnOrAfter(before.AddSeconds(72096));
+            active.CooldownUntilUtc.Should().BeOnOrBefore(DateTime.UtcNow.AddSeconds(72096));
+            active.RetryAfterRemainingSeconds.Should().BeInRange(72090, 72096);
+            active.ConsecutiveFailures.Should().Be(fallbackFirst ? 1 : 0);
+            active.RateLimitWindowRequests.Should().Be(fallbackFirst ? 1 : 0);
+
+            fallback.Search(hardcover, "Fixture work", "Fixture author").Should().BeEmpty();
+            orchestrator.SearchForNewBook("Fixture work", "Fixture author").Should().BeNull();
+            orchestrator.SearchForNewAuthor("Fixture author").Should().BeNull();
+            var scoped = Assert.Throws<MetadataProviderUnavailableException>(() => orchestrator.GetAuthorInfo("hardcover:author:42"));
+            scoped.InnerException.Should().BeOfType<TooManyRequestsException>().Which.IsLocallySuppressed.Should().BeTrue();
+
+            var snapshots = operationTelemetry.GetOperationSnapshots();
+            snapshots.Should().ContainSingle(x => x.ProviderName == "Hardcover" && x.Calls == 1 && x.Failures == 1);
+            snapshots.Count(x => x.ProviderName == "Hardcover").Should().Be(1);
+            var health = registry.GetProvidersHealthStatus();
+            health["Hardcover"].CooldownUntilUtc.Should().Be(active.CooldownUntilUtc);
+            health["Hardcover"].ConsecutiveFailures.Should().Be(active.ConsecutiveFailures);
+            health["Hardcover"].RateLimitWindowRequests.Should().Be(active.RateLimitWindowRequests);
+            health["Other"].CooldownUntilUtc.Should().BeNull();
+            dispatcher.Verify(x => x.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Once());
+
+            var independent = active.CooldownUntilUtc.Value.AddHours(1);
+            registry.UpdateProviderHealth("Hardcover", new ProviderHealthStatus { CooldownUntilUtc = independent });
+            registry.GetProvidersHealthStatus()["Hardcover"].CooldownUntilUtc.Should().Be(independent);
+            HardcoverRateLimitGate.Get(cache).CooldownUntilUtc.Should().Be(active.CooldownUntilUtc);
+        }
+
         [Test]
         public void should_return_enabled_providers_sorted_by_priority()
         {

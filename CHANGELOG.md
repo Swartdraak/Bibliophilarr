@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Report Hardcover's shared request cooldown in provider health and distinguish
+  requests held locally from upstream rate limits.
 - Honor longer Open Library artwork cooldowns specified by Retry-After on rate
   limits and temporary outages.
 - Clarify built-in backup contents and external PostgreSQL recovery on the

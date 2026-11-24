@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using NLog;
+using NzbDrone.Common.Cache;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource.GoogleBooks;
 
@@ -26,6 +28,7 @@ namespace NzbDrone.Core.MetadataSource
         private readonly Dictionary<string, ProviderHealthStatus> _healthOverrides;
         private readonly List<string> _configuredOrder;
         private readonly Logger _logger;
+        private readonly HardcoverRateLimitGate _hardcoverRateLimitGate;
 
         public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers)
             : this(providers, null, LogManager.GetCurrentClassLogger())
@@ -33,8 +36,14 @@ namespace NzbDrone.Core.MetadataSource
         }
 
         public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers, IConfigService configService, Logger logger)
+            : this(providers, configService, logger, null)
+        {
+        }
+
+        public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers, IConfigService configService, Logger logger, ICacheManager cacheManager)
         {
             _logger = logger ?? LogManager.GetCurrentClassLogger();
+            _hardcoverRateLimitGate = cacheManager == null ? null : HardcoverRateLimitGate.Get(cacheManager);
             _providers = new Dictionary<string, IMetadataProvider>(StringComparer.OrdinalIgnoreCase);
             _enabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             _priorityOverrides = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -240,6 +249,13 @@ namespace NzbDrone.Core.MetadataSource
                     {
                         registered[provider.ProviderName] = googleHealth.WithCooldown(deadline, now);
                     }
+                }
+
+                if (registered.TryGetValue("Hardcover", out var hardcoverHealth) &&
+                    _hardcoverRateLimitGate?.CooldownUntilUtc is { } hardcoverDeadline &&
+                    hardcoverDeadline > (hardcoverHealth.CooldownUntilUtc ?? DateTime.MinValue))
+                {
+                    registered["Hardcover"] = hardcoverHealth.WithCooldown(hardcoverDeadline, now);
                 }
 
                 return registered;
