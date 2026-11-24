@@ -457,7 +457,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 // Fetch details for each author
                 return FetchAuthorDetailsBatch(authorIds, token, configuredTimeout, fallbackTimeout);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not TooManyRequestsException { HardcoverCooldownUntilUtc: not null })
             {
                 _logger.Warn(ex, "Hardcover author search failed for '{0}'.", queryText);
                 return new List<Author>();
@@ -981,7 +981,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
                 return result;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not TooManyRequestsException { HardcoverCooldownUntilUtc: not null })
             {
                 _logger.Debug(ex, "Hardcover direct work lookup failed for ID {0}.", workId);
                 return null;
@@ -1047,7 +1047,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 authorIdResult = idsArray.First.Value<int>();
                 _logger.Debug("Hardcover author search found ID {0} for '{1}'.", authorIdResult, authorName);
             }
-            catch (Exception ex) when (!MetadataProviderOrchestrator.IsTransportError(ex))
+            catch (Exception ex) when (ex is not TooManyRequestsException { HardcoverCooldownUntilUtc: not null } &&
+                                       !MetadataProviderOrchestrator.IsTransportError(ex))
             {
                 _logger.Debug(ex, "Hardcover author search failed for '{0}'.", authorName);
                 return new List<Book>();
@@ -1221,7 +1222,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
             catch (Exception ex)
             {
-                _logger.Debug(ex, "Hardcover direct author fetch failed for ID {0} at offset {1}.", authorId, offset);
+                if (ex is not TooManyRequestsException { IsLocallySuppressed: true })
+                {
+                    _logger.Debug(ex, "Hardcover direct author fetch failed for ID {0} at offset {1}.", authorId, offset);
+                }
+
                 throw new MetadataProviderUnavailableException("get-author-info", BuildHardcoverAuthorId(authorId), ex);
             }
 
