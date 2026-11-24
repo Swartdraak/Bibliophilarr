@@ -99,7 +99,7 @@
     "@types/redux-actions": "2.6.5",
     "@typescript-eslint/eslint-plugin": "8.73.0",
     "@typescript-eslint/parser": "8.73.0",
-    "autoprefixer": "10.4.27",
+    "autoprefixer": "10.7.0",
     "babel-jest": "30.5.2",
     "babel-loader": "9.2.1",
     "babel-plugin-inline-classnames": "2.0.1",
