@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Honor longer Open Library artwork cooldowns specified by Retry-After on rate
+  limits and temporary outages.
 - Clarify built-in backup contents and external PostgreSQL recovery on the
   Backups page, restore dialog, and in-app guides.
 - Align configuration, logging, dependency injection, and Windows service
@@ -224,6 +226,8 @@ process.
 - **macOS app-smoke RID-specific provider copy paths** (Issue #270, repair 7): the hosted `macos-latest` app-execution lane at 9cce63ab8c (repair 6) still died at first boot with a DryIoc `GetRequiredService` resolution failure inside `EventAggregator` — the provider-surface `CopyToPublishDirectory` items in `Bibliophilarr.Console.csproj` used RID-agnostic source paths (`_output/net10.0/FluentMigrator.dll`) but the build output for a RID-specific publish (`-p:RuntimeIdentifier=osx-x64`) goes to `_output/net10.0/osx-x64/FluentMigrator.dll`. On a fresh CI checkout, `_output/` does not exist, so the RID-agnostic paths silently failed to resolve and the provider assemblies were missing from the publish output, causing the app to crash at startup when FluentMigrator's `ReflectionBasedDbFactory` tried to load them by file path. This repair changes every `CopyToPublishDirectory` source path in the non-Windows-RID provider-surface group to use the RID-specific path `_output/net10.0/$(RuntimeIdentifier)/...` (which resolves to the correct RID subdirectory at publish time), so the provider assemblies are correctly copied from the build output into the publish output for every non-Windows RID. The Windows publish is byte-for-byte unaffected (the condition is the exact logical complement of the win-RID platform group). No product source, no runtime loader behavior, no new package, no dependency-version change. The `ConsoleSqliteProviderPublishIssue270Fixture` test assertions are updated to pin the RID-specific paths. The residual criterion (fresh exact-head hosted CI on both hosted lanes before merge) remains the publisher's.
 
 ### Security
+
+- Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
 
 - Sanitize book identifiers and titles in Add Book and import-list logs.
 
