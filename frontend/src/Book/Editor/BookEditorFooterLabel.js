@@ -7,12 +7,13 @@ import styles from './BookEditorFooterLabel.css';
 function BookEditorFooterLabel(props) {
   const {
     className,
+    id,
     label,
     isSaving
   } = props;
 
   return (
-    <div className={className}>
+    <div id={id} className={className}>
       {label}
 
       {
@@ -29,6 +30,7 @@ function BookEditorFooterLabel(props) {
 
 BookEditorFooterLabel.propTypes = {
   className: PropTypes.string.isRequired,
+  id: PropTypes.string,
   label: PropTypes.string.isRequired,
   isSaving: PropTypes.bool.isRequired
 };
