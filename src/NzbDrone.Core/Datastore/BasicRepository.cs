@@ -154,7 +154,7 @@ namespace NzbDrone.Core.Datastore
             return model;
         }
 
-        private string GetInsertSql()
+        private protected string GetInsertSql(string conflictColumn = null)
         {
             var sbColumnList = new StringBuilder(null);
             for (var i = 0; i < _properties.Count; i++)
@@ -178,6 +178,12 @@ namespace NzbDrone.Core.Datastore
                 }
             }
 
+            if (conflictColumn != null)
+            {
+                return $"INSERT INTO \"{_table}\" ({sbColumnList}) VALUES ({sbParameterList}) " +
+                       $"ON CONFLICT (\"{conflictColumn}\") DO NOTHING RETURNING \"Id\"";
+            }
+
             if (_database.DatabaseType == DatabaseType.PostgreSQL)
             {
                 return $"INSERT INTO \"{_table}\" ({sbColumnList.ToString()}) VALUES ({sbParameterList.ToString()}) RETURNING \"Id\"";
@@ -186,7 +192,7 @@ namespace NzbDrone.Core.Datastore
             return $"INSERT INTO {_table} ({sbColumnList.ToString()}) VALUES ({sbParameterList.ToString()}); SELECT last_insert_rowid() id";
         }
 
-        private TModel Insert(IDbConnection connection, IDbTransaction transaction, TModel model)
+        protected TModel Insert(IDbConnection connection, IDbTransaction transaction, TModel model)
         {
             SqlBuilderExtensions.LogQuery(_insertSql, model);
 

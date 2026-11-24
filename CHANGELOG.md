@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Save a new book and its editions together. If an edition already belongs to
+  another book, keep the existing data and import exclusions.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art.
 - Report Hardcover's shared request cooldown in provider health and distinguish
