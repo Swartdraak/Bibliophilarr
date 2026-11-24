@@ -2,6 +2,17 @@
 PLATFORM=$1
 TYPE=$2
 COVERAGE=$3
+
+if [ "$TYPE" = "Recovery" ]; then
+  if [ "$PLATFORM" != "Linux" ] || [ "$COVERAGE" != "Test" ]; then
+    echo "Usage: test.sh Linux Recovery Test <packaged binary> <Playwright Python> <evidence directory>" >&2
+    exit 2
+  fi
+
+  script_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
+  shift 3
+  exec bash "$script_dir/tests/browser/run_dual_format_recovery.sh" "$@"
+fi
 WHERE="Category!=ManualTest"
 FILES=( "Bibliophilarr.Api.Test.dll" "Bibliophilarr.Common.Test.dll" "Bibliophilarr.Core.Test.dll" "Bibliophilarr.Host.Test.dll" "Bibliophilarr.Integration.Test.dll" "Bibliophilarr.Libraries.Test.dll" "Bibliophilarr.Mono.Test.dll" "Bibliophilarr.Update.Test.dll" "Bibliophilarr.Windows.Test.dll" )
 ASSEMBLIES=()
