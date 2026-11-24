@@ -1,9 +1,8 @@
 # Metadata Source Fallback and Provider-Failure Semantics
 
-Bibliophilarr resolves book and author metadata through a **provider fallback chain**.
-This page documents how the chain works, how provider failures are classified, and the
-data-loss risk that arises when a transient network error is indistinguishable from a
-genuine not-found.
+Bibliophilarr resolves book and author metadata through primary providers and
+uses separate search fallbacks for automatic library import. This page describes
+provider routing and refresh safeguards on the development branch.
 
 ## Provider chain
 
@@ -16,84 +15,54 @@ order (lower number = higher priority):
 | 2 | **OpenLibrary** | `openlibrary:work:*`, `openlibrary:author:*`, bare OLIDs | **No** (`EnableOpenLibraryProvider` defaults to `false`) |
 | 3 | **Google Books** | ISBN / title-based | No (`EnableGoogleBooksProvider`) |
 
-**Inventaire** is a separate **search fallback** (`IBookSearchFallbackProvider`, not part
-of the priority-ordered `IMetadataProvider` chain). It is used for title/author search
-when enabled (`EnableInventaireFallback`) and is not consulted for `get-book-info` /
-`get-author-info` by scoped id.
+**Inventaire** provides a separate title and author search fallback for automatic
+library import when `EnableInventaireFallback` is enabled. It does not participate
+in primary provider ordering or scoped book and author lookups.
 
-The orchestrator (`MetadataProviderOrchestrator`) routes a request to the provider that
-matches the **id scope** of the foreign id:
+The orchestrator selects the provider that matches the ID scope when the
+configured provider supports the requested lookup.
 
-- `hardcover:work:123` → routed **exclusively** to the Hardcover provider.
-- `openlibrary:work:OL123W` → routed **exclusively** to the OpenLibrary provider.
+- `hardcover:work:123` → Hardcover.
+- `openlibrary:work:OL123W` → Open Library.
 - A bare OLID (`OL123W`) → OpenLibrary.
 
-This id-scope routing means a book added via Hardcover is **never** re-resolved through
-OpenLibrary on refresh — the provider is pinned by the id prefix.
+If the matching provider is unavailable in the registry, the application logs
+the configuration and may try other enabled providers. After a successful book
+lookup, Bibliophilarr can enrich editions from other providers using
+corroborating identifiers.
 
 ## Failure classification (current behavior)
 
-`MetadataProviderOrchestrator.ExecuteFirst` catches **all** exceptions from a provider
-and returns `null`:
-
-```csharp
-catch (Exception ex)
-{
-    _telemetry.Record(...);
-    _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", ...);
-    lastError = ex;
-}
-...
-return null;   // network error AND genuine not-found both become null
-```
-
-**Consequence:** a transient network error (`HttpRequestException`, `SocketException`)
-is indistinguishable from a genuine 404 ("provider removed this id"). Both produce a
-`null` result, which `GetAuthorInfo`/`GetBookInfo` convert to
-`AuthorNotFoundException`/`BookNotFoundException`.
+A scoped lookup distinguishes provider unavailability from missing metadata.
+An author lookup that fails reports provider unavailability. A provider can also
+report confirmed missing, or return no matching metadata without confirming
+removal. A book lookup that encounters a transport outage reports unavailability.
 
 ## Data-loss risk (issue #204 / #209)
 
-When `get-author-info` returns `null` (for **any** reason, including a network blip),
-`RefreshAuthorService` treats the author as "removed from metadata" and **deletes the
-author** if it has no files:
+Author refresh keeps the local author, bibliography, and existing metadata
+when the provider is unavailable or has no matching author. Confirmed missing
+also keeps the author, including when the author has no files.
 
-```
-Warn|MetadataProviderOrchestrator|Metadata provider 'Hardcover' failed during get-author-info
-     System.Net.Http.HttpRequestException: No route to host (api.hardcover.app:443)
-Warn|RefreshAuthorService|Author [hardcover:author:171873][Frank Herbert] not found in metadata and is being deleted
-```
-
-A brief connectivity outage during an author refresh can therefore delete authors.
-
-> **Fixed in PR #211 (issue #209, merged):** the orchestrator now raises a distinct
-> `MetadataProviderUnavailableException` when **every** provider fails with a
-> transport/network error (host unreachable, DNS failure, timeout, connection reset,
-> TLS handshake failure), and `RefreshAuthorService`/`RefreshBookService` catch it and
-> **keep** the local entity with its existing metadata instead of deleting. Only an
-> explicit provider 404/not-found (an `AuthorNotFoundException`) triggers deletion,
-> and only when the author has no files.
->
-> Older unpatched builds (before PR #211) still exhibited this data-loss risk: on
-> such builds a transient `No route to host` / `Connection reset` during an author
-> refresh can delete authors. If you are running an unpatched build, **do not run
-> author refreshes during a known network outage**.
+Book refresh suppresses automatic cleanup during a degraded provider window.
+Under healthy conditions, the separate cleanup path for existing provider-backed
+books requires a repeated miss and only considers books that were added
+automatically and have no files.
 
 ## Operator guidance
 
-On current builds (with PR #211 merged), a transient network outage during a refresh
-no longer deletes authors or books — the refresh is skipped and local metadata is
-kept. Remaining guidance:
-
-1. **Check provider health first:** `GET /api/v1/metadata/providers/health`.
-2. **If authors are deleted unexpectedly**, check the logs for
-   `Metadata provider 'X' failed during get-author-info` immediately before the
-   deletion. On current builds a deletion following a transport error should not
-   occur; if you see one, verify the build includes PR #211.
-3. **Restore deleted authors** by re-adding them (the provider still has the data).
+1. Check provider status and recent operation results in **System → Status** or
+   through `GET /api/v1/metadata/providers/health`.
+2. If the provider is unavailable, wait for recovery before retrying the refresh.
+   The existing catalogue remains available.
+3. If the provider is reachable and reports missing metadata, check that the
+   configured provider still has the exact work or author before reviewing its
+   catalogue mapping.
 
 ## References
 
-- [Metadata Provider Outage and Fallback Runbook](../docs/operations/METADATA_PROVIDER_RUNBOOK.md)
-- [Troubleshooting Runbook](../docs/operations/TROUBLESHOOTING_RUNBOOK.md)
-- [Architecture Overview](Architecture.md)
+1. [Metadata Provider Outage and Fallback Runbook](../docs/operations/METADATA_PROVIDER_RUNBOOK.md)
+2. [Troubleshooting Runbook](../docs/operations/TROUBLESHOOTING_RUNBOOK.md)
+3. [Architecture Overview](Architecture.md)
+4. [Author refresh outage fixture](../src/NzbDrone.Core.Test/MetadataSource/RefreshAuthorProviderOutageFixture.cs)
+5. [Book refresh deletion guard fixture](../src/NzbDrone.Core.Test/MusicTests/RefreshBookDeletionGuardFixture.cs)
