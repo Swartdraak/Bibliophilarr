@@ -41,6 +41,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 .With(v => v.Id = 2)
                 .With(v => v.Metadata.Value.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, "") })
                 .Build();
+            Mocker.GetMock<IAuthorRepository>().Setup(repository => repository.Find(_author.Id)).Returns(_author);
 
             _edition = Builder<Edition>.CreateNew()
                 .With(v => v.Id = 8)
@@ -230,6 +231,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 Mocker.Resolve<IMediaCoverProxy>(),
                 Mocker.Resolve<IImageResizer>(),
                 Mocker.Resolve<IBookService>(),
+                Mocker.Resolve<IAuthorRepository>(),
                 Mocker.Resolve<IHttpClient>(),
                 Mocker.Resolve<IDiskProvider>(),
                 Mocker.Resolve<IAppFolderInfo>(),
@@ -347,6 +349,75 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Subject.ConvertToLocalUrls(12, MediaCoverEntity.Author, covers);
 
             covers.Single().Url.Should().Be(proxyUrl);
+        }
+
+        [Test]
+        public void should_not_download_a_poster_from_a_delayed_refresh_event()
+        {
+            const string oldUrl = "https://example.invalid/old.jpg";
+            const string currentUrl = "https://example.invalid/current.jpg";
+            var current = CurrentAuthorWithPoster(oldUrl, currentUrl);
+            var http = Mocker.GetMock<IHttpClient>();
+            var expected = Subject.GetCoverPath(current.Id, MediaCoverEntity.Author, MediaCoverTypes.Poster, ".jpg");
+
+            Subject.HandleAsync(new AuthorRefreshCompleteEvent(_author));
+
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Url.ToString() == oldUrl)), Times.Never());
+            http.Verify(client => client.DownloadFile(oldUrl, expected, It.IsAny<string>()), Times.Never());
+            http.Verify(client => client.DownloadFile(currentUrl, expected, It.IsAny<string>()), Times.Once());
+            Mocker.GetMock<IEventAggregator>().Verify(bus => bus.PublishEvent(
+                It.Is<MediaCoversUpdatedEvent>(message => message.Author == current)), Times.Once());
+        }
+
+        [Test]
+        public void should_keep_the_current_poster_when_an_old_refresh_had_a_different_extension()
+        {
+            var current = CurrentAuthorWithPoster("https://example.invalid/old.jpg", "https://example.invalid/current.png");
+            var coverDirectory = Path.GetDirectoryName(Subject.GetCoverPath(current.Id, MediaCoverEntity.Author, MediaCoverTypes.Poster, ".png"));
+            var currentPoster = Path.Combine(coverDirectory, "poster.png");
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(provider => provider.FolderExists(coverDirectory)).Returns(true);
+            disk.Setup(provider => provider.GetFiles(coverDirectory, true)).Returns(new[] { currentPoster });
+            disk.Setup(provider => provider.FileExists(currentPoster)).Returns(true);
+            disk.Setup(provider => provider.GetFileSize(currentPoster)).Returns(16000);
+
+            Subject.HandleAsync(new AuthorRefreshCompleteEvent(_author));
+
+            disk.Verify(provider => provider.DeleteFile(currentPoster), Times.Never());
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_not_restore_art_for_a_deleted_or_reassigned_author(bool reassigned)
+        {
+            CurrentAuthorWithPoster("https://example.invalid/old.jpg", "https://example.invalid/current.jpg");
+            var persisted = reassigned
+                ? new Author { Id = _author.Id, AuthorMetadataId = _author.AuthorMetadataId + 1, Metadata = new AuthorMetadata() }
+                : null;
+            Mocker.GetMock<IAuthorRepository>().Setup(repository => repository.Find(_author.Id)).Returns(persisted);
+
+            Subject.HandleAsync(new AuthorRefreshCompleteEvent(_author));
+
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Never());
+            Mocker.GetMock<IDiskProvider>().Verify(provider => provider.DeleteFile(It.IsAny<string>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(bus => bus.PublishEvent(It.IsAny<MediaCoversUpdatedEvent>()), Times.Never());
+        }
+
+        private Author CurrentAuthorWithPoster(string eventUrl, string currentUrl)
+        {
+            const int metadataId = 21;
+            const string foreignAuthorId = "openlibrary:author:OL123A";
+            var older = new AuthorMetadata { Id = metadataId, ForeignAuthorId = foreignAuthorId };
+            older.Images.Add(new MediaCover.MediaCover(MediaCoverTypes.Poster, eventUrl));
+            _author.AuthorMetadataId = metadataId;
+            _author.Metadata = older;
+
+            var fresh = new AuthorMetadata { Id = metadataId, ForeignAuthorId = foreignAuthorId };
+            fresh.Images.Add(new MediaCover.MediaCover(MediaCoverTypes.Poster, currentUrl));
+            var current = new Author { Id = _author.Id, AuthorMetadataId = metadataId, Metadata = fresh };
+            Mocker.GetMock<IAuthorRepository>().Setup(repository => repository.Find(_author.Id)).Returns(current);
+            Mocker.GetMock<IBookService>().Setup(service => service.GetBooksByAuthor(_author.Id)).Returns(new List<Book>());
+            return current;
         }
 
         [Test]
