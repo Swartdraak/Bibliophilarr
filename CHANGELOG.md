@@ -99,6 +99,7 @@ process.
 - Google Books author refresh keeps existing catalogue entries when overlapping
   pages or a shrinking result count leave the bibliography incomplete.
 - Name, URL, credentials, and tags in connection forms have associated labels.
+- Size autocomplete menus to the available space on the side where they open.
 - Label the quality profile name and release restriction fields. Release
   profile edit buttons identify their restrictions and indexer when available.
 - Name the Add controls for indexers, download clients, and remote path
