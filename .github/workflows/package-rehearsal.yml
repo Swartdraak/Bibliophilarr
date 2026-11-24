@@ -10,6 +10,7 @@ on:
       - 'build.sh'
       - 'frontend/src/login.html'
       - 'src/Bibliophilarr.Http/Authentication/**'
+      - 'src/Directory.Packages.props'
       - 'distribution/windows/setup/**'
       - 'scripts/ops/check_release_assets.py'
       - 'scripts/ops/create_release_manifest.py'
