@@ -12,6 +12,7 @@ import re
 import secrets
 import shutil
 import sqlite3
+import struct
 import subprocess
 import tarfile
 from tempfile import TemporaryDirectory
@@ -214,6 +215,16 @@ def fixture_import(api, inbox, author, book):
     with wave.open(str(audio), "wb") as pcm:
         pcm.setparams((1, 2, 22050, 0, "NONE", "not compressed"))
         pcm.writeframes(b"\x00\x00" * 22050 * 6)
+    # RIFF INFO tags let both releases identify the fixture with their embedded tag reader.
+    def riff_chunk(name, data):
+        return name + struct.pack("<I", len(data)) + data + (b"\0" if len(data) % 2 else b"")
+
+    info = b"INFO" + b"".join(
+        riff_chunk(name, value.encode("ascii") + b"\0")
+        for name, value in ((b"INAM", TITLE), (b"IPRD", TITLE), (b"IART", AUTHOR))
+    )
+    audio_bytes = audio.read_bytes() + riff_chunk(b"LIST", info)
+    audio.write_bytes(audio_bytes[:4] + struct.pack("<I", len(audio_bytes) - 8) + audio_bytes[8:])
     for source in (epub, audio):
         options = {"folder": str(inbox), "authorId": author, "filterExistingFiles": "false",
                    "replaceExistingFiles": "false"}
