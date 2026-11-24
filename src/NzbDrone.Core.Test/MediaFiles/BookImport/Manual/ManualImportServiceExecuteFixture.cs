@@ -187,7 +187,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                     Assert.That(decision.Approved, Is.True);
                     if (outcome == "rejected")
                     {
-                        const string reason = "The selected edition belongs to a different work";
+                        const string reason = "File format does not match the selected edition";
                         decision.Reject(new Rejection(reason, RejectionType.Temporary));
                         return new List<ImportResult> { new ImportResult(decision, reason) };
                     }
@@ -198,11 +198,12 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                         {
                             new ImportResult(
                                 decision,
-                                "Permissions\r\nreason\ttrimmed",
-                                "Permissionsreason trimmed",
-                                new string('x', 250),
-                                "Another reason",
-                                "Fourth reason")
+                                "Failed to import book, permissions error",
+                                "Failed to import book, permissions error",
+                                "Unclassified synthetic failure for /synthetic-private/path",
+                                "Failed to import book, destination already exists.",
+                                "Failed to import book, root folder missing.",
+                                "Failed to import book.")
                         };
                     }
 
@@ -215,16 +216,61 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
             var terminal = messages.Logs.Single(message => message.StartsWith("No files were imported.", System.StringComparison.Ordinal));
             if (outcome == "rejected")
             {
-                Assert.That(terminal, Does.Contain("The selected edition belongs to a different work"));
+                Assert.That(terminal, Does.Contain("File format does not match the selected edition"));
             }
             else if (outcome == "execution error")
             {
-                Assert.That(terminal, Is.EqualTo($"No files were imported. Permissionsreason trimmed | {new string('x', 200)} | Another reason"));
+                Assert.That(terminal, Is.EqualTo(
+                    "No files were imported. Failed to import book, permissions error | Failed to import book, destination already exists. | Failed to import book, root folder missing."));
             }
             else
             {
                 Assert.That(terminal, Is.EqualTo("No files were imported."));
             }
+        }
+
+        [Test]
+        public void should_only_promote_fixed_diagnostics_from_a_mixed_failed_batch()
+        {
+            const string formatMismatch = "File format does not match the selected edition";
+            const string privateDetail = "Destination author folder /synthetic-private/author hardcover:author:998043 is not in a Root Folder";
+            var command = PreparedImportCommand();
+            var second = new ManualImportFile
+            {
+                Path = _filePath + "-other.epub",
+                AuthorId = _author.Id,
+                BookId = _book.Id,
+                ForeignEditionId = command.Files[0].ForeignEditionId
+            };
+            command.Files.Add(second);
+            Mocker.GetMock<IDiskProvider>().Setup(d => d.GetFileInfo(second.Path)).Returns(Mock.Of<IFileInfo>());
+
+            var messages = new MemoryTarget { Layout = "${message}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRule(LogLevel.Info, LogLevel.Info, messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(ManualImportService)));
+
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(i => i.Import(It.IsAny<List<ImportDecision<LocalBook>>>(), false, null, ImportMode.Copy))
+                .Returns<List<ImportDecision<LocalBook>>, bool, DownloadClientItem, ImportMode>((decisions, _, _, _) =>
+                {
+                    Assert.That(decisions.All(decision => decision.Approved), Is.True);
+                    decisions[0].Reject(new Rejection(formatMismatch, RejectionType.Permanent));
+                    decisions[1].Reject(new Rejection(privateDetail, RejectionType.Temporary));
+                    return new List<ImportResult>
+                    {
+                        new ImportResult(decisions[0], formatMismatch),
+                        new ImportResult(decisions[1], privateDetail)
+                    };
+                });
+
+            Subject.Execute(command);
+
+            Mocker.GetMock<ICommandResultReporter>().Verify(r => r.Report(CommandResult.Unsuccessful), Times.Once());
+            var terminal = messages.Logs.Single(message => message.StartsWith("No files were imported.", System.StringComparison.Ordinal));
+            Assert.That(terminal, Is.EqualTo($"No files were imported. {formatMismatch}"));
+            Assert.That(messages.Logs, Has.None.Contains("/synthetic-private/").And.None.Contains("hardcover:author:998043"));
         }
 
         [TestCase(0)]

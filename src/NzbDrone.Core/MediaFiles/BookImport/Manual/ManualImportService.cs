@@ -8,7 +8,6 @@ using NzbDrone.Common;
 using NzbDrone.Common.Crypto;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
-using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.CustomFormats;
@@ -545,10 +544,19 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             {
                 if (hasPreparedFile)
                 {
+                    // Result details may contain paths or provider IDs. Promote only fixed server messages.
                     var reasons = imported.SelectMany(result => result.Errors)
-                        .Select(LogSanitizer.Sanitize)
-                        .Where(reason => !string.IsNullOrWhiteSpace(reason))
-                        .Select(reason => reason.Length > 200 ? reason[..200] : reason)
+                        .Where(reason => reason is
+                            "File format does not match the selected edition" or
+                            "The selected edition belongs to a different work" or
+                            "Missing author, book, or edition for import" or
+                            "Failed to prepare book for import" or
+                            "Failed to import book, root folder missing." or
+                            "Failed to import book, destination already exists." or
+                            "Failed to import book, permissions error" or
+                            "Failed to import book, unable to move existing file to the Recycle Bin." or
+                            "Failed to import book, error communicating with Calibre.  Check log for details." or
+                            "Failed to import book.")
                         .Distinct(StringComparer.Ordinal)
                         .Take(3)
                         .ToList();

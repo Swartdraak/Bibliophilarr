@@ -33,7 +33,7 @@ process.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
 - Report queued manual imports as unsuccessful when they neither import a file
-  nor preserve an existing one. Show the reasons when prepared files fail.
+  nor preserve an existing one. Summarize recognized format and file errors.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
 - Continue reading and matching audio files when the optional ffprobe utility
