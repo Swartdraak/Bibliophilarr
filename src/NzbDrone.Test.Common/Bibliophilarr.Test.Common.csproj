@@ -4,6 +4,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Dapper" />
+    <PackageReference Include="DryIoc.dll" ExcludeAssets="build" />
+    <PackageReference Include="DryIoc.Microsoft.DependencyInjection" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="Moq" />

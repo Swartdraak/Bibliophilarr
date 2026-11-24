@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using DryIoc;
+using DryIoc.Microsoft.DependencyInjection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -74,8 +75,9 @@ namespace NzbDrone.Host.Test
                         services.PostConfigure<PostgresOptions>(options => options.Host = null);
                     })
                     .ConfigureWebHost(web => web.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0)))
-                    .ConfigureContainer<IContainer>(container =>
+                    .ConfigureContainer<DryIocServiceProvider>(serviceProvider =>
                     {
+                        var container = serviceProvider.Container;
                         container.RegisterInstance(discovery.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
                         container.RegisterInstance(outbound.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
                     })
