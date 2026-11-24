@@ -29,6 +29,8 @@ from smoke import check_status, free_port, wait_ready
 
 
 STABLE_COMMIT = "7be1420764c14791123154327cecf72cdf890cdc"
+STABLE_SCHEMA_VERSION = 47
+CANONICAL_ID_MIGRATION = 50
 STABLE = {
     ("Windows", "amd64"): ("win-x64", ".zip", "9fbda21480ee22e95e06d126a314550fcc9a9129d9818a0833c4bb21110dbe2e"),
     ("Darwin", "arm64"): ("osx-arm64", ".tar.gz", "951b6c9d07ee7f86e296379ea28aa5d7958e850630e38afd6d1940d759c6b174"),
@@ -367,6 +369,8 @@ def verify(args, work, baseline_binary, candidate_binary, report):
             assert stable_identity == (None, None)
             browser_login(browser, base, username, password, args.evidence / "stable.png")
         stable_schema = schema(profile)
+        assert STABLE_SCHEMA_VERSION in stable_schema, "The published profile is missing its final numbered migration"
+        assert set(stable_schema).isdisjoint(args.expected_new_migrations), "A candidate migration is already present in the published profile"
         backup = work / "matching-stable-backup"
         shutil.copytree(profile, backup)
         assert content_manifest(backup) == content_manifest(profile) and schema(backup) == stable_schema
@@ -379,10 +383,13 @@ def verify(args, work, baseline_binary, candidate_binary, report):
                 assert version_advanced, "Candidate assembly is not newer than stable"
             candidate_state, candidate_ids = snapshot(api, profile, library, root, author, book, original)
             assert candidate_state == stable_state
-            assert None not in candidate_ids and len(set(candidate_ids)) == 2
+            if CANONICAL_ID_MIGRATION in args.expected_new_migrations:
+                assert None not in candidate_ids and len(set(candidate_ids)) == 2, "Canonical IDs were not backfilled"
+            else:
+                assert candidate_ids == stable_identity, "Unexpected canonical IDs in the candidate"
             browser_login(browser, base, username, password, args.evidence / "candidate.png", candidate_ids[1])
         candidate_schema = schema(profile)
-        assert set(candidate_schema) > set(stable_schema), "No forward schema migrations were observed"
+        assert set(candidate_schema) == set(stable_schema).union(args.expected_new_migrations), "Unexpected candidate schema migrations"
         with app(candidate_binary, "candidate-restart", key), signed(key) as api:
             assert version(api) == candidate_version
             assert snapshot(api, profile, library, root, author, book, original) == (stable_state, candidate_ids)
@@ -411,9 +418,13 @@ def main():
     parser.add_argument("--candidate-assets", type=Path, required=True)
     parser.add_argument("--candidate-sha", required=True)
     parser.add_argument("--expected-version", required=True, help="Exact version reported by System Status")
+    parser.add_argument("--expected-new-migrations", type=int, nargs="+", required=True,
+                        help="Main database migration numbers added since the published release")
     parser.add_argument("--require-forward-version", action="store_true")
     parser.add_argument("--evidence", type=Path, required=True, help="New directory for sanitized results")
     args = parser.parse_args()
+    if any(version <= STABLE_SCHEMA_VERSION for version in args.expected_new_migrations):
+        parser.error("Each expected new migration must be newer than the published schema")
     args.evidence = args.evidence.resolve()
     host = (platform.system(), platform.machine().lower())
     if host not in STABLE:

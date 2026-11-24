@@ -11,6 +11,7 @@ on:
       - 'frontend/src/login.html'
       - 'src/Bibliophilarr.Http/Authentication/**'
       - 'src/Directory.Packages.props'
+      - 'src/NzbDrone.Core/Datastore/Migration/**'
       - 'distribution/windows/setup/**'
       - 'scripts/ops/check_release_assets.py'
       - 'scripts/ops/create_release_manifest.py'
@@ -96,10 +97,16 @@ jobs:
           python -m pip install -r tests/browser/requirements.txt
           python -m playwright install --only-shell chromium
           candidate_sha="$(git rev-parse 'HEAD^{commit}')"
+          migrations=()
+          while IFS= read -r migration; do
+            migrations+=("$migration")
+          done < <(git ls-files 'src/NzbDrone.Core/Datastore/Migration/*.cs' |
+            sed -nE 's|.*/([0-9]{3})_[[:alnum:]_]+\.cs$|\1|p' | awk '$1 > 47 {print $1 + 0}')
           python tests/browser/portable_upgrade.py --rid "$PACKAGE_RID" \
             --stable-assets "$RUNNER_TEMP/paired-stable" \
             --candidate-assets "$RUNNER_TEMP/paired-candidate" \
             --candidate-sha "$candidate_sha" --expected-version '0.0.0.0' \
+            --expected-new-migrations "${migrations[@]}" \
             --evidence "$RUNNER_TEMP/paired-evidence"
 
       - name: Retain sanitized paired-upgrade evidence
