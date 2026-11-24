@@ -22,6 +22,7 @@ using NzbDrone.Core.HealthCheck;
 using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.Localization;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
@@ -53,10 +54,23 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Returns(0);
         }
 
-        [Test]
-        public void should_map_one_exact_source_audiobook_and_its_verified_work_author_in_one_request()
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_map_one_exact_source_audiobook_and_its_verified_work_author_in_one_request(bool hasEditionCover)
         {
+            const string description = "A synopsis from the exact audio work.";
+            const string editionCover = "https://assets.example.invalid/audio-edition.jpg";
+            const string workCover = "https://assets.example.invalid/work-cover.jpg";
             var payload = ExactAudiobookPayload();
+            var source = payload.SelectToken("data.editions[0]");
+            var work = source["book"];
+            work["description"] = description;
+            work["cached_image"] = new JObject { ["url"] = workCover };
+            if (hasEditionCover)
+            {
+                source["cached_image"] = new JObject { ["url"] = editionCover };
+            }
+
             HttpRequest captured = null;
             var client = Mocker.GetMock<IHttpClient>();
             client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
@@ -82,13 +96,24 @@ namespace NzbDrone.Core.Test.MetadataSource
             edition.Isbn13.Should().Be("9781442482890");
             edition.Format.Should().Be("Audiobook");
             edition.IsEbook.Should().BeFalse();
+            edition.Overview.Should().Be(description);
+            var cover = edition.Images.Should().ContainSingle().Which;
+            cover.CoverType.Should().Be(MediaCoverTypes.Cover);
+            cover.Url.Should().Be(hasEditionCover ? editionCover : workCover);
+            cover.SourceProvider.Should().Be("Hardcover");
+            cover.SourceId.Should().Be(hasEditionCover ? edition.ForeignEditionId : book.ForeignBookId);
             captured.RateLimitKey.Should().Be("Hardcover");
             captured.Method.Should().Be(HttpMethod.Post);
             var requestBody = JObject.Parse(Encoding.UTF8.GetString(captured.ContentData));
-            requestBody.Value<string>("query").Should().Contain("asin: {_eq: $asin}")
+            var query = requestBody.Value<string>("query");
+            query.Should().Contain("asin: {_eq: $asin}")
                 .And.Contain("reading_format_id: {_eq: 2}")
                 .And.Contain("limit: 2")
                 .And.NotContain("search(");
+            var scopes = query.Split("book {", StringSplitOptions.None);
+            scopes.Should().HaveCount(2);
+            scopes[0].Should().Contain("cached_image");
+            scopes[1].Should().Contain("description").And.Contain("cached_image");
             requestBody.SelectToken("variables.asin").Value<string>().Should().Be("B000123ABC");
             client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
             client.VerifyNoOtherCalls();

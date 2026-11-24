@@ -246,10 +246,13 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             edition_format
                             physical_format
                             isbn_13
+                            cached_image
                             book {
                                 id
                                 title
                                 book_status_id
+                                description
+                                cached_image
                                 contributions(where: {contributable_type: {_eq: "Book"}}, limit: 16, order_by: {id: asc}) {
                                     contributable_id
                                     contributable_type
