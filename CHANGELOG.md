@@ -42,6 +42,8 @@ process.
 
 ### Fixed
 
+- Recover one missing Open Library bibliography work when exact search results
+  agree with the available work list and the direct record verifies author credit.
 - Avoid repeated lookups for the same incomplete author bibliography within a
   library scan. A later scan can retry, and logs report where Open Library
   pagination stopped.

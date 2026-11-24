@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using NLog;
 using NzbDrone.Common.Exceptions;
 using NzbDrone.Common.Extensions;
@@ -83,8 +85,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 throw new NzbDrone.Core.Exceptions.AuthorNotFoundException(foreignAuthorId);
             }
 
-            var works = GetAuthorWorkEntries(normalizedAuthorId, authorResource.Key == $"/authors/{normalizedAuthorId}");
-            var workDocsById = GetAuthorWorkSearchDocs(normalizedAuthorId)
+            var (works, recoveryDocs) = GetAuthorWorkEntries(normalizedAuthorId, authorResource.Key == $"/authors/{normalizedAuthorId}");
+            var workDocsById = (recoveryDocs ?? GetAuthorWorkSearchDocs(normalizedAuthorId))
                 .Where(x => x?.Key.IsNotNullOrWhiteSpace() == true)
                 .GroupBy(x => NormalizeWorkId(x.Key))
                 .Where(x => x.Key.IsNotNullOrWhiteSpace())
@@ -186,17 +188,115 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return series.OrderBy(x => x.Title).ToList();
         }
 
-        private List<OlWorkResource> GetAuthorWorkEntries(string normalizedAuthorId, bool exactAuthor)
+        private (List<OlWorkResource> Works, List<OlSearchDoc> RecoveryDocs) GetAuthorWorkEntries(string normalizedAuthorId, bool exactAuthor)
         {
-            return ReadAuthorPages(
+            int? initialTotal = null;
+            var stableTotal = true;
+            List<OlSearchDoc> recoveryDocs = null;
+            var works = ReadAuthorPages(
                 normalizedAuthorId,
                 offset =>
                 {
                     var response = _client.GetAuthorWorks(normalizedAuthorId, 100, offset);
+                    if (response != null)
+                    {
+                        initialTotal ??= response.Size;
+                        stableTotal &= initialTotal == response.Size;
+                    }
+
                     return (response?.Entries, response?.Size);
                 },
                 work => work?.Key,
-                authoritative: exactAuthor);
+                authoritative: exactAuthor,
+                recoverGap: (entries, total) =>
+                {
+                    if (stableTotal && TryRecoverAuthorWorkGap(normalizedAuthorId, entries, total, out var searchDocs))
+                    {
+                        recoveryDocs = searchDocs;
+                        return true;
+                    }
+
+                    return false;
+                });
+
+            return (works, recoveryDocs);
+        }
+
+        private bool TryRecoverAuthorWorkGap(string authorId, List<OlWorkResource> works, int total, out List<OlSearchDoc> recoveryDocs)
+        {
+            const int pageSize = 100;
+            const int maxSearchPages = 3;
+
+            recoveryDocs = null;
+            if (total < 2 || total > pageSize * maxSearchPages || total - works.Count != 1 ||
+                CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null)?.ProviderId != authorId)
+            {
+                return false;
+            }
+
+            var known = works.Select(work => GetExactAuthorWorksKey(work.Key)).ToHashSet(StringComparer.Ordinal);
+            if (known.Contains(null) || known.Count != works.Count)
+            {
+                return false;
+            }
+
+            try
+            {
+                var searchDocs = new Dictionary<string, OlSearchDoc>(StringComparer.Ordinal);
+                for (var offset = 0; offset < total; offset += pageSize)
+                {
+                    var page = _client.Search($"author_key:{authorId}", pageSize, offset);
+                    if (page?.NumFoundExact != true || page.NumFound != total || page.Start != offset ||
+                        page.Docs?.Count != Math.Min(pageSize, total - offset))
+                    {
+                        return false;
+                    }
+
+                    foreach (var doc in page.Docs)
+                    {
+                        var id = GetIsbnLookupWorkId(doc?.Key);
+                        if (id == null || (doc.Key != id && doc.Key != $"/works/{id}") || !searchDocs.TryAdd(id, doc))
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                if (!known.IsSubsetOf(searchDocs.Keys))
+                {
+                    return false;
+                }
+
+                var missingId = searchDocs.Keys.Single(id => !known.Contains(id));
+                var searchAuthor = searchDocs[missingId].AuthorKey?.FirstOrDefault();
+                if (searchAuthor != authorId && searchAuthor != $"/authors/{authorId}")
+                {
+                    return false;
+                }
+
+                var recovered = _client.GetWork(missingId);
+                if (recovered?.Key != $"/works/{missingId}" || recovered.Title.IsNullOrWhiteSpace() ||
+                    !HasExclusiveAuthorCredit(recovered, authorId))
+                {
+                    return false;
+                }
+
+                works.Add(recovered);
+                recoveryDocs = searchDocs.Values.ToList();
+                _logger.Info("Verified one missing Open Library bibliography work for author {0}. The bibliography now has {1} distinct works.", authorId, total);
+                return true;
+            }
+            catch (Exception ex) when (ex is OpenLibraryException or WebException or HttpRequestException)
+            {
+                _logger.Debug(ex, "Open Library author bibliography gap recovery was unavailable.");
+                return false;
+            }
+        }
+
+        private static string GetExactAuthorWorksKey(string key)
+        {
+            var workId = GetIsbnLookupWorkId(key);
+            return workId != null && key == $"/works/{workId}" ? workId : null;
         }
 
         private List<OlSearchDoc> GetAuthorWorkSearchDocs(string normalizedAuthorId)
@@ -215,7 +315,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         private static List<T> ReadAuthorPages<T>(string authorId,
                                                   Func<int, (List<T> Entries, int? Total)> fetchPage,
                                                   Func<T, string> getKey,
-                                                  bool authoritative = false)
+                                                  bool authoritative = false,
+                                                  Func<List<T>, int, bool> recoverGap = null)
         {
             var results = new List<T>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -230,11 +331,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 {
                     var (page, reportedTotal) = fetchPage(offset);
                     total = Math.Max(total, reportedTotal ?? 0);
+                    var confirmedCurrentGap = false;
                     if (!confirmedEmptyPage && page?.Count == 0 && seen.Count < total)
                     {
                         // Confirm an unexpected gap once without discarding the earlier total.
                         confirmedEmptyPage = true;
                         (page, reportedTotal) = fetchPage(offset);
+                        confirmedCurrentGap = page?.Count == 0;
                         total = Math.Max(total, reportedTotal ?? 0);
                     }
 
@@ -247,6 +350,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     {
                         if (seen.Count < total)
                         {
+                            if (authoritative && confirmedCurrentGap && recoverGap?.Invoke(results, total) == true)
+                            {
+                                return results;
+                            }
+
                             endedEarly = true;
                             throw new InvalidOperationException($"Open Library ended its bibliography at offset {offset} with {seen.Count} distinct works before the reported total {total}.");
                         }

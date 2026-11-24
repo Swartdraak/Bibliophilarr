@@ -528,6 +528,207 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             }
         }
 
+        [TestCase("verified", true)]
+        [TestCase("bare search IDs", true)]
+        [TestCase("counts differ", false)]
+        [TestCase("count approximate", false)]
+        [TestCase("count absent", false)]
+        [TestCase("missing prior", false)]
+        [TestCase("duplicate search ID", false)]
+        [TestCase("edition key", false)]
+        [TestCase("malformed search ID", false)]
+        [TestCase("wrong search credit", false)]
+        [TestCase("unavailable search", false)]
+        [TestCase("wrong direct work ID", false)]
+        [TestCase("wrong direct author ID", false)]
+        [TestCase("non-author role", false)]
+        [TestCase("coauthor", false)]
+        [TestCase("work unavailable", false)]
+        [TestCase("work timeout", false)]
+        public void get_author_info_should_recover_only_an_exact_search_gap_with_direct_author_credit(string scenario, bool recovered)
+        {
+            const string authorId = "OL26320A";
+            const string newWorkId = "OL45883W";
+            var known = new OlWorkResource { Key = "/works/OL1W", Title = "Existing work" };
+            var omitted = BuildWork();
+            var docs = BuildSearchDocs(1, 1);
+            docs.Add(new OlSearchDoc
+            {
+                Key = omitted.Key,
+                Title = omitted.Title,
+                AuthorKey = new List<string> { $"/authors/{authorId}" },
+                CoverId = 123
+            });
+            var search = new OlSearchResponse { NumFound = 2, NumFoundExact = true, Docs = docs };
+
+            switch (scenario)
+            {
+                case "bare search IDs":
+                    docs[0].Key = "OL1W";
+                    docs[1].Key = newWorkId;
+                    docs[1].AuthorKey[0] = authorId;
+                    break;
+                case "counts differ":
+                    search.NumFound = 3;
+                    break;
+                case "count approximate":
+                    search.NumFoundExact = false;
+                    break;
+                case "count absent":
+                    search.NumFoundExact = null;
+                    break;
+                case "missing prior":
+                    docs[0].Key = "/works/OL2W";
+                    break;
+                case "duplicate search ID":
+                    docs[0].Key = omitted.Key;
+                    break;
+                case "edition key":
+                    docs[1].Key = "/books/OL45883M";
+                    break;
+                case "malformed search ID":
+                    docs[1].Key = "/other/OL45883W";
+                    break;
+                case "wrong search credit":
+                    docs[1].AuthorKey[0] = "/authors/OL999A";
+                    break;
+                case "unavailable search":
+                    search = null;
+                    break;
+                case "wrong direct work ID":
+                    omitted.Key = "/works/OL999W";
+                    break;
+                case "wrong direct author ID":
+                    omitted.Authors[0].Author.Key = "/authors/OL999A";
+                    break;
+                case "non-author role":
+                    omitted.Authors[0].Type.Key = "/type/editor_role";
+                    break;
+                case "coauthor":
+                    omitted.Authors.Add(new OlWorkAuthorEntry
+                    {
+                        Author = new OlKeyRef { Key = "/authors/OL999A" },
+                        Type = new OlKeyRef { Key = "/type/author_role" }
+                    });
+                    break;
+                case "work unavailable":
+                    omitted = null;
+                    break;
+            }
+
+            _clientMock.Setup(client => client.GetAuthor(authorId, true)).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthorWorks(authorId, 100, 0))
+                .Returns(new OlAuthorWorksResponse { Size = 2, Entries = new List<OlWorkResource> { known } });
+            _clientMock.Setup(client => client.GetAuthorWorks(authorId, 100, 1))
+                .Returns(new OlAuthorWorksResponse { Size = 2 });
+            _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 0)).Returns(search);
+            var directWork = _clientMock.Setup(client => client.GetWork(newWorkId));
+            if (scenario == "work timeout")
+            {
+                directWork.Throws(new System.Net.WebException("Synthetic provider timeout."));
+            }
+            else
+            {
+                directWork.Returns(omitted);
+            }
+
+            if (recovered)
+            {
+                var books = Subject.GetAuthorInfo("openlibrary:author:OL26320A").Books.Value;
+                books.Select(book => book.OpenLibraryWorkId).Should().Equal("OL1W", newWorkId);
+                books[1].VerifiedOpenLibraryAuthorId.Should().Be(authorId);
+                books[1].Editions.Value.Should().ContainSingle(edition => edition.Overview == omitted.Description);
+                books[1].Editions.Value.Single().Images.Should().ContainSingle(image => image.Url.Contains("123"));
+            }
+            else
+            {
+                var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+                var failure = lookup.Should().Throw<MetadataProviderUnavailableException>().Which;
+                failure.AuthoritativeBibliographyEndedEarly.Should().BeTrue();
+                failure.AuthorBibliographyProgress.Should().Be((1, 1, 2));
+            }
+
+            _clientMock.Verify(client => client.GetAuthorWorks(authorId, 100, 1), Times.Exactly(2));
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, It.IsAny<int>()), Times.Once());
+            var directVerification = recovered || scenario is "wrong direct work ID" or "wrong direct author ID" or "non-author role" or "coauthor" or "work unavailable" or "work timeout";
+            _clientMock.Verify(client => client.GetWork(newWorkId), directVerification ? Times.Once() : Times.Never());
+            _clientMock.Verify(client => client.GetWork(It.Is<string>(id => id != newWorkId)), Times.Never());
+            _clientMock.Verify(client => client.GetWorkEditions(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never());
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void get_author_info_should_keep_unstable_works_counts_and_redirects_out_of_gap_recovery(bool redirects)
+        {
+            const string authorId = "OL26320A";
+            var resource = BuildAuthor();
+            if (redirects)
+            {
+                resource.Key = "/authors/OL999A";
+            }
+
+            _clientMock.Setup(client => client.GetAuthor(authorId, true)).Returns(resource);
+            _clientMock.Setup(client => client.GetAuthorWorks(authorId, 100, 0))
+                .Returns(new OlAuthorWorksResponse { Size = 2, Entries = new List<OlWorkResource> { BuildWork() } });
+            _clientMock.SetupSequence(client => client.GetAuthorWorks(authorId, 100, 1))
+                .Returns(new OlAuthorWorksResponse { Size = 2 })
+                .Returns(new OlAuthorWorksResponse { Size = redirects ? 2 : 1 });
+
+            var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+
+            var failure = lookup.Should().Throw<MetadataProviderUnavailableException>().Which;
+            failure.AuthoritativeBibliographyEndedEarly.Should().Be(!redirects);
+            failure.AuthorBibliographyProgress.Should().Be((1, 1, 2));
+            _clientMock.Verify(client => client.Search(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never());
+            _clientMock.Verify(client => client.GetWork(It.IsAny<string>()), Times.Never());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void get_author_info_should_bound_gap_recovery_and_require_exact_counts_across_search_pages(bool stableLastPage)
+        {
+            const string authorId = "OL26320A";
+            const int total = 229;
+            _clientMock.Setup(client => client.GetAuthor(authorId, true)).Returns(BuildAuthor());
+            foreach (var offset in new[] { 0, 100, 200 })
+            {
+                var entries = BuildSearchDocs(offset == 200 ? 28 : 100, offset + 1)
+                    .Select(doc => new OlWorkResource { Key = doc.Key, Title = doc.Title }).ToList();
+                _clientMock.Setup(client => client.GetAuthorWorks(authorId, 100, offset))
+                    .Returns(new OlAuthorWorksResponse { Size = total, Entries = entries });
+                _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, offset))
+                    .Returns(new OlSearchResponse
+                    {
+                        Start = offset,
+                        NumFoundExact = true,
+                        NumFound = offset < 200 || stableLastPage ? total : total + 1,
+                        Docs = BuildSearchDocs(offset == 200 ? 29 : 100, offset + 1)
+                    });
+            }
+
+            _clientMock.Setup(client => client.GetAuthorWorks(authorId, 100, 228))
+                .Returns(new OlAuthorWorksResponse { Size = total });
+            var omitted = BuildWork();
+            omitted.Key = "/works/OL229W";
+            _clientMock.Setup(client => client.GetWork("OL229W")).Returns(omitted);
+
+            if (stableLastPage)
+            {
+                var books = Subject.GetAuthorInfo("openlibrary:author:OL26320A").Books.Value;
+                books.Should().HaveCount(total);
+                books[^1].OpenLibraryWorkId.Should().Be("OL229W");
+            }
+            else
+            {
+                var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+                lookup.Should().Throw<MetadataProviderUnavailableException>().Which
+                    .AuthorBibliographyProgress.Should().Be((228, 228, 229));
+            }
+
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, It.IsAny<int>()), Times.Exactly(3));
+            _clientMock.Verify(client => client.GetWork(It.IsAny<string>()), stableLastPage ? Times.Once() : Times.Never());
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void get_author_info_should_confirm_an_early_empty_works_page_once(bool recovers)
