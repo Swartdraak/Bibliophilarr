@@ -1051,6 +1051,34 @@ namespace NzbDrone.Core.Test.MetadataSource
             }
         }
 
+        [TestCase(null)]
+        [TestCase("   ")]
+        public void author_hydration_should_fill_a_missing_series_description_only_from_the_same_source_id(string missingDescription)
+        {
+            var memberships = JArray.Parse("""
+                [
+                  {"book_id":543,"series_id":789,"position":1,"series":{"id":789,"name":"Variant Series"}},
+                  {"book_id":543,"series_id":790,"position":1,"series":{"id":790,"name":"Variant Series"}}
+                ]
+                """);
+            memberships[0]["series"]["description"] = missingDescription;
+            var source = InstallEditionResponse(JArray.Parse("""[{"id":50,"reading_format_id":1}]"""), memberships);
+            source.SelectToken("book_series[0].series")["description"] = "  Published series description  ";
+
+            var author = Subject.GetAuthorInfo("hardcover:author:123");
+
+            author.RemoteSeriesComplete.Should().BeTrue();
+            var series = author.Series.Value.ToDictionary(item => item.ForeignSeriesId);
+            series.Keys.Should().BeEquivalentTo(new[] { "hardcover:series:789", "hardcover:series:790" });
+            series["hardcover:series:789"].Description.Should().Be("Published series description");
+            series["hardcover:series:790"].Description.Should().BeNullOrWhiteSpace();
+            series.Values.Should().OnlyContain(item => item.LinkItems.Value.Count == 1 &&
+                item.LinkItems.Value[0].Book.Value.ForeignBookId == "hardcover:work:543");
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(3));
+            http.VerifyNoOtherCalls();
+        }
+
         [Test]
         public void should_not_duplicate_the_legacy_edition_if_it_is_the_preferred_source_edition()
         {

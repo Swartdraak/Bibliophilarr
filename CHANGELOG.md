@@ -42,6 +42,8 @@ process.
 
 ### Fixed
 
+- Keep Hardcover series descriptions from verified book metadata when the
+  complete series membership response has no description for the same series.
 - Add a selected audiobook to an existing work while retaining its ebook
   edition, monitoring, and files. Reject editions owned by another work.
 - Keep works with conflicting stored Open Library IDs separate during

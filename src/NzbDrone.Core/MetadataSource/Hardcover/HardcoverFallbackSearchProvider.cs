@@ -393,6 +393,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             var authorSeries = hardcoverAuthorId > 0 ? FetchAuthorSeries(hardcoverAuthorId, books) : null;
             var seriesComplete = authorSeries != null;
+            if (seriesComplete)
+            {
+                FillMissingSeriesDescriptions(authorSeries, books);
+            }
+
             authorSeries ??= BuildAuthorSeries(books);
 
             _logger.Debug("GetAuthorInfo: {0} books, {1} series for '{2}'", books.Count, authorSeries.Count, authorName);
@@ -2449,6 +2454,31 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 Books = new List<Book>(),
                 Series = new List<Series>()
             };
+        }
+
+        private static void FillMissingSeriesDescriptions(List<Series> authorSeries, List<Book> books)
+        {
+            var missingDescriptions = authorSeries.Where(series => series.Description.IsNullOrWhiteSpace()).ToList();
+            if (missingDescriptions.Count == 0)
+            {
+                return;
+            }
+
+            // The complete membership snapshot stays authoritative. Book metadata can
+            // fill a missing description for the same provider series identity.
+            var descriptions = books.SelectMany(book => book.SeriesLinks?.Value ?? Enumerable.Empty<SeriesBookLink>())
+                .Select(link => link?.Series?.Value)
+                .Where(series => series != null && series.ForeignSeriesId.IsNotNullOrWhiteSpace() && series.Description.IsNotNullOrWhiteSpace())
+                .ToLookup(series => series.ForeignSeriesId, series => series.Description.Trim(), StringComparer.Ordinal);
+
+            foreach (var series in missingDescriptions)
+            {
+                var candidates = descriptions[series.ForeignSeriesId].Distinct(StringComparer.Ordinal).Take(2).ToList();
+                if (candidates.Count == 1)
+                {
+                    series.Description = candidates[0];
+                }
+            }
         }
 
         private static List<Series> BuildAuthorSeries(IEnumerable<Book> books)
