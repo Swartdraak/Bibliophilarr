@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Allow equal-size ebooks and audiobooks of the same work to be tracked
+  independently when both file formats are recognized.
 - Use the current author and artwork when processing a delayed author refresh.
   Keep current portraits and skip refresh events for removed authors.
 - Retry missing Open Library artwork for unambiguous stored book editions in
