@@ -116,10 +116,20 @@ namespace NzbDrone.Core.Books
 
         internal static void Reconcile(IDbConnection connection, IDbTransaction transaction, Book source, Book target, bool dryRun)
         {
-            if (source == null || target == null || source.Id == target.Id ||
-                !BookWorkIdentity.AreCorroborated(source, target))
+            const string insufficientEvidence = "The selected works lack corroborated identity under the same author.";
+            if (source == null || target == null || source.Id == target.Id)
             {
-                throw new InvalidOperationException("The selected works lack corroborated identity under the same author.");
+                throw new InvalidOperationException(insufficientEvidence);
+            }
+
+            if (HasConflictingOpenLibraryWorkIds(connection, transaction, source, target))
+            {
+                throw new InvalidOperationException("The selected works have conflicting Open Library work IDs. Verify an official work alias before reconciling them.");
+            }
+
+            if (!BookWorkIdentity.AreCorroborated(source, target))
+            {
+                throw new InvalidOperationException(insufficientEvidence);
             }
 
             var ebook = CombineMonitoring(source, target, FormatType.Ebook);
@@ -171,6 +181,26 @@ namespace NzbDrone.Core.Books
             RewriteBookReferences(connection, transaction, source.Id, target.Id);
             BookRepository.TransferAuthorCredits(connection, transaction, source.Id, target.Id, transferWork: true);
             connection.Execute("DELETE FROM \"Books\" WHERE \"Id\" = @Source", ids, transaction);
+        }
+
+        private static bool HasConflictingOpenLibraryWorkIds(IDbConnection connection, IDbTransaction transaction, Book source, Book target)
+        {
+            const string provider = "OpenLibrary";
+            var stored = connection.Query<string>(
+                """
+                SELECT "ProviderId" FROM "WorkSourceAssociations"
+                WHERE "Provider" = @Provider AND ("BookId" = @Source OR "BookId" = @Target)
+                """,
+                new { Provider = provider, Source = source.Id, Target = target.Id },
+                transaction);
+
+            return stored.Select(id => CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Work, provider, id, null)?.ProviderId)
+                .Append(BookWorkIdentity.GetOpenLibraryWorkId(source))
+                .Append(BookWorkIdentity.GetOpenLibraryWorkId(target))
+                .Where(id => id != null)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(2)
+                .Count() == 2;
         }
 
         internal static Book ReadWork(IDbConnection connection, IDbTransaction transaction, int id)

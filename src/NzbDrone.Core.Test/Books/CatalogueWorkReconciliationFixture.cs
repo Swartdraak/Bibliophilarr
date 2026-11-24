@@ -83,6 +83,32 @@ namespace NzbDrone.Core.Test.BooksTests
             AllStoredModels.Should().HaveCount(2);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_hold_shared_isbn_when_stored_open_library_claims_disagree(bool dryRun)
+        {
+            var author = AddAuthor(600);
+            var target = AddWork(author.Id, 311, null);
+            var source = AddWork(author.Id, 312, null);
+            var identity = Mocker.Resolve<CatalogueIdentityRepository>();
+            identity.TryAddSource(CatalogueEntityKind.Work, target.Id, "OpenLibrary", "OL611W", "primary-provider-id").Should().BeTrue();
+            identity.TryAddSource(CatalogueEntityKind.Work, source.Id, "OpenLibrary", "OL612W", "primary-provider-id").Should().BeTrue();
+            var targetEdition = Db.Insert(new Edition { BookId = target.Id, ForeignEditionId = "OL611M", TitleSlug = "ol611m", Title = "Book", Isbn13 = "9781442482890" });
+            var sourceEdition = Db.Insert(new Edition { BookId = source.Id, ForeignEditionId = "OL612M", TitleSlug = "ol612m", Title = "Book", Isbn13 = "9781442482890" });
+
+            var command = new ReconcileCatalogueWorksCommand { SourceBookId = source.Id, TargetBookId = target.Id, DryRun = dryRun };
+            var action = () => Subject.Execute(command);
+
+            action.Should().Throw<InvalidOperationException>().WithMessage("*conflicting Open Library work IDs*");
+            AllStoredModels.Select(book => book.Id).Should().BeEquivalentTo(new[] { target.Id, source.Id });
+            Db.All<Edition>().ToDictionary(edition => edition.Id, edition => edition.BookId)
+                .Should().Contain(targetEdition.Id, target.Id).And.Contain(sourceEdition.Id, source.Id);
+            identity.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL611W").Should().Be(target.Id);
+            identity.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL612W").Should().Be(source.Id);
+            identity.FindByRoute(CatalogueEntityKind.Work, target.CanonicalId).Should().Be(target.Id);
+            identity.FindByRoute(CatalogueEntityKind.Work, source.CanonicalId).Should().Be(source.Id);
+        }
+
         private Book AddWork(int authorId, int providerId, string openLibraryId)
         {
             return Storage.Insert(new Book

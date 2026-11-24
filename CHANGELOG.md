@@ -39,6 +39,8 @@ process.
 
 ### Fixed
 
+- Keep works with conflicting stored Open Library IDs separate during
+  reconciliation, even when their editions share an ISBN.
 - Show one search result for each verified author, book, or series. Keep distinct
   authors who share a name, and open the existing catalogue page for verified
   provider aliases.
