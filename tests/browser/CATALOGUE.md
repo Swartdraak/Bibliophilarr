@@ -53,7 +53,7 @@ Both modes use disposable application data and a synthetic EPUB. Failure
 artifacts include application logs with the fixture login, app API key, and
 both live-provider credentials redacted.
 
-## Packaged dual-format recovery after SIGTERM
+## Packaged dual-format recovery
 
 Linux backend CI starts the packaged app with a fresh profile and its generated
 API key. The signed workflow creates a Forms owner, root, author and one work
@@ -62,8 +62,18 @@ sends SIGTERM to the exact native child and opens the same unmodified profile.
 The original key, Forms account, catalogue and edition/file relationships,
 original bytes and exact migration set must survive. SQLite is read-only for
 assertions and the driver uses a bounded TLS provider fixture in a private
-loopback namespace. Trust applies only to the launched app. Keep the safe
-`dual-format-sigterm.json` receipt with the browser test evidence.
+loopback namespace. Trust applies only to the launched app.
+
+After the graceful restart, a new child opens the same profile and receives
+SIGKILL once the seeded catalogue is idle. A fourth child must reopen with the
+original key, Forms account, both typed files, and exactly the same catalogue
+and migration state. The test checks SQLite integrity and confirms no provider
+requests occurred during recovery. Bootstrap accepts the first account on fresh
+startup and rejects a second account both before and after the hard restart.
+
+Keep the safe `dual-format-sigterm.json` and `dual-format-sigkill.json`
+receipts with the browser test evidence. The Host test suite separately covers
+SIGKILL during startup migration on a fresh profile.
 
 The same packaged test is available through the canonical test script:
 
@@ -83,5 +93,14 @@ non-interactive sudo from a regular user. It creates temporary TLS material
 and bounds provider traffic to loopback. The normal unit and integration test
 commands keep their existing prerequisites.
 
-This covers the graceful native recovery portion of #328. The canonical Host
-test suite covers SIGKILL during startup migration on a separate fresh profile.
+## Browser Add New with a synthetic provider
+
+The Linux packaged recovery job also sends a normal Add New search to a local
+TLS fixture. Chromium opens the matched result, selects the root and profiles,
+and submits Add. The signed 201 response must contain the exact source edition
+and a newly created author. The signed Library and detail pages must show the
+same catalogue identities after restart. `browser-add-book.json` records this
+fixture run. Credentialed live search and the governed browser stage remain
+separate acceptance checks.
+
+Pass `--browser-book-add` after the evidence directory to include this browser-only case.
