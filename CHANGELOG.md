@@ -32,8 +32,8 @@ process.
   interrupted tasks from the previous process.
 - Enforce the explicit API key at the MVC action for affected versioned writes,
   including queue, backup, and system operations.
-- Mark a queued manual import as unsuccessful when none of its selected files
-  passes preparation.
+- Report queued manual imports as unsuccessful when they neither import a file
+  nor preserve an existing one. Summarize recognized format and file errors.
 - Reject a selected edition owned by a different work before changing edition
   monitoring or importing the file.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
