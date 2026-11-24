@@ -63,9 +63,10 @@ restore. Forced migration interruption remains tracked in
   343 files to audiobook editions. After the matched-only follow-up, 54 ebooks
   and 397 audiobooks had typed links. Seventeen works held independent editions
   and files for both formats. The remaining 82 files have recorded hold
-  reasons. Bibliography, artwork, unresolved work matches, and offline restart
-  on this profile remain open.
-  [Current replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7121960523)
+  reasons. Signed offline restart preserved all 533 ownership records and the
+  audited catalogue identities. Bibliography, artwork, unresolved matches, and
+  a separate fresh replay of the newer draft remain open.
+  [Current replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
 - The next promotion follows `develop -> staging` through a pull request.
   Validate installation, metadata, full-library matching, and release evidence
   on the consolidated revision.
