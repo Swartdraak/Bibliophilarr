@@ -10,6 +10,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         public ImportDecision<LocalBook> ImportDecision { get; private set; }
         public List<string> Errors { get; private set; }
 
+        internal int? PreservedExistingFileId { get; private set; }
+
         public ImportResultType Result
         {
             get
@@ -26,6 +28,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 return ImportResultType.Imported;
             }
+        }
+
+        internal static ImportResult ExistingFilePreserved(ImportDecision<LocalBook> decision, int fileId, string reason)
+        {
+            return new ImportResult(decision, reason)
+            {
+                PreservedExistingFileId = fileId > 0 ? fileId : null
+            };
         }
 
         public ImportResult(ImportDecision<LocalBook> importDecision, params string[] errors)

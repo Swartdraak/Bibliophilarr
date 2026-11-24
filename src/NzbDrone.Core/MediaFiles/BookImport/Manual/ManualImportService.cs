@@ -8,6 +8,7 @@ using NzbDrone.Common;
 using NzbDrone.Common.Crypto;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.CustomFormats;
@@ -537,10 +538,34 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                 }
             }
 
-            _logger.ProgressTrace("Manually imported {0} files", imported.Count);
-            if (message.Files.Count > 0 && !hasPreparedFile)
+            var importedCount = imported.Count(result => result.Result == ImportResultType.Imported);
+            var preservedCount = imported.Count(result => result.PreservedExistingFileId.HasValue);
+            _logger.ProgressTrace("Manually imported {0} files and preserved {1} existing files", importedCount, preservedCount);
+            if (message.Files.Count > 0 && importedCount == 0 && preservedCount == 0)
             {
-                _logger.ProgressInfo("No files were eligible for manual import.");
+                if (hasPreparedFile)
+                {
+                    var reasons = imported.SelectMany(result => result.Errors)
+                        .Select(LogSanitizer.Sanitize)
+                        .Where(reason => !string.IsNullOrWhiteSpace(reason))
+                        .Select(reason => reason.Length > 200 ? reason[..200] : reason)
+                        .Distinct(StringComparer.Ordinal)
+                        .Take(3)
+                        .ToList();
+                    if (reasons.Count == 0)
+                    {
+                        _logger.ProgressInfo("No files were imported.");
+                    }
+                    else
+                    {
+                        _logger.ProgressInfo("No files were imported. {0}", string.Join(" | ", reasons));
+                    }
+                }
+                else
+                {
+                    _logger.ProgressInfo("No files were eligible for manual import.");
+                }
+
                 _commandResultReporter.Report(CommandResult.Unsuccessful);
             }
 
@@ -564,10 +589,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     }
                 }
 
-                var importedCount = groupedTrackedDownload.Select(c => c.ImportResult)
+                var importedDownloadCount = groupedTrackedDownload.Select(c => c.ImportResult)
                     .Count(c => c.Result == ImportResultType.Imported);
                 var downloadItemCount = Math.Max(1, trackedDownload.RemoteBook?.Books.Count ?? 1);
-                var allItemsImported = importedCount >= downloadItemCount;
+                var allItemsImported = importedDownloadCount >= downloadItemCount;
 
                 if (allItemsImported)
                 {
