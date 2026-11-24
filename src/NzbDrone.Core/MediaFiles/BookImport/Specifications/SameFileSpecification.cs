@@ -25,6 +25,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                 return Decision.Accept();
             }
 
+            var incomingFormat = localBook.Size > 0 ? ImportFormat.ForPath(localBook.Path) : null;
             foreach (var bookFile in bookFiles)
             {
                 if (bookFile == null)
@@ -35,11 +36,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
                     return Decision.Accept();
                 }
 
-                if (bookFile.Size == localBook.Size)
+                if (bookFile.Size != localBook.Size ||
+                    (incomingFormat is { } format && ImportFormat.ForPath(bookFile.Path) is { } storedFormat && format != storedFormat))
                 {
-                    _logger.Debug("'{0}' Has the same filesize as existing file", localBook.Path);
-                    return Decision.Reject("Has the same filesize as existing file");
+                    continue;
                 }
+
+                _logger.Debug("'{0}' Has the same filesize as existing file", localBook.Path);
+                return Decision.Reject("Has the same filesize as existing file");
             }
 
             return Decision.Accept();
