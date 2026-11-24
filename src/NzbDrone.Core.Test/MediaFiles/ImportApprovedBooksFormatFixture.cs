@@ -227,6 +227,118 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
         }
 
+        [TestCase(true, true, false, 1)]
+        [TestCase(true, false, false, 2)]
+        [TestCase(false, true, false, 2)]
+        [TestCase(true, true, true, 1)]
+        public void should_hold_repeat_authoritative_bibliography_failures_only_for_the_same_unattended_source_in_one_batch(
+            bool unattended, bool authoritative, bool becameKnown, int expectedAttempts)
+        {
+            const string incoming = "hardcover:author:123";
+            const string equivalentIncoming = "hardcover:author:000123";
+            const string independent = "hardcover:author:456";
+
+            var first = Decision(incoming, 1);
+            var repeated = Decision(equivalentIncoming, 2);
+            var different = Decision(independent, 3);
+            var stored = new Author
+            {
+                Id = 88,
+                AuthorMetadataId = 99,
+                Metadata = different.Item.Author.Metadata,
+                QualityProfile = _author.QualityProfile,
+                Path = _author.Path
+            };
+            var nowKnown = new Author
+            {
+                Id = 89,
+                AuthorMetadataId = 100,
+                Metadata = first.Item.Author.Metadata,
+                QualityProfile = _author.QualityProfile,
+                Path = _author.Path
+            };
+
+            var authors = Mocker.GetMock<IAuthorService>();
+            authors.Setup(service => service.GetAuthor(stored.Id)).Returns(stored);
+            if (becameKnown)
+            {
+                authors.Setup(service => service.FindById(equivalentIncoming)).Returns(nowKnown);
+            }
+
+            var additions = Mocker.GetMock<IAddAuthorService>();
+            additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId != independent), false))
+                .Throws(new MetadataProviderUnavailableException(
+                    "get-author-info", "openlibrary:author:OL1A", new InvalidOperationException("Incomplete fixture bibliography"), authoritative));
+            additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == independent), false))
+                .Returns(stored);
+            Mocker.GetMock<IEditionService>().Setup(service => service.SetMonitored(It.IsAny<Edition>()))
+                .Returns((Edition edition) => new List<Edition> { edition });
+
+            Subject.Import(new List<ImportDecision<LocalBook>> { first, repeated, different }, false);
+
+            additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId != independent), false),
+                Times.Exactly(expectedAttempts));
+            additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == independent), false), Times.Once());
+            different.Approved.Should().BeTrue();
+            different.Item.Author.Id.Should().Be(stored.Id);
+            AssertHeld(first);
+            if (becameKnown)
+            {
+                repeated.Approved.Should().BeTrue();
+                repeated.Item.Author.Id.Should().Be(nowKnown.Id);
+            }
+            else
+            {
+                AssertHeld(repeated);
+            }
+
+            var later = Decision(incoming, 4);
+            Subject.Import(new List<ImportDecision<LocalBook>> { later }, false);
+
+            additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId != independent), false),
+                Times.Exactly(expectedAttempts + 1));
+            AssertHeld(later);
+            ExceptionVerification.ExpectedErrors(expectedAttempts + 1);
+
+            ImportDecision<LocalBook> Decision(string foreignId, int number)
+            {
+                var remoteAuthor = new Author
+                {
+                    Name = "Same display name",
+                    ForeignAuthorId = foreignId,
+                    Path = _author.Path,
+                    QualityProfile = _author.QualityProfile
+                };
+                var book = new Book { Id = number + 100, ForeignBookId = $"hardcover:work:{number}", Author = remoteAuthor };
+                var audio = new Edition
+                {
+                    Id = number + 200,
+                    ForeignEditionId = $"hardcover:source-edition:{number}",
+                    Format = "Audiobook",
+                    Book = book,
+                    BookId = book.Id
+                };
+                return new ImportDecision<LocalBook>(new LocalBook
+                {
+                    Author = remoteAuthor,
+                    Book = book,
+                    Edition = audio,
+                    Part = 1,
+                    Path = Path.Combine(_author.Path, $"Book {number}.m4b"),
+                    Quality = new QualityModel(Quality.M4B),
+                    FileTrackInfo = new ParsedTrackInfo(),
+                    IsUnattendedLibraryImport = unattended
+                });
+            }
+
+            static void AssertHeld(ImportDecision<LocalBook> decision)
+            {
+                var rejection = decision.Rejections.Should().ContainSingle().Which;
+                rejection.Type.Should().Be(RejectionType.Temporary);
+                rejection.HoldReason.Should().Be(LibraryImportHoldReason.AuthorBibliographyUnavailable);
+            }
+        }
+
         [Test]
         public void should_use_SetMonitoredByFormat_when_flag_on_and_audiobook()
         {

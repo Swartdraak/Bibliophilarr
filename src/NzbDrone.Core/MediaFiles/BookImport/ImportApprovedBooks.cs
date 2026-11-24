@@ -107,6 +107,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var allOldTrackFiles = new List<BookFile>();
             var addedAuthors = new List<Author>();
             var addedBooks = new List<Book>();
+            var unavailableBibliographies = new HashSet<(string Provider, string ProviderId)>();
 
             var audiobookPartRetries = GetAudiobookPartRetries(decisions, replaceExisting);
             foreach (var decision in audiobookPartRetries.Keys.Where(d => !HasPersistedAudiobookTarget(d.Item)))
@@ -148,7 +149,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 try
                 {
-                    var author = EnsureAuthorAdded(decisionList, addedAuthors);
+                    var author = EnsureAuthorAdded(decisionList, addedAuthors, unavailableBibliographies);
 
                     var book = author == null ? null : EnsureBookAdded(decisionList, addedBooks);
                     var edition = book == null ? null : EnsureImportEdition(book, decisionList, bookDecision.FileFormat);
@@ -508,7 +509,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
         }
 
-        private Author EnsureAuthorAdded(List<ImportDecision<LocalBook>> decisions, List<Author> addedAuthors)
+        private Author EnsureAuthorAdded(List<ImportDecision<LocalBook>> decisions,
+                                         List<Author> addedAuthors,
+                                         HashSet<(string Provider, string ProviderId)> unavailableBibliographies)
         {
             var author = decisions.First().Item.Author;
             var normalizedForeignAuthorId = NormalizeForeignAuthorId(author.ForeignAuthorId);
@@ -538,8 +541,6 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         return null;
                     }
 
-                    _logger.Debug("Adding remote author {0}", author);
-
                     var path = decisions.First().Item.Path;
                     var rootFolder = _rootFolderService.GetBestRootFolder(path);
 
@@ -567,6 +568,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         return null;
                     }
 
+                    var requestedAuthority = decisions.All(decision => decision.Item.IsUnattendedLibraryImport)
+                        ? CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, author.ForeignAuthorId, null)
+                        : null;
+                    if (requestedAuthority != null && unavailableBibliographies.Contains((requestedAuthority.Provider, requestedAuthority.ProviderId)))
+                    {
+                        RejectAuthorAdd(decisions, bibliographyUnavailable: true);
+                        return null;
+                    }
+
+                    _logger.Debug("Adding remote author {0}", author);
+
                     try
                     {
                         dbAuthor = _addAuthorService.AddAuthor(author, false);
@@ -579,14 +591,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     {
                         _logger.Error(e, "Failed to add author {0}", author);
                         var bibliographyUnavailable = e is MetadataProviderUnavailableException { Operation: MetadataProviderOrchestrator.AuthorInfoOperation };
-                        var reason = bibliographyUnavailable ? LibraryImportHoldReason.AuthorBibliographyUnavailable : (LibraryImportHoldReason?)null;
-                        var message = bibliographyUnavailable
-                            ? "The metadata provider could not load the author's bibliography. Rescan to retry."
-                            : "Failed to add missing author";
-                        foreach (var decision in decisions)
+                        if (bibliographyUnavailable && requestedAuthority != null &&
+                            e is MetadataProviderUnavailableException { AuthoritativeBibliographyEndedEarly: true })
                         {
-                            decision.Reject(new Rejection(message, RejectionType.Temporary, reason));
+                            // Canonicalization may be checking an incumbent from a different provider.
+                            unavailableBibliographies.Add((requestedAuthority.Provider, requestedAuthority.ProviderId));
                         }
+
+                        RejectAuthorAdd(decisions, bibliographyUnavailable);
 
                         return null;
                     }
@@ -604,6 +616,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             }
 
             return author;
+        }
+
+        private static void RejectAuthorAdd(IEnumerable<ImportDecision<LocalBook>> decisions, bool bibliographyUnavailable)
+        {
+            var reason = bibliographyUnavailable ? LibraryImportHoldReason.AuthorBibliographyUnavailable : (LibraryImportHoldReason?)null;
+            var message = bibliographyUnavailable
+                ? "The metadata provider could not load the author's bibliography. Rescan to retry."
+                : "Failed to add missing author";
+            foreach (var decision in decisions)
+            {
+                decision.Reject(new Rejection(message, RejectionType.Temporary, reason));
+            }
         }
 
         private static string NormalizeForeignAuthorId(string foreignAuthorId)

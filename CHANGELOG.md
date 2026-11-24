@@ -42,6 +42,9 @@ process.
 
 ### Fixed
 
+- Avoid repeated lookups for the same incomplete author bibliography within a
+  library scan. A later scan can retry, and logs report where Open Library
+  pagination stopped.
 - Import the verified Hardcover audiobook edition and its available synopsis
   and cover when a trusted ASIN, title and credited author agree.
 - Keep Hardcover series descriptions from verified book metadata when the

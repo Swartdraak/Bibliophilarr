@@ -469,7 +469,9 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
 
-            lookup.Should().Throw<MetadataProviderUnavailableException>().Which.AuthoritativeBibliographyEndedEarly.Should().Be(recoverable);
+            var failure = lookup.Should().Throw<MetadataProviderUnavailableException>().Which;
+            failure.AuthoritativeBibliographyEndedEarly.Should().Be(recoverable);
+            failure.AuthorBibliographyProgress.Should().Be((1, 1, 2));
             _clientMock.Verify(client => client.GetExactEditionByIsbn(It.IsAny<string>()), Times.Never());
         }
 
@@ -645,7 +647,15 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
 
-            lookup.Should().Throw<MetadataProviderUnavailableException>();
+            var result = lookup.Should().Throw<MetadataProviderUnavailableException>().Which;
+            if (failure == "unexpected empty")
+            {
+                result.AuthorBibliographyProgress.Should().Be((3, 3, 50));
+            }
+            else
+            {
+                result.AuthorBibliographyProgress.Should().BeNull();
+            }
         }
 
         [Test]

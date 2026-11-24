@@ -12,6 +12,7 @@ using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 {
@@ -39,12 +40,12 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
                 .Returns((IBookSearchFallbackProvider provider, string title, string author) => provider.Search(title, author));
         }
 
-        [TestCase("Ebook", "River Chronicles: Book 7", true, true)]
-        [TestCase("Audiobook", "River Chronicles: Book 3", true, true)]
-        [TestCase("Audiobook", "River Chronicles: Book 7", true, false)]
-        [TestCase("Audiobook", "River Chronicles: Book 3", false, false)]
+        [TestCase("Ebook", "River Chronicles: Book 7", true, true, 1)]
+        [TestCase("Audiobook", "River Chronicles: Book 3", true, true, 1)]
+        [TestCase("Audiobook", "River Chronicles: Book 7", true, false, 1)]
+        [TestCase("Audiobook", "River Chronicles: Book 3", false, false, 5)]
         public void should_check_the_next_provider_for_an_eligible_author_and_title_match_in_library_scans(
-            string firstFormat, string firstTitle, bool forLibraryScan, bool expectSecond)
+            string firstFormat, string firstTitle, bool forLibraryScan, bool expectSecond, int queriesWithoutResults)
         {
             const string title = "River Chronicles: Book 7";
             const string author = "Casey Rivers";
@@ -84,6 +85,10 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             firstSearch.Verify(search => search.SearchForNewBook(title, author, true), Times.Once());
             secondSearch.Verify(search => search.SearchForNewBook(title, author, true), expectSecond ? Times.Once() : Times.Never());
             thirdSearch.Verify(search => search.SearchForNewBook(title, author, true), Times.Never());
+
+            var emptyResultWarnings = new[] { first, second, third }.Select(provider =>
+                $"Metadata provider '{provider.ProviderName}' returned an empty result for operation 'search-for-new-book'.");
+            ExceptionVerification.ExpectedWarns(Enumerable.Repeat(emptyResultWarnings, queriesWithoutResults).SelectMany(warnings => warnings).ToArray());
 
             IMetadataProvider CreateSearchProvider(string name, string editionId, string resultTitle, string format, out Mock<ISearchForNewBook> search)
             {

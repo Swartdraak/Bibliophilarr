@@ -282,7 +282,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     MetadataProviderOrchestrator.AuthorInfoOperation,
                     $"openlibrary:author:{authorId}",
                     ex,
-                    authoritative && endedEarly);
+                    authoritative && endedEarly,
+                    endedEarly ? (offset, seen.Count, total) : null);
             }
         }
 
