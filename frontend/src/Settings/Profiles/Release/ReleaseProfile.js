@@ -72,12 +72,20 @@ class ReleaseProfile extends Component {
     } = this.state;
 
     const indexer = indexerId !== 0 && _.find(indexerList, { id: indexerId });
+    const requiredTerms = required.filter(Boolean).join(', ');
+    const ignoredTerms = ignored.filter(Boolean).join(', ');
+    const editLabel = [
+      translate('EditReleaseProfile'),
+      requiredTerms && `${translate('MustContain')} ${requiredTerms}`,
+      ignoredTerms && `${translate('MustNotContain')} ${ignoredTerms}`,
+      indexer?.name
+    ].filter(Boolean).join(', ');
 
     return (
       <Card
         className={styles.releaseProfile}
         overlayContent={true}
-        ariaLabel={translate('EditReleaseProfile')}
+        ariaLabel={editLabel}
         onPress={this.onEditReleaseProfilePress}
       >
         <div>

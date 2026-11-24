@@ -29,6 +29,16 @@ updates:
         versions: ["11.*"]
       - dependency-name: "Microsoft.Extensions.Caching.Memory"
         versions: ["11.*"]
+      - dependency-name: "Microsoft.Extensions.Configuration"
+        versions: ["11.*"]
+      - dependency-name: "Microsoft.Extensions.DependencyInjection"
+        versions: ["11.*"]
+      - dependency-name: "Microsoft.Extensions.Hosting.WindowsServices"
+        versions: ["11.*"]
+      - dependency-name: "Microsoft.Extensions.Logging"
+        versions: ["11.*"]
+      - dependency-name: "System.ServiceProcess.ServiceController"
+        versions: ["11.*"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

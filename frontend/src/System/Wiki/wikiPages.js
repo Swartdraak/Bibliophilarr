@@ -952,7 +952,7 @@ const wikiPages = [
           'Rescan Folders — Scan all root folders for new, changed, or deleted files.',
           'Refresh Monitored Downloads — Poll download clients for progress updates.',
           'Messaging Cleanup — Clean up UI notification messages.',
-          'Backup — Create an automatic weekly backup of the database and configuration.'
+          'Backup — Create a configuration backup at the configured interval. The archive includes the database when using SQLite.'
         ],
         note: 'You can manually trigger any task by clicking its run icon. Tasks that are currently running show their progress.'
       },
@@ -965,7 +965,8 @@ const wikiPages = [
       {
         heading: 'Backups',
         paragraphs: [
-          'Bibliophilarr automatically creates weekly backups of its database (bibliophilarr.db) and configuration files. Backups are stored in the application data directory.'
+          'Set the automatic backup interval to 1–7 days in Settings → General → Backups with advanced settings enabled. The default is every 7 days.',
+          'The default folder is Backups/ in the application data directory. Archives include configuration and version information and, when using SQLite, bibliophilarr.db.'
         ],
         list: [
           'Backup Now — Trigger an immediate manual backup.',
@@ -973,7 +974,7 @@ const wikiPages = [
           'Download — Download any backup to save it externally.',
           'Delete — Remove old backups you no longer need.'
         ],
-        note: 'Backups include the database and essential configuration. They do NOT include your media files, root folder contents, or download client state. Always keep external copies of critical backups.'
+        note: 'PostgreSQL data and media files require separate backups. Restore PostgreSQL with the matching application profile while Bibliophilarr is stopped.'
       },
       {
         heading: 'Updates',
@@ -1354,15 +1355,15 @@ const wikiPages = [
       {
         heading: 'How do I backup and restore?',
         paragraphs: [
-          'Automatic backups run weekly and are stored in the application data directory under Backups/.'
+          'By default, automatic backups run every 7 days and go to Backups/ in the application data directory. Change the interval and folder in Settings → General → Backups with advanced settings enabled.'
         ],
         list: [
           'Manual backup: System → Backups → Backup Now.',
           'Download: System → Backups → click the backup entry to download.',
           'Restore: System → Backups → Restore. You can also upload a backup .zip file.',
-          'For disaster recovery: stop Bibliophilarr, replace the database file with the backup copy, restart.'
+          'For SQLite disaster recovery, stop Bibliophilarr and restore its database file and matching configuration before restarting.'
         ],
-        note: 'Backups include the database and configuration, NOT your media files. Always maintain separate backup strategies for your book library.'
+        note: 'The built-in backup includes the database when using SQLite. For PostgreSQL, keep a separate database backup and restore it with the matching application profile while Bibliophilarr is stopped. Back up media files separately.'
       },
       {
         heading: 'How do I recover from a failed update?',
