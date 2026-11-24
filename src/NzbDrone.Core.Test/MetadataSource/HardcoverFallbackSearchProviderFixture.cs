@@ -1021,7 +1021,41 @@ namespace NzbDrone.Core.Test.MetadataSource
 
         [TestCase(false)]
         [TestCase(true)]
-        public void get_author_info_should_treat_empty_graphql_results_as_inconclusive(bool authorExists)
+        public void get_author_info_should_not_substitute_name_search_for_an_exact_author_without_contributions(bool hasUnusableWork)
+        {
+            var direct = BuildAuthorPage(hasUnusableWork ? new[] { 1 } : Array.Empty<int>());
+            if (hasUnusableWork)
+            {
+                direct.SelectToken("data.authors[0].contributions[0]")["book"] = JValue.CreateNull();
+            }
+
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var offset = JObject.Parse(Encoding.UTF8.GetString(request.ContentData))
+                        .SelectToken("variables.offset")?.Value<int>();
+                    return CreateJsonResponse(request, offset == 0 ? direct : BuildAuthorPage(Array.Empty<int>()));
+                });
+            var search = JObject.Parse(BuildBookInfoPayload().Replace("Stephen King", "Complete Author"));
+            search.SelectToken("data.search.results.hits[0].document.contributions[0].author")["id"] = 456;
+            http.Setup(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, search.ToString())));
+
+            var action = () => Subject.GetAuthorInfo("hardcover:author:123");
+
+            var held = action.Should().Throw<MetadataProviderUnavailableException>().Which;
+            held.Operation.Should().Be("get-author-info");
+            held.EntityId.Should().Be("hardcover:author:123");
+            http.Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never());
+            http.Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()),
+                hasUnusableWork ? Times.Exactly(2) : Times.Once());
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void get_author_info_should_distinguish_missing_authors_from_incomplete_bibliographies(bool authorExists)
         {
             Mocker.GetMock<IHttpClient>()
                 .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
@@ -1035,7 +1069,19 @@ namespace NzbDrone.Core.Test.MetadataSource
                     new HttpResponse(request, new HttpHeader(), "{\"data\":{\"search\":{\"results\":{\"found\":0,\"hits\":[]}}}}")));
 
             var lookup = () => Subject.GetAuthorInfo("hardcover:author:123");
-            lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().BeFalse();
+            if (authorExists)
+            {
+                lookup.Should().Throw<MetadataProviderUnavailableException>().Which.EntityId.Should().Be("hardcover:author:123");
+            }
+            else
+            {
+                lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().BeFalse();
+            }
+
+            Mocker.GetMock<IHttpClient>()
+                .Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            Mocker.GetMock<IHttpClient>()
+                .Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never());
         }
 
         [TestCase("hardcover:author:123", "transport")]

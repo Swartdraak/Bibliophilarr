@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.ErrorManagement;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
@@ -12,6 +14,7 @@ using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
@@ -197,11 +200,19 @@ namespace Bibliophilarr.Api.V1.Books
         }
 
         [RestPostById]
+        [ProducesResponseType(typeof(BookResource), (int)HttpStatusCode.Created)]
+        [ProducesResponseType(typeof(ErrorModel), (int)HttpStatusCode.Conflict)]
         public ActionResult<BookResource> AddBook([FromBody] BookResource bookResource)
         {
-            var book = _addBookService.AddBook(bookResource.ToModel());
-
-            return Created(book.Id);
+            try
+            {
+                var book = _addBookService.AddBook(bookResource.ToModel());
+                return Created(book.Id);
+            }
+            catch (NzbDroneClientException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+            {
+                return Conflict(new ErrorModel { Message = ex.Message });
+            }
         }
 
         [RestPutById]

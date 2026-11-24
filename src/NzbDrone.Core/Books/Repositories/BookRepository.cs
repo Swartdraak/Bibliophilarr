@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using Dapper;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Qualities;
@@ -14,6 +16,7 @@ namespace NzbDrone.Core.Books
 {
     public interface IBookRepository : IBasicRepository<Book>
     {
+        void InsertWithEditions(Book book);
         List<Book> GetBooks(int authorId);
         List<Book> GetArtworkRetryPage(int afterId, int pageSize);
         List<Book> GetLastBooks(IEnumerable<int> authorMetadataIds);
@@ -43,9 +46,58 @@ namespace NzbDrone.Core.Books
 
     public class BookRepository : BasicRepository<Book>, IBookRepository
     {
-        public BookRepository(IMainDatabase database, IEventAggregator eventAggregator)
+        private readonly IEditionRepository _editionRepository;
+
+        public BookRepository(IMainDatabase database, IEventAggregator eventAggregator, IEditionRepository editionRepository)
             : base(database, eventAggregator)
         {
+            _editionRepository = editionRepository;
+        }
+
+        public void InsertWithEditions(Book book)
+        {
+            var editions = book.Editions?.Value;
+            if (book.Id != 0 || editions == null || editions.Count == 0 || editions.Any(edition => edition is not { Id: 0 }))
+            {
+                throw new InvalidOperationException("A new work requires a fresh list of editions.");
+            }
+
+            var selected = editions.GetPreferredEdition();
+            var original = editions.Select(edition => (Edition: edition, edition.BookId, edition.Monitored)).ToList();
+            try
+            {
+                using var connection = _database.OpenConnection();
+                using var transaction = connection.BeginTransaction(_database.DatabaseType == DatabaseType.SQLite
+                    ? IsolationLevel.Serializable
+                    : IsolationLevel.ReadCommitted);
+                Insert(connection, transaction, book);
+
+                foreach (var edition in editions)
+                {
+                    edition.BookId = book.Id;
+                    edition.Monitored = ReferenceEquals(edition, selected);
+                    if (!_editionRepository.TryInsertForFreshBook(connection, transaction, edition))
+                    {
+                        throw new NzbDroneClientException(HttpStatusCode.Conflict, "A provider edition is already present in the catalogue.");
+                    }
+                }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                ResetCatalogueInsertion(book);
+                foreach (var (edition, bookId, monitored) in original)
+                {
+                    edition.Id = 0;
+                    edition.BookId = bookId;
+                    edition.Monitored = monitored;
+                }
+
+                throw;
+            }
+
+            ModelCreated(book);
         }
 
         public List<Book> GetArtworkRetryPage(int afterId, int pageSize)

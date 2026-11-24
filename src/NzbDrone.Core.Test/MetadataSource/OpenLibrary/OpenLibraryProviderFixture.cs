@@ -339,17 +339,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Setup(c => c.GetAuthor("OL26320A", true))
                 .Returns(BuildAuthor());
 
-            var firstPage = new List<OlSearchDoc>();
-            for (var i = 0; i < 100; i++)
-            {
-                firstPage.Add(new OlSearchDoc
-                {
-                    Key = $"/works/OL{i}W",
-                    Title = $"Book {i}",
-                    AuthorName = new List<string> { "Author" },
-                    AuthorKey = new List<string> { "OL26320A" }
-                });
-            }
+            SetupAuthorWorksPages(101);
+            var firstPage = BuildSearchDocs(100, 0);
 
             _clientMock
                 .Setup(c => c.Search("author_key:OL26320A", 100, 0))
@@ -365,10 +356,11 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                     {
                         new OlSearchDoc
                         {
-                            Key = "/works/OL101W",
-                            Title = "Book 101",
+                            Key = "/works/OL100W",
+                            Title = "Book 100",
                             AuthorName = new List<string> { "Author" },
-                            AuthorKey = new List<string> { "OL26320A" }
+                            AuthorKey = new List<string> { "OL26320A" },
+                            SeriesWithNumber = new List<string> { "Boundary Series #1" }
                         }
                     }
                 });
@@ -377,6 +369,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             result.Should().NotBeNull();
             result.Books.Value.Should().HaveCount(101);
+            result.Books.Value.Single(book => book.ForeignBookId == "openlibrary:work:OL100W")
+                .SeriesLinks.Value.Should().ContainSingle().Which.Series.Value.Title.Should().Be("Boundary Series");
             _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 0), Times.Once);
             _clientMock.Verify(c => c.Search("author_key:OL26320A", 100, 100), Times.Once);
         }
@@ -385,6 +379,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         public void get_author_info_should_continue_after_short_search_pages_and_stop_on_clean_eof()
         {
             _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
+            SetupAuthorWorksPages(105);
 
             _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 0))
                 .Returns(new OlSearchResponse { NumFound = 10000, NumFoundExact = false, Docs = BuildSearchDocs(100, 0) });
@@ -401,22 +396,13 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
         [TestCase(true)]
         [TestCase(false)]
-        public void get_author_info_should_continue_beyond_1000_results(bool useWorksEndpoint)
+        public void get_author_info_should_continue_beyond_1000_results(bool includeSearchEnrichment)
         {
             const int total = 1021;
             _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
 
-            if (useWorksEndpoint)
-            {
-                _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, It.IsAny<int>()))
-                    .Returns((string _, int _, int offset) => new OlAuthorWorksResponse
-                    {
-                        Size = total,
-                        Entries = BuildSearchDocs(System.Math.Min(100, total - offset), offset)
-                            .Select(doc => new OlWorkResource { Key = doc.Key, Title = doc.Title }).ToList()
-                    });
-            }
-            else
+            SetupAuthorWorksPages(total);
+            if (includeSearchEnrichment)
             {
                 _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, It.IsAny<int>()))
                     .Returns((string _, int _, int offset) => new OlSearchResponse
@@ -426,18 +412,19 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                         Docs = BuildSearchDocs(System.Math.Min(100, total - offset), offset)
                     });
             }
+            else
+            {
+                _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 0))
+                    .Returns(new OlSearchResponse { NumFoundExact = true, Docs = new List<OlSearchDoc>() });
+            }
 
             var result = Subject.GetAuthorInfo("openlibrary:author:OL26320A");
 
             result.Books.Value.Should().HaveCount(total);
-            if (useWorksEndpoint)
-            {
-                _clientMock.Verify(client => client.GetAuthorWorks("OL26320A", 100, 1000), Times.Once);
-            }
-            else
-            {
-                _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 1000), Times.Once);
-            }
+            _clientMock.Verify(client => client.GetAuthorWorks("OL26320A", 100, 1000), Times.Once());
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 0), Times.Once());
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 1000),
+                includeSearchEnrichment ? Times.Once() : Times.Never());
         }
 
         [TestCase(false, true, false)]
@@ -796,6 +783,14 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             }
             else
             {
+                _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 0))
+                    .Returns(new OlAuthorWorksResponse
+                    {
+                        Size = 4,
+                        Entries = BuildSearchDocs(4, 1)
+                            .Select(doc => new OlWorkResource { Key = doc.Key, Title = doc.Title })
+                            .ToList()
+                    });
                 _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, It.IsAny<int>()))
                     .Returns((string _, int _, int offset) => new OlSearchResponse
                     {
@@ -857,6 +852,55 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             {
                 result.AuthorBibliographyProgress.Should().BeNull();
             }
+        }
+
+        [Test]
+        public void get_author_info_should_preserve_a_confirmed_empty_bibliography()
+        {
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 0))
+                .Returns(new OlAuthorWorksResponse { Size = 0, Entries = new List<OlWorkResource>() });
+            _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 0))
+                .Returns(new OlSearchResponse { NumFound = 0, NumFoundExact = true, Docs = new List<OlSearchDoc>() });
+
+            var author = Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+
+            author.Books.Value.Should().BeEmpty();
+            _clientMock.Verify(client => client.GetAuthorWorks("OL26320A", 100, 0), Times.Once());
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 0), Times.Once());
+            _clientMock.Verify(client => client.GetWork(It.IsAny<string>()), Times.Never());
+        }
+
+        [TestCase("OL26320A")]
+        [TestCase("OL26321A")]
+        public void get_author_info_should_not_replace_an_empty_works_feed_with_search_documents(string indexedAuthor)
+        {
+            const string author = "openlibrary:author:OL26320A";
+            _clientMock.Setup(client => client.GetAuthor("OL26320A", true)).Returns(BuildAuthor());
+            _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, 0))
+                .Returns(new OlAuthorWorksResponse { Size = 0, Entries = new List<OlWorkResource>() });
+            _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 0)).Returns(new OlSearchResponse
+            {
+                NumFound = 1,
+                NumFoundExact = true,
+                Docs = new List<OlSearchDoc>
+                {
+                    new OlSearchDoc
+                    {
+                        Key = "/works/OL45883W",
+                        Title = "The Lord of the Rings",
+                        AuthorKey = new List<string> { indexedAuthor },
+                        AuthorName = new List<string> { "J.R.R. Tolkien" }
+                    }
+                }
+            });
+
+            var action = () => Subject.GetAuthorInfo(author);
+
+            var held = action.Should().Throw<MetadataProviderUnavailableException>().Which;
+            held.Operation.Should().Be("get-author-info");
+            held.EntityId.Should().Be(author);
+            _clientMock.Verify(client => client.GetWork(It.IsAny<string>()), Times.Never());
         }
 
         [Test]
@@ -1184,6 +1228,17 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 }
             }
         };
+
+        private void SetupAuthorWorksPages(int total)
+        {
+            _clientMock.Setup(client => client.GetAuthorWorks("OL26320A", 100, It.IsAny<int>()))
+                .Returns((string _, int limit, int offset) => new OlAuthorWorksResponse
+                {
+                    Size = total,
+                    Entries = BuildSearchDocs(System.Math.Min(limit, total - offset), offset)
+                        .Select(doc => new OlWorkResource { Key = doc.Key, Title = doc.Title }).ToList()
+                });
+        }
 
         private static List<OlSearchDoc> BuildSearchDocs(int count, int startIndex)
         {

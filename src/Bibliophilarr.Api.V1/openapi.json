@@ -732,8 +732,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -748,6 +748,24 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BookResource"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A provider edition is already owned by another catalogue book.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "message"
+                  ],
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }

@@ -78,18 +78,14 @@ namespace NzbDrone.Core.Books
                 throw new InvalidOperationException("Cannot insert book with AuthorMetadataId = 0");
             }
 
-            var selected = newBook.GetPreferredEdition();
             if (newBook.Id > 0)
             {
+                var selected = newBook.GetPreferredEdition();
                 newBook.Editions = _editionService.AddEditionsForExistingBook(newBook, selected, _configService.EnableDualFormatTracking);
             }
             else
             {
-                _bookRepository.Insert(newBook);
-                var editions = newBook.Editions.Value;
-                editions.ForEach(edition => edition.BookId = newBook.Id);
-                _editionService.InsertMany(editions.Where(edition => edition.Id == 0).ToList());
-                _editionService.SetMonitored(selected);
+                _bookRepository.InsertWithEditions(newBook);
             }
 
             _eventAggregator.PublishEvent(new BookAddedEvent(GetBook(newBook.Id), doRefresh));

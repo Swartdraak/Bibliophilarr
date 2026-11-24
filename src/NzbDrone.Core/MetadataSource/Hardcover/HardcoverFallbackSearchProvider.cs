@@ -509,17 +509,14 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 books = FetchAuthorBooks(authorName, out authorImageUrl, out hardcoverAuthorId, out authorSlug, out authorBiography);
             }
 
-            // Fallback to book search if author search returned nothing
-            if (!books.Any())
+            // A bounded name search cannot replace the bibliography for a known numeric owner.
+            if (hardcoverAuthorId <= 0 && books.Count == 0 && authorName.IsNotNullOrWhiteSpace() && !int.TryParse(authorName, out _))
             {
-                if (authorName.IsNotNullOrWhiteSpace() && !int.TryParse(authorName, out _))
-                {
-                    _logger.Debug("Author-specific search found no results for '{0}', trying book search.", authorName);
-                    books = SearchBooks(authorName.Trim(), AuthorPageSize)
-                        .Where(x => IsMatchingAuthor(x.AuthorMetadata?.Value?.Name, authorName))
-                        .DistinctBy(x => x.ForeignBookId)
-                        .ToList();
-                }
+                _logger.Debug("Author-specific search found no results for '{0}', trying book search.", authorName);
+                books = SearchBooks(authorName.Trim(), AuthorPageSize)
+                    .Where(x => IsMatchingAuthor(x.AuthorMetadata?.Value?.Name, authorName))
+                    .DistinctBy(x => x.ForeignBookId)
+                    .ToList();
             }
 
             if (!books.Any())
@@ -1714,6 +1711,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
                     // Use the rows actually received in case the provider applies its own cap.
                     offset += contributions.Count;
+                }
+
+                if (books.Count == 0)
+                {
+                    throw new InvalidOperationException("Hardcover returned the author but no usable bibliography works.");
                 }
             }
             catch (Exception ex)

@@ -45,8 +45,13 @@ process.
 
 ### Fixed
 
+- Save a new book, its catalogue identity and its editions together. If an
+  edition already belongs to another book, keep the existing data and import
+  exclusions.
 - Cache a verified alternate Hardcover edition cover when the primary cover
   is missing.
+- Preserve stored bibliographies when Hardcover's exact author lookup or Open
+  Library's works feed cannot verify the books shown in search.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked
   independently when both file formats are recognized.
 - Use the current author and artwork when processing a delayed author refresh.

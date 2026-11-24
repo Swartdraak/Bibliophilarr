@@ -177,7 +177,7 @@ namespace NzbDrone.Core.Datastore
             return model;
         }
 
-        private string GetInsertSql()
+        private protected string GetInsertSql(string conflictColumn = null)
         {
             var sbColumnList = new StringBuilder(null);
             for (var i = 0; i < _properties.Count; i++)
@@ -199,6 +199,12 @@ namespace NzbDrone.Core.Datastore
                 {
                     sbParameterList.Append(", ");
                 }
+            }
+
+            if (conflictColumn != null)
+            {
+                return $"INSERT INTO \"{_table}\" ({sbColumnList}) VALUES ({sbParameterList}) " +
+                       $"ON CONFLICT (\"{conflictColumn}\") DO NOTHING RETURNING \"Id\"";
             }
 
             if (_database.DatabaseType == DatabaseType.PostgreSQL)
@@ -329,7 +335,7 @@ namespace NzbDrone.Core.Datastore
             return inserted;
         }
 
-        private static void ResetCatalogueInsertion(TModel model)
+        private protected static void ResetCatalogueInsertion(TModel model)
         {
             model.Id = 0;
             ((ICatalogueIdentityModel)model).CanonicalId = null;
