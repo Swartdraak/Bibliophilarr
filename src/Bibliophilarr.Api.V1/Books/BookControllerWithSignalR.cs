@@ -183,6 +183,7 @@ namespace Bibliophilarr.Api.V1.Books
             foreach (var bookResource in books)
             {
                 _coverMapper.ConvertToLocalUrls(bookResource.Id, MediaCoverEntity.Book, bookResource.Images);
+                _coverMapper.MapRecoveredBookCover(bookResource.Id, bookResource.ForeignBookId, bookResource.ForeignEditionId, bookResource.Images);
             }
         }
     }
