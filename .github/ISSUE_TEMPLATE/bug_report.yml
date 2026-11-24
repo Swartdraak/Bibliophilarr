@@ -75,7 +75,7 @@ body:
     description: |
       examples:
         - **OS**: Ubuntu 20.04
-        - **Bibliophilarr**: Bibliophilarr 0.1.0.432
+        - **Bibliophilarr**: Copy the version from System → Status, including any suffix.
         - **Docker Install**: Yes
         - **Using Reverse Proxy**: No
         - **Browser**: Firefox 90 (If UI related)
