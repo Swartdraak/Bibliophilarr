@@ -15,6 +15,7 @@ using Bibliophilarr.Api.V1.Config;
 using Bibliophilarr.Api.V1.RootFolders;
 using Bibliophilarr.Api.V1.Search;
 using DryIoc;
+using DryIoc.Microsoft.DependencyInjection;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -361,8 +362,9 @@ namespace NzbDrone.Integration.Test.ApiTests
                     services.PostConfigure<UpdateOptions>(options => options.PublicReleaseDiscovery = false);
                 })
                 .ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"))
-                .ConfigureContainer<IContainer>(container =>
+                .ConfigureContainer<DryIocServiceProvider>(serviceProvider =>
                 {
+                    var container = serviceProvider.Container;
                     var effectiveDispatcher = dispatcher;
                     if (effectiveDispatcher == null)
                     {
