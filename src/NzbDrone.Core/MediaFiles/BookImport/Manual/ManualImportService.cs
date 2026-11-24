@@ -537,10 +537,43 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                 }
             }
 
-            _logger.ProgressTrace("Manually imported {0} files", imported.Count);
-            if (message.Files.Count > 0 && !hasPreparedFile)
+            var importedCount = imported.Count(result => result.Result == ImportResultType.Imported);
+            var preservedCount = imported.Count(result => result.PreservedExistingFileId.HasValue);
+            _logger.ProgressTrace("Manually imported {0} files and preserved {1} existing files", importedCount, preservedCount);
+            if (message.Files.Count > 0 && importedCount == 0 && preservedCount == 0)
             {
-                _logger.ProgressInfo("No files were eligible for manual import.");
+                if (hasPreparedFile)
+                {
+                    // Result details may contain paths or provider IDs. Promote only fixed server messages.
+                    var reasons = imported.SelectMany(result => result.Errors)
+                        .Where(reason => reason is
+                            "File format does not match the selected edition" or
+                            "The selected edition belongs to a different work" or
+                            "Missing author, book, or edition for import" or
+                            "Failed to prepare book for import" or
+                            "Failed to import book, root folder missing." or
+                            "Failed to import book, destination already exists." or
+                            "Failed to import book, permissions error" or
+                            "Failed to import book, unable to move existing file to the Recycle Bin." or
+                            "Failed to import book, error communicating with Calibre.  Check log for details." or
+                            "Failed to import book.")
+                        .Distinct(StringComparer.Ordinal)
+                        .Take(3)
+                        .ToList();
+                    if (reasons.Count == 0)
+                    {
+                        _logger.ProgressInfo("No files were imported.");
+                    }
+                    else
+                    {
+                        _logger.ProgressInfo("No files were imported. {0}", string.Join(" | ", reasons));
+                    }
+                }
+                else
+                {
+                    _logger.ProgressInfo("No files were eligible for manual import.");
+                }
+
                 _commandResultReporter.Report(CommandResult.Unsuccessful);
             }
 
@@ -564,10 +597,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     }
                 }
 
-                var importedCount = groupedTrackedDownload.Select(c => c.ImportResult)
+                var importedDownloadCount = groupedTrackedDownload.Select(c => c.ImportResult)
                     .Count(c => c.Result == ImportResultType.Imported);
                 var downloadItemCount = Math.Max(1, trackedDownload.RemoteBook?.Books.Count ?? 1);
-                var allItemsImported = importedCount >= downloadItemCount;
+                var allItemsImported = importedDownloadCount >= downloadItemCount;
 
                 if (allItemsImported)
                 {
