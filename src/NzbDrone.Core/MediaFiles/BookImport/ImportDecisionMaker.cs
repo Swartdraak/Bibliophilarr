@@ -513,11 +513,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 return default;
             }
 
-            (Book Book, Edition Edition, bool Hold) selection = default;
+            (Book Book, Edition Edition, string ConflictDetail) selection = default;
             bool Select(List<Book> books)
             {
                 selection = SelectLibraryFallback(books, release, exactTitle, exactAuthor, formats[0].Value, addNewAuthors, requiredIsbn, requireTypedEdition, verifyStoredWork);
-                return selection.Edition != null || selection.Hold;
+                return selection.Edition != null || selection.ConflictDetail != null;
             }
 
             if (requiredIsbn == null)
@@ -529,16 +529,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 _metadataOrchestrator.SearchForLibraryImportByIsbn(requiredIsbn, Select);
             }
 
-            if (selection.Hold &&
-                (release.IdentificationHoldReason == null || release.IdentificationHoldReason == LibraryImportHoldReason.LowConfidence))
+            if (selection.ConflictDetail != null &&
+                release.IdentificationHoldReason is null or LibraryImportHoldReason.LowConfidence or LibraryImportHoldReason.ProviderIdentityConflict)
             {
                 release.IdentificationHoldReason = LibraryImportHoldReason.ProviderIdentityConflict;
+                release.ProviderIdentityConflictDetail = selection.ConflictDetail;
+
+                foreach (var file in release.LocalBooks)
+                {
+                    _logger.Debug("Import hold ProviderIdentityConflict file={0} detail={1}", LogSanitizer.Sanitize(file.Path), selection.ConflictDetail);
+                }
             }
 
             return (selection.Book, selection.Edition);
         }
 
-        private (Book Book, Edition Edition, bool Hold) SelectLibraryFallback(
+        private (Book Book, Edition Edition, string ConflictDetail) SelectLibraryFallback(
             List<Book> books,
             LocalEdition release,
             string exactTitle,
@@ -560,9 +566,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 return default;
             }
 
-            if (works.Count > 1 || works[0].Where(book => book.Id > 0).Select(book => book.Id).Distinct().Take(2).Count() > 1)
+            if (works.Count > 1)
             {
-                return (null, null, true);
+                return (null, null, "More than one work identity matches the exact title and author.");
+            }
+
+            if (works[0].Where(book => book.Id > 0).Select(book => book.Id).Distinct().Take(2).Count() > 1)
+            {
+                return (null, null, "More than one stored work claims the matching provider identity.");
             }
 
             if (works[0].Key == null)
@@ -587,7 +598,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (verifyStoredWork && editions.Select(item => item.Edition.ForeignEditionId).Distinct(StringComparer.Ordinal).Take(2).Count() > 1)
             {
-                return (null, null, true);
+                return (null, null, "More than one source edition matches the exact ISBN and format.");
             }
 
             foreach (var (candidate, edition) in editions)
@@ -630,21 +641,21 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                             Isbn.AreEquivalent(existing.Isbn13, requiredIsbn) &&
                             existing.ForeignEditionId != edition.ForeignEditionId) == true)
                         {
-                            return (null, null, true);
+                            return (null, null, "The ISBN already identifies a different stored edition for this work.");
                         }
 
-                        return (stored, edition, false);
+                        return (stored, edition, null);
                     }
 
                     candidate.Author = localAuthor;
                     candidate.AuthorMetadata = localAuthor.Metadata.Value;
                     candidate.AuthorMetadataId = localAuthor.AuthorMetadataId;
-                    return (candidate, edition, false);
+                    return (candidate, edition, null);
                 }
 
                 if (requiredIsbn == null && addNewAuthors && scopedAuthor && NormalizeLibraryAuthor(candidate.Author?.Value?.Name) == exactAuthor)
                 {
-                    return (candidate, edition, false);
+                    return (candidate, edition, null);
                 }
             }
 
@@ -734,6 +745,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 {
                     LibraryImportHoldReason.LowConfidence => "The match could not confidently identify a new author. Select the intended author manually.",
                     LibraryImportHoldReason.CompetingEditions => "More than one edition matches this file's ISBN and format. Select the intended edition manually.",
+                    LibraryImportHoldReason.ProviderIdentityConflict when localEdition.ProviderIdentityConflictDetail != null => localEdition.ProviderIdentityConflictDetail,
                     LibraryImportHoldReason.ProviderIdentityConflict => "Metadata provider results conflict with this file's book identity. Select the intended work manually.",
                     _ => $"Couldn't find similar book for {localEdition}"
                 };

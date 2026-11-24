@@ -23,6 +23,9 @@ process.
   size.
 - Show import execution failures separately from uncertain matches and
   summarize unmapped reasons in scan progress.
+- Distinguish competing provider matches from conflicting stored identities in
+  import decisions. Debug logs record candidate format and trusted identifier
+  agreement for low-confidence new-author matches.
 - Show discovery, completed metadata checks and catalogue matching as
   separate stages in library scan progress.
 - Open recent background tasks from the WebUI header and filter for tasks

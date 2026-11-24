@@ -326,14 +326,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     var workId = LogSanitizer.Sanitize(book?.ForeignBookId);
                     var editionId = LogSanitizer.Sanitize(edition.ForeignEditionId);
+                    var format = ImportFormat.ForEdition(edition);
+                    var releaseIdentifierAgreement = HasNonconflictingEditionIdentifier(localBookRelease, edition);
                     foreach (var file in localBookRelease.LocalBooks)
                     {
-                        _logger.Debug("Import hold LowConfidence file={0} work={1} edition={2} distance={3:F3} threshold={4:F2}",
+                        _logger.Debug("Import hold LowConfidence file={0} work={1} edition={2} distance={3:F3} threshold={4:F2} candidateFormat={5} releaseIdentifierAgreement={6}",
                             LogSanitizer.Sanitize(file.Path),
                             workId,
                             editionId,
                             distance,
-                            AutoAddAuthorDistanceThreshold);
+                            AutoAddAuthorDistanceThreshold,
+                            format,
+                            releaseIdentifierAgreement);
                     }
                 }
 

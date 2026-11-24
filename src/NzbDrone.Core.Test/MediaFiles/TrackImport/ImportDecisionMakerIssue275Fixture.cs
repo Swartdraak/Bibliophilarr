@@ -333,7 +333,11 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
 
             decision.Approved.Should().BeFalse();
             decision.Item.Edition.Should().BeNull();
-            decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+            var rejection = decision.Rejections.Should().ContainSingle().Which;
+            rejection.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+            rejection.Reason.Should().Contain(sameSource
+                ? "More than one stored work claims the matching provider identity."
+                : "More than one work identity matches the exact title and author.");
             secondary.Verify(provider => provider.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true), Times.Never());
         }
 
@@ -512,7 +516,12 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             else
             {
                 decision.Item.Edition.Should().BeNull();
-                decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+                var rejection = decision.Rejections.Should().ContainSingle().Which;
+                rejection.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+                if (outcome == "ambiguous edition")
+                {
+                    rejection.Reason.Should().Be("More than one source edition matches the exact ISBN and format.");
+                }
             }
 
             foreach (var provider in new[] { primary, secondary })

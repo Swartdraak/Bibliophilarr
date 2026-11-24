@@ -261,7 +261,8 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             result.IdentificationHoldReason.Should().Be(LibraryImportHoldReason.LowConfidence);
             messages.Logs.Should().ContainSingle(message => message.Contains("Import hold LowConfidence") &&
                 message.Contains(tracks.Single().Path) && message.Contains(_book.ForeignBookId) &&
-                message.Contains(_audiobookEdition.ForeignEditionId));
+                message.Contains(_audiobookEdition.ForeignEditionId) &&
+                message.Contains("candidateFormat=Audiobook") && message.Contains("releaseIdentifierAgreement=False"));
         }
 
         [TestCase(false, false)]
