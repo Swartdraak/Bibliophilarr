@@ -41,6 +41,7 @@ namespace NzbDrone.Core.MediaCover
         private readonly IMediaCoverProxy _mediaCoverProxy;
         private readonly IImageResizer _resizer;
         private readonly IBookService _bookService;
+        private readonly IAuthorRepository _authorRepository;
         private readonly IHttpClient _httpClient;
         private readonly IDiskProvider _diskProvider;
         private readonly ICoverExistsSpecification _coverExistsSpecification;
@@ -78,6 +79,7 @@ namespace NzbDrone.Core.MediaCover
         public MediaCoverService(IMediaCoverProxy mediaCoverProxy,
                                  IImageResizer resizer,
                                  IBookService bookService,
+                                 IAuthorRepository authorRepository,
                                  IHttpClient httpClient,
                                  IDiskProvider diskProvider,
                                  IAppFolderInfo appFolderInfo,
@@ -85,13 +87,14 @@ namespace NzbDrone.Core.MediaCover
                                  IConfigFileProvider configFileProvider,
                                  IEventAggregator eventAggregator,
                                  Logger logger)
-            : this(mediaCoverProxy, resizer, bookService, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System)
+            : this(mediaCoverProxy, resizer, bookService, authorRepository, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System)
         {
         }
 
         internal MediaCoverService(IMediaCoverProxy mediaCoverProxy,
                                    IImageResizer resizer,
                                    IBookService bookService,
+                                   IAuthorRepository authorRepository,
                                    IHttpClient httpClient,
                                    IDiskProvider diskProvider,
                                    IAppFolderInfo appFolderInfo,
@@ -104,6 +107,7 @@ namespace NzbDrone.Core.MediaCover
             _mediaCoverProxy = mediaCoverProxy;
             _resizer = resizer;
             _bookService = bookService;
+            _authorRepository = authorRepository;
             _httpClient = httpClient;
             _diskProvider = diskProvider;
             _coverExistsSpecification = coverExistsSpecification;
@@ -446,10 +450,17 @@ namespace NzbDrone.Core.MediaCover
 
         public void HandleAsync(AuthorRefreshCompleteEvent message)
         {
-            EnsureAuthorCovers(message.Author);
-            ReconcileCoverFiles(message.Author.Id, MediaCoverEntity.Author, message.Author.Metadata?.Value?.Images ?? new List<MediaCover>());
+            var author = _authorRepository.Find(message.Author.Id);
+            var images = author?.Metadata?.Value?.Images;
+            if (images == null || author.AuthorMetadataId != message.Author.AuthorMetadataId)
+            {
+                return;
+            }
 
-            var books = _bookService.GetBooksByAuthor(message.Author.Id);
+            EnsureAuthorCovers(author);
+            ReconcileCoverFiles(author.Id, MediaCoverEntity.Author, images);
+
+            var books = _bookService.GetBooksByAuthor(author.Id);
             foreach (var book in books)
             {
                 var selected = OpenLibraryMissingBookCover.SelectUnambiguousEdition(book.Editions?.Value);
@@ -467,7 +478,7 @@ namespace NzbDrone.Core.MediaCover
                 ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, selected.Images ?? new List<MediaCover>(), retrySuffix);
             }
 
-            _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));
+            _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(author));
         }
 
         public void HandleAsync(AuthorDeletedEvent message)

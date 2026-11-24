@@ -55,7 +55,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             File.WriteAllText(stale, "stale artwork");
             File.WriteAllText(normal, "existing normal artwork");
 
-            var author = new Author { Id = 1, Metadata = new AuthorMetadata() };
+            var author = new Author { Id = 1, AuthorMetadataId = 11, Metadata = new AuthorMetadata { Id = 11 } };
+            Mocker.GetMock<IAuthorRepository>().Setup(repository => repository.Find(author.Id)).Returns(author);
             var edition = new Edition
             {
                 Id = 10,
