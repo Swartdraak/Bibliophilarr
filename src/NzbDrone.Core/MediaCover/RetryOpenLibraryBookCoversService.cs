@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -22,6 +21,7 @@ namespace NzbDrone.Core.MediaCover
         private readonly IEditionService _editions;
         private readonly IOpenLibraryBookCoverCache _covers;
         private readonly ICached<bool> _unavailable;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private int _afterId;
         private int _executing;
 
@@ -29,13 +29,15 @@ namespace NzbDrone.Core.MediaCover
                                                  IBookRepository books,
                                                  IEditionService editions,
                                                  IOpenLibraryBookCoverCache covers,
-                                                 ICacheManager cacheManager)
+                                                 ICacheManager cacheManager,
+                                                 ICatalogueIdentityRepository catalogueIdentity)
         {
             _configService = configService;
             _books = books;
             _editions = editions;
             _covers = covers;
             _unavailable = cacheManager.GetCache<bool>(GetType());
+            _catalogueIdentity = catalogueIdentity;
         }
 
         public void Execute(RetryOpenLibraryBookCoversCommand message)
@@ -83,14 +85,16 @@ namespace NzbDrone.Core.MediaCover
                     return;
                 }
 
-                if (SelectArtwork(book, editions[book.Id].ToList()) is { } artwork &&
-                    !_unavailable.Find(artwork.FileSuffix) && _covers.IsMissing(book.Id, artwork.FileSuffix))
+                if (OpenLibraryMissingBookCover.SelectArtwork(book, editions[book.Id].ToList()) is { } artwork &&
+                    !_unavailable.Find(artwork.FileSuffix) && _covers.IsMissing(book.Id, artwork.FileSuffix) &&
+                    OpenLibraryMissingBookCover.HasVerifiedOwner(artwork.WorkSourceId, book.Id, _catalogueIdentity))
                 {
                     bool IsStillSelected()
                     {
                         var current = _books.Find(book.Id);
                         return current != null && _configService.EnableOpenLibraryProvider &&
-                            artwork == SelectArtwork(current, _editions.GetEditionsByBook(current.Id));
+                            artwork == OpenLibraryMissingBookCover.SelectArtwork(current, _editions.GetEditionsByBook(current.Id)) &&
+                            OpenLibraryMissingBookCover.HasVerifiedOwner(artwork.WorkSourceId, current.Id, _catalogueIdentity);
                     }
 
                     requests++;
@@ -127,12 +131,6 @@ namespace NzbDrone.Core.MediaCover
             {
                 _afterId = 0;
             }
-        }
-
-        private static (int EditionId, string CoverUrl, string FileSuffix)? SelectArtwork(Book book, List<Edition> editions)
-        {
-            var selected = OpenLibraryMissingBookCover.SelectUnambiguousEdition(editions);
-            return OpenLibraryMissingBookCover.SelectArtwork(book, selected);
         }
     }
 }

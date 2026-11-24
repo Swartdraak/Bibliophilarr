@@ -68,7 +68,7 @@ namespace Bibliophilarr.Api.V1.Books
             var profiles = _formatProfileService.GetByAuthorId(resource.AuthorId);
             EnrichFormatStatuses(book, resource, profiles, new Dictionary<int, string>());
             FetchAndLinkBookStatistics(resource);
-            MapCoversToLocal(resource);
+            MapCoversToLocal(book, resource);
 
             return resource;
         }
@@ -115,11 +115,11 @@ namespace Bibliophilarr.Api.V1.Books
             {
                 var resource = result[i];
                 EnrichFormatStatuses(books[i], resource, profilesByAuthor[resource.AuthorId], profileNames);
+                MapCoversToLocal(books[i], resource);
             }
 
             var authorStats = _authorStatisticsService.AuthorStatistics();
             LinkAuthorStatistics(result, authorStats);
-            MapCoversToLocal(result.ToArray());
 
             return result;
         }
@@ -178,13 +178,10 @@ namespace Bibliophilarr.Api.V1.Books
             }
         }
 
-        private void MapCoversToLocal(params BookResource[] books)
+        private void MapCoversToLocal(Book book, BookResource resource)
         {
-            foreach (var bookResource in books)
-            {
-                _coverMapper.ConvertToLocalUrls(bookResource.Id, MediaCoverEntity.Book, bookResource.Images);
-                _coverMapper.MapRecoveredBookCover(bookResource.Id, bookResource.ForeignBookId, bookResource.ForeignEditionId, bookResource.Images);
-            }
+            _coverMapper.ConvertToLocalUrls(resource.Id, MediaCoverEntity.Book, resource.Images);
+            _coverMapper.MapRecoveredBookCover(book, resource.Images);
         }
     }
 }

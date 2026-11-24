@@ -43,7 +43,9 @@ process.
 ### Fixed
 
 - Retry missing Open Library artwork for unambiguous stored book editions in
-  bounded batches, without refreshing book metadata or replacing existing art.
+  bounded batches, without refreshing book metadata or replacing existing art. Recover covers for
+  verified Open Library works with generated audiobook editions while retaining
+  their existing edition and file links.
 - Report Hardcover's shared request cooldown in provider health and distinguish
   requests held locally from upstream rate limits.
 - Honor longer Open Library artwork cooldowns specified by Retry-After on rate

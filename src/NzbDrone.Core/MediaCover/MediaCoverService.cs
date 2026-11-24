@@ -24,7 +24,7 @@ namespace NzbDrone.Core.MediaCover
         void ConvertToLocalUrls(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> covers);
         string GetCoverPath(int entityId, MediaCoverEntity coverEntity, MediaCoverTypes coverType, string extension, int? height = null);
         void EnsureBookCovers(Book book);
-        void MapRecoveredBookCover(int bookId, string workId, string editionId, IEnumerable<MediaCover> images);
+        void MapRecoveredBookCover(Book book, IEnumerable<MediaCover> images);
     }
 
     public partial class MediaCoverService :
@@ -54,6 +54,7 @@ namespace NzbDrone.Core.MediaCover
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
         private readonly TimeProvider _timeProvider;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
 
         private readonly string _coverRootFolder;
         private readonly string _coverRetryStagingFolder;
@@ -90,8 +91,9 @@ namespace NzbDrone.Core.MediaCover
                                  ICoverExistsSpecification coverExistsSpecification,
                                  IConfigFileProvider configFileProvider,
                                  IEventAggregator eventAggregator,
-                                 Logger logger)
-            : this(mediaCoverProxy, resizer, bookService, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System)
+                                 Logger logger,
+                                 ICatalogueIdentityRepository catalogueIdentity)
+            : this(mediaCoverProxy, resizer, bookService, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System, catalogueIdentity)
         {
         }
 
@@ -105,7 +107,8 @@ namespace NzbDrone.Core.MediaCover
                                    IConfigFileProvider configFileProvider,
                                    IEventAggregator eventAggregator,
                                    Logger logger,
-                                   TimeProvider timeProvider)
+                                   TimeProvider timeProvider,
+                                   ICatalogueIdentityRepository catalogueIdentity = null)
         {
             _mediaCoverProxy = mediaCoverProxy;
             _resizer = resizer;
@@ -117,6 +120,7 @@ namespace NzbDrone.Core.MediaCover
             _eventAggregator = eventAggregator;
             _logger = logger;
             _timeProvider = timeProvider;
+            _catalogueIdentity = catalogueIdentity;
 
             _coverRootFolder = appFolderInfo.GetMediaCoverPath();
             _coverRetryStagingFolder = Path.Combine(appFolderInfo.GetAppDataPath(), "MediaCoverRetry");
@@ -527,8 +531,10 @@ namespace NzbDrone.Core.MediaCover
             foreach (var book in books)
             {
                 EnsureBookCovers(book);
-                var selected = OpenLibraryMissingBookCover.SelectUnambiguousEdition(book.Editions?.Value);
-                var retrySuffix = OpenLibraryMissingBookCover.SelectArtwork(book, selected)?.FileSuffix;
+                var artwork = OpenLibraryMissingBookCover.SelectArtwork(book, book.Editions?.Value);
+                var retrySuffix = artwork is { } selection && OpenLibraryMissingBookCover.HasVerifiedOwner(selection.WorkSourceId, book.Id, _catalogueIdentity)
+                    ? selection.FileSuffix
+                    : null;
                 ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, GetBookCoverCandidates(book).Take(1), retrySuffix);
             }
 

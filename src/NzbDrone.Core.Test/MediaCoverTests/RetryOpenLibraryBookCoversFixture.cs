@@ -136,7 +136,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 repo.Object,
                 editionService.Object,
                 cache.Object,
-                new NzbDrone.Common.Cache.CacheManager());
+                new NzbDrone.Common.Cache.CacheManager(),
+                Mocker.GetMock<ICatalogueIdentityRepository>().Object);
             restarted.Execute(new RetryOpenLibraryBookCoversCommand());
 
             called.Should().Be(2);
@@ -206,6 +207,42 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             cache.Verify(service => service.IsMissing(cached.Id, It.IsAny<string>()), Times.Once);
             cache.Verify(service => service.IsMissing(ambiguous.Id, It.IsAny<string>()), Times.Never);
             cache.Verify(service => service.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()), Times.Never);
+        }
+
+        [Test]
+        public void should_retry_the_verified_work_cover_for_a_locally_identified_audiobook()
+        {
+            var book = StoredBook(43);
+            book.CanonicalId = "1234567890abcdedabcd1234567890ac";
+            book.OpenLibraryWorkId = "OL43W";
+            var localEdition = new Edition
+            {
+                Id = 101,
+                BookId = book.Id,
+                ForeignEditionId = $"bibliophilarr:edition:{book.CanonicalId}:audiobook",
+                Format = "Audiobook",
+                Monitored = true
+            };
+
+            var providerEdition = StoredEdition(book, 2);
+            providerEdition.Monitored = false;
+            providerEdition.Links = new List<Links> { new Links { Url = "https://openlibrary.org/works/OL43W" } };
+            var cover = providerEdition.Images.Single();
+            cover.SourceProvider = "OpenLibrary";
+            cover.SourceId = "OL43W";
+
+            Mocker.GetMock<IBookRepository>().Setup(repo => repo.GetArtworkRetryPage(0, 64)).Returns(new List<Book> { book });
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
+                .Returns(new List<Edition> { localEdition, providerEdition });
+            Mocker.GetMock<ICatalogueIdentityRepository>()
+                .Setup(repo => repo.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL43W"))
+                .Returns(book.Id);
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+
+            Mocker.GetMock<IOpenLibraryBookCoverCache>().Verify(
+                cache => cache.TryRecover(book.Id, cover.Url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()),
+                Times.Once);
         }
 
         private static Book StoredBook(int id) => new Book { Id = id, ForeignBookId = $"openlibrary:work:OL{id}W" };

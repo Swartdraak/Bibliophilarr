@@ -21,9 +21,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
     [TestFixture]
     public class RecoverOpenLibraryBookCoverCacheFixture : CoreTest<MediaCoverService>
     {
-        [TestCase(true)]
-        [TestCase(false)]
-        public void should_keep_only_the_current_nonempty_retry_file_after_an_author_refresh_without_network(bool populated)
+        [Test]
+        public void should_keep_the_current_recovered_file_and_discard_stale_files_after_an_author_refresh()
         {
             var profile = TempFolder;
             Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(profile);
@@ -34,6 +33,12 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             disk.Setup(service => service.GetFiles(It.IsAny<string>(), true))
                 .Returns<string, bool>((path, _) => Directory.GetFiles(path, "*", SearchOption.AllDirectories));
             disk.Setup(service => service.DeleteFile(It.IsAny<string>())).Callback<string>(File.Delete);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, new HttpHeader(), Array.Empty<byte>(), HttpStatusCode.OK));
+            Mocker.GetMock<ICoverExistsSpecification>().Setup(service => service.AlreadyExists(It.IsAny<DateTime?>(), It.IsAny<long?>(), It.IsAny<string>()))
+                .Returns(true);
+
             const int bookId = 4;
             const string workId = "openlibrary:work:OL31W";
             const string editionId = "OL-work-OL31W";
@@ -51,7 +56,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 OpenLibraryMissingBookCover.GetRetryFileSuffix(workId, editionId, staleUrl));
             var normal = Subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg");
             Directory.CreateDirectory(Path.GetDirectoryName(current));
-            File.WriteAllText(current, populated ? "current artwork" : string.Empty);
+            File.WriteAllText(current, "current artwork");
             File.WriteAllText(stale, "stale artwork");
             File.WriteAllText(normal, "existing normal artwork");
 
@@ -69,10 +74,11 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             Subject.HandleAsync(new AuthorRefreshCompleteEvent(author));
 
-            File.Exists(current).Should().Be(populated);
+            File.ReadAllText(current).Should().Be("current artwork");
             File.Exists(stale).Should().BeFalse();
             File.ReadAllText(normal).Should().Be("existing normal artwork");
-            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Never);
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Headers["Range"] == "bytes=0-0")), Times.Once);
+            http.VerifyNoOtherCalls();
         }
 
         [Test]
@@ -127,18 +133,29 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 image.Width.Should().Be(12);
             }
 
+            var edition = new Edition
+            {
+                Id = 10,
+                BookId = bookId,
+                ForeignEditionId = editionId,
+                Monitored = true,
+                Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Cover, originalUrl) }
+            };
+            var book = new Book { Id = bookId, ForeignBookId = workId, Editions = new List<Edition> { edition } };
             var art = new MediaCover.MediaCover(MediaCoverTypes.Cover, "proxy") { RemoteUrl = originalUrl };
-            Subject.MapRecoveredBookCover(bookId, workId, editionId, new List<MediaCover.MediaCover> { art });
+            Subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
             art.Url.Should().StartWith($"/MediaCover/Books/{bookId}/cover{original}?lastWrite=");
             art.Url = "fallback";
-            Subject.MapRecoveredBookCover(bookId, workId, "openlibrary:edition:OL99M", new List<MediaCover.MediaCover> { art });
+            edition.ForeignEditionId = "openlibrary:edition:OL99M";
+            Subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
+            edition.ForeignEditionId = editionId;
             art.Url.Should().Be("fallback");
 
             var normal = Subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg");
             File.WriteAllText(normal, "ordinary cover sentinel");
             cache.TryRecover(bookId, changedUrl, changed, () => true, TimeSpan.FromSeconds(5))
                 .Should().Be(OpenLibraryCoverRecovery.Skipped);
-            Subject.MapRecoveredBookCover(bookId, workId, editionId, new List<MediaCover.MediaCover> { art });
+            Subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
             art.Url.Should().Be("fallback");
             File.ReadAllText(normal).Should().Be("ordinary cover sentinel");
             Directory.EnumerateFiles(Path.Combine(profile, "MediaCoverRetry")).Should().BeEmpty();

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Books;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 
@@ -104,23 +106,25 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
-        public void MapRecoveredBookCover(int bookId, string workId, string editionId, IEnumerable<MediaCover> images)
+        public void MapRecoveredBookCover(Book book, IEnumerable<MediaCover> images)
         {
-            // The standard mapping has already retained the exact stored URL as RemoteUrl.
-            var image = OpenLibraryMissingBookCover.GetSingleCover(images);
-            var suffix = OpenLibraryMissingBookCover.GetRetryFileSuffix(workId, editionId, image?.RemoteUrl);
-            if (bookId <= 0 || suffix == null || HasCachedCover(GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg")))
+            // The normal mapper has already kept the stored URL as RemoteUrl.
+            var image = images?.FirstOrDefault(cover => cover?.CoverType == MediaCoverTypes.Cover);
+            if (book.Id <= 0 || OpenLibraryMissingBookCover.SelectArtwork(book, book.Editions?.Value) is not { } artwork ||
+                image?.RemoteUrl != artwork.CoverUrl ||
+                (artwork.WorkSourceId != null && (image.SourceProvider != "OpenLibrary" || image.SourceId != artwork.WorkSourceId)) ||
+                HasCachedCover(GetCoverPath(book.Id, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg")))
             {
                 return;
             }
 
-            var recovered = GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, suffix);
+            var recovered = GetCoverPath(book.Id, MediaCoverEntity.Book, MediaCoverTypes.Cover, artwork.FileSuffix);
             try
             {
-                if (HasCachedCover(recovered))
+                if (HasCachedCover(recovered) && OpenLibraryMissingBookCover.HasVerifiedOwner(artwork.WorkSourceId, book.Id, _catalogueIdentity))
                 {
                     var lastWrite = _diskProvider.FileGetLastWrite(recovered);
-                    image.Url = $"{_configFileProvider.UrlBase}/MediaCover/Books/{bookId}/cover{suffix}?lastWrite={lastWrite.Ticks}";
+                    image.Url = $"{_configFileProvider.UrlBase}/MediaCover/Books/{book.Id}/cover{artwork.FileSuffix}?lastWrite={lastWrite.Ticks}";
                 }
             }
             catch (IOException e) when (e is FileNotFoundException or DirectoryNotFoundException)
