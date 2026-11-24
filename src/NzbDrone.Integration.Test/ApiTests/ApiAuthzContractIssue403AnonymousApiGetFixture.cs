@@ -123,6 +123,26 @@ namespace NzbDrone.Integration.Test.ApiTests
             Assert.That(config.Id, Is.GreaterThan(0));
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void get_books_should_require_credentials_in_none_authentication_mode(bool sendEmptyKey)
+        {
+            var config = HostConfig.GetSingle();
+            Assert.That(config.AuthenticationMethod, Is.EqualTo(NzbDrone.Core.Authentication.AuthenticationType.None));
+            Assert.That(config.AuthenticationRequired, Is.EqualTo(NzbDrone.Core.Authentication.AuthenticationRequiredType.Enabled));
+
+            var request = new SimpleRestRequest("book");
+            if (sendEmptyKey)
+            {
+                request.AddHeader("X-Api-Key", string.Empty);
+            }
+
+            var response = ExecuteAnonymousRequest(RootUrl + "api/v1/", request, allowRedirects: false);
+
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(Books.All(), Is.Empty);
+        }
+
         // Issue #403 recorded scenario, explicitly: AuthenticationMethod=None +
         // AuthenticationRequired=Enabled. Reads the live config, asserts the
         // recorded auth state holds in this fixture, and re-runs the anonymous
