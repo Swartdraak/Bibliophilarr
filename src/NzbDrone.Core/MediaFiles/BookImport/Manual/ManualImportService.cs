@@ -14,6 +14,7 @@ using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
@@ -398,14 +399,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             foreach (var importBookId in bookIds)
             {
                 var bookImportDecisions = new List<ImportDecision<LocalBook>>();
-
-                // turn off anyReleaseOk if specified
-                if (importBookId.First().DisableReleaseSwitching)
-                {
-                    var book = _bookService.GetBook(importBookId.First().BookId);
-                    book.AnyEditionOk = false;
-                    _bookService.UpdateBook(book);
-                }
+                Book bookToLock = null;
 
                 foreach (var file in importBookId)
                 {
@@ -428,31 +422,42 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                     var author = _authorService.GetAuthor(file.AuthorId);
                     var book = _bookService.GetBook(file.BookId);
 
-                    var edition = _editionService.GetEditionByForeignEditionId(file.ForeignEditionId);
-                    if (edition == null && file.ForeignEditionId != null)
+                    Edition edition;
+                    if (file.ForeignEditionId == null)
                     {
-                        var tuple = _metadataOrchestrator.GetBookInfo(book.ForeignBookId);
-                        edition = tuple.Item2.Editions.Value.SingleOrDefault(x => x.ForeignEditionId == file.ForeignEditionId);
-                    }
-
-                    // Issue #307: when the client omits the edition (ForeignEditionId
-                    // is null) or names an edition that cannot be resolved, a book that
-                    // has a monitored edition must not be stranded unmapped.  Default to
-                    // the book's monitored edition (mirroring the event-path fallback in
-                    // ImportApprovedBooks) so the file is persisted mapped (EditionId>0)
-                    // instead of persisting an unmapped BookFile (EditionId=0).
-                    if (edition == null)
-                    {
-                        var monitoredEdition = book.Editions?.Value?.FirstOrDefault(x => x.Monitored);
-                        if (monitoredEdition != null)
+                        // Issue #307: an omitted selection may use a compatible monitored edition.
+                        edition = book.Editions?.Value?.FirstOrDefault(x => x.Monitored &&
+                            (x.BookId == 0 || x.BookId == book.Id) && ImportFormat.IsCompatible(file.Path, x));
+                        if (edition != null)
                         {
                             _logger.ProgressInfo(
                                 "Manual import of {0}: no resolvable edition (ForeignEditionId={1}), defaulting to the book's monitored edition {2} (book {3}).",
                                 file.Path,
-                                file.ForeignEditionId ?? "<null>",
-                                monitoredEdition.ForeignEditionId ?? monitoredEdition.Id.ToString(),
+                                "<null>",
+                                edition.ForeignEditionId ?? edition.Id.ToString(),
                                 book.ForeignBookId);
-                            edition = monitoredEdition;
+                        }
+                    }
+                    else
+                    {
+                        edition = _editionService.GetEditionByForeignEditionId(file.ForeignEditionId);
+                        if (edition == null)
+                        {
+                            try
+                            {
+                                var providerBook = _metadataOrchestrator.GetBookInfo(book.ForeignBookId)?.Item2;
+                                var matches = providerBook?.Editions?.Value?.Where(x => x.ForeignEditionId == file.ForeignEditionId)
+                                    .Take(2)
+                                    .ToList();
+                                if (matches?.Count == 1)
+                                {
+                                    edition = matches[0];
+                                }
+                            }
+                            catch (Exception ex) when (ex is BookNotFoundException or MetadataProviderUnavailableException)
+                            {
+                                // An unavailable lookup cannot confirm this selection. Hold this file and continue the batch.
+                            }
                         }
                     }
 
@@ -483,32 +488,46 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                         importDecision.Reject(new Rejection($"Destination author folder {author.Path} is not in a Root Folder"));
                     }
 
-                    // Issue #295: when a book mapping was provided but no edition
-                    // could be resolved (including the #307 case where the book has
-                    // no monitored edition to default to), the import would persist
-                    // a BookFile with EditionId=0 (unmapped) while reporting 202
-                    // success.  Reject the decision explicitly so the caller is not
-                    // told a no-op import succeeded.  (Issue #307: when the book
-                    // DOES have a monitored edition, the code above defaults to it,
-                    // so this guard only fires for genuinely unresolvable imports.)
+                    // Issue #295: keep unresolved mappings out of persistence.
                     if (importDecision.Item.Book != null && importDecision.Item.Edition == null &&
                         !importDecision.Rejections.Any())
                     {
-                        _logger.Warn(
-                            "Manual import of {0}: book {1} mapped but no resolvable edition (ForeignEditionId={2}). " +
-                            "Importing would leave the file unmapped (EditionId=0); rejecting to avoid a silent no-op.",
-                            file.Path,
-                            book.ForeignBookId,
-                            file.ForeignEditionId ?? "<null>");
-                        importDecision.Reject(new Rejection(
-                            $"Cannot import: book {book.ForeignBookId} has no resolvable edition for this file " +
-                            "(ForeignEditionId=" + (file.ForeignEditionId ?? "null") + "). " +
-                            "The file would be left unmapped (EditionId=0)."));
+                        if (file.ForeignEditionId != null)
+                        {
+                            const string reason = "The selected edition could not be resolved. Refresh the book and select an edition again.";
+                            _logger.Debug("Held manual import selection for work {0} at file {1}", book.Id, fileCount + 1);
+                            _logger.Warn("Manual import of a selected file held: {0}", reason);
+                            importDecision.Reject(new Rejection(reason));
+                        }
+                        else
+                        {
+                            _logger.Warn(
+                                "Manual import of {0}: book {1} mapped but no resolvable edition (ForeignEditionId={2}). " +
+                                "Importing would leave the file unmapped (EditionId=0); rejecting to avoid a silent no-op.",
+                                file.Path,
+                                book.ForeignBookId,
+                                "<null>");
+                            importDecision.Reject(new Rejection(
+                                $"Cannot import: book {book.ForeignBookId} has no resolvable edition for this file " +
+                                "(ForeignEditionId=null). The file would be left unmapped (EditionId=0)."));
+                        }
+                    }
+
+                    if (file.DisableReleaseSwitching && importDecision.Approved && edition != null &&
+                        (edition.BookId == 0 || edition.BookId == book.Id) && ImportFormat.IsCompatible(file.Path, edition))
+                    {
+                        bookToLock = book;
                     }
 
                     hasPreparedFile |= importDecision.Approved;
                     bookImportDecisions.Add(importDecision);
                     fileCount += 1;
+                }
+
+                if (bookToLock != null)
+                {
+                    bookToLock.AnyEditionOk = false;
+                    _bookService.UpdateBook(bookToLock);
                 }
 
                 var downloadId = importBookId.Select(x => x.DownloadId).FirstOrDefault(x => x.IsNotNullOrWhiteSpace());

@@ -71,6 +71,24 @@ and migration state. The test checks SQLite integrity and confirms no provider
 requests occurred during recovery. Bootstrap accepts the first account on fresh
 startup and rejects a second account both before and after the hard restart.
 
+The same packaged test is available through the canonical test script:
+
+```bash
+./test.sh Linux Recovery Test <packaged-binary> <Playwright-Python> <evidence-directory>
+```
+
+Use the Linux package with production UI and the Python interpreter from the
+pinned browser-test environment. Install Chromium as described above. Set
+`PLAYWRIGHT_BROWSERS_PATH` if you use a custom browser location. If the packaged
+app needs a runtime installed outside its default search path, set
+`DOTNET_ROOT` and the architecture-specific variable, such as
+`DOTNET_ROOT_X64`, to that runtime directory.
+
+This lane requires Linux network and mount namespace tools, OpenSSL and
+non-interactive sudo from a regular user. It creates temporary TLS material
+and bounds provider traffic to loopback. The normal unit and integration test
+commands keep their existing prerequisites.
+
 Keep the safe `dual-format-sigterm.json` and `dual-format-sigkill.json`
-receipts with the browser test evidence. The Host test suite separately covers
-SIGKILL during startup migration on a fresh profile.
+receipts with the browser test evidence. The canonical Host test suite separately
+covers SIGKILL during startup migration on a fresh profile.
