@@ -23,13 +23,15 @@ namespace NzbDrone.Core.MediaCover
         void ConvertToLocalUrls(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> covers);
         string GetCoverPath(int entityId, MediaCoverEntity coverEntity, MediaCoverTypes coverType, string extension, int? height = null);
         void EnsureBookCovers(Book book);
+        void MapRecoveredBookCover(int bookId, string workId, string editionId, IEnumerable<MediaCover> images);
     }
 
-    public class MediaCoverService :
+    public partial class MediaCoverService :
         IHandleAsync<AuthorRefreshCompleteEvent>,
         IHandleAsync<AuthorDeletedEvent>,
         IHandleAsync<BookDeletedEvent>,
-        IMapCoversToLocal
+        IMapCoversToLocal,
+        IOpenLibraryBookCoverCache
     {
         private const string USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 10; SM-G975U Build/QP1A.190711.020)";
         private const string OpenLibraryCoversHost = "covers.openlibrary.org";
@@ -48,6 +50,7 @@ namespace NzbDrone.Core.MediaCover
         private readonly TimeProvider _timeProvider;
 
         private readonly string _coverRootFolder;
+        private readonly string _coverRetryStagingFolder;
 
         private static readonly ConcurrentDictionary<string, CoverThrottleState> _coverThrottle = new ConcurrentDictionary<string, CoverThrottleState>(StringComparer.OrdinalIgnoreCase);
 
@@ -110,6 +113,7 @@ namespace NzbDrone.Core.MediaCover
             _timeProvider = timeProvider;
 
             _coverRootFolder = appFolderInfo.GetMediaCoverPath();
+            _coverRetryStagingFolder = Path.Combine(appFolderInfo.GetAppDataPath(), "MediaCoverRetry");
         }
 
         public string GetCoverPath(int entityId, MediaCoverEntity coverEntity, MediaCoverTypes coverType, string extension, int? height = null)
@@ -448,9 +452,19 @@ namespace NzbDrone.Core.MediaCover
             var books = _bookService.GetBooksByAuthor(message.Author.Id);
             foreach (var book in books)
             {
-                EnsureBookCovers(book);
-                var monitored = book.Editions?.Value?.SingleOrDefault(x => x.Monitored);
-                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, monitored?.Images ?? new List<MediaCover>());
+                var selected = OpenLibraryMissingBookCover.SelectUnambiguousEdition(book.Editions?.Value);
+                if (selected == null)
+                {
+                    continue;
+                }
+
+                if (selected.Monitored)
+                {
+                    EnsureBookCovers(book);
+                }
+
+                var retrySuffix = OpenLibraryMissingBookCover.SelectArtwork(book, selected)?.FileSuffix;
+                ReconcileCoverFiles(book.Id, MediaCoverEntity.Book, selected.Images ?? new List<MediaCover>(), retrySuffix);
             }
 
             _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));
@@ -597,7 +611,7 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
-        private void ReconcileCoverFiles(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> expectedCovers)
+        private void ReconcileCoverFiles(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> expectedCovers, string retrySuffix = null)
         {
             var directory = coverEntity == MediaCoverEntity.Book ? GetBookCoverPath(entityId) : GetAuthorCoverPath(entityId);
             if (!_diskProvider.FolderExists(directory))
@@ -614,6 +628,11 @@ namespace NzbDrone.Core.MediaCover
                 {
                     expectedPaths.Add(GetCoverPath(entityId, coverEntity, cover.CoverType, cover.Extension, height));
                 }
+            }
+
+            if (coverEntity == MediaCoverEntity.Book && OpenLibraryMissingBookCover.IsValidRetryFileSuffix(retrySuffix))
+            {
+                expectedPaths.Add(GetCoverPath(entityId, coverEntity, MediaCoverTypes.Cover, retrySuffix));
             }
 
             foreach (var existing in _diskProvider.GetFiles(directory, true))
