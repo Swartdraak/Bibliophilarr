@@ -12,5 +12,5 @@ declare module 'Styles/globals.css';
 // skipped where the global does not exist (e.g. jest/CJS), where
 // `typeof __webpack_public_path__` yields 'undefined'.
 /* eslint-disable no-underscore-dangle, init-declarations */
-declare var __webpack_public_path__: string;
+declare let __webpack_public_path__: string;
 /* eslint-enable no-underscore-dangle, init-declarations */
