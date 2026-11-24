@@ -104,6 +104,7 @@ namespace NzbDrone.Host.Test
             }
             finally
             {
+                SQLiteConnection.ClearAllPools();
                 profile.Delete(recursive: true);
             }
         }
