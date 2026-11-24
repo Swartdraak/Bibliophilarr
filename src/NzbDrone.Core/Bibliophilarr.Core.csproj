@@ -21,6 +21,7 @@
     <PackageReference Include="NLog.Targets.Syslog" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="System.IO.Abstractions" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" />
     <PackageReference Include="TagLibSharp-Lidarr" />
     <PackageReference Include="SixLabors.ImageSharp" />
     <PackageReference Include="Equ" />
