@@ -185,7 +185,14 @@ class Naming extends Component {
                         inputClassName={styles.namingInput}
                         type={inputTypes.TEXT}
                         name="standardBookFormat"
-                        buttons={<FormInputButton onPress={this.onStandardNamingModalOpenClick}>?</FormInputButton>}
+                        buttons={
+                          <FormInputButton
+                            aria-label={translate('ShowStandardBookFormatExamples')}
+                            onPress={this.onStandardNamingModalOpenClick}
+                          >
+                            ?
+                          </FormInputButton>
+                        }
                         onChange={onInputChange}
                         {...settings.standardBookFormat}
                         helpTexts={standardBookFormatHelpTexts}
@@ -207,7 +214,14 @@ class Naming extends Component {
                   inputClassName={styles.namingInput}
                   type={inputTypes.TEXT}
                   name="authorFolderFormat"
-                  buttons={<FormInputButton onPress={this.onAuthorFolderNamingModalOpenClick}>?</FormInputButton>}
+                  buttons={
+                    <FormInputButton
+                      aria-label={translate('ShowAuthorFolderFormatExamples')}
+                      onPress={this.onAuthorFolderNamingModalOpenClick}
+                    >
+                      ?
+                    </FormInputButton>
+                  }
                   onChange={onInputChange}
                   {...settings.authorFolderFormat}
                   helpTexts={['Used when adding a new author or moving an author via the author editor', ...authorFolderFormatHelpTexts]}
