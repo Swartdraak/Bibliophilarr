@@ -3,6 +3,9 @@
     <OutputType>WinExe</OutputType>
     <TargetFrameworks>net10.0</TargetFrameworks>
   </PropertyGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'" />
+  <ItemGroup>
+    <!-- Keep application data and identity dependencies out of this standalone launcher. -->
+    <PackageReference Remove="Microsoft.Data.SqlClient;Microsoft.IdentityModel.JsonWebTokens;System.IdentityModel.Tokens.Jwt" />
+  </ItemGroup>
 </Project>
 
