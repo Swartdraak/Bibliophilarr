@@ -97,6 +97,14 @@ It uses the same package build and asset checks as `release.yml` and uploads
 the result as the `release-assets` Actions artifact. It requires the Six
 Labors build license and read-only repository permissions.
 
+The portable upgrade jobs compare the rehearsal package with the published
+v1.1.0 portable archive on Windows x64 and Apple Silicon macOS. They verify the
+published checksum and candidate manifest, import both formats into a
+disposable profile, then check migration, restart, and restore of the matching
+v1.1.0 profile. Each job records its candidate commit and uploads a receipt.
+The rehearsal assembly version exercises data migration and recovery. Update
+eligibility and installer migration need their own release-candidate checks.
+
 ## Current repository posture
 
 The repository currently documents release-entry readiness, branch-policy audit,
