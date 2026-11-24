@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, { useState } from 'react';
 import Form from 'Components/Form/Form';
 import FormGroup from 'Components/Form/FormGroup';
 import FormInputGroup from 'Components/Form/FormInputGroup';
@@ -11,12 +11,17 @@ import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { inputTypes, kinds } from 'Helpers/Props';
+import getUniqueElementId from 'Utilities/getUniqueElementId';
 import translate from 'Utilities/String/translate';
 import styles from './EditReleaseProfileModalContent.css';
 
 const tagInputDelimiters = ['Tab', 'Enter'];
 
 function EditReleaseProfileModalContent(props) {
+  const [formId] = useState(getUniqueElementId);
+  const requiredInputId = `${formId}-required`;
+  const ignoredInputId = `${formId}-ignored`;
+
   const {
     isSaving,
     saveError,
@@ -60,13 +65,14 @@ function EditReleaseProfileModalContent(props) {
           </FormGroup>
 
           <FormGroup>
-            <FormLabel>
+            <FormLabel name={requiredInputId}>
               {translate('MustContain')}
             </FormLabel>
 
             <FormInputGroup
               type={inputTypes.TEXT_TAG}
               name="required"
+              inputId={requiredInputId}
               helpText={translate('RequiredHelpText')}
               kind={kinds.SUCCESS}
               placeholder={translate('RequiredPlaceHolder')}
@@ -77,13 +83,14 @@ function EditReleaseProfileModalContent(props) {
           </FormGroup>
 
           <FormGroup>
-            <FormLabel>
+            <FormLabel name={ignoredInputId}>
               {translate('MustNotContain')}
             </FormLabel>
 
             <FormInputGroup
               type={inputTypes.TEXT_TAG}
               name="ignored"
+              inputId={ignoredInputId}
               helpText={translate('IgnoredHelpText')}
               kind={kinds.DANGER}
               placeholder={translate('IgnoredPlaceHolder')}
