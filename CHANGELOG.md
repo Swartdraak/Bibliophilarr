@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Preserve stored bibliographies when Hardcover's exact author lookup or Open
+  Library's works feed cannot verify the books shown in search.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art.
 - Report Hardcover's shared request cooldown in provider health and distinguish
