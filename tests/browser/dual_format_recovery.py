@@ -1,4 +1,4 @@
-"""Verify a real POSIX SIGTERM preserves API-created dual-format catalogue state."""
+"""Verify POSIX SIGTERM and post-import SIGKILL preserve API-created dual-format catalogue state."""
 
 import argparse
 from contextlib import closing, contextmanager
@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import signal
 import socket
 import sqlite3
 import ssl
@@ -168,6 +169,9 @@ def snapshot(api, profile, root, author, book, originals, migrations):
     current_root = checked(api.get(f"{base}/rootfolder/{root['id']}"), 200, "Read root identity")
     current_author = checked(api.get(f"{base}/author/{author['id']}"), 200, "Read author identity")
     current_book = checked(api.get(f"{base}/book/{book['id']}"), 200, "Read work identity")
+    for route, expected in (("rootfolder", root), ("author", author), (f"book?authorId={author['id']}", book)):
+        records = checked(api.get(f"{base}/{route}"), 200, "Check catalogue count")
+        assert [row["id"] for row in records] == [expected["id"]]
     assert current_root["path"] == root["path"] and current_root["id"] == root["id"]
     assert (current_author["id"], current_author["foreignAuthorId"]) == (author["id"], AUTHOR_SOURCE)
     assert (current_book["id"], current_book["authorId"], current_book["foreignBookId"]) == (
@@ -184,6 +188,8 @@ def snapshot(api, profile, root, author, book, originals, migrations):
         assert not db.execute("PRAGMA foreign_key_check").fetchall()
         assert [row[0] for row in db.execute("SELECT Version FROM VersionInfo ORDER BY Version")] == migrations
         links = dict(db.execute("SELECT Id, EditionId FROM BookFiles"))
+        owners = dict(db.execute("SELECT Id, BookId FROM Editions"))
+        assert owners == {row["id"]: book["id"] for row in current_book["editions"]}
 
     editions = {row["foreignEditionId"]: row for row in current_book["editions"]}
     files = files_for_book(api, book["id"])
@@ -217,6 +223,13 @@ def check_forms(browser, base, credentials):
         assert not errors
 
 
+def check_bootstrap_conflict(http, base, profile, credentials):
+    second = {**credentials, "username": "second-recovery-fixture"}
+    check_status(http.post(base + "/bootstrap", headers=bootstrap_headers(http, base), form=second,
+                           max_redirects=0), 409, "Reject a second recovery owner")
+    check_bootstrap_user(profile, credentials)
+
+
 def migration_versions(directory):
     versions = [int(version) for path in directory.glob("[0-9][0-9][0-9]_*.cs")
                 for version in re.findall(r"^\s*\[Migration\((\d+)\)\]", path.read_text(encoding="utf-8-sig"), re.M)]
@@ -243,6 +256,7 @@ def run(binary, evidence, tls, migrations):
                 check_status(http.post(base + "/bootstrap", headers=bootstrap_headers(http, base), form=credentials,
                                        max_redirects=0), 200, "Create the first recovery owner")
                 check_bootstrap_user(profile, credentials)
+                check_bootstrap_conflict(http, base, profile, credentials)
                 check_forms(browser, base, credentials)
                 root, author, book = setup_catalogue(api, work)
                 originals = copy_fixtures(api, work, author, book)
@@ -264,12 +278,41 @@ def run(binary, evidence, tls, migrations):
                 assert len(calls) == previous_call_count, "Provider traffic occurred during reopen"
             assert reopened.returncode == 0
 
+            # Keep both graceful exits above independent of the forced-stop case.
+            with running_app(binary, profile, work / "before-kill.log", port, evidence, credentials,
+                             tls_ca=tls / "ca.crt") as (interrupted, base):
+                assert interrupted.pid not in (app.pid, reopened.pid)
+                assert wait_ready(interrupted, http, base, profile) == before_key
+                check_native_profile(http, api, base, profile, before_key, "Before SIGKILL")
+                wait_idle(api)
+                assert snapshot(api, profile, root, author, book, originals, migrations) == previous
+                assert len(calls) == previous_call_count
+                assert interrupted.poll() is None and Path(f"/proc/{interrupted.pid}/exe").samefile(binary)
+                interrupted.kill()
+                assert interrupted.wait(timeout=10) == -signal.SIGKILL
+
+            with running_app(binary, profile, work / "after-kill.log", port, evidence, credentials,
+                             tls_ca=tls / "ca.crt") as (recovered, base):
+                assert recovered.pid not in (app.pid, reopened.pid, interrupted.pid)
+                assert wait_ready(recovered, http, base, profile) == before_key
+                check_native_profile(http, api, base, profile, before_key, "After SIGKILL")
+                check_bootstrap_conflict(http, base, profile, credentials)
+                check_forms(browser, base, credentials)
+                wait_idle(api)
+                assert snapshot(api, profile, root, author, book, originals, migrations) == previous
+                assert len(calls) == previous_call_count, "Provider traffic occurred during crash recovery"
+            assert recovered.returncode == 0
+
     receipt = {"sigtermCleanExit": True, "generatedKeyRetained": True, "formsOwnerRetained": True,
                "rootId": root["id"], "authorId": author["id"], "workId": book["id"],
                "formats": previous, "migrationCount": len(migrations), "fixtureCalls": previous_call_count,
                "providerCallsDuringReopen": 0}
     (evidence / "dual-format-sigterm.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print("Packaged dual-format SIGTERM recovery: PASS", flush=True)
+    crash_receipt = {**receipt, "sigkillExitCode": interrupted.returncode,
+                     "catalogueRetainedAfterSigkill": True, "secondBootstrapRejected": True}
+    (evidence / "dual-format-sigkill.json").write_text(json.dumps(crash_receipt, indent=2) + "\n")
+    print("Packaged dual-format seeded SIGKILL recovery: PASS", flush=True)
 
 
 if __name__ == "__main__":
