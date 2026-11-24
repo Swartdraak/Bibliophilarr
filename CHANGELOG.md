@@ -293,6 +293,9 @@ process.
   System Events reports the page offset, received count and reported total
   after a confirmed early end.
 - Name, URL, credentials, and tags in connection forms have associated labels.
+- Size autocomplete menus to the available space on the side where they open.
+- Label the quality profile name and release restriction fields. Release
+  profile edit buttons identify their restrictions and indexer when available.
 - Name the Add controls for indexers, download clients, and remote path
   mappings for assistive technology. Keep Newznab category selection usable
   with the keyboard and explain which host a remote path mapping uses.
