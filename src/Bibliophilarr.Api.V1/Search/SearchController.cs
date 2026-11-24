@@ -30,13 +30,17 @@ namespace Bibliophilarr.Api.V1.Search
         private readonly ISearchTelemetryService _searchTelemetry;
         private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly ISeriesRepository _seriesRepository;
+        private readonly IAuthorRepository _authorRepository;
+        private readonly IBookRepository _bookRepository;
 
         public SearchController(IMetadataProviderOrchestrator searchProxy,
                                 IBuildFileNames fileNameBuilder,
                                 IMapCoversToLocal coverMapper,
                                 ISearchTelemetryService searchTelemetry,
                                 ICatalogueIdentityRepository catalogueIdentity,
-                                ISeriesRepository seriesRepository)
+                                ISeriesRepository seriesRepository,
+                                IAuthorRepository authorRepository,
+                                IBookRepository bookRepository)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
@@ -44,6 +48,8 @@ namespace Bibliophilarr.Api.V1.Search
             _searchTelemetry = searchTelemetry;
             _catalogueIdentity = catalogueIdentity;
             _seriesRepository = seriesRepository;
+            _authorRepository = authorRepository;
+            _bookRepository = bookRepository;
         }
 
         [HttpGet]
@@ -108,13 +114,18 @@ namespace Bibliophilarr.Api.V1.Search
                 yield break;
             }
 
-            var groups = results.Select((result, index) => (Result: result, Identity: GetSearchIdentity(result), Index: index))
-                .GroupBy(hit => (hit.Identity, UngroupedIndex: hit.Identity.HasValue ? -1 : hit.Index), hit => hit.Result);
+            var groups = results.Select((result, index) =>
+                {
+                    var identity = GetSearchIdentity(result, out var hasVerifiedSource);
+                    return (Result: result, Identity: identity, Index: index, HasVerifiedSource: hasVerifiedSource);
+                })
+                .GroupBy(hit => (hit.Identity, UngroupedIndex: hit.Identity.HasValue ? -1 : hit.Index));
 
             var id = 1;
             foreach (var group in groups)
             {
-                var result = group.First();
+                var representative = group.First();
+                var result = representative.Result;
                 var resource = new SearchResource();
                 resource.Id = id++;
                 resource.CatalogueOwnerId = group.Key.Identity?.OwnerId;
@@ -127,9 +138,23 @@ namespace Bibliophilarr.Api.V1.Search
                     var poster = SelectSearchArtwork(
                         resource.Author.Images,
                         MediaCoverTypes.Poster,
-                        group.Skip(1).OfType<NzbDrone.Core.Books.Author>()
+                        group.Skip(1).Select(hit => hit.Result).OfType<NzbDrone.Core.Books.Author>()
                             .SelectMany(alternate => alternate.Metadata?.Value?.Images ?? Enumerable.Empty<MediaCover>()));
                     _coverMapper.ConvertToLocalUrls(resource.Author.Id, MediaCoverEntity.Author, resource.Author.Images);
+
+                    if (poster == null && representative.HasVerifiedSource && resource.CatalogueOwnerId is int authorMetadataId)
+                    {
+                        var storedAuthor = _authorRepository.GetAuthorByMetadataId(authorMetadataId);
+                        if (storedAuthor is { Id: > 0 })
+                        {
+                            poster = AppendStoredArtwork(
+                                resource.Author.Images,
+                                storedAuthor.Id,
+                                MediaCoverEntity.Author,
+                                MediaCoverTypes.Poster,
+                                storedAuthor.Metadata?.Value?.Images);
+                        }
+                    }
 
                     if (poster != null)
                     {
@@ -153,9 +178,23 @@ namespace Bibliophilarr.Api.V1.Search
                     var cover = SelectSearchArtwork(
                         resource.Book.Images,
                         MediaCoverTypes.Cover,
-                        group.Skip(1).OfType<NzbDrone.Core.Books.Book>()
+                        group.Skip(1).Select(hit => hit.Result).OfType<NzbDrone.Core.Books.Book>()
                             .SelectMany(alternate => BookEditionSelector.GetBookImages(alternate.Editions?.Value)));
                     _coverMapper.ConvertToLocalUrls(resource.Book.Id, MediaCoverEntity.Book, resource.Book.Images);
+
+                    if (cover == null && representative.HasVerifiedSource && resource.CatalogueOwnerId is int bookId)
+                    {
+                        var storedBook = _bookRepository.Find(bookId);
+                        if (storedBook != null)
+                        {
+                            cover = AppendStoredArtwork(
+                                resource.Book.Images,
+                                bookId,
+                                MediaCoverEntity.Book,
+                                MediaCoverTypes.Cover,
+                                BookEditionSelector.GetBookImages(storedBook.Editions?.Value));
+                        }
+                    }
 
                     if (cover != null)
                     {
@@ -195,8 +234,7 @@ namespace Bibliophilarr.Api.V1.Search
                 return existing;
             }
 
-            var fallback = alternateImages.FirstOrDefault(image => image?.CoverType == coverType &&
-                Uri.TryCreate(image.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https");
+            var fallback = FindRemoteArtwork(alternateImages, coverType);
 
             if (fallback == null)
             {
@@ -206,6 +244,29 @@ namespace Bibliophilarr.Api.V1.Search
             var cover = fallback.JsonClone();
             images.Add(cover);
             return cover;
+        }
+
+        private MediaCover AppendStoredArtwork(List<MediaCover> images,
+                                               int ownerId,
+                                               MediaCoverEntity entity,
+                                               MediaCoverTypes coverType,
+                                               IEnumerable<MediaCover> storedImages)
+        {
+            var cover = FindRemoteArtwork(storedImages, coverType)?.JsonClone();
+            if (cover == null)
+            {
+                return null;
+            }
+
+            _coverMapper.ConvertToLocalUrls(ownerId, entity, new[] { cover });
+            images.Add(cover);
+            return cover;
+        }
+
+        private static MediaCover FindRemoteArtwork(IEnumerable<MediaCover> images, MediaCoverTypes coverType)
+        {
+            return images?.FirstOrDefault(image => image?.CoverType == coverType &&
+                Uri.TryCreate(image.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https");
         }
 
         private List<SeriesSearchCoverResource> GetSeriesCovers(int seriesId)
@@ -249,7 +310,7 @@ namespace Bibliophilarr.Api.V1.Search
             return covers;
         }
 
-        private (CatalogueEntityKind Kind, int? OwnerId, string SourceIdentity)? GetSearchIdentity(object result)
+        private (CatalogueEntityKind Kind, int? OwnerId, string SourceIdentity)? GetSearchIdentity(object result, out bool hasVerifiedSource)
         {
             var (kind, canonicalId, providerId) = result switch
             {
@@ -266,9 +327,11 @@ namespace Bibliophilarr.Api.V1.Search
 
             if (canonicalOwner.HasValue && sourceOwner.HasValue && canonicalOwner != sourceOwner)
             {
+                hasVerifiedSource = false;
                 return null;
             }
 
+            hasVerifiedSource = sourceOwner.HasValue;
             if ((canonicalOwner ?? sourceOwner) is { } owner)
             {
                 return (kind, owner, null);

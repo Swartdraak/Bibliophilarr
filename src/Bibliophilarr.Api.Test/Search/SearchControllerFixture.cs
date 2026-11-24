@@ -67,7 +67,7 @@ namespace NzbDrone.Api.Test.Search
 
             var coverMapper = new Mock<IMapCoversToLocal>();
 
-            var controller = new SearchController(searchProxy.Object, fileNameBuilder.Object, coverMapper.Object, _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>());
+            var controller = new SearchController(searchProxy.Object, fileNameBuilder.Object, coverMapper.Object, _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>(), Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
 
             var result = controller.Search("anne");
 
@@ -154,6 +154,117 @@ namespace NzbDrone.Api.Test.Search
         }
 
         [Test]
+        public void should_use_only_exact_stored_author_and_work_art_when_the_provider_result_has_none()
+        {
+            const string storedPosterUrl = "https://covers.example/stored-author.jpg";
+            const string storedCoverUrl = "https://covers.example/stored-book.jpg";
+            const string remoteCoverUrl = "https://covers.example/provider-book.jpg";
+            var authorHit = SearchAuthor("hardcover:author:41");
+            var namesake = SearchAuthor("hardcover:author:42");
+            var bookHit = new Book
+            {
+                Title = "Same title",
+                ForeignBookId = "hardcover:work:41",
+                Editions = new List<Edition> { new Edition { ForeignEditionId = "hardcover:source-edition:15", Title = "Selected edition" } }
+            };
+            var bookWithArt = new Book
+            {
+                Title = bookHit.Title,
+                ForeignBookId = "hardcover:work:42",
+                Editions = new List<Edition>
+                {
+                    new Edition { Images = new List<MediaCover> { new MediaCover(MediaCoverTypes.Cover, remoteCoverUrl) } }
+                }
+            };
+            var disputedBook = new Book
+            {
+                Title = bookHit.Title,
+                ForeignBookId = "hardcover:work:43",
+                CanonicalId = "b302caf165b64272ad2d196d4b1b203c"
+            };
+            var canonicalOnlyBook = new Book
+            {
+                Title = bookHit.Title,
+                ForeignBookId = "hardcover:work:44",
+                CanonicalId = "2f0a12f18c6846929959e858933da1fd"
+            };
+
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(r => r.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "41")).Returns(17);
+            identity.Setup(r => r.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "41")).Returns(23);
+            identity.Setup(r => r.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "42")).Returns(24);
+            identity.Setup(r => r.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "43")).Returns(25);
+            identity.Setup(r => r.FindByRoute(CatalogueEntityKind.Work, disputedBook.CanonicalId)).Returns(23);
+            identity.Setup(r => r.FindByRoute(CatalogueEntityKind.Work, canonicalOnlyBook.CanonicalId)).Returns(26);
+
+            var storedAuthor = SearchAuthor("openlibrary:author:OL800A");
+            storedAuthor.Id = 91;
+            storedAuthor.AuthorMetadataId = 17;
+            var storedPoster = new MediaCover(MediaCoverTypes.Poster, storedPosterUrl);
+            storedAuthor.Metadata.Value.Images = new List<MediaCover> { storedPoster };
+            var authors = new Mock<IAuthorRepository>(MockBehavior.Strict);
+            authors.Setup(r => r.GetAuthorByMetadataId(17)).Returns(storedAuthor);
+
+            var storedCover = new MediaCover(MediaCoverTypes.Cover, storedCoverUrl);
+            var books = new Mock<IBookRepository>(MockBehavior.Strict);
+            books.Setup(r => r.Find(23)).Returns(new Book
+            {
+                Id = 23,
+                ForeignBookId = "openlibrary:work:OL800W",
+                Editions = new List<Edition> { new Edition { Images = new List<MediaCover> { storedCover } } }
+            });
+
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(p => p.SearchForNewEntity("Fixture"))
+                .Returns(new List<object> { authorHit, namesake, bookHit, bookWithArt, disputedBook, canonicalOnlyBook });
+            var covers = new Mock<IMapCoversToLocal>();
+            covers.Setup(mapper => mapper.ConvertToLocalUrls(It.IsAny<int>(), It.IsAny<MediaCoverEntity>(), It.IsAny<IEnumerable<MediaCover>>()))
+                .Callback<int, MediaCoverEntity, IEnumerable<MediaCover>>((id, entity, images) =>
+                {
+                    foreach (var image in images)
+                    {
+                        image.RemoteUrl = image.Url;
+                        image.Url = $"/{entity}/{id}/fixture.jpg";
+                    }
+                });
+
+            var controller = new SearchController(proxy.Object,
+                Mock.Of<IBuildFileNames>(),
+                covers.Object,
+                _telemetry,
+                identity.Object,
+                Mock.Of<ISeriesRepository>(),
+                authors.Object,
+                books.Object);
+
+            var results = (List<SearchResource>)controller.Search("Fixture");
+
+            results.Select(result => result.ForeignId).Should().Equal(
+                authorHit.ForeignAuthorId,
+                namesake.ForeignAuthorId,
+                bookHit.ForeignBookId,
+                bookWithArt.ForeignBookId,
+                disputedBook.ForeignBookId,
+                canonicalOnlyBook.ForeignBookId);
+            results[0].Author.Id.Should().Be(0);
+            results[0].Author.RemotePoster.Should().Be(storedPosterUrl);
+            results[0].Author.Images.Should().ContainSingle().Which.Url.Should().Be("/Author/91/fixture.jpg");
+            results[1].Author.Images.Should().BeEmpty();
+            results[2].Book.Id.Should().Be(0);
+            results[2].Book.RemoteCover.Should().Be(storedCoverUrl);
+            results[2].Book.Images.Should().ContainSingle().Which.Url.Should().Be("/Book/23/fixture.jpg");
+            results[2].Book.Editions.Should().ContainSingle().Which.ForeignEditionId.Should().Be("hardcover:source-edition:15");
+            results[3].Book.RemoteCover.Should().Be(remoteCoverUrl);
+            results[4].Book.Images.Should().BeEmpty();
+            results[5].Book.Images.Should().BeEmpty();
+            storedPoster.Url.Should().Be(storedPosterUrl);
+            storedCover.Url.Should().Be(storedCoverUrl);
+            authors.Verify(r => r.GetAuthorByMetadataId(17), Times.Once);
+            books.Verify(r => r.Find(23), Times.Once);
+            proxy.Verify(p => p.SearchForNewEntity("Fixture"), Times.Once);
+        }
+
+        [Test]
         public void should_map_verified_fallback_art_without_replacing_existing_art_or_selected_editions()
         {
             var firstAuthor = SearchAuthor("hardcover:author:41");
@@ -215,7 +326,7 @@ namespace NzbDrone.Api.Test.Search
                     }
                 });
 
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), covers.Object, _telemetry, identity.Object, Mock.Of<ISeriesRepository>());
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), covers.Object, _telemetry, identity.Object, Mock.Of<ISeriesRepository>(), Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
             var results = (List<SearchResource>)controller.Search("Fixture");
 
             results.Select(result => result.ForeignId).Should().Equal("hardcover:author:41", "hardcover:work:41", "hardcover:work:42");
@@ -303,7 +414,7 @@ namespace NzbDrone.Api.Test.Search
                 .Callback<int, MediaCoverEntity, IEnumerable<MediaCover>>((_, _, images) =>
                     images.Single().Url = "/MediaCoverProxy/verified-member.jpg");
 
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), covers.Object, _telemetry, identity.Object, series.Object);
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), covers.Object, _telemetry, identity.Object, series.Object, Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
             var results = (List<SearchResource>)controller.Search("Fixture", "series");
 
             results.Select(result => result.ForeignId).Should().Equal("hardcover:series:40", "hardcover:series:41");
@@ -326,7 +437,7 @@ namespace NzbDrone.Api.Test.Search
                     new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:10", Title = "Fixture", Slug = "fixture" },
                     new SeriesSearchSummary { ForeignSeriesId = "hardcover:series:11", Title = "Fixture", Slug = "another-fixture" }
                 });
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>());
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>(), Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
 
             var results = (List<SearchResource>)controller.Search(" Fixture ", "series");
 
@@ -350,7 +461,7 @@ namespace NzbDrone.Api.Test.Search
                 proxy.Setup(search => search.SearchForNewBook("Fixture", null, false)).Returns(new List<Book>());
             }
 
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>());
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>(), Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
 
             ((List<SearchResource>)controller.Search("Fixture", scope)).Should().BeEmpty();
             proxy.Invocations.Should().ContainSingle();
@@ -362,7 +473,7 @@ namespace NzbDrone.Api.Test.Search
             var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
             proxy.Setup(search => search.SearchForNewSeries("Unavailable")).Returns((List<SeriesSearchSummary>)null);
             proxy.Setup(search => search.SearchForNewSeries("Empty")).Returns(new List<SeriesSearchSummary>());
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>());
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>(), Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
 
             controller.Search("Unavailable", "series").Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(503);
             ((List<SearchResource>)controller.Search("Empty", "series")).Should().BeEmpty();
@@ -379,7 +490,7 @@ namespace NzbDrone.Api.Test.Search
                 new Book { Title = "Second alphabetically", ForeignBookId = "hardcover:work:8" },
                 new Book { Title = "First alphabetically", ForeignBookId = "hardcover:work:9" }
             });
-            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>());
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>(), Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
 
             var results = (List<SearchResource>)controller.Search("hardcover:series:24", "series-books");
 
@@ -582,7 +693,7 @@ namespace NzbDrone.Api.Test.Search
                         image.Url = "/artwork/" + System.IO.Path.GetFileName(image.Url);
                     }
                 });
-            var controller = new SearchController(searchProxy.Object, Mock.Of<IBuildFileNames>(), coverMapper.Object, _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>());
+            var controller = new SearchController(searchProxy.Object, Mock.Of<IBuildFileNames>(), coverMapper.Object, _telemetry, Mock.Of<ICatalogueIdentityRepository>(), Mock.Of<ISeriesRepository>(), Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
 
             var result = ((List<SearchResource>)controller.Search("fixture")).Should().ContainSingle().Which.Book;
 
@@ -844,7 +955,9 @@ namespace NzbDrone.Api.Test.Search
                 coverMapper.Object,
                 new SearchTelemetryService(),
                 Mock.Of<ICatalogueIdentityRepository>(),
-                Mock.Of<ISeriesRepository>());
+                Mock.Of<ISeriesRepository>(),
+                Mock.Of<IAuthorRepository>(),
+                Mock.Of<IBookRepository>());
 
             var result = controller.Search("hobbit");
 
@@ -877,7 +990,9 @@ namespace NzbDrone.Api.Test.Search
                 coverMapper.Object,
                 new SearchTelemetryService(),
                 catalogueIdentity,
-                Mock.Of<ISeriesRepository>());
+                Mock.Of<ISeriesRepository>(),
+                Mock.Of<IAuthorRepository>(),
+                Mock.Of<IBookRepository>());
 
             var result = controller.Search("hobbit");
             return (List<SearchResource>)result;
