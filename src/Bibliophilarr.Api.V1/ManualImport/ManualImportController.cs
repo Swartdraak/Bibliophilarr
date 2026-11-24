@@ -46,6 +46,7 @@ namespace Bibliophilarr.Api.V1.ManualImport
 
         [HttpPost]
         [ProducesResponseType(typeof(List<ManualImportResource>), StatusCodes.Status202Accepted)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(List<ManualImportResource>), StatusCodes.Status422UnprocessableEntity)]
         public IActionResult UpdateItems([FromBody] List<ManualImportUpdateResource> resource, [FromQuery] bool reportRejectionStatus = false)
         {
