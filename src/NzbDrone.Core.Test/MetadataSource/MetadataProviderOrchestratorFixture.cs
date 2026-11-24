@@ -1344,6 +1344,71 @@ namespace NzbDrone.Core.Test.MetadataSource
             }
         }
 
+        [TestCase(null)]
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_replace_the_broad_asin_lookup_only_for_a_requested_exact_audiobook(bool? acceptProof)
+        {
+            const string asin = "B000000001";
+            var provider = new LibraryAudiobookSearchProvider();
+            var alternate = new Mock<IMetadataProvider>();
+            alternate.SetupGet(value => value.ProviderName).Returns("OpenLibrary");
+            alternate.SetupGet(value => value.SupportsBookSearch).Returns(true);
+            var weakBook = new Book { Title = "Fallback work" };
+            var alternateSearch = alternate.As<ISearchForNewBook>();
+            alternateSearch.Setup(search => search.SearchByAsin(asin)).Returns(new List<Book> { weakBook });
+            var orchestrator = new MetadataProviderOrchestrator(
+                new TestRegistry(new[] { provider, alternate.Object }),
+                new MetadataProviderTelemetryService(),
+                LogManager.GetCurrentClassLogger());
+            Func<Book, bool> eligibility = acceptProof.HasValue ? _ => acceptProof.Value : null;
+
+            var result = orchestrator.SearchForLibraryImportByAsin(asin, eligibility);
+
+            var expected = acceptProof switch
+            {
+                true => provider.ExactBook,
+                false => weakBook,
+                _ => provider.BroadBook
+            };
+            result.Should().ContainSingle().Which.Should().BeSameAs(expected);
+            provider.ExactCalls.Should().Be(acceptProof.HasValue ? 1 : 0);
+            provider.BroadCalls.Should().Be(acceptProof.HasValue ? 0 : 1);
+            alternateSearch.Verify(search => search.SearchByAsin(asin), acceptProof == false ? Times.Once() : Times.Never());
+        }
+
+        private sealed class LibraryAudiobookSearchProvider : IMetadataProvider, ISearchForNewBook, IProvideLibraryAudiobookByAsin
+        {
+            public string ProviderName => "Hardcover";
+            public int Priority => 1;
+            public bool IsEnabled => true;
+            public bool SupportsAuthorSearch => false;
+            public bool SupportsBookSearch => true;
+            public bool SupportsIsbnLookup => false;
+            public bool SupportsSeriesInfo => false;
+            public bool SupportsCoverImages => false;
+            public Book ExactBook { get; } = new Book { Title = "Exact edition's work" };
+            public Book BroadBook { get; } = new Book { Title = "Broad lookup work" };
+            public int ExactCalls { get; private set; }
+            public int BroadCalls { get; private set; }
+
+            public Book FindLibraryAudiobookByAsin(string asin)
+            {
+                ExactCalls++;
+                return ExactBook;
+            }
+
+            public List<Book> SearchByAsin(string asin)
+            {
+                BroadCalls++;
+                return new List<Book> { BroadBook };
+            }
+
+            public List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true) => new List<Book>();
+            public List<Book> SearchByIsbn(string isbn) => new List<Book>();
+            public List<Book> SearchByExternalId(string idType, string id) => new List<Book>();
+        }
+
         private class ThrowingSearchProvider : IMetadataProvider, ISearchForNewBook
         {
             public string ProviderName => "Throwing";

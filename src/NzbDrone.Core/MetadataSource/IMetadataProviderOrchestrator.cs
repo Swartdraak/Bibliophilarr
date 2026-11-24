@@ -18,7 +18,7 @@ namespace NzbDrone.Core.MetadataSource
         // stops the search when it finds a match or must hold an ambiguous identity.
         void SearchForLibraryImport(string title, string author, Func<List<Book>, bool> stopAfter);
         void SearchForLibraryImportByIsbn(string isbn, Func<List<Book>, bool> stopAfter);
-        List<Book> SearchForLibraryImportByAsin(string asin);
+        List<Book> SearchForLibraryImportByAsin(string asin, Func<Book, bool> acceptExactAudiobook = null);
 
         List<Book> SearchByIsbn(string isbn);
         List<Book> SearchByAsin(string asin);

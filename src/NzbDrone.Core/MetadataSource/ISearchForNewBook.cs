@@ -3,6 +3,11 @@ using NzbDrone.Core.Books;
 
 namespace NzbDrone.Core.MetadataSource
 {
+    internal interface IProvideLibraryAudiobookByAsin
+    {
+        Book FindLibraryAudiobookByAsin(string asin);
+    }
+
     public interface ISearchForNewBook
     {
         List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true);

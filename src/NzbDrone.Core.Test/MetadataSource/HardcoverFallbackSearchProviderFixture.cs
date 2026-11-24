@@ -53,6 +53,173 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Returns(0);
         }
 
+        [Test]
+        public void should_map_one_exact_source_audiobook_and_its_verified_work_author_in_one_request()
+        {
+            var payload = ExactAudiobookPayload();
+            HttpRequest captured = null;
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    captured = request;
+                    return new HttpResponse<JObject>(
+                        new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+                });
+
+            var book = Subject.FindLibraryAudiobookByAsin(" b000123abc ");
+
+            book.Should().NotBeNull();
+            book.ForeignBookId.Should().Be("hardcover:work:250");
+            book.Title.Should().Be("Synthetic Audio Work");
+            book.AuthorMetadata.Value.ForeignAuthorId.Should().Be("hardcover:author:350");
+            book.AuthorMetadata.Value.Name.Should().Be("Verified Writer");
+            book.Author.Value.Metadata.Value.Should().BeSameAs(book.AuthorMetadata.Value);
+            var edition = book.Editions.Value.Should().ContainSingle().Which;
+            edition.Book.Value.Should().BeSameAs(book);
+            edition.ForeignEditionId.Should().Be("hardcover:source-edition:150");
+            edition.Asin.Should().Be("B000123ABC");
+            edition.Isbn13.Should().Be("9781442482890");
+            edition.Format.Should().Be("Audiobook");
+            edition.IsEbook.Should().BeFalse();
+            captured.RateLimitKey.Should().Be("Hardcover");
+            captured.Method.Should().Be(HttpMethod.Post);
+            var requestBody = JObject.Parse(Encoding.UTF8.GetString(captured.ContentData));
+            requestBody.Value<string>("query").Should().Contain("asin: {_eq: $asin}")
+                .And.Contain("reading_format_id: {_eq: 2}")
+                .And.Contain("limit: 2")
+                .And.NotContain("search(");
+            requestBody.SelectToken("variables.asin").Value<string>().Should().Be("B000123ABC");
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("missing")]
+        [TestCase("multiple-works")]
+        [TestCase("multiple-editions")]
+        [TestCase("wrong-asin")]
+        [TestCase("wrong-format")]
+        [TestCase("contradictory-format")]
+        [TestCase("malformed-edition")]
+        [TestCase("mismatched-parent")]
+        [TestCase("inactive-parent")]
+        [TestCase("missing-title")]
+        [TestCase("wrong-credit-work")]
+        [TestCase("wrong-credit-kind")]
+        [TestCase("unknown-author-role")]
+        [TestCase("malformed-author-role")]
+        [TestCase("mismatched-author")]
+        [TestCase("coauthors")]
+        [TestCase("incomplete-graphql")]
+        public void should_not_return_an_unproven_source_audiobook(string defect)
+        {
+            var payload = ExactAudiobookPayload();
+            var editions = (JArray)payload.SelectToken("data.editions");
+            var edition = (JObject)editions[0];
+            var book = (JObject)edition["book"];
+            var authorCredit = (JObject)book.SelectToken("contributions[1]");
+            switch (defect)
+            {
+                case "missing":
+                    editions.RemoveAll();
+                    break;
+                case "multiple-works":
+                    var other = (JObject)edition.DeepClone();
+                    other["id"] = 151;
+                    other["book_id"] = 251;
+                    other["book"]["id"] = 251;
+                    other.SelectToken("book.contributions[0]")["contributable_id"] = 251;
+                    other.SelectToken("book.contributions[1]")["contributable_id"] = 251;
+                    editions.Add(other);
+                    break;
+                case "multiple-editions":
+                    var alternate = (JObject)edition.DeepClone();
+                    alternate["id"] = 151;
+                    editions.Add(alternate);
+                    break;
+                case "wrong-asin":
+                    edition["asin"] = "B000999XYZ";
+                    break;
+                case "wrong-format":
+                    edition["reading_format_id"] = 4;
+                    break;
+                case "contradictory-format":
+                    edition["physical_format"] = "Paperback";
+                    break;
+                case "malformed-edition":
+                    edition["id"] = "150";
+                    break;
+                case "mismatched-parent":
+                    book["id"] = 251;
+                    break;
+                case "inactive-parent":
+                    book["book_status_id"] = 2;
+                    break;
+                case "missing-title":
+                    book["title"] = " ";
+                    break;
+                case "wrong-credit-work":
+                    authorCredit["contributable_id"] = 251;
+                    break;
+                case "wrong-credit-kind":
+                    authorCredit["contributable_type"] = "Edition";
+                    break;
+                case "unknown-author-role":
+                    authorCredit["contributor_role"]["name"] = "Narrator";
+                    break;
+                case "malformed-author-role":
+                    authorCredit["contributor_role"]["name"] = new JObject { ["value"] = "Author" };
+                    break;
+                case "mismatched-author":
+                    authorCredit["author"]["id"] = 351;
+                    break;
+                case "coauthors":
+                    book.SelectToken("contributions[0].contributor_role")["name"] = "Author";
+                    break;
+                case "incomplete-graphql":
+                    payload["errors"] = JArray.Parse("""[{"message":"partial response"}]""");
+                    break;
+            }
+
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<JObject>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString())));
+
+            Subject.FindLibraryAudiobookByAsin("B000123ABC").Should().BeNull();
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("B000123ABC", false)]
+        [TestCase("B0-invalid", true)]
+        [TestCase("1234567890", true)]
+        [TestCase(null, true)]
+        public void should_skip_exact_audiobook_lookup_when_disabled_or_given_an_unsupported_identifier(string asin, bool enabled)
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.EnableHardcoverFallback).Returns(enabled);
+
+            Subject.FindLibraryAudiobookByAsin(asin).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
+        private static JObject ExactAudiobookPayload()
+        {
+            return JObject.Parse("""
+                {"data":{"editions":[{
+                  "id":150,"book_id":250,"asin":"B000123ABC","reading_format_id":2,
+                  "edition_format":"Audiobook","physical_format":null,"isbn_13":"9781442482890",
+                  "book":{"id":250,"title":"Synthetic Audio Work","book_status_id":1,"contributions":[
+                    {"contributable_id":250,"contributable_type":"Book","author_id":449,
+                     "contributor_role":{"name":"Narrator"},"author":{"id":449,"name":"First Listed Narrator"}},
+                    {"contributable_id":250,"contributable_type":"Book","author_id":350,
+                     "contributor_role":{"name":"Author"},"author":{"id":350,"name":"Verified Writer"}}
+                  ]}
+                }]}}
+                """);
+        }
+
         [TestCase("Author", "Narrator", true)]
         [TestCase("Author", "Author", false)]
         [TestCase("Narrator", "Author", false)]

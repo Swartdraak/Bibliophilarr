@@ -33,6 +33,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         IProvideAuthorInfo,
         IProvideSeriesBooks,
         IVerifyAuthorWork,
+        IProvideLibraryAudiobookByAsin,
         ISearchForNewBook,
         ISearchForNewAuthor,
         ISearchForNewSeries,
@@ -221,6 +222,134 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             _logger.Trace("HardcoverProvider.SearchByAsin: {0}", asin);
             return SearchBooks(asin.Trim(), SearchPageSize);
+        }
+
+        public Book FindLibraryAudiobookByAsin(string asin)
+        {
+            asin = asin?.Trim().ToUpperInvariant();
+            if (asin?.Length != 10 || !asin.StartsWith("B0", StringComparison.Ordinal) ||
+                !asin.All(char.IsAsciiLetterOrDigit) || !_configService.EnableHardcoverFallback ||
+                !TryResolveToken(out var token, out _) || IsDeterministicErrorCooldownActive(out _))
+            {
+                return null;
+            }
+
+            var request = CreateSearchRequest(token, new
+            {
+                query = """
+                    query FindLibraryAudiobookByAsin($asin: String!) {
+                        editions(where: {asin: {_eq: $asin}, reading_format_id: {_eq: 2}}, limit: 2, order_by: {id: asc}) {
+                            id
+                            book_id
+                            asin
+                            reading_format_id
+                            edition_format
+                            physical_format
+                            isbn_13
+                            book {
+                                id
+                                title
+                                book_status_id
+                                contributions(where: {contributable_type: {_eq: "Book"}}, limit: 16, order_by: {id: asc}) {
+                                    contributable_id
+                                    contributable_type
+                                    author_id
+                                    contribution
+                                    contributor_role { name }
+                                    author { id name }
+                                }
+                            }
+                        }
+                    }
+                    """,
+                variables = new { asin }
+            }.ToJson());
+
+            var data = _httpClient.Post<JObject>(request)?.Resource;
+            var errors = data?["errors"];
+            if ((errors != null && errors is not JArray { Count: 0 }) ||
+                data?.SelectToken("data.editions") is not JArray { Count: 1 } results ||
+                results[0] is not JObject edition ||
+                ReadPositiveId(edition["id"]) == null ||
+                ReadPositiveId(edition["book_id"]) is not int bookId ||
+                edition["asin"] is not JValue { Type: JTokenType.String } ||
+                !string.Equals(edition.Value<string>("asin"), asin, StringComparison.OrdinalIgnoreCase) ||
+                ReadPositiveId(edition["reading_format_id"]) != 2 ||
+                !IsOptionalString(edition["edition_format"]) || !IsOptionalString(edition["physical_format"]) ||
+                !IsOptionalString(edition["isbn_13"]) || ResolveEditionFormat(edition) != AudiobookFormat ||
+                edition["book"] is not JObject parent || ReadPositiveId(parent["id"]) != bookId ||
+                ReadPositiveId(parent["book_status_id"]) != 1 ||
+                parent["title"] is not JValue { Type: JTokenType.String } ||
+                parent.Value<string>("title").IsNullOrWhiteSpace() ||
+                ReadVerifiedBookAuthor(parent["contributions"], bookId) is not { } author)
+            {
+                return null;
+            }
+
+            return MapDirectBookResult(parent, edition, author);
+        }
+
+        private static (int Id, string Name)? ReadVerifiedBookAuthor(JToken contributions, int bookId)
+        {
+            if (contributions is not JArray { Count: > 0 and < 16 } rows)
+            {
+                return null;
+            }
+
+            (int Id, string Name)? author = null;
+            foreach (var row in rows)
+            {
+                if (row is not JObject credit || ReadPositiveId(credit["contributable_id"]) != bookId ||
+                    credit["contributable_type"] is not JValue { Type: JTokenType.String } ||
+                    credit.Value<string>("contributable_type") != "Book" ||
+                    ReadPositiveId(credit["author_id"]) is not int authorId)
+                {
+                    return null;
+                }
+
+                var roleEntry = credit["contributor_role"];
+                if (roleEntry?.Type is not null and not JTokenType.Null and not JTokenType.Object ||
+                    !IsOptionalString((roleEntry as JObject)?["name"]) || !IsOptionalString(credit["contribution"]))
+                {
+                    return null;
+                }
+
+                var role = ReadContributionRole(credit);
+                if (role.IsNullOrWhiteSpace())
+                {
+                    return null;
+                }
+
+                if (!string.Equals(role, "Author", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (author.HasValue ||
+                    credit["author"] is not JObject entry || ReadPositiveId(entry["id"]) != authorId ||
+                    entry["name"] is not JValue { Type: JTokenType.String } ||
+                    entry.Value<string>("name").IsNullOrWhiteSpace())
+                {
+                    return null;
+                }
+
+                author = (authorId, entry.Value<string>("name").Trim());
+            }
+
+            return author;
+        }
+
+        private static bool IsOptionalString(JToken token)
+        {
+            return token == null || token.Type is JTokenType.Null or JTokenType.String;
+        }
+
+        private static int? ReadPositiveId(JToken token)
+        {
+            return token?.Type == JTokenType.Integer &&
+                   int.TryParse(token.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var value) && value > 0
+                ? value
+                : null;
         }
 
         public List<Book> SearchByExternalId(string idType, string id)
@@ -1774,7 +1903,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             book.AuthorMetadata = metadata;
         }
 
-        private static Book MapDirectBookResult(JToken bookData)
+        private static Book MapDirectBookResult(JToken bookData, JObject exactEdition = null, (int Id, string Name)? verifiedAuthor = null)
         {
             if (bookData == null)
             {
@@ -1797,9 +1926,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var ratingsCount = bookData.Value<int?>("ratings_count");
 
             var coverUrl = bookData.SelectToken("cached_image.url")?.Value<string>();
-            var authorName = bookData.SelectToken("cached_contributors[0].author.name")?.Value<string>()
+            var authorName = verifiedAuthor?.Name ?? bookData.SelectToken("cached_contributors[0].author.name")?.Value<string>()
                              ?? "Unknown Author";
-            var authorId = bookData.SelectToken("cached_contributors[0].author.id")?.Value<int?>();
+            var authorId = verifiedAuthor?.Id ?? bookData.SelectToken("cached_contributors[0].author.id")?.Value<int?>();
             var authorSlug = bookData.SelectToken("cached_contributors[0].author.slug")?.Value<string>();
 
             // Keep the legacy synthetic edition and its metadata selection stable on refresh.
@@ -1928,6 +2057,16 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
 
                 return edition;
+            }
+
+            if (exactEdition != null)
+            {
+                book.Editions = new List<Edition>
+                {
+                    CreateEdition(exactEdition, ProviderEditionIdPrefix + exactEdition.Value<int>("id").ToString(CultureInfo.InvariantCulture), pages)
+                };
+
+                return book;
             }
 
             var editions = new List<Edition>

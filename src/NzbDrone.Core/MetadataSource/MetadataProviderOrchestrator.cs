@@ -152,7 +152,7 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.SupportsBookSearch);
         }
 
-        public List<Book> SearchForLibraryImportByAsin(string asin)
+        public List<Book> SearchForLibraryImportByAsin(string asin, Func<Book, bool> acceptExactAudiobook = null)
         {
             if (asin?.Length != 10 || !asin.StartsWith("B0", StringComparison.OrdinalIgnoreCase) || !asin.All(char.IsAsciiLetterOrDigit))
             {
@@ -162,7 +162,18 @@ namespace NzbDrone.Core.MetadataSource
             // Google Books has no field-scoped Amazon ASIN search. Preserve its ordinary
             // search results, but reserve the library's identifier request for other providers.
             return ExecuteFirstNonEmpty<ISearchForNewBook, List<Book>>(
-                provider => provider.SearchByAsin(asin),
+                provider =>
+                {
+                    if (acceptExactAudiobook == null || provider is not IProvideLibraryAudiobookByAsin exactLookup)
+                    {
+                        return provider.SearchByAsin(asin);
+                    }
+
+                    // Replace the same provider's broad ASIN lookup for trusted
+                    // audio tags. Other providers and normal text search still run.
+                    var book = exactLookup.FindLibraryAudiobookByAsin(asin);
+                    return book != null && acceptExactAudiobook(book) ? new List<Book> { book } : new List<Book>();
+                },
                 "search-by-asin",
                 provider => provider.SupportsBookSearch && !string.Equals(provider.ProviderName, "GoogleBooks", StringComparison.OrdinalIgnoreCase));
         }

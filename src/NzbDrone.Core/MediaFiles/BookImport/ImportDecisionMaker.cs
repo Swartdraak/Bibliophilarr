@@ -662,7 +662,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return default;
         }
 
-        private static bool HasConflictingFileIdentifiers(Edition edition, List<LocalBook> files)
+        internal static bool HasConflictingFileIdentifiers(Edition edition, List<LocalBook> files)
         {
             var isbn = Isbn.AsIsbn13(edition.Isbn13);
             var asin = NormalizeLibraryAsin(edition.Asin);

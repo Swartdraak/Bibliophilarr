@@ -42,6 +42,9 @@ process.
 
 ### Fixed
 
+- Look up a trusted audiobook ASIN as a source edition during library import
+  when the file title and credited author agree. Conflicting identifiers still
+  require review.
 - Keep Hardcover series descriptions from verified book metadata when the
   complete series membership response has no description for the same series.
 - Add a selected audiobook to an existing work while retaining its ebook

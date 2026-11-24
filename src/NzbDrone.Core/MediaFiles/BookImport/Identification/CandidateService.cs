@@ -341,7 +341,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 try
                 {
                     remoteBooks = forLibraryScan
-                        ? _metadataOrchestrator.SearchForLibraryImportByAsin(asin)
+                        ? _metadataOrchestrator.SearchForLibraryImportByAsin(asin, GetExactAudiobookEligibility(localEdition, idOverrides, asin, allowsEdition))
                         : _metadataOrchestrator.SearchByAsin(asin);
                 }
                 catch (OpenLibraryException e)
@@ -934,6 +934,59 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 .ToList();
 
             return extracted.Count == 1 ? extracted[0] : null;
+        }
+
+        private static Func<Book, bool> GetExactAudiobookEligibility(LocalEdition release, IdentificationOverrides overrides, string asin, Func<Edition, bool> allowsEdition)
+        {
+            if (overrides?.Author != null || overrides?.Book != null || overrides?.Edition != null ||
+                !asin.StartsWith("B0", StringComparison.Ordinal) || !asin.All(char.IsAsciiLetterOrDigit) ||
+                release.LocalBooks.Any(file => ImportFormat.ForPath(file.Path) != FormatType.Audiobook))
+            {
+                return null;
+            }
+
+            var files = release.LocalBooks;
+            var trustedAsins = files.Select(file => file.FileTrackInfo)
+                .Where(tags => tags.AsinConfidence >= 0.9 && tags.Asin.IsNotNullOrWhiteSpace())
+                .Select(tags => tags.Asin.Trim().ToUpperInvariant())
+                .Distinct()
+                .Take(2)
+                .ToList();
+            var title = ImportDecisionMaker.NormalizeLibraryIdentity(IdentificationService.GetReliableTaggedBookTitle(release));
+            var authors = files.Select(file => file.FileTrackInfo)
+                .Where(tags => tags.AuthorConfidence >= 0.9)
+                .SelectMany(tags => tags.Authors ?? Enumerable.Empty<string>())
+                .Select(ImportDecisionMaker.NormalizeLibraryIdentity)
+                .Where(name => name != null)
+                .Distinct()
+                .Take(2)
+                .ToList();
+            if (trustedAsins.Count != 1 || trustedAsins[0] != asin || title == null || authors.Count != 1)
+            {
+                return null;
+            }
+
+            return book =>
+            {
+                if (book.Editions?.Value is not { Count: 1 } editions)
+                {
+                    return false;
+                }
+
+                var edition = editions[0];
+                var matchesFile = ImportDecisionMaker.NormalizeLibraryIdentity(book.Title) == title &&
+                    ImportDecisionMaker.NormalizeLibraryIdentity(book.AuthorMetadata?.Value?.Name ?? book.Author?.Value?.Name) == authors[0] &&
+                    ImportFormat.ForEdition(edition) == FormatType.Audiobook &&
+                    string.Equals(edition.Asin, asin, StringComparison.OrdinalIgnoreCase) &&
+                    !ImportDecisionMaker.HasConflictingFileIdentifiers(edition, files);
+                if (!matchesFile)
+                {
+                    return false;
+                }
+
+                edition.Book = book;
+                return allowsEdition?.Invoke(edition) != false;
+            };
         }
 
         private string SelectSingleAsin(List<string> parsedAsins, LocalEdition localEdition)
