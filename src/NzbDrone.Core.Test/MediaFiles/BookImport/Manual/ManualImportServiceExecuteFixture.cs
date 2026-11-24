@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.Linq;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Core.Books;
@@ -462,14 +465,23 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
             ExceptionVerification.ExpectedWarns(1, "Manual import of");
         }
 
-        [TestCase(false, null)]
-        [TestCase(true, null)]
-        [TestCase(true, 0)]
-        [TestCase(true, 2)]
-        public void should_hold_a_stale_selected_edition_and_continue_valid_files(bool includeValidSibling, int? providerMatches)
+        [TestCase(false, null, false)]
+        [TestCase(true, null, false)]
+        [TestCase(true, 0, false)]
+        [TestCase(true, 2, false)]
+        [TestCase(false, null, true)]
+        [TestCase(true, null, true)]
+        public void should_hold_a_stale_selected_edition_and_continue_valid_files(bool includeValidSibling, int? providerMatches, bool providerUnavailable)
         {
             const string staleEditionId = "OL321M";
+            const string diagnostic = "The selected edition could not be resolved. Refresh the book and select an edition again.";
+            const string privateProviderDetail = "synthetic-private-provider-detail";
             var siblingPath = "/root/Test Author/Valid Ebook.epub";
+            var logTarget = new MemoryTarget { Layout = "${level}|${message}|${exception:format=tostring}" };
+            var logConfig = new LoggingConfiguration();
+            logConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, logTarget);
+            using var logFactory = new LogFactory { Configuration = logConfig };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(ManualImportService)));
             var ebook = new Edition { Id = 7, BookId = _book.Id, ForeignEditionId = "OL123M", Monitored = true, Format = "ebook", IsEbook = true };
             _book.AnyEditionOk = true;
             _book.Editions = new List<Edition> { ebook };
@@ -478,7 +490,12 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
                 .Returns(ebook);
             var providerLookup = Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(orchestrator => orchestrator.GetBookInfo(_book.ForeignBookId));
-            if (!providerMatches.HasValue)
+            if (providerUnavailable)
+            {
+                providerLookup.Throws(new MetadataProviderUnavailableException(
+                    "get-book-info", _book.ForeignBookId, new System.TimeoutException(privateProviderDetail)));
+            }
+            else if (!providerMatches.HasValue)
             {
                 providerLookup.Throws(new BookNotFoundException(_book.ForeignBookId));
             }
@@ -541,8 +558,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
             var staleDecision = decisions.Single(item => item.Item.Path == _filePath);
             Assert.That(staleDecision.Approved, Is.False);
             Assert.That(staleDecision.Item.Edition, Is.Null);
-            Assert.That(staleDecision.Rejections.Select(rejection => rejection.Reason),
-                Does.Contain("The selected edition could not be resolved. Refresh the book and select an edition again."));
+            Assert.That(staleDecision.Rejections.Select(rejection => rejection.Reason), Does.Contain(diagnostic));
             var approved = decisions.Where(item => item.Approved).ToList();
             Assert.That(approved.Select(item => item.Item.Path), Is.EqualTo(includeValidSibling ? new[] { siblingPath } : System.Array.Empty<string>()));
             if (includeValidSibling)
@@ -554,7 +570,13 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
             Mocker.GetMock<IBookService>().Verify(service => service.UpdateBook(It.IsAny<Book>()), Times.Never());
             Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful),
                 includeValidSibling ? Times.Never() : Times.Once());
-            ExceptionVerification.ExpectedWarns(1, "Manual import of");
+            Assert.That(logTarget.Logs.Where(log => log.StartsWith("Warn|")), Is.EqualTo(new[]
+            {
+                $"Warn|Manual import of a selected file held: {diagnostic}|"
+            }));
+            Assert.That(logTarget.Logs, Does.Contain($"Debug|Held manual import selection for work {_book.Id} at file 1|"));
+            Assert.That(logTarget.Logs.Any(log => log.Contains(_filePath) || log.Contains(staleEditionId) ||
+                log.Contains(_book.ForeignBookId) || log.Contains(privateProviderDetail)), Is.False);
         }
 
         [Test]

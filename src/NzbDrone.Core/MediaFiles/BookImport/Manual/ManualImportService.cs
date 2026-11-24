@@ -454,9 +454,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                                     edition = matches[0];
                                 }
                             }
-                            catch (BookNotFoundException)
+                            catch (Exception ex) when (ex is BookNotFoundException or MetadataProviderUnavailableException)
                             {
-                                // No provider could return the selected work. Hold this file and continue the batch.
+                                // An unavailable lookup cannot confirm this selection. Hold this file and continue the batch.
                             }
                         }
                     }
@@ -495,6 +495,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
                         if (file.ForeignEditionId != null)
                         {
                             const string reason = "The selected edition could not be resolved. Refresh the book and select an edition again.";
+                            _logger.Debug("Held manual import selection for work {0} at file {1}", book.Id, fileCount + 1);
                             _logger.Warn("Manual import of a selected file held: {0}", reason);
                             importDecision.Reject(new Rejection(reason));
                         }
