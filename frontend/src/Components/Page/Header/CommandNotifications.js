@@ -115,7 +115,7 @@ export function CommandNotifications({ commands, onOpen, isFetching, hasError })
           <div className={styles.filters}>
             <button
               type="button"
-              className={!attentionOnly ? styles.activeFilter : undefined}
+              className={attentionOnly ? undefined : styles.activeFilter}
               aria-pressed={!attentionOnly}
               onClick={() => setAttentionOnly(false)}
             >
