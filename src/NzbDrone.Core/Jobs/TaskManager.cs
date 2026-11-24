@@ -13,6 +13,7 @@ using NzbDrone.Core.Housekeeping;
 using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Lifecycle;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
@@ -88,6 +89,13 @@ namespace NzbDrone.Core.Jobs
                     {
                         Interval = 6 * 60,
                         TypeName = typeof(CheckHealthCommand).FullName
+                    },
+
+                    new ScheduledTask
+                    {
+                        Interval = 1,
+                        TypeName = typeof(RetryOpenLibraryBookCoversCommand).FullName,
+                        Priority = CommandPriority.Low
                     },
 
                     new ScheduledTask

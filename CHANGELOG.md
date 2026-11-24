@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Retry missing Open Library artwork for unambiguous stored book editions in
+  bounded batches, without refreshing book metadata or replacing existing art.
 - Honor longer Open Library artwork cooldowns specified by Retry-After on rate
   limits and temporary outages.
 - Clarify built-in backup contents and external PostgreSQL recovery on the
