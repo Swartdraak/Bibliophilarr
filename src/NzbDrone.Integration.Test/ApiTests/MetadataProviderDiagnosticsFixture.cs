@@ -6,6 +6,7 @@ using System.Text.Json;
 using Bibliophilarr.Api.V1.Config;
 using Bibliophilarr.Http.REST;
 using FluentAssertions;
+using NLog;
 using NUnit.Framework;
 using NzbDrone.Integration.Test.Client;
 
@@ -72,6 +73,16 @@ namespace NzbDrone.Integration.Test.ApiTests
                     // don't fail diagnostics assertions because cleanup couldn't persist.
                 }
             }
+        }
+
+        [Test]
+        public void should_keep_the_shared_logging_configuration_when_a_fixture_is_constructed()
+        {
+            var configuration = LogManager.Configuration;
+
+            _ = new MetadataProviderDiagnosticsFixture();
+
+            LogManager.Configuration.Should().BeSameAs(configuration);
         }
 
         [TestCase("book/lookup")]
