@@ -43,6 +43,12 @@ providers and requests skipped during cooldown do not add a call.
 The fallback rechecks cooldown immediately after each rate-limit wait.
 A successful request already in flight leaves an active cooldown in effect.
 
+Hardcover basic health reports the shared GraphQL retry deadline for direct
+lookups and fallback searches. Locally deferred requests use the active
+deadline. Upstream rate-limit counts reflect actual responses. Eligible
+providers can continue handling general searches during a hold. The saved
+bibliography remains available while an author refresh is deferred.
+
 Important counters:
 
 - `calls`
