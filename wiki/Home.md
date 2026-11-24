@@ -14,7 +14,7 @@ Welcome to the Bibliophilarr wiki.
 ## Current priorities
 
 1. Verify open issues and pull requests against the current integration build.
-2. Consolidate multi-provider metadata pipeline (Hardcover → OpenLibrary → Inventaire → Google Books).
+2. Consolidate the primary metadata providers (Hardcover, Open Library, and Google Books) and the separate Inventaire search fallback.
 3. Harden provider resilience (timeouts, circuit breakers, fallback ordering).
 4. Improve identification accuracy on large ebook/audiobook libraries.
 5. Strengthen CI/CD quality gates and release evidence automation.

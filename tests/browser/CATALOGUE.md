@@ -52,3 +52,18 @@ offline import and restart. Ordinary CI remains offline.
 Both modes use disposable application data and a synthetic EPUB. Failure
 artifacts include application logs with the fixture login, app API key, and
 both live-provider credentials redacted.
+
+## Packaged dual-format recovery after SIGTERM
+
+Linux backend CI starts the packaged app with a fresh profile and its generated
+API key. The signed workflow creates a Forms owner, root, author and one work
+with two typed editions. It validates and copies a synthetic EPUB and WAV, then
+sends SIGTERM to the exact native child and opens the same unmodified profile.
+The original key, Forms account, catalogue and edition/file relationships,
+original bytes and exact migration set must survive. SQLite is read-only for
+assertions and the driver uses a bounded TLS provider fixture in a private
+loopback namespace. Trust applies only to the launched app. Keep the safe
+`dual-format-sigterm.json` receipt with the browser test evidence.
+
+This verifies graceful native app recovery for #328. Full-host SIGKILL during
+startup migration and the original governed recovery run are separate checks.
