@@ -178,6 +178,8 @@ process.
 - Name the Calendar's period controls and compact view menu for assistive
   technology.
 - Label the Calendar feed filters, URL, copy button, and subscription link.
+- Name the shared first, previous, next, and last page controls for assistive
+  technology.
 - Give the Add Indexer template buttons accessible names.
 - Name the remote path mapping edit action and the file browser button.
 - Name the edit action on each saved download client.

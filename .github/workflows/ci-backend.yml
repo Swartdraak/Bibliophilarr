@@ -33,6 +33,10 @@ jobs:
           sudo --non-interactive unshare --mount --net --propagation private
           env REQUIRE_READONLY_BIND=1 bash linux-program/tests/check_preflight_readonly.sh
 
+      - name: Verify Linux integrations plan setup binding
+        working-directory: .
+        run: python3 linux-program/tests/check_integrations_setup.py
+
       - name: Setup .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
@@ -289,7 +293,7 @@ jobs:
           dotnet test NzbDrone.Integration.Test/Bibliophilarr.Integration.Test.csproj
           --configuration Debug --verbosity minimal -p:Platform=Posix
           --filter
-          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~RootFolderFixture|FullyQualifiedName~ConfigWireContractFixture'
+          'FullyQualifiedName~MetadataProviderDiagnosticsFixture|FullyQualifiedName~MetadataConflictTelemetryFixture|FullyQualifiedName~SearchTelemetryFixture|FullyQualifiedName~HostConfigAuthorizationFixture|FullyQualifiedName~ApiAuthzContractIssue403AnonymousApiGetFixture|FullyQualifiedName~AuthorLookupFixture|FullyQualifiedName~RootFolderFixture|FullyQualifiedName~ConfigWireContractFixture'
 
       - name: Run catalogue and provider integration fixtures
         run: >-
