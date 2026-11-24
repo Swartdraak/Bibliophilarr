@@ -17,7 +17,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Specifications
     public class UpgradeSpecificationFixture : CoreTest<UpgradeSpecification>
     {
         [Test]
-        public void should_accept_a_first_copy_without_a_quality_profile()
+        public void should_accept_when_the_work_has_no_existing_files()
         {
             Subject.IsSatisfiedBy(new LocalBook { Book = new Book() }, null).Accepted.Should().BeTrue();
         }
