@@ -1,7 +1,7 @@
 # Project status summary
 
-**Last verified**: 2026-11-23
-**Verification scope**: branch topology, issue and pull request state, and published release channels
+**Last verified**: 2026-11-24
+**Verification scope**: branch protection, issue and pull request state, native acceptance, and published release channels
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
 ## Current operational state
@@ -54,6 +54,12 @@ restore. Forced migration interruption remains tracked in
   libraries in the same profile, and verify independent ebook and audiobook
   tracking. Check provider bibliography coverage, rendered artwork, unmapped
   reasons, and authenticated behavior after restart.
+- The completed draft replay accounted for 75 ebooks and 458 audiobooks. After
+  the matched-only follow-up, 54 ebooks and 405 audiobooks had links to the
+  expected format. Seventeen works held both formats. Offline restart preserved
+  the audited associations. Bibliography, artwork, unresolved work matches,
+  and the fresh replay of the updated draft remain open.
+  [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7120060055)
 - The next promotion follows `develop -> staging` through a pull request.
   Validate installation, metadata, full-library matching, and release evidence
   on the consolidated revision.
@@ -69,6 +75,12 @@ restore. Forced migration interruption remains tracked in
 - Protected branches require backend CI, Markdown lint, PR metadata, Linux, Windows, macOS and RID portability, and metadata telemetry smoke. Frontend, workflow lint and CodeQL results also inform release readiness.
 - Native Windows and macOS startup and configuration round-trip passed after the
   SQLite packaging fixes in [#413](https://github.com/Swartdraak/Bibliophilarr/pull/413).
+- The Linux SQLite upgrade from published v1.1.0 and rollback with a matching
+  backup passed. On PostgreSQL, v1.1.0 failed migration 45 during a fresh
+  install. The draft recovered that schema and passed a separate fresh PostgreSQL
+  test, dual-format file import, restart, and external database restore. Native
+  Windows and macOS upgrade rehearsal remains open.
+  [Upgrade and recovery tracking](https://github.com/Swartdraak/Bibliophilarr/issues/341)
 - The complete bibliography refresh landed in
   [#456](https://github.com/Swartdraak/Bibliophilarr/pull/456). The live Hardcover
   benchmark retained all 2,060 work IDs and 150 series.
