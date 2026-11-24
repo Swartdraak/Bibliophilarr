@@ -12,17 +12,18 @@ import sqlite3
 import subprocess
 from tempfile import TemporaryDirectory
 import time
-from urllib.parse import urlsplit
+from urllib.parse import quote, quote_plus, urlsplit
 from xml.etree import ElementTree
 from zipfile import ZipFile
 
 from playwright.sync_api import Error as PlaywrightError, expect, sync_playwright
 
 from catalogue_workflow import (
-    LIVE_PROVIDER_TOKEN_ENV,
+    LIVE_PROVIDER_TOKEN_ENVS,
     exercise_catalogue,
     reembed_imported_epub,
     verify_catalogue_after_restart,
+    verify_provider_config,
 )
 
 
@@ -171,19 +172,26 @@ def running_app(binary, app_data, log_path, port, evidence, credentials):
             if failed or forced_stop:
                 log.flush()
                 safe_log = log_path.read_text(errors="replace")
-                secrets_to_remove = list(credentials.values()) + [
-                    "deliberately-wrong",
-                    os.environ.get(LIVE_PROVIDER_TOKEN_ENV, "").strip(),
-                ]
+                secrets_to_remove = list(credentials.values()) + ["deliberately-wrong"]
+                for key in LIVE_PROVIDER_TOKEN_ENVS.values():
+                    token = os.environ.get(key, "").strip()
+                    if token:
+                        secrets_to_remove.extend((token, quote(token, safe=""), quote_plus(token)))
                 try:
                     secrets_to_remove.append(ElementTree.parse(app_data / "config.xml").findtext("ApiKey"))
                 except (FileNotFoundError, ElementTree.ParseError):
                     pass
-                for value in filter(None, secrets_to_remove):
+                for value in sorted(filter(None, secrets_to_remove), key=len, reverse=True):
                     safe_log = safe_log.replace(value, "[redacted]")
                 (evidence / log_path.name).write_text(safe_log)
             if forced_stop and not failed:
                 raise TimeoutError("application did not stop after SIGTERM")
+
+
+def collect_page_errors(page):
+    errors = []
+    page.on("pageerror", lambda error: errors.append(type(error).__name__))
+    return errors
 
 
 def login(page, username, password, *, rejected, return_path="/authors"):
@@ -497,7 +505,7 @@ def check_restore_upload_error(page, api):
     print("Restore upload: PASS (named input, readable rejection and clean retry)", flush=True)
 
 
-def run(binary, evidence, *, live_provider=False):
+def run(binary, evidence, *, live_provider=None):
     username = "browser-fixture"
     password = "Ci!" + secrets.token_urlsafe(16)
     credentials = {"username": username, "password": password}
@@ -603,8 +611,7 @@ def run(binary, evidence, *, live_provider=False):
             context = browser.new_context(viewport={"width": 1366, "height": 900}, service_workers="block")
             context.route("**/*", lambda route: route.continue_() if route.request.url.startswith(base + "/") else route.abort())
             page = context.new_page()
-            errors = []
-            page.on("pageerror", lambda error: errors.append(type(error).__name__))
+            errors = collect_page_errors(page)
             page.goto(base + "/authors")
             expect(page).to_have_url(re.compile(r"/login\?.*returnUrl="))
             login(page, username, "deliberately-wrong", rejected=True)
@@ -632,6 +639,7 @@ def run(binary, evidence, *, live_provider=False):
             assert ui_settings["theme"] == "dark"
             metadata = check_status(api.get(metadata_path), 200, "Persisted metadata settings").json()
             assert metadata["metadataProviderTimeoutSeconds"] == timeout
+            verify_provider_config(metadata)
             setup_headers = bootstrap_headers(http, base)
             check_status(http.post(base + "/bootstrap", headers=setup_headers, form=credentials, max_redirects=0),
                          409, "Persisted user")
@@ -677,7 +685,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
-    parser.add_argument("--live-provider", action="store_true", help="Run live Hardcover checks with HARDCOVER_API_KEY")
+    parser.add_argument(
+        "--live-provider", nargs="?", const="hardcover", choices=tuple(LIVE_PROVIDER_TOKEN_ENVS),
+        help="Opt in to live checks. Bare flag selects Hardcover. See CATALOGUE.md for credentials.",
+    )
     args = parser.parse_args()
     os.umask(0o077)
     args.evidence.mkdir(parents=True, exist_ok=True)
