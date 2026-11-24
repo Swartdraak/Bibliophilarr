@@ -31,6 +31,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         IMetadataProvider,
         IProvideBookInfo,
         IProvideAuthorInfo,
+        IProvideAuthorProfileMetadata,
         IProvideSeriesBooks,
         IVerifyAuthorWork,
         IProvideLibraryAudiobookByAsin,
@@ -423,6 +424,54 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             var metaList = meta != null ? new List<AuthorMetadata> { meta } : new List<AuthorMetadata>();
 
             return Tuple.Create(meta?.ForeignAuthorId ?? "hardcover:author:unknown", book, metaList);
+        }
+
+        public AuthorMetadata GetAuthorProfileMetadata(string authorId)
+        {
+            if (!TryParseNumericHardcoverAuthorId(authorId, out var number) || authorId != BuildHardcoverAuthorId(number) ||
+                !TryResolveToken(out var token, out _))
+            {
+                return null;
+            }
+
+            var content = new
+            {
+                query = @"query GetAuthorProfile($id: Int!) {
+                    authors(where: {id: {_eq: $id}}, limit: 2) {
+                        id
+                        bio
+                        image { url }
+                    }
+                }",
+                variables = new { id = number }
+            }.ToJson();
+            var data = _httpClient.Post<JObject>(CreateSearchRequest(token, content))?.Resource;
+            var authors = data?.SelectToken("data.authors") as JArray;
+            if (data?["errors"]?.HasValues == true || authors?.Count != 1 || authors[0] is not JObject author ||
+                author["id"]?.Type != JTokenType.Integer || author["id"].ToString(Formatting.None) != number.ToString(CultureInfo.InvariantCulture))
+            {
+                return null;
+            }
+
+            var metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = authorId,
+                Overview = author["bio"]?.Type == JTokenType.String ? author.Value<string>("bio")?.Trim() : null,
+                Images = new List<MediaCover.MediaCover>()
+            };
+            var imageUrl = author.SelectToken("image.url");
+            if (imageUrl?.Type == JTokenType.String && Uri.TryCreate(imageUrl.Value<string>(), UriKind.Absolute, out var portrait) &&
+                (portrait.Scheme == Uri.UriSchemeHttps || portrait.Scheme == Uri.UriSchemeHttp) && string.IsNullOrEmpty(portrait.UserInfo))
+            {
+                metadata.Images.Add(new MediaCover.MediaCover(MediaCoverTypes.Poster, portrait.AbsoluteUri)
+                {
+                    RemoteUrl = portrait.AbsoluteUri,
+                    SourceProvider = ProviderName,
+                    SourceId = authorId
+                });
+            }
+
+            return metadata;
         }
 
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)

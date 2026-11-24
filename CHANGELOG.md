@@ -173,6 +173,8 @@ process.
   authors. Keep existing work ownership and hold conflicting works and editions.
 - Fill missing author biographies and portraits from a verified Open Library
   author profile without changing the primary identity or bibliography.
+- Fill missing biographies and portraits for Open Library authors from a
+  verified Hardcover profile while keeping the primary identity and bibliography.
 - Library scans try the next enabled provider when an author-and-title search
   returns only incompatible formats or conflicts with the file's title, series
   volume, or author.

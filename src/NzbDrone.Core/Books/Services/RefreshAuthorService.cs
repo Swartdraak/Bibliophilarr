@@ -156,7 +156,7 @@ namespace NzbDrone.Core.Books
 
         private void EnrichFromVerifiedAuthorProfile(AuthorMetadata incumbent, AuthorMetadata incoming, string primaryProviderAuthorId)
         {
-            const string provider = "OpenLibrary";
+            const CatalogueEntityKind kind = CatalogueEntityKind.Author;
             var missingBiography = string.IsNullOrWhiteSpace(incumbent.Overview) && string.IsNullOrWhiteSpace(incoming.Overview);
             var missingPortrait = incumbent.Images?.Any(IsPortrait) != true && incoming.Images?.Any(IsPortrait) != true;
             if (!missingBiography && !missingPortrait)
@@ -164,15 +164,22 @@ namespace NzbDrone.Core.Books
                 return;
             }
 
-            var verifiedId = GetVerifiedOpenLibraryAuthorId(incumbent, incoming, primaryProviderAuthorId);
-            if (verifiedId == null)
+            var useHardcover = CatalogueIdentityRepository.ParseLegacySource(kind, primaryProviderAuthorId, null)?.Provider == "OpenLibrary";
+            var provider = useHardcover ? "Hardcover" : "OpenLibrary";
+            var verifiedId = useHardcover
+                ? GetVerifiedHardcoverAuthorSource(incumbent.Id)?.ProviderId
+                : GetVerifiedOpenLibraryAuthorId(incumbent, incoming, primaryProviderAuthorId);
+            if (verifiedId == null || (useHardcover && _catalogueIdentity.FindByProviderId(kind, provider, verifiedId) != incumbent.Id))
             {
                 return;
             }
 
-            var profile = _orchestrator.GetAuthorProfileMetadata(provider, verifiedId);
-            if (profile == null || OpenLibraryIdNormalizer.NormalizeAuthorId(profile.OpenLibraryAuthorId) != verifiedId ||
-                _catalogueIdentity.FindByProviderId(CatalogueEntityKind.Author, provider, verifiedId) != incumbent.Id)
+            var lookupId = useHardcover ? $"hardcover:author:{verifiedId}" : verifiedId;
+            var profile = _orchestrator.GetAuthorProfileMetadata(provider, lookupId);
+            if (profile == null ||
+                (useHardcover && (profile.ForeignAuthorId != lookupId || GetVerifiedHardcoverAuthorSource(incumbent.Id)?.ProviderId != verifiedId)) ||
+                (!useHardcover && OpenLibraryIdNormalizer.NormalizeAuthorId(profile.OpenLibraryAuthorId) != verifiedId) ||
+                _catalogueIdentity.FindByProviderId(kind, provider, verifiedId) != incumbent.Id)
             {
                 return;
             }
@@ -184,8 +191,17 @@ namespace NzbDrone.Core.Books
 
             if (missingPortrait && profile.Images != null)
             {
-                incoming.Images ??= new List<MediaCover.MediaCover>();
-                incoming.Images.AddRange(profile.Images.Where(IsPortrait));
+                var portraits = profile.Images.Where(image => IsPortrait(image) &&
+                    (!useHardcover || (image.SourceProvider == provider && image.SourceId == lookupId))).ToList();
+                if (portraits.Count != 0)
+                {
+                    if (incoming.Images?.Count is not > 0)
+                    {
+                        incoming.Images = incumbent.Images?.ToList() ?? new List<MediaCover.MediaCover>();
+                    }
+
+                    incoming.Images.AddRange(portraits);
+                }
             }
         }
 

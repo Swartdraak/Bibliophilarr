@@ -54,6 +54,121 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Returns(0);
         }
 
+        [TestCase("valid")]
+        [TestCase("wrong-id")]
+        [TestCase("weak-id-type")]
+        [TestCase("multiple")]
+        [TestCase("partial-errors")]
+        [TestCase("invalid-portrait")]
+        public void should_fetch_only_the_exact_hardcover_author_profile(string scenario)
+        {
+            const string authorId = "hardcover:author:42";
+            const string url = "https://assets.example.invalid/portrait.jpg";
+            var profile = new JObject
+            {
+                ["id"] = 42,
+                ["bio"] = " Verified biography ",
+                ["image"] = new JObject { ["url"] = url }
+            };
+            var authors = new JArray(profile);
+            var payload = new JObject { ["data"] = new JObject { ["authors"] = authors } };
+
+            switch (scenario)
+            {
+                case "wrong-id":
+                    profile["id"] = 43;
+                    break;
+                case "weak-id-type":
+                    profile["id"] = "42";
+                    break;
+                case "multiple":
+                    authors.Add(profile.DeepClone());
+                    break;
+                case "partial-errors":
+                    payload["errors"] = new JArray(new JObject { ["message"] = "Fixture incomplete response" });
+                    break;
+                case "invalid-portrait":
+                    profile["image"]["url"] = "/relative/portrait.jpg";
+                    break;
+            }
+
+            HttpRequest sent = null;
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                sent = request;
+                return new HttpResponse<JObject>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+            });
+
+            var profiles = Subject.Should().BeAssignableTo<IProvideAuthorProfileMetadata>().Which;
+            var metadata = profiles.GetAuthorProfileMetadata(authorId);
+
+            if (scenario is "valid" or "invalid-portrait")
+            {
+                metadata.Should().NotBeNull();
+                metadata.ForeignAuthorId.Should().Be(authorId);
+                metadata.Overview.Should().Be("Verified biography");
+                if (scenario == "valid")
+                {
+                    var portrait = metadata.Images.Should().ContainSingle().Which;
+                    portrait.CoverType.Should().Be(MediaCoverTypes.Poster);
+                    portrait.Url.Should().Be(url);
+                    portrait.SourceProvider.Should().Be("Hardcover");
+                    portrait.SourceId.Should().Be(authorId);
+                }
+                else
+                {
+                    metadata.Images.Should().BeEmpty();
+                }
+            }
+            else
+            {
+                metadata.Should().BeNull();
+            }
+
+            sent.RateLimitKey.Should().Be("Hardcover");
+            var body = JObject.Parse(Encoding.UTF8.GetString(sent.ContentData));
+            body.SelectToken("variables.id").Value<int>().Should().Be(42);
+            body.Value<string>("query").Should().Contain("authors(where: {id: {_eq: $id}}, limit: 2)")
+                .And.NotContain("contributions").And.NotContain("books").And.NotContain("search(");
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("42")]
+        [TestCase("hardcover:work:42")]
+        [TestCase("hardcover:author:Namesake")]
+        public void should_not_query_a_hardcover_profile_without_an_exact_typed_id(string authorId)
+        {
+            var profiles = Subject.Should().BeAssignableTo<IProvideAuthorProfileMetadata>().Which;
+
+            profiles.GetAuthorProfileMetadata(authorId).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_leave_a_rate_limited_hardcover_profile_unavailable_without_retry()
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                var headers = new HttpHeader { ["Retry-After"] = "120" };
+                var response = new HttpResponse(request, headers, string.Empty, HttpStatusCode.TooManyRequests);
+                throw new TooManyRequestsException(request, response);
+            });
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(x => x.GetProviders()).Returns(new IMetadataProvider[] { Subject });
+            var telemetry = new Mock<IMetadataProviderTelemetryService>();
+            var orchestrator = new MetadataProviderOrchestrator(registry.Object, telemetry.Object, LogManager.GetCurrentClassLogger());
+
+            orchestrator.GetAuthorProfileMetadata("Hardcover", "hardcover:author:42").Should().BeNull();
+
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+            ExceptionVerification.ExpectedWarns(2);
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void should_map_one_exact_source_audiobook_and_its_verified_work_author_in_one_request(bool hasEditionCover)

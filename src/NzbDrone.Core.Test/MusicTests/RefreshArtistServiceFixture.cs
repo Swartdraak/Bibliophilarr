@@ -1098,6 +1098,132 @@ namespace NzbDrone.Core.Test.MusicTests
                 readsProfile && stillOwnsSource ? Times.Once() : Times.Never());
         }
 
+        [TestCase("verified", true, true, true)]
+        [TestCase("weak", false, false, false)]
+        [TestCase("ambiguous", false, false, false)]
+        [TestCase("other-owner", false, false, false)]
+        [TestCase("changed-owner", true, false, false)]
+        [TestCase("changed-evidence", true, false, false)]
+        [TestCase("wrong-profile", true, false, false)]
+        [TestCase("unavailable", true, false, false)]
+        [TestCase("preserve-biography", true, false, true)]
+        [TestCase("preserve-portrait", true, true, false)]
+        [TestCase("both-present", false, false, false)]
+        [TestCase("wrong-portrait", true, true, false)]
+        public void should_fill_missing_primary_openlibrary_profile_fields_from_verified_hardcover_source(
+            string scenario, bool readsProfile, bool acceptsBiography, bool acceptsPortrait)
+        {
+            const string primaryId = "openlibrary:author:OL42A";
+            const string profileId = "hardcover:author:84";
+            const string bio = "Verified Hardcover biography";
+            const string suppliedBio = "Stored primary biography";
+            const string suppliedPortrait = "https://covers.openlibrary.org/a/id/42-L.jpg";
+            const string hardcoverPortrait = "https://assets.example.invalid/portrait.jpg";
+            const string storedFanart = "https://assets.example.invalid/stored-fanart.jpg";
+            var preserveBio = scenario is "preserve-biography" or "both-present";
+            var preservePortrait = scenario is "preserve-portrait" or "both-present";
+            _author.ForeignAuthorId = primaryId;
+            var incumbent = _author.Metadata.Value;
+            incumbent.CanonicalId = Guid.NewGuid().ToString("N");
+            incumbent.TitleSlug = "primary-author-slug";
+            incumbent.OpenLibraryAuthorId = "OL42A";
+            incumbent.Overview = preserveBio ? suppliedBio : null;
+            incumbent.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Fanart, storedFanart) };
+            _author.AuthorMetadataId = incumbent.Id;
+            var canonicalId = incumbent.CanonicalId;
+            var authorName = incumbent.Name;
+
+            var primary = _author.JsonClone();
+            primary.Metadata = incumbent.JsonClone();
+            primary.Metadata.Value.Overview = null;
+            primary.Metadata.Value.Images = preservePortrait
+                ? new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, suppliedPortrait) }
+                : new List<MediaCover.MediaCover>();
+            primary.Books = _remoteBooks;
+            GivenNewAuthorInfo(primary);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            var aliases = new List<CatalogueSourceAssociation>
+            {
+                new CatalogueSourceAssociation
+                {
+                    Provider = "Hardcover",
+                    ProviderId = "84",
+                    Evidence = scenario == "weak" ? CatalogueIdentityRepository.LegacyLinkedEvidence : AuthorCanonicalizationService.BibliographyEvidence
+                }
+            };
+            if (scenario == "ambiguous")
+            {
+                aliases.Add(new CatalogueSourceAssociation { Provider = "Hardcover", ProviderId = "85", Evidence = AuthorCanonicalizationService.BibliographyEvidence });
+            }
+
+            var ownsSource = scenario != "other-owner";
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, incumbent.Id)).Returns(aliases);
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "84"))
+                .Returns(() => ownsSource ? incumbent.Id : incumbent.Id + 1);
+
+            var alternate = new AuthorMetadata
+            {
+                Name = "Alternate provider spelling",
+                Overview = bio,
+                ForeignAuthorId = scenario == "wrong-profile" ? "hardcover:author:85" : profileId,
+                Images = new List<MediaCover.MediaCover>
+                {
+                    new MediaCover.MediaCover(MediaCoverTypes.Poster, hardcoverPortrait)
+                    {
+                        SourceProvider = "Hardcover",
+                        SourceId = scenario == "wrong-portrait" ? "hardcover:author:85" : profileId
+                    }
+                }
+            };
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(provider => provider.GetAuthorProfileMetadata("Hardcover", profileId))
+                .Returns(() =>
+                {
+                    if (scenario == "changed-owner")
+                    {
+                        ownsSource = false;
+                    }
+
+                    if (scenario == "changed-evidence")
+                    {
+                        aliases[0].Evidence = CatalogueIdentityRepository.LegacyLinkedEvidence;
+                    }
+
+                    return scenario == "unavailable" ? null : alternate;
+                });
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            var refreshed = _author.Metadata.Value;
+            Assert.That(refreshed.CanonicalId, Is.EqualTo(canonicalId));
+            Assert.That(refreshed.ForeignAuthorId, Is.EqualTo(primaryId));
+            Assert.That(refreshed.OpenLibraryAuthorId, Is.EqualTo("OL42A"));
+            Assert.That(refreshed.TitleSlug, Is.EqualTo("primary-author-slug"));
+            Assert.That(refreshed.Name, Is.EqualTo(authorName));
+            Assert.That(refreshed.Overview, Is.EqualTo(acceptsBiography ? bio : null));
+            Assert.That(incumbent.Overview, Is.EqualTo(preserveBio ? suppliedBio : null));
+            Assert.That(refreshed.Images, Has.Exactly(acceptsPortrait ? 1 : 0).Matches<MediaCover.MediaCover>(image =>
+                image.CoverType == MediaCoverTypes.Poster && image.Url == hardcoverPortrait &&
+                image.SourceProvider == "Hardcover" && image.SourceId == profileId));
+            if (preservePortrait)
+            {
+                Assert.That(refreshed.Images, Has.Exactly(1).Matches<MediaCover.MediaCover>(image => image.Url == suppliedPortrait));
+            }
+            else if (acceptsPortrait)
+            {
+                Assert.That(refreshed.Images, Has.Exactly(1).Matches<MediaCover.MediaCover>(image => image.Url == storedFanart));
+            }
+            else
+            {
+                Assert.That(refreshed.Images, Is.Empty);
+            }
+
+            orchestrator.Verify(provider => provider.GetAuthorProfileMetadata("Hardcover", profileId), readsProfile ? Times.Once() : Times.Never());
+        }
+
         [Test]
         public void should_update_if_musicbrainz_id_changed_and_no_clash()
         {
