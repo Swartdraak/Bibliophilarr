@@ -39,6 +39,8 @@ process.
 
 ### Fixed
 
+- Add a selected audiobook to an existing work while retaining its ebook
+  edition, monitoring, and files. Reject editions owned by another work.
 - Keep works with conflicting stored Open Library IDs separate during
   reconciliation, even when their editions share an ISBN.
 - Look up verified Hardcover work aliases on PostgreSQL during reconciliation.

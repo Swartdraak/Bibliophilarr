@@ -4,6 +4,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
@@ -54,16 +55,19 @@ namespace NzbDrone.Core.Books
         private readonly IBookRepository _bookRepository;
         private readonly IEditionService _editionService;
         private readonly IEventAggregator _eventAggregator;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public BookService(IBookRepository bookRepository,
                            IEditionService editionService,
                            IEventAggregator eventAggregator,
+                           IConfigService configService,
                            Logger logger)
         {
             _bookRepository = bookRepository;
             _editionService = editionService;
             _eventAggregator = eventAggregator;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -74,13 +78,19 @@ namespace NzbDrone.Core.Books
                 throw new InvalidOperationException("Cannot insert book with AuthorMetadataId = 0");
             }
 
-            _bookRepository.Upsert(newBook);
-
-            var editions = newBook.Editions.Value;
-            editions.ForEach(x => x.BookId = newBook.Id);
-
-            _editionService.InsertMany(editions.Where(x => x.Id == 0).ToList());
-            _editionService.SetMonitored(editions.FirstOrDefault(x => x.Monitored) ?? editions.First());
+            var selected = newBook.GetPreferredEdition();
+            if (newBook.Id > 0)
+            {
+                newBook.Editions = _editionService.AddEditionsForExistingBook(newBook, selected, _configService.EnableDualFormatTracking);
+            }
+            else
+            {
+                _bookRepository.Insert(newBook);
+                var editions = newBook.Editions.Value;
+                editions.ForEach(edition => edition.BookId = newBook.Id);
+                _editionService.InsertMany(editions.Where(edition => edition.Id == 0).ToList());
+                _editionService.SetMonitored(selected);
+            }
 
             _eventAggregator.PublishEvent(new BookAddedEvent(GetBook(newBook.Id), doRefresh));
 

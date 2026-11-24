@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
@@ -24,6 +25,51 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
 
             Db.Insert(edition);
             return edition;
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void adding_a_selected_audiobook_should_reuse_the_existing_ebook_and_preserve_book_options(bool dualFormat)
+        {
+            var author = Db.Insert(new AuthorMetadata
+            {
+                ForeignAuthorId = "hardcover:author:730",
+                Name = "Local Author",
+                TitleSlug = "local-author",
+                SortName = "Local Author",
+                NameLastFirst = "Author, Local",
+                SortNameLastFirst = "author, local"
+            });
+            var book = Db.Insert(new Book
+            {
+                AuthorMetadataId = author.Id,
+                ForeignBookId = "hardcover:work:732",
+                Title = "Stored title",
+                CleanTitle = "stored title",
+                TitleSlug = "stored-title",
+                AddOptions = new AddBookOptions { SearchForNewBook = true }
+            });
+            var ebook = InsertEdition(book.Id, isEbook: true, monitored: true, format: "Ebook");
+            var audio = new Edition
+            {
+                ForeignEditionId = "hardcover:edition:734",
+                Title = "Selected audiobook",
+                TitleSlug = "selected-audiobook",
+                Format = "Audiobook"
+            };
+            book.Editions = new List<Edition>
+            {
+                new Edition { ForeignEditionId = ebook.ForeignEditionId, Title = "Remote title", IsEbook = true },
+                audio
+            };
+
+            var saved = Subject.AddEditionsForExistingBook(book, audio, dualFormat);
+            saved.Should().HaveCount(2);
+            saved.Should().ContainSingle(edition => edition.Id == ebook.Id && edition.Title == ebook.Title && edition.Monitored == dualFormat);
+            saved.Should().ContainSingle(edition => edition.Id == audio.Id && edition.Id > 0 && edition.Monitored && edition.ManualAdd);
+            Db.All<Book>().Should().ContainSingle(work =>
+                work.Id == book.Id && work.Title == "Stored title" && work.AddOptions.SearchForNewBook &&
+                work.AddOptions.AddType == BookAddType.Manual);
         }
 
         [Test]

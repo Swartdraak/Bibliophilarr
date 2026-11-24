@@ -209,7 +209,7 @@ namespace NzbDrone.Core.Datastore
             return $"INSERT INTO {_table} ({sbColumnList.ToString()}) VALUES ({sbParameterList.ToString()}); SELECT last_insert_rowid() id";
         }
 
-        private TModel Insert(IDbConnection connection, IDbTransaction transaction, TModel model)
+        protected TModel Insert(IDbConnection connection, IDbTransaction transaction, TModel model)
         {
             if (model is ICatalogueIdentityModel identity)
             {

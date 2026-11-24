@@ -58,6 +58,7 @@ namespace NzbDrone.Core.Books
 
             // we allow adding extra editions, so check if the book already exists
             var dbBook = _bookService.FindById(sourceWorkId);
+            book.Id = 0;
             if (dbBook != null)
             {
                 if (dbBook.AuthorMetadataId > 0 && dbAuthor?.AuthorMetadataId != dbBook.AuthorMetadataId)
@@ -74,6 +75,7 @@ namespace NzbDrone.Core.Books
             }
 
             // Note it's a manual addition so it's not deleted on next refresh
+            book.AddOptions ??= new AddBookOptions();
             book.AddOptions.AddType = BookAddType.Manual;
             var selectedEdition = book.GetPreferredEdition();
 
@@ -120,6 +122,10 @@ namespace NzbDrone.Core.Books
                 dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, book.AuthorMetadata.Value, false);
             }
 
+            book.Author = dbAuthor;
+            book.AuthorMetadataId = dbAuthor.AuthorMetadataId;
+            _bookService.AddBook(book, doRefresh);
+
             // Remove any import list exclusions preventing addition
             _importListExclusionService.Delete(book.ForeignBookId);
             if (sourceWorkId != book.ForeignBookId)
@@ -128,10 +134,6 @@ namespace NzbDrone.Core.Books
             }
 
             _importListExclusionService.Delete(sourceAuthorId);
-
-            book.Author = dbAuthor;
-            book.AuthorMetadataId = dbAuthor.AuthorMetadataId;
-            _bookService.AddBook(book, doRefresh);
 
             return book;
         }
