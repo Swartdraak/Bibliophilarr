@@ -7,6 +7,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles.BookImport.Manual;
 
 namespace NzbDrone.Api.Test.ManualImport
@@ -139,6 +140,55 @@ namespace NzbDrone.Api.Test.ManualImport
 
             // Not all items are unmappable (one has BookId=42), so it should be 202.
             result.Should().BeOfType<AcceptedResult>();
+        }
+
+        [TestCase(true, true, 422)]
+        [TestCase(true, false, 202)]
+        [TestCase(false, true, 202)]
+        [TestCase(false, false, 202)]
+        public void should_keep_per_item_rejections_and_only_change_status_when_requested(bool allRejected, bool reportRejectionStatus, int status)
+        {
+            var files = new List<ManualImportItem>
+            {
+                new ManualImportItem
+                {
+                    Id = 101,
+                    Path = "/root/Author/Rejected.epub",
+                    Rejections = new List<Rejection> { new Rejection("Couldn't find similar book") }
+                },
+                new ManualImportItem
+                {
+                    Id = 102,
+                    Path = "/root/Author/Second.epub",
+                    Rejections = allRejected
+                        ? new List<Rejection> { new Rejection("File format does not match the selected edition") }
+                        : new List<Rejection>()
+                }
+            };
+            _manualImportService.Setup(service => service.UpdateItems(It.IsAny<List<ManualImportItem>>())).Returns(files);
+
+            var result = (ObjectResult)_controller.UpdateItems(files.Select(file => new ManualImportUpdateResource
+            {
+                Id = file.Id,
+                Path = file.Path,
+                AuthorId = 1,
+                BookId = 42
+            }).ToList(), reportRejectionStatus);
+
+            result.StatusCode.Should().Be(status);
+            var rows = ((IEnumerable<ManualImportResource>)result.Value).ToList();
+            rows.Select(row => row.Id).Should().Equal(101, 102);
+            rows[0].Rejections.Select(rejection => rejection.Reason).Should().Equal("Couldn't find similar book");
+            rows[1].Rejections.Should().HaveCount(allRejected ? 1 : 0);
+        }
+
+        [Test]
+        public void should_keep_an_empty_preview_accepted()
+        {
+            _manualImportService.Setup(service => service.UpdateItems(It.IsAny<List<ManualImportItem>>()))
+                .Returns(new List<ManualImportItem>());
+
+            _controller.UpdateItems(new List<ManualImportUpdateResource>()).Should().BeOfType<AcceptedResult>();
         }
 
         [Test]

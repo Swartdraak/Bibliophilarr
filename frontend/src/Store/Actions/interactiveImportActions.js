@@ -235,7 +235,7 @@ export const actionHandlers = handleThunks({
 
     const { request, abortRequest } = createAjaxRequest({
       method: 'POST',
-      url: '/manualimport',
+      url: '/manualimport?reportRejectionStatus=true',
       contentType: 'application/json',
       data: JSON.stringify(requestPayload)
     });
@@ -243,30 +243,40 @@ export const actionHandlers = handleThunks({
     abortCurrentRequest = abortRequest;
     currentIds = ids;
 
-    request.done((data) => {
-      dispatch(batchActions(
-        data.map((item) => updateItem({
+    function applyPreview(data) {
+      const reportedIds = new Set(data.map((item) => item.id));
+
+      dispatch(batchActions([
+        ...data.map((item) => updateItem({
           section,
           ...item,
           isReprocessing: false,
           updateOnly: true
+        })),
+        ...ids.filter((id) => !reportedIds.has(id)).map((id) => updateItem({
+          section,
+          id,
+          isReprocessing: false,
+          updateOnly: true
         }))
-      ));
-    });
+      ]));
+    }
+
+    request.done(applyPreview);
 
     request.fail((xhr) => {
       if (xhr.aborted) {
         return;
       }
 
-      dispatch(batchActions(
-        ids.map((id) => updateItem({
-          section,
-          id,
-          isReprocessing: false,
-          updateOnly: true
-        }))
-      ));
+      const data = xhr.responseJSON;
+      if (xhr.status === 422 && Array.isArray(data) &&
+          data.every((item) => Number.isInteger(item?.id) && Array.isArray(item.rejections))) {
+        applyPreview(data);
+        return;
+      }
+
+      applyPreview([]);
     });
   },
 
