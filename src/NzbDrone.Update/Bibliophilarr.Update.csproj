@@ -4,7 +4,7 @@
     <TargetFrameworks>net10.0</TargetFrameworks>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DryIoc.dll" />
+    <PackageReference Include="DryIoc.dll" ExcludeAssets="build" />
     <PackageReference Include="DryIoc.Microsoft.DependencyInjection" />
     <PackageReference Include="NLog" />
   </ItemGroup>
