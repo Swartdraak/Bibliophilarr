@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Allow equal-size ebooks and audiobooks of the same work to be tracked
+  independently when both file formats are recognized.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art.
 - Report Hardcover's shared request cooldown in provider health and distinguish
