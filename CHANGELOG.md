@@ -42,6 +42,8 @@ process.
 
 ### Fixed
 
+- Cache a verified alternate Hardcover edition cover when the primary cover
+  is missing.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art. Recover covers for
   verified Open Library works with generated audiobook editions while retaining

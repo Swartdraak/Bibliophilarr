@@ -455,18 +455,28 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 .Verify(client => client.DownloadFile(availableCover, It.IsAny<string>(), It.IsAny<string>()), Times.Once());
         }
 
-        [TestCase(MediaCoverEntity.Author, HttpStatusCode.NotFound, false, true, true, ".jpg")]
-        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, true, true, ".jpg")]
-        [TestCase(MediaCoverEntity.Book, HttpStatusCode.Gone, false, true, true, ".jpg")]
-        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, true, false, true, ".jpg")]
-        [TestCase(MediaCoverEntity.Book, HttpStatusCode.TooManyRequests, false, false, true, ".jpg")]
-        [TestCase(MediaCoverEntity.Book, HttpStatusCode.RequestTimeout, false, false, true, ".jpg")]
-        [TestCase(MediaCoverEntity.Book, HttpStatusCode.ServiceUnavailable, false, false, true, ".jpg")]
-        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, false, false, ".jpg")]
-        [TestCase(MediaCoverEntity.Author, HttpStatusCode.NotFound, false, false, false, ".jpg")]
-        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, false, true, ".svg")]
+        [TestCase(MediaCoverEntity.Author, HttpStatusCode.NotFound, false, true, true, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, true, true, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.Gone, false, true, true, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, true, false, true, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.TooManyRequests, false, false, true, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.RequestTimeout, false, false, true, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.ServiceUnavailable, false, false, true, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, false, false, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Author, HttpStatusCode.NotFound, false, false, false, ".jpg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, false, true, ".svg", false, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, true, true, ".jpg", true, false)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, false, true, ".jpg", true, true)]
+        [TestCase(MediaCoverEntity.Book, HttpStatusCode.NotFound, false, false, false, ".jpg", true, false)]
         public void should_cache_a_source_bound_secondary_only_after_definitive_absence(
-            MediaCoverEntity entity, HttpStatusCode status, bool existingCache, bool expectSecondary, bool verified, string extension)
+            MediaCoverEntity entity,
+            HttpStatusCode status,
+            bool existingCache,
+            bool expectSecondary,
+            bool verified,
+            string extension,
+            bool usesSourceEdition,
+            bool differentOwner)
         {
             const string primaryUrl = "https://covers.example/old.jpg";
             var secondaryUrl = "https://covers.example/verified" + extension;
@@ -490,11 +500,11 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 _edition.ForeignEditionId = "hardcover:edition:801";
                 primary.SourceId = _edition.ForeignEditionId;
                 _edition.Images = new List<MediaCover.MediaCover> { primary };
-                secondary.SourceId = "hardcover:edition:802";
+                secondary.SourceId = usesSourceEdition ? "hardcover:source-edition:802" : "hardcover:edition:802";
                 _book.Editions.Value.Add(new Edition
                 {
                     Id = 9,
-                    BookId = _book.Id,
+                    BookId = differentOwner ? _book.Id + 1 : _book.Id,
                     ForeignEditionId = secondary.SourceId,
                     Images = new List<MediaCover.MediaCover> { secondary }
                 });
@@ -502,7 +512,12 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             if (!verified)
             {
-                secondary.SourceId = entity == MediaCoverEntity.Author ? "hardcover:author:702" : "hardcover:edition:803";
+                secondary.SourceId = (entity, usesSourceEdition) switch
+                {
+                    (MediaCoverEntity.Author, _) => "hardcover:author:702",
+                    (MediaCoverEntity.Book, true) => "hardcover:edition:802",
+                    _ => "hardcover:edition:803"
+                };
             }
 
             var originalSource = secondary.SourceId;

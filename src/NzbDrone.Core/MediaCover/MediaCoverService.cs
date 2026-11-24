@@ -551,7 +551,7 @@ namespace NzbDrone.Core.MediaCover
             return covers.Skip(1).Where(cover => GetSourceBoundExtension(cover) != null &&
                 book.Editions.Value.Any(edition => edition.Id > 0 && edition.BookId == book.Id &&
                     edition.Images?.Any(image => ReferenceEquals(image, cover)) == true &&
-                    ((cover.SourceId == edition.ForeignEditionId && Regex.IsMatch(cover.SourceId, @"\Ahardcover:edition:[1-9][0-9]*\z")) ||
+                    ((cover.SourceId == edition.ForeignEditionId && Regex.IsMatch(cover.SourceId, @"\Ahardcover:(?:source-)?edition:[1-9][0-9]*\z")) ||
                      (cover.SourceId == book.ForeignBookId &&
                       CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, cover.SourceId, null)?.Provider == cover.SourceProvider))));
         }
