@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Clarify built-in backup contents and external PostgreSQL recovery on the
+  Backups page, restore dialog, and in-app guides.
 - Align configuration, logging, dependency injection, and Windows service
   packages with the supported .NET 10 runtime.
 - Update DryIoc and migrate host startup to the supported service-provider
