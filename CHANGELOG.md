@@ -82,6 +82,8 @@ process.
   editions and unresolved author identities held for review.
 - Allow two equal-size ebook files to link to distinct verified ISBN editions
   of the same work during a library scan.
+- Clarify built-in backup contents and external PostgreSQL recovery on the
+  Backups page, restore dialog, and in-app guides.
 - Align configuration, logging, dependency injection, and Windows service
   packages with the supported .NET 10 runtime.
 - Update DryIoc and migrate host startup to the supported service-provider
