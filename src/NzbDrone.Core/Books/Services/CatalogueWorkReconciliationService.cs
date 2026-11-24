@@ -68,9 +68,9 @@ namespace NzbDrone.Core.Books
                 """
                 SELECT "BookId", "ProviderId", "Evidence"
                 FROM "WorkSourceAssociations"
-                WHERE "Provider" = 'Hardcover' AND "ProviderId" IN @Keys
+                WHERE "Provider" = 'Hardcover' AND "ProviderId" IN (@Original, @Canonical)
                 """,
-                new { Keys = keys },
+                new { Original = original.ProviderId, Canonical = canonical.ProviderId },
                 transaction).ToList();
             var originalAssociation = associations.SingleOrDefault(association => association.ProviderId == original.ProviderId);
             var canonicalAssociation = associations.SingleOrDefault(association => association.ProviderId == canonical.ProviderId);
