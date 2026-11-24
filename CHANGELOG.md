@@ -76,6 +76,8 @@ process.
   technology.
 - Give the Add Indexer template buttons accessible names.
 - Name the remote path mapping edit action and the file browser button.
+- Give the standard book and author folder naming example buttons distinct
+  accessible names.
 - Name the edit action on each saved download client.
 - Use the linked download client count for the singular or plural label on
   each tag card.
