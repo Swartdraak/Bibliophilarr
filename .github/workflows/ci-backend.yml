@@ -256,7 +256,7 @@ jobs:
         run: >-
           dotnet test NzbDrone.Host.Test/Bibliophilarr.Host.Test.csproj
           --configuration Release --no-restore --verbosity minimal -p:Platform=Posix
-          --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture|FullyQualifiedName~ApiWriteAuthorizationFixture|FullyQualifiedName~FreshStartupRecoveryFixture|FullyQualifiedName~BootstrapIssue364Fixture'
+          --filter 'FullyQualifiedName~ContainerFixture|FullyQualifiedName~NestedAuthorBookAddFixture|FullyQualifiedName~ApiWriteAuthorizationFixture|FullyQualifiedName~FreshStartupRecoveryFixture|FullyQualifiedName~BootstrapIssue364Fixture|FullyQualifiedName~MetadataProviderUnauthorizedFallbackFixture'
 
       - name: Verify persistent user password storage
         run: >-
