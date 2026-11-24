@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Clarify built-in backup contents and external PostgreSQL recovery on the
+  Backups page, restore dialog, and in-app guides.
 - Align configuration, logging, dependency injection, and Windows service
   packages with the supported .NET 10 runtime.
 - Update DryIoc and migrate host startup to the supported service-provider
@@ -28,6 +30,8 @@ process.
   passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
+- Continue reading and matching audio files when the optional ffprobe utility
+  is unavailable.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
 - Recheck provider cooldowns before dispatching fallback requests that waited
@@ -62,6 +66,8 @@ process.
 - Give the Add Indexer template buttons accessible names.
 - Name the remote path mapping edit action and the file browser button.
 - Name the edit action on each saved download client.
+- Use the linked download client count for the singular or plural label on
+  each tag card.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
