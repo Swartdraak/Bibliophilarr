@@ -75,6 +75,8 @@ process.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
+- Use the visible settings labels and row names for keyboard and screen-reader
+  navigation in the Author and Book bulk editors.
 - Reject missing profile IDs before saving a new author through Add Book.
 - Return a validation error for a null or unavailable edition in Add Book
   before saving the book or author.
