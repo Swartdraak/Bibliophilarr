@@ -201,7 +201,7 @@ jobs:
               test -z "$(ip -6 route show)"
               mount --bind "$1/hosts" /etc/hosts
               sysctl -q -w net.ipv4.ip_unprivileged_port_start=443
-              exec setpriv --reuid "$2" --regid "$3" --init-groups -- "${@:4}"
+              exec setpriv --reuid "$2" --regid "$3" --init-groups --no-new-privs --bounding-set=-all -- "${@:4}"
             ' bash "$tls" "$(id -u)" "$(id -g)" "$RUNNER_TEMP/browser-smoke-venv/bin/python" -B \
               tests/browser/dual_format_recovery.py \
               --binary _artifacts/linux-x64/net10.0/Bibliophilarr/Bibliophilarr --evidence "$evidence" \

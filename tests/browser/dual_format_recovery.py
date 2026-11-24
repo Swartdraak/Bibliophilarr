@@ -80,6 +80,7 @@ def provider_fixture(tls):
 
     with ThreadingHTTPServer(("127.0.0.1", 443), Handler) as server:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(tls / "leaf.crt", tls / "leaf.key")
         server.socket = context.wrap_socket(server.socket, server_side=True)
         thread = Thread(target=server.serve_forever, daemon=True)
