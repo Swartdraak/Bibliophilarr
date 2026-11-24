@@ -233,11 +233,17 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                         Docs = BuildSearchDocs(System.Math.Min(100, total - offset), offset)
                     });
             }
+            else
+            {
+                _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, 0))
+                    .Returns(new OlSearchResponse { NumFoundExact = true, Docs = new List<OlSearchDoc>() });
+            }
 
             var result = Subject.GetAuthorInfo("openlibrary:author:OL26320A");
 
             result.Books.Value.Should().HaveCount(total);
             _clientMock.Verify(client => client.GetAuthorWorks("OL26320A", 100, 1000), Times.Once());
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 0), Times.Once());
             _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 1000),
                 includeSearchEnrichment ? Times.Once() : Times.Never());
         }

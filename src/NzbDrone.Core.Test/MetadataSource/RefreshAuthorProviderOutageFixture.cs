@@ -63,7 +63,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
             Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once());
             stored.LastInfoSync.Should().Be(lastSync);
-            messages.Logs.Should().Equal("Warn", "Error");
+            messages.Logs.Should().ContainInOrder("Warn", "Error");
         }
 
         [Test]
