@@ -2,10 +2,13 @@ import getNewAuthor from 'Utilities/Author/getNewAuthor';
 
 function getNewBook(book, payload) {
   const {
+    isExistingAuthor = false,
     searchForNewBook = false
   } = payload;
 
-  if (!('id' in book.author) || book.author.id === 0) {
+  if (isExistingAuthor) {
+    delete book.author;
+  } else if (!('id' in book.author) || book.author.id === 0) {
     getNewAuthor(book.author, payload);
 
     if (payload.monitor === 'specificBook') {
