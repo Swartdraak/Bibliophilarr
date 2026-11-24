@@ -31,7 +31,7 @@ namespace NzbDrone.Host.Test
 {
     [TestFixture]
     [NonParallelizable]
-    public class NestedAuthorBookAddFixture
+    public partial class NestedAuthorBookAddFixture
     {
         private const string ForeignAuthorId = "hardcover:author:92627";
         private const string ForeignBookId = "hardcover:work:92628";
@@ -190,7 +190,7 @@ namespace NzbDrone.Host.Test
             }
         }
 
-        private static IHost BuildHost(string appData, bool useFixtureProvider = true)
+        private static IHost BuildHost(string appData, bool useFixtureProvider = true, bool includeAudioEdition = false)
         {
             var args = new[] { $"-data={appData}", "-nobrowser", "-nosingleinstancecheck" };
             return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
@@ -216,13 +216,13 @@ namespace NzbDrone.Host.Test
 
                     if (useFixtureProvider)
                     {
-                        registry.RegisterProvider(CreateMetadataProvider());
+                        registry.RegisterProvider(CreateMetadataProvider(includeAudioEdition));
                     }
                 })
                 .Build();
         }
 
-        private static IMetadataProvider CreateMetadataProvider()
+        private static IMetadataProvider CreateMetadataProvider(bool includeAudioEdition)
         {
             var provider = new Mock<IMetadataProvider>();
             provider.SetupGet(p => p.ProviderName).Returns("Hardcover");
@@ -230,11 +230,21 @@ namespace NzbDrone.Host.Test
             provider.SetupGet(p => p.SupportsBookSearch).Returns(true);
             provider.SetupGet(p => p.SupportsAuthorSearch).Returns(true);
             var books = provider.As<IProvideBookInfo>();
-            books.Setup(p => p.GetBookInfo(ForeignBookId)).Returns(() => BookMetadata(ForeignBookId, ForeignEditionId, BookTitle));
+            books.Setup(p => p.GetBookInfo(ForeignBookId)).Returns(() => BookMetadata(ForeignBookId, ForeignEditionId, BookTitle, includeAudioEdition));
             books.Setup(p => p.GetBookInfo(OtherForeignBookId)).Returns(() => BookMetadata(OtherForeignBookId, OtherForeignEditionId, OtherBookTitle));
             provider.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo(ForeignAuthorId, It.IsAny<bool>())).Returns(() =>
             {
                 var metadata = AuthorMetadata();
+                if (includeAudioEdition)
+                {
+                    return new Author
+                    {
+                        Metadata = metadata,
+                        Books = new List<Book>(),
+                        Series = new List<Series>()
+                    };
+                }
+
                 var book = BookMetadata(ForeignBookId, ForeignEditionId, BookTitle).Item2;
                 book.AuthorMetadata = metadata;
                 book.Author.Value.Metadata = metadata;
@@ -263,7 +273,7 @@ namespace NzbDrone.Host.Test
             };
         }
 
-        private static Tuple<string, Book, List<AuthorMetadata>> BookMetadata(string bookId, string editionId, string title)
+        private static Tuple<string, Book, List<AuthorMetadata>> BookMetadata(string bookId, string editionId, string title, bool includeAudioEdition = false)
         {
             var author = AuthorMetadata();
             var slug = title.ToLowerInvariant().Replace(' ', '-');
@@ -289,6 +299,18 @@ namespace NzbDrone.Host.Test
                     }
                 }
             };
+            if (includeAudioEdition)
+            {
+                book.Editions.Value.Add(new Edition
+                {
+                    ForeignEditionId = AudioForeignEditionId,
+                    Format = "Audiobook",
+                    Language = "en",
+                    Title = title,
+                    TitleSlug = slug + "-audiobook"
+                });
+            }
+
             return Tuple.Create(ForeignAuthorId, book, new List<AuthorMetadata> { author });
         }
 
