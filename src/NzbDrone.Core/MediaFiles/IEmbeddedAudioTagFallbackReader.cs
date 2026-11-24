@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NLog;
@@ -37,7 +38,16 @@ namespace NzbDrone.Core.MediaFiles
         public EmbeddedAudioTagFallbackResult ReadTags(string path)
         {
             var args = "-v error -show_entries format_tags=title,artist,album_artist,album -of json \"" + path + "\"";
-            var output = _processProvider.StartAndCapture("ffprobe", args);
+            ProcessOutput output;
+            try
+            {
+                output = _processProvider.StartAndCapture("ffprobe", args);
+            }
+            catch (Win32Exception ex) when (ex.NativeErrorCode == 2)
+            {
+                _logger.Trace("The optional ffprobe executable was not found. Continuing without fallback audio tags.");
+                return null;
+            }
 
             if (output.ExitCode != 0)
             {

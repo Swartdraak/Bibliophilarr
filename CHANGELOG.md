@@ -96,6 +96,8 @@ process.
   passes preparation.
 - Read AZW3 and MOBI tags without loading the ebook payload. Invalid record
   ranges fall back to filename metadata.
+- Continue reading and matching audio files when the optional ffprobe utility
+  is unavailable.
 - Resolve once-encoded provider bookmarks to canonical author, book, and
   series pages.
 - During library import, check a trusted ebook ISBN across providers for a
@@ -185,6 +187,8 @@ process.
 - Give the Add Indexer template buttons accessible names.
 - Name the remote path mapping edit action and the file browser button.
 - Name the edit action on each saved download client.
+- Use the linked download client count for the singular or plural label on
+  each tag card.
 - Name the Delay and Release Profile add and edit controls.
 - Give the Custom Format add-condition control and condition choices
   accessible names.
