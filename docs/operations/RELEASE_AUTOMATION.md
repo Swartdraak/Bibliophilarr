@@ -97,11 +97,17 @@ It uses the same package build and asset checks as `release.yml` and uploads
 the result as the `release-assets` Actions artifact. It requires the Six
 Labors build license and read-only repository permissions.
 
-The portable upgrade jobs compare the rehearsal package with the published
-v1.1.0 portable archive on Windows x64 and Apple Silicon macOS. They verify the
-published checksum and candidate manifest, import both formats into a
-disposable profile, then check migration, restart, and restore of the matching
-v1.1.0 profile. Each job records its candidate commit and uploads a receipt.
+The routine pull request and staging rehearsals compare the Linux x64 and
+Windows x64 packages with their published v1.1.0 portable archives. Each job
+verifies the published checksum and candidate manifest, imports both formats
+into a disposable profile, and checks migration, restart, and rollback using
+the matching v1.1.0 backup. Each job records its candidate commit and uploads a
+receipt, even when the other platform fails.
+
+The separate `macos-predecessor` dispatch reproduces the published Apple Silicon
+v1.1.0 startup failure. The Apple Silicon upgrade remains held until the
+predecessor can boot and the same migration and rollback checks can run.
+
 The rehearsal assembly version exercises data migration and recovery. Update
 eligibility and installer migration need their own release-candidate checks.
 
