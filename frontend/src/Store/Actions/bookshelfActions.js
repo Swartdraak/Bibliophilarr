@@ -122,7 +122,7 @@ export const actionHandlers = handleThunks({
       method: 'POST',
       data: JSON.stringify({
         authors,
-        monitoringOptions: { monitor },
+        monitoringOptions: monitor == null ? undefined : { monitor },
         monitorNewItems
       }),
       dataType: 'json'
