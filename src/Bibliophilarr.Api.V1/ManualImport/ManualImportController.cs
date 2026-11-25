@@ -193,6 +193,7 @@ namespace Bibliophilarr.Api.V1.ManualImport
                 item.Rejections = new[] { rejection };
                 var heldItem = item.ToResource();
                 heldItem.ForeignEditionId = resource.ForeignEditionId;
+                heldItem.SelectionRejection = rejection.Reason;
                 rejected.Add(heldItem);
             }
 

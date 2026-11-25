@@ -4,7 +4,9 @@ using Bibliophilarr.Api.V1.ManualImport;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DecisionEngine;
@@ -182,6 +184,8 @@ namespace NzbDrone.Api.Test.ManualImport
             rows.Select(row => row.Id).Should().Equal(101, 102);
             rows[0].Rejections.Select(rejection => rejection.Reason).Should().Equal("Couldn't find similar book");
             rows[1].Rejections.Should().HaveCount(allRejected ? 1 : 0);
+            rows.Select(row => JObject.Parse(row.ToJson()).Value<string>("selectionRejection"))
+                .Should().OnlyContain(rejection => rejection == null);
         }
 
         [TestCase("selected-edition", null, true, 422, "could not be resolved")]
@@ -215,7 +219,9 @@ namespace NzbDrone.Api.Test.ManualImport
             var row = ((IEnumerable<ManualImportResource>)result.Value).Should().ContainSingle().Which;
             row.Id.Should().Be(101);
             row.ForeignEditionId.Should().Be(selectedEditionId);
-            row.Rejections.Should().ContainSingle().Which.Reason.Should().Contain(reason);
+            var rejection = row.Rejections.Should().ContainSingle().Which.Reason;
+            rejection.Should().Contain(reason);
+            JObject.Parse(row.ToJson()).Value<string>("selectionRejection").Should().Be(rejection);
             _manualImportService.Verify(service => service.UpdateItems(It.IsAny<List<ManualImportItem>>()), Times.Never);
         }
 
@@ -238,7 +244,9 @@ namespace NzbDrone.Api.Test.ManualImport
             result.StatusCode.Should().Be(202);
             var rows = ((IEnumerable<ManualImportResource>)result.Value).ToDictionary(row => row.Id);
             rows[101].ForeignEditionId.Should().Be("missing");
-            rows[101].Rejections.Should().ContainSingle();
+            var rejection = rows[101].Rejections.Should().ContainSingle().Which.Reason;
+            JObject.Parse(rows[101].ToJson()).Value<string>("selectionRejection").Should().Be(rejection);
+            JObject.Parse(rows[102].ToJson()).Value<string>("selectionRejection").Should().BeNull();
             rows[102].ForeignEditionId.Should().Be(edition.ForeignEditionId);
             rows[102].Rejections.Should().BeNullOrEmpty();
             _manualImportService.Verify(service => service.UpdateItems(It.Is<List<ManualImportItem>>(files =>
@@ -265,7 +273,10 @@ namespace NzbDrone.Api.Test.ManualImport
             result.StatusCode.Should().Be(202);
             var rows = ((IEnumerable<ManualImportResource>)result.Value).ToDictionary(row => row.Id);
             rows[101].ForeignEditionId.Should().Be(edition.ForeignEditionId);
-            rows[101].Rejections.Should().ContainSingle().Which.Reason.Should().Contain("file path is required");
+            var rejection = rows[101].Rejections.Should().ContainSingle().Which.Reason;
+            rejection.Should().Contain("file path is required");
+            JObject.Parse(rows[101].ToJson()).Value<string>("selectionRejection").Should().Be(rejection);
+            JObject.Parse(rows[102].ToJson()).Value<string>("selectionRejection").Should().BeNull();
             rows[102].Rejections.Should().BeNullOrEmpty();
             _manualImportService.Verify(service => service.UpdateItems(It.Is<List<ManualImportItem>>(files =>
                 files.Count == 1 && files[0].Id == 102)), Times.Once);

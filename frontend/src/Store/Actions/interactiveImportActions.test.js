@@ -1,5 +1,5 @@
 import createAjaxRequest from 'Utilities/createAjaxRequest';
-import { saveInteractiveImportItem, section } from './interactiveImportActions';
+import { reducers, saveInteractiveImportItem, section } from './interactiveImportActions';
 
 jest.mock('Utilities/createAjaxRequest', () => jest.fn());
 
@@ -9,7 +9,7 @@ describe('Manual Import selection preview', () => {
     const request = { done: jest.fn(), fail: jest.fn() };
     createAjaxRequest.mockReturnValue({ request, abortRequest: jest.fn() });
     const items = [
-      { id: 11, path: '/fixture/first.epub', book: { id: 42 } },
+      { id: 11, path: '/fixture/first.epub', book: { id: 42 }, selectionRejection: 'Previous incorrect edition' },
       { id: 12, path: '/fixture/second.epub', book: { id: 43 } }
     ];
 
@@ -19,11 +19,17 @@ describe('Manual Import selection preview', () => {
     return {
       reject: request.fail.mock.calls[0][0],
       resolve: request.done.mock.calls[0][0],
-      updates: () => dispatch.mock.calls.flatMap(([batch]) => batch.payload.map((action) => action.payload))
+      updates: () => dispatch.mock.calls.flatMap(([batch]) => batch.payload.map((action) => action.payload)),
+      reducedItems: () => dispatch.mock.calls.flatMap(([batch]) => batch.payload)
+        .reduce(reducers, { items }).items
     };
   }
 
-  const rejectRow = { id: 11, rejections: [{ reason: 'Couldn\'t find similar book' }] };
+  const rejectRow = {
+    id: 11,
+    selectionRejection: 'Selected edition not available',
+    rejections: [{ reason: 'Selected edition not available' }]
+  };
 
   test('requests rejection status explicitly', () => {
     beginPreview();
@@ -48,9 +54,22 @@ describe('Manual Import selection preview', () => {
     const approved = { id: 12, foreignEditionId: 'openlibrary:edition:OL1M', rejections: [] };
     preview.resolve([rejectRow, approved]);
 
-    expect(preview.updates()).toEqual([rejectRow, approved].map((row) => ({
-      section, ...row, isReprocessing: false, updateOnly: true
-    })));
+    expect(preview.updates()).toEqual([
+      { section, ...rejectRow, isReprocessing: false, updateOnly: true },
+      { section, ...approved, selectionRejection: null, isReprocessing: false, updateOnly: true }
+    ]);
+  });
+
+  test('clears a stale hard selection rejection when a corrected preview omits the field', () => {
+    const preview = beginPreview();
+    const corrected = { id: 11, foreignEditionId: 'fixture:ebook', rejections: [] };
+    preview.resolve([corrected]);
+
+    expect(preview.reducedItems()[0]).toMatchObject({
+      ...corrected,
+      selectionRejection: null,
+      isReprocessing: false
+    });
   });
 
   test('keeps unexpected errors and aborted previews on the existing failure path', () => {
