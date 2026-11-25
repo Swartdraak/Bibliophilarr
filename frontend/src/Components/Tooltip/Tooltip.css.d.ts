@@ -12,8 +12,8 @@ interface CssExports {
   'right': string;
   'tooltip': string;
   'tooltipContainer': string;
-  'trigger': string;
   'top': string;
+  'trigger': string;
   'verticalContainer': string;
 }
 export const cssExports: CssExports;
