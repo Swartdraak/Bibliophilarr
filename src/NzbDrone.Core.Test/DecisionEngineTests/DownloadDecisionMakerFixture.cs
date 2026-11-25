@@ -1,9 +1,14 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
+using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
@@ -73,6 +78,103 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         private void GivenSpecifications(params Mock<IDecisionEngineSpecification>[] mocks)
         {
             Mocker.SetConstant<IEnumerable<IDecisionEngineSpecification>>(mocks.Select(c => c.Object));
+        }
+
+        [Test]
+        public void should_log_search_and_reparse_context_on_one_line_without_changing_the_release()
+        {
+            using var logging = CaptureDecisionMessages(out var messages);
+            const string title = "Ada Vale - City Lights (2022) [EPUB]\r\n\t";
+            const string indexer = "Library Catalogue\r\n\tFeed";
+            var report = _reports.Single();
+            report.Title = title;
+            report.Indexer = indexer;
+            report.IndexerId = 12;
+            _remoteBook.Author = null;
+            var criteria = new BookSearchCriteria { Author = new Author { Name = "Ada Vale" }, Books = new List<Book>() };
+            GivenSpecifications(_pass1);
+
+            var decision = Subject.GetSearchDecision(_reports, criteria).Single();
+
+            decision.RemoteBook.Release.Should().BeSameAs(report);
+            decision.RemoteBook.Release.Title.Should().Be(title);
+            decision.RemoteBook.Release.Indexer.Should().Be(indexer);
+            decision.RemoteBook.Release.IndexerId.Should().Be(12);
+            decision.RemoteBook.ReleaseSource.Should().Be(ReleaseSourceType.Search);
+            decision.Rejections.Should().ContainSingle().Which.Reason.Should().Be("Unknown Author");
+            messages.Logs.Should().Contain("Processing release 'Ada Vale - City Lights (2022) [EPUB] ' from 'Library Catalogue Feed'");
+            messages.Logs.Should().Contain("Author/Book null for Ada Vale - City Lights (2022) [EPUB] , reparsing with search criteria");
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void should_keep_exception_data_compact_and_preserve_the_original_rejection(bool hasReport, bool hasParsed)
+        {
+            using var logging = CaptureDecisionMessages(out var messages);
+            const string title = "Ada Vale - City Lights (2022) [EPUB]\r\n\t";
+            var report = _reports.Single();
+            report.Title = title;
+            report.Guid = "https://indexer.invalid/releases/12";
+            report.DownloadUrl = "https://indexer.invalid/download/12";
+            report.InfoUrl = "https://indexer.invalid/details/12";
+            report.CommentUrl = "https://indexer.invalid/comments/12";
+            var failure = new InvalidOperationException("Edition lookup paused.");
+            failure.Data["stage"] = "fixture specification";
+            if (hasReport)
+            {
+                failure.Data["report"] = "upstream report context";
+            }
+
+            if (hasParsed)
+            {
+                failure.Data["parsed"] = "upstream parser context";
+            }
+
+            _fail1.Setup(spec => spec.IsSatisfiedBy(It.IsAny<RemoteBook>(), null)).Throws(failure);
+            GivenSpecifications(_fail1);
+
+            var decision = Subject.GetRssDecision(_reports).Single();
+
+            decision.RemoteBook.Release.Should().BeSameAs(report);
+            decision.Rejected.Should().BeTrue();
+            decision.Rejections.Should().ContainSingle().Which.Reason.Should().Be($"{_fail1.Object.GetType().Name}: {failure.Message}");
+            messages.Logs.Should().Contain("Couldn't evaluate decision on Ada Vale - City Lights (2022) [EPUB] ");
+            messages.Logs.Should().NotContain("Couldn't process release.");
+            failure.Data["stage"].Should().Be("fixture specification");
+            var releaseJson = (string)failure.Data["report"];
+            releaseJson.Should().NotContain("\r").And.NotContain("\n");
+            releaseJson.Should().NotContain("indexer.invalid");
+            Json.Deserialize<ReleaseInfo>(releaseJson).Title.Should().Be(title);
+            decision.RemoteBook.Release.DownloadUrl.Should().Be("https://indexer.invalid/download/12");
+            var parsedJson = (string)failure.Data["parsed"];
+            parsedJson.Should().NotContain("\r").And.NotContain("\n");
+            Json.Deserialize<ParsedBookInfo>(parsedJson).Quality.Quality.Should().Be(Quality.FLAC);
+        }
+
+        [Test]
+        public void should_write_a_rejection_on_one_line_without_changing_its_reason()
+        {
+            using var logging = CaptureDecisionMessages(out var messages);
+            const string reason = "Edition temporarily unavailable\r\n\tTry again later.";
+            _fail1.Setup(spec => spec.IsSatisfiedBy(It.IsAny<RemoteBook>(), null)).Returns(Decision.Reject(reason));
+            GivenSpecifications(_fail1);
+
+            var decision = Subject.GetRssDecision(_reports).Single();
+
+            decision.Rejections.Should().ContainSingle().Which.Reason.Should().Be(reason);
+            messages.Logs.Should().Contain("Release rejected for the following reasons: [Permanent] Edition temporarily unavailable Try again later.");
+        }
+
+        private LogFactory CaptureDecisionMessages(out MemoryTarget messages)
+        {
+            messages = new MemoryTarget { Layout = "${message}" };
+            var config = new LoggingConfiguration();
+            config.AddRule(LogLevel.Debug, LogLevel.Error, messages);
+            var factory = new LogFactory { Configuration = config };
+            Mocker.SetConstant(factory.GetLogger(nameof(DownloadDecisionMaker)));
+            return factory;
         }
 
         [Test]

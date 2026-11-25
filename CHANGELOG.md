@@ -52,6 +52,8 @@ process.
 
 ### Fixed
 
+- Keep download decision diagnostics on one line and leave release URLs out of
+  exception log data.
 - Load every verified Hardcover series member across provider pages. Report
   an unavailable preview when a later page cannot be verified.
 - Open an exactly matched saved series from Add New during a series provider

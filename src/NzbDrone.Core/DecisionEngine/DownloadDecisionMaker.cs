@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Books;
@@ -81,7 +83,7 @@ namespace NzbDrone.Core.DecisionEngine
             {
                 DownloadDecision decision = null;
                 _logger.ProgressTrace("Processing release {0}/{1}", reportNumber, reports.Count);
-                _logger.Debug("Processing release '{0}' from '{1}'", report.Title, report.Indexer);
+                _logger.Debug("Processing release '{0}' from '{1}'", LogSanitizer.Sanitize(report.Title), LogSanitizer.Sanitize(report.Indexer));
 
                 try
                 {
@@ -112,7 +114,7 @@ namespace NzbDrone.Core.DecisionEngine
                         // try parsing again using the search criteria, in case it parsed but parsed incorrectly
                         if ((remoteBook.Author == null || remoteBook.Books.Empty()) && searchCriteria != null)
                         {
-                            _logger.Debug("Author/Book null for {0}, reparsing with search criteria", report.Title);
+                            _logger.Debug("Author/Book null for {0}, reparsing with search criteria", LogSanitizer.Sanitize(report.Title));
                             var parsedBookInfoWithCriteria = Parser.Parser.ParseBookTitleWithSearchCriteria(report.Title,
                                                                                                                 searchCriteria.Author,
                                                                                                                 searchCriteria.Books);
@@ -242,7 +244,7 @@ namespace NzbDrone.Core.DecisionEngine
 
                     if (decision.Rejections.Any())
                     {
-                        _logger.Debug("Release rejected for the following reasons: {0}", string.Join(", ", decision.Rejections));
+                        _logger.Debug("Release rejected for the following reasons: {0}", LogSanitizer.Sanitize(string.Join(", ", decision.Rejections)));
                     }
                     else
                     {
@@ -318,9 +320,26 @@ namespace NzbDrone.Core.DecisionEngine
             }
             catch (Exception e)
             {
-                e.Data.Add("report", remoteBook.Release.ToJson());
-                e.Data.Add("parsed", remoteBook.ParsedBookInfo.ToJson());
-                _logger.Error(e, "Couldn't evaluate decision on {0}", remoteBook.Release.Title);
+                var release = remoteBook.Release;
+                var parsed = remoteBook.ParsedBookInfo;
+                e.Data["report"] = new
+                {
+                    release.Title,
+                    release.Indexer,
+                    release.IndexerId,
+                    release.Size,
+                    release.PublishDate,
+                    release.DownloadProtocol
+                }.ToJson(Formatting.None);
+                e.Data["parsed"] = new
+                {
+                    BookTitle = parsed?.BookTitle,
+                    AuthorName = parsed?.AuthorName,
+                    Quality = parsed?.Quality,
+                    ReleaseDate = parsed?.ReleaseDate,
+                    ReleaseGroup = parsed?.ReleaseGroup
+                }.ToJson(Formatting.None);
+                _logger.Error(e, "Couldn't evaluate decision on {0}", LogSanitizer.Sanitize(release.Title));
                 return new Rejection($"{spec.GetType().Name}: {e.Message}");
             }
 
