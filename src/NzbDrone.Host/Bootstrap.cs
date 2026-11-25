@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -292,8 +293,25 @@ namespace NzbDrone.Host
 
         internal static string GetServerBindAddress(IConfiguration config)
         {
-            return config.GetValue<string>($"Bibliophilarr:Server:{nameof(ServerOptions.BindAddress)}")
-                   ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
+            return GetServerBindAddressOverride(config) ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
+        }
+
+        private static string GetServerBindAddressOverride(IConfiguration config)
+        {
+            var canonical = config.GetValue<string>("Bibliophilarr:Server:BindAddress");
+            if (canonical != null)
+            {
+                return canonical;
+            }
+
+            var historical = config.GetValue<string>("Bibliophilarr_Server:BindAddress");
+            if (historical != null && historical != "*" && !string.Equals(historical, "localhost", StringComparison.OrdinalIgnoreCase) &&
+                !IPAddress.TryParse(historical, out _))
+            {
+                throw new BibliophilarrStartupException("BIBLIOPHILARR_SERVER__BINDADDRESS must be an IP address, localhost, or *.");
+            }
+
+            return historical;
         }
 
         private static int? GetServerPortOverride(IConfiguration config)
@@ -305,7 +323,11 @@ namespace NzbDrone.Host
         internal static void ConfigureServerOptions(IServiceCollection services, IConfiguration config)
         {
             ConfigureOptions<ServerOptions>(services, config, "Server");
-            services.PostConfigure<ServerOptions>(options => options.Port ??= GetServerPortOverride(config));
+            services.PostConfigure<ServerOptions>(options =>
+            {
+                options.Port ??= GetServerPortOverride(config);
+                options.BindAddress ??= GetServerBindAddressOverride(config);
+            });
         }
 
         private static void ConfigureOptions<T>(IServiceCollection services, IConfiguration config, string sectionName)
