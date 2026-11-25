@@ -11,8 +11,10 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Profiles.Metadata;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 
@@ -160,9 +162,40 @@ namespace NzbDrone.Core.Test.MusicTests.BookRepositoryTests
         [Test]
         public void artwork_retry_should_page_by_primary_key()
         {
-            _bookRepo.GetArtworkRetryPage(0, 1).Select(book => book.Id).Should().Equal(_book.Id);
-            _bookRepo.GetArtworkRetryPage(_book.Id, 1).Select(book => book.Id).Should().Equal(_bookSpecial.Id);
-            _bookRepo.GetArtworkRetryPage(_bookSpecial.Id, 1).Should().BeEmpty();
+            _bookRepo.GetArtworkRetryPage(0, 1, fileAttached: false).Select(book => book.Id).Should().Equal(_book.Id);
+            _bookRepo.GetArtworkRetryPage(_book.Id, 1, fileAttached: false).Select(book => book.Id).Should().Equal(_bookSpecial.Id);
+            _bookRepo.GetArtworkRetryPage(_bookSpecial.Id, 1, fileAttached: false).Should().BeEmpty();
+        }
+
+        [Test]
+        public void artwork_retry_should_page_linked_and_bibliography_works_separately()
+        {
+            var edition = Mocker.Resolve<BasicRepository<Edition>>().Insert(new Edition
+            {
+                BookId = _bookSpecial.Id,
+                ForeignEditionId = "fixture-linked-artwork-edition",
+                Title = "Second work edition",
+                TitleSlug = "fixture-linked-artwork-edition",
+                IsEbook = true
+            });
+            var files = Mocker.Resolve<BasicRepository<BookFile>>();
+            foreach (var (name, editionId) in new[] { ("first", edition.Id), ("second", edition.Id), ("unmapped", 0) })
+            {
+                files.Insert(new BookFile
+                {
+                    EditionId = editionId,
+                    Path = Path.Combine(TempFolder, name + ".epub"),
+                    Quality = new QualityModel(Quality.EPUB),
+                    DateAdded = DateTime.UnixEpoch,
+                    Modified = DateTime.UnixEpoch,
+                    Part = 1
+                });
+            }
+
+            _bookRepo.GetArtworkRetryPage(0, 5, fileAttached: true).Select(book => book.Id).Should().Equal(_bookSpecial.Id);
+            _bookRepo.GetArtworkRetryPage(_bookSpecial.Id, 5, fileAttached: true).Should().BeEmpty();
+            _bookRepo.GetArtworkRetryPage(0, 5, fileAttached: false).Select(book => book.Id).Should().Equal(_book.Id);
+            _bookRepo.GetArtworkRetryPage(_book.Id, 5, fileAttached: false).Should().BeEmpty();
         }
 
         [Test]

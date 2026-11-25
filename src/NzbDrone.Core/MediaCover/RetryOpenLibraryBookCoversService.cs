@@ -11,10 +11,13 @@ namespace NzbDrone.Core.MediaCover
 {
     public class RetryOpenLibraryBookCoversService : IExecute<RetryOpenLibraryBookCoversCommand>
     {
-        private const int PageSize = 64;
+        private const int AuthorPageSize = 64;
+        private const int AttachedBookPageSize = 48;
+        private const int BibliographyPageSize = 16;
         private const int RequestLimit = 4;
         private static readonly TimeSpan TickLimit = TimeSpan.FromSeconds(10);
         private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
+        private static readonly Lane[] LaneOrder = { Lane.AttachedBook, Lane.Bibliography, Lane.AttachedBook, Lane.Portrait };
 
         private readonly IConfigService _configService;
         private readonly IBookRepository _books;
@@ -25,10 +28,25 @@ namespace NzbDrone.Core.MediaCover
         private readonly ICached<bool> _unavailable;
         private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly TimeProvider _timeProvider;
-        private int _afterId;
+        private readonly BookCursor _attachedBooks = new BookCursor(true, AttachedBookPageSize);
+        private readonly BookCursor _bibliography = new BookCursor(false, BibliographyPageSize);
         private int _afterAuthorId;
         private int _executing;
-        private bool _startWithAuthor;
+        private int _firstLaneIndex;
+
+        private enum Lane
+        {
+            AttachedBook,
+            Bibliography,
+            Portrait
+        }
+
+        private sealed class BookCursor(bool fileAttached, int pageSize)
+        {
+            public readonly bool FileAttached = fileAttached;
+            public readonly int PageSize = pageSize;
+            public int AfterId;
+        }
 
         public RetryOpenLibraryBookCoversService(IConfigService configService,
                                                  IBookRepository books,
@@ -89,9 +107,10 @@ namespace NzbDrone.Core.MediaCover
             }
 
             var start = _timeProvider.GetTimestamp();
-            var tryAuthor = _startWithAuthor;
-            _startWithAuthor = !_startWithAuthor;
-            var triedAuthor = false;
+
+            // Rotate which lane starts, even when the first eligible request consumes the tick.
+            var laneIndex = _firstLaneIndex;
+            _firstLaneIndex = (_firstLaneIndex + 1) % LaneOrder.Length;
             _unavailable.ClearExpired();
 
             var requests = 0;
@@ -106,39 +125,36 @@ namespace NzbDrone.Core.MediaCover
                 return true;
             }
 
-            using var books = GetBookCoverAttempts(ReserveRedirect).GetEnumerator();
-            using var authors = GetAuthorPortraitAttempts(ReserveRedirect).GetEnumerator();
-            while (requests < RequestLimit && _configService.EnableOpenLibraryProvider)
+            var attemptedBooks = new HashSet<int>();
+            using var attached = GetBookCoverAttempts(_attachedBooks, attemptedBooks, ReserveRedirect).GetEnumerator();
+            using var bibliography = GetBookCoverAttempts(_bibliography, attemptedBooks, ReserveRedirect).GetEnumerator();
+            using var portraits = GetAuthorPortraitAttempts(ReserveRedirect).GetEnumerator();
+            var lanes = new[] { attached, bibliography, portraits };
+            var retired = new HashSet<Lane>();
+            while (retired.Count < lanes.Length && requests < RequestLimit && _configService.EnableOpenLibraryProvider)
             {
                 if (_timeProvider.GetElapsedTime(start) >= TickLimit)
                 {
                     return;
                 }
 
-                Func<TimeSpan, OpenLibraryCoverRecovery> attempt;
-                if (tryAuthor && !triedAuthor)
+                var lane = LaneOrder[laneIndex];
+                laneIndex = (laneIndex + 1) % LaneOrder.Length;
+                if (retired.Contains(lane))
                 {
-                    triedAuthor = true;
-                    if (!authors.MoveNext())
-                    {
-                        continue;
-                    }
-
-                    attempt = authors.Current;
-                }
-                else if (books.MoveNext())
-                {
-                    tryAuthor = true;
-                    attempt = books.Current;
-                }
-                else if (!triedAuthor)
-                {
-                    tryAuthor = true;
                     continue;
                 }
-                else
+
+                var attempts = lanes[(int)lane];
+                if (!attempts.MoveNext())
                 {
-                    return;
+                    retired.Add(lane);
+                    continue;
+                }
+
+                if (lane == Lane.Portrait)
+                {
+                    retired.Add(lane);
                 }
 
                 var remaining = TickLimit - _timeProvider.GetElapsedTime(start);
@@ -148,7 +164,7 @@ namespace NzbDrone.Core.MediaCover
                 }
 
                 requests++;
-                var result = attempt(remaining < RequestTimeout ? remaining : RequestTimeout);
+                var result = attempts.Current(remaining < RequestTimeout ? remaining : RequestTimeout);
                 if (result is OpenLibraryCoverRecovery.Deferred or OpenLibraryCoverRecovery.DeferredAfterRequest)
                 {
                     return;
@@ -156,12 +172,13 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
-        private IEnumerable<Func<TimeSpan, OpenLibraryCoverRecovery>> GetBookCoverAttempts(Func<bool> reserveRedirect)
+        private IEnumerable<Func<TimeSpan, OpenLibraryCoverRecovery>> GetBookCoverAttempts(
+            BookCursor cursor, HashSet<int> attemptedBooks, Func<bool> reserveRedirect)
         {
-            var page = _books.GetArtworkRetryPage(_afterId, PageSize);
+            var page = _books.GetArtworkRetryPage(cursor.AfterId, cursor.PageSize, cursor.FileAttached);
             if (page.Count == 0)
             {
-                _afterId = 0;
+                cursor.AfterId = 0;
                 yield break;
             }
 
@@ -169,7 +186,8 @@ namespace NzbDrone.Core.MediaCover
 
             foreach (var book in page)
             {
-                if (OpenLibraryMissingBookCover.SelectArtwork(book, editions[book.Id].ToList()) is { } artwork &&
+                if (!attemptedBooks.Contains(book.Id) &&
+                    OpenLibraryMissingBookCover.SelectArtwork(book, editions[book.Id].ToList()) is { } artwork &&
                     !_unavailable.Find(artwork.FileSuffix) && _covers.IsMissing(book.Id, artwork.FileSuffix) &&
                     OpenLibraryMissingBookCover.HasVerifiedOwner(artwork.WorkSourceId, book.Id, _catalogueIdentity))
                 {
@@ -183,31 +201,33 @@ namespace NzbDrone.Core.MediaCover
 
                     yield return timeout =>
                     {
+                        // A file can be linked or unlinked between the two partition reads.
+                        attemptedBooks.Add(book.Id);
                         var result = _covers.TryRecover(book.Id, artwork.CoverUrl, artwork.FileSuffix, IsStillSelected, timeout, reserveRedirect);
-                        RecordResult(artwork.FileSuffix, result, book.Id, ref _afterId);
+                        RecordResult(artwork.FileSuffix, result, book.Id, ref cursor.AfterId);
                         if (result is not OpenLibraryCoverRecovery.Deferred and not OpenLibraryCoverRecovery.DeferredAfterRequest &&
-                            page.Count < PageSize && book.Id == page[^1].Id)
+                            page.Count < cursor.PageSize && book.Id == page[^1].Id)
                         {
                             // Reaching the end with the last available request still completes the page.
-                            _afterId = 0;
+                            cursor.AfterId = 0;
                         }
 
                         return result;
                     };
                 }
 
-                _afterId = book.Id;
+                cursor.AfterId = book.Id;
             }
 
-            if (page.Count < PageSize)
+            if (page.Count < cursor.PageSize)
             {
-                _afterId = 0;
+                cursor.AfterId = 0;
             }
         }
 
         private IEnumerable<Func<TimeSpan, OpenLibraryCoverRecovery>> GetAuthorPortraitAttempts(Func<bool> reserveRedirect)
         {
-            var page = _authors.GetArtworkRetryPage(_afterAuthorId, PageSize);
+            var page = _authors.GetArtworkRetryPage(_afterAuthorId, AuthorPageSize);
             foreach (var author in page)
             {
                 if (OpenLibraryMissingAuthorPortrait.SelectArtwork(author) is { } artwork &&
@@ -233,7 +253,7 @@ namespace NzbDrone.Core.MediaCover
                 _afterAuthorId = author.Id;
             }
 
-            if (page.Count < PageSize)
+            if (page.Count < AuthorPageSize)
             {
                 _afterAuthorId = 0;
             }

@@ -32,6 +32,9 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.SetConstant<TimeProvider>(_clock);
             Mocker.GetMock<IConfigService>().SetupGet(settings => settings.EnableOpenLibraryProvider).Returns(true);
             Mocker.GetMock<IOpenLibraryBookCoverCache>().Setup(cache => cache.IsMissing(It.IsAny<int>(), It.IsAny<string>())).Returns(true);
+            Mocker.GetMock<IBookRepository>()
+                .Setup(repository => repository.GetArtworkRetryPage(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>()))
+                .Returns(new List<Book>());
             Mocker.GetMock<IAuthorRepository>().Setup(repository => repository.GetArtworkRetryPage(It.IsAny<int>(), It.IsAny<int>())).Returns(new List<Author>());
             Mocker.GetMock<IOpenLibraryAuthorPortraitCache>().Setup(cache => cache.IsMissing(It.IsAny<int>(), It.IsAny<string>())).Returns(true);
         }
@@ -54,12 +57,103 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 Times.Never);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_prioritize_file_attached_covers_while_every_lane_gets_its_turn(bool oneAttemptPerTick)
+        {
+            var attached = Enumerable.Range(101, 5).Select(StoredBook).ToList();
+            var bibliography = Enumerable.Range(1, 5).Select(StoredBook).ToList();
+            var editions = attached.Concat(bibliography).Select(book => StoredEdition(book)).ToList();
+            var author = PortraitAuthor(51);
+            var bookRepository = Mocker.GetMock<IBookRepository>();
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(It.IsAny<int>(), 48, true))
+                .Returns<int, int, bool>((after, _, _) => attached.Where(book => book.Id > after).ToList());
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(It.IsAny<int>(), 16, false))
+                .Returns<int, int, bool>((after, _, _) => bibliography.Where(book => book.Id > after).ToList());
+            Mocker.GetMock<IAuthorRepository>().Setup(repository => repository.GetArtworkRetryPage(0, 64))
+                .Returns(new List<Author> { author });
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
+                .Returns<IEnumerable<int>>(ids => editions.Where(edition => ids.Contains(edition.BookId)).ToList());
+
+            var attempted = new List<int>();
+            OpenLibraryCoverRecovery Record(int id)
+            {
+                attempted.Add(id);
+                if (oneAttemptPerTick)
+                {
+                    _clock.ElapsedTicks += TimeSpan.FromSeconds(10).Ticks;
+                }
+
+                return OpenLibraryCoverRecovery.Recovered;
+            }
+
+            var bookCache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
+            bookCache.Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Returns<int, string, string, Func<bool>, TimeSpan, Func<bool>>((id, _, _, _, _, _) => Record(id));
+            Mocker.GetMock<IOpenLibraryAuthorPortraitCache>()
+                .Setup(cache => cache.TryRecover(51, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Returns(() => Record(51));
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            if (oneAttemptPerTick)
+            {
+                attempted.Should().Equal(101);
+                bookCache.SetupGet(cache => cache.IsCoolingDown).Returns(true);
+                Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+                attempted.Should().Equal(101);
+                bookCache.SetupGet(cache => cache.IsCoolingDown).Returns(false);
+                for (var tick = 0; tick < 3; tick++)
+                {
+                    Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+                }
+
+                bookRepository.Verify(repository => repository.GetArtworkRetryPage(101, 48, true), Times.Once);
+            }
+
+            attempted.Should().Equal(101, 1, 102, 51);
+        }
+
+        [Test]
+        public void should_not_retry_the_same_book_if_a_file_is_attached_between_the_lane_reads()
+        {
+            var moved = StoredBook(71);
+            var catalogueReady = false;
+            var fileAttached = false;
+            var repository = Mocker.GetMock<IBookRepository>();
+            repository.Setup(book => book.GetArtworkRetryPage(0, 48, true))
+                .Returns(() => fileAttached ? new List<Book> { moved } : new List<Book>());
+            repository.Setup(book => book.GetArtworkRetryPage(0, 16, false))
+                .Returns(() => catalogueReady && !fileAttached ? new List<Book> { moved } : new List<Book>());
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
+                .Returns(new List<Edition> { StoredEdition(moved) });
+            var cache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
+            cache.Setup(service => service.TryRecover(moved.Id, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Returns(() =>
+                {
+                    fileAttached = true;
+
+                    // There is deliberately no saved cache entry to suppress a second request.
+                    return OpenLibraryCoverRecovery.Skipped;
+                });
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            catalogueReady = true;
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+
+            fileAttached.Should().BeTrue();
+            repository.Verify(book => book.GetArtworkRetryPage(0, 48, true), Times.Exactly(2));
+            repository.Verify(book => book.GetArtworkRetryPage(0, 16, false), Times.Exactly(2));
+            cache.Verify(service => service.TryRecover(moved.Id, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()), Times.Once);
+        }
+
         [Test]
         public void should_charge_archive_hops_against_the_same_four_request_tick()
         {
             var books = Enumerable.Range(1, 5).Select(StoredBook).ToList();
-            var editions = books.Select(book => StoredEdition(book)).ToList();
-            Mocker.GetMock<IBookRepository>().Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(books);
+            var attached = Enumerable.Range(101, 5).Select(StoredBook).ToList();
+            var editions = attached.Concat(books).Select(book => StoredEdition(book)).ToList();
+            Mocker.GetMock<IBookRepository>().Setup(repository => repository.GetArtworkRetryPage(0, 16, false)).Returns(books);
+            Mocker.GetMock<IBookRepository>().Setup(repository => repository.GetArtworkRetryPage(0, 48, true)).Returns(attached);
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(editions);
             var attempted = new List<int>();
             Mocker.GetMock<IOpenLibraryBookCoverCache>()
@@ -73,7 +167,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
 
-            attempted.Should().Equal(1, 2);
+            attempted.Should().Equal(101, 1);
         }
 
         [Test]
@@ -83,8 +177,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var editions = books.Select(book => StoredEdition(book)).ToList();
             var authors = new List<Author> { PortraitAuthor(41), PortraitAuthor(42) };
             var bookRepository = Mocker.GetMock<IBookRepository>();
-            bookRepository.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(books);
-            bookRepository.Setup(repository => repository.GetArtworkRetryPage(3, 64)).Returns(books.Skip(3).ToList());
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(0, 16, false)).Returns(books);
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(3, 16, false)).Returns(books.Skip(3).ToList());
             var authorRepository = Mocker.GetMock<IAuthorRepository>();
             authorRepository.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(authors);
             authorRepository.Setup(repository => repository.GetArtworkRetryPage(41, 64)).Returns(authors.Skip(1).ToList());
@@ -115,9 +209,9 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
             attempted.Should().Equal(1, 41, 2, 3);
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
-            attempted.Should().Equal(1, 41, 2, 3, 42, 4, 5, 6);
-            bookRepository.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Once);
-            bookRepository.Verify(repository => repository.GetArtworkRetryPage(3, 64), Times.Once);
+            attempted.Should().Equal(1, 41, 2, 3, 4, 42, 5, 6);
+            bookRepository.Verify(repository => repository.GetArtworkRetryPage(0, 16, false), Times.Once);
+            bookRepository.Verify(repository => repository.GetArtworkRetryPage(3, 16, false), Times.Once);
             authorRepository.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Once);
             authorRepository.Verify(repository => repository.GetArtworkRetryPage(41, 64), Times.Once);
         }
@@ -130,16 +224,22 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var edition = StoredEdition(book);
             var author = PortraitAuthor(41);
             var bookRepository = Mocker.GetMock<IBookRepository>();
-            bookRepository.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Book> { book, nextBook });
-            bookRepository.Setup(repository => repository.GetArtworkRetryPage(1, 64)).Returns(new List<Book>());
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(0, 16, false)).Returns(new List<Book> { book, nextBook });
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(1, 16, false)).Returns(new List<Book>());
             var authorRepository = Mocker.GetMock<IAuthorRepository>();
             authorRepository.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Author> { author });
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(new List<Edition> { edition });
 
-            Mocker.GetMock<IOpenLibraryBookCoverCache>()
-                .Setup(cache => cache.TryRecover(1, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
-                .Callback(() => _clock.ElapsedTicks += TimeSpan.FromSeconds(10).Ticks)
-                .Returns(OpenLibraryCoverRecovery.Recovered);
+            var bookCache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
+            var recovered = false;
+            bookCache.Setup(cache => cache.IsMissing(1, It.IsAny<string>())).Returns(() => !recovered);
+            bookCache.Setup(cache => cache.TryRecover(1, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Returns(() =>
+                {
+                    recovered = true;
+                    _clock.ElapsedTicks += TimeSpan.FromSeconds(10).Ticks;
+                    return OpenLibraryCoverRecovery.Recovered;
+                });
             var portraitCache = Mocker.GetMock<IOpenLibraryAuthorPortraitCache>();
             portraitCache.SetupSequence(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
                 .Returns(OpenLibraryCoverRecovery.Deferred)
@@ -159,7 +259,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             authorRepository.VerifyNoOtherCalls();
             subject.Execute(new RetryOpenLibraryBookCoversCommand());
             portraitCache.Verify(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()), Times.Once);
-            bookRepository.Verify(repository => repository.GetArtworkRetryPage(1, 64), Times.Never);
+            bookRepository.Verify(repository => repository.GetArtworkRetryPage(1, 16, false), Times.Once);
             subject.Execute(new RetryOpenLibraryBookCoversCommand());
             portraitCache.Verify(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()), Times.Exactly(2));
             authorRepository.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Exactly(2));
@@ -194,7 +294,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IAuthorRepository>()
                 .Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Author> { author });
             Mocker.GetMock<IBookRepository>()
-                .Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Book>());
+                .Setup(repository => repository.GetArtworkRetryPage(0, 16, false)).Returns(new List<Book>());
 
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
 
@@ -209,8 +309,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var books = Enumerable.Range(1, 6).Select(StoredBook).ToList();
             var editions = books.Select(book => StoredEdition(book)).ToList();
             var repo = Mocker.GetMock<IBookRepository>();
-            repo.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(books);
-            repo.Setup(repository => repository.GetArtworkRetryPage(4, 64)).Returns(books.Skip(4).ToList());
+            repo.Setup(repository => repository.GetArtworkRetryPage(0, 16, false)).Returns(books);
+            repo.Setup(repository => repository.GetArtworkRetryPage(4, 16, false)).Returns(books.Skip(4).ToList());
             var editionService = Mocker.GetMock<IEditionService>();
             editionService.Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(editions);
             var attempted = new List<int>();
@@ -238,7 +338,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
         {
             var books = Enumerable.Range(1, 4).Select(StoredBook).ToList();
             var repository = Mocker.GetMock<IBookRepository>();
-            repository.Setup(repo => repo.GetArtworkRetryPage(0, 64)).Returns(books);
+            repository.Setup(repo => repo.GetArtworkRetryPage(0, 16, false)).Returns(books);
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
                 .Returns(books.Select(book => StoredEdition(book)).ToList());
             Mocker.GetMock<IOpenLibraryBookCoverCache>()
@@ -248,7 +348,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
 
-            repository.Verify(repo => repo.GetArtworkRetryPage(0, 64), Times.Exactly(2));
+            repository.Verify(repo => repo.GetArtworkRetryPage(0, 16, false), Times.Exactly(2));
+            repository.Verify(repo => repo.GetArtworkRetryPage(0, 48, true), Times.Exactly(2));
             repository.VerifyNoOtherCalls();
         }
 
@@ -260,8 +361,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var books = new List<Book> { StoredBook(1), StoredBook(2) };
             var editions = books.Select(book => StoredEdition(book)).ToList();
             var repo = Mocker.GetMock<IBookRepository>();
-            repo.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(books);
-            repo.Setup(repository => repository.GetArtworkRetryPage(1, 64)).Returns(books.Skip(1).ToList());
+            repo.Setup(repository => repository.GetArtworkRetryPage(0, 16, false)).Returns(books);
+            repo.Setup(repository => repository.GetArtworkRetryPage(1, 16, false)).Returns(books.Skip(1).ToList());
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
                 .Returns(editions);
             var attempted = new List<int>();
@@ -277,11 +378,11 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
             attempted.Should().Equal(1);
-            repo.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Once);
+            repo.Verify(repository => repository.GetArtworkRetryPage(0, 16, false), Times.Once);
 
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
             attempted[1].Should().Be(nextBookId);
-            repo.Verify(repository => repository.GetArtworkRetryPage(nextCursor, 64), nextCursor == 0 ? Times.Exactly(2) : Times.Once());
+            repo.Verify(repository => repository.GetArtworkRetryPage(nextCursor, 16, false), nextCursor == 0 ? Times.Exactly(2) : Times.Once());
         }
 
         [Test]
@@ -290,7 +391,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var book = StoredBook(3);
             var edition = StoredEdition(book);
             var repo = Mocker.GetMock<IBookRepository>();
-            repo.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Book> { book });
+            repo.Setup(repository => repository.GetArtworkRetryPage(0, 16, false)).Returns(new List<Book> { book });
             repo.Setup(repository => repository.Find(book.Id)).Returns(book);
             var editionService = Mocker.GetMock<IEditionService>();
             editionService.Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(new List<Edition> { edition });
@@ -327,7 +428,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             restarted.Execute(new RetryOpenLibraryBookCoversCommand());
 
             called.Should().Be(2);
-            repo.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Exactly(2));
+            repo.Verify(repository => repository.GetArtworkRetryPage(0, 16, false), Times.Exactly(2));
         }
 
         [Test]
@@ -336,7 +437,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var book = StoredBook(65);
             var edition = StoredEdition(book);
             var repo = Mocker.GetMock<IBookRepository>();
-            repo.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Book> { book });
+            repo.Setup(repository => repository.GetArtworkRetryPage(0, 16, false)).Returns(new List<Book> { book });
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
                 .Returns(new List<Edition> { edition });
 
@@ -365,7 +466,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 // The command queue has marked the first command cancelled and can dispatch its replacement.
                 await Task.Run(() => handler.Execute(new RetryOpenLibraryBookCoversCommand())).WaitAsync(TimeSpan.FromSeconds(2));
                 requests.Should().Be(1);
-                repo.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Once);
+                repo.Verify(repository => repository.GetArtworkRetryPage(0, 16, false), Times.Once);
             }
             finally
             {
@@ -382,7 +483,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
         {
             var cached = StoredBook(1);
             var ambiguous = StoredBook(2);
-            Mocker.GetMock<IBookRepository>().Setup(repo => repo.GetArtworkRetryPage(0, 64)).Returns(new List<Book> { cached, ambiguous });
+            Mocker.GetMock<IBookRepository>().Setup(repo => repo.GetArtworkRetryPage(0, 16, false)).Returns(new List<Book> { cached, ambiguous });
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
                 .Returns(new List<Edition> { StoredEdition(cached), StoredEdition(ambiguous), StoredEdition(ambiguous, 99) });
             var cache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
@@ -417,7 +518,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             cover.SourceProvider = "OpenLibrary";
             cover.SourceId = "OL43W";
 
-            Mocker.GetMock<IBookRepository>().Setup(repo => repo.GetArtworkRetryPage(0, 64)).Returns(new List<Book> { book });
+            Mocker.GetMock<IBookRepository>().Setup(repo => repo.GetArtworkRetryPage(0, 16, false)).Returns(new List<Book> { book });
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
                 .Returns(new List<Edition> { localEdition, providerEdition });
             Mocker.GetMock<ICatalogueIdentityRepository>()

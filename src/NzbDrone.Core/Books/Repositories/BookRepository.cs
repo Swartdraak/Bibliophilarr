@@ -21,7 +21,7 @@ namespace NzbDrone.Core.Books
         void DeleteKeepingFiles(IEnumerable<int> bookIds);
         bool DeleteIfNoLinkedFiles(int bookId);
         List<Book> GetBooks(int authorId);
-        List<Book> GetArtworkRetryPage(int afterId, int pageSize);
+        List<Book> GetArtworkRetryPage(int afterId, int pageSize, bool fileAttached);
         List<Book> GetLastBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetNextBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetBooksByAuthorMetadataId(int authorMetadataId);
@@ -238,7 +238,7 @@ namespace NzbDrone.Core.Books
             transaction.Commit();
         }
 
-        public List<Book> GetArtworkRetryPage(int afterId, int pageSize)
+        public List<Book> GetArtworkRetryPage(int afterId, int pageSize, bool fileAttached)
         {
             var page = new PagingSpec<Book>
             {
@@ -248,7 +248,13 @@ namespace NzbDrone.Core.Books
                 SortDirection = SortDirection.Ascending
             };
             page.FilterExpressions.Add(book => book.Id > afterId);
-            return GetPagedRecords(Builder(), page, PagedQuery);
+            const string linkedFile = """
+                EXISTS (SELECT 1 FROM "Editions" book_edition
+                    INNER JOIN "BookFiles" tracked_file ON tracked_file."EditionId" = book_edition."Id"
+                    WHERE book_edition."BookId" = "Books"."Id")
+                """;
+            var builder = Builder().Where(fileAttached ? linkedFile : $"NOT {linkedFile}");
+            return GetPagedRecords(builder, page, PagedQuery);
         }
 
         public List<Book> GetBooks(int authorId)

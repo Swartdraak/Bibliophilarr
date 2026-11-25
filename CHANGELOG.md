@@ -51,6 +51,8 @@ process.
 
 ### Fixed
 
+- Retry missing Open Library artwork earlier for file-attached books, while
+  rotating through bibliography covers and author portraits.
 - Keep the author and its catalogue records when Delete Files cannot verify
   the library folder. Show the error in the author deletion dialog.
 - Recover Open Library artwork through a verified Internet Archive redirect.
