@@ -21,6 +21,7 @@ import {
   BOOKSHELF_ROW_PADDING,
   BOOKSHELF_SIDEBAR_WIDTH } from 'Utilities/Constants/grid';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
+import hasDifferentItemsOrOrder from 'Utilities/Object/hasDifferentItemsOrOrder';
 import translate from 'Utilities/String/translate';
 import getSelectedIds from 'Utilities/Table/getSelectedIds';
 import selectAll from 'Utilities/Table/selectAll';
@@ -90,15 +91,24 @@ class Bookshelf extends Component {
       isSaving,
       saveError,
       items,
-      sortKey
+      sortKey,
+      sortDirection
     } = this.props;
 
     const {
       jumpToCharacter
     } = this.state;
 
+    if (hasDifferentItemsOrOrder(prevProps.items, items)) {
+      this.setSelectedState();
+    }
+
+    if (items !== prevProps.items || sortKey !== prevProps.sortKey || sortDirection !== prevProps.sortDirection) {
+      this.setJumpBarItems();
+    }
+
     if (prevProps.isSaving && !isSaving && !saveError) {
-      this.setState(selectAll(this.state.selectedState, false));
+      this.setState((state) => selectAll(state.selectedState, false));
     }
 
     // Handle A-Z jump bar navigation
@@ -182,7 +192,8 @@ class Bookshelf extends Component {
     } = this.props;
 
     const {
-      selectedState
+      selectedState,
+      lastToggled
     } = this.state;
 
     const newSelectedState = {};
@@ -208,7 +219,12 @@ class Bookshelf extends Component {
       isAllSelected = true;
     }
 
-    this.setState({ selectedState: newSelectedState, allSelected: isAllSelected, allUnselected: isAllUnselected });
+    this.setState({
+      selectedState: newSelectedState,
+      allSelected: isAllSelected,
+      allUnselected: isAllUnselected,
+      lastToggled: newSelectedState[lastToggled] === undefined ? null : lastToggled
+    });
   };
 
   estimateRowHeight = (width) => {
@@ -285,10 +301,14 @@ class Bookshelf extends Component {
   };
 
   onUpdateSelectedPress = (changes) => {
-    this.props.onUpdateSelectedPress({
-      authorIds: this.getSelectedIds(),
-      ...changes
-    });
+    const authorIds = this.getSelectedIds();
+
+    if (authorIds.length) {
+      this.props.onUpdateSelectedPress({
+        authorIds,
+        ...changes
+      });
+    }
   };
 
   onJumpBarItemPress = (jumpToCharacter) => {
@@ -296,8 +316,6 @@ class Bookshelf extends Component {
   };
 
   onGridRecompute = (width) => {
-    this.setJumpBarItems();
-    this.setSelectedState();
     this.setState({ estimatedRowSize: this.estimateRowHeight(width) });
     this.cache.clearAll();
   };
