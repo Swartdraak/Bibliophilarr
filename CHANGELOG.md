@@ -318,7 +318,8 @@ process.
 - Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
 
 - Sanitize book identifiers and titles in Add Book and import-list logs.
-- Normalize release titles in torrent and Usenet download diagnostics.
+- Normalize release titles and use status and client information in torrent
+  and Usenet download diagnostics without recording raw download URLs.
 
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.

@@ -54,30 +54,30 @@ namespace NzbDrone.Core.Download
 
                 nzbData = response.ResponseData;
 
-                _logger.Debug("Downloaded nzb for release '{0}' finished ({1} bytes from {2})", LogSanitizer.Sanitize(remoteBook.Release.Title), nzbData.Length, url);
+                _logger.Debug("Downloaded nzb for release '{0}' finished ({1} bytes from indexer {2})", LogSanitizer.Sanitize(remoteBook.Release.Title), nzbData.Length, remoteBook.Release.IndexerId);
             }
             catch (HttpException ex)
             {
                 if (ex.Response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    _logger.Error(ex, "Downloading nzb file for book '{0}' failed since it no longer exists ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), url);
+                    _logger.Error("Downloading nzb file for book '{0}' from indexer {1} failed (HTTP 404).", LogSanitizer.Sanitize(remoteBook.Release.Title), remoteBook.Release.IndexerId);
                     throw new ReleaseUnavailableException(remoteBook.Release, "Downloading torrent failed", ex);
                 }
 
                 if ((int)ex.Response.StatusCode == 429)
                 {
-                    _logger.Error("API Grab Limit reached for {0}", url);
+                    _logger.Error("API grab limit reached for indexer {0} (HTTP 429).", remoteBook.Release.IndexerId);
                 }
                 else
                 {
-                    _logger.Error(ex, "Downloading nzb for release '{0}' failed ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), url);
+                    _logger.Error("Downloading nzb for release '{0}' from indexer {1} failed (HTTP {2}).", LogSanitizer.Sanitize(remoteBook.Release.Title), remoteBook.Release.IndexerId, (int)ex.Response.StatusCode);
                 }
 
                 throw new ReleaseDownloadException(remoteBook.Release, "Downloading nzb failed", ex);
             }
             catch (WebException ex)
             {
-                _logger.Error(ex, "Downloading nzb for release '{0}' failed ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), url);
+                _logger.Error("Downloading nzb for release '{0}' from indexer {1} failed ({2}).", LogSanitizer.Sanitize(remoteBook.Release.Title), remoteBook.Release.IndexerId, ex.Status);
 
                 throw new ReleaseDownloadException(remoteBook.Release, "Downloading nzb failed", ex);
             }
