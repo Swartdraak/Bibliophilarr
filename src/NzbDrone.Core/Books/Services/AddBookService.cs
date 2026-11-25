@@ -52,7 +52,7 @@ namespace NzbDrone.Core.Books
         {
             _logger.Debug("Adding book {0} - {1}", LogSanitizer.Sanitize(book?.ForeignBookId), LogSanitizer.Sanitize(book?.Title));
 
-            book = AddSkyhookData(book, requireSelectedEdition);
+            book = AddSkyhookData(book, requireSelectedEdition, out var confirmedNewAuthorSelection);
 
             // we allow adding extra editions, so check if the book already exists
             var dbBook = _bookService.FindById(book.ForeignBookId);
@@ -104,9 +104,14 @@ namespace NzbDrone.Core.Books
                     throw new ValidationException(profileErrors);
                 }
 
-                // The work lookup already returned this author. The BookAdded
-                // handler can hydrate their bibliography after the book is saved.
-                dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, book.AuthorMetadata.Value, false);
+                var metadata = book.AuthorMetadata.Value;
+                if (confirmedNewAuthorSelection && book.Id == 0 && author.Id == 0)
+                {
+                    return _addAuthorService.AddNewAuthorWithBook(author, book, doRefresh);
+                }
+
+                // Preserve the compatibility path for bulk and legacy catalogue requests.
+                dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, metadata, false);
             }
 
             book.Author = dbAuthor;
@@ -141,7 +146,7 @@ namespace NzbDrone.Core.Books
             return addedBooks;
         }
 
-        private Book AddSkyhookData(Book newBook, bool requireSelectedEdition)
+        private Book AddSkyhookData(Book newBook, bool requireSelectedEdition, out bool confirmedNewAuthorSelection)
         {
             var selectedEdition = newBook.GetPreferredEdition();
 
@@ -154,7 +159,9 @@ namespace NzbDrone.Core.Books
             }
 
             var editionId = selectedEdition.ForeignEditionId;
-            var normalizedBookId = OpenLibraryIdNormalizer.NormalizeWorkId(newBook.ForeignBookId);
+            var requestedWork = newBook.ForeignBookId;
+            var requestedOwner = newBook.Author?.Value?.Metadata?.Value?.ForeignAuthorId;
+            var normalizedBookId = OpenLibraryIdNormalizer.NormalizeWorkId(requestedWork);
             var resolvesWorkMarker = requireSelectedEdition &&
                                      IsOpenLibraryToken(normalizedBookId, 'W') &&
                                      string.Equals(newBook.ForeignBookId, $"openlibrary:work:{normalizedBookId}", StringComparison.OrdinalIgnoreCase) &&
@@ -205,6 +212,12 @@ namespace NzbDrone.Core.Books
                 }
             }
 
+            // The resolved marker and a normalized edition alias have already been matched above.
+            // Do not include an edition chosen later by the unselected provider fallback.
+            confirmedNewAuthorSelection = requireSelectedEdition &&
+                                          !string.IsNullOrWhiteSpace(editionId) && editionToMonitor != null &&
+                                          HasConfirmedNewAuthorSelection(requestedWork, requestedOwner, tuple);
+
             newBook.UseMetadataFrom(tuple.Item2);
             if (resolvesWorkMarker)
             {
@@ -233,6 +246,39 @@ namespace NzbDrone.Core.Books
             newBook.AuthorMetadata = metadata;
 
             return newBook;
+        }
+
+        private static bool HasConfirmedNewAuthorSelection(string requestedWork,
+                                                            string requestedOwner,
+                                                            Tuple<string, Book, List<AuthorMetadata>> response)
+        {
+            if (string.IsNullOrWhiteSpace(requestedOwner))
+            {
+                return false;
+            }
+
+            var returnedOwner = response.Item1;
+            var workOwner = response.Item2.AuthorMetadata?.Value?.ForeignAuthorId;
+            var matchingMetadata = response.Item3?.Where(owner => owner?.ForeignAuthorId == returnedOwner).Take(2).ToList();
+            if (matchingMetadata?.Count != 1 || string.IsNullOrWhiteSpace(matchingMetadata[0].Name))
+            {
+                return false;
+            }
+
+            if (requestedWork?.StartsWith("hardcover:work:", StringComparison.Ordinal) == true)
+            {
+                return requestedWork == response.Item2.ForeignBookId &&
+                       requestedOwner == returnedOwner && returnedOwner == workOwner;
+            }
+
+            var work = OpenLibraryIdNormalizer.NormalizeWorkId(requestedWork);
+            var ownerId = OpenLibraryIdNormalizer.NormalizeAuthorId(returnedOwner);
+            return IsOpenLibraryToken(work, 'W') &&
+                   string.Equals(requestedWork, $"openlibrary:work:{work}", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(requestedWork, response.Item2.ForeignBookId, StringComparison.OrdinalIgnoreCase) &&
+                   IsOpenLibraryToken(ownerId, 'A') &&
+                   ownerId == OpenLibraryIdNormalizer.NormalizeAuthorId(requestedOwner) &&
+                   ownerId == OpenLibraryIdNormalizer.NormalizeAuthorId(workOwner);
         }
 
         private static Edition ResolveOpenLibraryWorkEdition(Book request, Tuple<string, Book, List<AuthorMetadata>> response, List<Edition> editions)

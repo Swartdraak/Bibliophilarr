@@ -193,7 +193,7 @@ namespace NzbDrone.Host.Test
             }
         }
 
-        private static IHost BuildHost(string appData, bool useFixtureProvider = true, bool includeAudioEdition = false)
+        private static IHost BuildHost(string appData, bool useFixtureProvider = true, bool includeAudioEdition = false, IMetadataProvider fixtureProvider = null)
         {
             var args = new[] { $"-data={appData}", "-nobrowser", "-nosingleinstancecheck" };
             return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
@@ -220,7 +220,7 @@ namespace NzbDrone.Host.Test
 
                     if (useFixtureProvider)
                     {
-                        registry.RegisterProvider(CreateMetadataProvider(includeAudioEdition));
+                        registry.RegisterProvider(fixtureProvider ?? CreateMetadataProvider(includeAudioEdition));
                     }
                 })
                 .Build();
