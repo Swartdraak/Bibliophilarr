@@ -5,9 +5,9 @@ using Bibliophilarr.Http;
 using Bibliophilarr.Http.Authentication;
 using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
+using NLog;
 using NzbDrone.Common.Crypto;
 using NzbDrone.Common.Disk;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Backup;
 using NzbDrone.Http.REST.Attributes;
@@ -19,18 +19,18 @@ namespace Bibliophilarr.Api.V1.System.Backup
     public class BackupController : Controller
     {
         private readonly IBackupService _backupService;
-        private readonly IAppFolderInfo _appFolderInfo;
         private readonly IDiskProvider _diskProvider;
+        private readonly Logger _logger;
 
         private static readonly List<string> ValidExtensions = new () { ".zip", ".db", ".xml" };
 
         public BackupController(IBackupService backupService,
-                            IAppFolderInfo appFolderInfo,
-                            IDiskProvider diskProvider)
+                            IDiskProvider diskProvider,
+                            Logger logger)
         {
             _backupService = backupService;
-            _appFolderInfo = appFolderInfo;
             _diskProvider = diskProvider;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -112,13 +112,15 @@ namespace Bibliophilarr.Api.V1.System.Backup
                 throw new UnsupportedMediaTypeException($"Invalid extension, must be one of: {ValidExtensions.Join(", ")}");
             }
 
-            var path = Path.Combine(_appFolderInfo.TempFolder, $"bibliophilarr_backup_restore{extension}");
+            using var temporary = new BackupRestoreTemporaryDirectory(_diskProvider, _logger);
+            var path = Path.Combine(temporary.Path, $"backup{extension}");
 
-            _diskProvider.SaveStream(file.OpenReadStream(), path);
+            using (var upload = file.OpenReadStream())
+            {
+                _diskProvider.SaveStream(upload, path);
+            }
+
             _backupService.Restore(path);
-
-            // Cleanup restored file
-            _diskProvider.DeleteFile(path);
 
             return new
             {

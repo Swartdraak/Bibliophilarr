@@ -131,11 +131,11 @@ namespace NzbDrone.Core.Backup
             if (backupFileName.EndsWith(".zip"))
             {
                 var restoredFile = false;
-                var temporaryPath = Path.Combine(_appFolderInfo.TempFolder, "bibliophilarr_backup_restore");
+                using var temporary = new BackupRestoreTemporaryDirectory(_diskProvider, _logger);
 
-                _archiveService.Extract(backupFileName, temporaryPath);
+                _archiveService.Extract(backupFileName, temporary.Path);
 
-                foreach (var file in _diskProvider.GetFiles(temporaryPath, false))
+                foreach (var file in _diskProvider.GetFiles(temporary.Path, false))
                 {
                     var fileName = Path.GetFileName(file);
 
@@ -156,8 +156,6 @@ namespace NzbDrone.Core.Backup
                 {
                     throw new RestoreBackupFailedException(HttpStatusCode.NotFound, "Unable to restore database file from backup");
                 }
-
-                _diskProvider.DeleteFolder(temporaryPath, true);
 
                 return;
             }

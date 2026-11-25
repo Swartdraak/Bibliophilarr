@@ -134,6 +134,8 @@ def free_port():
 @contextmanager
 def running_app(binary, app_data, log_path, port, evidence, credentials, *, tls_ca=None):
     app_data.mkdir(exist_ok=True)
+    temp = app_data / "temp"
+    temp.mkdir(exist_ok=True)
     base = f"http://127.0.0.1:{port}"
     env = {
         name: os.environ[name]
@@ -145,6 +147,7 @@ def running_app(binary, app_data, log_path, port, evidence, credentials, *, tls_
         BIBLIOPHILARR__SERVER__PORT=str(port),
         BIBLIOPHILARR__SERVER__BINDADDRESS="127.0.0.1",
         BIBLIOPHILARR__LOG__ANALYTICSENABLED="false",
+        TMPDIR=str(temp),
     )
     if tls_ca is not None:
         trust_dir = tls_ca.parent / "empty-trust"
@@ -469,7 +472,7 @@ def check_metadata_settings(page, base, api):
     return timeout
 
 
-def check_restore_upload_error(page, api):
+def check_restore_upload_error(page, api, temp):
     status = "/api/v1/system/status"
     initial_start = check_status(api.get(status), 200, "Start time before rejected restore").json()["startTime"]
     nav = page.get_by_role("navigation", name="Primary navigation")
@@ -490,6 +493,7 @@ def check_restore_upload_error(page, api):
     with ZipFile(invalid_zip, "w") as archive:
         archive.writestr("fixture.txt", "No restorable app files in this test archive.")
 
+    earlier_restore_items = set(temp.glob("bibliophilarr_backup_restore*"))
     for name in ("invalid-backup.zip", "different-invalid-backup.zip"):
         chooser.set_input_files({"name": name, "mimeType": "application/zip", "buffer": invalid_zip.getvalue()})
         expect(alert).to_have_count(0)
@@ -501,6 +505,9 @@ def check_restore_upload_error(page, api):
         error = check_status(failed.value, 404, "Reject backup archive without restorable files").json()["message"]
         assert error.strip(), "backup rejection did not explain the failure"
         expect(alert).to_have_text(error)
+        assert set(temp.glob("bibliophilarr_backup_restore*")) == earlier_restore_items, (
+            "rejected restore left temporary upload or extraction artifacts"
+        )
 
     assert check_status(api.get(status), 200, "Start time after rejected restore").json()["startTime"] == initial_start
     dialog.get_by_role("button", name="Cancel", exact=True).click()
@@ -630,9 +637,14 @@ def run(binary, evidence, *, live_provider=None):
             check_routes(page, base, api, evidence)
             timeout = check_metadata_settings(page, base, api)
             exclusions = check_import_list_exclusions(page, base, api, data)
-            check_restore_upload_error(page, api)
+            temp = data / "temp"
+            check_restore_upload_error(page, api, temp)
             catalogue = exercise_catalogue(page, api, base, work, data, live_provider=live_provider)
+            earlier_restore_items = set(temp.glob("bibliophilarr_backup_restore*"))
             backup_witness = exercise_manual_backup(api, data)
+            assert set(temp.glob("bibliophilarr_backup_restore*")) == earlier_restore_items, (
+                "successful restore left temporary extraction artifacts"
+            )
             assert app.poll() is None, "native app exited before the planned restart"
 
         assert app.returncode == 0, "native app did not exit cleanly after SIGTERM"
