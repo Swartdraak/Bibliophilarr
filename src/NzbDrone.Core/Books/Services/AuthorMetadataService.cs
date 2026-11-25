@@ -8,6 +8,7 @@ namespace NzbDrone.Core.Books
         List<AuthorMetadata> Get(IEnumerable<int> ids);
         bool Upsert(AuthorMetadata author);
         bool UpsertMany(List<AuthorMetadata> authors);
+        bool TryFillOpenLibraryProfile(Author author, string sourceId, string overview, MediaCover.MediaCover portrait);
     }
 
     public class AuthorMetadataService : IAuthorMetadataService
@@ -32,6 +33,11 @@ namespace NzbDrone.Core.Books
         public bool UpsertMany(List<AuthorMetadata> authors)
         {
             return _authorMetadataRepository.UpsertMany(authors);
+        }
+
+        public bool TryFillOpenLibraryProfile(Author author, string sourceId, string overview, MediaCover.MediaCover portrait)
+        {
+            return _authorMetadataRepository.TryFillOpenLibraryProfile(author, sourceId, overview, portrait);
         }
     }
 }

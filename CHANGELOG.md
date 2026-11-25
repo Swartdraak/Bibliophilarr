@@ -59,6 +59,9 @@ process.
   can identify the title each control opens.
 - Retry saved, verified Open Library author portraits after the cover host
   becomes available again, within the existing cover retry budget.
+- Fill a missing biography or portrait from a verified Open Library author
+  profile while Hardcover is rate limited. The full bibliography refresh
+  remains pending until its source is available.
 - Hold ambiguous M4B imports when the embedded track title and author-prefixed
   filename agree but the album identifies a different work.
 - When a library scan generates a temporary opposite-format default for a new

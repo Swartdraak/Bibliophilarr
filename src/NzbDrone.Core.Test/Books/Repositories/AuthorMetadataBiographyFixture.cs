@@ -1,8 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
+using Dapper;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Datastore;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.BooksTests.Repositories
@@ -10,6 +13,76 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
     [TestFixture]
     public class AuthorMetadataBiographyFixture : DbTest<AuthorMetadataRepository, AuthorMetadata>
     {
+        [TestCase("blank")]
+        [TestCase("newer-bio")]
+        [TestCase("newer-portrait")]
+        [TestCase("newer-both")]
+        [TestCase("changed-source-evidence")]
+        [TestCase("conflicting-second-source")]
+        public void should_fill_only_currently_missing_profile_fields_for_same_verified_author(string interveningChange)
+        {
+            const string sourceId = "OL123A";
+            const string primaryId = "hardcover:author:123";
+            const string storedDescription = "Current biography";
+            const string existingBanner = "https://example.com/existing-banner.jpg";
+            const string currentPortrait = "https://example.com/primary-portrait.jpg";
+            const string alternatePortrait = "https://covers.openlibrary.org/a/id/123-L.jpg";
+            var prior = Subject.Insert(new AuthorMetadata
+            {
+                ForeignAuthorId = primaryId,
+                Name = "Stored Name",
+                SortName = "stored name",
+                NameLastFirst = "Name, Stored",
+                SortNameLastFirst = "name, stored",
+                TitleSlug = "stored-name",
+                Overview = " \t ",
+                Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Banner, existingBanner) }
+            });
+            var author = Db.Insert(new Author { AuthorMetadataId = prior.Id, Metadata = prior, Path = "/author", CleanName = "storedname" });
+            var identities = Mocker.Resolve<CatalogueIdentityRepository>();
+            identities.TryAddSource(CatalogueEntityKind.Author, prior.Id, "OpenLibrary", sourceId, AuthorCanonicalizationService.BibliographyEvidence).Should().BeTrue();
+
+            var current = Subject.Get(prior.Id);
+            var hasNewerBiography = interveningChange is "newer-bio" or "newer-both";
+            var hasNewerPortrait = interveningChange is "newer-portrait" or "newer-both";
+            current.Name = "Current Name";
+            if (hasNewerBiography)
+            {
+                current.Overview = storedDescription;
+            }
+
+            if (hasNewerPortrait)
+            {
+                current.Images.Add(new MediaCover.MediaCover(MediaCoverTypes.Poster, currentPortrait));
+            }
+
+            Subject.SetFields(current, fields => fields.Name, fields => fields.Overview, fields => fields.Images);
+            if (interveningChange == "changed-source-evidence")
+            {
+                using var connection = Mocker.Resolve<IMainDatabase>().OpenConnection();
+                connection.Execute("""UPDATE "AuthorSourceAssociations" SET "Evidence" = 'legacy-linked-id' WHERE "Provider" = 'OpenLibrary'""");
+            }
+            else if (interveningChange == "conflicting-second-source")
+            {
+                identities.TryAddSource(CatalogueEntityKind.Author, prior.Id, "OpenLibrary", "OL456A", AuthorCanonicalizationService.BibliographyEvidence).Should().BeTrue();
+            }
+
+            var originalSources = identities.GetSources(CatalogueEntityKind.Author, prior.Id);
+            var portrait = new MediaCover.MediaCover(MediaCoverTypes.Poster, alternatePortrait) { SourceProvider = "OpenLibrary", SourceId = sourceId };
+            var invalidSource = interveningChange is "changed-source-evidence" or "conflicting-second-source";
+            var changed = Subject.TryFillOpenLibraryProfile(author, sourceId, " Verified overview ", portrait);
+
+            changed.Should().Be(!invalidSource && (!hasNewerBiography || !hasNewerPortrait));
+            var saved = Subject.Get(prior.Id);
+            saved.Name.Should().Be("Current Name");
+            saved.CanonicalId.Should().Be(prior.CanonicalId);
+            saved.ForeignAuthorId.Should().Be(primaryId);
+            saved.Overview.Should().Be(invalidSource ? prior.Overview : hasNewerBiography ? storedDescription : "Verified overview");
+            var expectedImages = invalidSource ? new[] { existingBanner } : new[] { existingBanner, hasNewerPortrait ? currentPortrait : alternatePortrait };
+            saved.Images.Select(image => image.Url).Should().Equal(expectedImages);
+            identities.GetSources(CatalogueEntityKind.Author, prior.Id).Should().BeEquivalentTo(originalSources);
+        }
+
         [TestCase("hardcover:author:123", "hardcover:author:123", null)]
         [TestCase("hardcover:author:Author%20Name", "hardcover:author:123", null)]
         [TestCase("googlebooks:author:Author%20Name", "googlebooks:author:Author%20Name", null)]

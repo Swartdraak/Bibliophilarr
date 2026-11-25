@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books.Commands;
@@ -37,6 +38,7 @@ namespace NzbDrone.Core.Books
     {
         private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IAuthorService _authorService;
+        private readonly IAuthorMetadataService _authorMetadataService;
         private readonly IBookService _bookService;
         private readonly IEditionService _editionService;
         private readonly IMetadataProfileService _metadataProfileService;
@@ -77,6 +79,7 @@ namespace NzbDrone.Core.Books
         {
             _orchestrator = orchestrator;
             _authorService = authorService;
+            _authorMetadataService = authorMetadataService;
             _bookService = bookService;
             _editionService = editionService;
             _metadataProfileService = metadataProfileService;
@@ -95,8 +98,9 @@ namespace NzbDrone.Core.Books
             _logger = logger;
         }
 
-        private Author GetSkyhookData(string foreignId)
+        private Author GetSkyhookData(Author author)
         {
+            var foreignId = author.ForeignAuthorId;
             try
             {
                 return _orchestrator.GetAuthorInfo(foreignId);
@@ -112,8 +116,58 @@ namespace NzbDrone.Core.Books
             }
             catch (MetadataProviderUnavailableException ex) when (!ex.AuthorBibliographyProgress.HasValue && !ex.AuthoritativeBibliographyMissingWorkTitle)
             {
-                _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
+                if (ex.Operation == MetadataProviderOrchestrator.AuthorInfoOperation && ex.EntityId == foreignId &&
+                    ex.InnerException is TooManyRequestsException { HardcoverCooldownUntilUtc: not null } &&
+                    CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, foreignId, null)?.Provider == "Hardcover")
+                {
+                    TryFillProfileDuringHardcoverCooldown(author);
+                }
+
+                _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing bibliography.", LogSanitizer.Sanitize(foreignId));
                 throw;
+            }
+        }
+
+        private void TryFillProfileDuringHardcoverCooldown(Author author)
+        {
+            const string provider = "OpenLibrary";
+            const CatalogueEntityKind kind = CatalogueEntityKind.Author;
+            try
+            {
+                var incumbent = author.Metadata.Value;
+                if (incumbent.Overview.IsNotNullOrWhiteSpace() && incumbent.Images?.Any(IsPortrait) == true)
+                {
+                    return;
+                }
+
+                var sourceId = GetVerifiedOpenLibraryAuthorId(incumbent, null, author.ForeignAuthorId);
+                if (sourceId == null || _catalogueIdentity.FindByProviderId(kind, provider, sourceId) != incumbent.Id)
+                {
+                    return;
+                }
+
+                var profile = _orchestrator.GetAuthorProfileMetadata(provider, sourceId);
+                if (profile?.ForeignAuthorId != $"openlibrary:author:{sourceId}" ||
+                    OpenLibraryIdNormalizer.NormalizeAuthorId(profile.OpenLibraryAuthorId) != sourceId)
+                {
+                    return;
+                }
+
+                var portrait = profile.Images?.FirstOrDefault(image => IsPortrait(image) && image.SourceProvider == provider &&
+                    OpenLibraryIdNormalizer.NormalizeAuthorId(image.SourceId) == sourceId && OpenLibraryMissingAuthorPortrait.IsValidPortraitUrl(image.Url));
+                if ((profile.Overview.IsNotNullOrWhiteSpace() || portrait != null) &&
+                    _authorMetadataService.TryFillOpenLibraryProfile(author, sourceId, profile.Overview, portrait))
+                {
+                    var current = _authorService.GetAuthor(author.Id);
+                    if (current?.AuthorMetadataId == incumbent.Id)
+                    {
+                        PublishEntityUpdatedEvent(current);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Couldn't fill missing author profile for local author {0} from Open Library.", author.Id);
             }
         }
 
@@ -250,7 +304,7 @@ namespace NzbDrone.Core.Books
             }
 
             var verifiedId = OpenLibraryIdNormalizer.NormalizeAuthorId(sources[0].ProviderId);
-            var existingIds = new[] { incumbent.OpenLibraryAuthorId, incoming.OpenLibraryAuthorId };
+            var existingIds = new[] { incumbent.OpenLibraryAuthorId, incoming?.OpenLibraryAuthorId };
             return verifiedId != null && existingIds.Where(id => id.IsNotNullOrWhiteSpace())
                 .All(id => OpenLibraryIdNormalizer.NormalizeAuthorId(id) == verifiedId) ? verifiedId : null;
         }
@@ -924,7 +978,7 @@ namespace NzbDrone.Core.Books
             {
                 try
                 {
-                    var data = GetSkyhookData(author.ForeignAuthorId);
+                    var data = GetSkyhookData(author);
                     if (data != null)
                     {
                         updated |= RefreshEntityInfo(author, null, data, true, false, null);
@@ -1017,7 +1071,7 @@ namespace NzbDrone.Core.Books
                         try
                         {
                             LogProgress(author);
-                            var data = GetSkyhookData(author.ForeignAuthorId);
+                            var data = GetSkyhookData(author);
                             if (data != null)
                             {
                                 updated |= RefreshEntityInfo(author, null, data, manualTrigger, false, message.LastStartTime);

@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Dapper;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Datastore.Converters;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Messaging.Events;
 
 namespace NzbDrone.Core.Books
@@ -12,10 +15,12 @@ namespace NzbDrone.Core.Books
     {
         List<AuthorMetadata> FindById(List<string> foreignIds);
         bool UpsertMany(List<AuthorMetadata> data);
+        bool TryFillOpenLibraryProfile(Author author, string sourceId, string overview, MediaCover.MediaCover portrait);
     }
 
     public class AuthorMetadataRepository : BasicRepository<AuthorMetadata>, IAuthorMetadataRepository
     {
+        private static readonly EmbeddedDocumentConverter<List<MediaCover.MediaCover>> ImageConverter = new EmbeddedDocumentConverter<List<MediaCover.MediaCover>>();
         private readonly Logger _logger;
 
         public AuthorMetadataRepository(IMainDatabase database, IEventAggregator eventAggregator, Logger logger)
@@ -27,6 +32,74 @@ namespace NzbDrone.Core.Books
         public List<AuthorMetadata> FindById(List<string> foreignIds)
         {
             return Query(x => Enumerable.Contains(foreignIds, x.ForeignAuthorId));
+        }
+
+        public bool TryFillOpenLibraryProfile(Author author, string sourceId, string overview, MediaCover.MediaCover portrait)
+        {
+            var metadata = author?.Metadata?.Value;
+            if (author is not { Id: > 0, AuthorMetadataId: > 0 } || metadata?.Id != author.AuthorMetadataId ||
+                !Guid.TryParseExact(metadata.CanonicalId, "N", out var canonicalId) || canonicalId == Guid.Empty ||
+                CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, metadata.ForeignAuthorId, null)?.Provider != "Hardcover" ||
+                sourceId == null || OpenLibraryMissingAuthorPortrait.NormalizeSourceId(sourceId) != sourceId ||
+                (metadata.OpenLibraryAuthorId.IsNotNullOrWhiteSpace() && OpenLibraryMissingAuthorPortrait.NormalizeSourceId(metadata.OpenLibraryAuthorId) != sourceId))
+            {
+                return false;
+            }
+
+            using var connection = _database.OpenConnection();
+            var existing = connection.QuerySingleOrDefault<(string Overview, string Images)>(
+                """SELECT "Overview", "Images" FROM "AuthorMetadata" WHERE "Id" = @Id""", new { metadata.Id });
+            var images = (existing.Images == null ? null : ImageConverter.Parse(existing.Images)) ?? new List<MediaCover.MediaCover>();
+            var fillOverview = existing.Overview.IsNullOrWhiteSpace() && overview.IsNotNullOrWhiteSpace();
+            var fillPortrait = portrait != null && !images.Any(image => image?.CoverType == MediaCoverTypes.Poster && image.Url.IsNotNullOrWhiteSpace());
+            if (!fillOverview && !fillPortrait)
+            {
+                return false;
+            }
+
+            if (fillPortrait)
+            {
+                images.Add(portrait);
+            }
+
+            // Compare only fields we mean to fill. An author refresh may have finished while the profile was in flight.
+            return connection.Execute(
+                """
+                UPDATE "AuthorMetadata"
+                   SET "Overview" = CASE WHEN @fillOverview AND "Overview" IS NOT DISTINCT FROM @previousOverview THEN @overview ELSE "Overview" END,
+                       "Images" = CASE WHEN @fillPortrait AND "Images" IS NOT DISTINCT FROM @previousImages THEN @images ELSE "Images" END
+                 WHERE "Id" = @Id AND "CanonicalId" = @CanonicalId AND "ForeignAuthorId" = @ForeignAuthorId
+                   AND (@fillOverview AND "Overview" IS NOT DISTINCT FROM @previousOverview OR @fillPortrait AND "Images" IS NOT DISTINCT FROM @previousImages)
+                   AND ("OpenLibraryAuthorId" IS NULL OR "OpenLibraryAuthorId" = @previousOpenLibraryId)
+                   AND EXISTS (
+                       SELECT 1 FROM "Authors" a WHERE a."Id" = @authorId AND a."AuthorMetadataId" = @Id
+                   )
+                   AND EXISTS (
+                       SELECT 1 FROM "AuthorSourceAssociations" s
+                        WHERE s."AuthorMetadataId" = @Id AND s."Provider" = 'OpenLibrary' AND s."ProviderId" = @sourceId
+                          AND s."Evidence" = @evidence
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM "AuthorSourceAssociations" s
+                        WHERE s."AuthorMetadataId" = @Id AND s."Provider" = 'OpenLibrary' AND s."ProviderId" <> @sourceId
+                   )
+                """,
+                new
+                {
+                    metadata.Id,
+                    metadata.CanonicalId,
+                    metadata.ForeignAuthorId,
+                    authorId = author.Id,
+                    sourceId,
+                    evidence = AuthorCanonicalizationService.BibliographyEvidence,
+                    previousOpenLibraryId = metadata.OpenLibraryAuthorId,
+                    fillOverview,
+                    fillPortrait,
+                    overview = overview?.Trim(),
+                    images,
+                    previousOverview = existing.Overview,
+                    previousImages = existing.Images
+                }) == 1;
         }
 
         public bool UpsertMany(List<AuthorMetadata> data)
