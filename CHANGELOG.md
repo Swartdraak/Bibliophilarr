@@ -19,10 +19,14 @@ process.
 - Report catalogue checks, import rules, and saving scan results as separate
   stages. Count releases after their matching work has finished.
 - Show kept ebooks and audiobooks in Unmapped Files after deleting their book or author.
+- Remove tracked files when explicitly deleting their book and report failures
+  before removing the book from the catalogue.
 - Keep the order set by dragging Delay Profiles and apply the new priority
   to matching releases immediately.
 - Remove an author's format profiles when deleting that author.
 - Open System Events details from the keyboard and return focus after closing.
+- Open Interactive Search format scores and rejection reasons with the
+  keyboard or a touch tap.
 - Recognize editions labeled Audio as audiobooks when matching library files.
 - Follow verified Open Library ISBN redirects and continue the work ID backfill
   when an ISBN lookup returns no match.

@@ -1,3 +1,18 @@
+.trigger {
+  composes: link from '~Components/Link/Link.css';
+
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 4px;
+  text-align: center;
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--sidebarActiveColor);
+    outline-offset: -2px;
+  }
+}
+
 .tooltipContainer {
   z-index: $popperZIndex;
   margin: 10px;

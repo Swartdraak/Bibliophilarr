@@ -139,6 +139,7 @@ class InteractiveSearchRow extends Component {
       timeFormat,
       grabError
     } = this.props;
+    const score = formatCustomFormatScore(customFormatScore, customFormats.length);
 
     return (
       <TableRow>
@@ -187,9 +188,8 @@ class InteractiveSearchRow extends Component {
 
         <TableRowCell className={styles.customFormatScore}>
           <Tooltip
-            anchor={
-              formatCustomFormatScore(customFormatScore, customFormats.length)
-            }
+            anchor={score}
+            triggerLabel={customFormats.length ? translate('ViewCustomFormatScoreDetails', { score }) : undefined}
             tooltip={<BookFormats formats={customFormats} />}
             position={tooltipPositions.LEFT}
           />
@@ -217,6 +217,7 @@ class InteractiveSearchRow extends Component {
                   />
                 }
                 title={translate('ReleaseRejected')}
+                triggerLabel={translate('ViewReleaseRejectionReasons')}
                 body={
                   <ul>
                     {
