@@ -9,6 +9,8 @@ process.
 
 ### Added
 
+- Link to the stable release manifest and checksums from Updates when both are
+  available for manual verification.
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
 - A book-search command can target a single monitored format that is still
