@@ -322,6 +322,9 @@ process.
 - Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
 
 - Sanitize book identifiers and titles in Add Book and import-list logs.
+- Use normalized titles, status and client information in torrent and Usenet
+  download-client messages. Omit raw download URLs from those messages and from
+  their HTTP transport and manual Grab failure logs.
 
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.

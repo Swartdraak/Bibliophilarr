@@ -83,7 +83,14 @@ namespace NzbDrone.Common.Http
                     request.Url += new HttpUri(response.Headers.GetSingleValue("Location"));
                     autoRedirectChain.Add(request.Url.ToString());
 
-                    _logger.Trace("Redirected to {0}", request.Url);
+                    if (request.OmitSensitiveDiagnostics)
+                    {
+                        _logger.Trace("Following HTTP redirect ({0}).", (int)response.StatusCode);
+                    }
+                    else
+                    {
+                        _logger.Trace("Redirected to {0}", request.Url);
+                    }
 
                     if (autoRedirectChain.Count > MaxRedirects)
                     {
@@ -105,7 +112,14 @@ namespace NzbDrone.Common.Http
 
             if (response.HasHttpRedirect && !request.AllowAutoRedirect)
             {
-                _logger.Debug("Server requested a redirect to [{0}] with automatic redirects disabled for [{1}].", response.Headers["Location"], request.Url);
+                if (request.OmitSensitiveDiagnostics)
+                {
+                    _logger.Debug("HTTP redirect ({0}) received with automatic redirects disabled.", (int)response.StatusCode);
+                }
+                else
+                {
+                    _logger.Debug("Server requested a redirect to [{0}] with automatic redirects disabled for [{1}].", response.Headers["Location"], request.Url);
+                }
             }
 
             if (!request.SuppressHttpError && response.HasHttpError && (request.SuppressHttpErrorStatusCodes == null || !request.SuppressHttpErrorStatusCodes.Contains(response.StatusCode)))
@@ -118,7 +132,14 @@ namespace NzbDrone.Common.Http
                     }
                     else
                     {
-                        _logger.Warn("HTTP Error - {0}", response);
+                        if (request.OmitSensitiveDiagnostics)
+                        {
+                            _logger.Warn("HTTP request failed (HTTP {0}).", (int)response.StatusCode);
+                        }
+                        else
+                        {
+                            _logger.Warn("HTTP Error - {0}", response);
+                        }
                     }
                 }
 
@@ -178,7 +199,7 @@ namespace NzbDrone.Common.Http
                 response = interceptor.PostResponse(response);
             }
 
-            if (request.LogResponseContent && !response.OmitContentFromDiagnostics && response.ResponseData != null)
+            if (request.LogResponseContent && !request.OmitSensitiveDiagnostics && !response.OmitContentFromDiagnostics && response.ResponseData != null)
             {
                 _logger.Trace("Response content ({0} bytes): {1}", response.ResponseData.Length, response.Content);
             }
@@ -193,7 +214,14 @@ namespace NzbDrone.Common.Http
                 await _rateLimitService.WaitAndPulseAsync(request.Url.Host, request.RateLimitKey, request.RateLimit);
             }
 
-            _logger.Trace(request);
+            if (request.OmitSensitiveDiagnostics)
+            {
+                _logger.Trace("Sending HTTP {0} request.", request.Method);
+            }
+            else
+            {
+                _logger.Trace(request);
+            }
 
             var stopWatch = Stopwatch.StartNew();
             var response = await _httpDispatcher.GetResponseAsync(request, cookieContainer);
@@ -205,7 +233,15 @@ namespace NzbDrone.Common.Http
             HandleResponseCookies(response, cookieContainer);
 
             stopWatch.Stop();
-            _logger.Trace("{0} ({1} ms)", response, stopWatch.ElapsedMilliseconds);
+            if (request.OmitSensitiveDiagnostics)
+            {
+                _logger.Trace("HTTP {0} ({1} bytes, {2} ms).", (int)response.StatusCode, response.ResponseData?.Length ?? 0, stopWatch.ElapsedMilliseconds);
+            }
+            else
+            {
+                _logger.Trace("{0} ({1} ms)", response, stopWatch.ElapsedMilliseconds);
+            }
+
             return response;
         }
 
@@ -268,7 +304,7 @@ namespace NzbDrone.Common.Http
                 return;
             }
 
-            AddCookiesToContainer(response.Request.Url, cookieHeaders, container);
+            AddCookiesToContainer(response.Request, cookieHeaders, container);
 
             if (response.Request.StoreResponseCookie)
             {
@@ -276,22 +312,29 @@ namespace NzbDrone.Common.Http
                 {
                     var persistentCookieContainer = _cookieContainerCache.Get("container", () => new CookieContainer());
 
-                    AddCookiesToContainer(response.Request.Url, cookieHeaders, persistentCookieContainer);
+                    AddCookiesToContainer(response.Request, cookieHeaders, persistentCookieContainer);
                 }
             }
         }
 
-        private void AddCookiesToContainer(HttpUri url, string[] cookieHeaders, CookieContainer container)
+        private void AddCookiesToContainer(HttpRequest request, string[] cookieHeaders, CookieContainer container)
         {
             foreach (var cookieHeader in cookieHeaders)
             {
                 try
                 {
-                    container.SetCookies((Uri)url, cookieHeader);
+                    container.SetCookies((Uri)request.Url, cookieHeader);
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, "Invalid cookie in {0}", url);
+                    if (request.OmitSensitiveDiagnostics)
+                    {
+                        _logger.Debug("Ignoring invalid HTTP response cookie.");
+                    }
+                    else
+                    {
+                        _logger.Debug(ex, "Invalid cookie in {0}", request.Url);
+                    }
                 }
             }
         }
