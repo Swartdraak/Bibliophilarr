@@ -4,13 +4,16 @@ using System.IO;
 using System.Net;
 using FluentAssertions;
 using Moq;
+using NLog;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Test.Framework;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -19,10 +22,33 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace NzbDrone.Core.Test.MediaCoverTests
 {
     [TestFixture]
+    [NonParallelizable]
     public class RecoverOpenLibraryBookCoverCacheFixture : CoreTest<MediaCoverService>
     {
-        [Test]
-        public void should_keep_the_current_recovered_file_and_discard_stale_files_after_an_author_refresh()
+        private readonly FixtureClock _clock = new FixtureClock();
+
+        [TestCase(WebExceptionStatus.Timeout)]
+        [TestCase(WebExceptionStatus.ReceiveFailure)]
+        public void should_defer_cover_recovery_after_a_transport_timeout(WebExceptionStatus status)
+        {
+            const string coverUrl = "https://covers.openlibrary.org/b/id/41-L.jpg";
+            var suffix = OpenLibraryMissingBookCover.GetRetryFileSuffix("openlibrary:work:OL41W", "OL-work-OL41W", coverUrl);
+            var cause = status == WebExceptionStatus.ReceiveFailure ? new OperationCanceledException() : null;
+            var transport = new WebException("Fixture transport deadline", cause, status, null);
+            Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(TempFolder);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Throws(transport);
+
+            var cache = (IOpenLibraryBookCoverCache)CreateTimedService();
+
+            cache.TryRecover(4, coverUrl, suffix, () => true, TimeSpan.FromSeconds(5))
+                .Should().Be(OpenLibraryCoverRecovery.DeferredAfterRequest);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_keep_only_the_current_nonempty_retry_file_after_an_author_refresh(bool populated)
         {
             var profile = TempFolder;
             Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(profile);
@@ -39,24 +65,25 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<ICoverExistsSpecification>().Setup(service => service.AlreadyExists(It.IsAny<DateTime?>(), It.IsAny<long?>(), It.IsAny<string>()))
                 .Returns(true);
 
+            var subject = CreateTimedService();
             const int bookId = 4;
             const string workId = "openlibrary:work:OL31W";
             const string editionId = "OL-work-OL31W";
             const string coverUrl = "https://covers.openlibrary.org/b/id/31-L.jpg";
             const string staleUrl = "https://covers.openlibrary.org/b/id/32-L.jpg";
-            var current = Subject.GetCoverPath(
+            var current = subject.GetCoverPath(
                 bookId,
                 MediaCoverEntity.Book,
                 MediaCoverTypes.Cover,
                 OpenLibraryMissingBookCover.GetRetryFileSuffix(workId, editionId, coverUrl));
-            var stale = Subject.GetCoverPath(
+            var stale = subject.GetCoverPath(
                 bookId,
                 MediaCoverEntity.Book,
                 MediaCoverTypes.Cover,
                 OpenLibraryMissingBookCover.GetRetryFileSuffix(workId, editionId, staleUrl));
-            var normal = Subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg");
+            var normal = subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg");
             Directory.CreateDirectory(Path.GetDirectoryName(current));
-            File.WriteAllText(current, "current artwork");
+            File.WriteAllText(current, populated ? "current artwork" : string.Empty);
             File.WriteAllText(stale, "stale artwork");
             File.WriteAllText(normal, "existing normal artwork");
 
@@ -73,9 +100,13 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var book = new Book { Id = bookId, ForeignBookId = workId, Editions = new List<Edition> { edition } };
             Mocker.GetMock<IBookService>().Setup(service => service.GetBooksByAuthor(author.Id)).Returns(new List<Book> { book });
 
-            Subject.HandleAsync(new AuthorRefreshCompleteEvent(author));
+            subject.HandleAsync(new AuthorRefreshCompleteEvent(author));
 
-            File.ReadAllText(current).Should().Be("current artwork");
+            File.Exists(current).Should().Be(populated);
+            if (populated)
+            {
+                File.ReadAllText(current).Should().Be("current artwork");
+            }
             File.Exists(stale).Should().BeFalse();
             File.ReadAllText(normal).Should().Be("existing normal artwork");
             http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Headers["Range"] == "bytes=0-0")), Times.Once);
@@ -116,19 +147,20 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 return new HttpResponse(request, new HttpHeader(), Array.Empty<byte>(), HttpStatusCode.OK);
             });
 
-            var cache = (IOpenLibraryBookCoverCache)Subject;
+            var subject = CreateTimedService();
+            var cache = (IOpenLibraryBookCoverCache)subject;
             var observations = 0;
             cache.TryRecover(bookId, changedUrl, changed, () => ++observations == 1, TimeSpan.FromSeconds(5))
                 .Should().Be(OpenLibraryCoverRecovery.Skipped);
-            File.Exists(Subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, changed)).Should().BeFalse();
+            File.Exists(subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, changed)).Should().BeFalse();
             cache.TryRecover(bookId, placeholderUrl, placeholder, () => true, TimeSpan.FromSeconds(5))
                 .Should().Be(OpenLibraryCoverRecovery.Unavailable);
-            File.Exists(Subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, placeholder)).Should().BeFalse();
+            File.Exists(subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, placeholder)).Should().BeFalse();
 
             cache.TryRecover(bookId, originalUrl, original, () => true, TimeSpan.FromSeconds(5))
                 .Should().Be(OpenLibraryCoverRecovery.Recovered);
             cache.IsMissing(bookId, original).Should().BeFalse();
-            var cached = Subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, original);
+            var cached = subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, original);
             using (var image = Image.Load(cached))
             {
                 image.Width.Should().Be(12);
@@ -144,24 +176,52 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             };
             var book = new Book { Id = bookId, ForeignBookId = workId, Editions = new List<Edition> { edition } };
             var art = new MediaCover.MediaCover(MediaCoverTypes.Cover, "proxy") { RemoteUrl = originalUrl };
-            Subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
+            subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
             art.Url.Should().StartWith($"/MediaCover/Books/{bookId}/cover{original}?lastWrite=");
             art.Url = "fallback";
             edition.ForeignEditionId = "openlibrary:edition:OL99M";
-            Subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
+            subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
             edition.ForeignEditionId = editionId;
             art.Url.Should().Be("fallback");
 
-            var normal = Subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg");
+            var normal = subject.GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg");
             File.WriteAllText(normal, "ordinary cover sentinel");
             cache.TryRecover(bookId, changedUrl, changed, () => true, TimeSpan.FromSeconds(5))
                 .Should().Be(OpenLibraryCoverRecovery.Skipped);
-            Subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
+            subject.MapRecoveredBookCover(book, new List<MediaCover.MediaCover> { art });
             art.Url.Should().Be("fallback");
             File.ReadAllText(normal).Should().Be("ordinary cover sentinel");
             Directory.EnumerateFiles(Path.Combine(profile, "MediaCoverRetry")).Should().BeEmpty();
             http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(3));
             http.VerifyNoOtherCalls();
+        }
+
+        private MediaCoverService CreateTimedService()
+        {
+            // Requests to the exact Open Library host share a process-wide bucket.
+            // Refill it between independent test cases without waiting for wall time.
+            _clock.UtcNow = _clock.UtcNow.AddSeconds(3);
+            return new MediaCoverService(
+                Mocker.Resolve<IMediaCoverProxy>(),
+                Mocker.Resolve<IImageResizer>(),
+                Mocker.Resolve<IBookService>(),
+                Mocker.Resolve<IAuthorRepository>(),
+                Mocker.Resolve<IHttpClient>(),
+                Mocker.Resolve<IDiskProvider>(),
+                Mocker.Resolve<IAppFolderInfo>(),
+                Mocker.Resolve<ICoverExistsSpecification>(),
+                Mocker.Resolve<IConfigFileProvider>(),
+                Mocker.Resolve<IEventAggregator>(),
+                Mocker.Resolve<Logger>(),
+                _clock,
+                Mocker.Resolve<ICatalogueIdentityRepository>());
+        }
+
+        private sealed class FixtureClock : TimeProvider
+        {
+            public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.UtcNow;
+
+            public override DateTimeOffset GetUtcNow() => UtcNow;
         }
     }
 }
