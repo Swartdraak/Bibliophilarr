@@ -126,6 +126,10 @@ const replaceExistingFilesOptions = {
   DELETE: 'delete'
 };
 
+function hasBlockedPreview({ isReprocessing, selectionRejection }) {
+  return isReprocessing || !!selectionRejection;
+}
+
 class InteractiveImportModalContent extends Component {
 
   //
@@ -218,10 +222,15 @@ class InteractiveImportModalContent extends Component {
       downloadId,
       showImportMode,
       importMode,
+      items,
       onImportSelectedPress
     } = this.props;
 
     const selected = this.getSelectedIds();
+    if (items.some((item) => selected.includes(item.id) && hasBlockedPreview(item))) {
+      return;
+    }
+
     const finalImportMode = downloadId || !showImportMode ? 'auto' : importMode;
 
     onImportSelectedPress(selected, finalImportMode);
@@ -321,7 +330,11 @@ class InteractiveImportModalContent extends Component {
 
     const selectedIds = this.getSelectedIds();
     const selectedIdSet = new Set(selectedIds);
-    const inconsistentBookReleases = hasConflictingEditions(items.filter(({ id }) => selectedIdSet.has(id)));
+    const selectedItems = items.filter(({ id }) => selectedIdSet.has(id));
+    const inconsistentBookReleases = hasConflictingEditions(selectedItems);
+    const hasBlockedSelection = selectedItems.some(hasBlockedPreview);
+    const selectionRejection = selectedItems.find((item) => item.selectionRejection)?.selectionRejection;
+    const importErrorMessage = selectionRejection || interactiveImportErrorMessage;
     const selectedItem = selectedIds.length ? _.find(items, { id: selectedIds[0] }) : null;
     const importIdsByBook = _.chain(items).filter((x) => x.book).groupBy((x) => x.book.id).mapValues((x) => x.map((y) => y.id)).value();
     const editions = _.chain(items).filter((x) => x.book).keyBy((x) => x.book.id).mapValues((x) => ({ matchedEditionId: x.foreignEditionId, book: x.book })).values().value();
@@ -503,13 +516,13 @@ class InteractiveImportModalContent extends Component {
             </Button>
 
             {
-              interactiveImportErrorMessage &&
-                <span className={styles.errorMessage}>{interactiveImportErrorMessage}</span>
+              importErrorMessage &&
+                <span className={styles.errorMessage} role="status">{importErrorMessage}</span>
             }
 
             <Button
               kind={kinds.SUCCESS}
-              isDisabled={isSaving || !selectedIds.length || !!invalidRowsSelected.length || inconsistentBookReleases}
+              isDisabled={isSaving || !selectedIds.length || !!invalidRowsSelected.length || inconsistentBookReleases || hasBlockedSelection}
               onPress={this.onImportSelectedPress}
             >
               Import
