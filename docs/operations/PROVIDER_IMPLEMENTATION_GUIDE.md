@@ -737,15 +737,13 @@ public class MinimalProvider : ISearchForNewBookV2
 
 ## Current Provider Search Paths
 
-### Open Library primary search
+### Open Library search
 
-The primary in-app search path in `BookInfoProxy` now uses Open Library first for general title/author queries.
-
-- Client: `OpenLibrarySearchProxy` (`https://openlibrary.org/search.json`)
-- Behavior:
-    - Executes query-driven search (`q`, `limit=10`) and maps docs to `Book`/`Edition` candidates.
-    - Part of fallback chain: Hardcover (primary) → OpenLibrary → Inventaire → Google Books.
-    - Does not require API keys for baseline usage.
+The Add New API sends queries through `MetadataProviderOrchestrator` to the
+configured providers. `OpenLibraryProvider` uses Open Library's `search.json`
+endpoint for title and author searches, and `OpenLibraryMapper` maps the results.
+The provider also supports exact work and edition lookups. Open Library search
+works without an API key.
 
 ### Fallback providers
 
