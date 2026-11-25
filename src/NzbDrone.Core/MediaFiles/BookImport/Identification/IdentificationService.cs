@@ -319,7 +319,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             if (!seenCandidate)
             {
-                if (providerIdentityConflict != null && !providerAuthorUnavailable && !config.NewDownload &&
+                if (localBookRelease.IdentificationHoldReason != LibraryImportHoldReason.ConflictingIdentity &&
+                    providerIdentityConflict != null && !providerAuthorUnavailable && !config.NewDownload &&
                     idOverrides.Author == null && idOverrides.Book == null && idOverrides.Edition == null)
                 {
                     localBookRelease.IdentificationHoldReason = LibraryImportHoldReason.ProviderIdentityConflict;

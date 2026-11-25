@@ -128,11 +128,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             var retryEditionIds = audiobookPartRetries.Keys.Where(decision => decision.Approved)
                 .Select(decision => decision.Item.Edition.Id).ToHashSet();
-            var comparisonFiles = decisions.Where(decision => decision.Approved && decision.Item.IsLibraryScan &&
+            var skippedImports = decisions.Where(decision => decision.Approved && decision.Item.IsLibraryScan &&
                 decision.Item.ExistingFile && decision.Item.AdditionalFile && retryEditionIds.Contains(decision.Item.Edition.Id)).ToHashSet();
-            importResults.AddRange(comparisonFiles.Select(decision => new ImportResult(decision, "The linked audiobook file was used for comparison during a part retry")));
+            importResults.AddRange(skippedImports.Select(decision => new ImportResult(decision, "The linked audiobook file was used for comparison during a part retry")));
 
-            var bookDecisions = decisions.Where(e => e.Approved && !audiobookPartRetries.ContainsKey(e) && !comparisonFiles.Contains(e))
+            var bookDecisions = decisions.Where(e => e.Approved && !audiobookPartRetries.ContainsKey(e) && !skippedImports.Contains(e))
                 .GroupBy(e => new
                 {
                     ForeignBookId = e.Item.Book.ForeignBookId,
@@ -157,6 +157,25 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     Book book = null;
                     if (transientSummary)
                     {
+                        if (!replaceExisting)
+                        {
+                            foreach (var decision in decisionList)
+                            {
+                                var trackedFile = GetTrackedFileToPreserve(decision.Item);
+                                if (trackedFile != null)
+                                {
+                                    skippedImports.Add(decision);
+                                    importResults.Add(PreserveExistingFile(decision, trackedFile));
+                                }
+                            }
+
+                            decisionList = decisionList.Where(decision => !skippedImports.Contains(decision)).ToList();
+                            if (decisionList.Count == 0)
+                            {
+                                continue;
+                            }
+                        }
+
                         book = ResolveInventaireSummaryOwner(decisionList, bookDecision.FileFormat);
                     }
                     else if (EnsureAuthorAdded(decisionList, addedAuthors, unavailableBibliographies) != null)
@@ -225,7 +244,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 }
             }
 
-            var qualifiedImports = decisions.Where(c => c.Approved && !comparisonFiles.Contains(c))
+            var qualifiedImports = decisions.Where(c => c.Approved && !skippedImports.Contains(c))
                 .GroupBy(c => c.Item.Author.Id, (i, s) => s
                          .OrderByDescending(c => c.Item.Quality, new QualityModelComparer(s.First().Item.Author.QualityProfile))
                          .ThenByDescending(c => c.Item.Size))
@@ -306,18 +325,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                 continue;
                             }
 
-                            var preservedId = previousFile.Id;
-                            _logger.ProgressInfo(
-                                "Skipping duplicate import of {0} for {1}: existing book file {2} is preserved (replaceExistingFiles=false)",
-                                localTrack.Path,
-                                localTrack.Book,
-                                preservedId);
-
-                            importResults.Add(ImportResult.ExistingFilePreserved(
-                                importDecision,
-                                preservedId,
-                                $"Skipped: file already imported as book file {previousFile.Id} (original record preserved, replaceExistingFiles=false)"));
-
+                            importResults.Add(PreserveExistingFile(importDecision, previousFile));
                             continue;
                         }
                     }
@@ -982,6 +990,34 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return new FileEditionIdentity(
                 tags?.AsinConfidence >= 0.9 && asin?.Length == 10 && asin.All(char.IsAsciiLetterOrDigit) ? asin.ToUpperInvariant() : null,
                 tags?.IsbnConfidence >= 0.9 ? Isbn.AsIsbn13(tags.Isbn) : null);
+        }
+
+        private BookFile GetTrackedFileToPreserve(LocalBook localFile)
+        {
+            var file = _mediaFileService.GetFileWithPath(localFile.Path.CleanFilePath());
+            if (file is not { Id: > 0, EditionId: > 0 })
+            {
+                return null;
+            }
+
+            var edition = file.Edition?.Value;
+            return edition?.Id == file.EditionId && edition.BookId == localFile.Book.Id && ImportFormat.NeedsDigitalEdition(edition)
+                ? null
+                : file;
+        }
+
+        private ImportResult PreserveExistingFile(ImportDecision<LocalBook> decision, BookFile file)
+        {
+            _logger.ProgressInfo(
+                "Skipping duplicate import of {0} for {1}: existing book file {2} is preserved (replaceExistingFiles=false)",
+                decision.Item.Path,
+                decision.Item.Book,
+                file.Id);
+
+            return ImportResult.ExistingFilePreserved(
+                decision,
+                file.Id,
+                $"Skipped: file already imported as book file {file.Id} (original record preserved, replaceExistingFiles=false)");
         }
 
         private Book ResolveInventaireSummaryOwner(List<ImportDecision<LocalBook>> decisions, FormatType? format)

@@ -717,6 +717,47 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                 laterMatch ? Times.Never() : Times.AtLeastOnce());
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_preserve_inventaire_ambiguity_after_rejecting_a_primary_candidate(bool precedingMismatch)
+        {
+            const string title = "Fixture Series Book 2";
+            _config.NewDownload = false;
+            _config.KeepAllEditions = true;
+            _config.Filter = FilterFilesType.Matched;
+            var tracks = CreateRetryTracks(title, "Test Author - " + title);
+            tracks[0].FileTrackInfo.AuthorConfidence = 0.98;
+            Mocker.GetMock<IAuthorService>()
+                .Setup(service => service.GetCandidates(It.IsAny<string>())).Returns(new List<Author>());
+            Mocker.GetMock<IMediaFileService>()
+                .Setup(service => service.GetFileWithPath(It.IsAny<List<string>>())).Returns(new List<BookFile>());
+
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(service => service.SearchForNewBook(It.IsAny<string>(), It.IsAny<string>(), true))
+                .Returns(precedingMismatch ? new List<Book> { RemoteWork("Fixture Series Book 1") } : new List<Book>());
+
+            var inventaire = new Mock<IBookSearchFallbackProvider>();
+            inventaire.SetupGet(provider => provider.ProviderName).Returns("Inventaire");
+            inventaire.SetupGet(provider => provider.IsFallbackEnabled).Returns(true);
+            Mocker.SetConstant<IEnumerable<IBookSearchFallbackProvider>>(new[] { inventaire.Object });
+
+            var first = RemoteWork(title);
+            first.ForeignBookId = "inventaire:work:wd:Q81001";
+            var second = RemoteWork(title);
+            second.ForeignBookId = "inventaire:work:wd:Q81002";
+            var fallback = Mocker.GetMock<IBookSearchFallbackExecutionService>();
+            fallback.Setup(service => service.Search(inventaire.Object, title, "Test Author"))
+                .Returns(new List<Book> { first, second });
+            Mocker.SetConstant<ICandidateService>(Mocker.Resolve<CandidateService>());
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            fallback.Verify(service => service.Search(inventaire.Object, title, "Test Author"), Times.Once());
+            release.Edition.Should().BeNull();
+            release.IdentificationHoldReason.Should().Be(LibraryImportHoldReason.ConflictingIdentity);
+            release.ProviderIdentityConflictDetail.Should().Be("More than one Inventaire work matches the exact title and author.");
+        }
+
         [Test]
         public void should_leave_author_policy_distinct_when_an_identity_compatible_provider_result_has_no_local_author()
         {

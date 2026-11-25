@@ -641,9 +641,10 @@ namespace NzbDrone.Core.Test.MediaFiles
             _approvedDecisions[0].Item.Edition.Should().BeSameAs(edition);
         }
 
-        [TestCase(true)]
-        [TestCase(false)]
-        public void should_link_local_audiobook_and_keep_the_historical_inventaire_ebook(bool currentAlias)
+        [TestCase(true, false)]
+        [TestCase(false, false)]
+        [TestCase(true, true)]
+        public void should_link_local_audiobook_and_keep_the_historical_inventaire_ebook(bool currentAlias, bool alreadyLinked)
         {
             const string sourceWorkId = "wd:Q912001";
             const string legacyEditionId = "inventaire:edition:" + sourceWorkId;
@@ -685,6 +686,18 @@ namespace NzbDrone.Core.Test.MediaFiles
             var media = Mocker.GetMock<IMediaFileService>();
             var legacyFile = new BookFile { Id = 72, Path = ebook.Item.Path, EditionId = _ebookEdition.Id };
             media.Setup(service => service.GetFileWithPath(ebook.Item.Path)).Returns(legacyFile);
+            var linkedAudio = new BookFile
+            {
+                Id = 73,
+                Path = audiobook.Item.Path,
+                EditionId = 74,
+                Edition = new Edition { Id = 74, BookId = _book.Id + 1, IsEbook = false, Format = "Audiobook" }
+            };
+            if (alreadyLinked)
+            {
+                media.Setup(service => service.GetFileWithPath(audiobook.Item.Path)).Returns(linkedAudio);
+            }
+
             media.Setup(service => service.GetUnmappedFiles()).Returns(new List<BookFile>());
             var inserted = GivenLocalDigitalEditionStorage();
             var editions = Mocker.GetMock<IEditionService>();
@@ -700,6 +713,16 @@ namespace NzbDrone.Core.Test.MediaFiles
                 audiobook.Rejections.Should().Contain(rejection => rejection.HoldReason == LibraryImportHoldReason.ConflictingIdentity);
                 inserted.Should().BeEmpty();
                 legacyFile.EditionId.Should().Be(_ebookEdition.Id);
+                media.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+                return;
+            }
+
+            if (alreadyLinked)
+            {
+                results.Should().ContainSingle(result => result.ImportDecision == audiobook && result.Result == ImportResultType.Skipped);
+                linkedAudio.EditionId.Should().Be(74);
+                inserted.Should().BeEmpty();
+                editions.Verify(service => service.SetMonitoredByFormat(It.Is<Edition>(edition => !edition.IsEbook)), Times.Never());
                 media.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
                 return;
             }
