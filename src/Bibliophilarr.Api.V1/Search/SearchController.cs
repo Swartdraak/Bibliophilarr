@@ -203,6 +203,8 @@ namespace Bibliophilarr.Api.V1.Search
 
                     if (bookAuthor != null)
                     {
+                        var authorIdentity = GetSearchIdentity(bookAuthor, out var hasVerifiedAuthorSource);
+                        resource.Book.Author.AuthorMetadataId = hasVerifiedAuthorSource ? authorIdentity?.OwnerId ?? 0 : 0;
                         resource.Book.Author.Folder = _fileNameBuilder.GetAuthorFolder(bookAuthor);
                     }
                 }

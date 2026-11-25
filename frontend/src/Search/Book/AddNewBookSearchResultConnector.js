@@ -6,14 +6,15 @@ import AddNewBookSearchResult from './AddNewBookSearchResult';
 
 function createExistingAuthorForBookSelector() {
   return createSelector(
+    (state, { author }) => author?.authorMetadataId,
     (state, { author }) => author?.foreignAuthorId,
     (state) => state.authors.items,
-    (foreignAuthorId, authors) => {
-      if (!foreignAuthorId) {
-        return false;
+    (authorMetadataId, foreignAuthorId, authors) => {
+      if (authorMetadataId > 0) {
+        return authors.some((author) => author.authorMetadataId === authorMetadataId);
       }
 
-      return authors.some((a) => a.foreignAuthorId === foreignAuthorId);
+      return !!foreignAuthorId && authors.some((author) => author.foreignAuthorId === foreignAuthorId);
     }
   );
 }

@@ -106,6 +106,52 @@ namespace NzbDrone.Api.Test.Search
                 "hardcover:series:42");
         }
 
+        [Test]
+        public void should_report_only_verified_existing_author_metadata_for_book_search_results()
+        {
+            const string storedCanonicalAuthor = "a0e693a449884a6981ff7a7f9f855a00";
+            var authorAlias = SearchAuthor("openlibrary:author:OL300A");
+            var namesake = SearchAuthor("openlibrary:author:OL301A");
+            var disputed = SearchAuthor("openlibrary:author:OL302A");
+            disputed.Metadata.Value.CanonicalId = storedCanonicalAuthor;
+
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL300A")).Returns(17);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL302A")).Returns(19);
+            identity.Setup(repository => repository.FindByRoute(CatalogueEntityKind.Author, storedCanonicalAuthor)).Returns(17);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL402W")).Returns(82);
+
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(provider => provider.SearchForNewBook("Same title", null, false)).Returns(new List<Book>
+            {
+                new Book { ForeignBookId = "openlibrary:work:OL401W", Title = "Same title", Author = authorAlias },
+                new Book { ForeignBookId = "openlibrary:work:OL402W", Title = "Same title", Author = namesake },
+                new Book { ForeignBookId = "openlibrary:work:OL403W", Title = "Same title", Author = disputed }
+            });
+            var controller = new SearchController(
+                proxy.Object,
+                Mock.Of<IBuildFileNames>(),
+                Mock.Of<IMapCoversToLocal>(),
+                _telemetry,
+                identity.Object,
+                Mock.Of<ISeriesRepository>(),
+                Mock.Of<IAuthorRepository>(),
+                Mock.Of<IBookRepository>());
+
+            var results = (List<SearchResource>)controller.Search("Same title", "book");
+
+            results.Should().HaveCount(3);
+            results[0].CatalogueOwnerId.Should().BeNull();
+            results[0].Book.Author.Id.Should().Be(0);
+            results[0].Book.Author.ForeignAuthorId.Should().Be("openlibrary:author:OL300A");
+            results[0].Book.Author.AuthorMetadataId.Should().Be(17);
+            results[1].CatalogueOwnerId.Should().Be(82);
+            results[1].Book.Author.AuthorMetadataId.Should().Be(0);
+            results[2].Book.Author.AuthorMetadataId.Should().Be(0);
+            proxy.Verify(provider => provider.SearchForNewBook("Same title", null, false), Times.Once);
+            proxy.VerifyNoOtherCalls();
+        }
+
         private static Author SearchAuthor(string providerId)
         {
             return new Author
