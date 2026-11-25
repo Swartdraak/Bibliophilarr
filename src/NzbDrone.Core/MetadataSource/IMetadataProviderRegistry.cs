@@ -18,6 +18,8 @@ namespace NzbDrone.Core.MetadataSource
 
         List<IMetadataProvider> GetEnabledProviders();
 
+        bool HasConfiguredBookLookup { get; }
+
         List<IMetadataProvider> GetProvidersWithCapability(string capability);
 
         List<ISearchForNewBookV2> GetBookSearchProviders();

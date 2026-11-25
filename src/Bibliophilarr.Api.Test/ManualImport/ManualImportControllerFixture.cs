@@ -52,8 +52,9 @@ namespace NzbDrone.Api.Test.ManualImport
                 NzbDrone.Common.Instrumentation.NzbDroneLogger.GetLogger("TestLogger"));
         }
 
-        [Test]
-        public void should_return_400_when_all_items_lack_book_id()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_return_400_with_book_selection_guidance_when_all_items_lack_book_id(bool reportRejectionStatus)
         {
             var resources = new List<ManualImportUpdateResource>
             {
@@ -62,7 +63,7 @@ namespace NzbDrone.Api.Test.ManualImport
                     Path = "/root/Author/Book1.epub",
                     AuthorId = 1,
                     BookId = null,
-                    ForeignEditionId = null
+                    ForeignEditionId = "selected-edition"
                 },
                 new ManualImportUpdateResource
                 {
@@ -73,7 +74,7 @@ namespace NzbDrone.Api.Test.ManualImport
                 }
             };
 
-            var result = _controller.UpdateItems(resources);
+            var result = _controller.UpdateItems(resources, reportRejectionStatus);
 
             result.Should().BeOfType<BadRequestObjectResult>();
             var badRequest = (BadRequestObjectResult)result;
@@ -84,6 +85,10 @@ namespace NzbDrone.Api.Test.ManualImport
             body.Should().NotBeNull();
             var items = body.ToList();
             items.Should().HaveCount(2);
+            var response = JArray.Parse(badRequest.Value.ToJson());
+            response.SelectTokens("$[*].rejections[0].reason").Select(reason => reason.Value<string>())
+                .Should().OnlyContain(reason => reason == "Cannot import without a catalogue book selection. Select a book from your library and choose a compatible edition, then retry.");
+            _manualImportService.VerifyNoOtherCalls();
         }
 
         [Test]

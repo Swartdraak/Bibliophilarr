@@ -61,6 +61,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IRootFolderService _rootFolderService;
         private readonly IQualityProfileService _qualityProfileService;
         private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
+        private readonly IMetadataProviderRegistry _metadataProviders;
+        private readonly IEnumerable<IBookSearchFallbackProvider> _fallbackProviders;
         private readonly Logger _logger;
 
         public ImportDecisionMaker(IEnumerable<IImportDecisionEngineSpecification<LocalBook>> trackSpecifications,
@@ -74,6 +76,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IRootFolderService rootFolderService,
                                    IQualityProfileService qualityProfileService,
                                    IMetadataProviderOrchestrator metadataOrchestrator,
+                                   IMetadataProviderRegistry metadataProviders,
+                                   IEnumerable<IBookSearchFallbackProvider> fallbackProviders,
                                    Logger logger)
         {
             _trackSpecifications = trackSpecifications;
@@ -87,6 +91,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _rootFolderService = rootFolderService;
             _qualityProfileService = qualityProfileService;
             _metadataOrchestrator = metadataOrchestrator;
+            _metadataProviders = metadataProviders;
+            _fallbackProviders = fallbackProviders;
             _logger = logger;
         }
 
@@ -365,7 +371,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (localEdition.Edition == null)
             {
-                decision = new ImportDecision<LocalEdition>(localEdition, new Rejection($"Couldn't find similar book for {localEdition}"));
+                var reason = _metadataProviders.HasConfiguredBookLookup || _fallbackProviders.Any(provider => provider.IsFallbackEnabled)
+                    ? $"Couldn't find similar book for {localEdition}"
+                    : "No book metadata provider is enabled and configured. Select a book and compatible edition from your library, or configure a metadata provider and scan again.";
+                decision = new ImportDecision<LocalEdition>(localEdition, new Rejection(reason));
             }
             else
             {

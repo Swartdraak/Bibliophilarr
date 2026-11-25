@@ -89,6 +89,25 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_not_count_a_hardcover_override_until_the_adapter_can_search()
+        {
+            var config = new Mock<IConfigService>();
+            config.SetupGet(settings => settings.HardcoverApiToken).Returns("synthetic-provider-token");
+            var http = new Mock<IHttpClient>(MockBehavior.Strict);
+            var hardcover = new HardcoverFallbackSearchProvider(config.Object, http.Object, LogManager.GetCurrentClassLogger());
+            var registry = new MetadataProviderRegistry(new[] { hardcover });
+            registry.EnableProvider("Hardcover");
+
+            registry.GetProviders().Should().Contain(hardcover);
+            registry.HasConfiguredBookLookup.Should().BeFalse();
+            config.SetupGet(settings => settings.EnableHardcoverFallback).Returns(true);
+            registry.HasConfiguredBookLookup.Should().BeTrue();
+            registry.DisableProvider("Hardcover");
+            registry.HasConfiguredBookLookup.Should().BeFalse();
+            http.VerifyNoOtherCalls();
+        }
+
+        [Test]
         public void should_return_enabled_providers_sorted_by_priority()
         {
             var registry = new MetadataProviderRegistry(new IMetadataProvider[]
