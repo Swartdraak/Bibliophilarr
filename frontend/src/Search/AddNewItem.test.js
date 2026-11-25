@@ -1,5 +1,9 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import createExistingAuthorSelector from 'Store/Selectors/createExistingAuthorSelector';
 import createExistingBookSelector from 'Store/Selectors/createExistingBookSelector';
+import AddNewItem from './AddNewItem';
 
 describe('createExistingBookSelector', () => {
   test('returns no record when book is not in library', () => {
@@ -72,4 +76,40 @@ describe('createExistingAuthorSelector', () => {
     expect(selector(state, { titleSlug: author.titleSlug })).toBe(author);
     expect(selector(state, { titleSlug: 'unknown-author' })).toBeUndefined();
   });
+});
+
+jest.mock('Utilities/String/translate', () => (key, args = []) => ({
+  SearchScope: 'Search for',
+  SeriesSearchInLibrary: 'In your library',
+  SeriesSearchHardcoverResult: 'Hardcover result',
+  SeriesViewBooksWithSource: `View books in ${args[0]} (${args[1]})`
+}[key] || key));
+jest.mock('Components/Page/PageContentBody', () => ({ children }) => children);
+jest.mock('./Author/AddNewAuthorSearchResultConnector', () => () => null);
+jest.mock('./Book/AddNewBookSearchResultConnector', () => () => null);
+
+test('distinguishes a saved series from a same-title provider result in both text and button names', () => {
+  const searches = jest.fn();
+  const fixtures = [
+    { catalogueOwnerId: 7, series: { foreignSeriesId: 'hardcover:series:42', title: 'Harbor Chronicles' } },
+    { series: { foreignSeriesId: 'hardcover:series:43', title: 'Harbor Chronicles' } }
+  ];
+
+  render(
+    <MemoryRouter>
+      <AddNewItem
+        items={fixtures}
+        isFetching={false}
+        isAdding={false}
+        hasExistingAuthors={true}
+        onSearchChange={searches}
+        onClearSearch={jest.fn()}
+      />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('In your library')).toBeVisible();
+  expect(screen.getByText('Hardcover result')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'View books in Harbor Chronicles (In your library)' }));
+  expect(searches).toHaveBeenLastCalledWith('hardcover:series:42', 'series-books');
 });

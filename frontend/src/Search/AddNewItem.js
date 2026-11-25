@@ -10,6 +10,7 @@ import LoadingIndicator from 'Components/Loading/LoadingIndicator';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import { icons, kinds } from 'Helpers/Props';
+import cataloguePath from 'Utilities/cataloguePath';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 import AddNewAuthorSearchResultConnector from './Author/AddNewAuthorSearchResultConnector';
@@ -219,6 +220,26 @@ class AddNewItem extends Component {
 
                     if (item.series) {
                       const { slug, title } = item.series;
+                      const canonicalId = item.catalogueSeriesCanonicalId;
+
+                      if (canonicalId) {
+                        return (
+                          <div key={canonicalId} className={styles.seriesResult}>
+                            <SeriesRepresentativeCover
+                              covers={item.seriesCovers}
+                              className={styles.seriesResultCover}
+                            />
+                            <h3>{title}</h3>
+                            <p>{translate('SavedSeriesSearchOnly')}</p>
+                            <Link to={cataloguePath('series', { canonicalId })}>
+                              {translate('OpenSavedSeriesBooks')}
+                            </Link>
+                          </div>
+                        );
+                      }
+
+                      const sourceLabel = translate(item.catalogueOwnerId ? 'SeriesSearchInLibrary' : 'SeriesSearchHardcoverResult');
+
                       return (
                         <div key={item.series.foreignSeriesId} className={styles.seriesResult}>
                           <SeriesRepresentativeCover
@@ -226,8 +247,9 @@ class AddNewItem extends Component {
                             className={styles.seriesResultCover}
                           />
                           <h3>{title}</h3>
+                          <p>{sourceLabel}</p>
                           <Button
-                            aria-label={translate('SeriesViewBooksFor', [title])}
+                            aria-label={translate('SeriesViewBooksWithSource', [title, sourceLabel])}
                             onPress={() => this.onOpenSeries(item.series)}
                           >
                             {translate('SeriesViewBooks')}

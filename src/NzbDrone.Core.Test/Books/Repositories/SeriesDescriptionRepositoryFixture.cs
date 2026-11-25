@@ -10,6 +10,18 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
     [TestFixture]
     public class SeriesDescriptionRepositoryFixture : DbTest<SeriesRepository, Series>
     {
+        [Test]
+        public void should_find_exact_saved_series_with_members_by_title_or_canonical_id()
+        {
+            var (_, linked, _) = AddLinkedSeries(null);
+            var shell = Subject.Insert(new Series { ForeignSeriesId = "hardcover:series:790", Title = linked.Title });
+
+            Subject.FindExactCatalogueSearch("sToReD sErIeS", null).Should().ContainSingle().Which.Id.Should().Be(linked.Id);
+            Subject.FindExactCatalogueSearch(null, linked.CanonicalId).Should().ContainSingle().Which.Id.Should().Be(linked.Id);
+            Subject.FindExactCatalogueSearch(null, shell.CanonicalId).Should().BeEmpty();
+            Subject.FindExactCatalogueSearch("stored", null).Should().BeEmpty();
+        }
+
         [TestCase(null)]
         [TestCase(" \t\n ")]
         public void should_fill_only_the_blank_description_of_the_existing_linked_primary_series(string previous)

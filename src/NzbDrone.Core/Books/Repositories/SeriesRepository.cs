@@ -13,6 +13,7 @@ namespace NzbDrone.Core.Books
         List<Series> FindById(List<string> foreignSeriesId);
         List<Series> GetByAuthorMetadataId(int authorMetadataId);
         List<Series> GetByAuthorId(int authorId);
+        List<Series> FindExactCatalogueSearch(string title, string canonicalId);
         bool TryFillHardcoverDescription(Author author, Series series, string description);
     }
 
@@ -55,6 +56,22 @@ namespace NzbDrone.Core.Books
                                  .Join<SeriesBookLink, Book>((l, r) => l.BookId == r.Id)
                                  .Join<Book, Author>((l, r) => l.AuthorMetadataId == r.AuthorMetadataId)
                                  .Where<Author>(x => x.Id == authorId));
+        }
+
+        public List<Series> FindExactCatalogueSearch(string title, string canonicalId)
+        {
+            using var connection = _database.OpenConnection();
+            return connection.Query<Series>(
+                """
+                SELECT s.* FROM "Series" s
+                WHERE (s."CanonicalId" = @canonicalId OR LOWER(s."Title") = LOWER(@title))
+                  AND EXISTS (SELECT 1 FROM "SeriesBookLink" l
+                              JOIN "Books" b ON b."Id" = l."BookId"
+                              WHERE l."SeriesId" = s."Id")
+                ORDER BY s."Id"
+                LIMIT 8
+                """,
+                new { title, canonicalId }).ToList();
         }
 
         public bool TryFillHardcoverDescription(Author author, Series series, string description)

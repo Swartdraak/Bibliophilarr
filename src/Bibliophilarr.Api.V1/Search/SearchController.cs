@@ -83,6 +83,15 @@ namespace Bibliophilarr.Api.V1.Search
 
             if ((scope is "series" or "series-books") && searchResults == null)
             {
+                if (scope == "series")
+                {
+                    var local = FindLocalSeries(term);
+                    if (local.Count > 0)
+                    {
+                        return local;
+                    }
+                }
+
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorModel
                 {
                     Message = scope == "series"
@@ -92,6 +101,26 @@ namespace Bibliophilarr.Api.V1.Search
             }
 
             return MapToResource(searchResults, term).ToList();
+        }
+
+        private List<SearchResource> FindLocalSeries(string term)
+        {
+            var route = Guid.TryParseExact(term, "N", out var canonical) && canonical != Guid.Empty
+                ? canonical.ToString("N")
+                : null;
+            return (_seriesRepository.FindExactCatalogueSearch(route == null ? term : null, route) ?? new List<NzbDrone.Core.Books.Series>())
+                .Where(series => Guid.TryParseExact(series.CanonicalId, "N", out var id) && id != Guid.Empty &&
+                    _catalogueIdentity.FindByRoute(CatalogueEntityKind.Series, series.CanonicalId) == series.Id)
+                .Select((series, index) => new SearchResource
+                {
+                    Id = index + 1,
+                    ForeignId = series.ForeignSeriesId,
+                    CatalogueOwnerId = series.Id,
+                    CatalogueSeriesCanonicalId = series.CanonicalId,
+                    Series = new SeriesSearchSummary { ForeignSeriesId = series.ForeignSeriesId, Title = series.Title },
+                    SeriesCovers = GetSeriesCovers(series.Id, cachedOnly: true)
+                })
+                .ToList();
         }
 
         private static bool IsHardcoverSeriesId(string term)
@@ -286,7 +315,7 @@ namespace Bibliophilarr.Api.V1.Search
                 Uri.TryCreate(image.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https");
         }
 
-        private List<SeriesSearchCoverResource> GetSeriesCovers(int seriesId)
+        private List<SeriesSearchCoverResource> GetSeriesCovers(int seriesId, bool cachedOnly = false)
         {
             var covers = new List<SeriesSearchCoverResource>();
             var urls = new HashSet<string>(StringComparer.Ordinal);
@@ -304,17 +333,24 @@ namespace Bibliophilarr.Api.V1.Search
                     continue;
                 }
 
-                var cover = BookEditionSelector.GetBookImages(book.Editions?.Value)
-                    .FirstOrDefault(image => image.CoverType == MediaCoverTypes.Cover &&
-                        Uri.TryCreate(image.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https");
-                if (cover == null)
+                MediaCover cover;
+                if (cachedOnly)
                 {
-                    continue;
+                    cover = _coverMapper.GetCachedBookCover(book, book.Editions?.Value) ?? _coverMapper.GetEmbeddedBookCover(book.Id);
+                }
+                else
+                {
+                    cover = BookEditionSelector.GetBookImages(book.Editions?.Value)
+                        .FirstOrDefault(image => image.CoverType == MediaCoverTypes.Cover &&
+                            Uri.TryCreate(image.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https");
+                    if (cover != null)
+                    {
+                        cover = cover.JsonClone();
+                        _coverMapper.ConvertToLocalUrls(book.Id, MediaCoverEntity.Book, new[] { cover });
+                    }
                 }
 
-                cover = cover.JsonClone();
-                _coverMapper.ConvertToLocalUrls(book.Id, MediaCoverEntity.Book, new[] { cover });
-                if (!string.IsNullOrWhiteSpace(cover.Url) && urls.Add(cover.Url))
+                if (!string.IsNullOrWhiteSpace(cover?.Url) && urls.Add(cover.Url))
                 {
                     covers.Add(new SeriesSearchCoverResource { BookTitle = book.Title, Url = cover.Url });
                     if (covers.Count == 2)

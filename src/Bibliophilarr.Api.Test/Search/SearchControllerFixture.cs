@@ -46,6 +46,69 @@ namespace NzbDrone.Api.Test.Search
             LogManager.Configuration = _originalConfiguration;
         }
 
+        [TestCase("Harbor Chronicles", null)]
+        [TestCase("6f50a79395d841f3abc40dd6ee8d7fc2", "6f50a79395d841f3abc40dd6ee8d7fc2")]
+        public void should_return_an_owned_catalogue_series_only_when_remote_search_is_unavailable(string term, string route)
+        {
+            const string canonical = "6f50a79395d841f3abc40dd6ee8d7fc2";
+            var member = new Book { Id = 33, Title = "A Quiet Harbor" };
+            var stored = new Series
+            {
+                Id = 17,
+                CanonicalId = canonical,
+                ForeignSeriesId = "hardcover:series:42",
+                Title = "Harbor Chronicles",
+                LinkItems = new List<SeriesBookLink> { new SeriesBookLink { SeriesId = 17, BookId = member.Id, Book = member } }
+            };
+            var unresolved = new Series { Id = 18, CanonicalId = "98c9ea9a13cc4c01a7ea683829151a85", ForeignSeriesId = "hardcover:series:43", Title = "Harbor Chronicles" };
+            var series = new Mock<ISeriesRepository>();
+            series.Setup(repository => repository.FindExactCatalogueSearch(route == null ? term : null, route)).Returns(new List<Series> { stored, unresolved });
+            series.Setup(repository => repository.Find(17)).Returns(stored);
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.FindByRoute(CatalogueEntityKind.Series, canonical)).Returns(17);
+            var proxy = new Mock<IMetadataProviderOrchestrator>();
+            proxy.Setup(provider => provider.SearchForNewSeries(term)).Returns((List<SeriesSearchSummary>)null);
+            var covers = new Mock<IMapCoversToLocal>();
+            covers.Setup(mapper => mapper.GetEmbeddedBookCover(member.Id))
+                .Returns(new MediaCover(MediaCoverTypes.Cover, "/fixture-cached-cover"));
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), covers.Object, _telemetry, identity.Object, series.Object, Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
+
+            var response = controller.Search(term, "series");
+
+            response.Should().BeOfType<List<SearchResource>>();
+            var local = ((List<SearchResource>)response).Should().ContainSingle().Which;
+            local.CatalogueOwnerId.Should().Be(17);
+            local.Series.Title.Should().Be("Harbor Chronicles");
+            local.CatalogueSeriesCanonicalId.Should().Be(canonical);
+            local.SeriesCovers.Should().ContainSingle().Which.Url.Should().Be("/fixture-cached-cover");
+            covers.Verify(mapper => mapper.ConvertToLocalUrls(It.IsAny<int>(), It.IsAny<MediaCoverEntity>(), It.IsAny<IEnumerable<MediaCover>>()), Times.Never);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_preserve_provider_emptiness_and_keep_local_miss_distinct_during_an_outage(bool remoteAvailable)
+        {
+            const string term = "Unknown Chronicles";
+            var proxy = new Mock<IMetadataProviderOrchestrator>();
+            proxy.Setup(provider => provider.SearchForNewSeries(term))
+                .Returns(remoteAvailable ? new List<SeriesSearchSummary>() : null);
+            var series = new Mock<ISeriesRepository>();
+            series.Setup(repository => repository.FindExactCatalogueSearch(term, null)).Returns(new List<Series>());
+            var controller = new SearchController(proxy.Object, Mock.Of<IBuildFileNames>(), Mock.Of<IMapCoversToLocal>(), _telemetry, Mock.Of<ICatalogueIdentityRepository>(), series.Object, Mock.Of<IAuthorRepository>(), Mock.Of<IBookRepository>());
+
+            var response = controller.Search(term, "series");
+
+            if (remoteAvailable)
+            {
+                response.Should().BeOfType<List<SearchResource>>().Which.Should().BeEmpty();
+                series.Verify(repository => repository.FindExactCatalogueSearch(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            }
+            else
+            {
+                response.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+            }
+        }
+
         [Test]
         public void should_skip_unsupported_search_entities_and_record_observability()
         {

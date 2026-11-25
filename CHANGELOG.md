@@ -51,6 +51,8 @@ process.
 
 ### Fixed
 
+- Open an exactly matched saved series from Add New during a series provider
+  outage. Label series result sources to distinguish same-title matches.
 - Retry missing Open Library artwork earlier for file-attached books, while
   rotating through bibliography covers and author portraits.
 - Keep the author and its catalogue records when Delete Files cannot verify

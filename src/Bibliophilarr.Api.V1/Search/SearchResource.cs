@@ -13,6 +13,7 @@ namespace Bibliophilarr.Api.V1.Search
         public AuthorResource Author { get; set; }
         public BookResource Book { get; set; }
         public SeriesSearchSummary Series { get; set; }
+        public string CatalogueSeriesCanonicalId { get; set; }
         public List<SeriesSearchCoverResource> SeriesCovers { get; set; }
     }
 
