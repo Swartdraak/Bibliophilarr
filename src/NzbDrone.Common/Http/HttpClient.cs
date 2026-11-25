@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.TPL;
@@ -52,7 +53,8 @@ namespace NzbDrone.Common.Http
             ICacheManager cacheManager,
             IRateLimitService rateLimitService,
             IHttpDispatcher httpDispatcher,
-            Logger logger)
+            Logger logger,
+            IAppFolderInfo appFolderInfo = null)
         {
             _requestInterceptors = requestInterceptors.ToList();
             _rateLimitService = rateLimitService;
@@ -63,7 +65,7 @@ namespace NzbDrone.Common.Http
             ServicePointManager.DefaultConnectionLimit = 12;
 #pragma warning restore SYSLIB0014
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
-            _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager);
+            _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager, appFolderInfo, _logger);
         }
 
         public virtual async Task<HttpResponse> ExecuteAsync(HttpRequest request)
