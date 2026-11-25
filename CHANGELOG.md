@@ -20,6 +20,11 @@ process.
 
 ### Fixed
 
+- Preserve existing audiobook artwork when Update Covers is unchecked in
+  Retag. This skips stripping existing audiobook tags before writing the new
+  metadata. Existing API clients can opt into this behavior with
+  `updateAudioCovers: false`. Embed Metadata applies to Calibre files.
+
 - Give each cover link in Books Posters and Overview an accessible name,
   including when artwork is available or a legacy title is blank.
 

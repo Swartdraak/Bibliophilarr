@@ -8,6 +8,7 @@ namespace NzbDrone.Core.MediaFiles.Commands
         public List<int> AuthorIds { get; set; }
         public bool UpdateCovers { get; set; }
         public bool EmbedMetadata { get; set; }
+        public bool? UpdateAudioCovers { get; set; }
 
         public override bool SendUpdatesToClient => true;
         public override bool RequiresDiskAccess => true;

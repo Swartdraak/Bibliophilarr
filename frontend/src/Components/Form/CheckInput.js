@@ -84,6 +84,7 @@ class CheckInput extends Component {
       containerClassName,
       name,
       ariaLabel,
+      ariaDescribedBy,
       value,
       checkedValue,
       uncheckedValue,
@@ -108,6 +109,7 @@ class CheckInput extends Component {
             type="checkbox"
             name={name}
             aria-label={ariaLabel}
+            aria-describedby={ariaDescribedBy}
             checked={isChecked}
             disabled={isDisabled}
             onChange={this.onChange}
@@ -159,6 +161,7 @@ CheckInput.propTypes = {
   containerClassName: PropTypes.string.isRequired,
   name: PropTypes.string.isRequired,
   ariaLabel: PropTypes.string,
+  ariaDescribedBy: PropTypes.string,
   checkedValue: PropTypes.bool,
   uncheckedValue: PropTypes.bool,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
