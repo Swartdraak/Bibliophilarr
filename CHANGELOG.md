@@ -317,6 +317,8 @@ process.
 
 ### Security
 
+- Restrict URL base redirects to local paths while preserving the request
+  method and query.
 - Normalize request method and client information before writing HTTP logs.
 
 - Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
