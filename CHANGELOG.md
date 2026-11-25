@@ -16,12 +16,22 @@ process.
 
 ### Fixed
 
+- Follow verified Open Library ISBN redirects and continue the work ID backfill
+  when an ISBN lookup returns no match.
+- Honor the historical server bind-address environment variable while keeping
+  the canonical setting and saved defaults in precedence order.
+- Save a new book and its editions together. If an edition already belongs to
+  another book, keep the existing data and import exclusions.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
   Library's works feed cannot verify the books shown in search.
+- Resolve Open Library title results to a verified ebook or audiobook edition
+  when adding them to the library.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked
   independently when both file formats are recognized.
 - Use the current author and artwork when processing a delayed author refresh.
   Keep current portraits and skip refresh events for removed authors.
+- Add a selected book to an existing author without resubmitting the author's
+  root and monitoring settings.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art.
 - Report Hardcover's shared request cooldown in provider health and distinguish
@@ -40,8 +50,12 @@ process.
   including queue, backup, and system operations.
 - Report queued manual imports as unsuccessful when they neither import a file
   nor preserve an existing one. Summarize recognized format and file errors.
+- Explain when a Manual Import preview lacks a matching edition in the library
+  and keep that file available for manual selection.
 - Keep per-file rejection reasons visible when every Manual Import selection
   is rejected. API clients can opt in to HTTP 422 for this preview.
+- Keep unavailable edition selections visible in Manual Import and ask the
+  user to select the edition again.
 - Hold an unresolved manual-import edition selection and continue importing
   valid files in the same batch. When the edition is omitted, use a compatible
   monitored edition of the selected work.

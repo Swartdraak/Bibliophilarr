@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
+using Dapper;
 using NLog;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Core.Datastore;
@@ -10,6 +12,7 @@ namespace NzbDrone.Core.Books
     public interface IEditionRepository : IBasicRepository<Edition>
     {
         List<Edition> GetAllMonitoredEditions();
+        bool TryInsertForFreshBook(IDbConnection connection, IDbTransaction transaction, Edition edition);
         Edition FindByForeignEditionId(string foreignEditionId);
         List<Edition> FindByBook(IEnumerable<int> ids);
         List<Edition> FindByAuthor(int id);
@@ -23,10 +26,24 @@ namespace NzbDrone.Core.Books
     public class EditionRepository : BasicRepository<Edition>, IEditionRepository
     {
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+        private readonly string _claimEditionSql;
 
         public EditionRepository(IMainDatabase database, IEventAggregator eventAggregator)
             : base(database, eventAggregator)
         {
+            _claimEditionSql = GetInsertSql(nameof(Edition.ForeignEditionId));
+        }
+
+        public bool TryInsertForFreshBook(IDbConnection connection, IDbTransaction transaction, Edition edition)
+        {
+            var id = connection.QuerySingleOrDefault<int>(_claimEditionSql, edition, transaction);
+            if (id == 0)
+            {
+                return false;
+            }
+
+            edition.Id = id;
+            return true;
         }
 
         public List<Edition> GetAllMonitoredEditions()
