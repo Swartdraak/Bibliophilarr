@@ -11,14 +11,16 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Messaging.Commands;
 
 namespace NzbDrone.Host.Test
 {
     public partial class NestedAuthorBookAddFixture
     {
-        [TestCase(false)]
-        [TestCase(true)]
-        public async Task DeleteAuthorRemovesOnlyItsFormatProfilesAndRollsBackOnAuthorRowFailure(bool rejectAuthorRowDelete)
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        public async Task DeleteAuthorRemovesOnlyItsFormatProfilesAndRollsBackOnFailure(bool rejectAuthorRowDelete, bool unavailableRoot)
         {
             var directory = Directory.CreateTempSubdirectory("bibliophilarr-author-delete-");
             var appData = directory.CreateSubdirectory("data").FullName;
@@ -72,10 +74,15 @@ namespace NzbDrone.Host.Test
 
                     const string removedSource = "hardcover:author:741101";
                     const string retainedSource = "hardcover:author:741102";
+                    var commands = host.Services.GetRequiredService<ICommandRepository>();
+                    var previousCommands = commands.All().ToList();
                     var removedAuthor = await AddAuthor(removedSource, "Removed Fixture Author");
-                    var retainedAuthor = await AddAuthor(retainedSource, "Retained Fixture Author");
                     var removedId = removedAuthor.GetProperty("id").GetInt32();
+                    await WaitForAuthorAddScan(client, commands, previousCommands, library, removedId, token);
+                    previousCommands = commands.All().ToList();
+                    var retainedAuthor = await AddAuthor(retainedSource, "Retained Fixture Author");
                     var retainedId = retainedAuthor.GetProperty("id").GetInt32();
+                    await WaitForAuthorAddScan(client, commands, previousCommands, library, retainedId, token);
                     var profiles = host.Services.GetRequiredService<IAuthorFormatProfileRepository>();
                     var metadata = host.Services.GetRequiredService<IAuthorMetadataRepository>();
                     var removedProfiles = profiles.GetByAuthorId(removedId).Select(profile => profile.Id).OrderBy(id => id).ToArray();
@@ -108,6 +115,33 @@ namespace NzbDrone.Host.Test
                             END;
                             """;
                         command.ExecuteNonQuery();
+                    }
+
+                    if (unavailableRoot)
+                    {
+                        using var anonymous = CreateClient(host, apiKey);
+                        anonymous.DefaultRequestHeaders.Remove("X-Api-Key");
+                        foreach (var deleteFiles in new[] { "false", "true" })
+                        {
+                            using var unauthenticated = await anonymous.DeleteAsync($"author/{removedId}?deleteFiles={deleteFiles}", token);
+                            unauthenticated.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+                        }
+
+                        var offline = Path.Combine(directory.FullName, "offline-root");
+                        Directory.Move(library, offline);
+                        try
+                        {
+                            using var rejected = await client.DeleteAsync($"author/{removedId}?deleteFiles=true", token);
+                            rejected.StatusCode.Should().Be(HttpStatusCode.Conflict);
+                            using var stillPresent = await client.GetAsync($"author/{removedId}", token);
+                            stillPresent.StatusCode.Should().Be(HttpStatusCode.OK);
+                            profiles.GetByAuthorId(removedId).Select(profile => profile.Id).OrderBy(id => id)
+                                .Should().Equal(removedProfiles);
+                        }
+                        finally
+                        {
+                            Directory.Move(offline, library);
+                        }
                     }
 
                     using var response = await client.DeleteAsync($"author/{removedId}?deleteFiles=false", token);

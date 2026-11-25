@@ -187,8 +187,13 @@ namespace Bibliophilarr.Api.V1.Author
         }
 
         [RestDeleteById]
-        public void DeleteAuthor(int id, bool deleteFiles = false, bool addImportListExclusion = false)
+        public void DeleteAuthor(int id, [FromServices] IDeleteMediaFiles mediaFileDeletion, bool deleteFiles = false, bool addImportListExclusion = false)
         {
+            if (deleteFiles)
+            {
+                mediaFileDeletion.ValidateLibraryFolderRemoval(_authorService.GetAuthor(id));
+            }
+
             _authorService.DeleteAuthor(id, deleteFiles, addImportListExclusion);
         }
 
