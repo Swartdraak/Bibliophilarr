@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using FluentAssertions;
@@ -198,6 +199,8 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
         [TestCase(0, 30, "Ebook")]
         [TestCase(40, 99, "Ebook")]
         [TestCase(40, 30, "Audiobook")]
+        [TestCase(40, 30, "Audio")]
+        [TestCase(40, 30, " AUDIO ")]
         public void should_hold_an_uninstalled_foreign_owner_or_incompatible_edition(int editionId, int bookId, string format)
         {
             _edition.Id = editionId;
@@ -206,6 +209,24 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Manual
             _edition.IsEbook = format == "Ebook";
 
             AssertHeld(Scan());
+        }
+
+        [TestCase("Audio", "Observatory.m4b")]
+        [TestCase(null, "Observatory.epub")]
+        public void should_keep_a_compatible_or_legacy_unclassified_edition(string format, string filename)
+        {
+            var path = Path.Combine(_folder, filename);
+            _candidate.Path = path;
+            _edition.Format = format;
+            _edition.IsEbook = false;
+            Mocker.GetMock<IDiskProvider>().Setup(d => d.FileExists(path)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(d => d.GetFileInfo(path)).Returns(Mock.Of<IFileInfo>(file => file.FullName == path));
+            Mocker.GetMock<IDiskProvider>().Setup(d => d.GetFileSize(path)).Returns(512);
+
+            var result = Scan(singleFile: true);
+
+            result.Edition.Should().BeSameAs(_edition);
+            result.Rejections.Should().BeEmpty();
         }
 
         [Test]
