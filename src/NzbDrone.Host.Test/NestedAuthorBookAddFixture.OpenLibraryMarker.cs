@@ -150,6 +150,7 @@ namespace NzbDrone.Host.Test
             }
             finally
             {
+                NLog.LogManager.Flush(TimeSpan.FromSeconds(5));
                 SQLiteConnection.ClearAllPools();
                 directory.Delete(recursive: true);
             }
