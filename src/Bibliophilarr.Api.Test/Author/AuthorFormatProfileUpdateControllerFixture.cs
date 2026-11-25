@@ -13,11 +13,18 @@ namespace NzbDrone.Api.Test.AuthorFormatProfiles
     [TestFixture]
     public class AuthorFormatProfileUpdateControllerFixture : TestBase<AuthorFormatProfileController>
     {
-        [TestCase(false)]
-        [TestCase(true)]
-        public void should_preserve_the_stored_hidden_path_when_editing_format_settings(bool omitTags)
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void should_preserve_the_stored_hidden_path_when_editing_format_settings(bool hasRouteId, bool omitTags)
         {
             var stored = GivenProfile();
+            if (hasRouteId)
+            {
+                Subject.RouteData.Values["id"] = stored.Id;
+            }
+
             var request = stored.ToResource();
             request.RootFolderPath = "/next-audio";
             request.QualityProfileId = 25;
@@ -34,7 +41,7 @@ namespace NzbDrone.Api.Test.AuthorFormatProfiles
                     return profile;
                 });
 
-            Subject.Update(stored.Id, request);
+            Subject.Update(request);
 
             saved.Should().BeEquivalentTo(new AuthorFormatProfile
             {
@@ -53,24 +60,29 @@ namespace NzbDrone.Api.Test.AuthorFormatProfiles
         [TestCase("route")]
         [TestCase("author")]
         [TestCase("format")]
+        [TestCase("none")]
         public void should_refuse_to_change_the_stored_profile_identity(string mismatch)
         {
             var stored = GivenProfile();
             var request = stored.ToResource();
             if (mismatch == "route")
             {
-                request.Id++;
+                Subject.RouteData.Values["id"] = stored.Id + 1;
             }
             else if (mismatch == "author")
             {
                 request.AuthorId++;
             }
-            else
+            else if (mismatch == "format")
             {
                 request.FormatType = FormatType.Ebook;
             }
+            else
+            {
+                request.Id = 0;
+            }
 
-            Assert.Throws<BadRequestException>(() => Subject.Update(stored.Id, request));
+            Assert.Throws<BadRequestException>(() => Subject.Update(request));
 
             Mocker.GetMock<IAuthorFormatProfileService>().Verify(service => service.Update(It.IsAny<AuthorFormatProfile>()), Times.Never());
         }
@@ -101,6 +113,7 @@ namespace NzbDrone.Api.Test.AuthorFormatProfiles
 
         private AuthorFormatProfile GivenProfile()
         {
+            Subject.ControllerContext.RouteData = new Microsoft.AspNetCore.Routing.RouteData();
             var stored = new AuthorFormatProfile
             {
                 Id = 12,
