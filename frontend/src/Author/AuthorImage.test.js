@@ -29,3 +29,30 @@ test('tries the next source after an image fails and uses the placeholder after 
   expect(getImage()).toHaveAttribute('src', '/placeholder.png');
   expect(onError).toHaveBeenCalledTimes(1);
 });
+
+test('requests an asynchronously discovered cover without waiting for the placeholder to load again', () => {
+  const onError = jest.fn();
+  const onLoad = jest.fn();
+  const showImage = (images) => (
+    <AuthorImage
+      images={images}
+      coverType="cover"
+      placeholder="/placeholder.png"
+      lazy={false}
+      onError={onError}
+      onLoad={onLoad}
+    />
+  );
+  const { rerender } = render(showImage([]));
+  const image = () => screen.getByAltText('');
+  expect(image()).toHaveAttribute('src', '/placeholder.png');
+  fireEvent.load(image());
+  expect(onError).toHaveBeenCalledTimes(1);
+  expect(onLoad).not.toHaveBeenCalled();
+
+  rerender(showImage([{ coverType: 'cover', url: '/api/v1/embeddedbookcover/1/2/recovered' }]));
+  expect(image()).toHaveAttribute('src', '/api/v1/embeddedbookcover/1/2/recovered');
+
+  fireEvent.load(image());
+  expect(onLoad).toHaveBeenCalledTimes(1);
+});

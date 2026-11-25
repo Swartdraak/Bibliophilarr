@@ -52,6 +52,8 @@ process.
 
 ### Fixed
 
+- Show cover and portrait images that become available after a detail view has
+  loaded its placeholder.
 - Keep download decision diagnostics on one line and leave release URLs out of
   exception log data.
 - Load every verified Hardcover series member across provider pages. Report

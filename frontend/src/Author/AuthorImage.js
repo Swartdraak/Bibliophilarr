@@ -37,7 +37,6 @@ class AuthorImage extends Component {
       image,
       failedUrls: [],
       url: getUrl(image, coverType, pixelRatio * size),
-      isLoaded: false,
       hasError: false
     };
   }
@@ -69,9 +68,6 @@ class AuthorImage extends Component {
         image: nextImage,
         url: getUrl(nextImage, coverType, pixelRatio * size),
         hasError: false
-        // Don't reset isLoaded, as we want to immediately try to
-        // show the new image, whether an image was shown previously
-        // or the placeholder was shown.
       });
     } else if (!nextImage && image && !findImage(images, coverType)) {
       this.setState({
@@ -121,16 +117,15 @@ class AuthorImage extends Component {
   };
 
   onLoad = (event) => {
-    const { naturalWidth, naturalHeight } = event.currentTarget;
-    if (event.currentTarget.getAttribute('src') === this.state.url && naturalWidth === 1 && naturalHeight === 1) {
-      this.onError(event);
+    if (event.currentTarget.getAttribute('src') !== this.state.url) {
       return;
     }
 
-    this.setState({
-      isLoaded: true,
-      hasError: false
-    });
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    if (naturalWidth === 1 && naturalHeight === 1) {
+      this.onError(event);
+      return;
+    }
 
     if (this.props.onLoad) {
       this.props.onLoad();
@@ -160,8 +155,7 @@ class AuthorImage extends Component {
 
     const {
       url,
-      hasError,
-      isLoaded
+      hasError
     } = this.state;
 
     if (hasError || !url) {
@@ -209,10 +203,8 @@ class AuthorImage extends Component {
           blurBackground ?
             <img
               style={blurStyle}
-              src={isLoaded ? url : placeholder}
+              src={url}
               alt=""
-              onError={this.onError}
-              onLoad={this.onLoad}
             /> :
             null
         }
@@ -220,7 +212,7 @@ class AuthorImage extends Component {
         <img
           className={className}
           style={style}
-          src={isLoaded ? url : placeholder}
+          src={url}
           alt=""
           onError={this.onError}
           onLoad={this.onLoad}
