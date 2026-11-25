@@ -62,6 +62,7 @@ process.
 - When a library scan generates a temporary opposite-format default for a new
   author, use the compatible root and quality profile once that root is added.
   Existing format settings and file links stay in place.
+- Remove temporary upload and extraction files after each backup restore attempt.
 - Explain how to select a local book and edition in Manual Import when book
   metadata lookup is unconfigured.
 - Retry Open Library artwork on the normal scan cycle after a temporary
