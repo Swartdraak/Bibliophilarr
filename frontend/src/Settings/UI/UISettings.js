@@ -187,10 +187,14 @@ class UISettings extends Component {
                   legend={translate('Style')}
                 >
                   <FormGroup>
-                    <FormLabel>{translate('Theme')}</FormLabel>
+                    <FormLabel id="ui-theme-label" name="ui-theme">
+                      {translate('Theme')}
+                    </FormLabel>
                     <FormInputGroup
                       type={inputTypes.SELECT}
                       name="theme"
+                      inputId="ui-theme"
+                      labelId="ui-theme-label"
                       helpText={translate('ThemeHelpText')}
                       values={themeOptions}
                       onChange={onInputChange}
