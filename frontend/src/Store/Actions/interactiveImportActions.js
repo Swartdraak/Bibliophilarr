@@ -250,6 +250,7 @@ export const actionHandlers = handleThunks({
         ...data.map((item) => updateItem({
           section,
           ...item,
+          selectionRejection: item.selectionRejection ?? null,
           isReprocessing: false,
           updateOnly: true
         })),
