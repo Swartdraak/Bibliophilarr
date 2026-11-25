@@ -243,7 +243,7 @@ namespace NzbDrone.Core.MetadataSource
                 .ToList();
         }
 
-        public static bool IsInteractiveAuthorName(string title)
+        private static bool IsInteractiveAuthorName(string title)
         {
             return title is { Length: >= 3 and <= 128 } &&
                    title.Any(char.IsLetter) &&

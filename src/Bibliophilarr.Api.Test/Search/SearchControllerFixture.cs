@@ -120,6 +120,8 @@ namespace NzbDrone.Api.Test.Search
             var identity = new Mock<ICatalogueIdentityRepository>();
             identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL300A")).Returns(17);
             identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL302A")).Returns(19);
+            identity.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, 17))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL300A", Evidence = "primary-provider-id" } });
             identity.Setup(repository => repository.FindByRoute(CatalogueEntityKind.Author, storedCanonicalAuthor)).Returns(17);
             identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL402W")).Returns(82);
 
@@ -166,13 +168,24 @@ namespace NzbDrone.Api.Test.Search
             };
         }
 
+        private static void GivenVerifiedCrossProviderAuthor(Mock<ICatalogueIdentityRepository> identity)
+        {
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "41")).Returns(11);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL300A")).Returns(11);
+            identity.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, 11))
+                .Returns(new[]
+                {
+                    new CatalogueSourceAssociation { Provider = "Hardcover", ProviderId = "41", Evidence = "primary-provider-id" },
+                    new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL300A", Evidence = "two-isbn-title-author-work-witnesses" }
+                });
+        }
+
         [Test]
         public void should_group_verified_cross_provider_aliases_and_keep_the_first_payload()
         {
             const string canonicalId = "a0e693a449884a6981ff7a7f9f855a00";
             var identity = new Mock<ICatalogueIdentityRepository>();
-            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "41")).Returns(11);
-            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL300A")).Returns(11);
+            GivenVerifiedCrossProviderAuthor(identity);
             identity.Setup(repository => repository.FindByRoute(CatalogueEntityKind.Work, canonicalId)).Returns(12);
             identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "41")).Returns(12);
             identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL300W")).Returns(12);
@@ -239,6 +252,8 @@ namespace NzbDrone.Api.Test.Search
 
             var identity = new Mock<ICatalogueIdentityRepository>();
             identity.Setup(r => r.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "41")).Returns(17);
+            identity.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, 17))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "Hardcover", ProviderId = "41", Evidence = "two-isbn-title-author-work-witnesses" } });
             identity.Setup(r => r.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "41")).Returns(23);
             identity.Setup(r => r.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "42")).Returns(24);
             identity.Setup(r => r.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "43")).Returns(25);
@@ -357,8 +372,7 @@ namespace NzbDrone.Api.Test.Search
             var unusedAlternative = new Book { ForeignBookId = "hardcover:work:042", Editions = alternateBook.Editions };
 
             var identity = new Mock<ICatalogueIdentityRepository>();
-            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "41")).Returns(11);
-            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL300A")).Returns(11);
+            GivenVerifiedCrossProviderAuthor(identity);
             var proxy = new Mock<IMetadataProviderOrchestrator>();
             proxy.Setup(search => search.SearchForNewEntity("Fixture"))
                 .Returns(new List<object> { firstAuthor, firstBook, bookWithArt, alternateAuthor, alternateBook, unusedAlternative });
@@ -493,6 +507,35 @@ namespace NzbDrone.Api.Test.Search
             results.Should().OnlyContain(result => result.Series.Title == "Fixture" && result.Book == null && result.Author == null);
             proxy.Verify(search => search.SearchForNewSeries("Fixture"), Times.Once());
             proxy.VerifyNoOtherCalls();
+        }
+
+        [TestCase("Fixture Author", null)]
+        [TestCase("openlibrary:author:OL302A", "author")]
+        public void should_require_verified_existing_author_identity_for_all_search_scopes(string term, string scope)
+        {
+            const string weakId = "openlibrary:author:OL302A";
+            var result = SearchAuthor(weakId);
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL302A")).Returns(11);
+            identity.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, 11))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL302A", Evidence = "legacy-linked-id" } });
+            var search = new Mock<IMetadataProviderOrchestrator>();
+            search.Setup(proxy => proxy.SearchForNewEntity(term)).Returns(new List<object> { result });
+            search.Setup(proxy => proxy.SearchForInteractiveAuthors(term, It.IsAny<CancellationToken>())).Returns(new List<Author> { result });
+            var controller = new SearchController(
+                search.Object,
+                Mock.Of<IBuildFileNames>(),
+                Mock.Of<IMapCoversToLocal>(),
+                _telemetry,
+                identity.Object,
+                Mock.Of<ISeriesRepository>(),
+                Mock.Of<IAuthorRepository>(),
+                Mock.Of<IBookRepository>());
+
+            var card = ((List<SearchResource>)controller.Search(term, scope)).Should().ContainSingle().Which;
+
+            card.ForeignId.Should().Be(weakId);
+            card.CatalogueOwnerId.Should().BeNull();
         }
 
         [Test]

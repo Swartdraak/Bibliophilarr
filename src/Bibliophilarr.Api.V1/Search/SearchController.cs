@@ -91,8 +91,7 @@ namespace Bibliophilarr.Api.V1.Search
                 });
             }
 
-            var requireAuthorSourceEvidence = scope == "author" && MetadataProviderOrchestrator.IsInteractiveAuthorName(term);
-            return MapToResource(searchResults, term, requireAuthorSourceEvidence).ToList();
+            return MapToResource(searchResults, term).ToList();
         }
 
         private static bool IsHardcoverSeriesId(string term)
@@ -102,7 +101,7 @@ namespace Bibliophilarr.Api.V1.Search
                    seriesId > 0;
         }
 
-        private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term, bool requireAuthorSourceEvidence)
+        private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term)
         {
             // Issue #250: MetadataProviderOrchestrator.ExecuteFirst returns null when no
             // provider returns a result (every provider failed or returned null, or no
@@ -118,7 +117,7 @@ namespace Bibliophilarr.Api.V1.Search
 
             var groups = results.Select((result, index) =>
                 {
-                    var identity = GetSearchIdentity(result, out var hasVerifiedSource, requireAuthorSourceEvidence);
+                    var identity = GetSearchIdentity(result, out var hasVerifiedSource);
                     return (Result: result, Identity: identity, Index: index, HasVerifiedSource: hasVerifiedSource);
                 })
                 .GroupBy(hit => (hit.Identity, UngroupedIndex: hit.Identity.HasValue ? -1 : hit.Index));
@@ -315,7 +314,7 @@ namespace Bibliophilarr.Api.V1.Search
         }
 
         private (CatalogueEntityKind Kind, int? OwnerId, string SourceIdentity)? GetSearchIdentity(
-            object result, out bool hasVerifiedSource, bool requireAuthorSourceEvidence = false)
+            object result, out bool hasVerifiedSource)
         {
             var (kind, canonicalId, providerId) = result switch
             {
@@ -336,10 +335,10 @@ namespace Bibliophilarr.Api.V1.Search
                 return null;
             }
 
-            if (requireAuthorSourceEvidence && kind == CatalogueEntityKind.Author && sourceOwner is int metadataId &&
-                !_catalogueIdentity.GetSources(kind, metadataId).Any(candidate =>
+            if (kind == CatalogueEntityKind.Author && sourceOwner is int metadataId &&
+                _catalogueIdentity.GetSources(kind, metadataId)?.Any(candidate =>
                     candidate.Provider == source.Provider && candidate.ProviderId == source.ProviderId &&
-                    CatalogueIdentityRepository.IsVerifiedAuthorSearchEvidence(candidate.Evidence)))
+                    CatalogueIdentityRepository.IsVerifiedAuthorSearchEvidence(candidate.Evidence)) != true)
             {
                 sourceOwner = null;
             }
