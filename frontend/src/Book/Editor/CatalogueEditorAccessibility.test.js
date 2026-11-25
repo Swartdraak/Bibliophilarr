@@ -225,14 +225,19 @@ test.each([
   expect(onSelectedChange).toHaveBeenLastCalledWith({ id: 21, value: true, shiftKey: true });
 });
 
-test.each([
+const coverLinkCases = [
   ['an available cover', 'Marshland Almanac', [{ coverType: 'cover', url: '/MediaCover/Books/21/cover.jpg' }], 'Marshland Almanac'],
   ['a missing cover', 'Marshland Almanac', [], 'Marshland Almanac'],
   ['a blank legacy title', '  ', [{ coverType: 'cover', url: '/MediaCover/Books/21/cover.jpg' }], 'Book']
-])('names the real book poster link with %s when card titles are hidden', (_, title, images, expectedName) => {
+];
+
+test.each(coverLinkCases.flatMap(([scenario, ...props]) => [
+  ['Posters', scenario, BookIndexPoster, ...props],
+  ['Overview', scenario, BookIndexOverview, ...props]
+]))('names the %s cover link with %s', (_, __, BookItem, title, images, expectedName) => {
   const catalogue = (
     <MemoryRouter>
-      <BookIndexPoster
+      <BookItem
         id={21}
         title={title}
         titleSlug="marshland-almanac"
@@ -243,6 +248,16 @@ test.each([
         images={images}
         posterWidth={100}
         posterHeight={150}
+        rowHeight={200}
+        isSmallScreen={false}
+        overviewOptions={{
+          detailedProgressBar: false,
+          showAdded: false,
+          showBookCount: false,
+          showPath: false,
+          showReleaseDate: false,
+          showSizeOnDisk: false
+        }}
         detailedProgressBar={false}
         showTitle={false}
         showAuthor={false}
@@ -252,6 +267,7 @@ test.each([
         showSearchAction={false}
         showRelativeDates={false}
         shortDateFormat="MMM D"
+        longDateFormat="MMM D, YYYY"
         timeFormat="HH:mm"
         isRefreshingBook={false}
         isSearchingBook={false}
@@ -274,7 +290,17 @@ test.each([
     runtime.restore();
   }
 
-  const link = screen.getByRole('link', { name: expectedName });
-  expect(link).toHaveAttribute('aria-label', expectedName);
-  expect(link).toHaveAttribute('href', '/fixture-base/book/marshland-almanac');
+  const href = '/fixture-base/book/marshland-almanac';
+  const [coverLink, ...otherCoverLinks] = screen.getAllByRole('link').filter((link) => link.querySelector('img'));
+  expect(otherCoverLinks).toHaveLength(0);
+  expect(coverLink).toHaveAccessibleName(expectedName);
+  expect(coverLink).toHaveAttribute('aria-label', expectedName);
+  expect(coverLink).toHaveAttribute('href', href);
+
+  if (BookItem === BookIndexOverview && title.trim()) {
+    const titleLink = screen.getByText(title, { selector: 'a', exact: true });
+    expect(titleLink).not.toBe(coverLink);
+    expect(titleLink).toHaveAccessibleName(title);
+    expect(titleLink).toHaveAttribute('href', href);
+  }
 });
