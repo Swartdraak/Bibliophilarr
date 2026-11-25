@@ -365,6 +365,11 @@ namespace NzbDrone.Core.Books
         public void Handle(AuthorDeletedEvent message)
         {
             var books = GetBooksByAuthorMetadataId(message.Author.AuthorMetadataId);
+            foreach (var book in books)
+            {
+                book.Author = message.Author;
+            }
+
             if (message.DeleteFiles)
             {
                 DeleteMany(books);
