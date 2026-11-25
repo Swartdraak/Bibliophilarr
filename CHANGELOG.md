@@ -18,6 +18,8 @@ process.
 
 ### Fixed
 
+- Preserve stored author format paths when editing profile settings. Changing a
+  format's root or quality profile alone no longer changes book monitoring.
 - Preserve existing audiobook artwork when Update Covers is unchecked in
   Retag. This skips stripping existing audiobook tags before writing the new
   metadata. Existing API clients can opt into this behavior with
