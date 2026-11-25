@@ -22,19 +22,20 @@ namespace NzbDrone.Core.Books
 
         public bool ShouldRefresh(Author author)
         {
-            if (author.LastInfoSync < DateTime.UtcNow.AddDays(-30))
+            var lastInfoSync = author.LastInfoSync.GetValueOrDefault();
+            if (lastInfoSync < DateTime.UtcNow.AddDays(-30))
             {
-                _logger.Trace("Author {0} last updated more than 30 days ago, should refresh.", author.Name);
+                _logger.Trace("Author {0} has no recorded refresh in the last 30 days, should refresh.", author.Name);
                 return true;
             }
 
-            if (author.LastInfoSync >= DateTime.UtcNow.AddHours(-12))
+            if (lastInfoSync >= DateTime.UtcNow.AddHours(-12))
             {
                 _logger.Trace("Author {0} last updated less than 12 hours ago, should not be refreshed.", author.Name);
                 return false;
             }
 
-            if (author.Metadata.Value.Status == AuthorStatusType.Continuing && author.LastInfoSync < DateTime.UtcNow.AddDays(-2))
+            if (author.Metadata.Value.Status == AuthorStatusType.Continuing && lastInfoSync < DateTime.UtcNow.AddDays(-2))
             {
                 _logger.Trace("Author {0} is continuing and has not been refreshed in 2 days, should refresh.", author.Name);
                 return true;
