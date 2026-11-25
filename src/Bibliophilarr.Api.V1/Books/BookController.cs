@@ -199,7 +199,10 @@ namespace Bibliophilarr.Api.V1.Books
         {
             try
             {
-                var book = _addBookService.AddBook(bookResource.ToModel());
+                var model = bookResource.ToModel();
+                var book = !bookResource.EditionsSpecified && !string.IsNullOrWhiteSpace(bookResource.ForeignEditionId)
+                    ? _addBookService.AddBookByExactEdition(model, bookResource.AuthorId)
+                    : _addBookService.AddBook(model);
                 return Created(book.Id);
             }
             catch (NzbDroneClientException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
