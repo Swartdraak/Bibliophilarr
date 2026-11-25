@@ -1,10 +1,12 @@
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import Icon from 'Components/Icon';
+import IconButton from 'Components/Link/IconButton';
 import RelativeDateCellConnector from 'Components/Table/Cells/RelativeDateCellConnector';
 import TableRowCell from 'Components/Table/Cells/TableRowCell';
 import TableRowButton from 'Components/Table/TableRowButton';
 import { icons } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import LogsTableDetailsModal from './LogsTableDetailsModal';
 import styles from './LogsTableRow.css';
 
@@ -46,6 +48,11 @@ class LogsTableRow extends Component {
     if (!this.state.isDetailsModalOpen) {
       this.setState({ isDetailsModalOpen: true });
     }
+  };
+
+  onDetailsPress = (event) => {
+    event.stopPropagation();
+    this.onPress();
   };
 
   onModalClose = () => {
@@ -125,7 +132,14 @@ class LogsTableRow extends Component {
                 <TableRowCell
                   key={name}
                   className={styles.actions}
-                />
+                >
+                  <IconButton
+                    className={styles.detailsButton}
+                    name={icons.INFO}
+                    title={translate('ViewEventDetails')}
+                    onPress={this.onDetailsPress}
+                  />
+                </TableRowCell>
               );
             }
 

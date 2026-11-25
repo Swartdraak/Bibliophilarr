@@ -33,3 +33,15 @@
 
   width: 45px;
 }
+
+.detailsButton {
+  composes: button from '~Components/Link/IconButton.css';
+
+  min-height: 24px;
+  width: 24px;
+
+  &:focus-visible {
+    outline: 2px solid var(--sidebarActiveColor);
+    outline-offset: -2px;
+  }
+}
