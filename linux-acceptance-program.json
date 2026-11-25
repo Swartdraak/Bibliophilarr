@@ -85,15 +85,19 @@
     },
     {
       "path": "linux-program/recovery/check_integrity.py",
-      "sha256": "97607a5302adaffb1d04c8df6b33f1f2550e97a06a6c924ab43695ab8d0bd869"
+      "sha256": "d0685c4f046e6f4a26d71ce061bfd786acfeaec13be123b01ad83fb4cfc753e1"
     },
     {
       "path": "linux-program/recovery/check_recovery.py",
-      "sha256": "cb4dd5de390cecfa8f262ba4aba3f558f034fd6e53f1f37ad52d0480f1e02064"
+      "sha256": "e87affb5f78606d7cecd07b019f3a9a9604b0a33408ebf266fb7aaaaa2d31d4c"
     },
     {
       "path": "linux-program/recovery/prepare.sh",
       "sha256": "5431135de67f4eb13f44b6ccb445fc0d36b8b4f97b9fe72a64e1ac0d4814aa84"
+    },
+    {
+      "path": "linux-program/recovery/recovery_witness.py",
+      "sha256": "ac5cac986a424445d9111dbdf047998d15926d2b99e47349df94a241471d6c21"
     },
     {
       "path": "linux-program/workflows/check_first_boot.py",

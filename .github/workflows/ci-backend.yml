@@ -37,6 +37,10 @@ jobs:
         working-directory: .
         run: python3 linux-program/tests/check_integrations_setup.py
 
+      - name: Verify Linux recovery continuity evidence
+        working-directory: .
+        run: python3 -B linux-program/tests/check_recovery_witness.py
+
       - name: Setup .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
