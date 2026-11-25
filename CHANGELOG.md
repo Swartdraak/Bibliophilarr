@@ -20,6 +20,7 @@ process.
 
 ### Fixed
 
+- Give the Add Root Folder and individual root folder edit buttons accessible names.
 - Make the Theme setting announce its label and keep keyboard focus while
   selecting or dismissing its options.
 - Remove temporary upload and extraction files after each backup restore attempt.
