@@ -1,6 +1,6 @@
 # Project status summary
 
-**Last verified**: 2026-11-24
+**Last verified**: 2026-11-25
 **Verification scope**: branch protection, issue and pull request state, native acceptance, and published release channels
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
@@ -75,11 +75,15 @@ recovery issue is closed.
   audited catalogue identities. Bibliography, artwork, unresolved matches, and
   a separate fresh replay of the newer draft remain open.
   [Completed replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
-- The most recent fresh profile saved all four provider configurations. It
-  remains stopped before either library root was registered. Hardcover's last
-  reported earliest retry was November 25 at 09:00 KST. Verify provider
-  availability and then repeat the full import, follow-up and restart checks.
-  [Provider status](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7130037593)
+- The most recent fresh profile saved all four provider configurations and
+  recorded live requests to each provider during the ebook scans. Those scans
+  inventoried 75 ebooks, linked 53 to ebook editions, and held 22 for review.
+  Both roots are saved. The browser test driver stopped the instance after
+  saving the audiobook root, before the audiobook scan imported files.
+  Continue from the saved roots and reconcile the interrupted command before
+  scanning all 458 audiobooks. The full coverage and restart checks on this
+  profile are still pending.
+  [Connected replay checkpoint](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7149349955)
 - The closed replay decoded all 7,586 cached images. Among 414 works with
   linked files, 42 had an image reference without a usable cached image and
   62 lacked a reference. The retained logs connect rate-limit deferrals to
