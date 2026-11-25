@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -25,10 +26,14 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.Options;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.Commands;
+using NzbDrone.Core.Messaging;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Qualities;
 
@@ -239,6 +244,7 @@ namespace NzbDrone.Host.Test
             var library = profile.CreateSubdirectory("library").FullName;
             var key = Guid.NewGuid().ToString("N");
             string offeredAudiobook = null;
+            var completedCommands = new CommandCompletionProbe();
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
             var token = timeout.Token;
 
@@ -247,11 +253,12 @@ namespace NzbDrone.Host.Test
                 new XElement("Config",
                     new XElement("AuthenticationMethod", "Forms"),
                     new XElement("ApiKey", key)).Save(Path.Combine(appData, "config.xml"));
-                using var host = BuildHost(appData, offeredAudiobook: () => offeredAudiobook);
+                using var host = BuildHost(appData, offeredAudiobook: () => offeredAudiobook, completedCommands: completedCommands);
                 await host.StartAsync(token);
                 try
                 {
                     using var client = CreateClient(host, key);
+                    var commands = host.Services.GetRequiredService<ICommandRepository>();
                     var quality = await FindProfile(client, "qualityprofile", "eBook", token);
                     var metadata = await FindProfile(client, "metadataprofile", "None", token);
                     var rootRequest = new
@@ -264,7 +271,12 @@ namespace NzbDrone.Host.Test
                         defaultNewItemMonitorOption = "none",
                         defaultTags = Array.Empty<int>()
                     };
+                    var beforeRoot = commands.All().Select(command => command.Id).DefaultIfEmpty().Max();
                     await Post(client, "rootfolder", rootRequest, HttpStatusCode.Created, token);
+                    var rootScan = commands.All().Single(command => command.Id > beforeRoot &&
+                        command.Body is RescanFoldersCommand { Filter: FilterFilesType.None, AddNewAuthors: true } scan &&
+                        scan.Folders?.SequenceEqual(new[] { library }) == true);
+                    await completedCommands.WaitForSuccess(commands, rootScan.Id, token);
 
                     var first = BookRequest(ForeignBookId, ForeignEditionId, BookTitle);
                     first["author"] = new
@@ -276,15 +288,12 @@ namespace NzbDrone.Host.Test
                         monitored = false,
                         monitorNewItems = "none"
                     };
+                    var beforeFirstBook = commands.All().ToList();
                     var added = await Post(client, "book", first, HttpStatusCode.Created, token);
                     var bookId = added.GetProperty("id").GetInt32();
                     var authorId = added.GetProperty("authorId").GetInt32();
+                    await WaitForBookAddRefresh(commands, completedCommands, beforeFirstBook, library, authorId, token);
                     var ebookId = AssertIdentity(added, bookId, authorId, ForeignBookId, ForeignEditionId);
-                    var queue = host.Services.GetRequiredService<IManageCommandQueue>();
-                    while (!queue.All().Any(command => command.Name == "RefreshAuthor" && command.EndedAt.HasValue))
-                    {
-                        await Task.Delay(TimeSpan.FromMilliseconds(100), token);
-                    }
 
                     var filePath = Path.Combine(library, "fixture.epub");
                     File.WriteAllText(filePath, "Existing test-owned file");
@@ -296,8 +305,10 @@ namespace NzbDrone.Host.Test
                     var otherEditionId = 0;
                     if (conflictingEditionOwner)
                     {
+                        var beforeOtherBook = commands.All().ToList();
                         var other = await Post(client, "book", BookRequest(OtherForeignBookId, OtherForeignEditionId, OtherBookTitle), HttpStatusCode.Created, token);
                         otherBookId = other.GetProperty("id").GetInt32();
+                        await WaitForBookAddRefresh(commands, completedCommands, beforeOtherBook, library, authorId, token);
                         otherEditionId = AssertIdentity(other, otherBookId, authorId, OtherForeignBookId, OtherForeignEditionId);
                     }
 
@@ -305,14 +316,11 @@ namespace NzbDrone.Host.Test
                     var exclusion = exclusions.Add(new ImportListExclusion { ForeignId = ForeignBookId, Name = BookTitle });
                     offeredAudiobook = selectedId;
                     var selection = BookRequest(ForeignBookId, selectedId, BookTitle);
-                    var lastCommandId = queue.All().Select(command => command.Id).DefaultIfEmpty().Max();
+                    var beforeSelection = commands.All().ToList();
                     var result = await Post(client, "book", selection, conflictingEditionOwner ? HttpStatusCode.BadRequest : HttpStatusCode.Created, token);
                     if (!conflictingEditionOwner)
                     {
-                        while (!queue.All().Any(command => command.Id > lastCommandId && command.Name == "RefreshAuthor" && command.EndedAt.HasValue))
-                        {
-                            await Task.Delay(TimeSpan.FromMilliseconds(100), token);
-                        }
+                        await WaitForBookAddRefresh(commands, completedCommands, beforeSelection, library, authorId, token);
                     }
 
                     var readback = await Get(client, $"book/{bookId}", token);
@@ -362,11 +370,62 @@ namespace NzbDrone.Host.Test
             }
         }
 
+        private static async Task WaitForBookAddRefresh(ICommandRepository commands,
+                                                        CommandCompletionProbe completedCommands,
+                                                        List<CommandModel> previousCommands,
+                                                        string library,
+                                                        int authorId,
+                                                        CancellationToken token)
+        {
+            var beforeAdd = previousCommands.Select(command => command.Id).DefaultIfEmpty().Max();
+            var refresh = commands.All().Single(command => command.Id > beforeAdd &&
+                command.Body is RefreshAuthorCommand { IsNewAuthor: false } body && body.AuthorId == authorId);
+            await completedCommands.WaitForSuccess(commands, refresh.Id, token);
+
+            var activeAtAdd = previousCommands.Where(command => command.Status is CommandStatus.Queued or CommandStatus.Started)
+                .Select(command => command.Id)
+                .ToHashSet();
+            var scans = commands.All().Where(command =>
+                (command.Id > beforeAdd || activeAtAdd.Contains(command.Id)) &&
+                command.Body is RescanFoldersCommand { Filter: FilterFilesType.Matched, AddNewAuthors: false } scan &&
+                scan.Folders?.SequenceEqual(new[] { library }) == true);
+            foreach (var scan in scans)
+            {
+                await completedCommands.WaitForSuccess(commands, scan.Id, token);
+            }
+        }
+
+        private sealed class CommandCompletionProbe : IHandle<CommandExecutedEvent>
+        {
+            private readonly ConcurrentDictionary<int, TaskCompletionSource> _completions = new ();
+
+            // TaskManager can write the scheduled task after the command's own terminal row is saved.
+            [EventHandleOrder(EventHandleOrder.Last)]
+            public void Handle(CommandExecutedEvent message)
+            {
+                CompletionFor(message.Command.Id).TrySetResult();
+            }
+
+            public async Task WaitForSuccess(ICommandRepository commands, int id, CancellationToken token)
+            {
+                await CompletionFor(id).Task.WaitAsync(token);
+                var stored = commands.Get(id);
+                stored.Status.Should().Be(CommandStatus.Completed, $"fixture command {id} must finish");
+                stored.Result.Should().Be(CommandResult.Successful, $"fixture command {id} must succeed");
+            }
+
+            private TaskCompletionSource CompletionFor(int id)
+            {
+                return _completions.GetOrAdd(id, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            }
+        }
+
         private static IHost BuildHost(string appData,
                                        bool useFixtureProvider = true,
                                        Func<string> offeredAudiobook = null,
                                        bool emptyAuthorBibliography = false,
-                                       IMetadataProvider fixtureProvider = null)
+                                       IMetadataProvider fixtureProvider = null,
+                                       CommandCompletionProbe completedCommands = null)
         {
             var args = new[] { $"-data={appData}", "-nobrowser", "-nosingleinstancecheck" };
             return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
@@ -382,6 +441,10 @@ namespace NzbDrone.Host.Test
                     var container = serviceProvider.Container;
                     var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
                     container.RegisterInstance(dispatcher.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+                    if (completedCommands != null)
+                    {
+                        container.RegisterInstance<IHandle<CommandExecutedEvent>>(completedCommands, ifAlreadyRegistered: IfAlreadyRegistered.AppendNotKeyed);
+                    }
 
                     // Bootstrap may resolve the orchestrator before this callback.
                     // Update its existing registry so every consumer uses the same provider.
