@@ -775,6 +775,63 @@ namespace NzbDrone.Common.Test.Http
             ExceptionVerification.ExpectedWarns(1);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task should_log_streamed_download_outcome_without_the_source_or_destination(bool unavailable)
+        {
+            const string source = "https://www.example.test/ordinary-file";
+            var file = GetTempFilePath();
+            var original = new byte[] { 12, 34 };
+            var received = new byte[] { 20, 40, 60 };
+            await File.WriteAllBytesAsync(file, original);
+            var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
+            dispatcher.Setup(transport => transport.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
+                .ReturnsAsync((HttpRequest outbound, CookieContainer cookies) =>
+                {
+                    outbound.Url.FullUri.Should().Be(source);
+                    outbound.Method.Should().Be(HttpMethod.Get);
+                    outbound.AllowAutoRedirect.Should().BeTrue();
+                    if (!unavailable)
+                    {
+                        outbound.ResponseStream.Write(received);
+                    }
+
+                    return new HttpResponse(
+                        outbound,
+                        new HttpHeader { ContentType = "application/octet-stream" },
+                        string.Empty,
+                        unavailable ? HttpStatusCode.NotFound : HttpStatusCode.OK);
+                });
+            var messages = new MemoryTarget { Layout = "${message}|${exception:format=ToString}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Trace, LogLevel.Fatal, messages);
+            using var logFactory = new LogFactory { Configuration = logging };
+            var client = new HttpClient(
+                Array.Empty<IHttpRequestInterceptor>(),
+                new CacheManager(),
+                Mock.Of<IRateLimitService>(),
+                dispatcher.Object,
+                logFactory.GetLogger(nameof(HttpClient)));
+
+            if (unavailable)
+            {
+                var failure = Assert.ThrowsAsync<HttpException>(() => client.DownloadFileAsync(source, file));
+                failure.Response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+                File.ReadAllBytes(file).Should().Equal(original);
+            }
+            else
+            {
+                await client.DownloadFileAsync(source, file);
+                File.ReadAllBytes(file).Should().Equal(received);
+            }
+
+            File.Exists(file + ".part").Should().BeFalse();
+            messages.Logs.Should().NotContain(entry => entry.Contains(source) || entry.Contains(file));
+            messages.Logs.Should().ContainSingle(entry => unavailable
+                ? entry.StartsWith("HTTP request failed (HTTP 404).", StringComparison.Ordinal)
+                : entry.StartsWith("Completed file download (HTTP 200, 3 bytes,", StringComparison.Ordinal));
+        }
+
         [Test]
         public async Task should_not_write_redirect_content_to_stream()
         {

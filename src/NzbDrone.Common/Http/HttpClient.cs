@@ -351,21 +351,26 @@ namespace NzbDrone.Common.Http
                     fileInfo.Directory.Create();
                 }
 
-                _logger.Debug("Downloading [{0}] to [{1}]", url, fileName);
-
+                _logger.Debug("Starting HTTP file download.");
                 var stopWatch = Stopwatch.StartNew();
+                HttpStatusCode statusCode;
+                long bytesDownloaded;
                 await using (var fileStream = new FileStream(fileNamePart, FileMode.Create, FileAccess.ReadWrite))
                 {
                     var request = new HttpRequest(url);
                     request.AllowAutoRedirect = true;
                     request.ResponseStream = fileStream;
                     request.RequestTimeout = TimeSpan.FromSeconds(300);
+                    request.OmitSensitiveDiagnostics = true;
                     var response = await GetAsync(request);
 
                     if (response.Headers.ContentType != null && response.Headers.ContentType.Contains("text/html"))
                     {
                         throw new HttpException(request, response, "Site responded with html content.");
                     }
+
+                    statusCode = response.StatusCode;
+                    bytesDownloaded = fileStream.Length;
                 }
 
                 stopWatch.Stop();
@@ -376,7 +381,7 @@ namespace NzbDrone.Common.Http
                 }
 
                 File.Move(fileNamePart, fileName);
-                _logger.Debug("Downloading Completed. took {0:0}s", stopWatch.Elapsed.Seconds);
+                _logger.Debug("Completed file download (HTTP {0}, {1} bytes, {2} ms).", (int)statusCode, bytesDownloaded, stopWatch.ElapsedMilliseconds);
             }
             finally
             {

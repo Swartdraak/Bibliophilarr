@@ -612,6 +612,8 @@ process.
 - Use normalized titles, status and client information in torrent and Usenet
   download-client messages. Omit raw download URLs from those messages and from
   their HTTP transport and manual Grab failure logs.
+- Report HTTP streamed file downloads using status, byte count and time without
+  logging the source URL or destination path.
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.
 - Patch glob and minimatch in frontend tooling. Restore the authentic
