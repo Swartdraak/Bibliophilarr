@@ -85,8 +85,8 @@ process.
   limits and temporary outages.
 - Retain the recorded low-confidence or incomplete-bibliography reason when a
   matched-only scan finds no work for the same unchanged file.
-- Recover one missing Open Library bibliography work when exact search results
-  agree with the available work list and the direct record verifies author credit.
+- Recover up to six missing Open Library bibliography works when exact search
+  agrees with the available list and every direct record verifies author credit.
 - Avoid repeated lookups for the same incomplete author bibliography within a
   library scan. A later scan can retry, and logs report where Open Library
   pagination stopped.

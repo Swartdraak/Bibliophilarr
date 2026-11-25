@@ -210,9 +210,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             const int pageSize = 100;
             const int maxSearchPages = 3;
+            const int maxMissingWorks = 6;
 
             recoveryDocs = null;
-            if (total < 2 || total > pageSize * maxSearchPages || total - works.Count != 1 ||
+            var missingCount = total - works.Count;
+            if (works.Count == 0 || total > pageSize * maxSearchPages || missingCount is < 1 or > maxMissingWorks ||
                 CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null)?.ProviderId != authorId)
             {
                 return false;
@@ -251,23 +253,32 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     return false;
                 }
 
-                var missingId = searchDocs.Keys.Single(id => !known.Contains(id));
-                var searchAuthor = searchDocs[missingId].AuthorKey?.FirstOrDefault();
-                if (searchAuthor != authorId && searchAuthor != $"/authors/{authorId}")
+                var missing = searchDocs.Where(pair => !known.Contains(pair.Key)).ToList();
+                if (missing.Count != missingCount || missing.Any(pair =>
+                {
+                    var searchAuthor = pair.Value.AuthorKey?.FirstOrDefault();
+                    return searchAuthor != authorId && searchAuthor != $"/authors/{authorId}";
+                }))
                 {
                     return false;
                 }
 
-                var recovered = _client.GetWork(missingId);
-                if (recovered?.Key != $"/works/{missingId}" || recovered.Title.IsNullOrWhiteSpace() ||
-                    !HasExclusiveAuthorCredit(recovered, authorId))
+                var recovered = new List<OlWorkResource>(missingCount);
+                foreach (var (workId, _) in missing)
                 {
-                    return false;
+                    var work = _client.GetWork(workId);
+                    if (work?.Key != $"/works/{workId}" || work.Title.IsNullOrWhiteSpace() ||
+                        !HasExclusiveAuthorCredit(work, authorId))
+                    {
+                        return false;
+                    }
+
+                    recovered.Add(work);
                 }
 
-                works.Add(recovered);
+                works.AddRange(recovered);
                 recoveryDocs = searchDocs.Values.ToList();
-                _logger.Info("Verified one missing Open Library bibliography work for author {0}. The bibliography now has {1} distinct works.", authorId, total);
+                _logger.Info("Verified {0} missing Open Library bibliography work IDs for author {1}. The bibliography now has {2} distinct works.", recovered.Count, authorId, total);
                 return true;
             }
             catch (Exception ex) when (ex is OpenLibraryException or WebException or HttpRequestException)

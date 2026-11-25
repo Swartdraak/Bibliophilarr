@@ -716,6 +716,84 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             _clientMock.Verify(client => client.GetWork(It.IsAny<string>()), stableLastPage ? Times.Once() : Times.Never());
         }
 
+        [TestCase("all verified", true)]
+        [TestCase("last work has a different author", false)]
+        [TestCase("last work is unavailable", false)]
+        public void get_author_info_should_require_direct_credit_for_all_six_works_after_101_of_107_early_eof(string scenario, bool recovered)
+        {
+            const string authorId = "OL26320A";
+            const int total = 107;
+            const int observed = 101;
+            _clientMock.Setup(client => client.GetAuthor(authorId, true)).Returns(BuildAuthor());
+            foreach (var offset in new[] { 0, 100 })
+            {
+                var entries = BuildSearchDocs(offset == 0 ? 100 : 1, offset + 1)
+                    .Select(doc => new OlWorkResource { Key = doc.Key, Title = doc.Title }).ToList();
+                _clientMock.Setup(client => client.GetAuthorWorks(authorId, 100, offset))
+                    .Returns(new OlAuthorWorksResponse { Size = total, Entries = entries });
+                _clientMock.Setup(client => client.Search("author_key:OL26320A", 100, offset))
+                    .Returns(new OlSearchResponse
+                    {
+                        Start = offset,
+                        NumFoundExact = true,
+                        NumFound = total,
+                        Docs = BuildSearchDocs(offset == 0 ? 100 : 7, offset + 1)
+                    });
+            }
+
+            _clientMock.Setup(client => client.GetAuthorWorks(authorId, 100, observed))
+                .Returns(new OlAuthorWorksResponse { Size = total });
+            var recoveredIds = Enumerable.Range(observed + 1, total - observed).Select(index => $"OL{index}W").ToList();
+            foreach (var id in recoveredIds)
+            {
+                var direct = BuildWork();
+                direct.Key = $"/works/{id}";
+                direct.Title = $"Book {id[2..^1]}";
+                if (id == recoveredIds[^1])
+                {
+                    if (scenario == "last work has a different author")
+                    {
+                        direct.Authors[0].Author.Key = "/authors/OL999A";
+                    }
+                    else if (scenario == "last work is unavailable")
+                    {
+                        direct = null;
+                    }
+                }
+
+                _clientMock.Setup(client => client.GetWork(id)).Returns(direct);
+            }
+
+            if (recovered)
+            {
+                var books = Subject.GetAuthorInfo("openlibrary:author:OL26320A").Books.Value;
+                books.Select(book => book.OpenLibraryWorkId).Should().BeEquivalentTo(
+                    Enumerable.Range(1, total).Select(index => $"OL{index}W"));
+                books.Where(book => recoveredIds.Contains(book.OpenLibraryWorkId))
+                    .Should().OnlyContain(book => book.VerifiedOpenLibraryAuthorId == authorId);
+            }
+            else
+            {
+                var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+                var failure = lookup.Should().Throw<MetadataProviderUnavailableException>().Which;
+                failure.AuthoritativeBibliographyEndedEarly.Should().BeTrue();
+                failure.AuthorBibliographyProgress.Should().Be((observed, observed, total));
+            }
+
+            _clientMock.Verify(client => client.GetAuthorWorks(authorId, 100, observed), Times.Exactly(2));
+            _clientMock.Verify(client => client.GetAuthorWorks(authorId, 100, It.IsAny<int>()), Times.Exactly(4));
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, It.IsAny<int>()), Times.Exactly(2));
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 0), Times.Once());
+            _clientMock.Verify(client => client.Search("author_key:OL26320A", 100, 100), Times.Once());
+            foreach (var id in recoveredIds)
+            {
+                _clientMock.Verify(client => client.GetWork(id), Times.Once());
+            }
+
+            _clientMock.Verify(client => client.GetWork(It.IsAny<string>()), Times.Exactly(total - observed));
+            _clientMock.Verify(client => client.GetWorkEditions(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never());
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void get_author_info_should_confirm_an_early_empty_works_page_once(bool recovers)
