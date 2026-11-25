@@ -79,8 +79,9 @@ class Fixture:
         common.case_dir = lambda: str(self.case)
         common.fetch_api_key = lambda: self.key
         common.auth_headers = self.auth_headers
+        # Keep the witness shape and identity checks without the governed KDF cost.
         common.derive_api_key_witness = lambda key, salt: hashlib.pbkdf2_hmac(
-            'sha256', key.encode(), salt, 600_000
+            'sha256', key.encode(), salt, 1
         )
         common.make_reporter = lambda failures: (
             lambda name, ok, *args: failures.append(name) if not ok else None
