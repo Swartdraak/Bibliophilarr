@@ -29,6 +29,8 @@ process.
 - Remove temporary upload and extraction files after each backup restore attempt.
 - Explain how to select a local book and edition in Manual Import when book
   metadata lookup is unconfigured.
+- Return HTTP 400 with selection instructions when a Book Files request omits
+  all selectors.
 - Retry Open Library artwork on the normal scan cycle after a temporary
   transport timeout.
 - Include authors with no recorded metadata refresh in the scheduled author refresh.
