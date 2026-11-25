@@ -71,8 +71,7 @@ namespace Bibliophilarr.Api.V1.ManualImport
                     rejections = new[]
                     {
                         new Rejection(
-                            "Cannot import: no catalogue book/edition mapping (BookId and ForeignEditionId both missing). " +
-                            "Run the manual-import scan first to resolve the catalogue match, then retry.")
+                            "Cannot import without a catalogue book selection. Select a book from your library and choose a compatible edition, then retry.")
                     }
                 });
 

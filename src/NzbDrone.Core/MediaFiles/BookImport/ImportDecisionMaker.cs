@@ -70,6 +70,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
+        private readonly IMetadataProviderRegistry _metadataProviders;
+        private readonly IEnumerable<IBookSearchFallbackProvider> _fallbackProviders;
         private readonly Logger _logger;
 
         public ImportDecisionMaker(IEnumerable<IImportDecisionEngineSpecification<LocalBook>> trackSpecifications,
@@ -85,6 +87,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IMetadataProviderOrchestrator metadataOrchestrator,
                                    IAuthorService authorService,
                                    IBookService bookService,
+                                   IMetadataProviderRegistry metadataProviders,
+                                   IEnumerable<IBookSearchFallbackProvider> fallbackProviders,
                                    Logger logger)
         {
             _trackSpecifications = trackSpecifications;
@@ -100,6 +104,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _metadataOrchestrator = metadataOrchestrator;
             _authorService = authorService;
             _bookService = bookService;
+            _metadataProviders = metadataProviders;
+            _fallbackProviders = fallbackProviders;
             _logger = logger;
         }
 
@@ -784,6 +790,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     LibraryImportHoldReason.CompetingEditions => "More than one edition matches this file's ISBN and format. Select the intended edition manually.",
                     LibraryImportHoldReason.ProviderIdentityConflict when localEdition.ProviderIdentityConflictDetail != null => localEdition.ProviderIdentityConflictDetail,
                     LibraryImportHoldReason.ProviderIdentityConflict => "Metadata provider results conflict with this file's book identity. Select the intended work manually.",
+                    LibraryImportHoldReason.NoAcceptedWork when !_metadataProviders.HasConfiguredBookLookup && !_fallbackProviders.Any(provider => provider.IsFallbackEnabled) =>
+                        "No book metadata provider is enabled and configured. Select a book and compatible edition from your library, or configure a metadata provider and scan again.",
                     _ => $"Couldn't find similar book for {localEdition}"
                 };
                 decision = new ImportDecision<LocalEdition>(localEdition, new Rejection(message, holdReason: reason));
