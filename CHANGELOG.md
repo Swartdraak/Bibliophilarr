@@ -17,6 +17,7 @@ process.
 ### Fixed
 
 - Show kept ebooks and audiobooks in Unmapped Files after deleting their book or author.
+- Remove an author's format profiles when deleting that author.
 - Recognize editions labeled Audio as audiobooks when matching library files.
 - Follow verified Open Library ISBN redirects and continue the work ID backfill
   when an ISBN lookup returns no match.
