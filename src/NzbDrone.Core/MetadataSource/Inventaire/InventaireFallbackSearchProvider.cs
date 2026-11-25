@@ -195,7 +195,7 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
 
         private static void AddAuthorImage(AuthorMetadata authorMetadata, InventaireSearchResult result)
         {
-            var url = FirstNonEmpty(result?.AuthorImage, result?.Picture, result?.ImageUrl);
+            var url = result.AuthorImage;
             if (url.IsNullOrWhiteSpace())
             {
                 return;
