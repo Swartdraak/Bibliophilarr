@@ -313,6 +313,8 @@ process.
 
 ### Security
 
+- Normalize request method and client information before writing HTTP logs.
+
 - Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
 
 - Sanitize book identifiers and titles in Add Book and import-list logs.
