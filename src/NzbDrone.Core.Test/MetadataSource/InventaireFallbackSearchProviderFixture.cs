@@ -69,5 +69,44 @@ namespace NzbDrone.Core.Test.MetadataSource
             capturedRequest.Should().NotBeNull();
             capturedRequest.RateLimitKey.Should().Be("Inventaire");
         }
+
+        [TestCase("picture", null)]
+        [TestCase("image", null)]
+        [TestCase("picture", "https://inventaire.example/portraits/author.jpg")]
+        public void should_keep_work_artwork_separate_from_the_author_portrait(string workImageProperty, string authorPortrait)
+        {
+            const string workImage = "https://inventaire.example/covers/work.jpg";
+            var portraitJson = authorPortrait == null ? "null" : $"\"{authorPortrait}\"";
+            var payload = $$"""
+                {
+                  "results": [{
+                    "uri": "wd:Q123",
+                    "label": "Fixture work",
+                    "author": "Fixture author",
+                    "{{workImageProperty}}": "{{workImage}}",
+                    "authorPicture": {{portraitJson}}
+                  }]
+                }
+                """;
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(x => x.Get<InventaireSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<InventaireSearchResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            var book = Subject.Search("Fixture work", "Fixture author").Should().ContainSingle().Which;
+            var edition = book.Editions.Value.Should().ContainSingle().Which;
+            edition.Images.Should().ContainSingle().Which.Url.Should().Be(workImage);
+            var portraits = book.AuthorMetadata.Value.Images;
+
+            if (authorPortrait == null)
+            {
+                portraits.Should().BeEmpty();
+            }
+            else
+            {
+                portraits.Should().ContainSingle().Which.Url.Should().Be(authorPortrait);
+            }
+        }
     }
 }
