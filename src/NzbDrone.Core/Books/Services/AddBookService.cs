@@ -72,7 +72,7 @@ namespace NzbDrone.Core.Books
                 .Take(2)
                 .ToList();
             if (editions?.Count != 1 || editions[0] is not { Id: 0, BookId: 0 } selectedEdition ||
-                !IsSourceEdition(book.ForeignBookId, selectedEdition.ForeignEditionId) ||
+                !IsSourceEdition(providerBook.ForeignBookId, selectedEdition.ForeignEditionId) ||
                 ImportFormat.ForEdition(selectedEdition, requireExplicitFormat: true) is not { } format ||
                 selectedEdition.IsEbook != (format == FormatType.Ebook))
             {
@@ -85,26 +85,37 @@ namespace NzbDrone.Core.Books
             var authorSourceId = provider.Item1;
             var authorClaim = book.Author?.Value;
             var providerOwners = provider.Item3?.Where(author => author?.ForeignAuthorId == authorSourceId).Take(2).ToList();
-            var sourceMatches = !string.IsNullOrWhiteSpace(authorSourceId) &&
-                                providerOwners?.Count == 1 &&
-                                providerBook.AuthorMetadata?.Value?.ForeignAuthorId == authorSourceId &&
-                                authorClaim?.Metadata?.Value?.ForeignAuthorId == authorSourceId;
-            var owner = sourceMatches ? _authorService.FindById(authorSourceId) : null;
-            var canCreateAuthor = sourceMatches && owner == null && authorClaim.Id == 0 && claimedAuthorId == 0 &&
-                                  providerOwners[0].Id == 0 && !string.IsNullOrWhiteSpace(providerOwners[0].Name) &&
-                                  IsSourceAuthor(book.ForeignBookId, authorSourceId);
-            if (!canCreateAuthor &&
-                (owner is not { Id: > 0, AuthorMetadataId: > 0 } || owner.Metadata?.Value?.ForeignAuthorId != authorSourceId ||
-                 (authorClaim.Id != 0 && authorClaim.Id != owner.Id) ||
-                 (claimedAuthorId != 0 && claimedAuthorId != owner.Id)))
+            if (string.IsNullOrWhiteSpace(authorSourceId) || providerOwners?.Count != 1 ||
+                providerBook.AuthorMetadata?.Value?.ForeignAuthorId != authorSourceId ||
+                authorClaim?.Metadata?.Value?.ForeignAuthorId != authorSourceId)
             {
-                throw new ValidationException(new[]
-                {
-                    new ValidationFailure("Author.ForeignAuthorId", "The book provider did not verify the selected work for the specified author")
-                });
+                throw InvalidExactEditionAuthor();
             }
 
-            if (book.Id != 0 || _bookService.FindById(book.ForeignBookId) != null)
+            var providerAuthor = providerOwners[0];
+            var owner = _authorService.FindById(providerAuthor.ForeignAuthorId);
+            var ownerId = owner?.Id ?? 0;
+            if ((authorClaim.Id != 0 && authorClaim.Id != ownerId) ||
+                (claimedAuthorId != 0 && claimedAuthorId != ownerId))
+            {
+                throw InvalidExactEditionAuthor();
+            }
+
+            if (owner == null)
+            {
+                if (providerAuthor.Id != 0 || string.IsNullOrWhiteSpace(providerAuthor.Name) ||
+                    !IsSourceAuthor(providerBook.ForeignBookId, providerAuthor.ForeignAuthorId))
+                {
+                    throw InvalidExactEditionAuthor();
+                }
+            }
+            else if (owner is not { Id: > 0, AuthorMetadataId: > 0 } ||
+                     owner.Metadata?.Value?.ForeignAuthorId != providerAuthor.ForeignAuthorId)
+            {
+                throw InvalidExactEditionAuthor();
+            }
+
+            if (book.Id != 0 || _bookService.FindById(providerBook.ForeignBookId) != null)
             {
                 throw new NzbDroneClientException(HttpStatusCode.Conflict, "The selected work already exists. Open its editions to change your selection.");
             }
@@ -113,18 +124,40 @@ namespace NzbDrone.Core.Books
             book.ForeignEditionId = selectedEdition.ForeignEditionId;
             book.Added = DateTime.UtcNow;
             book.Editions = new List<Edition> { selectedEdition };
-            book.AuthorMetadata = canCreateAuthor ? providerOwners[0] : owner.Metadata.Value;
             book.AddOptions.AddType = BookAddType.Manual;
             selectedEdition.Monitored = true;
             selectedEdition.ManualAdd = true;
 
-            if (canCreateAuthor)
+            if (owner != null)
             {
-                ValidateNewAuthor(authorClaim);
-                return _addAuthorService.AddNewAuthorWithBook(authorClaim, book, doRefresh: true);
+                book.AuthorMetadata = owner.Metadata.Value;
+                return SaveBook(book, owner, doRefresh: true);
             }
 
-            return SaveBook(book, owner, doRefresh: true);
+            var newAuthor = new Author
+            {
+                Metadata = providerAuthor,
+                Path = authorClaim.Path,
+                RootFolderPath = authorClaim.RootFolderPath,
+                QualityProfileId = authorClaim.QualityProfileId,
+                MetadataProfileId = authorClaim.MetadataProfileId,
+                Tags = authorClaim.Tags,
+                Monitored = authorClaim.Monitored,
+                MonitorNewItems = authorClaim.MonitorNewItems,
+                AddOptions = authorClaim.AddOptions
+            };
+            ValidateNewAuthor(newAuthor);
+            book.Author = newAuthor;
+            book.AuthorMetadata = providerAuthor;
+            return _addAuthorService.AddNewAuthorWithBook(newAuthor, book, doRefresh: true);
+        }
+
+        private static ValidationException InvalidExactEditionAuthor()
+        {
+            return new ValidationException(new[]
+            {
+                new ValidationFailure("Author.ForeignAuthorId", "The book provider did not verify the selected work for the specified author")
+            });
         }
 
         private static bool IsSourceAuthor(string workId, string authorId)
