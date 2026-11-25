@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using FizzWare.NBuilder;
@@ -7,6 +8,7 @@ using FluentValidation.Results;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
@@ -224,6 +226,68 @@ namespace NzbDrone.Core.Test.MusicTests
             author.Path.Should().Be(@"C:\Test\Music\Fallback");
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        public void should_keep_manual_and_transport_fallback(bool unattended, bool authoritative)
+        {
+            var request = IncompleteFixtureAuthor();
+            var provider = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            provider.Setup(service => service.GetAuthorInfo("OL12345A", false)).Throws(IncompleteBibliography(authoritative));
+            GivenValidPath();
+
+            var author = unattended
+                ? Subject.AddAuthorFromUnattendedLibraryImport(request)
+                : Subject.AddAuthor(request, false);
+
+            author.Name.Should().Be("Incomplete Fixture");
+            Mocker.GetMock<IAuthorMetadataService>().Verify(service => service.Upsert(author.Metadata.Value), Times.Once());
+            Mocker.GetMock<IAuthorService>().Verify(service => service.AddAuthor(author, false), Times.Once());
+            provider.Verify(service => service.GetAuthorInfo("OL12345A", false), Times.Once());
+            provider.VerifyNoOtherCalls();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_allow_unattended_reuse_of_a_validated_owner_after_incomplete_bibliography()
+        {
+            var request = IncompleteFixtureAuthor();
+            var incumbent = new Author { Id = 7, AuthorMetadataId = 8, ForeignAuthorId = "hardcover:author:42" };
+            var provider = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            provider.Setup(service => service.GetAuthorInfo("OL12345A", false)).Throws(IncompleteBibliography(authoritative: true));
+            var canonical = Mocker.GetMock<IAuthorCanonicalizationService>();
+            canonical.Setup(service => service.TryReuseAuthorOnAdd(
+                    It.Is<Author>(author => author.ForeignAuthorId == request.ForeignAuthorId && author.Path == request.Path),
+                    null,
+                    It.Is<IReadOnlyList<(Author, IReadOnlyList<Book>)>>(pending => pending.Count == 0)))
+                .Returns(incumbent);
+            GivenValidPath();
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableDualFormatTracking).Returns(true);
+
+            Subject.AddAuthorFromUnattendedLibraryImport(request).Should().BeSameAs(incumbent);
+
+            Mocker.GetMock<IAddAuthorValidator>().Verify(validator => validator.Validate(It.IsAny<Author>()), Times.Once());
+            Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorService>().Verify(service => service.AddAuthor(It.IsAny<Author>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IAuthorFormatProfileService>().VerifyNoOtherCalls();
+            provider.Verify(service => service.GetAuthorInfo("OL12345A", false), Times.Once());
+            provider.VerifyNoOtherCalls();
+        }
+
+        private static Author IncompleteFixtureAuthor()
+        {
+            return new Author { Name = "Incomplete Fixture", ForeignAuthorId = "openlibrary:author:OL12345A", Path = @"C:\Test\Books\Incomplete Fixture" };
+        }
+
+        private static MetadataProviderUnavailableException IncompleteBibliography(bool authoritative)
+        {
+            return new MetadataProviderUnavailableException(
+                MetadataProviderOrchestrator.AuthorInfoOperation,
+                "openlibrary:author:OL12345A",
+                new InvalidOperationException("Fixture author response unavailable."),
+                authoritative,
+                authoritative ? (1, 1, 2) : null);
         }
 
         [Test]

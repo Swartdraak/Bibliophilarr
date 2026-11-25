@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -35,6 +36,13 @@ namespace NzbDrone.Core.Test.MediaFiles
         private Book _book;
         private Edition _ebookEdition;
         private Edition _audiobookEdition;
+
+        private static Expression<Func<IAddAuthorService, Author>> AuthorAddition(bool unattended, Expression<Func<Author, bool>> matches)
+        {
+            return unattended
+                ? service => service.AddAuthorFromUnattendedLibraryImport(It.Is(matches))
+                : service => service.AddAuthor(It.Is(matches), false);
+        }
 
         [SetUp]
         public void Setup()
@@ -184,20 +192,20 @@ namespace NzbDrone.Core.Test.MediaFiles
             authors.Setup(service => service.GetAuthor(incumbent.Id)).Returns(incumbent);
             authors.Setup(service => service.GetAuthor(addedSynthetic.Id)).Returns(addedSynthetic);
             var additions = Mocker.GetMock<IAddAuthorService>();
-            additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == authorityId), false))
+            additions.Setup(AuthorAddition(unattended, author => author.ForeignAuthorId == authorityId))
                 .Returns(() =>
                 {
                     authorityAdded = true;
                     return incumbent;
                 });
-            additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == syntheticId), false))
+            additions.Setup(AuthorAddition(unattended, author => author.ForeignAuthorId == syntheticId))
                 .Returns(addedSynthetic);
             Mocker.GetMock<IEditionService>().Setup(service => service.SetMonitored(otherEdition)).Returns(new List<Edition> { otherEdition });
 
             Subject.Import(_approvedDecisions, false);
 
             authorityAdded.Should().BeTrue();
-            additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == syntheticId), false),
+            additions.Verify(AuthorAddition(unattended, author => author.ForeignAuthorId == syntheticId),
                 unattended ? Times.Never() : Times.Once());
             later.Rejections.Any(rejection => rejection.HoldReason == LibraryImportHoldReason.AuthorIdentityConfirmationRequired).Should().Be(unattended);
         }
@@ -212,7 +220,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             var decision = _approvedDecisions.Single();
             decision.Item.IsUnattendedLibraryImport = true;
             Mocker.GetMock<IAddAuthorService>()
-                .Setup(service => service.AddAuthor(_author, false))
+                .Setup(service => service.AddAuthorFromUnattendedLibraryImport(_author))
                 .Throws(new MetadataProviderUnavailableException(operation, "openlibrary:author:OL1A", new InvalidOperationException("Synthetic incomplete bibliography")));
 
             var result = Subject.Import(_approvedDecisions, false).Single();
@@ -225,7 +233,7 @@ namespace NzbDrone.Core.Test.MediaFiles
                 ? "The metadata provider could not load the author's bibliography. Rescan to retry."
                 : "Failed to add missing author");
             rejection.HoldReason.Should().Be(expectedReason);
-            Mocker.GetMock<IAddAuthorService>().Verify(service => service.AddAuthor(_author, false), Times.Once());
+            Mocker.GetMock<IAddAuthorService>().Verify(service => service.AddAuthorFromUnattendedLibraryImport(_author), Times.Once());
             Mocker.GetMock<IEditionService>().Verify(service => service.SetMonitored(It.IsAny<Edition>()), Times.Never());
             Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
         }
@@ -251,7 +259,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             var decision = _approvedDecisions.Single();
             decision.Item.IsUnattendedLibraryImport = unattended;
             var additions = Mocker.GetMock<IAddAuthorService>();
-            additions.Setup(service => service.AddAuthor(_author, false))
+            additions.Setup(AuthorAddition(unattended, author => author == _author))
                 .Throws(new MetadataProviderUnavailableException(
                     "get-author-info",
                     privateErrorId,
@@ -278,7 +286,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             var rejection = decision.Rejections.Should().ContainSingle().Which;
             rejection.Type.Should().Be(RejectionType.Temporary);
             rejection.HoldReason.Should().Be(LibraryImportHoldReason.AuthorBibliographyUnavailable);
-            additions.Verify(service => service.AddAuthor(_author, false), Times.Once());
+            additions.Verify(AuthorAddition(unattended, author => author == _author), Times.Once());
             Mocker.GetMock<IBookService>().Verify(service => service.AddBook(It.IsAny<Book>(), It.IsAny<bool>()), Times.Never());
             Mocker.GetMock<IEditionService>().Verify(service => service.SetMonitored(It.IsAny<Edition>()), Times.Never());
             Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
@@ -323,23 +331,23 @@ namespace NzbDrone.Core.Test.MediaFiles
             }
 
             var additions = Mocker.GetMock<IAddAuthorService>();
-            additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId != independent), false))
+            additions.Setup(AuthorAddition(unattended, author => author.ForeignAuthorId != independent))
                 .Throws(new MetadataProviderUnavailableException(
                     "get-author-info",
                     "openlibrary:author:OL1A",
                     new InvalidOperationException("Incomplete fixture bibliography"),
                     authoritative,
                     authorBibliographyProgress: (10, 9, 12)));
-            additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == independent), false))
+            additions.Setup(AuthorAddition(unattended, author => author.ForeignAuthorId == independent))
                 .Returns(stored);
             Mocker.GetMock<IEditionService>().Setup(service => service.SetMonitored(It.IsAny<Edition>()))
                 .Returns((Edition edition) => new List<Edition> { edition });
 
             Subject.Import(new List<ImportDecision<LocalBook>> { first, repeated, different }, false);
 
-            additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId != independent), false),
+            additions.Verify(AuthorAddition(unattended, author => author.ForeignAuthorId != independent),
                 Times.Exactly(expectedAttempts));
-            additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == independent), false), Times.Once());
+            additions.Verify(AuthorAddition(unattended, author => author.ForeignAuthorId == independent), Times.Once());
             different.Approved.Should().BeTrue();
             different.Item.Author.Id.Should().Be(stored.Id);
             AssertHeld(first);
@@ -356,7 +364,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             var later = Decision(incoming, 4);
             Subject.Import(new List<ImportDecision<LocalBook>> { later }, false);
 
-            additions.Verify(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId != independent), false),
+            additions.Verify(AuthorAddition(unattended, author => author.ForeignAuthorId != independent),
                 Times.Exactly(expectedAttempts + 1));
             AssertHeld(later);
             ExceptionVerification.ExpectedErrors(expectedAttempts + 1);

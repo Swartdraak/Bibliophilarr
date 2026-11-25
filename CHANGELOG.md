@@ -102,6 +102,9 @@ process.
   provider, page offset, and verified response counts in System Events.
 - Report the failing provider and page counts when a library import is held
   because a provider's author bibliography ended early.
+- Hold files for a new author when an unattended scan confirms that the
+  authoritative bibliography is incomplete. Keep verified existing authors
+  available for import and retry held files after a complete lookup.
 - Avoid repeated lookups for the same incomplete author bibliography within a
   library scan. A later scan can retry, and logs report where Open Library
   pagination stopped.

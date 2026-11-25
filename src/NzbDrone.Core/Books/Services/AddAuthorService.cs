@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using FluentValidation;
 using FluentValidation.Results;
 using NLog;
@@ -23,6 +24,7 @@ namespace NzbDrone.Core.Books
     public interface IAddAuthorService
     {
         Author AddAuthor(Author newAuthor, bool doRefresh = true);
+        Author AddAuthorFromUnattendedLibraryImport(Author newAuthor);
         Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh);
         Book AddNewAuthorWithBook(Author author, Book book, bool doRefresh);
         List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh = true);
@@ -73,10 +75,20 @@ namespace NzbDrone.Core.Books
 
         public Author AddAuthor(Author newAuthor, bool doRefresh = true)
         {
+            return AddAuthor(newAuthor, doRefresh, deferIncompleteBibliography: false);
+        }
+
+        public Author AddAuthorFromUnattendedLibraryImport(Author newAuthor)
+        {
+            return AddAuthor(newAuthor, doRefresh: false, deferIncompleteBibliography: true);
+        }
+
+        private Author AddAuthor(Author newAuthor, bool doRefresh, bool deferIncompleteBibliography)
+        {
             Ensure.That(newAuthor, () => newAuthor).IsNotNull();
 
-            var resolved = AddSkyhookData(newAuthor);
-            return AddResolvedAuthor(resolved.Author, resolved.Bibliography, doRefresh);
+            var resolved = AddSkyhookData(newAuthor, deferIncompleteBibliography, out var incompleteBibliography);
+            return AddResolvedAuthor(resolved.Author, resolved.Bibliography, doRefresh, incompleteBibliography);
         }
 
         public Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh)
@@ -116,7 +128,11 @@ namespace NzbDrone.Core.Books
             }
         }
 
-        private Author AddResolvedAuthor(Author newAuthor, IReadOnlyList<Book> bibliography, bool doRefresh)
+        private Author AddResolvedAuthor(
+            Author newAuthor,
+            IReadOnlyList<Book> bibliography,
+            bool doRefresh,
+            MetadataProviderUnavailableException incompleteBibliography = null)
         {
             lock (AdditionLocks[GetAdditionLockIndex(newAuthor)])
             {
@@ -127,6 +143,12 @@ namespace NzbDrone.Core.Books
                 if (canonical != null)
                 {
                     return canonical;
+                }
+
+                if (incompleteBibliography != null)
+                {
+                    // Corroboration can reuse an existing identity, but cannot make a new bibliography complete.
+                    ExceptionDispatchInfo.Throw(incompleteBibliography);
                 }
 
                 _logger.Info("Adding catalogue author");
@@ -156,7 +178,7 @@ namespace NzbDrone.Core.Books
             {
                 try
                 {
-                    resolved.Add(AddSkyhookData(s));
+                    resolved.Add(AddSkyhookData(s, false, out _));
                 }
                 catch (Exception ex)
                 {
@@ -254,9 +276,13 @@ namespace NzbDrone.Core.Books
             return inserted.Concat(existingMatches).DistinctBy(x => x.Id).ToList();
         }
 
-        private (Author Author, IReadOnlyList<Book> Bibliography) AddSkyhookData(Author newAuthor)
+        private (Author Author, IReadOnlyList<Book> Bibliography) AddSkyhookData(
+            Author newAuthor,
+            bool deferIncompleteBibliography,
+            out MetadataProviderUnavailableException incompleteBibliography)
         {
             Author author;
+            incompleteBibliography = null;
 
             var normalizedForeignAuthorId = NormalizeForeignAuthorId(newAuthor.Metadata.Value.ForeignAuthorId);
             newAuthor.Metadata.Value.ForeignAuthorId = normalizedForeignAuthorId;
@@ -281,6 +307,14 @@ namespace NzbDrone.Core.Books
                 }
 
                 _logger.Warn("Author metadata lookup returned no results for {0}; using request payload fallback", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
+                author = BuildFallbackAuthor(newAuthor);
+            }
+            catch (MetadataProviderUnavailableException ex) when (
+                deferIncompleteBibliography && ex.AuthoritativeBibliographyEndedEarly &&
+                ex.Operation == MetadataProviderOrchestrator.AuthorInfoOperation &&
+                ex.EntityId == normalizedForeignAuthorId)
+            {
+                incompleteBibliography = ex;
                 author = BuildFallbackAuthor(newAuthor);
             }
             catch (Exception ex)
