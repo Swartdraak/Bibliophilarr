@@ -214,17 +214,20 @@ def wait_catalogue_command(api, command_id, name, *, expected_status="completed"
     raise TimeoutError(f"{name} did not finish")
 
 
-def wait_for_added_google_author(api, author_id):
-    commands = checked(api.get("/api/v1/command"), 200, "read_google_book_add_commands")
-    refresh, = [
+def wait_for_added_author_refresh(api, author_id, *, timeout=120):
+    commands = checked(api.get("/api/v1/command"), 200, "read_book_add_commands")
+    refreshes = [
         command for command in commands
         if command["name"] == "RefreshAuthor" and (command.get("body") or {}).get("authorId") == author_id
     ]
-    completed = wait_catalogue_command(api, refresh["id"], "RefreshAuthor", timeout=120)
-    assert completed["result"] == "successful" and not completed.get("exception"), (
-        "Google Books could not complete the author refresh triggered by Add Book"
-    )
-    print("google_book_author_refresh: PASS (settled before credentials were cleared)", flush=True)
+    if len(refreshes) != 1:
+        raise AssertionError(f"Expected one Add Book refresh for author {author_id}; found {len(refreshes)}")
+
+    completed = wait_catalogue_command(api, refreshes[0]["id"], "RefreshAuthor", timeout=timeout)
+    if ((completed.get("body") or {}).get("authorId") != author_id or
+            completed.get("result") != "successful" or completed.get("exception")):
+        raise AssertionError(f"Add Book did not successfully refresh author {author_id}")
+    return completed
 
 
 def verify_missing_author_rescan(api, app_data, root):
@@ -638,7 +641,8 @@ def exercise_catalogue(page, api, base, work, app_data, *, live_provider=None):
             book, author = find_live_book(page, api, base, root, live_provider)
             if live_provider == "googlebooks":
                 # Add Book queues a bibliography refresh for the new author's provider.
-                wait_for_added_google_author(api, book["authorId"])
+                wait_for_added_author_refresh(api, book["authorId"])
+                print("google_book_author_refresh: PASS (settled before credentials were cleared)", flush=True)
         finally:
             configure_providers(api)
 

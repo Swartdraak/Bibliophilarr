@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import expect, sync_playwright
 
-from catalogue_workflow import checked, configure_providers, google_result_edition, initialize_root, wait_catalogue_command
+from catalogue_workflow import checked, configure_providers, google_result_edition, initialize_root, wait_for_added_author_refresh
 from smoke import bootstrap_headers, collect_page_errors, free_port, login, running_app, wait_ready
 
 AUTHOR = 'Marin Fixture'
@@ -98,10 +98,7 @@ def run_browser_add_book(binary, evidence, tls, endpoints):
                 book_id, author_id = created['id'], created['authorId']
                 assert book_id > 0 and author_id > 0
                 canonical_author = found['book']['author']['foreignAuthorId']
-                commands = checked(api.get('/api/v1/command'), 200, 'Read author creation refresh')
-                for command in commands:
-                    if command['name'] == 'RefreshAuthor':
-                        wait_catalogue_command(api, command['id'], 'RefreshAuthor', timeout=40)
+                refresh = wait_for_added_author_refresh(api, author_id, timeout=40)
                 configure_providers(api)
                 cases = [book_id, author_id]
                 original = assert_library(page, api, base, cases, canonical_author)
@@ -116,6 +113,7 @@ def run_browser_add_book(binary, evidence, tls, endpoints):
             assert reopened.returncode == 0
     report = {'browserSearch': 200, 'browserAdd': 201, 'exactEdition': True, 'authorCreated': True, 'restart': True,
               'bookId': book_id, 'authorId': author_id, 'editionId': original[2], 'fixtureCalls': count,
+              'authorRefreshCommandId': refresh['id'], 'authorRefreshResult': refresh['result'],
               'providerCallsDuringReopen': 0}
     (evidence / 'browser-add-book.json').write_text(json.dumps(report, indent=2) + '\n')
     print('Browser Add New synthetic source edition: PASS', flush=True)

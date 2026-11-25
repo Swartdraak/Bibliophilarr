@@ -108,8 +108,9 @@ commands keep their existing prerequisites.
 The Linux packaged recovery job also sends a normal Add New search to a local
 TLS fixture. Chromium opens the matched result, selects the root and profiles,
 and submits Add. The signed 201 response must contain the exact source edition
-and a newly created author. The signed Library and detail pages must show the
-same catalogue identities after restart. `browser-add-book.json` records this
+and a newly created author. The command API must show a successful refresh for
+that exact author. The signed Library and detail pages must show the same
+catalogue identities after restart. `browser-add-book.json` records this
 fixture run. Credentialed live search and the governed browser stage remain
 separate acceptance checks.
 
