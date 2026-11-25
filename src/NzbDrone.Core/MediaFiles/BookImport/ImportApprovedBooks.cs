@@ -51,6 +51,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         private readonly IAuthorService _authorService;
         private readonly IAddAuthorService _addAuthorService;
         private readonly IBookService _bookService;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly IEditionService _editionService;
         private readonly IRootFolderService _rootFolderService;
         private readonly IRecycleBinProvider _recycleBinProvider;
@@ -69,6 +70,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                    IAuthorService authorService,
                                    IAddAuthorService addAuthorService,
                                    IBookService bookService,
+                                   ICatalogueIdentityRepository catalogueIdentity,
                                    IEditionService editionService,
                                    IRootFolderService rootFolderService,
                                    IRecycleBinProvider recycleBinProvider,
@@ -87,6 +89,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             _authorService = authorService;
             _addAuthorService = addAuthorService;
             _bookService = bookService;
+            _catalogueIdentity = catalogueIdentity;
             _editionService = editionService;
             _rootFolderService = rootFolderService;
             _recycleBinProvider = recycleBinProvider;
@@ -150,10 +153,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                 try
                 {
-                    var author = EnsureAuthorAdded(decisionList, addedAuthors, unavailableBibliographies);
+                    var transientSummary = InventaireLibraryWorkSummary.IsTransient(decisionList[0].Item.Edition);
+                    Book book = null;
+                    if (transientSummary)
+                    {
+                        book = ResolveInventaireSummaryOwner(decisionList, bookDecision.FileFormat);
+                    }
+                    else if (EnsureAuthorAdded(decisionList, addedAuthors, unavailableBibliographies) != null)
+                    {
+                        book = EnsureBookAdded(decisionList, addedBooks);
+                    }
 
-                    var book = author == null ? null : EnsureBookAdded(decisionList, addedBooks);
-                    var edition = book == null ? null : EnsureImportEdition(book, decisionList, bookDecision.FileFormat);
+                    var edition = book == null ? null : EnsureImportEdition(book, decisionList, bookDecision.FileFormat, transientSummary);
 
                     if (edition == null)
                     {
@@ -973,9 +984,44 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 tags?.IsbnConfidence >= 0.9 ? Isbn.AsIsbn13(tags.Isbn) : null);
         }
 
-        private Edition EnsureImportEdition(Book book, List<ImportDecision<LocalBook>> decisions, FormatType? fileFormat)
+        private Book ResolveInventaireSummaryOwner(List<ImportDecision<LocalBook>> decisions, FormatType? format)
         {
-            var selected = EnsureEditionAdded(decisions);
+            var summary = decisions[0].Item.Edition;
+            var sourceId = InventaireLibraryWorkSummary.GetSourceId(summary);
+            var work = InventaireLibraryWorkSummary.FindOwner(_bookService, _catalogueIdentity, sourceId, out _);
+            if (work == null || !format.HasValue || decisions.Any(decision =>
+                !decision.Item.IsLibraryScan || !decision.Item.ExistingFile ||
+                decision.Item.Book.Id != work.Id || decision.Item.Book.CanonicalId != work.CanonicalId ||
+                decision.Item.Book.AuthorMetadataId != work.AuthorMetadataId || decision.Item.Author.Id != work.Author.Value.Id ||
+                decision.Item.Author.Metadata?.Value?.CanonicalId != work.Author.Value.Metadata.Value.CanonicalId ||
+                ImportDecisionMaker.NormalizeLibraryAuthor(decision.Item.Author.Name) != ImportDecisionMaker.NormalizeLibraryAuthor(work.Author.Value.Name) ||
+                ImportDecisionMaker.NormalizeLibraryIdentity(decision.Item.Edition.Title) != ImportDecisionMaker.NormalizeLibraryIdentity(work.Title) ||
+                decision.Item.Edition.Id != 0 || decision.Item.Edition.BookId != work.Id ||
+                !ImportFormat.NeedsDigitalEdition(decision.Item.Edition)))
+            {
+                foreach (var decision in decisions)
+                {
+                    decision.Reject(new Rejection(
+                        "The verified Inventaire work or its author changed before import.",
+                        RejectionType.Temporary,
+                        LibraryImportHoldReason.ConflictingIdentity));
+                }
+
+                return null;
+            }
+
+            foreach (var decision in decisions)
+            {
+                decision.Item.Book = work;
+                decision.Item.Author = work.Author.Value;
+            }
+
+            return work;
+        }
+
+        private Edition EnsureImportEdition(Book book, List<ImportDecision<LocalBook>> decisions, FormatType? fileFormat, bool transientSummary)
+        {
+            var selected = transientSummary ? decisions[0].Item.Edition : EnsureEditionAdded(decisions);
             if (!fileFormat.HasValue || !ImportFormat.NeedsDigitalEdition(selected))
             {
                 return selected;

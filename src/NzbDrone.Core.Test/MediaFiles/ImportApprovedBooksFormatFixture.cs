@@ -641,6 +641,89 @@ namespace NzbDrone.Core.Test.MediaFiles
             _approvedDecisions[0].Item.Edition.Should().BeSameAs(edition);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_link_local_audiobook_and_keep_the_historical_inventaire_ebook(bool currentAlias)
+        {
+            const string sourceWorkId = "wd:Q912001";
+            const string legacyEditionId = "inventaire:edition:" + sourceWorkId;
+            const string canonicalWorkId = "705b2b5da2a943319bf107448959fe9c";
+            const string localAudioId = "bibliophilarr:edition:" + canonicalWorkId + ":audiobook";
+            GivenEbookImport();
+            var ebook = _approvedDecisions.Single();
+            GivenAudiobookImport();
+            var audiobook = _approvedDecisions.Single();
+            _approvedDecisions.Add(ebook);
+
+            _author.AuthorMetadataId = 22;
+            _author.Metadata.Value.Id = _author.AuthorMetadataId;
+            _author.Metadata.Value.CanonicalId = "185cbb81d132400fb235a95b1a264f58";
+            _book.AuthorMetadataId = _author.AuthorMetadataId;
+            _book.CanonicalId = canonicalWorkId;
+            _book.ForeignBookId = "inventaire:work:" + sourceWorkId;
+            Mocker.GetMock<IBookService>().Setup(service => service.FindById(_book.ForeignBookId)).Returns(_book);
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "Inventaire", sourceWorkId))
+                .Returns(currentAlias ? _book.Id : (int?)null);
+            identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Work, _book.Id))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "Inventaire", ProviderId = sourceWorkId, Evidence = "primary-provider-id" } });
+            _book.Editions = new List<Edition> { _ebookEdition };
+            _ebookEdition.ForeignEditionId = legacyEditionId;
+            _ebookEdition.Isbn13 = "9780140328721";
+            audiobook.Item.Edition = new Edition
+            {
+                Book = _book,
+                BookId = _book.Id,
+                ForeignEditionId = "inventaire:work-summary:" + sourceWorkId,
+                Title = _book.Title
+            };
+            ebook.Item.ExistingFile = audiobook.Item.ExistingFile = true;
+            ebook.Item.IsLibraryScan = audiobook.Item.IsLibraryScan = true;
+            ebook.Item.IsUnattendedLibraryImport = audiobook.Item.IsUnattendedLibraryImport = true;
+
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableDualFormatTracking).Returns(true);
+            var media = Mocker.GetMock<IMediaFileService>();
+            var legacyFile = new BookFile { Id = 72, Path = ebook.Item.Path, EditionId = _ebookEdition.Id };
+            media.Setup(service => service.GetFileWithPath(ebook.Item.Path)).Returns(legacyFile);
+            media.Setup(service => service.GetUnmappedFiles()).Returns(new List<BookFile>());
+            var inserted = GivenLocalDigitalEditionStorage();
+            var editions = Mocker.GetMock<IEditionService>();
+            editions.Setup(service => service.GetEditionsByBook(_book.Id)).Returns(() => new[] { _ebookEdition }.Concat(inserted).ToList());
+            editions.Setup(service => service.SetMonitoredByFormat(It.IsAny<Edition>())).Returns(() => new[] { _ebookEdition }.Concat(inserted).ToList());
+
+            var results = Subject.Import(_approvedDecisions, false);
+
+            results.Should().ContainSingle(result => result.ImportDecision == ebook && result.Result == ImportResultType.Skipped);
+            if (!currentAlias)
+            {
+                results.Should().ContainSingle(result => result.ImportDecision == audiobook && result.Result == ImportResultType.Rejected);
+                audiobook.Rejections.Should().Contain(rejection => rejection.HoldReason == LibraryImportHoldReason.ConflictingIdentity);
+                inserted.Should().BeEmpty();
+                legacyFile.EditionId.Should().Be(_ebookEdition.Id);
+                media.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+                return;
+            }
+
+            results.Should().ContainSingle(result => result.ImportDecision == audiobook && result.Result == ImportResultType.Imported);
+            var audioEdition = inserted.Should().ContainSingle().Which;
+            audioEdition.ForeignEditionId.Should().Be(localAudioId);
+            audioEdition.Id.Should().NotBe(_ebookEdition.Id);
+            audioEdition.BookId.Should().Be(_book.Id);
+            audioEdition.Format.Should().Be("Audiobook");
+            audioEdition.IsEbook.Should().BeFalse();
+            audioEdition.Isbn13.Should().BeNull();
+            audioEdition.Asin.Should().BeNull();
+            _ebookEdition.ForeignEditionId.Should().Be(legacyEditionId);
+            _ebookEdition.Isbn13.Should().Be("9780140328721");
+            _ebookEdition.IsEbook.Should().BeTrue();
+            _ebookEdition.Monitored.Should().BeTrue();
+            legacyFile.EditionId.Should().Be(_ebookEdition.Id);
+            media.Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count == 1 && files[0].EditionId == audioEdition.Id)), Times.Once());
+            media.Verify(service => service.Delete(legacyFile, It.IsAny<DeleteMediaFileReason>()), Times.Never());
+            Mocker.GetMock<IAddAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().Verify(service => service.InsertMany(It.IsAny<List<Book>>()), Times.Never());
+        }
+
         [Test]
         public void should_separate_both_file_formats_when_the_same_print_edition_identified_the_work()
         {

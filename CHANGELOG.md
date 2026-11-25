@@ -55,6 +55,8 @@ process.
   Bibliophilarr profile while other metadata providers remain available.
 - Reuse a verified work's existing audiobook edition during a full library scan
   when it ties with an untyped edition and the file has no conflicting link.
+- Use verified Inventaire work matches for either local format. Keep the
+  existing ebook link and store a separate audiobook edition when appropriate.
 - Show the exact stored work's synopsis in Add New when the provider result
   omits it.
 - Fill a blank stored Hardcover series description from agreeing book metadata

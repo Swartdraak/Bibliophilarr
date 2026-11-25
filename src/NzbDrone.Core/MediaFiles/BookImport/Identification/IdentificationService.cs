@@ -358,6 +358,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 GetBestRelease(localBookRelease, candidateReleases, allLocalTracks, out _, preferredFormat);
             }
 
+            if (localBookRelease.IdentificationHoldReason == LibraryImportHoldReason.ConflictingIdentity)
+            {
+                // A conclusive contradiction from a fallback must not restore a weaker earlier match.
+                localBookRelease.Edition = null;
+                localBookRelease.ExistingTracks = new List<LocalBook>();
+                return;
+            }
+
             if (!config.NewDownload && config.IncludeExisting && idOverrides.Edition == null)
             {
                 RefineLocalEbookEdition(localBookRelease, localCandidates, allLocalTracks, idOverrides.Author == null && idOverrides.Book == null);
@@ -619,6 +627,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return author.Length > 0 && track.FileTrackInfo?.Authors?.Any(name => AuthorNameMatches(name, author)) == true
                 ? (author, filename.Substring(split + 3))
                 : (null, filename);
+        }
+
+        internal static bool HasConflictingInventaireFilename(LocalBook file, string normalizedTitle)
+        {
+            var (author, filenameTitle) = ReadFilenameIdentity(file);
+            return author != null && !TitlesAgree(normalizedTitle, ImportDecisionMaker.NormalizeLibraryIdentity(filenameTitle));
         }
 
         private static bool AuthorNameMatches(string name, string normalizedAuthor)
@@ -945,7 +959,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             // Apply initial format bias to existing best distance if applicable
             if (preferredFormat.HasValue && localBookRelease.Edition != null)
             {
-                var existingFormat = localBookRelease.Edition.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
+                var existingFormat = InventaireLibraryWorkSummary.IsTransient(localBookRelease.Edition)
+                    ? null
+                    : (FormatType?)(localBookRelease.Edition.IsEbook ? FormatType.Ebook : FormatType.Audiobook);
                 if (existingFormat == preferredFormat.Value)
                 {
                     bestEffectiveDistance -= 0.02;
@@ -986,7 +1002,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 var effectiveDistance = currDistance;
                 if (preferredFormat.HasValue)
                 {
-                    var editionFormat = release.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
+                    var editionFormat = InventaireLibraryWorkSummary.IsTransient(release)
+                        ? null
+                        : (FormatType?)(release.IsEbook ? FormatType.Ebook : FormatType.Audiobook);
                     if (editionFormat == preferredFormat.Value)
                     {
                         effectiveDistance -= 0.02;

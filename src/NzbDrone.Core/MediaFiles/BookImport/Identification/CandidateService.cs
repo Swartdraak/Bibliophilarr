@@ -9,6 +9,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
@@ -41,6 +42,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly IEditionService _editionService;
         private readonly IMediaFileService _mediaFileService;
         private readonly IMetadataQueryNormalizationService _queryNormalizationService;
@@ -55,6 +57,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         public CandidateService(IMetadataProviderOrchestrator metadataOrchestrator,
                                 IAuthorService authorService,
                                 IBookService bookService,
+                                ICatalogueIdentityRepository catalogueIdentity,
                                 IEditionService editionService,
                                 IMediaFileService mediaFileService,
                                 IMetadataQueryNormalizationService queryNormalizationService,
@@ -66,6 +69,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _metadataOrchestrator = metadataOrchestrator;
             _authorService = authorService;
             _bookService = bookService;
+            _catalogueIdentity = catalogueIdentity;
             _editionService = editionService;
             _mediaFileService = mediaFileService;
             _queryNormalizationService = queryNormalizationService;
@@ -523,13 +527,58 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 _logger.Debug("Trying tertiary fallback provider {0}", provider.ProviderName);
 
+                (string Title, string Author, List<Book> Results) checkedInventaire = default;
+                if (forLibraryScan && provider.ProviderName == "Inventaire" && provider.IsFallbackEnabled &&
+                    idOverrides is null or { Author: null, Book: null, Edition: null })
+                {
+                    const string fileConflict = "Reliable file tags or the filename disagree on the work identity.";
+                    var evidence = ReadInventaireLibraryEvidence(localEdition);
+                    if (evidence.Conflict)
+                    {
+                        HoldInventaireIdentityConflict(localEdition, fileConflict);
+                        yield break;
+                    }
+
+                    if (evidence.Format.HasValue)
+                    {
+                        var results = SearchFallback(provider, evidence.Title, evidence.Author);
+                        checkedInventaire = (evidence.Title, evidence.Author, results);
+                        var selected = SelectInventaireLibrarySummary(results, evidence.Title, evidence.Author);
+                        if (selected.Conflict != null)
+                        {
+                            HoldInventaireIdentityConflict(localEdition, selected.Conflict);
+                            yield break;
+                        }
+
+                        if (selected.Summary != null)
+                        {
+                            if (allowsEdition?.Invoke(selected.Summary) != false)
+                            {
+                                yield return new CandidateEdition { Edition = selected.Summary, ExistingFiles = new List<BookFile>() };
+                            }
+
+                            yield break;
+                        }
+
+                        if (evidence.Format != FormatType.Ebook)
+                        {
+                            // Work summaries without a verified owner cannot identify an audiobook.
+                            continue;
+                        }
+                    }
+                }
+
                 if (titleVariants.Any() && authorVariants.Any())
                 {
                     foreach (var titleVariant in titleVariants)
                     {
                         foreach (var authorVariant in authorVariants)
                         {
-                            foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, authorVariant), seenCandidates, idOverrides, localEdition, allowsEdition))
+                            // Keep the existing ebook fallback order. Reuse an exact response already fetched above.
+                            var books = checkedInventaire.Title == titleVariant && checkedInventaire.Author == authorVariant
+                                ? checkedInventaire.Results
+                                : SearchFallback(provider, titleVariant, authorVariant);
+                            foreach (var candidate in ToCandidates(books, seenCandidates, idOverrides, localEdition, allowsEdition))
                             {
                                 yield return candidate;
                             }
@@ -567,6 +616,101 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             LogCandidateRejectionTelemetry(localEdition, "all-search-paths-exhausted", 0, 0, seenCandidates.Count);
+        }
+
+        private static (string Title, string Author, FormatType? Format, bool Conflict) ReadInventaireLibraryEvidence(LocalEdition release)
+        {
+            var files = release.LocalBooks;
+            var formats = files.Select(file => ImportFormat.ForPath(file.Path)).Distinct().Take(2).ToList();
+            if (formats.Count != 1 || !formats[0].HasValue || files.Any(file =>
+                file.FileTrackInfo is not { BookTitleConfidence: >= 0.9, AuthorConfidence: >= 0.9 } ||
+                file.ReliableTaggedBookTitle == null || file.FileTrackInfo.Authors?.Count != 1))
+            {
+                return default;
+            }
+
+            var first = files[0].FileTrackInfo;
+            var author = ImportDecisionMaker.NormalizeLibraryAuthor(first.Authors[0]);
+            var title = ImportDecisionMaker.NormalizeLibraryIdentity(first.BookTitle);
+            if (author == null || title == null)
+            {
+                return default;
+            }
+
+            var conflict = files.Any(file =>
+                ImportDecisionMaker.NormalizeLibraryAuthor(file.FileTrackInfo.Authors[0]) != author ||
+                file.ReliableTaggedBookTitle != title ||
+                IdentificationService.HasConflictingInventaireFilename(file, title)) ||
+                files.Where(file => file.FileTrackInfo.IsbnConfidence >= 0.9)
+                    .Select(file => Isbn.AsIsbn13(file.FileTrackInfo.Isbn)).Where(isbn => isbn != null).Distinct().Take(2).Count() > 1 ||
+                files.Where(file => file.FileTrackInfo.AsinConfidence >= 0.9)
+                    .Select(file => ImportDecisionMaker.NormalizeLibraryAsin(file.FileTrackInfo.Asin)).Where(asin => asin != null).Distinct().Take(2).Count() > 1;
+            return (first.BookTitle.Trim(), first.Authors[0].Trim(), formats[0], conflict);
+        }
+
+        private (Edition Summary, string Conflict) SelectInventaireLibrarySummary(List<Book> results, string title, string author)
+        {
+            const CatalogueEntityKind kind = CatalogueEntityKind.Work;
+            const string provider = "Inventaire";
+            const string ownerConflict = "The Inventaire work disagrees with the recorded canonical author or title.";
+            if (results.Count > 10)
+            {
+                return (null, "Inventaire returned more than the requested work results. Select the intended work manually.");
+            }
+
+            var exactTitle = ImportDecisionMaker.NormalizeLibraryIdentity(title);
+            var exactAuthor = ImportDecisionMaker.NormalizeLibraryAuthor(author);
+            var claims = results.Where(book => book != null)
+                .Select(book => (
+                    Source: CatalogueIdentityRepository.ParseLegacySource(kind, book.ForeignBookId, null),
+                    Title: ImportDecisionMaker.NormalizeLibraryIdentity(book.Title),
+                    Author: ImportDecisionMaker.NormalizeLibraryAuthor(book.AuthorMetadata?.Value?.Name)))
+                .Where(claim => claim.Source?.Provider == provider)
+                .ToList();
+            var exact = claims.Where(claim => claim.Title == exactTitle && claim.Author == exactAuthor)
+                .Select(claim => claim.Source.ProviderId).Distinct(StringComparer.Ordinal).Take(2).ToList();
+
+            if (exact.Count > 1)
+            {
+                return (null, "More than one Inventaire work matches the exact title and author.");
+            }
+
+            if (exact.Count == 0)
+            {
+                return claims.Any(claim => claim.Title == exactTitle &&
+                    _catalogueIdentity.FindByProviderId(kind, provider, claim.Source.ProviderId).HasValue)
+                    ? (null, ownerConflict)
+                    : default;
+            }
+
+            var sourceId = exact[0];
+            if (claims.Any(claim => claim.Source.ProviderId == sourceId &&
+                (claim.Title != exactTitle || claim.Author != exactAuthor)))
+            {
+                return (null, ownerConflict);
+            }
+
+            var work = InventaireLibraryWorkSummary.FindOwner(_bookService, _catalogueIdentity, sourceId, out var claimed);
+            if (!claimed)
+            {
+                return default;
+            }
+
+            if (work == null || ImportDecisionMaker.NormalizeLibraryIdentity(work.Title) != exactTitle ||
+                ImportDecisionMaker.NormalizeLibraryAuthor(work.Author.Value.Name) != exactAuthor)
+            {
+                return (null, ownerConflict);
+            }
+
+            // The provider supplied work evidence only. In particular its ISBN is not an
+            // edition identifier and must not participate in matching or persistence.
+            return (InventaireLibraryWorkSummary.Create(sourceId, work), null);
+        }
+
+        private static void HoldInventaireIdentityConflict(LocalEdition release, string detail)
+        {
+            release.IdentificationHoldReason = LibraryImportHoldReason.ConflictingIdentity;
+            release.ProviderIdentityConflictDetail = detail;
         }
 
         private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides, Func<Edition, bool> allowsEdition)

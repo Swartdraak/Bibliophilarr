@@ -281,7 +281,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
                     // Issue #275: only search directly when identification found no edition
                     // and the file's own work identity is sufficiently consistent.
-                    if (release.Edition == null && release.IdentificationHoldReason != LibraryImportHoldReason.CompetingEditions)
+                    if (release.Edition == null && release.IdentificationHoldReason is not
+                        (LibraryImportHoldReason.CompetingEditions or LibraryImportHoldReason.ConflictingIdentity))
                     {
                         var verifyStoredWork = release.RejectedProviderCandidates &&
                             release.IdentificationHoldReason == LibraryImportHoldReason.ProviderIdentityConflict &&
@@ -723,7 +724,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 (asin != null && file.FileTrackInfo?.AsinConfidence >= 0.9 && NormalizeLibraryAsin(file.FileTrackInfo.Asin) == asin));
         }
 
-        private static string NormalizeLibraryAsin(string value)
+        internal static string NormalizeLibraryAsin(string value)
         {
             var asin = value?.Trim();
             return asin?.Length == 10 && asin.All(char.IsAsciiLetterOrDigit) ? asin.ToUpperInvariant() : null;
@@ -763,7 +764,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return (tagTitle != null && tagTitle != title) || (names.Count > 0 && !names.Contains(author));
         }
 
-        private static string NormalizeLibraryAuthor(string value)
+        internal static string NormalizeLibraryAuthor(string value)
         {
             var normalized = NormalizeLibraryIdentity(value);
             return normalized == null ? null : Regex.Replace(normalized, @"(?<=\b\p{L}\.) (?=\p{L}\.)", string.Empty);
@@ -788,7 +789,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 {
                     LibraryImportHoldReason.LowConfidence => "The match could not confidently identify a new author. Select the intended author manually.",
                     LibraryImportHoldReason.CompetingEditions => "More than one edition matches this file's ISBN and format. Select the intended edition manually.",
-                    LibraryImportHoldReason.ProviderIdentityConflict when localEdition.ProviderIdentityConflictDetail != null => localEdition.ProviderIdentityConflictDetail,
+                    LibraryImportHoldReason.ProviderIdentityConflict or LibraryImportHoldReason.ConflictingIdentity
+                        when localEdition.ProviderIdentityConflictDetail != null => localEdition.ProviderIdentityConflictDetail,
                     LibraryImportHoldReason.ProviderIdentityConflict => "Metadata provider results conflict with this file's book identity. Select the intended work manually.",
                     LibraryImportHoldReason.NoAcceptedWork when !_metadataProviders.HasConfiguredBookLookup && !_fallbackProviders.Any(provider => provider.IsFallbackEnabled) =>
                         "No book metadata provider is enabled and configured. Select a book and compatible edition from your library, or configure a metadata provider and scan again.",

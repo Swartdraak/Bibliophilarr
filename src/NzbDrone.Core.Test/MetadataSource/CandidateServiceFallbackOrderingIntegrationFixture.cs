@@ -9,6 +9,7 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.GoogleBooks;
@@ -182,6 +183,144 @@ namespace NzbDrone.Core.Test.MetadataSource
                 operations.Should().ContainSingle(operation => operation.ProviderName == "GoogleBooks" &&
                     operation.OperationName == "search-by-asin" && operation.Calls == 1 && operation.Successes == 1);
             }
+        }
+
+        [TestCase(".m4b", "verified-owner", true)]
+        [TestCase(".epub", "verified-owner", true)]
+        [TestCase(".m4b", "two-distinct-works", false)]
+        [TestCase(".m4b", "unverified-owner", false)]
+        [TestCase(".epub", "unverified-owner", true)]
+        [TestCase(".m4b", "weak-work-alias", false)]
+        [TestCase(".m4b", "conflicting-provider-title", false)]
+        [TestCase(".m4b", "conflicting-filename", false)]
+        [TestCase(".m4b", "missing-contributor", false)]
+        [TestCase(".m4b", "provider-disabled", false)]
+        [TestCase(".m4b", "forced-other-work", false)]
+        public void should_only_admit_inventaire_work_summary_for_a_verified_existing_library_work(string extension, string scenario, bool accepted)
+        {
+            const string authorName = "Mira Fixture";
+            const string title = "Observatory Archive";
+            const string sourceWorkId = "wd:Q912001";
+            const string source = "inventaire:work:" + sourceWorkId;
+            const string legacyEditionId = "inventaire:edition:" + sourceWorkId;
+            const string canonicalWorkId = "705b2b5da2a943319bf107448959fe9c";
+            var owner = new Author
+            {
+                Id = 21,
+                AuthorMetadataId = 22,
+                Metadata = new AuthorMetadata
+                {
+                    Id = 22,
+                    ForeignAuthorId = "hardcover:author:912101",
+                    CanonicalId = "185cbb81d132400fb235a95b1a264f58",
+                    Name = authorName
+                }
+            };
+            var work = new Book
+            {
+                Id = 31,
+                CanonicalId = canonicalWorkId,
+                ForeignBookId = source,
+                Title = title,
+                Author = owner,
+                AuthorMetadata = owner.Metadata.Value,
+                AuthorMetadataId = owner.AuthorMetadataId
+            };
+            var legacy = new Edition { Id = 41, BookId = work.Id, Book = work, ForeignEditionId = legacyEditionId, Title = title, Format = "Ebook", IsEbook = true };
+            work.Editions = new List<Edition> { legacy };
+            if (scenario != "unverified-owner")
+            {
+                var books = Mocker.GetMock<IBookService>();
+                books.Setup(service => service.FindById(source)).Returns(work);
+                books.Setup(service => service.GetBook(work.Id)).Returns(work);
+                var identity = Mocker.GetMock<ICatalogueIdentityRepository>();
+                identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "Inventaire", sourceWorkId)).Returns(work.Id);
+                identity.Setup(repository => repository.GetSources(CatalogueEntityKind.Work, work.Id))
+                    .Returns(new[] { new CatalogueSourceAssociation { Provider = "Inventaire", ProviderId = sourceWorkId, Evidence = scenario == "weak-work-alias" ? "legacy-linked-id" : "primary-provider-id" } });
+            }
+
+            var captured = new List<HttpRequest>();
+            if (scenario == "provider-disabled")
+            {
+                Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableInventaireFallback).Returns(false);
+            }
+
+            var provider = new InventaireFallbackSearchProvider(Mocker.GetMock<IConfigService>().Object, Mocker.GetMock<IHttpClient>().Object, LogManager.GetCurrentClassLogger());
+            Mocker.SetConstant<IEnumerable<IBookSearchFallbackProvider>>(new[] { provider });
+            var row = new
+            {
+                uri = sourceWorkId,
+                label = title,
+                author = scenario == "missing-contributor" ? null : authorName,
+                isbn13 = "9780140328721"
+            };
+            var results = scenario == "two-distinct-works"
+                ? new[] { row, new { uri = "wd:Q912002", label = title, author = authorName, isbn13 = "9780140328721" } }
+                : scenario == "conflicting-provider-title"
+                    ? new[] { row, new { uri = sourceWorkId, label = "Different Work", author = authorName, isbn13 = "9780140328721" } }
+                    : new[] { row };
+            var payload = JsonSerializer.Serialize(new { results });
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Get<InventaireSearchResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    captured.Add(request);
+                    var response = new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload);
+                    return new HttpResponse<InventaireSearchResponse>(response);
+                });
+
+            var filenameTitle = scenario == "conflicting-filename" ? "Different Work" : title;
+            var release = new LocalEdition(new List<LocalBook>
+            {
+                new LocalBook
+                {
+                    Path = $"/library/{authorName}/{title}/{authorName} - {filenameTitle}{extension}",
+                    ReliableTaggedBookTitle = title.ToUpperInvariant(),
+                    FileTrackInfo = new ParsedTrackInfo
+                    {
+                        BookTitle = title,
+                        BookTitleConfidence = 1,
+                        Authors = new List<string> { authorName },
+                        AuthorConfidence = 1
+                    }
+                }
+            });
+            var overrides = scenario == "forced-other-work"
+                ? new IdentificationOverrides { Book = new Book { ForeignBookId = "hardcover:work:912002" } }
+                : null;
+            var candidates = Subject.GetRemoteCandidates(release, overrides, forLibraryScan: true).ToList();
+
+            if (scenario is "conflicting-filename" or "provider-disabled" or "forced-other-work")
+            {
+                captured.Should().BeEmpty();
+                candidates.Should().BeEmpty();
+                return;
+            }
+
+            captured.Should().NotBeEmpty().And.OnlyContain(request =>
+                request.Url.Host == "inventaire.io" && request.Url.Path == "/api/search" && request.Url.Query.Contains("types=works"));
+            if (!accepted)
+            {
+                candidates.Should().BeEmpty();
+                return;
+            }
+
+            var summary = candidates.Should().ContainSingle().Which.Edition;
+            if (scenario == "unverified-owner")
+            {
+                summary.ForeignEditionId.Should().Be(legacyEditionId);
+                summary.IsEbook.Should().BeTrue();
+                return;
+            }
+
+            captured.Should().ContainSingle();
+            summary.Book.Value.Id.Should().Be(work.Id);
+            summary.Book.Value.CanonicalId.Should().Be(canonicalWorkId);
+            summary.Book.Value.Author.Value.Id.Should().Be(owner.Id);
+            ImportFormat.ForEdition(summary).Should().BeNull();
+            summary.ForeignEditionId.Should().NotBe(legacyEditionId);
+            summary.Isbn13.Should().BeNull();
+            legacy.IsEbook.Should().BeTrue();
+            legacy.Format.Should().Be("Ebook");
         }
 
         [Test]
