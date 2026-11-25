@@ -1,4 +1,4 @@
-"""No-network checks for strict live-provider browser evidence."""
+"""No-network checks for browser evidence."""
 
 import json
 import os
@@ -140,6 +140,41 @@ class StrictLiveEvidence(unittest.TestCase):
                 restarted["editions"][0]["id"] = 99
                 with self.assertRaises(AssertionError):
                     catalogue.verify_catalogue_after_restart(None, api, "", app_data, state)
+
+
+class AddedAuthorRefreshEvidence(unittest.TestCase):
+    def test_waits_for_the_created_author_and_ignores_unrelated_commands(self):
+        unrelated = {"id": 1, "name": "RefreshAuthor", "body": {"authorId": 99}, "status": "queued"}
+        owned = {"id": 2, "name": "RefreshAuthor", "body": {"authorId": 7}, "status": "started"}
+        completed = {**owned, "status": "completed", "result": "successful"}
+        api = Mock()
+        api.get.side_effect = [
+            Mock(status=200, **{"json.return_value": [unrelated, owned]}),
+            Mock(status=200, **{"json.return_value": completed}),
+        ]
+
+        self.assertEqual(catalogue.wait_for_added_author_refresh(api, 7), completed)
+        self.assertEqual([call.args[0] for call in api.get.call_args_list],
+                         ["/api/v1/command", "/api/v1/command/2"])
+
+    def test_rejects_missing_failed_or_misattributed_refresh(self):
+        unrelated = {"id": 1, "name": "RefreshAuthor", "body": {"authorId": 99}}
+        owned = {"id": 2, "name": "RefreshAuthor", "body": {"authorId": 7}}
+        completed = {**owned, "status": "completed", "result": "successful"}
+        for commands, outcome in (
+            ([], completed),
+            ([unrelated], completed),
+            ([owned], {**completed, "result": "unsuccessful"}),
+            ([owned], {**completed, "body": {"authorId": 99}}),
+        ):
+            with self.subTest(commands=commands, outcome=outcome):
+                api = Mock()
+                api.get.side_effect = [
+                    Mock(status=200, **{"json.return_value": commands}),
+                    Mock(status=200, **{"json.return_value": outcome}),
+                ]
+                with self.assertRaises(AssertionError):
+                    catalogue.wait_for_added_author_refresh(api, 7)
 
 
 if __name__ == "__main__":
