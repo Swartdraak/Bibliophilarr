@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -53,6 +54,40 @@ namespace NzbDrone.Core.Test.UpdateTests
             result.ReleaseNotesUrl.Should().Be("https://github.com/Swartdraak/Bibliophilarr/releases/tag/v1.2.3");
         }
 
+        [Test]
+        public async Task should_link_only_to_verified_repository_paths_for_the_two_uploaded_assets()
+        {
+            var json = WithAssets("""
+                [
+                    {"name":"release-manifest.json","state":"uploaded","browser_download_url":"https://example.invalid/manifest"},
+                    {"name":"SHA256SUMS.txt","state":"uploaded","browser_download_url":"https://example.invalid/checksums"}
+                ]
+                """);
+
+            var result = await CheckReleaseWithAssets(json, "1.2.2");
+
+            result.GetProperty("releaseManifestUrl").GetString().Should()
+                  .Be("https://github.com/Swartdraak/Bibliophilarr/releases/download/v1.2.3/release-manifest.json");
+            result.GetProperty("checksumsUrl").GetString().Should()
+                  .Be("https://github.com/Swartdraak/Bibliophilarr/releases/download/v1.2.3/SHA256SUMS.txt");
+        }
+
+        [TestCase("[]", "1.2.2")]
+        [TestCase("{}", "1.2.2")]
+        [TestCase("[{\"name\":\"release-manifest.json\",\"state\":\"uploaded\"}]", "1.2.2")]
+        [TestCase("[{\"name\":\"release-manifest.json\",\"state\":\"uploaded\"},{\"name\":\"SHA256SUMS.txt\",\"state\":\"new\"}]", "1.2.2")]
+        [TestCase("[{\"name\":\"Release-Manifest.json\",\"state\":\"uploaded\"},{\"name\":\"SHA256SUMS.txt\",\"state\":\"uploaded\"}]", "1.2.2")]
+        [TestCase("[{\"name\":\"release-manifest.json\",\"state\":\"uploaded\"},{\"name\":\"SHA256SUMS.txt\",\"state\":\"uploaded\"}]", "1.2.3")]
+        public async Task should_not_offer_incomplete_unuploaded_or_unneeded_verification_links(string assets, string installed)
+        {
+            var result = await CheckReleaseWithAssets(WithAssets(assets), installed);
+
+            result.GetProperty("releaseNotesUrl").GetString().Should()
+                  .Be("https://github.com/Swartdraak/Bibliophilarr/releases/tag/v1.2.3");
+            HasString(result, "releaseManifestUrl").Should().BeFalse();
+            HasString(result, "checksumsUrl").Should().BeFalse();
+        }
+
         [TestCase("invalid-json")]
         [TestCase("{\"tag_name\":\"v1.2.3\", \"draft\": false}")]
         [TestCase("{\"tag_name\":\"v1.2.3-rc.1\", \"draft\":false, \"prerelease\":false, \"published_at\":\"2026-01-01T00:00:00Z\"}")]
@@ -92,6 +127,35 @@ namespace NzbDrone.Core.Test.UpdateTests
             var result = await service.Check(new Version(1, 0, 0), CancellationToken.None);
 
             result.Status.Should().Be(PublicReleaseCheckStatus.Unavailable);
+        }
+
+        private static async Task<JsonElement> CheckReleaseWithAssets(string json, string installed)
+        {
+            var calls = 0;
+            using var client = new HttpClient(new TestHandler(request =>
+            {
+                calls++;
+                request.RequestUri.AbsoluteUri.Should().Be("https://api.github.com/repos/Swartdraak/Bibliophilarr/releases/latest");
+                request.Method.Should().Be(HttpMethod.Get);
+                request.Headers.Authorization.Should().BeNull();
+                request.Headers.Contains("Cookie").Should().BeFalse();
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
+            }));
+            var service = new PublicReleaseDiscovery(Options.Create(new UpdateOptions { PublicReleaseDiscovery = true }), client);
+            var result = await service.Check(Version.Parse(installed), CancellationToken.None);
+
+            calls.Should().Be(1);
+            return JsonSerializer.SerializeToElement(result, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+
+        private static string WithAssets(string assets)
+        {
+            return StableRelease[..StableRelease.LastIndexOf('}')] + ", \"assets\": " + assets + "}";
+        }
+
+        private static bool HasString(JsonElement element, string propertyName)
+        {
+            return element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String;
         }
 
         private sealed class TestHandler : HttpMessageHandler

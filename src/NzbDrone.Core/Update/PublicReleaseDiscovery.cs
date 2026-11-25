@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -26,13 +27,21 @@ namespace NzbDrone.Core.Update
 
     public sealed class PublicReleaseCheck
     {
-        public PublicReleaseCheck(PublicReleaseCheckStatus status, string installedVersion, string latestVersion = null, DateTimeOffset? publishedAt = null, string releaseNotesUrl = null)
+        public PublicReleaseCheck(PublicReleaseCheckStatus status,
+                                  string installedVersion,
+                                  string latestVersion = null,
+                                  DateTimeOffset? publishedAt = null,
+                                  string releaseNotesUrl = null,
+                                  string releaseManifestUrl = null,
+                                  string checksumsUrl = null)
         {
             Status = status;
             InstalledVersion = installedVersion;
             LatestVersion = latestVersion;
             PublishedAt = publishedAt;
             ReleaseNotesUrl = releaseNotesUrl;
+            ReleaseManifestUrl = releaseManifestUrl;
+            ChecksumsUrl = checksumsUrl;
         }
 
         public PublicReleaseCheckStatus Status { get; }
@@ -40,12 +49,16 @@ namespace NzbDrone.Core.Update
         public string LatestVersion { get; }
         public DateTimeOffset? PublishedAt { get; }
         public string ReleaseNotesUrl { get; }
+        public string ReleaseManifestUrl { get; }
+        public string ChecksumsUrl { get; }
     }
 
     public class PublicReleaseDiscovery : IPublicReleaseDiscovery
     {
         private const string LatestReleaseUrl = "https://api.github.com/repos/Swartdraak/Bibliophilarr/releases/latest";
-        private const string ReleaseNotesRoot = "https://github.com/Swartdraak/Bibliophilarr/releases/tag/";
+        private const string OfficialReleaseRoot = "https://github.com/Swartdraak/Bibliophilarr/releases/";
+        private const string ManifestAsset = "release-manifest.json";
+        private const string ChecksumsAsset = "SHA256SUMS.txt";
         private static readonly Regex StableTag = new Regex(@"\Av(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\z", RegexOptions.NonBacktracking);
         private static readonly HttpClient Client = new HttpClient(new SocketsHttpHandler
         {
@@ -107,7 +120,22 @@ namespace NzbDrone.Core.Update
                 var installedCore = new Version(installedVersion.Major, installedVersion.Minor, Math.Max(0, installedVersion.Build));
                 var status = latest > installedCore ? PublicReleaseCheckStatus.Available : PublicReleaseCheckStatus.UpToDate;
 
-                return new PublicReleaseCheck(status, installed, latest.ToString(), release.PublishedAt, ReleaseNotesRoot + release.Tag);
+                var releaseNotesUrl = OfficialReleaseRoot + "tag/" + release.Tag;
+                if (status != PublicReleaseCheckStatus.Available ||
+                    !HasUploadedAsset(release.Assets, ManifestAsset) ||
+                    !HasUploadedAsset(release.Assets, ChecksumsAsset))
+                {
+                    return new PublicReleaseCheck(status, installed, latest.ToString(), release.PublishedAt, releaseNotesUrl);
+                }
+
+                var downloadRoot = OfficialReleaseRoot + "download/" + release.Tag + "/";
+                return new PublicReleaseCheck(status,
+                                              installed,
+                                              latest.ToString(),
+                                              release.PublishedAt,
+                                              releaseNotesUrl,
+                                              downloadRoot + ManifestAsset,
+                                              downloadRoot + ChecksumsAsset);
             }
             catch (HttpRequestException)
             {
@@ -123,6 +151,19 @@ namespace NzbDrone.Core.Update
             }
         }
 
+        private static bool HasUploadedAsset(JsonElement assets, string name)
+        {
+            return assets.ValueKind == JsonValueKind.Array &&
+                   assets.EnumerateArray().Any(asset =>
+                       asset.ValueKind == JsonValueKind.Object &&
+                       asset.TryGetProperty("name", out var assetName) &&
+                       assetName.ValueKind == JsonValueKind.String &&
+                       assetName.ValueEquals(name) &&
+                       asset.TryGetProperty("state", out var state) &&
+                       state.ValueKind == JsonValueKind.String &&
+                       state.ValueEquals("uploaded"));
+        }
+
         private sealed class GitHubRelease
         {
             [JsonPropertyName("tag_name")]
@@ -136,6 +177,9 @@ namespace NzbDrone.Core.Update
 
             [JsonPropertyName("published_at")]
             public DateTimeOffset? PublishedAt { get; set; }
+
+            [JsonPropertyName("assets")]
+            public JsonElement Assets { get; set; }
         }
     }
 }

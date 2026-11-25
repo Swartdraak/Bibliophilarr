@@ -16,6 +16,8 @@ process.
   identity API exposes matched provider IDs. Existing author and book
   bookmarks continue to resolve.
 
+- Link to the stable release manifest and checksums from Updates when both are
+  available for manual verification.
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
 - See the last recorded import hold reason next to each unmapped file, such as
