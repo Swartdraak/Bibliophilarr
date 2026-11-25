@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using Bibliophilarr.Http.Ping;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using NUnit.Framework;
@@ -15,26 +17,9 @@ namespace NzbDrone.Api.Test.Ping
     // guards the controller side: anonymous GET /ping must produce 200 + PingResource
     // { Status = "OK" } (the contract openapi.json documents as public GET -> 200
     // application/json PingResource).
-    //
-    // The controller returns ActionResult<PingResource>. In .NET 10 MVC,
-    // ActionResult<T> carries the concrete MVC result in its .Result property
-    // (Value is null; the object is boxed inside Result, an ObjectResult).
     [TestFixture]
     public class PingControllerIssue316Fixture
     {
-        private static object UnwrapPingResource(object result)
-        {
-            // ActionResult<T>.Result -> ObjectResult.Value -> PingResource
-            var innerResult = result.GetType().GetProperty("Result")?.GetValue(result);
-            if (innerResult == null)
-            {
-                return result;
-            }
-
-            var valueProp = innerResult.GetType().GetProperty("Value");
-            return valueProp?.GetValue(innerResult) ?? innerResult;
-        }
-
         [Test]
         public void get_status_when_config_repository_succeeds_should_return_200_ok_json_contract()
         {
@@ -46,15 +31,14 @@ namespace NzbDrone.Api.Test.Ping
                     new NzbDrone.Core.Configuration.Config { Key = "DataRoot", Value = "/tmp/data" }
                 });
 
-            var controller = new Bibliophilarr.Http.Ping.PingController(repository.Object, new CacheManager());
+            var controller = new PingController(repository.Object, new CacheManager());
 
             var result = controller.GetStatus();
 
-            var pingResource = UnwrapPingResource(result);
-            pingResource.Should().NotBeNull("the response body is a PingResource object");
-            var statusProp = pingResource.GetType().GetProperty("Status");
-            statusProp.Should().NotBeNull("PingResource has a Status property");
-            statusProp.GetValue(pingResource).Should().Be("OK", "PingResource.Status must be 'OK' for the liveness contract");
+            var response = result.Result.Should().BeOfType<ObjectResult>().Which;
+            response.StatusCode.Should().Be(StatusCodes.Status200OK);
+            response.Value.Should().BeOfType<PingResource>().Which.Status.Should().Be("OK");
+            repository.Verify(config => config.All(), Times.Once);
         }
 
         [Test]
@@ -65,14 +49,14 @@ namespace NzbDrone.Api.Test.Ping
                 .Setup(r => r.All())
                 .Throws(new InvalidOperationException("config repository unavailable"));
 
-            var controller = new Bibliophilarr.Http.Ping.PingController(repository.Object, new CacheManager());
+            var controller = new PingController(repository.Object, new CacheManager());
 
             var result = controller.GetStatus();
 
-            var pingResource = UnwrapPingResource(result);
-            pingResource.Should().NotBeNull("the response body is a PingResource object");
-            var statusProp = pingResource.GetType().GetProperty("Status");
-            statusProp.GetValue(pingResource).Should().Be("Error", "PingResource.Status must be 'Error' when the config repository is unavailable");
+            var response = result.Result.Should().BeOfType<ObjectResult>().Which;
+            response.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+            response.Value.Should().BeOfType<PingResource>().Which.Status.Should().Be("Error");
+            repository.Verify(config => config.All(), Times.Once);
         }
 
         [Test]
@@ -81,18 +65,22 @@ namespace NzbDrone.Api.Test.Ping
             // The [AllowAnonymous] + [HttpGet("/ping")] + [HttpHead("/ping")] +
             // [Produces("application/json")] contract is the source of truth that the
             // middleware must not shadow. If these attributes change, this fixture fails.
-            var method = typeof(Bibliophilarr.Http.Ping.PingController).GetMethod("GetStatus");
+            var method = typeof(PingController).GetMethod(nameof(PingController.GetStatus));
 
             method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute), false).Length
                 .Should().Be(1, "GET/HEAD /ping is a public liveness endpoint (no auth gate)");
 
             var httpGets = (object[])method.GetCustomAttributes(typeof(HttpGetAttribute), false);
             httpGets.Length.Should().Be(1);
-            ((HttpGetAttribute)httpGets[0]).Template.Should().Contain("/ping");
+            ((HttpGetAttribute)httpGets[0]).Template.Should().Be("/ping");
 
             var httpHeads = (object[])method.GetCustomAttributes(typeof(HttpHeadAttribute), false);
             httpHeads.Length.Should().Be(1);
-            ((HttpHeadAttribute)httpHeads[0]).Template.Should().Contain("/ping");
+            ((HttpHeadAttribute)httpHeads[0]).Template.Should().Be("/ping");
+
+            var produces = method.GetCustomAttributes(typeof(ProducesAttribute), false);
+            produces.Should().ContainSingle().Which.Should().BeOfType<ProducesAttribute>()
+                .Which.ContentTypes.Should().Equal("application/json");
         }
     }
 }

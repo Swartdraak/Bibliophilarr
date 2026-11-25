@@ -9,6 +9,7 @@ import ImportLists from 'Settings/ImportLists/ImportLists/ImportLists';
 import AddIndexerItem from 'Settings/Indexers/Indexers/AddIndexerItem';
 import EditIndexerModalContent from 'Settings/Indexers/Indexers/EditIndexerModalContent';
 import Indexers from 'Settings/Indexers/Indexers/Indexers';
+import RootFolders from 'Settings/MediaManagement/RootFolder/RootFolders';
 import * as keyCodes from 'Utilities/Constants/keyCodes';
 
 jest.mock('Components/Portal', () => ({ children }) => children);
@@ -24,6 +25,7 @@ jest.mock('Utilities/String/translate', () => (key, { host, name, remotePath } =
   AddIndexer: 'Add Indexer',
   AddList: 'Add List',
   AddRemotePathMapping: 'Add Remote Path Mapping',
+  AddRootFolder: 'Add Root Folder',
   BrowsePath: 'Browse for a path',
   EditNamedItem: `Edit ${name}`,
   EditRemotePathMappingForPath: `Edit path mapping for ${remotePath} on ${host}`
@@ -51,6 +53,9 @@ jest.mock('Settings/DownloadClients/DownloadClients/EditDownloadClientModalConne
   isOpen ? <div role="dialog" aria-label={`Download client editor ${id}`} /> : null
 ));
 jest.mock('Settings/ImportLists/ImportLists/EditImportListModalConnector', () => () => null);
+jest.mock('Settings/MediaManagement/RootFolder/EditRootFolderModalConnector', () => ({ id, isOpen }) => (
+  isOpen ? <div role="dialog" aria-label={id ? `Root folder editor ${id}` : 'New root folder editor'} /> : null
+));
 
 test.each([
   [Indexers, 'Add Indexer', 'Indexer templates', {
@@ -67,6 +72,11 @@ test.each([
   }],
   [RemotePathMappings, 'Add Remote Path Mapping', 'Remote path mapping editor', {
     onConfirmDeleteRemotePathMapping: jest.fn()
+  }],
+  [RootFolders, 'Add Root Folder', 'New root folder editor', {
+    qualityProfiles: [],
+    metadataProfiles: [],
+    onConfirmDeleteRootFolder: jest.fn()
   }]
 ])('opens the settings dialog using the named add button for %s', (Section, addName, dialogName, props) => {
   render(
@@ -80,6 +90,31 @@ test.each([
 
   fireEvent.click(screen.getByRole('button', { name: addName }));
   expect(screen.getByRole('dialog', { name: dialogName })).toBeVisible();
+});
+
+test.each([
+  ['Fixture ebooks', 1],
+  ['Fixture audiobooks', 2]
+])('names the edit button for %s and opens only its root folder', (name, id) => {
+  const defaults = { defaultQualityProfileId: 1, defaultMetadataProfileId: 1 };
+
+  render(
+    <RootFolders
+      isFetching={false}
+      isPopulated={true}
+      items={[
+        { ...defaults, id: 1, name: 'Fixture ebooks', path: '/library/ebooks' },
+        { ...defaults, id: 2, name: 'Fixture audiobooks', path: '/library/audiobooks' }
+      ]}
+      qualityProfiles={[{ id: 1, name: 'Quality' }]}
+      metadataProfiles={[{ id: 1, name: 'Metadata' }]}
+      onConfirmDeleteRootFolder={jest.fn()}
+    />
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: `Edit ${name}` }));
+  expect(screen.getByRole('dialog', { name: `Root folder editor ${id}` })).toBeVisible();
+  expect(screen.getAllByRole('dialog')).toHaveLength(1);
 });
 
 test('names the saved remote path mapping edit action', () => {

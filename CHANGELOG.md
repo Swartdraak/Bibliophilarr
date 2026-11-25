@@ -64,6 +64,7 @@ process.
 - When a library scan generates a temporary opposite-format default for a new
   author, use the compatible root and quality profile once that root is added.
   Existing format settings and file links stay in place.
+- Give the Add Root Folder and individual root folder edit buttons accessible names.
 - Make the Theme setting announce its label and keep keyboard focus while
   selecting or dismissing its options.
 - Remove temporary upload and extraction files after each backup restore attempt.

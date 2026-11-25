@@ -72,6 +72,7 @@ class RootFolders extends Component {
 
             <Card
               className={styles.addRootFolder}
+              ariaLabel={translate('AddRootFolder')}
               onPress={this.onAddRootFolderPress}
             >
               <div className={styles.center}>
