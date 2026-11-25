@@ -21,6 +21,7 @@ using Microsoft.Extensions.Hosting;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.Options;
 using NzbDrone.Core.Books;
@@ -38,7 +39,7 @@ namespace NzbDrone.Host.Test
         private const string ForeignBookId = "hardcover:work:92628";
         private const string ForeignEditionId = "hardcover:edition:92629";
         private const string OtherForeignBookId = "hardcover:work:92630";
-        private const string OtherForeignEditionId = "hardcover:edition:92631";
+        private const string OtherForeignEditionId = "hardcover:source-edition:92631";
         private const string AuthorName = "Nested Author Fixture";
         private const string BookTitle = "The Nested Author Fixture";
         private const string OtherBookTitle = "The Companion Fixture";
@@ -64,6 +65,8 @@ namespace NzbDrone.Host.Test
                 int bookId;
                 int authorId;
                 int editionId;
+                int otherBookId;
+                int otherEditionId;
                 using (var host = BuildHost(appData))
                 {
                     await host.StartAsync(timeout.Token);
@@ -129,7 +132,9 @@ namespace NzbDrone.Host.Test
 
                         var incompleteRequest = new Dictionary<string, object>(request);
                         incompleteRequest.Remove("editions").Should().BeTrue();
-                        await AssertMissingEditions(client, incompleteRequest, timeout.Token);
+
+                        // The scalar request cannot create a second independently committed author.
+                        await Post(client, "book", incompleteRequest, HttpStatusCode.BadRequest, timeout.Token);
                         incompleteRequest["editions"] = null;
                         await AssertMissingEditions(client, incompleteRequest, timeout.Token);
                         incompleteRequest["editions"] = Array.Empty<object>();
@@ -151,9 +156,34 @@ namespace NzbDrone.Host.Test
                         Path.GetDirectoryName(author.GetProperty("path").GetString()).Should().Be(library);
 
                         var otherRequest = BookRequest(OtherForeignBookId, OtherForeignEditionId, OtherBookTitle);
+                        otherRequest["author"] = request["author"];
+                        otherRequest["authorId"] = authorId;
+                        var otherExclusion = exclusions.Add(new ImportListExclusion { ForeignId = OtherForeignBookId, Name = OtherBookTitle });
+
+                        otherRequest["editions"] = null;
+                        await AssertMissingEditions(client, otherRequest, timeout.Token);
+                        otherRequest["editions"] = Array.Empty<object>();
+                        await AssertMissingEditions(client, otherRequest, timeout.Token);
+                        otherRequest["editions"] = new[] { new { foreignEditionId = ForeignEditionId, monitored = true } };
+                        await Post(client, "book", otherRequest, HttpStatusCode.BadRequest, timeout.Token);
+
+                        otherRequest.Remove("editions").Should().BeTrue();
+                        otherRequest["foreignEditionId"] = ForeignEditionId;
+                        await Post(client, "book", otherRequest, HttpStatusCode.BadRequest, timeout.Token);
+                        otherRequest["foreignEditionId"] = OtherForeignEditionId;
+                        otherRequest["authorId"] = authorId + 1;
+                        await Post(client, "book", otherRequest, HttpStatusCode.BadRequest, timeout.Token);
+                        otherRequest["authorId"] = authorId;
+
+                        (await Get(client, "book", timeout.Token)).GetArrayLength().Should().Be(1);
+                        (await Get(client, "author", timeout.Token)).GetArrayLength().Should().Be(1);
+                        exclusions.FindByForeignId(OtherForeignBookId).Id.Should().Be(otherExclusion.Id);
+
                         var other = await Post(client, "book", otherRequest, HttpStatusCode.Created, timeout.Token);
-                        other.GetProperty("id").GetInt32().Should().NotBe(bookId);
-                        AssertIdentity(other, other.GetProperty("id").GetInt32(), authorId, OtherForeignBookId, OtherForeignEditionId);
+                        otherBookId = other.GetProperty("id").GetInt32();
+                        otherBookId.Should().NotBe(bookId);
+                        otherEditionId = AssertIdentity(other, otherBookId, authorId, OtherForeignBookId, OtherForeignEditionId);
+                        exclusions.FindByForeignId(OtherForeignBookId).Should().BeNull();
                         (await Get(client, "author", timeout.Token)).GetArrayLength().Should().Be(1);
                     }
                     finally
@@ -172,6 +202,8 @@ namespace NzbDrone.Host.Test
                     using var client = CreateClient(restarted, apiKey);
                     var saved = await Get(client, $"book/{bookId}", timeout.Token);
                     AssertIdentity(saved, bookId, authorId, ForeignBookId, ForeignEditionId).Should().Be(editionId);
+                    var savedOther = await Get(client, $"book/{otherBookId}", timeout.Token);
+                    AssertIdentity(savedOther, otherBookId, authorId, OtherForeignBookId, OtherForeignEditionId).Should().Be(otherEditionId);
 
                     var author = await Get(client, $"author/{authorId}", timeout.Token);
                     author.GetProperty("id").GetInt32().Should().Be(authorId);
@@ -284,7 +316,7 @@ namespace NzbDrone.Host.Test
                 ForeignBookId = bookId,
                 ForeignEditionId = editionId,
                 Title = title,
-                TitleSlug = slug,
+                TitleSlug = bookId.ToUrlSlug(),
                 CleanTitle = title,
                 AuthorMetadata = author,
                 Editions = new List<Edition>
