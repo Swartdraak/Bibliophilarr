@@ -3,6 +3,8 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MusicTests.BookRepositoryTests
@@ -78,6 +80,22 @@ namespace NzbDrone.Core.Test.MusicTests.BookRepositoryTests
             var book = Subject.FindByTitleInexact(0, title);
 
             book.Should().BeNull();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_publish_deleted_books_with_the_original_author(bool deleteFiles)
+        {
+            var author = new Author { Id = 41, AuthorMetadataId = 7, Tags = new HashSet<int> { 5 } };
+            var published = new List<BookDeletedEvent>();
+            Mocker.GetMock<IEventAggregator>()
+                .Setup(aggregator => aggregator.PublishEvent(It.IsAny<BookDeletedEvent>()))
+                .Callback<BookDeletedEvent>(published.Add);
+
+            Subject.Handle(new AuthorDeletedEvent(author, deleteFiles, false));
+
+            published.Should().HaveSameCount(_books);
+            published.Should().OnlyContain(message => ReferenceEquals(message.Book.Author.Value, author));
         }
     }
 }
