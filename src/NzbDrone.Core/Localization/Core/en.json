@@ -1180,6 +1180,7 @@
   "UnableToAddANewQualityProfilePleaseTryAgain": "Unable to add a new quality profile, please try again.",
   "UnableToAddANewRemotePathMappingPleaseTryAgain": "Unable to add a new remote path mapping, please try again.",
   "UnableToAddANewRootFolderPleaseTryAgain": "Unable to add a new root folder, please try again.",
+  "UnableToDeleteAuthor": "Unable to delete the author.",
   "UnableToLoadBackups": "Unable to load backups",
   "UnableToLoadBlocklist": "Unable to load blocklist",
   "UnableToLoadCustomFormats": "Unable to load custom formats",

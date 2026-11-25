@@ -51,6 +51,8 @@ process.
 
 ### Fixed
 
+- Keep the author and its catalogue records when Delete Files cannot verify
+  the library folder. Show the error in the author deletion dialog.
 - Recover Open Library artwork through a verified Internet Archive redirect.
   Both requests count against the existing retry limit.
 - Keep existing series memberships when a provider returns optional series
