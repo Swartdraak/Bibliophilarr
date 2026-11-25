@@ -11,7 +11,6 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
-using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
 using NzbDrone.Core.Configuration;
@@ -261,8 +260,6 @@ namespace NzbDrone.Core.MediaFiles
 
             var rootFolder = _rootFolderService.GetBestRootFolder(path);
             var logPath = LogSanitizer.Sanitize(path);
-
-            _logger.Trace(rootFolder.ToJson());
 
             if (rootFolder != null && rootFolder.IsCalibreLibrary && rootFolder.CalibreSettings != null)
             {

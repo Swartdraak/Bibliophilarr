@@ -223,7 +223,13 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
         {
             const string path = "/library/Fixture\r\nShelf\tOne";
             const string loggedPath = "/library/FixtureShelf One";
-            var settings = new CalibreSettings();
+            var settings = new CalibreSettings
+            {
+                Host = "http://calibre.example.test",
+                Username = "catalogue-account",
+                Password = "private-test-value",
+                Library = "private-library-name"
+            };
             Mocker.GetMock<IRootFolderService>()
                 .Setup(roots => roots.GetBestRootFolder(path))
                 .Returns(new RootFolder { Path = _rootFolder, IsCalibreLibrary = true, CalibreSettings = settings });
@@ -240,6 +246,11 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             messages.Logs.Where(message => message.Contains("Fixture", StringComparison.Ordinal)).Should().Equal(
                 $"Info|Getting book list from calibre for {loggedPath}",
                 $"Debug|0 book files were found in {loggedPath}");
+            messages.Logs.Should().NotContain(message =>
+                message.Contains(settings.Host, StringComparison.Ordinal) ||
+                message.Contains(settings.Username, StringComparison.Ordinal) ||
+                message.Contains(settings.Password, StringComparison.Ordinal) ||
+                message.Contains(settings.Library, StringComparison.Ordinal));
         }
 
         [Test]
