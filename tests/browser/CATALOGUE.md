@@ -36,14 +36,21 @@ the operator's secret store and select one provider.
 
 The app needs network access to the selected provider. The harness enables it
 through the normal metadata settings API, submits the search in the browser,
-and creates the matched book through the add API. The Google Books check
-requires the exact work and author plus an edition identity belonging to the
-returned volume. It submits that edition explicitly and verifies it after
-restart. The synthetic EPUB uses a separate fixture for Google Books because
-the live volume can be print-only.
+and creates the matched book through the add API. Both provider paths verify
+that the added work, author and exact selected edition survive restart with
+the same stored IDs and edition monitoring state. The Google Books check
+submits the exact returned volume edition explicitly. Its synthetic EPUB uses
+a separate fixture because the live volume can be print-only.
 
-An absent or blank selected credential reports a live skip and runs the offline
-workflow. An opted-in credentialed request can consume the selected provider's
+By default, an absent or blank selected credential reports a live skip and
+runs the offline workflow. Add `--require-live-provider` to an explicit live
+run when the evidence must include that provider. A missing credential fails
+before starting the app. The redacted `live-provider-evidence.json` receipt
+records whether the run completed search, add, and signed edition persistence.
+Run with Python assertions enabled and retain the candidate commit and package
+manifest alongside the receipt.
+
+An opted-in credentialed request can consume the selected provider's
 quota, including any automatic refresh triggered by adding the book. The
 harness waits for the queued Google Books author refresh to finish before
 disabling the providers and clearing both credentials. It clears them before
