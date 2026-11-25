@@ -138,6 +138,9 @@ class RetagPreviewModalContent extends Component {
                 </div>
               </div>
           }
+          <p id="retagPreviewCoverHelp">
+            {translate('RetagUpdateCoversHelpText')}
+          </p>
         </ModalBody>
 
         <ModalFooter>
@@ -152,24 +155,25 @@ class RetagPreviewModalContent extends Component {
               />
           }
 
-          <label className={styles.searchForNewBookLabelContainer}>
-            <span className={styles.searchForNewBookLabel}>
-              Update Covers
-            </span>
+          <div className={styles.searchForNewBookLabelContainer}>
+            <label className={styles.searchForNewBookLabel} htmlFor="updateCovers">
+              {translate('UpdateCovers')}
+            </label>
 
             <CheckInput
               containerClassName={styles.searchForNewBookContainer}
               className={styles.searchForNewBookInput}
               name="updateCovers"
+              ariaDescribedBy="retagPreviewCoverHelp"
               value={this.state.updateCovers}
               onChange={this.onCheckInputChange}
             />
-          </label>
+          </div>
 
-          <label className={styles.searchForNewBookLabelContainer}>
-            <span className={styles.searchForNewBookLabel}>
-              Embed Metadata
-            </span>
+          <div className={styles.searchForNewBookLabelContainer}>
+            <label className={styles.searchForNewBookLabel} htmlFor="embedMetadata">
+              {translate('RetagEmbedCalibreMetadata')}
+            </label>
 
             <CheckInput
               containerClassName={styles.searchForNewBookContainer}
@@ -178,7 +182,7 @@ class RetagPreviewModalContent extends Component {
               value={this.state.embedMetadata}
               onChange={this.onCheckInputChange}
             />
-          </label>
+          </div>
 
           <Button
             onPress={onModalClose}

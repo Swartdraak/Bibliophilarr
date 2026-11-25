@@ -285,6 +285,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public void WriteTags(BookFile trackfile, bool newDownload, bool force = false)
         {
+            WriteTags(trackfile, newDownload, force, preserveArtwork: false);
+        }
+
+        private void WriteTags(BookFile trackfile, bool newDownload, bool force, bool preserveArtwork)
+        {
             if (!force)
             {
                 if (_configService.WriteAudioTags == WriteAudioTagsType.No ||
@@ -305,7 +310,14 @@ namespace NzbDrone.Core.MediaFiles
 
             var path = trackfile.Path;
 
-            var diff = ReadAudioTag(path).Diff(newTags);
+            var oldTags = ReadAudioTag(path);
+            if (preserveArtwork)
+            {
+                newTags.ImageFile = null;
+                newTags.ImageSize = oldTags.ImageSize;
+            }
+
+            var diff = oldTags.Diff(newTags);
 
             if (!diff.Any())
             {
@@ -315,7 +327,9 @@ namespace NzbDrone.Core.MediaFiles
 
             _rootFolderWatchingService.ReportFileSystemChangeBeginning(path);
 
-            if (_configService.ScrubAudioTags)
+            // Scrubbing removes existing pictures along with the other tags.
+            var scrub = !preserveArtwork && _configService.ScrubAudioTags;
+            if (scrub)
             {
                 _logger.Debug($"Scrubbing tags for {trackfile}");
                 RemoveAllTags(path);
@@ -327,7 +341,7 @@ namespace NzbDrone.Core.MediaFiles
 
             UpdateTrackfileSizeAndModified(trackfile, path);
 
-            _eventAggregator.PublishEvent(new BookFileRetaggedEvent(trackfile.Author.Value, trackfile, diff, _configService.ScrubAudioTags));
+            _eventAggregator.PublishEvent(new BookFileRetaggedEvent(trackfile.Author.Value, trackfile, diff, scrub));
         }
 
         private void WriteTagsWithRetry(AudioTag tags, string path)
@@ -433,7 +447,7 @@ namespace NzbDrone.Core.MediaFiles
             _logger.ProgressInfo("Re-tagging {0} audio files for {1}", audioFiles.Count, author.Name);
             foreach (var file in audioFiles)
             {
-                WriteTags(file, false, force: true);
+                WriteTags(file, false, force: true, preserveArtwork: message.UpdateAudioCovers == false);
             }
 
             _logger.ProgressInfo("Selected audio files re-tagged for {0}", author.Name);
@@ -452,7 +466,7 @@ namespace NzbDrone.Core.MediaFiles
                 _logger.ProgressInfo("Re-tagging all audio files for author: {0}", author.Name);
                 foreach (var file in audioFiles)
                 {
-                    WriteTags(file, false, force: true);
+                    WriteTags(file, false, force: true, preserveArtwork: message.UpdateAudioCovers == false);
                 }
 
                 _logger.ProgressInfo("All audio files re-tagged for {0}", author.Name);
