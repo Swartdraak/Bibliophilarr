@@ -26,6 +26,8 @@ process.
   independently when both file formats are recognized.
 - Use the current author and artwork when processing a delayed author refresh.
   Keep current portraits and skip refresh events for removed authors.
+- Add a selected book to an existing author without resubmitting the author's
+  root and monitoring settings.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art.
 - Report Hardcover's shared request cooldown in provider health and distinguish
@@ -44,6 +46,8 @@ process.
   including queue, backup, and system operations.
 - Report queued manual imports as unsuccessful when they neither import a file
   nor preserve an existing one. Summarize recognized format and file errors.
+- Explain when a Manual Import preview lacks a matching edition in the library
+  and keep that file available for manual selection.
 - Keep per-file rejection reasons visible when every Manual Import selection
   is rejected. API clients can opt in to HTTP 422 for this preview.
 - Hold an unresolved manual-import edition selection and continue importing
