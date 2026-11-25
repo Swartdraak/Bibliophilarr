@@ -106,6 +106,7 @@ class AddNewBookSearchResult extends Component {
       <div className={styles.searchResult}>
         <Link
           className={styles.underlay}
+          aria-label={title?.trim() || translate('Book')}
           {...linkProps}
         />
 

@@ -98,6 +98,7 @@ class AddNewAuthorSearchResult extends Component {
       <div className={styles.searchResult}>
         <Link
           className={styles.underlay}
+          aria-label={authorName?.trim() || translate('Author')}
           {...linkProps}
         />
 

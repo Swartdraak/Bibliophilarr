@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import AddNewAuthorSearchResult from 'Search/Author/AddNewAuthorSearchResult';
 import AddNewBookSearchResult, { getSafeBookAuthor } from './AddNewBookSearchResult';
@@ -38,6 +38,7 @@ test('renders artwork for book results on small screens', () => {
     />
   );
 
+  expect(screen.getByRole('button', { name: 'Fixture book' })).toBeInTheDocument();
   const image = container.querySelector('img');
   expect(image).toBeInTheDocument();
   fireEvent.load(image);
@@ -57,6 +58,7 @@ test('renders artwork for author results on small screens', () => {
     />
   );
 
+  expect(screen.getByRole('button', { name: 'Fixture author' })).toBeInTheDocument();
   const image = container.querySelector('img');
   expect(image).toBeInTheDocument();
   fireEvent.load(image);

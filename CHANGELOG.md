@@ -49,6 +49,8 @@ process.
 
 ### Fixed
 
+- Give Add New author and book result controls accessible names so screen readers
+  can identify the title each control opens.
 - Retry saved, verified Open Library author portraits after the cover host
   becomes available again, within the existing cover retry budget.
 - Hold ambiguous M4B imports when the embedded track title and author-prefixed
