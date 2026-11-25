@@ -1,7 +1,6 @@
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Books;
-using NzbDrone.Core.Messaging.Commands;
 
 namespace Bibliophilarr.Api.V1.Books
 {
@@ -9,12 +8,10 @@ namespace Bibliophilarr.Api.V1.Books
     public class BookEditorController : Controller
     {
         private readonly IBookService _bookService;
-        private readonly IManageCommandQueue _commandQueueManager;
 
-        public BookEditorController(IBookService bookService, IManageCommandQueue commandQueueManager)
+        public BookEditorController(IBookService bookService)
         {
             _bookService = bookService;
-            _commandQueueManager = commandQueueManager;
         }
 
         [HttpPut]
