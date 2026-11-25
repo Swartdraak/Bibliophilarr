@@ -3,6 +3,7 @@
 interface CssExports {
   'actions': string;
   'debug': string;
+  'detailsButton': string;
   'error': string;
   'fatal': string;
   'info': string;
