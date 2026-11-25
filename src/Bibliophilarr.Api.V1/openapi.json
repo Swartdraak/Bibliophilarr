@@ -11375,6 +11375,10 @@
             },
             "nullable": true
           },
+          "selectionRejection": {
+            "type": "string",
+            "nullable": true
+          },
           "audioTags": {
             "$ref": "#/components/schemas/ParsedTrackInfo"
           },

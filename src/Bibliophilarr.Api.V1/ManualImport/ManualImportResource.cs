@@ -25,6 +25,7 @@ namespace Bibliophilarr.Api.V1.ManualImport
         public string DownloadId { get; set; }
         public int IndexerFlags { get; set; }
         public IEnumerable<Rejection> Rejections { get; set; }
+        public string SelectionRejection { get; set; }
         public ParsedTrackInfo AudioTags { get; set; }
         public FormatType FormatType { get; set; }
         public bool AdditionalFile { get; set; }
