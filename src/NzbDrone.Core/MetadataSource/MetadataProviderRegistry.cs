@@ -31,6 +31,7 @@ namespace NzbDrone.Core.MetadataSource
         private readonly List<string> _configuredOrder;
         private readonly Logger _logger;
         private readonly HardcoverRateLimitGate _hardcoverRateLimitGate;
+        private readonly InventaireRateLimitGate _inventaireRateLimitGate;
 
         public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers)
             : this(providers, null, LogManager.GetCurrentClassLogger())
@@ -50,6 +51,7 @@ namespace NzbDrone.Core.MetadataSource
         {
             _logger = logger ?? LogManager.GetCurrentClassLogger();
             _hardcoverRateLimitGate = cacheManager == null ? null : HardcoverRateLimitGate.Get(cacheManager, appFolderInfo, _logger);
+            _inventaireRateLimitGate = cacheManager == null ? null : InventaireRateLimitGate.Get(cacheManager);
             _providers = new Dictionary<string, IMetadataProvider>(StringComparer.OrdinalIgnoreCase);
             _enabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             _priorityOverrides = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -276,6 +278,19 @@ namespace NzbDrone.Core.MetadataSource
                     hardcoverDeadline > (hardcoverHealth.CooldownUntilUtc ?? DateTime.MinValue))
                 {
                     registered["Hardcover"] = hardcoverHealth.WithCooldown(hardcoverDeadline, now);
+                }
+
+                if (_inventaireRateLimitGate?.CooldownUntilUtc is { } inventaireDeadline)
+                {
+                    if (!registered.TryGetValue(InventaireRateLimitGate.ProviderName, out var inventaireHealth))
+                    {
+                        inventaireHealth = new ProviderHealthStatus();
+                    }
+
+                    if (inventaireDeadline > (inventaireHealth.CooldownUntilUtc ?? DateTime.MinValue))
+                    {
+                        registered[InventaireRateLimitGate.ProviderName] = inventaireHealth.WithCooldown(inventaireDeadline, now);
+                    }
                 }
 
                 return registered;
