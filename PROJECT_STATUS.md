@@ -87,6 +87,15 @@ recovery issue is closed.
   Hardcover reached its overnight cooldown. The lower audiobook link count
   and changed work assignments require another replay when providers are
   available. [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7155977605)
+- The latest fresh replay on `98053d22` ran both full scans and matched
+  follow-ups. All 533 files were accounted for. It linked 53 ebooks and 291
+  audiobooks to their expected format and left 189 reason-coded holds.
+  Seventeen works kept distinct editions and files for both formats through
+  signed offline restart. Four providers were configured. Open Library and
+  Google Books supplied accepted links, and Inventaire returned real fallback
+  results. Hardcover stayed on its own cooldown. Three enrichment commands
+  finished unsuccessfully, and no series was populated.
+  [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7164621758)
 - Independent browser review verified the legacy Terry Mancour URL, stable
   author and catalogue routes, separate EPUB and M4B file links, and rendered
   author, series, and book artwork. The sampled series lacked a description.
@@ -95,9 +104,10 @@ recovery issue is closed.
   explicit volume number in the original audiobook title.
   [Format defaults](https://github.com/Swartdraak/Bibliophilarr/issues/747) ·
   [Numbered audiobook match](https://github.com/Swartdraak/Bibliophilarr/issues/749)
-- The latest aggregate checked all 330 linked works. There were 197 synopses,
-  276 artwork references, and 89 works with a nonempty local cover cache.
-  Four of 174 series had a description.
+- The latest replay has 304 linked works. Of those, 144 had a synopsis,
+  255 had a stored artwork reference, and 36 had a nonempty local cover cache.
+  A signed browser decoded the cached cover for one sampled dual-format work.
+  Bibliography, artwork and series coverage are still open.
   [Metadata audit](https://github.com/Swartdraak/Bibliophilarr/issues/207)
 - An earlier replay decoded all 7,586 cached images. Among 414 works with
   linked files, 42 had an image reference without a usable cached image and

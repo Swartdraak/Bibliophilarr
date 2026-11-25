@@ -53,11 +53,14 @@ automatically and have no files.
 
 1. Check provider status and recent operation results in **System → Status** or
    through `GET /api/v1/metadata/providers/health`.
-2. If the provider is unavailable, wait for recovery before retrying the refresh.
-   The existing catalogue remains available.
-3. If the provider is reachable and reports missing metadata, check that the
-   configured provider still has the exact work or author before reviewing its
-   catalogue mapping.
+2. During a provider cooldown, automatic import can continue with healthy,
+   configured alternatives. Check **Unmapped Files** for the reasons that
+   individual files are still held.
+3. A refresh for a provider-owned author or work may still need that provider's
+   exact record. Use the reported retry time for affected refreshes. Existing
+   catalogue and file associations remain available during the wait.
+4. If a reachable provider reports missing metadata, verify the exact record
+   before changing the catalogue mapping.
 
 ## References
 
