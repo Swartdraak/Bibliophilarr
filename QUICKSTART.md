@@ -160,6 +160,29 @@ Expected outcome:
   first-account setup. Use the built-in browser form to create the account.
 - `_tests/net10.0/linux-x64` is reserved for test execution only.
 
+### Native runtime troubleshooting
+
+For a framework-dependent archive, `Bibliophilarr.runtimeconfig.json` lists the
+required `Microsoft.NETCore.App` and `Microsoft.AspNetCore.App` frameworks.
+Run `dotnet --list-runtimes` to check the frameworks installed for the binary's
+architecture. The launcher reports its selected directory under `.NET location`
+when a framework is missing.
+
+If the launcher selects an older runtime and you already have a compatible
+installation, set the runtime directory for that launch. The following example
+uses a Linux x64 system installation at `/usr/lib/dotnet`.
+
+```bash
+bibliophilarr_dotnet_dir=/usr/lib/dotnet
+"$bibliophilarr_dotnet_dir/dotnet" --list-runtimes
+DOTNET_ROOT="$bibliophilarr_dotnet_dir" \
+  DOTNET_ROOT_X64="$bibliophilarr_dotnet_dir" ./Bibliophilarr
+```
+
+Use the runtime directory on your system. Start the extracted binary from its
+archive directory, then open `http://127.0.0.1:8787` for first-account setup on a
+fresh profile.
+
 Optional runtime cloud-services endpoint:
 
 - `BIBLIOPHILARR_SERVICES_URL` enables cloud-backed update/time/notification checks.

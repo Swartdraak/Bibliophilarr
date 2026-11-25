@@ -52,6 +52,7 @@ process.
 - When a library scan generates a temporary opposite-format default for a new
   author, use the compatible root and quality profile once that root is added.
   Existing format settings and file links stay in place.
+- Include authors with no recorded metadata refresh in the scheduled author refresh.
 - Preserve stored author format paths when editing profile settings. Changing a
   format's root or quality profile alone no longer changes book monitoring.
 - Keep the selected ebook or audiobook root in Edit Author while root folders

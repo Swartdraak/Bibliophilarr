@@ -991,7 +991,8 @@ namespace NzbDrone.Core.Books
                     var manualTrigger = message.Trigger == CommandTrigger.Manual;
 
                     if ((updatedOpenLibraryAuthors == null && _checkIfAuthorShouldBeRefreshed.ShouldRefresh(author)) ||
-                        (updatedOpenLibraryAuthors != null && updatedOpenLibraryAuthors.Contains(author.ForeignAuthorId)) ||
+                        (updatedOpenLibraryAuthors != null &&
+                         (author.LastInfoSync.GetValueOrDefault() == DateTime.MinValue || updatedOpenLibraryAuthors.Contains(author.ForeignAuthorId))) ||
                         manualTrigger)
                     {
                         try
