@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using Dapper;
 using NzbDrone.Common.Extensions;
@@ -9,6 +10,7 @@ namespace NzbDrone.Core.Books
 {
     public interface IAuthorRepository : IBasicRepository<Author>
     {
+        void DeleteWithFormatProfiles(int authorId);
         bool AuthorPathExists(string path);
         Author FindByName(string cleanName);
         Author FindById(string foreignAuthorId);
@@ -42,6 +44,16 @@ namespace NzbDrone.Core.Books
                         author.Metadata = metadata;
                         return author;
                     });
+        }
+
+        public void DeleteWithFormatProfiles(int authorId)
+        {
+            using var connection = _database.OpenConnection();
+            using var transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
+            var key = new { AuthorId = authorId };
+            connection.Execute("DELETE FROM \"AuthorFormatProfiles\" WHERE \"AuthorId\" = @AuthorId", key, transaction);
+            connection.Execute("DELETE FROM \"Authors\" WHERE \"Id\" = @AuthorId", key, transaction);
+            transaction.Commit();
         }
 
         public bool AuthorPathExists(string path)
