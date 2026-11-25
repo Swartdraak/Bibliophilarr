@@ -87,6 +87,12 @@ Download pre-built binaries for Linux (x64), macOS (ARM64), or Windows (x64)
 from the [Releases](https://github.com/Swartdraak/Bibliophilarr/releases/latest)
 page. Extract the archive and run the `Bibliophilarr` binary.
 
+For a framework-dependent archive, install compatible .NET and ASP.NET Core
+runtimes for your platform and architecture. Find the required framework
+versions in `Bibliophilarr.runtimeconfig.json`. Use the
+[native runtime troubleshooting guide](QUICKSTART.md#native-runtime-troubleshooting)
+if the launcher selects an older runtime already on your system.
+
 On a fresh installation, open Bibliophilarr directly at
 `http://127.0.0.1:8787` to create the first account in your browser.
 
