@@ -166,6 +166,11 @@ namespace NzbDrone.Core.MediaFiles
             _logger.Debug("Import decisions complete [{0}]", decisionsStopwatch.Elapsed);
 
             var importStopwatch = Stopwatch.StartNew();
+            if (decisions.Count > 0)
+            {
+                _logger.ProgressInfo("Saving library scan results.");
+            }
+
             _importApprovedTracks.Import(decisions, false);
 
             // decisions may have been filtered to just new files.  Anything new and approved will have been inserted.
@@ -229,6 +234,11 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             importStopwatch.Stop();
+            if (decisions.Count > 0)
+            {
+                _logger.ProgressInfo("Library scan results saved.");
+            }
+
             _logger.Debug("Book import complete for:\n{0} [{1}]", folders.ConcatToString("\n"), importStopwatch.Elapsed);
         }
 
