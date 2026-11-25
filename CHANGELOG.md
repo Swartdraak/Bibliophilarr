@@ -11,8 +11,9 @@ process.
 
 - Recover a missing cover from a linked M4B, EPUB, or supported AZW3 on Linux
   after a library scan confirms the match or when refreshing an individual book.
-- Search Add New by author, book, or Hardcover series. Browse ordered series
-  books and choose one to add through the existing book workflow.
+- Search Add New by author, book, or series. Browse ordered Hardcover series
+  and choose a book to add. When Hardcover is unavailable, use verified saved
+  matches or preview members from Inventaire when it is enabled.
 
 - Give authors, works and series stable Bibliophilarr URLs. The catalogue
   identity API exposes matched provider IDs. Existing author and book

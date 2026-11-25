@@ -15,6 +15,7 @@ using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.Inventaire;
 using NzbDrone.Core.Organizer;
 
 namespace Bibliophilarr.Api.V1.Search
@@ -33,6 +34,7 @@ namespace Bibliophilarr.Api.V1.Search
         private readonly ISeriesRepository _seriesRepository;
         private readonly IAuthorRepository _authorRepository;
         private readonly IBookRepository _bookRepository;
+        private readonly IInventaireSeriesDiscovery _inventaireSeries;
 
         public SearchController(IMetadataProviderOrchestrator searchProxy,
                                 IBuildFileNames fileNameBuilder,
@@ -41,7 +43,8 @@ namespace Bibliophilarr.Api.V1.Search
                                 ICatalogueIdentityRepository catalogueIdentity,
                                 ISeriesRepository seriesRepository,
                                 IAuthorRepository authorRepository,
-                                IBookRepository bookRepository)
+                                IBookRepository bookRepository,
+                                IInventaireSeriesDiscovery inventaireSeries = null)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
@@ -51,6 +54,7 @@ namespace Bibliophilarr.Api.V1.Search
             _seriesRepository = seriesRepository;
             _authorRepository = authorRepository;
             _bookRepository = bookRepository;
+            _inventaireSeries = inventaireSeries;
         }
 
         [HttpGet]
@@ -62,9 +66,31 @@ namespace Bibliophilarr.Api.V1.Search
             }
 
             term = term?.Trim();
-            if (scope == "series-books" && !IsHardcoverSeriesId(term))
+            if (scope == "series-books")
             {
-                return BadRequest(new ErrorModel { Message = "Choose a valid Hardcover series." });
+                if (InventaireSeriesDiscovery.IsSeriesId(term))
+                {
+                    var members = _inventaireSeries?.GetMembers(term, HttpContext?.RequestAborted ?? CancellationToken.None);
+                    if (members == null)
+                    {
+                        return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorModel
+                        {
+                            Message = "The Inventaire series preview could not be loaded. Check the metadata settings or try again later."
+                        });
+                    }
+
+                    return members.Select((member, index) => new SearchResource
+                    {
+                        Id = index + 1,
+                        ForeignId = member.ForeignWorkId,
+                        SeriesMemberPreview = member
+                    }).ToList();
+                }
+
+                if (!IsHardcoverSeriesId(term))
+                {
+                    return BadRequest(new ErrorModel { Message = "Choose a valid provider series." });
+                }
             }
 
             if (string.IsNullOrEmpty(term) || term.Length < 3)
@@ -90,12 +116,18 @@ namespace Bibliophilarr.Api.V1.Search
                     {
                         return local;
                     }
+
+                    var discovery = _inventaireSeries?.Search(term, HttpContext?.RequestAborted ?? CancellationToken.None);
+                    if (discovery != null)
+                    {
+                        return MapToResource(discovery.Cast<object>(), term).ToList();
+                    }
                 }
 
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorModel
                 {
                     Message = scope == "series"
-                        ? "Series search is unavailable. Check the Hardcover settings or try again later."
+                        ? "Series search is unavailable. Check the metadata provider settings or try again later."
                         : "The books in this series could not be loaded. Check the Hardcover settings or try again later."
                 });
             }

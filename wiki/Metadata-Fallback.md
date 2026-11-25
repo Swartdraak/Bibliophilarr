@@ -16,8 +16,9 @@ order (lower number = higher priority):
 | 3 | **Google Books** | ISBN / title-based | No (`EnableGoogleBooksProvider`) |
 
 **Inventaire** provides a separate title and author search fallback for automatic
-library import when `EnableInventaireFallback` is enabled. It does not participate
-in primary provider ordering or scoped book and author lookups.
+library import and a read-only series fallback in Add New when
+`EnableInventaireFallback` is enabled. The primary provider order and scoped book
+and author lookups use the providers in the table above.
 
 The orchestrator selects the provider that matches the ID scope when the
 configured provider supports the requested lookup.
@@ -38,10 +39,15 @@ An author lookup that fails reports provider unavailability. A provider can also
 report confirmed missing, or return no matching metadata without confirming
 removal. A book lookup that encounters a transport outage reports unavailability.
 
-When the series provider is unavailable, Add New can open an exactly matched
-saved series with existing members. The result is labelled as saved-series
-coverage. An unavailable search with no saved match still reports the outage.
-A successful provider search with no matches returns an empty result.
+When Hardcover is unavailable, Add New checks for an exactly matched saved
+series with existing members first. If there is no saved match, it can display
+results from enabled Inventaire and preview works with an explicit membership
+claim. Positions absent from those claims display as unknown. The preview is
+limited to 40 verified works and leaves the catalogue unchanged. A short shared
+request deadline bounds each preview, and an Inventaire rate-limit response pauses
+both preview and background Inventaire lookups. Other providers keep operating.
+An unavailable search without fallback results reports the outage. A successful
+Hardcover search with no matches returns an empty result.
 
 Hardcover series preview checks the reported count of active memberships and
 loads subsequent pages until it reaches that count. If a later page fails or

@@ -140,7 +140,7 @@ class AddNewItem extends Component {
             <div>
               <Button onPress={this.onBackToSeries}>{translate('BackToSeriesSearch')}</Button>
               <h2>{translate('BooksInProviderSeries', [selectedSeries.title])}</h2>
-              <p>{translate('SeriesBookPreviewHelp')}</p>
+              <p>{translate(selectedSeries.sourceProvider === 'Inventaire' ? 'SeriesReadOnlyPreviewHelp' : 'SeriesBookPreviewHelp')}</p>
             </div>
           }
 
@@ -218,8 +218,22 @@ class AddNewItem extends Component {
                       );
                     }
 
+                    if (item.seriesMemberPreview) {
+                      const { foreignWorkId, title, position, sourceUrl } = item.seriesMemberPreview;
+
+                      return (
+                        <div key={foreignWorkId} className={styles.seriesResult}>
+                          <h3>{title}</h3>
+                          <p>{position ? translate('SeriesPreviewPosition', [position]) : translate('SeriesPreviewPositionUnknown')}</p>
+                          <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
+                            {translate('SeriesOpenInventaire')}
+                          </a>
+                        </div>
+                      );
+                    }
+
                     if (item.series) {
-                      const { slug, title } = item.series;
+                      const { slug, title, sourceProvider, sourceUrl } = item.series;
                       const canonicalId = item.catalogueSeriesCanonicalId;
 
                       if (canonicalId) {
@@ -238,7 +252,8 @@ class AddNewItem extends Component {
                         );
                       }
 
-                      const sourceLabel = translate(item.catalogueOwnerId ? 'SeriesSearchInLibrary' : 'SeriesSearchHardcoverResult');
+                      const providerLabel = sourceProvider === 'Inventaire' ? 'SeriesSearchInventaireResult' : 'SeriesSearchHardcoverResult';
+                      const sourceLabel = translate(item.catalogueOwnerId ? 'SeriesSearchInLibrary' : providerLabel);
 
                       return (
                         <div key={item.series.foreignSeriesId} className={styles.seriesResult}>
@@ -254,7 +269,12 @@ class AddNewItem extends Component {
                           >
                             {translate('SeriesViewBooks')}
                           </Button>
-                          {slug &&
+                          {sourceProvider === 'Inventaire' && sourceUrl &&
+                            <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
+                              {translate('SeriesOpenInventaire')}
+                            </a>
+                          }
+                          {sourceProvider !== 'Inventaire' && slug &&
                             <a
                               href={`https://hardcover.app/series/${encodeURIComponent(slug)}`}
                               target="_blank"

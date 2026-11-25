@@ -90,7 +90,9 @@ namespace NzbDrone.Common.Http.Dispatchers
                 }
             }
 
-            using var cts = new CancellationTokenSource();
+            using var cts = request.CancellationToken.CanBeCanceled
+                ? CancellationTokenSource.CreateLinkedTokenSource(request.CancellationToken)
+                : new CancellationTokenSource();
             if (request.RequestTimeout != TimeSpan.Zero)
             {
                 cts.CancelAfter(request.RequestTimeout);
@@ -127,9 +129,13 @@ namespace NzbDrone.Common.Http.Dispatchers
                         {
                             await responseMessage.Content.CopyToAsync(request.ResponseStream, null, cts.Token);
                         }
-                        else
+                        else if (!request.DiscardNonOkResponseBody || responseMessage.StatusCode == HttpStatusCode.OK)
                         {
                             data = await responseMessage.Content.ReadAsByteArrayAsync(cts.Token);
+                        }
+                        else
+                        {
+                            data = Array.Empty<byte>();
                         }
                     }
                     catch (Exception ex)

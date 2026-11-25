@@ -3,6 +3,7 @@ using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http.REST;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.Inventaire;
 
 namespace Bibliophilarr.Api.V1.Search
 {
@@ -13,6 +14,7 @@ namespace Bibliophilarr.Api.V1.Search
         public AuthorResource Author { get; set; }
         public BookResource Book { get; set; }
         public SeriesSearchSummary Series { get; set; }
+        public InventaireSeriesMember SeriesMemberPreview { get; set; }
         public string CatalogueSeriesCanonicalId { get; set; }
         public List<SeriesSearchCoverResource> SeriesCovers { get; set; }
     }

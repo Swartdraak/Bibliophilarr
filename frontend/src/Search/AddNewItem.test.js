@@ -113,3 +113,43 @@ test('distinguishes a saved series from a same-title provider result in both tex
   fireEvent.click(screen.getByRole('button', { name: 'View books in Harbor Chronicles (In your library)' }));
   expect(searches).toHaveBeenLastCalledWith('hardcover:series:42', 'series-books');
 });
+
+test('browses Inventaire members with source and unknown positions without an add action', () => {
+  const searches = jest.fn();
+  const props = {
+    isFetching: false,
+    isAdding: false,
+    hasExistingAuthors: true,
+    onSearchChange: searches,
+    onClearSearch: jest.fn()
+  };
+  const seriesId = 'inventaire:series:wd:Q41';
+  const memberUrl = 'https://inventaire.io/entity/wd:Q42';
+  const series = {
+    foreignSeriesId: seriesId,
+    title: 'Inventaire fixture series',
+    sourceProvider: 'Inventaire',
+    sourceUrl: 'https://inventaire.io/entity/wd:Q41'
+  };
+  const view = render(
+    <MemoryRouter>
+      <AddNewItem {...props} items={[{ series }]} />
+    </MemoryRouter>
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'View books in Inventaire fixture series (SeriesSearchInventaireResult)' }));
+  expect(searches).toHaveBeenLastCalledWith(seriesId, 'series-books');
+
+  const member = { foreignWorkId: 'inventaire:work:wd:Q42', title: 'Read-only member', sourceUrl: memberUrl };
+  view.rerender(
+    <MemoryRouter>
+      <AddNewItem {...props} items={[{ seriesMemberPreview: member }]} />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('Read-only member')).toBeVisible();
+  expect(screen.getByText('SeriesPreviewPositionUnknown')).toBeVisible();
+  expect(screen.getByText('SeriesReadOnlyPreviewHelp')).toBeVisible();
+  expect(screen.getByRole('link', { name: 'SeriesOpenInventaire' })).toHaveAttribute('href', memberUrl);
+  expect(screen.queryByRole('button', { name: /add\s+(book|record)/i })).not.toBeInTheDocument();
+});

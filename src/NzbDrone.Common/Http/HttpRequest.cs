@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Common.Http
@@ -46,6 +47,8 @@ namespace NzbDrone.Common.Http
         public bool StoreRequestCookie { get; set; }
         public bool StoreResponseCookie { get; set; }
         public TimeSpan RequestTimeout { get; set; }
+        public CancellationToken CancellationToken { get; set; }
+        public bool DiscardNonOkResponseBody { get; set; }
         public TimeSpan RateLimit { get; set; }
         public string RateLimitKey { get; set; }
         public Stream ResponseStream { get; set; }

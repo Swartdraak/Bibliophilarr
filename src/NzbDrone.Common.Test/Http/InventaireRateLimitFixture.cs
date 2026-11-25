@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
@@ -63,6 +64,56 @@ namespace NzbDrone.Common.Test.Http
 
             Assert.ThrowsAsync<TooManyRequestsException>(async () => await upstream).IsLocallySuppressed.Should().BeFalse();
             Assert.ThrowsAsync<TooManyRequestsException>(async () => await queued).IsLocallySuppressed.Should().BeTrue();
+            Mocker.GetMock<IHttpDispatcher>().Verify(
+                dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Once());
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task should_cancel_a_queued_request_without_dispatching_after_the_active_request_completes(bool byTimeout)
+        {
+            var cache = new CacheManager();
+            using var cancellation = new CancellationTokenSource();
+            var first = Request("/api/entities/serie-parts");
+            var sent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var reply = new TaskCompletionSource<HttpResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var queuedRequest = Request("/api/entities/by-uris");
+            if (byTimeout)
+            {
+                queuedRequest.RequestTimeout = TimeSpan.FromMilliseconds(100);
+            }
+            else
+            {
+                queuedRequest.CancellationToken = cancellation.Token;
+            }
+
+            Mocker.GetMock<IHttpDispatcher>()
+                .Setup(dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
+                .Returns(() =>
+                {
+                    sent.TrySetResult();
+                    return reply.Task;
+                });
+
+            var client = Client(cache);
+            var active = client.GetAsync(first);
+            await sent.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            try
+            {
+                var queued = client.GetAsync(queuedRequest);
+                if (!byTimeout)
+                {
+                    cancellation.Cancel();
+                }
+
+                Assert.CatchAsync<OperationCanceledException>(async () => await queued.WaitAsync(TimeSpan.FromSeconds(2)));
+            }
+            finally
+            {
+                reply.TrySetResult(new HttpResponse(first, new HttpHeader(), "{}"));
+                await active.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+
             Mocker.GetMock<IHttpDispatcher>().Verify(
                 dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Once());
         }

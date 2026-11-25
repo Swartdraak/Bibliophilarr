@@ -56,17 +56,14 @@ namespace NzbDrone.Common.Http
 
         internal async Task<HttpResponse> DispatchAsync(HttpRequest request, Func<Task> pace, Func<Task<HttpResponse>> send)
         {
-            await _wire.WaitAsync();
+            var callerCancellation = request.CancellationToken;
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(callerCancellation);
+            deadline.CancelAfter(request.RequestTimeout == TimeSpan.Zero ? TimeSpan.FromSeconds(100) : request.RequestTimeout);
+            var cancellationToken = deadline.Token;
+            await _wire.WaitAsync(cancellationToken);
             try
             {
                 var held = GetHeldResponse(request);
-                if (held != null)
-                {
-                    return held;
-                }
-
-                await pace();
-                held = GetHeldResponse(request);
                 if (held != null)
                 {
                     return held;
@@ -80,16 +77,22 @@ namespace NzbDrone.Common.Http
 
                 if (_admissions.Count >= MaximumRequests)
                 {
-                    return Suppressed(request, _admissions.Peek() + Window, now);
+                    var next = _admissions.Peek() + Window;
+                    HoldUntil(next);
+                    return Suppressed(request, next, now);
                 }
 
-                _admissions.Enqueue(now);
+                await pace().WaitAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                _admissions.Enqueue(DateTime.UtcNow);
+                request.CancellationToken = cancellationToken;
                 var response = await send();
                 if (response.StatusCode == HttpStatusCode.TooManyRequests && !response.IsLocallySuppressed)
                 {
                     now = DateTime.UtcNow;
                     var next = now + ReadCooldown(response.Headers["Retry-After"], now);
-                    Interlocked.Exchange(ref _deadline, Math.Max(Interlocked.Read(ref _deadline), next.Ticks));
+                    HoldUntil(next);
                     response.OmitContentFromDiagnostics = true;
                 }
 
@@ -97,8 +100,14 @@ namespace NzbDrone.Common.Http
             }
             finally
             {
+                request.CancellationToken = callerCancellation;
                 _wire.Release();
             }
+        }
+
+        private void HoldUntil(DateTime deadline)
+        {
+            Interlocked.Exchange(ref _deadline, Math.Max(Interlocked.Read(ref _deadline), deadline.Ticks));
         }
 
         private static HttpResponse Suppressed(HttpRequest request, DateTime end, DateTime now)
