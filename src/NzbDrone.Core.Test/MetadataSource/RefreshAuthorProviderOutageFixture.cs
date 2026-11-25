@@ -138,6 +138,66 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_identify_the_local_author_in_a_safe_incomplete_bibliography_event()
+        {
+            const string privateAuthorName = "Private Fixture Writer";
+            const string privateAuthorId = "googlebooks:author:Private%20Fixture%20Writer";
+            const string privateKey = "private-fixture-provider-key";
+            var messages = new MemoryTarget { Layout = "${message}|${exception:format=ToString}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Warn, LogLevel.Error, messages);
+            using var logFactory = new LogFactory { Configuration = logging };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(RefreshAuthorService)));
+            Mocker.SetConstant<TimeProvider>(TimeProvider.System);
+
+            var lastSync = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var author = new Author
+            {
+                Id = 42,
+                AuthorMetadataId = 21,
+                LastInfoSync = lastSync,
+                Metadata = new AuthorMetadata { Id = 21, Name = privateAuthorName, ForeignAuthorId = privateAuthorId }
+            };
+            var ids = new List<int> { author.Id };
+            Mocker.GetMock<IAuthorService>().Setup(service => service.GetAuthors(ids)).Returns(new List<Author> { author });
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(settings => settings.RescanAfterRefresh).Returns(RescanAfterRefreshType.Never);
+            config.SetupGet(settings => settings.EnableGoogleBooksProvider).Returns(true);
+            config.SetupGet(settings => settings.GoogleBooksApiKey).Returns(privateKey);
+
+            var google = Mocker.Resolve<GoogleBooksFallbackSearchProvider>();
+            Mocker.GetMock<IMetadataProviderRegistry>()
+                .Setup(registry => registry.GetProviders()).Returns(new IMetadataProvider[] { google });
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(Mocker.Resolve<MetadataProviderOrchestrator>());
+
+            var headers = new HttpHeader { ContentType = "application/json" };
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                new HttpResponse(
+                    request,
+                    headers,
+                    request.Url.Query.Contains("startIndex=0", StringComparison.Ordinal)
+                        ? """{"totalItems":2,"items":[{"id":"fixture-work"}]}"""
+                        : """{"totalItems":2,"items":[]}"""));
+
+            Subject.Execute(new BulkRefreshAuthorCommand(ids));
+
+            messages.Logs.Should().ContainSingle(message => message.Contains(
+                "Author bibliography for local author 42 from GoogleBooks ended at offset 1 with 1 distinct entries of 2 reported.",
+                StringComparison.Ordinal));
+            messages.Logs.Should().NotContain(message => message.Contains(privateAuthorId) ||
+                message.Contains(privateAuthorName) || message.Contains(privateKey));
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(3));
+            http.VerifyNoOtherCalls();
+            Mocker.GetMock<ICatalogueIdentityRepository>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once());
+            author.LastInfoSync.Should().Be(lastSync);
+        }
+
+        [Test]
         public void should_preserve_existing_author_biography_when_hardcover_is_unreachable()
         {
             const string authorId = "hardcover:author:123";
@@ -242,9 +302,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             operation.Failures.Should().Be(1);
             operation.NullResults.Should().Be(0);
             telemetry.HasRecentTransportOutage().Should().BeFalse();
-            ExceptionVerification.ExpectedWarns(
-                "Metadata provider 'GoogleBooks' failed during get-author-info",
-                $"Author bibliography for '{authorId}' ended at offset 1 with 1 distinct entries of 2 reported. Keeping the existing author and metadata.");
+            ExceptionVerification.ExpectedWarns("Metadata provider 'GoogleBooks' returned an incomplete bibliography during get-author-info");
             ExceptionVerification.ExpectedErrors(1);
         }
     }

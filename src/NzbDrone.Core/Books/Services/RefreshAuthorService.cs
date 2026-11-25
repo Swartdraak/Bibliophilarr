@@ -110,24 +110,29 @@ namespace NzbDrone.Core.Books
                 _logger.Warn(message, LogSanitizer.Sanitize(foreignId));
                 return null;
             }
-            catch (MetadataProviderUnavailableException ex)
+            catch (MetadataProviderUnavailableException ex) when (!ex.AuthorBibliographyProgress.HasValue)
             {
-                if (ex.AuthorBibliographyProgress is { } progress)
-                {
-                    _logger.Warn(
-                        "Author bibliography for '{0}' ended at offset {1} with {2} distinct entries of {3} reported. Keeping the existing author and metadata.",
-                        LogSanitizer.Sanitize(foreignId),
-                        progress.PageOffset,
-                        progress.DistinctEntries,
-                        progress.ReportedTotal);
-                }
-                else
-                {
-                    _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
-                }
-
+                _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
                 throw;
             }
+        }
+
+        private void LogRefreshFailure(Author author, Exception error)
+        {
+            if (error is MetadataProviderUnavailableException { AuthorBibliographyProgress: { } progress } unavailable)
+            {
+                var provider = MetadataProviderOrchestrator.InferProviderFromScopedId(unavailable.EntityId) ?? "unidentified provider";
+                _logger.Error(
+                    "Author bibliography for local author {0} from {1} ended at offset {2} with {3} distinct entries of {4} reported. Keeping the existing author and metadata.",
+                    author.Id,
+                    provider,
+                    progress.PageOffset,
+                    progress.DistinctEntries,
+                    progress.ReportedTotal);
+                return;
+            }
+
+            _logger.Error(error, "Couldn't refresh info for {0}", author);
         }
 
         protected override RemoteData GetRemoteData(Author local, List<Author> remote, Author data)
@@ -915,7 +920,7 @@ namespace NzbDrone.Core.Books
                             break;
                     }
 
-                    _logger.Error(e, "Couldn't refresh info for {0}", author);
+                    LogRefreshFailure(author, e);
                 }
             }
 
@@ -991,7 +996,7 @@ namespace NzbDrone.Core.Books
                         catch (Exception e)
                         {
                             refreshFailed = true;
-                            _logger.Error(e, "Couldn't refresh info for {0}", author);
+                            LogRefreshFailure(author, e);
                         }
                     }
                     else

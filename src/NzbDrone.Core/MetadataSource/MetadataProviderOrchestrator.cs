@@ -441,7 +441,15 @@ namespace NzbDrone.Core.MetadataSource
                 {
                     stopwatch.Stop();
                     _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, false, false);
-                    _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operationName);
+                    if (ex is MetadataProviderUnavailableException { AuthorBibliographyProgress: not null })
+                    {
+                        _logger.Warn("Metadata provider '{0}' returned an incomplete bibliography during {1}", provider.ProviderName, operationName);
+                    }
+                    else
+                    {
+                        _logger.Warn(ex, "Metadata provider '{0}' failed during {1}", provider.ProviderName, operationName);
+                    }
+
                     if (throwOnTransportFailure && ex is TooManyRequestsException { HardcoverCooldownUntilUtc: not null })
                     {
                         throw new MetadataProviderUnavailableException(operationName, entityId, ex);
@@ -554,7 +562,7 @@ namespace NzbDrone.Core.MetadataSource
             return string.Equals(provider.ProviderName, expectedProvider, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string InferProviderFromScopedId(string providerScopedId)
+        internal static string InferProviderFromScopedId(string providerScopedId)
         {
             if (providerScopedId.IsNullOrWhiteSpace())
             {
