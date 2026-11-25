@@ -197,6 +197,7 @@ class BookIndexPoster extends Component {
               className={styles.link}
               style={elementStyle}
               to={link}
+              aria-label={title?.trim() || translate('Book')}
             >
               <AuthorPoster
                 className={styles.poster}

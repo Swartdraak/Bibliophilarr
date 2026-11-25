@@ -18,6 +18,9 @@ process.
 
 ### Fixed
 
+- Give each Book Posters cover link an accessible name, including when artwork
+  is available or a legacy title is blank.
+
 - Report catalogue checks, import rules, and saving scan results as separate
   stages. Count releases after their matching work has finished.
 - Clear hidden Bookshelf selections when a filter removes the selected authors.
