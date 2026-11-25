@@ -17,6 +17,7 @@ namespace NzbDrone.Core.Books
     {
         void InsertWithEditions(Book book);
         void InsertWithNewAuthor(Book book, Author author, IReadOnlyList<AuthorFormatProfile> profiles);
+        void DeleteKeepingFiles(IEnumerable<int> bookIds);
         List<Book> GetBooks(int authorId);
         List<Book> GetArtworkRetryPage(int afterId, int pageSize);
         List<Book> GetLastBooks(IEnumerable<int> authorMetadataIds);
@@ -182,6 +183,34 @@ namespace NzbDrone.Core.Books
                     throw new InvalidOperationException("The new author's format profile conflicts with an existing row.");
                 }
             }
+        }
+
+        public void DeleteKeepingFiles(IEnumerable<int> bookIds)
+        {
+            var batches = bookIds.Distinct().Chunk(400).ToList();
+            if (batches.Count == 0)
+            {
+                return;
+            }
+
+            // Npgsql binds integer arrays directly. Dapper expands lists for SQLite.
+            var bookIdsPredicate = _database.DatabaseType == DatabaseType.PostgreSQL ? "= ANY(@BookIds)" : "IN @BookIds";
+            using var connection = _database.OpenConnection();
+            using var transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
+            foreach (var ids in batches)
+            {
+                var parameters = new { BookIds = ids };
+                connection.Execute(
+                    $"""
+                    UPDATE "BookFiles" SET "EditionId" = 0
+                    WHERE "EditionId" IN (SELECT "Id" FROM "Editions" WHERE "BookId" {bookIdsPredicate})
+                    """,
+                    parameters,
+                    transaction);
+                connection.Execute($"DELETE FROM \"Books\" WHERE \"Id\" {bookIdsPredicate}", parameters, transaction);
+            }
+
+            transaction.Commit();
         }
 
         public List<Book> GetArtworkRetryPage(int afterId, int pageSize)

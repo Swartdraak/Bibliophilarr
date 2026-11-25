@@ -14,6 +14,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NUnit.Framework;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Qualities;
@@ -25,8 +26,10 @@ namespace NzbDrone.Host.Test
     {
         private const string AudioForeignEditionId = "hardcover:source-edition:92632";
 
-        [Test]
-        public async Task ShouldPreserveApiImportedEbookAndAudiobookAcrossHostReopen()
+        [TestCase(null)]
+        [TestCase("book")]
+        [TestCase("author")]
+        public async Task ShouldPreserveApiImportedEbookAndAudiobookAcrossHostReopen(string keepFilesRemoval)
         {
             var profile = Directory.CreateTempSubdirectory("bibliophilarr-dual-format-");
             var appData = profile.CreateSubdirectory("data").FullName;
@@ -49,6 +52,7 @@ namespace NzbDrone.Host.Test
                 int rootId;
                 int authorId;
                 int bookId;
+                var unrelatedAuthorId = 0;
                 List<(int FileId, int EditionId, string Path, string Digest)> imported;
                 using (var host = BuildHost(appData, includeAudioEdition: true))
                 {
@@ -153,6 +157,27 @@ namespace NzbDrone.Host.Test
                         imported = await ReadDualFormatState(client, host.Services, library, rootId, authorId, bookId, token);
                         imported.Single(file => Path.GetExtension(file.Path) == ".epub").Digest.Should().Be(originalEbook);
                         imported.Single(file => Path.GetExtension(file.Path) == ".mp3").Digest.Should().Be(originalAudio);
+
+                        if (keepFilesRemoval != null)
+                        {
+                            var unrelatedSettings = new
+                            {
+                                authorName = "Unrelated Keep Files Fixture",
+                                foreignAuthorId = "hardcover:author:789401",
+                                rootFolderPath = library,
+                                qualityProfileId = ebookProfile,
+                                metadataProfileId = metadataProfile,
+                                monitored = false,
+                                monitorNewItems = "none",
+                                addOptions = new { monitor = "none", searchForMissingBooks = false }
+                            };
+                            var unrelated = await Post(client, "author", unrelatedSettings, HttpStatusCode.Created, token);
+                            unrelatedAuthorId = unrelated.GetProperty("id").GetInt32();
+                            var removedId = keepFilesRemoval == "author" ? authorId : bookId;
+                            using var removal = await client.DeleteAsync($"{keepFilesRemoval}/{removedId}?deleteFiles=false", token);
+                            removal.IsSuccessStatusCode.Should().BeTrue();
+                            await AssertUnmappedKeptFiles(client, host.Services, imported, authorId, bookId, unrelatedAuthorId, keepFilesRemoval, token);
+                        }
                     }
                     finally
                     {
@@ -168,8 +193,15 @@ namespace NzbDrone.Host.Test
                 {
                     restarted.Services.GetRequiredService<IMetadataProviderRegistry>().GetAllProviders().Should().BeEmpty();
                     using var client = CreateClient(restarted, apiKey);
-                    var persisted = await ReadDualFormatState(client, restarted.Services, library, rootId, authorId, bookId, token);
-                    persisted.Should().Equal(imported);
+                    if (keepFilesRemoval == null)
+                    {
+                        var persisted = await ReadDualFormatState(client, restarted.Services, library, rootId, authorId, bookId, token);
+                        persisted.Should().Equal(imported);
+                    }
+                    else
+                    {
+                        await AssertUnmappedKeptFiles(client, restarted.Services, imported, authorId, bookId, unrelatedAuthorId, keepFilesRemoval, token);
+                    }
 
                     using var database = new SQLiteConnection(new SQLiteConnectionStringBuilder
                     {
@@ -191,6 +223,37 @@ namespace NzbDrone.Host.Test
                 SQLiteConnection.ClearAllPools();
                 NLog.LogManager.Flush(TimeSpan.FromSeconds(5));
                 profile.Delete(recursive: true);
+            }
+        }
+
+        private static async Task AssertUnmappedKeptFiles(HttpClient client,
+                                                          IServiceProvider services,
+                                                          List<(int FileId, int EditionId, string Path, string Digest)> imported,
+                                                          int authorId,
+                                                          int bookId,
+                                                          int unrelatedAuthorId,
+                                                          string removal,
+                                                          CancellationToken token)
+        {
+            using var deletedBook = await client.GetAsync($"book/{bookId}", token);
+            deletedBook.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            using var targetAuthor = await client.GetAsync($"author/{authorId}", token);
+            targetAuthor.StatusCode.Should().Be(removal == "author" ? HttpStatusCode.NotFound : HttpStatusCode.OK);
+            (await Get(client, $"author/{unrelatedAuthorId}", token)).GetProperty("id").GetInt32().Should().Be(unrelatedAuthorId);
+            services.GetRequiredService<IEditionService>().GetEditionsByBook(bookId).Should().BeEmpty();
+
+            var unmapped = (await Get(client, "bookfile?unmapped=true", token)).EnumerateArray().ToList();
+            unmapped.Select(file => (file.GetProperty("id").GetInt32(), file.GetProperty("path").GetString()))
+                .Should().BeEquivalentTo(imported.Select(file => (file.FileId, file.Path)));
+            unmapped.Should().OnlyContain(file => file.GetProperty("bookId").GetInt32() == 0);
+            var files = services.GetRequiredService<IMediaFileService>();
+            foreach (var original in imported)
+            {
+                var file = files.Get(original.FileId);
+                file.EditionId.Should().Be(0);
+                file.Path.Should().Be(original.Path);
+                file.Quality.Quality.Should().Be(Path.GetExtension(original.Path) == ".epub" ? Quality.EPUB : Quality.MP3);
+                FileDigest(file.Path).Should().Be(original.Digest);
             }
         }
 
