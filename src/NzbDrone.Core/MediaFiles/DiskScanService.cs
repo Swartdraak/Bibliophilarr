@@ -49,6 +49,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IMakeImportDecision _importDecisionMaker;
         private readonly IImportApprovedBooks _importApprovedTracks;
         private readonly IAuthorService _authorService;
+        private readonly IAuthorFormatDefaultService _formatDefaults;
         private readonly IMediaFileTableCleanupService _mediaFileTableCleanupService;
         private readonly IRootFolderService _rootFolderService;
         private readonly IEventAggregator _eventAggregator;
@@ -62,6 +63,7 @@ namespace NzbDrone.Core.MediaFiles
                                IMakeImportDecision importDecisionMaker,
                                IImportApprovedBooks importApprovedTracks,
                                IAuthorService authorService,
+                               IAuthorFormatDefaultService formatDefaults,
                                IRootFolderService rootFolderService,
                                IMediaFileTableCleanupService mediaFileTableCleanupService,
                                IEventAggregator eventAggregator,
@@ -76,6 +78,7 @@ namespace NzbDrone.Core.MediaFiles
             _importDecisionMaker = importDecisionMaker;
             _importApprovedTracks = importApprovedTracks;
             _authorService = authorService;
+            _formatDefaults = formatDefaults;
             _mediaFileTableCleanupService = mediaFileTableCleanupService;
             _rootFolderService = rootFolderService;
             _eventAggregator = eventAggregator;
@@ -187,6 +190,8 @@ namespace NzbDrone.Core.MediaFiles
                 mediaFileList.Count,
                 scannedFolders.Count,
                 musicFilesStopwatch.Elapsed);
+
+            _formatDefaults.ResolvePending();
 
             var decisionsStopwatch = Stopwatch.StartNew();
 

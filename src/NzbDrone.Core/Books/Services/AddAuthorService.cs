@@ -41,6 +41,7 @@ namespace NzbDrone.Core.Books
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IAddAuthorValidator _addAuthorValidator;
         private readonly IAuthorFormatProfileService _formatProfileService;
+        private readonly IAuthorFormatDefaultService _formatDefaults;
         private readonly IConfigService _configService;
         private readonly IQualityProfileService _qualityProfileService;
         private readonly IRootFolderService _rootFolderService;
@@ -54,6 +55,7 @@ namespace NzbDrone.Core.Books
                                 IBuildFileNames fileNameBuilder,
                                 IAddAuthorValidator addAuthorValidator,
                                 IAuthorFormatProfileService formatProfileService,
+                                IAuthorFormatDefaultService formatDefaults,
                                 IConfigService configService,
                                 IQualityProfileService qualityProfileService,
                                 IRootFolderService rootFolderService,
@@ -67,6 +69,7 @@ namespace NzbDrone.Core.Books
             _fileNameBuilder = fileNameBuilder;
             _addAuthorValidator = addAuthorValidator;
             _formatProfileService = formatProfileService;
+            _formatDefaults = formatDefaults;
             _configService = configService;
             _qualityProfileService = qualityProfileService;
             _rootFolderService = rootFolderService;
@@ -75,20 +78,20 @@ namespace NzbDrone.Core.Books
 
         public Author AddAuthor(Author newAuthor, bool doRefresh = true)
         {
-            return AddAuthor(newAuthor, doRefresh, deferIncompleteBibliography: false);
+            return AddAuthor(newAuthor, doRefresh, unattendedLibraryImport: false);
         }
 
         public Author AddAuthorFromUnattendedLibraryImport(Author newAuthor)
         {
-            return AddAuthor(newAuthor, doRefresh: false, deferIncompleteBibliography: true);
+            return AddAuthor(newAuthor, doRefresh: false, unattendedLibraryImport: true);
         }
 
-        private Author AddAuthor(Author newAuthor, bool doRefresh, bool deferIncompleteBibliography)
+        private Author AddAuthor(Author newAuthor, bool doRefresh, bool unattendedLibraryImport)
         {
             Ensure.That(newAuthor, () => newAuthor).IsNotNull();
 
-            var resolved = AddSkyhookData(newAuthor, deferIncompleteBibliography, out var incompleteBibliography);
-            return AddResolvedAuthor(resolved.Author, resolved.Bibliography, doRefresh, incompleteBibliography);
+            var resolved = AddSkyhookData(newAuthor, unattendedLibraryImport, out var incompleteBibliography);
+            return AddResolvedAuthor(resolved.Author, resolved.Bibliography, doRefresh, incompleteBibliography, unattendedLibraryImport);
         }
 
         public Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh)
@@ -132,7 +135,8 @@ namespace NzbDrone.Core.Books
             Author newAuthor,
             IReadOnlyList<Book> bibliography,
             bool doRefresh,
-            MetadataProviderUnavailableException incompleteBibliography = null)
+            MetadataProviderUnavailableException incompleteBibliography = null,
+            bool unattendedLibraryImport = false)
         {
             lock (AdditionLocks[GetAdditionLockIndex(newAuthor)])
             {
@@ -165,7 +169,7 @@ namespace NzbDrone.Core.Books
 
                 var addedAuthor = _authorService.AddAuthor(newAuthor, doRefresh);
 
-                EnsureFormatProfiles(addedAuthor);
+                EnsureFormatProfiles(addedAuthor, unattendedLibraryImport);
 
                 return addedAuthor;
             }
@@ -429,7 +433,7 @@ namespace NzbDrone.Core.Books
             return newAuthor;
         }
 
-        private void EnsureFormatProfiles(Author author)
+        private void EnsureFormatProfiles(Author author, bool unattendedLibraryImport = false)
         {
             if (!_configService.EnableDualFormatTracking || author.Id <= 0)
             {
@@ -443,15 +447,22 @@ namespace NzbDrone.Core.Books
                 return;
             }
 
-            foreach (var profile in BuildFormatProfiles(author))
+            var profiles = BuildFormatProfiles(author, unattendedLibraryImport);
+            foreach (var profile in profiles)
             {
                 _formatProfileService.Add(profile);
+            }
+
+            if (profiles.Any(profile => profile.PendingTypedDefault))
+            {
+                // A compatible root may have been registered after the initial defaults were read.
+                _formatDefaults.ResolvePending(author.Id);
             }
 
             _logger.Debug("Created dual-format profiles for author {0}", author);
         }
 
-        private IReadOnlyList<AuthorFormatProfile> BuildFormatProfiles(Author author)
+        private IReadOnlyList<AuthorFormatProfile> BuildFormatProfiles(Author author, bool unattendedLibraryImport = false)
         {
             var addOptions = author.AddOptions;
 
@@ -459,6 +470,8 @@ namespace NzbDrone.Core.Books
             var audiobookQualityProfileId = addOptions?.AudiobookQualityProfileId ?? 0;
             var ebookRootFolderPath = addOptions?.EbookRootFolderPath ?? string.Empty;
             var audiobookRootFolderPath = addOptions?.AudiobookRootFolderPath ?? string.Empty;
+            var pendingEbookDefault = false;
+            var pendingAudiobookDefault = false;
 
             // When per-format QPs aren't explicitly set, infer the best QP for each format
             // by checking which root folders/QPs contain ebook vs audiobook qualities
@@ -506,6 +519,20 @@ namespace NzbDrone.Core.Books
                     }
                 }
 
+                if (unattendedLibraryImport)
+                {
+                    var sourceRoot = rootFolders.Find(root => !root.IsCalibreLibrary &&
+                        root.DefaultQualityProfileId == author.QualityProfileId && root.Path.PathEquals(author.RootFolderPath));
+                    var sourceFormat = sourceRoot == null
+                        ? null
+                        : AuthorFormatDefaultService.GetExclusiveFormat(allQualityProfiles.Find(profile => profile.Id == sourceRoot.DefaultQualityProfileId));
+
+                    pendingEbookDefault = sourceFormat == FormatType.Audiobook && bestEbookQpId == 0 &&
+                                          addOptions?.EbookQualityProfileId == null && ebookRootFolderPath.IsNullOrWhiteSpace();
+                    pendingAudiobookDefault = sourceFormat == FormatType.Ebook && bestAudiobookQpId == 0 &&
+                                              addOptions?.AudiobookQualityProfileId == null && audiobookRootFolderPath.IsNullOrWhiteSpace();
+                }
+
                 if (ebookQualityProfileId <= 0)
                 {
                     ebookQualityProfileId = bestEbookQpId > 0 ? bestEbookQpId : author.QualityProfileId;
@@ -534,6 +561,7 @@ namespace NzbDrone.Core.Books
                 FormatType = FormatType.Ebook,
                 QualityProfileId = ebookQualityProfileId,
                 RootFolderPath = ebookRootFolderPath,
+                PendingTypedDefault = pendingEbookDefault,
                 Tags = author.Tags ?? new HashSet<int>(),
                 Monitored = author.Monitored,
                 MonitorNewItems = author.MonitorNewItems,
@@ -546,6 +574,7 @@ namespace NzbDrone.Core.Books
                 FormatType = FormatType.Audiobook,
                 QualityProfileId = audiobookQualityProfileId,
                 RootFolderPath = audiobookRootFolderPath,
+                PendingTypedDefault = pendingAudiobookDefault,
                 Tags = author.Tags ?? new HashSet<int>(),
                 Monitored = author.Monitored,
                 MonitorNewItems = author.MonitorNewItems,
