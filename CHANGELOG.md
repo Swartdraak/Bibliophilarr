@@ -20,6 +20,7 @@ process.
 
 ### Fixed
 
+- Remove temporary upload and extraction files after each backup restore attempt.
 - Explain how to select a local book and edition in Manual Import when book
   metadata lookup is unconfigured.
 - Retry Open Library artwork on the normal scan cycle after a temporary
