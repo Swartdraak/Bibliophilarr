@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Blocklisting;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
@@ -82,7 +83,7 @@ namespace NzbDrone.Core.Download
                             throw;
                         }
 
-                        _logger.Debug("Torrent download failed, trying magnet. ({0})", ex.Message);
+                        _logger.Debug("Torrent download failed ({0}), trying magnet.", ex.GetType().Name);
                     }
                 }
 
@@ -113,7 +114,7 @@ namespace NzbDrone.Core.Download
                             throw new ReleaseDownloadException(remoteBook.Release, "Magnet not supported by download client. ({0})", ex.Message);
                         }
 
-                        _logger.Debug("Magnet not supported by download client, trying torrent. ({0})", ex.Message);
+                        _logger.Debug("Magnet not supported by download client {0}, trying torrent.", Definition?.Id);
                     }
                 }
 
@@ -133,6 +134,7 @@ namespace NzbDrone.Core.Download
             try
             {
                 var request = indexer?.GetDownloadRequest(torrentUrl) ?? new HttpRequest(torrentUrl);
+                request.OmitSensitiveDiagnostics = true;
                 request.RateLimitKey = remoteBook?.Release?.IndexerId.ToString();
                 request.Headers.Accept = "application/x-bittorrent";
                 request.AllowAutoRedirect = false;
@@ -147,7 +149,7 @@ namespace NzbDrone.Core.Download
                 {
                     var locationHeader = response.Headers.GetSingleValue("Location");
 
-                    _logger.Trace("Torrent request is being redirected to: {0}", locationHeader);
+                    _logger.Trace("Torrent download from indexer {0} was redirected (HTTP {1}).", remoteBook.Release.IndexerId, (int)response.StatusCode);
 
                     if (locationHeader != null)
                     {
@@ -166,30 +168,30 @@ namespace NzbDrone.Core.Download
 
                 torrentFile = response.ResponseData;
 
-                _logger.Debug("Downloading torrent for release '{0}' finished ({1} bytes from {2})", remoteBook.Release.Title, torrentFile.Length, torrentUrl);
+                _logger.Debug("Downloading torrent for release '{0}' finished ({1} bytes from indexer {2})", LogSanitizer.Sanitize(remoteBook.Release.Title), torrentFile.Length, remoteBook.Release.IndexerId);
             }
             catch (HttpException ex)
             {
                 if (ex.Response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    _logger.Error(ex, "Downloading torrent file for book '{0}' failed since it no longer exists ({1})", remoteBook.Release.Title, torrentUrl);
+                    _logger.Error("Downloading torrent file for book '{0}' from indexer {1} failed (HTTP 404).", LogSanitizer.Sanitize(remoteBook.Release.Title), remoteBook.Release.IndexerId);
                     throw new ReleaseUnavailableException(remoteBook.Release, "Downloading torrent failed", ex);
                 }
 
                 if ((int)ex.Response.StatusCode == 429)
                 {
-                    _logger.Error("API Grab Limit reached for {0}", torrentUrl);
+                    _logger.Error("API grab limit reached for indexer {0} (HTTP 429).", remoteBook.Release.IndexerId);
                 }
                 else
                 {
-                    _logger.Error(ex, "Downloading torrent file for release '{0}' failed ({1})", remoteBook.Release.Title, torrentUrl);
+                    _logger.Error("Downloading torrent file for release '{0}' from indexer {1} failed (HTTP {2}).", LogSanitizer.Sanitize(remoteBook.Release.Title), remoteBook.Release.IndexerId, (int)ex.Response.StatusCode);
                 }
 
                 throw new ReleaseDownloadException(remoteBook.Release, "Downloading torrent failed", ex);
             }
             catch (WebException ex)
             {
-                _logger.Error(ex, "Downloading torrent file for release '{0}' failed ({1})", remoteBook.Release.Title, torrentUrl);
+                _logger.Error("Downloading torrent file for release '{0}' from indexer {1} failed ({2}).", LogSanitizer.Sanitize(remoteBook.Release.Title), remoteBook.Release.IndexerId, ex.Status);
 
                 throw new ReleaseDownloadException(remoteBook.Release, "Downloading torrent failed", ex);
             }
@@ -204,9 +206,9 @@ namespace NzbDrone.Core.Download
             if (actualHash.IsNotNullOrWhiteSpace() && hash != actualHash)
             {
                 _logger.Debug(
-                    "{0} did not return the expected InfoHash for '{1}', Bibliophilarr could potentially lose track of the download in progress.",
-                    Definition.Implementation,
-                    remoteBook.Release.DownloadUrl);
+                    "Download client {0} did not return the expected InfoHash for release '{1}'. The download may not be tracked.",
+                    Definition?.Id,
+                    LogSanitizer.Sanitize(remoteBook.Release.Title));
             }
 
             return actualHash;
@@ -221,9 +223,9 @@ namespace NzbDrone.Core.Download
             {
                 hash = MagnetLink.Parse(magnetUrl).InfoHash.ToHex();
             }
-            catch (FormatException ex)
+            catch (FormatException)
             {
-                _logger.Error(ex, "Failed to parse magnetlink for release '{0}': '{1}'", remoteBook.Release.Title, magnetUrl);
+                _logger.Error("Failed to parse magnet link for release '{0}' from indexer {1}.", LogSanitizer.Sanitize(remoteBook.Release.Title), remoteBook.Release.IndexerId);
 
                 return null;
             }
@@ -238,9 +240,9 @@ namespace NzbDrone.Core.Download
             if (actualHash.IsNotNullOrWhiteSpace() && hash != actualHash)
             {
                 _logger.Debug(
-                    "{0} did not return the expected InfoHash for '{1}', Bibliophilarr could potentially lose track of the download in progress.",
-                    Definition.Implementation,
-                    remoteBook.Release.DownloadUrl);
+                    "Download client {0} did not return the expected InfoHash for release '{1}'. The download may not be tracked.",
+                    Definition?.Id,
+                    LogSanitizer.Sanitize(remoteBook.Release.Title));
             }
 
             return actualHash;

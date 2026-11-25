@@ -41,16 +41,10 @@ namespace NzbDrone.Core.Download
                 UseJitter = true,
                 OnRetry = args =>
                 {
-                    var exception = args.Outcome.Exception;
-
-                    if (exception is not null)
-                    {
-                        _logger.Info(exception, "Request for {0} failed with exception '{1}'. Retrying in {2}s.", Definition.Name, exception.Message, args.RetryDelay.TotalSeconds);
-                    }
-                    else
-                    {
-                        _logger.Info("Request for {0} failed with status {1}. Retrying in {2}s.", Definition.Name, args.Outcome.Result?.StatusCode, args.RetryDelay.TotalSeconds);
-                    }
+                    var status = args.Outcome.Exception is HttpException httpException
+                        ? httpException.Response?.StatusCode
+                        : args.Outcome.Result?.StatusCode;
+                    _logger.Info("Request for download client {0} failed with status {1}. Retrying in {2}s.", Definition?.Id, status, args.RetryDelay.TotalSeconds);
 
                     return default;
                 }

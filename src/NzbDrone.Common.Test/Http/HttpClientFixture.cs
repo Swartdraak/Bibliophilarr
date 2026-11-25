@@ -12,6 +12,8 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.EnvironmentInfo;
@@ -489,6 +491,84 @@ namespace NzbDrone.Common.Test.Http
             var exception = Assert.ThrowsAsync<HttpException>(async () => await Subject.GetAsync<HttpBinResource>(request));
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase(true, true)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        public async Task should_scope_download_diagnostics_without_changing_http_behavior(bool omitSensitiveDiagnostics, bool followRedirect)
+        {
+            const string initialUrl = "https://transport.example.invalid/source?format=epub";
+            const string destination = "https://transport.example.invalid/catalogue?id=42";
+            const string responseText = "Fixture response note";
+            const string accept = "application/json";
+            var request = new HttpRequest(initialUrl)
+            {
+                AllowAutoRedirect = followRedirect,
+                LogResponseContent = true,
+                OmitSensitiveDiagnostics = omitSensitiveDiagnostics
+            };
+            request.Headers.Accept = accept;
+            var sent = new List<(string Url, HttpMethod Method, string Accept)>();
+            HttpResponse terminalResponse = null;
+            var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
+            dispatcher.Setup(transport => transport.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
+                .ReturnsAsync((HttpRequest outbound, CookieContainer cookies) =>
+                {
+                    outbound.Should().BeSameAs(request);
+                    sent.Add((outbound.Url.FullUri, outbound.Method, outbound.Headers.Accept));
+                    if (outbound.Url.FullUri == initialUrl)
+                    {
+                        return new HttpResponse(outbound, new HttpHeader { ["Location"] = destination }, string.Empty, HttpStatusCode.Found);
+                    }
+
+                    terminalResponse = new HttpResponse(outbound, new HttpHeader { ContentType = "text/plain" }, responseText, HttpStatusCode.NotFound);
+                    return terminalResponse;
+                });
+
+            var messages = new MemoryTarget { Layout = "${message}|${exception:format=ToString}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(omitSensitiveDiagnostics ? LogLevel.Trace : LogLevel.Debug, LogLevel.Fatal, messages);
+            using var logFactory = new LogFactory { Configuration = logging };
+            var client = new HttpClient(
+                Array.Empty<IHttpRequestInterceptor>(),
+                new CacheManager(),
+                Mock.Of<IRateLimitService>(),
+                dispatcher.Object,
+                logFactory.GetLogger(nameof(HttpClient)));
+
+            if (followRedirect)
+            {
+                var failure = Assert.ThrowsAsync<HttpException>(() => client.ExecuteAsync(request));
+                failure.Request.Should().BeSameAs(request);
+                failure.Response.Should().BeSameAs(terminalResponse);
+                failure.Response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+                failure.Response.Content.Should().Be(responseText);
+                sent.Should().Equal((initialUrl, HttpMethod.Get, accept), (destination, HttpMethod.Get, accept));
+            }
+            else
+            {
+                var redirect = await client.ExecuteAsync(request);
+                redirect.StatusCode.Should().Be(HttpStatusCode.Found);
+                redirect.Headers["Location"].Should().Be(destination);
+                sent.Should().Equal((initialUrl, HttpMethod.Get, accept));
+            }
+
+            if (omitSensitiveDiagnostics)
+            {
+                messages.Logs.Should().Contain(entry => entry.StartsWith("Sending HTTP GET request.", StringComparison.Ordinal));
+                messages.Logs.Should().NotContain(entry => entry.Contains(initialUrl) || entry.Contains(destination) || entry.Contains(responseText));
+                messages.Logs.Should().Contain(entry => entry.Contains("302"));
+                if (followRedirect)
+                {
+                    messages.Logs.Should().ContainSingle(entry => entry.StartsWith("HTTP request failed (HTTP 404).", StringComparison.Ordinal));
+                }
+            }
+            else
+            {
+                messages.Logs.Should().ContainSingle(entry => entry.StartsWith("HTTP Error - ", StringComparison.Ordinal) &&
+                    entry.Contains(destination) && entry.Contains(responseText));
+            }
         }
 
         [Test]

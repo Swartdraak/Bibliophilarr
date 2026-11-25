@@ -8,15 +8,21 @@ using System.Threading.Tasks;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Blocklisting;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.Clients.Blackhole;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.TorrentInfo;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.RemotePathMappings;
 using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
@@ -145,6 +151,81 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
 
             // We must have a category or CDH won't pick it up.
             result.Category.Should().NotBeNullOrWhiteSpace();
+        }
+
+        [TestCase(HttpStatusCode.OK)]
+        [TestCase(HttpStatusCode.NotFound)]
+        [TestCase(HttpStatusCode.TooManyRequests)]
+        public async Task Download_should_preserve_transport_and_log_only_safe_diagnostics(HttpStatusCode status)
+        {
+            const string title = "Fixture\tVolume";
+            const string url = "https://download.example.invalid/book";
+            const string externalResponse = "Fixture response detail";
+            var remoteBook = CreateRemoteBook();
+            remoteBook.Release.Title = title;
+            remoteBook.Release.DownloadUrl = url;
+            remoteBook.Release.IndexerId = 42;
+            var messages = new MemoryTarget { Layout = "${message}|${exception:format=ToString}|${exception:format=Data}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var downloader = new TorrentBlackhole(
+                Mocker.Resolve<IScanWatchFolder>(),
+                Mocker.Resolve<ITorrentFileInfoReader>(),
+                Mocker.Resolve<IHttpClient>(),
+                Mocker.Resolve<IConfigService>(),
+                Mocker.Resolve<IDiskProvider>(),
+                Mocker.Resolve<IRemotePathMappingService>(),
+                Mocker.Resolve<IBlocklistService>(),
+                logFactory.GetLogger(nameof(TorrentBlackhole)))
+            {
+                Definition = Subject.Definition
+            };
+
+            if (status == HttpStatusCode.OK)
+            {
+                await downloader.Download(remoteBook, null);
+            }
+            else
+            {
+                var request = new HttpRequest(url);
+                var response = new HttpResponse(request, new HttpHeader { ["Retry-After"] = "60" }, externalResponse, status);
+                var failure = status == HttpStatusCode.NotFound
+                    ? new HttpException(request, response)
+                    : new TooManyRequestsException(request, response);
+                Mocker.GetMock<IHttpClient>().Setup(transport => transport.GetAsync(It.IsAny<HttpRequest>()))
+                    .ThrowsAsync(failure);
+
+                var thrown = Assert.CatchAsync<ReleaseDownloadException>(() => downloader.Download(remoteBook, null));
+                thrown.InnerException.Should().BeSameAs(failure);
+                if (status == HttpStatusCode.NotFound)
+                {
+                    thrown.Should().BeOfType<ReleaseUnavailableException>();
+                }
+                else
+                {
+                    thrown.Should().BeOfType<ReleaseDownloadException>();
+                    ((TooManyRequestsException)thrown.InnerException).RetryAfter.Should().Be(TimeSpan.FromSeconds(60));
+                }
+            }
+
+            remoteBook.Release.Title.Should().Be(title);
+            Mocker.GetMock<IHttpClient>()
+                .Verify(transport => transport.GetAsync(It.Is<HttpRequest>(request => request.Url.FullUri == url)), Times.Once());
+            messages.Logs.Should().NotContain(entry =>
+                entry.Contains(url, StringComparison.Ordinal) || entry.Contains(externalResponse, StringComparison.Ordinal));
+
+            if (status == HttpStatusCode.OK)
+            {
+                messages.Logs.Should().ContainSingle(entry =>
+                    entry.StartsWith("Downloading torrent for release 'Fixture Volume' finished", StringComparison.Ordinal) &&
+                    entry.Contains("from indexer 42", StringComparison.Ordinal));
+            }
+            else
+            {
+                messages.Logs.Should().ContainSingle(entry =>
+                    entry.Contains("indexer 42", StringComparison.Ordinal) && entry.Contains($"HTTP {(int)status}", StringComparison.Ordinal));
+            }
         }
 
         [Test]
