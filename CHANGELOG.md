@@ -16,6 +16,7 @@ process.
 
 ### Fixed
 
+- Recognize editions labeled Audio as audiobooks when matching library files.
 - Honor the historical server bind-address environment variable while keeping
   the canonical setting and saved defaults in precedence order.
 
