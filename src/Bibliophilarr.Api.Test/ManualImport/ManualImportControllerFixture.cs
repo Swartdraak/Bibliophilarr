@@ -245,6 +245,32 @@ namespace NzbDrone.Api.Test.ManualImport
                 files.Count == 1 && files[0].Id == 102 && files[0].Edition == edition)), Times.Once);
         }
 
+        [TestCase(null)]
+        [TestCase(" ")]
+        public void should_hold_a_missing_path_and_keep_the_valid_preview_in_a_mixed_batch(string path)
+        {
+            var book = new Book { Id = 42, Title = "Selected book" };
+            var edition = new Edition { BookId = 42, ForeignEditionId = "known-ebook", IsEbook = true };
+            _bookService.Setup(service => service.GetBook(42)).Returns(book);
+            _editionService.Setup(service => service.GetEditionByForeignEditionId(edition.ForeignEditionId)).Returns(edition);
+            _manualImportService.Setup(service => service.UpdateItems(It.IsAny<List<ManualImportItem>>()))
+                .Returns((List<ManualImportItem> files) => files);
+
+            var result = (ObjectResult)_controller.UpdateItems(new List<ManualImportUpdateResource>
+            {
+                new ManualImportUpdateResource { Id = 101, Path = path, BookId = 42, ForeignEditionId = edition.ForeignEditionId },
+                new ManualImportUpdateResource { Id = 102, Path = "/root/Author/Valid.epub", BookId = 42, ForeignEditionId = edition.ForeignEditionId }
+            }, true);
+
+            result.StatusCode.Should().Be(202);
+            var rows = ((IEnumerable<ManualImportResource>)result.Value).ToDictionary(row => row.Id);
+            rows[101].ForeignEditionId.Should().Be(edition.ForeignEditionId);
+            rows[101].Rejections.Should().ContainSingle().Which.Reason.Should().Contain("file path is required");
+            rows[102].Rejections.Should().BeNullOrEmpty();
+            _manualImportService.Verify(service => service.UpdateItems(It.Is<List<ManualImportItem>>(files =>
+                files.Count == 1 && files[0].Id == 102)), Times.Once);
+        }
+
         [Test]
         public void should_keep_an_empty_preview_accepted()
         {

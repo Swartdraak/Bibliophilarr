@@ -181,7 +181,9 @@ namespace Bibliophilarr.Api.V1.ManualImport
                     DisableReleaseSwitching = resource.DisableReleaseSwitching
                 };
 
-                var rejection = GetSelectedEditionRejection(resource.ForeignEditionId, item);
+                var rejection = string.IsNullOrWhiteSpace(resource.Path)
+                    ? new Rejection("A file path is required for Manual Import.")
+                    : GetSelectedEditionRejection(resource.ForeignEditionId, item);
                 if (rejection == null)
                 {
                     items.Add(item);
@@ -199,9 +201,11 @@ namespace Bibliophilarr.Api.V1.ManualImport
                 return rejected;
             }
 
-            var rejectedPaths = rejected.Select(item => item.Path).ToHashSet(PathEqualityComparer.Instance);
+            var rejectedPaths = rejected.Select(item => item.Path)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .ToHashSet(PathEqualityComparer.Instance);
             return _manualImportService.UpdateItems(items)
-                .Where(item => !rejectedPaths.Contains(item.Path))
+                .Where(item => string.IsNullOrWhiteSpace(item.Path) || !rejectedPaths.Contains(item.Path))
                 .Select(item => item.ToResource())
                 .Concat(rejected)
                 .ToList();
