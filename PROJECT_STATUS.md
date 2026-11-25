@@ -79,7 +79,7 @@ recovery issue is closed.
   matched-only follow-up, 54 of 75 ebooks and 405 of 458 audiobooks linked to
   the expected format. Signed offline restart preserved the audited catalogue.
   [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7153619701)
-- The November 25 fresh `f2fe9c81` replay tracked the same 533 paths and linked
+- The 2026-11-25 fresh `f2fe9c81` replay tracked the same 533 paths and linked
   55 ebooks and 316 audiobooks. Twenty-one works had separately typed file
   and edition links. The remaining 162 files have recorded hold reasons.
   The signed offline restart preserved the audited catalogue identities and
