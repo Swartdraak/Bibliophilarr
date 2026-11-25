@@ -122,6 +122,36 @@ test.each([
   }));
 });
 
+test('adding a book to an existing author keeps its edition without sending author defaults', () => {
+  const store = makeStore([ebook, audiobook, mixed]);
+  render(
+    <Provider store={store}>
+      <AddNewBook
+        foreignBookId="openlibrary:work:OL501W"
+        isExistingAuthor={true}
+        onModalClose={() => {}}
+      />
+    </Provider>
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+  const add = store.dispatch.mock.calls.find(([action]) => action.type === 'addBook')[0];
+  const editions = [{ foreignEditionId: 'openlibrary:edition:OL601M', monitored: true }];
+  const book = getNewBook({
+    foreignBookId: add.payload.foreignBookId,
+    author: { id: 0, foreignAuthorId: 'openlibrary:author:OL401A' },
+    editions
+  }, add.payload);
+  const body = JSON.parse(JSON.stringify(book));
+
+  expect(body).not.toHaveProperty('author');
+  expect(body.foreignBookId).toBe('openlibrary:work:OL501W');
+  expect(body.editions).toEqual(editions);
+  expect(body.addOptions).toEqual({ searchForNewBook: false });
+  expect(add.payload).toEqual({ foreignBookId: body.foreignBookId, isExistingAuthor: true, searchForNewBook: false });
+});
+
 test('omits unsupported profile IDs from author and book API bodies', () => {
   const store = makeStore([ebook], { audiobookQualityProfileId: 1 });
   const { container } = render(
