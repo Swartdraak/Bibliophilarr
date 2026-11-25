@@ -4,6 +4,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Exceptions;
@@ -160,10 +161,14 @@ namespace NzbDrone.Core.Test.MusicTests
             orchestrator.Verify(service => service.GetVerifiedOpenLibraryAuthorWorkByIsbn(primary, It.IsAny<string>()), Times.Exactly(isbnLookups));
         }
 
-        [TestCase(2, false, true)]
-        [TestCase(1, false, false)]
-        [TestCase(2, true, false)]
-        public void should_recover_an_incoming_open_library_author_only_with_eligible_hardcover_witnesses(int confirmedWorks, bool competingAuthor, bool reuse)
+        [TestCase(2, false, true, null)]
+        [TestCase(1, false, false, null)]
+        [TestCase(2, true, false, null)]
+        [TestCase(2, false, true, "timeout")]
+        [TestCase(1, false, false, "timeout")]
+        [TestCase(2, true, false, "timeout")]
+        [TestCase(2, false, false, "cooldown")]
+        public void should_recover_an_incoming_open_library_author_only_with_eligible_hardcover_witnesses(int confirmedWorks, bool competingAuthor, bool reuse, string hardcoverFailure)
         {
             var incoming = _primary;
             var incumbent = _duplicate;
@@ -187,8 +192,20 @@ namespace NzbDrone.Core.Test.MusicTests
                 new InvalidOperationException("Fixture pagination stopped early."),
                 true);
             orchestrator.Setup(service => service.GetAuthorInfo(incoming.ForeignAuthorId, true)).Throws(incomplete);
-            orchestrator.Setup(service => service.GetAuthorInfo(incumbent.ForeignAuthorId, true))
-                .Returns(new Author { ForeignAuthorId = incumbent.ForeignAuthorId, Books = hardcoverBooks });
+            var hardcoverBibliography = orchestrator.Setup(service => service.GetAuthorInfo(incumbent.ForeignAuthorId, true));
+            if (hardcoverFailure != null)
+            {
+                incumbent.Books = hardcoverBooks;
+                hardcoverBibliography.Throws(new MetadataProviderUnavailableException(
+                    MetadataProviderOrchestrator.AuthorInfoOperation,
+                    incumbent.ForeignAuthorId,
+                    hardcoverFailure == "cooldown" ? new TooManyRequestsException("3600") : new TimeoutException()));
+            }
+            else
+            {
+                hardcoverBibliography.Returns(new Author { ForeignAuthorId = incumbent.ForeignAuthorId, Books = hardcoverBooks });
+            }
+
             for (var i = 0; i < confirmedWorks; i++)
             {
                 var work = hardcoverBooks[i];
@@ -215,8 +232,14 @@ namespace NzbDrone.Core.Test.MusicTests
 
             identity.Verify(service => service.TryAddSource(CatalogueEntityKind.Author, incumbent.AuthorMetadataId, "OpenLibrary", "OL10A", "two-isbn-title-author-work-witnesses"),
                 reuse ? Times.Once() : Times.Never());
+            if (hardcoverFailure == "cooldown")
+            {
+                ExceptionVerification.ExpectedWarns(1);
+                orchestrator.Verify(service => service.GetVerifiedAuthorWorkTitle(incumbent.ForeignAuthorId, It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+            }
+
             orchestrator.Verify(service => service.GetVerifiedOpenLibraryAuthorWorkByIsbn(incoming.ForeignAuthorId, It.IsAny<string>()),
-                Times.Exactly(competingAuthor ? 0 : confirmedWorks));
+                Times.Exactly(competingAuthor || hardcoverFailure == "cooldown" ? 0 : confirmedWorks));
         }
 
         private static Book Work(string id, string title, string isbn)

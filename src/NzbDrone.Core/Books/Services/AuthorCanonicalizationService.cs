@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Messaging.Commands;
@@ -285,7 +286,7 @@ namespace NzbDrone.Core.Books
                 ex.EntityId == $"openlibrary:author:{openLibraryAuthority.ProviderId}")
             {
                 var hardcoverBooks = incomingIsOpenLibrary ? incumbentBooks : incomingBooks;
-                if (VerifyWorksWithoutOpenLibraryBibliography(hardcover, hardcoverBooks, openLibrary))
+                if (VerifyWorksWithoutOpenLibraryBibliography(hardcover, hardcoverBooks, openLibrary, incomingIsOpenLibrary && incumbent.Id > 0))
                 {
                     return true;
                 }
@@ -297,14 +298,29 @@ namespace NzbDrone.Core.Books
             return SharesVerifiedBibliography(incoming, incomingBooks, incumbent, incumbentBooks);
         }
 
-        private bool VerifyWorksWithoutOpenLibraryBibliography(Author hardcover, IReadOnlyList<Book> books, Author openLibrary)
+        private IReadOnlyList<Book> LoadHardcoverWitnessCandidates(Author hardcover, bool canUseStoredWorks)
+        {
+            try
+            {
+                return LoadBibliography(hardcover);
+            }
+            catch (MetadataProviderUnavailableException ex) when (canUseStoredWorks &&
+                ex.Operation == MetadataProviderOrchestrator.AuthorInfoOperation &&
+                ex.EntityId == hardcover.ForeignAuthorId && ex.InnerException is not TooManyRequestsException)
+            {
+                // Stored works suggest ISBNs. Both providers must still verify each author's credit.
+                return hardcover.Books?.Value;
+            }
+        }
+
+        private bool VerifyWorksWithoutOpenLibraryBibliography(Author hardcover, IReadOnlyList<Book> books, Author openLibrary, bool canUseStoredWorks)
         {
             var verifiedHardcover = new HashSet<string>(StringComparer.Ordinal);
             var verifiedOpenLibrary = new HashSet<string>(StringComparer.Ordinal);
             var verifiedTitles = new HashSet<string>(StringComparer.Ordinal);
             try
             {
-                var witnesses = GetWitnessSuggestions(books ?? LoadBibliography(hardcover), "Hardcover")
+                var witnesses = GetWitnessSuggestions(books ?? LoadHardcoverWitnessCandidates(hardcover, canUseStoredWorks), "Hardcover")
                     .OrderBy(item => item.Isbn, StringComparer.Ordinal)
                     .GroupBy(item => item.Title)
                     .SelectMany(group => group.Select((witness, rank) => (Witness: witness, Rank: rank)))
