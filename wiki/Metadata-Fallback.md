@@ -67,6 +67,12 @@ Author refresh keeps the local author, bibliography, and existing metadata
 when the provider is unavailable or has no matching author. Confirmed missing
 also keeps the author, including when the author has no files.
 
+If Open Library ends an author works feed before its reported total, the bounded
+recovery checks matching counts and offsets, exact work IDs, and author credits.
+When recovery stops, the event log records the failed check and the distinct and
+reported work counts. The incomplete response leaves existing catalogue data
+intact and may leave a new unattended import in Unmapped Files.
+
 Book refresh suppresses automatic cleanup during a degraded provider window.
 Under healthy conditions, the separate cleanup path for existing provider-backed
 books requires a repeated miss and only considers books that were added

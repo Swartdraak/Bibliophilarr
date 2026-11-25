@@ -198,19 +198,42 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 authoritative: exactAuthor,
                 recoverGap: (entries, total) =>
                 {
-                    if (stableTotal && TryRecoverAuthorWorkGap(normalizedAuthorId, entries, total, out var searchDocs))
+                    var result = stableTotal
+                        ? RecoverAuthorWorkGap(normalizedAuthorId, entries, total, out recoveryDocs)
+                        : AuthorWorkGapRecovery.WorksTotalChanged;
+                    if (result != AuthorWorkGapRecovery.Recovered)
                     {
-                        recoveryDocs = searchDocs;
-                        return true;
+                        _logger.Info(
+                            "Open Library bibliography gap recovery stopped: {0} ({1} distinct works of {2} reported).",
+                            result,
+                            entries.Count,
+                            total);
                     }
 
-                    return false;
+                    return result == AuthorWorkGapRecovery.Recovered;
                 });
 
             return (works, recoveryDocs);
         }
 
-        private bool TryRecoverAuthorWorkGap(string authorId, List<OlWorkResource> works, int total, out List<OlSearchDoc> recoveryDocs)
+        private enum AuthorWorkGapRecovery
+        {
+            Recovered,
+            WorksTotalChanged,
+            OutsideRecoveryBounds,
+            InvalidKnownWorkSet,
+            SearchUnavailable,
+            SearchInexactTotal,
+            SearchTotalMismatch,
+            SearchPageMismatch,
+            InvalidSearchWorkSet,
+            KnownWorkMissingFromSearch,
+            SearchAuthorCreditMismatch,
+            DirectWorkRejected,
+            DirectWorkUnavailable
+        }
+
+        private AuthorWorkGapRecovery RecoverAuthorWorkGap(string authorId, List<OlWorkResource> works, int total, out List<OlSearchDoc> recoveryDocs)
         {
             const int pageSize = 100;
             const int maxSearchPages = 3;
@@ -221,25 +244,40 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             if (works.Count == 0 || total > pageSize * maxSearchPages || missingCount is < 1 or > maxMissingWorks ||
                 CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null)?.ProviderId != authorId)
             {
-                return false;
+                return AuthorWorkGapRecovery.OutsideRecoveryBounds;
             }
 
             var known = works.Select(work => GetExactAuthorWorksKey(work.Key)).ToHashSet(StringComparer.Ordinal);
             if (known.Contains(null) || known.Count != works.Count)
             {
-                return false;
+                return AuthorWorkGapRecovery.InvalidKnownWorkSet;
             }
 
+            var transportFailure = AuthorWorkGapRecovery.SearchUnavailable;
             try
             {
                 var searchDocs = new Dictionary<string, OlSearchDoc>(StringComparer.Ordinal);
                 for (var offset = 0; offset < total; offset += pageSize)
                 {
                     var page = _client.Search($"author_key:{authorId}", pageSize, offset);
-                    if (page?.NumFoundExact != true || page.NumFound != total || page.Start != offset ||
-                        page.Docs?.Count != Math.Min(pageSize, total - offset))
+                    if (page == null)
                     {
-                        return false;
+                        return AuthorWorkGapRecovery.SearchUnavailable;
+                    }
+
+                    if (page.NumFoundExact != true)
+                    {
+                        return AuthorWorkGapRecovery.SearchInexactTotal;
+                    }
+
+                    if (page.NumFound != total)
+                    {
+                        return AuthorWorkGapRecovery.SearchTotalMismatch;
+                    }
+
+                    if (page.Start != offset || page.Docs?.Count != Math.Min(pageSize, total - offset))
+                    {
+                        return AuthorWorkGapRecovery.SearchPageMismatch;
                     }
 
                     foreach (var doc in page.Docs)
@@ -247,14 +285,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                         var id = GetIsbnLookupWorkId(doc?.Key);
                         if (id == null || (doc.Key != id && doc.Key != $"/works/{id}") || !searchDocs.TryAdd(id, doc))
                         {
-                            return false;
+                            return AuthorWorkGapRecovery.InvalidSearchWorkSet;
                         }
                     }
                 }
 
                 if (!known.IsSubsetOf(searchDocs.Keys))
                 {
-                    return false;
+                    return AuthorWorkGapRecovery.KnownWorkMissingFromSearch;
                 }
 
                 var missing = searchDocs.Where(pair => !known.Contains(pair.Key)).ToList();
@@ -264,17 +302,23 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     return searchAuthor != authorId && searchAuthor != $"/authors/{authorId}";
                 }))
                 {
-                    return false;
+                    return AuthorWorkGapRecovery.SearchAuthorCreditMismatch;
                 }
 
+                transportFailure = AuthorWorkGapRecovery.DirectWorkUnavailable;
                 var recovered = new List<OlWorkResource>(missingCount);
                 foreach (var (workId, _) in missing)
                 {
                     var work = _client.GetWork(workId);
-                    if (work?.Key != $"/works/{workId}" || work.Title.IsNullOrWhiteSpace() ||
+                    if (work == null)
+                    {
+                        return AuthorWorkGapRecovery.DirectWorkUnavailable;
+                    }
+
+                    if (work.Key != $"/works/{workId}" || work.Title.IsNullOrWhiteSpace() ||
                         !HasExclusiveAuthorCredit(work, authorId))
                     {
-                        return false;
+                        return AuthorWorkGapRecovery.DirectWorkRejected;
                     }
 
                     recovered.Add(work);
@@ -283,12 +327,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 works.AddRange(recovered);
                 recoveryDocs = searchDocs.Values.ToList();
                 _logger.Info("Verified {0} missing Open Library bibliography work IDs for author {1}. The bibliography now has {2} distinct works.", recovered.Count, authorId, total);
-                return true;
+                return AuthorWorkGapRecovery.Recovered;
             }
             catch (Exception ex) when (ex is OpenLibraryException or WebException or HttpRequestException)
             {
-                _logger.Debug(ex, "Open Library author bibliography gap recovery was unavailable.");
-                return false;
+                return transportFailure;
             }
         }
 

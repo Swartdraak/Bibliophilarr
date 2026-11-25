@@ -522,6 +522,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         [TestCase("counts differ", false)]
         [TestCase("count approximate", false)]
         [TestCase("count absent", false)]
+        [TestCase("wrong start", false)]
+        [TestCase("short search page", false)]
         [TestCase("missing prior", false)]
         [TestCase("duplicate search ID", false)]
         [TestCase("edition key", false)]
@@ -565,6 +567,12 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                     break;
                 case "count absent":
                     search.NumFoundExact = null;
+                    break;
+                case "wrong start":
+                    search.Start = 1;
+                    break;
+                case "short search page":
+                    docs.RemoveAt(0);
                     break;
                 case "missing prior":
                     docs[0].Key = "/works/OL2W";
@@ -621,20 +629,45 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 directWork.Returns(omitted);
             }
 
+            var messages = new MemoryTarget { Layout = "${message} ${exception}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var provider = new OpenLibraryProvider(
+                _clientMock.Object,
+                Mocker.GetMock<IConfigService>().Object,
+                logFactory.GetLogger(nameof(OpenLibraryProvider)));
+            const string recoveryMessage = "Open Library bibliography gap recovery stopped: ";
+
             if (recovered)
             {
-                var books = Subject.GetAuthorInfo("openlibrary:author:OL26320A").Books.Value;
+                var books = provider.GetAuthorInfo("openlibrary:author:OL26320A").Books.Value;
                 books.Select(book => book.OpenLibraryWorkId).Should().Equal("OL1W", newWorkId);
                 books[1].VerifiedOpenLibraryAuthorId.Should().Be(authorId);
                 books[1].Editions.Value.Should().ContainSingle(edition => edition.Overview == omitted.Description);
                 books[1].Editions.Value.Single().Images.Should().ContainSingle(image => image.Url.Contains("123"));
+                messages.Logs.Should().NotContain(message => message.StartsWith(recoveryMessage));
             }
             else
             {
-                var lookup = () => Subject.GetAuthorInfo("openlibrary:author:OL26320A");
+                var lookup = () => provider.GetAuthorInfo("openlibrary:author:OL26320A");
                 var failure = lookup.Should().Throw<MetadataProviderUnavailableException>().Which;
                 failure.AuthoritativeBibliographyEndedEarly.Should().BeTrue();
                 failure.AuthorBibliographyProgress.Should().Be((1, 1, 2));
+                var reason = scenario switch
+                {
+                    "counts differ" => "SearchTotalMismatch",
+                    "count approximate" or "count absent" => "SearchInexactTotal",
+                    "wrong start" or "short search page" => "SearchPageMismatch",
+                    "missing prior" => "KnownWorkMissingFromSearch",
+                    "duplicate search ID" or "edition key" or "malformed search ID" => "InvalidSearchWorkSet",
+                    "wrong search credit" => "SearchAuthorCreditMismatch",
+                    "unavailable search" => "SearchUnavailable",
+                    "work unavailable" or "work timeout" => "DirectWorkUnavailable",
+                    _ => "DirectWorkRejected"
+                };
+                var diagnostic = messages.Logs.Should().ContainSingle(message => message.StartsWith(recoveryMessage)).Which;
+                diagnostic.TrimEnd().Should().Be(recoveryMessage + reason + " (1 distinct works of 2 reported).");
             }
 
             _clientMock.Verify(client => client.GetAuthorWorks(authorId, 100, 1), Times.Exactly(2));
