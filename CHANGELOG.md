@@ -79,6 +79,8 @@ process.
 - Remove temporary upload and extraction files after each backup restore attempt.
 - Explain how to select a local book and edition in Manual Import when book
   metadata lookup is unconfigured.
+- Return HTTP 400 with selection instructions when a Book Files request omits
+  all selectors.
 - Retry Open Library artwork on the normal scan cycle after a temporary
   transport timeout.
 - Include authors with no recorded metadata refresh in the scheduled author refresh.
@@ -591,6 +593,8 @@ process.
 - **macOS app-smoke RID-specific provider copy paths** (Issue #270, repair 7): the hosted `macos-latest` app-execution lane at 9cce63ab8c (repair 6) still died at first boot with a DryIoc `GetRequiredService` resolution failure inside `EventAggregator` — the provider-surface `CopyToPublishDirectory` items in `Bibliophilarr.Console.csproj` used RID-agnostic source paths (`_output/net10.0/FluentMigrator.dll`) but the build output for a RID-specific publish (`-p:RuntimeIdentifier=osx-x64`) goes to `_output/net10.0/osx-x64/FluentMigrator.dll`. On a fresh CI checkout, `_output/` does not exist, so the RID-agnostic paths silently failed to resolve and the provider assemblies were missing from the publish output, causing the app to crash at startup when FluentMigrator's `ReflectionBasedDbFactory` tried to load them by file path. This repair changes every `CopyToPublishDirectory` source path in the non-Windows-RID provider-surface group to use the RID-specific path `_output/net10.0/$(RuntimeIdentifier)/...` (which resolves to the correct RID subdirectory at publish time), so the provider assemblies are correctly copied from the build output into the publish output for every non-Windows RID. The Windows publish is byte-for-byte unaffected (the condition is the exact logical complement of the win-RID platform group). No product source, no runtime loader behavior, no new package, no dependency-version change. The `ConsoleSqliteProviderPublishIssue270Fixture` test assertions are updated to pin the RID-specific paths. The residual criterion (fresh exact-head hosted CI on both hosted lanes before merge) remains the publisher's.
 
 ### Security
+
+- Normalize request method and client information before writing HTTP logs.
 
 - Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
 - Require an API credential for versioned API writes and protect Forms
