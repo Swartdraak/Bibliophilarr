@@ -51,6 +51,8 @@ process.
 
 ### Fixed
 
+- Load every verified Hardcover series member across provider pages. Report
+  an unavailable preview when a later page cannot be verified.
 - Open an exactly matched saved series from Add New during a series provider
   outage. Label series result sources to distinguish same-title matches.
 - Retry missing Open Library artwork earlier for file-attached books, while

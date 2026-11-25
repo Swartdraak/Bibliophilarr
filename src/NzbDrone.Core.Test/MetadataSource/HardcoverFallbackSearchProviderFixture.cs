@@ -520,62 +520,126 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
-        public void should_get_one_bounded_page_of_active_series_books_in_provider_order()
+        public void should_read_all_memberships_in_provider_order_and_deduplicate_works_across_pages()
         {
-            var payload = JObject.Parse("""
-                {"data":{"book_series":[
-                    {"series_id":1033,"book":{"id":22,"title":"First work","book_status_id":1,"release_year":1990,
-                        "cached_contributors":[{"author":{"id":9,"name":"Fixture Author"}}],
-                        "cached_image":{"url":"https://covers.example/first.jpg"}}},
-                    {"series_id":1033,"book":{"id":22,"title":"Duplicate","book_status_id":1}},
-                    {"series_id":4444,"book":{"id":31,"title":"Different series","book_status_id":1}},
-                    {"series_id":1033,"book":{"id":32,"title":"Inactive","book_status_id":2}},
-                    {"series_id":1033,"book":{"id":33,"title":"Unknown status"}},
-                    {"series_id":1033,"book":{"id":0,"title":"Invalid work","book_status_id":1}},
-                    {"series_id":1033,"book":{"id":34,"title":" ","book_status_id":1}},
-                    {"series_id":1033,"book":{"id":11,"title":"Second work","book_status_id":1}}
-                ]}}
-                """);
-            var entries = (JArray)payload.SelectToken("data.book_series");
-            while (entries.Count < 50)
-            {
-                entries.Add(new JObject());
-            }
-
-            entries.Add(JObject.Parse("""{"series_id":1033,"book":{"id":50,"title":"Outside the page","book_status_id":1}}"""));
-            Mocker.GetMock<IConfigService>().SetupGet(x => x.MetadataProviderTimeoutSeconds).Returns(7);
-            var client = Mocker.GetMock<IHttpClient>();
-            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
-            {
-                request.Method.Should().Be(HttpMethod.Post);
-                request.RateLimitKey.Should().Be("Hardcover");
-                request.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
-                request.RequestTimeout.Should().Be(TimeSpan.FromSeconds(7));
-
-                var requestBody = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
-                var query = requestBody.Value<string>("query");
-                query.Should().Contain("series_id: { _eq: $seriesId }");
-                query.Should().Contain("book_status_id: { _eq: 1 }");
-                query.Should().Contain("order_by: [{ position: asc_nulls_last }, { book: { users_count: desc } }, { id: asc }]");
-                query.Should().NotContain("editions");
-                requestBody.SelectToken("variables.seriesId").Value<int>().Should().Be(1033);
-                requestBody.SelectToken("variables.limit").Value<int>().Should().Be(50);
-                requestBody.SelectToken("variables.offset").Value<int>().Should().Be(0);
-
-                return new HttpResponse<JObject>(
-                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
-            });
+            var firstPage = Enumerable.Range(1, 50).Select(id => SeriesMembership(id, id)).ToArray();
+            var lastPage = new[] { SeriesMembership(51, 42), SeriesMembership(52, 75) };
+            var offsets = new List<int>();
+            var queries = new List<string>();
+            GivenSeriesPages(
+                offsets,
+                offset => offset switch
+                {
+                    0 => SeriesPage(52, firstPage),
+                    50 => SeriesPage(52, lastPage),
+                    _ => throw new AssertionException("Unexpected page offset")
+                },
+                queries);
 
             var books = ((IProvideSeriesBooks)Subject).GetSeriesBooks("hardcover:series:1033");
 
-            books.Select(book => book.ForeignBookId).Should().Equal("hardcover:work:22", "hardcover:work:11");
-            books.Select(book => book.Title).Should().Equal("First work", "Second work");
+            offsets.Should().Equal(0, 50);
+            queries.Should().OnlyContain(query => query.Contains("book_series_aggregate"));
+            books.Select(book => book.ForeignBookId)
+                .Should().Equal(Enumerable.Range(1, 50).Append(75).Select(id => $"hardcover:work:{id}"));
+            books[0].Title.Should().Be("Fixture work 1");
             books[0].AuthorMetadata.Value.ForeignAuthorId.Should().Be("hardcover:author:9");
             var edition = books[0].Editions.Value.Should().ContainSingle().Which;
             edition.Format.Should().Be(Edition.UnclassifiedFormat);
-            edition.Images.Should().ContainSingle().Which.SourceId.Should().Be("hardcover:work:22");
-            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
-            client.VerifyNoOtherCalls();
+            edition.Images.Should().ContainSingle().Which.SourceId.Should().Be("hardcover:work:1");
+        }
+
+        [Test]
+        public void should_continue_on_a_provider_capped_short_page_until_the_count_is_satisfied()
+        {
+            var rows = Enumerable.Range(1, 55).Select(id => SeriesMembership(id, id)).ToArray();
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, offset => SeriesPage(55, rows.Skip(offset).Take(23).ToArray()));
+
+            var books = Subject.GetSeriesBooks("hardcover:series:1033");
+
+            offsets.Should().Equal(0, 23, 46);
+            books.Select(book => book.ForeignBookId)
+                .Should().Equal(Enumerable.Range(1, 55).Select(id => $"hardcover:work:{id}"));
+        }
+
+        [TestCase(2)]
+        [TestCase(50)]
+        public void should_stop_at_the_exact_count_when_one_complete_page_is_authoritatively_confirmed(int count)
+        {
+            var rows = Enumerable.Range(1, count).Select(id => SeriesMembership(id, id)).ToArray();
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, _ => SeriesPage(count, rows));
+
+            Subject.GetSeriesBooks("hardcover:series:1033").Select(book => book.ForeignBookId)
+                .Should().Equal(Enumerable.Range(1, count).Select(id => $"hardcover:work:{id}"));
+            offsets.Should().Equal(0);
+        }
+
+        [TestCase("provider failure")]
+        [TestCase("rate limit")]
+        [TestCase("GraphQL errors")]
+        [TestCase("count changed")]
+        [TestCase("unexpected empty")]
+        [TestCase("repeated edge")]
+        [TestCase("wrong series")]
+        [TestCase("wrong book")]
+        [TestCase("inactive work")]
+        [TestCase("string work id")]
+        [TestCase("blank title")]
+        [TestCase("oversized later page")]
+        public void should_never_return_previously_read_members_when_a_later_page_is_untrustworthy(string failure)
+        {
+            var firstPage = Enumerable.Range(1, 50).Select(id => SeriesMembership(id, id)).ToArray();
+            var second = SeriesMembership(51, 51);
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, offset => offset == 0 ? SeriesPage(51, firstPage) : failure switch
+            {
+                "provider failure" => throw new HttpRequestException("Fixture provider unavailable"),
+                "rate limit" => throw new TooManyRequestsException("60"),
+                "GraphQL errors" => JObject.Parse("""{"errors":[{"message":"Fixture failure"}]}"""),
+                "count changed" => SeriesPage(50, second),
+                "unexpected empty" => SeriesPage(51),
+                "repeated edge" => SeriesPage(51, SeriesMembership(1, 51)),
+                "wrong series" => SeriesPage(51, SeriesMembership(51, 51, seriesId: 1044)),
+                "wrong book" => SeriesPage(51, ReplaceSeriesBookField(second, "id", new JValue(100))),
+                "inactive work" => SeriesPage(51, ReplaceSeriesBookField(second, "book_status_id", new JValue(2))),
+                "string work id" => SeriesPage(51, ReplaceSeriesBookField(second, "id", new JValue("51"))),
+                "blank title" => SeriesPage(51, ReplaceSeriesBookField(second, "title", new JValue(" "))),
+                "oversized later page" => SeriesPage(51, second, SeriesMembership(52, 52)),
+                _ => throw new AssertionException("Unexpected fixture")
+            });
+
+            if (failure == "rate limit")
+            {
+                Assert.Throws<TooManyRequestsException>(() => Subject.GetSeriesBooks("hardcover:series:1033"));
+            }
+            else
+            {
+                Subject.GetSeriesBooks("hardcover:series:1033").Should().BeNull();
+            }
+
+            offsets.Should().Equal(0, 50);
+        }
+
+        [Test]
+        public void should_bound_the_scan_even_when_the_provider_returns_one_new_membership_per_page()
+        {
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, offset => SeriesPage(30, SeriesMembership(offset + 1, offset + 1)));
+
+            Subject.GetSeriesBooks("hardcover:series:1033").Should().BeNull();
+            offsets.Should().Equal(Enumerable.Range(0, 20));
+        }
+
+        [Test]
+        public void should_decline_a_count_past_the_series_scan_budget_without_another_request()
+        {
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, _ => SeriesPage(1001, SeriesMembership(1, 1)));
+
+            Subject.GetSeriesBooks("hardcover:series:1033").Should().BeNull();
+            offsets.Should().Equal(0);
         }
 
         [TestCase(null)]
@@ -593,7 +657,9 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
         }
 
-        [TestCase("""{"data":{"book_series":[]}}""", true)]
+        [TestCase("""{"data":{"book_series":[],"book_series_aggregate":{"aggregate":{"count":0}}}}""", true)]
+        [TestCase("""{"data":{"book_series":[]}}""", false)]
+        [TestCase("""{"data":{"book_series":[],"book_series_aggregate":{"aggregate":{"count":"0"}}}}""", false)]
         [TestCase("""{"errors":[{"message":"Unavailable"}],"data":{"book_series":[]}}""", false)]
         [TestCase("""{"data":{"book_series":null}}""", false)]
         [TestCase("""{"data":{"book_series":[{"book":{"id":11,"title":"Unknown membership","book_status_id":1}}]}}""", false)]
@@ -630,6 +696,70 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
             client.VerifyNoOtherCalls();
+        }
+
+        private void GivenSeriesPages(List<int> offsets, Func<int, JObject> response, List<string> queries = null)
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.MetadataProviderTimeoutSeconds).Returns(7);
+            Mocker.GetMock<IHttpClient>().Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                request.Method.Should().Be(HttpMethod.Post);
+                request.RateLimitKey.Should().Be("Hardcover");
+                request.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
+                request.RequestTimeout.Should().Be(TimeSpan.FromSeconds(7));
+                var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                var query = body.Value<string>("query");
+                queries?.Add(query);
+                query.Should().Contain("where: { series_id: { _eq: $seriesId }, book: { book_status_id: { _eq: 1 } } }");
+                query.Should().Contain("order_by: [{ position: asc_nulls_last }, { book: { users_count: desc } }, { id: asc }]");
+                query.Should().NotContain("editions");
+                body.SelectToken("variables.seriesId").Value<int>().Should().Be(1033);
+                body.SelectToken("variables.limit").Value<int>().Should().Be(50);
+                var offset = body.SelectToken("variables.offset").Value<int>();
+                offsets.Add(offset);
+                var payload = response(offset);
+                return new HttpResponse<JObject>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+            });
+        }
+
+        private static JObject SeriesPage(int count, params JObject[] rows)
+        {
+            return new JObject
+            {
+                ["data"] = new JObject
+                {
+                    ["book_series"] = new JArray(rows),
+                    ["book_series_aggregate"] = new JObject
+                    {
+                        ["aggregate"] = new JObject { ["count"] = count }
+                    }
+                }
+            };
+        }
+
+        private static JObject SeriesMembership(long edgeId, int workId, int seriesId = 1033)
+        {
+            return new JObject
+            {
+                ["id"] = edgeId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["book_id"] = workId,
+                ["series_id"] = seriesId,
+                ["book"] = new JObject
+                {
+                    ["id"] = workId,
+                    ["title"] = $"Fixture work {workId}",
+                    ["book_status_id"] = 1,
+                    ["cached_contributors"] = JArray.Parse("""[{"author":{"id":9,"name":"Fixture Author"}}]"""),
+                    ["cached_image"] = new JObject { ["url"] = "https://covers.example/first.jpg" }
+                }
+            };
+        }
+
+        private static JObject ReplaceSeriesBookField(JObject row, string field, JValue value)
+        {
+            row["book"][field] = value;
+            return row;
         }
 
         [Test]

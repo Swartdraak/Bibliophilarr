@@ -1,6 +1,6 @@
 # Project status summary
 
-**Last verified**: 2026-11-25
+**Last verified**: 2026-11-26
 **Verification scope**: branch protection, issue and pull request state, native acceptance, and published release channels
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
@@ -104,6 +104,13 @@ recovery issue is closed.
   author refreshes and one bulk book refresh finished unsuccessfully, and no
   series was populated.
   [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7164621758)
+- A subsequent read-only inventory confirmed the same 533 paths, sizes and
+  modification times. The catalogue draft has independently verified local
+  M4B, EPUB and supported AZW3 artwork, Open Library retry recovery, and
+  retention of existing series links after incomplete provider updates. The
+  latest candidate still needs a fresh real-provider replay. Author
+  bibliographies, series coverage, artwork and unresolved files remain release
+  gates. [Catalogue draft](https://github.com/Swartdraak/Bibliophilarr/pull/485)
 - An earlier browser review verified the legacy Terry Mancour URL, stable
   author and catalogue routes, separate EPUB and M4B file links, and rendered
   author, series, and book artwork. The sampled series lacked a description.

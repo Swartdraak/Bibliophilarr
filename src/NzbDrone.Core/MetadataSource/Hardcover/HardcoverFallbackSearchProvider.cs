@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using Newtonsoft.Json;
@@ -53,6 +54,8 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         // Hardcover API default page sizes — aligned with their typical result limits.
         private const int SearchPageSize = 20;
         private const int SeriesBooksPageSize = 50;
+        private const int SeriesBooksMaximumPages = 20;
+        private const int SeriesBooksMaximumMemberships = SeriesBooksPageSize * SeriesBooksMaximumPages;
         private const int AuthorPageSize = 40;
         private const int AuthorContributionsPageSize = 100;
         private const int AuthorSeriesMembershipLimit = 500;
@@ -1106,72 +1109,129 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 return null;
             }
 
-            var request = CreateSearchRequest(token, new
-            {
-                query = """
-                    query GetSeriesBooks($seriesId: Int!, $limit: Int!, $offset: Int!) {
-                        book_series(
-                            where: { series_id: { _eq: $seriesId }, book: { book_status_id: { _eq: 1 } } }
-                            order_by: [{ position: asc_nulls_last }, { book: { users_count: desc } }, { id: asc }]
-                            limit: $limit
-                            offset: $offset
-                        ) {
-                            series_id
-                            book {
-                                id
-                                title
-                                slug
-                                release_year
-                                pages
-                                rating
-                                ratings_count
-                                cached_image
-                                cached_contributors
-                                book_status_id
-                            }
-                        }
-                    }
-                    """,
-                variables = new { seriesId, limit = SeriesBooksPageSize, offset = 0 }
-            }.ToJson());
-
+            var memberships = new HashSet<long>();
+            var workIds = new HashSet<int>();
+            var books = new List<Book>();
+            int? expectedMemberships = null;
+            var offset = 0;
             try
             {
-                var response = _httpClient.Post<JObject>(request)?.Resource;
-                if (response?["errors"]?.HasValues == true || response?.SelectToken("data.book_series") is not JArray entries)
+                for (var page = 0; page < SeriesBooksMaximumPages; page++)
                 {
-                    _logger.Debug("Hardcover series books response was unavailable for series ID {0}.", seriesId);
-                    return null;
-                }
-
-                var matchingSeries = new JValue(seriesId);
-                var activeStatus = new JValue(1);
-                var workIds = new HashSet<int>();
-                var books = new List<Book>();
-                foreach (var entry in entries.Take(SeriesBooksPageSize).OfType<JObject>())
-                {
-                    if (!JToken.DeepEquals(entry["series_id"], matchingSeries) ||
-                        entry["book"] is not JObject book ||
-                        !JToken.DeepEquals(book["book_status_id"], activeStatus) ||
-                        book["title"]?.Type != JTokenType.String ||
-                        book.Value<string>("title").IsNullOrWhiteSpace() ||
-                        book["id"]?.Type != JTokenType.Integer ||
-                        !int.TryParse(book["id"].ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var workId) ||
-                        workId <= 0 || !workIds.Add(workId))
+                    var request = CreateSearchRequest(token, new
                     {
-                        continue;
+                        query = """
+                            query GetSeriesBooks($seriesId: Int!, $limit: Int!, $offset: Int!) {
+                                book_series(
+                                    where: { series_id: { _eq: $seriesId }, book: { book_status_id: { _eq: 1 } } }
+                                    order_by: [{ position: asc_nulls_last }, { book: { users_count: desc } }, { id: asc }]
+                                    limit: $limit
+                                    offset: $offset
+                                ) {
+                                    id
+                                    series_id
+                                    book_id
+                                    book {
+                                        id
+                                        title
+                                        slug
+                                        release_year
+                                        pages
+                                        rating
+                                        ratings_count
+                                        cached_image
+                                        cached_contributors
+                                        book_status_id
+                                    }
+                                }
+                                book_series_aggregate(
+                                    where: { series_id: { _eq: $seriesId }, book: { book_status_id: { _eq: 1 } } }
+                                ) {
+                                    aggregate { count }
+                                }
+                            }
+                            """,
+                        variables = new { seriesId, limit = SeriesBooksPageSize, offset }
+                    }.ToJson());
+
+                    var response = _httpClient.Post<JObject>(request);
+                    var data = response?.Resource;
+                    var errors = data?["errors"];
+                    var count = data?.SelectToken("data.book_series_aggregate.aggregate.count");
+                    if (response?.StatusCode != HttpStatusCode.OK ||
+                        (errors != null && (errors is not JArray errorList || errorList.Count > 0)) ||
+                        data?.SelectToken("data.book_series") is not JArray entries ||
+                        count?.Type != JTokenType.Integer ||
+                        !int.TryParse(count.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var total) ||
+                        total > SeriesBooksMaximumMemberships ||
+                        (expectedMemberships.HasValue && expectedMemberships.Value != total) ||
+                        entries.Count > Math.Min(SeriesBooksPageSize, total - offset) ||
+                        (entries.Count == 0 && offset < total))
+                    {
+                        _logger.Debug("Hardcover series books page or membership count was unavailable for series ID {0}.", seriesId);
+                        return null;
                     }
 
-                    books.Add(MapDirectBookResult(book));
+                    expectedMemberships ??= total;
+                    foreach (var entry in entries)
+                    {
+                        if (!TryReadSeriesMembership(entry, seriesId, out var edgeId, out var workId, out var book) ||
+                            !memberships.Add(edgeId))
+                        {
+                            _logger.Debug("Hardcover series membership page contained an invalid or repeated edge for series ID {0}.", seriesId);
+                            return null;
+                        }
+
+                        if (workIds.Add(workId))
+                        {
+                            books.Add(MapDirectBookResult(book));
+                        }
+                    }
+
+                    // A short page alone can reflect a provider cap. Advance past
+                    // raw memberships and return only after the matching count.
+                    offset += entries.Count;
+                    if (offset == expectedMemberships.Value)
+                    {
+                        return books;
+                    }
                 }
 
-                return (entries.Count == 0 || books.Count > 0) ? books : null;
-            }
-            catch (Exception ex)
-            {
-                _logger.Debug(ex, "Hardcover series books lookup failed for series ID {0}.", seriesId);
+                _logger.Debug("Hardcover series books scan budget was exhausted for series ID {0}.", seriesId);
                 return null;
             }
+            catch (Exception ex) when (ex is not TooManyRequestsException)
+            {
+                _logger.Debug("Hardcover series books lookup failed for series ID {0} ({1}).", seriesId, ex.GetType().Name);
+                return null;
+            }
+        }
+
+        private static bool TryReadSeriesMembership(JToken entry, int seriesId, out long edgeId, out int workId, out JObject book)
+        {
+            edgeId = 0;
+            workId = 0;
+            book = null;
+            if (entry is not JObject membership || !JToken.DeepEquals(membership["series_id"], new JValue(seriesId)) ||
+                membership["book"] is not JObject parent || !JToken.DeepEquals(parent["book_status_id"], new JValue(1)) ||
+                ReadWorkTitle(parent["title"]) == null)
+            {
+                return false;
+            }
+
+            var edge = membership["id"];
+            var work = parent["id"];
+            if (edge?.Type is not JTokenType.Integer and not JTokenType.String ||
+                !long.TryParse(edge.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out edgeId) || edgeId <= 0 ||
+                work?.Type != JTokenType.Integer ||
+                !int.TryParse(work.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out workId) || workId <= 0 ||
+                !JToken.DeepEquals(membership["book_id"], work))
+            {
+                return false;
+            }
+
+            book = parent;
+            return true;
         }
 
         private static SeriesSearchSummary MapSeriesSearchSummary(JObject document)

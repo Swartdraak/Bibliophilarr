@@ -38,6 +38,23 @@ An author lookup that fails reports provider unavailability. A provider can also
 report confirmed missing, or return no matching metadata without confirming
 removal. A book lookup that encounters a transport outage reports unavailability.
 
+When the series provider is unavailable, Add New can open an exactly matched
+saved series with existing members. The result is labelled as saved-series
+coverage. An unavailable search with no saved match still reports the outage.
+A successful provider search with no matches returns an empty result.
+
+Hardcover series preview checks the reported count of active memberships and
+loads subsequent pages until it reaches that count. If a later page fails or
+the reported membership changes during the lookup, the preview reports failure
+and leaves stored series and files unchanged.
+
+Open Library artwork retries give earlier opportunities to books with tracked
+files and reserve opportunities for bibliography-only books and author
+portraits. A verified redirect for the same artwork uses one additional request
+within the existing limit. On supported Linux systems, a confirmed import or
+individual book refresh can recover a declared M4B, EPUB, or supported AZW3 cover
+when provider artwork is missing.
+
 ## Data-loss risk (issue #204 / #209)
 
 Author refresh keeps the local author, bibliography, and existing metadata
