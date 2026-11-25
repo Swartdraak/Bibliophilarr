@@ -24,12 +24,14 @@ namespace NzbDrone.Core.Books
     {
         Author AddAuthor(Author newAuthor, bool doRefresh = true);
         Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh);
+        Book AddNewAuthorWithBook(Author author, Book book, bool doRefresh);
         List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh = true);
     }
 
     public class AddAuthorService : IAddAuthorService
     {
         private readonly IAuthorService _authorService;
+        private readonly IBookService _bookService;
         private readonly IAuthorMetadataService _authorMetadataService;
         private readonly IAuthorCanonicalizationService _authorCanonicalizationService;
         private readonly IMetadataProviderOrchestrator _orchestrator;
@@ -43,6 +45,7 @@ namespace NzbDrone.Core.Books
 
         public AddAuthorService(IAuthorService authorService,
                                 IAuthorMetadataService authorMetadataService,
+                                IBookService bookService,
                                 IAuthorCanonicalizationService authorCanonicalizationService,
                                 IMetadataProviderOrchestrator orchestrator,
                                 IBuildFileNames fileNameBuilder,
@@ -54,6 +57,7 @@ namespace NzbDrone.Core.Books
                                 Logger logger)
         {
             _authorService = authorService;
+            _bookService = bookService;
             _authorMetadataService = authorMetadataService;
             _authorCanonicalizationService = authorCanonicalizationService;
             _orchestrator = orchestrator;
@@ -88,6 +92,23 @@ namespace NzbDrone.Core.Books
             metadata.ForeignAuthorId = NormalizeForeignAuthorId(metadata.ForeignAuthorId);
             newAuthor.Metadata = metadata;
             return AddResolvedAuthor(newAuthor, doRefresh);
+        }
+
+        public Book AddNewAuthorWithBook(Author author, Book book, bool doRefresh)
+        {
+            var metadata = book.AuthorMetadata.Value;
+            metadata.ForeignAuthorId = NormalizeForeignAuthorId(metadata.ForeignAuthorId);
+            if (metadata.TitleSlug.IsNullOrWhiteSpace())
+            {
+                metadata.TitleSlug = metadata.ForeignAuthorId.ToUrlSlug();
+            }
+
+            author.Metadata = metadata;
+            author = SetPropertiesAndValidate(author);
+            var profiles = _configService.EnableDualFormatTracking
+                ? BuildFormatProfiles(author)
+                : Array.Empty<AuthorFormatProfile>();
+            return _bookService.AddBookWithNewAuthor(book, author, profiles, doRefresh);
         }
 
         private Author AddResolvedAuthor(Author newAuthor, bool doRefresh)
@@ -343,6 +364,16 @@ namespace NzbDrone.Core.Books
                 return;
             }
 
+            foreach (var profile in BuildFormatProfiles(author))
+            {
+                _formatProfileService.Add(profile);
+            }
+
+            _logger.Debug("Created dual-format profiles for author {0}", author);
+        }
+
+        private IReadOnlyList<AuthorFormatProfile> BuildFormatProfiles(Author author)
+        {
             var addOptions = author.AddOptions;
 
             var ebookQualityProfileId = addOptions?.EbookQualityProfileId ?? 0;
@@ -418,7 +449,7 @@ namespace NzbDrone.Core.Books
                 audiobookRootFolderPath = author.RootFolderPath ?? string.Empty;
             }
 
-            _formatProfileService.Add(new AuthorFormatProfile
+            var ebook = new AuthorFormatProfile
             {
                 AuthorId = author.Id,
                 FormatType = FormatType.Ebook,
@@ -428,9 +459,9 @@ namespace NzbDrone.Core.Books
                 Monitored = author.Monitored,
                 MonitorNewItems = author.MonitorNewItems,
                 Path = author.Path ?? string.Empty
-            });
+            };
 
-            _formatProfileService.Add(new AuthorFormatProfile
+            var audiobook = new AuthorFormatProfile
             {
                 AuthorId = author.Id,
                 FormatType = FormatType.Audiobook,
@@ -440,9 +471,9 @@ namespace NzbDrone.Core.Books
                 Monitored = author.Monitored,
                 MonitorNewItems = author.MonitorNewItems,
                 Path = author.Path ?? string.Empty
-            });
+            };
 
-            _logger.Debug("Created dual-format profiles for author {0} (Ebook QP={1}, Audiobook QP={2})", author, ebookQualityProfileId, audiobookQualityProfileId);
+            return new[] { ebook, audiobook };
         }
     }
 }

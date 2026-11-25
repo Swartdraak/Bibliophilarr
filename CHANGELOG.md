@@ -23,6 +23,8 @@ process.
   the canonical setting and saved defaults in precedence order.
 - Save a new book and its editions together. If an edition already belongs to
   another book, keep the existing data and import exclusions.
+- Keep the first book, verified new author and format profiles in one save so
+  an edition conflict leaves the catalogue unchanged.
 - Add an exact provider edition through the Add Book API for an existing author
   when the request omits the edition list.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
@@ -37,6 +39,8 @@ process.
   root and monitoring settings.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art.
+- Request a missing response for unavailable Open Library book covers so
+  blank placeholder images are not saved as artwork.
 - Report Hardcover's shared request cooldown in provider health and distinguish
   requests held locally from upstream rate limits.
 - Honor longer Open Library artwork cooldowns specified by Retry-After on rate
