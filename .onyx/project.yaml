@@ -1304,9 +1304,9 @@ commands:
       cwd: .
       note: "CI parity (ci-backend.yml rid-core-common-targeted): 18 tests: 16 passed, 2 skipped, 0 failed. RID-sensitive process/rate-limit fixtures only; HttpClientFixture deliberately excluded (covered by build-test lane)."
     - name: rid-core-targeted
-      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture"
+      command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release -p:Platform=Posix -r linux-x64 --filter "FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibraryProviderFixture|FullyQualifiedName~WhereBuilder|FullyQualifiedName~HistoryRepositoryFixture"
       cwd: .
-      note: "CI parity (ci-backend.yml rid-core-common-targeted): re-verified 2026-10-12 at 8e381ed8c6 - 25 tests, 25 passed, 0 failed (fixture count grown since the 2026-09-18 note of 20). OpenLibrarySearchProxyFixture replaced the stale OpenLibraryIsbnAsinLookupFixture reference from the main band."
+      note: "CI parity with rid-core-common-targeted in ci-backend.yml. Covers the active Open Library provider, author creation, orchestration, and portable datastore queries."
     - name: metadata-core-fixtures
       command: dotnet test src/NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj --configuration Release --no-restore -p:Platform=Posix --filter "FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~ImportListSyncServiceFixture|FullyQualifiedName~OpenLibraryClientResilienceFixture|FullyQualifiedName~InventaireClientResilienceFixture|FullyQualifiedName~OpenLibraryIdBackfillServiceFixture"
       cwd: .
