@@ -4,6 +4,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
@@ -18,6 +19,8 @@ namespace NzbDrone.Core.Books
         List<Book> GetNextBooksByAuthorMetadataId(IEnumerable<int> authorMetadataIds);
         List<Book> GetLastBooksByAuthorMetadataId(IEnumerable<int> authorMetadataIds);
         List<Book> GetBooksByAuthorMetadataId(int authorMetadataId);
+        List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId);
+        void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds);
         List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds);
         List<Book> GetBooksByFileIds(IEnumerable<int> fileIds);
         Book AddBook(Book newBook, bool doRefresh = true);
@@ -40,6 +43,7 @@ namespace NzbDrone.Core.Books
         List<Book> BooksBetweenDates(DateTime start, DateTime end, bool includeUnmonitored);
         List<Book> AuthorBooksBetweenDates(Author author, DateTime start, DateTime end, bool includeUnmonitored);
         void InsertMany(List<Book> books);
+        List<Book> InsertBibliographyWorks(List<Book> books);
         void UpdateMany(List<Book> books);
         void DeleteMany(List<Book> books);
         void SetAddOptions(IEnumerable<Book> books);
@@ -53,18 +57,21 @@ namespace NzbDrone.Core.Books
         private readonly IEditionService _editionService;
         private readonly IAuthorService _authorService;
         private readonly IEventAggregator _eventAggregator;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public BookService(IBookRepository bookRepository,
                            IEditionService editionService,
                            IAuthorService authorService,
                            IEventAggregator eventAggregator,
+                           IConfigService configService,
                            Logger logger)
         {
             _bookRepository = bookRepository;
             _editionService = editionService;
             _authorService = authorService;
             _eventAggregator = eventAggregator;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -75,18 +82,14 @@ namespace NzbDrone.Core.Books
                 throw new InvalidOperationException("Cannot insert book with AuthorMetadataId = 0");
             }
 
-            if (newBook.Id == 0)
+            if (newBook.Id > 0)
             {
-                _bookRepository.InsertWithEditions(newBook);
+                var selected = newBook.GetPreferredEdition();
+                newBook.Editions = _editionService.AddEditionsForExistingBook(newBook, selected, _configService.EnableDualFormatTracking);
             }
             else
             {
-                _bookRepository.Upsert(newBook);
-                var editions = newBook.Editions.Value;
-                editions.ForEach(edition => edition.BookId = newBook.Id);
-
-                _editionService.InsertMany(editions.Where(edition => edition.Id == 0).ToList());
-                _editionService.SetMonitored(editions.FirstOrDefault(edition => edition.Monitored) ?? editions.First());
+                _bookRepository.InsertWithEditions(newBook);
             }
 
             _eventAggregator.PublishEvent(new BookAddedEvent(GetBook(newBook.Id), doRefresh));
@@ -236,6 +239,16 @@ namespace NzbDrone.Core.Books
             return _bookRepository.GetBooksByAuthorMetadataId(authorMetadataId).ToList();
         }
 
+        public List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId)
+        {
+            return _bookRepository.GetSharedBooksByAuthorMetadataId(authorMetadataId);
+        }
+
+        public void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds)
+        {
+            _bookRepository.RecordHardcoverAuthorCredits(authorMetadataId, providerAuthorId, foreignBookIds);
+        }
+
         public List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds)
         {
             return _bookRepository.GetBooksForRefresh(authorMetadataId, foreignIds);
@@ -287,12 +300,22 @@ namespace NzbDrone.Core.Books
 
         public void InsertMany(List<Book> books)
         {
+            EnsureAuthorsForInsert(books);
+            _bookRepository.InsertMany(books);
+        }
+
+        public List<Book> InsertBibliographyWorks(List<Book> books)
+        {
+            EnsureAuthorsForInsert(books);
+            return _bookRepository.InsertBibliographyWorks(books);
+        }
+
+        private static void EnsureAuthorsForInsert(List<Book> books)
+        {
             if (books.Any(x => x.AuthorMetadataId == 0))
             {
                 throw new InvalidOperationException("Cannot insert book with AuthorMetadataId = 0");
             }
-
-            _bookRepository.InsertMany(books);
         }
 
         public void UpdateMany(List<Book> books)

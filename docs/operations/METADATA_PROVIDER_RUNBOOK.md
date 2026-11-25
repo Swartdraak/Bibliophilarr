@@ -128,6 +128,20 @@ Use this checklist after metadata-provider config changes or incident recovery:
 
 ## Series metadata validation
 
+In **Add New**, choose **Series** to search Hardcover by series name. This
+scope sends one bounded search query and returns up to 20 provider summaries.
+Choose **View books** to browse up to 50 active books in order from one
+membership query. The normal Add Book action resolves the selected work and
+its editions. A successful empty response shows no matches. An unavailable
+response gives retry guidance. The default
+**Authors and books** scope continues to use the combined lookup. [Hardcover
+search operation](https://github.com/hardcoverapp/hardcover-sdk/blob/9e5b90f3e76ed16ff00973c2088fbe0917a86be6/shared/operations/queries/search.graphql)
+
+Hardcover author refresh continues with verified works if the optional series
+request fails. It preserves existing series links until the provider returns a
+complete membership response. The first verification request checks up to 500
+membership rows against the provider's aggregate count.
+
 Open Library can provide series information through search-document fields. Bibliophilarr maps these fields into
 book series links and author series during refresh.
 
@@ -182,6 +196,15 @@ time before refreshing the affected author again. Check the author's work and
 series lists after the retry and use the Files view to verify that existing ebook
 and audiobook assignments are still present. Preserve the import holds while
 the provider response is incomplete or work identity is uncertain.
+
+## Shared bibliography credits
+
+Refresh a tracked Hardcover author whose provider bibliography credits them as an author of a work already owned by another tracked author. Compare `GET /api/v1/book?authorId=<id>` with `GET /api/v1/book?authorId=<id>&includeShared=true`. The second response also includes the shared canonical work with its original owner, work ID, editions and monitoring policy. Bibliography membership requires an explicit author credit.
+
+An Open Library author's refresh can add unclaimed Hardcover works after
+Bibliophilarr verifies both author identities. Each added work needs an explicit
+Hardcover author credit. The author's metadata profile still applies, and
+Open Library remains the source for the primary author record and series.
 
 ## Rename no-op diagnosis (forced rename)
 
@@ -274,6 +297,21 @@ Operator actions (safe for migration):
    telemetry recovers.
 4. Capture command and telemetry snapshots in `_artifacts/` and attach them to
    release-entry evidence before promoting.
+
+## Unmapped files held for author review
+
+Search the debug log for `Import hold LowConfidence` and the file path. The
+entry shows the proposed work and edition IDs, the matching distance and the
+threshold for automatically adding an author. Compare the proposed identity
+with the file before selecting the author manually.
+
+## Audiobook part holds
+
+`DuplicateInScan` indicates that another file occupied the same audiobook edition
+and part. An automatic retry requires an original track tag that confirms the
+stored part and a free slot in the selected edition. A later match or read
+failure leaves the occupied-part hold in Unmapped Files. System events and the
+task result report the failure from that scan.
 
 ## Conflict-resolution explainability triage
 

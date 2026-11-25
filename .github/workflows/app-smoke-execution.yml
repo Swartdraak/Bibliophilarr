@@ -173,7 +173,7 @@ jobs:
             Write-Host "=== STEP 2: config round-trip (GET -> mutate -> PUT -> re-GET) ==="
             $orig = Get-MetaTimeout -key $key
             $new  = $orig + 7
-            if ($new -gt 120) { $new = 120 }   # stay within the 0-120 validation bound
+            if ($new -gt 120) { $new = $orig - 7 }   # keep a real change within the 0-120 validation bound
             $r = Invoke-WebRequest -UseBasicParsing -Uri "$base/api/v1/config/metadataprovider" `
               -Headers @{ 'X-Api-Key' = $key } -TimeoutSec 20
             $body = $r.Content | ConvertFrom-Json
@@ -491,14 +491,15 @@ jobs:
             if [ -z "$orig" ]; then
               phase_error "roundtrip" "get_meta_timeout returned empty (API GET failed or key invalid)"
             else
-              new=$((orig + 7)); [ "$new" -gt 120 ] && new=120
+              new=$((orig + 7))
+              if [ "$new" -gt 120 ]; then new=$((orig - 7)); fi
               new_expected="$new"
               http=$(put_meta_timeout "$key" "$new")
               echo "PUT status=$http (expect 202)"
               sleep 2
               reget=$(get_meta_timeout "$key")
               echo "round-trip: orig=$orig new=$new reget=$reget"
-              if [ "$reget" = "$new" ]; then roundtrip=1; fi
+              if [ "$http" = "202" ] && [ "$reget" = "$new" ]; then roundtrip=1; fi
               [ "$roundtrip" = 1 ] || phase_error "roundtrip" "PUT status=$http reget=$reget" "$new"
             fi
             echo "=== STEP 3: recovery (TERM+KILL, restart, verify persistence) ==="

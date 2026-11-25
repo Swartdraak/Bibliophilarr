@@ -70,22 +70,33 @@ namespace NzbDrone.Core.Books
 
         public override void UseMetadataFrom(Edition other)
         {
+            var sameEdition = ForeignEditionId.IsNotNullOrWhiteSpace() &&
+                              string.Equals(ForeignEditionId, other.ForeignEditionId, StringComparison.Ordinal);
+
+            var preserveTitle = ShouldPreserveTitle(other);
             ForeignEditionId = other.ForeignEditionId;
             TitleSlug = other.TitleSlug;
-            Isbn13 = other.Isbn13;
-            Asin = other.Asin;
-            Title = other.Title;
-            Language = other.Language;
+            Isbn13 = sameEdition && other.Isbn13.IsNullOrWhiteSpace() ? Isbn13 : other.Isbn13;
+            Asin = sameEdition && other.Asin.IsNullOrWhiteSpace() ? Asin : other.Asin;
+            Title = preserveTitle ? Title : other.Title;
+            Language = sameEdition && other.Language.IsNullOrWhiteSpace() ? Language : other.Language;
             Overview = other.Overview.IsNullOrWhiteSpace() ? Overview : other.Overview;
             Format = other.Format;
             IsEbook = other.IsEbook;
             Disambiguation = other.Disambiguation;
-            Publisher = other.Publisher;
-            PageCount = other.PageCount;
-            ReleaseDate = other.ReleaseDate;
+            Publisher = sameEdition && other.Publisher.IsNullOrWhiteSpace() ? Publisher : other.Publisher;
+            PageCount = sameEdition && other.PageCount == 0 ? PageCount : other.PageCount;
+            ReleaseDate = sameEdition ? other.ReleaseDate ?? ReleaseDate : other.ReleaseDate;
             Images = other.Images.Any() ? other.Images : Images;
             Links = other.Links;
             Ratings = other.Ratings;
+        }
+
+        internal bool ShouldPreserveTitle(Edition incoming)
+        {
+            return ForeignEditionId.IsNotNullOrWhiteSpace() &&
+                   string.Equals(ForeignEditionId, incoming.ForeignEditionId, StringComparison.Ordinal) &&
+                   Title.IsNotNullOrWhiteSpace() && incoming.Title.IsNullOrWhiteSpace();
         }
 
         public override void UseDbFieldsFrom(Edition other)

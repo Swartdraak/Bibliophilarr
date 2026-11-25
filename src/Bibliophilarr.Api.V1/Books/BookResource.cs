@@ -31,6 +31,7 @@ namespace Bibliophilarr.Api.V1.Books
         [SwaggerSchema(ReadOnly = true)]
         public string MetadataSourceLabel { get; set; }
         public string TitleSlug { get; set; }
+        public string CanonicalId { get; set; }
         public bool Monitored { get; set; }
         public bool AnyEditionOk { get; set; }
         public Ratings Ratings { get; set; }
@@ -85,10 +86,9 @@ namespace Bibliophilarr.Api.V1.Books
             // guard every dereference, mirroring the AuthorResource fix from #249
             // (AuthorResourceMapper.ToResource).
             var editionsValue = model.Editions?.Value;
-            var selectedEdition = editionsValue?.Where(x => x.Monitored).FirstOrDefault()
-                                  ?? editionsValue?.FirstOrDefault();
+            var selectedEdition = editionsValue.GetPreferredEdition();
 
-            var title = selectedEdition?.Title ?? model.Title;
+            var title = model.Id > 0 && model.Title.IsNotNullOrWhiteSpace() ? model.Title : selectedEdition?.Title ?? model.Title;
             var canonicalOpenLibraryId = OpenLibraryIdNormalizer.NormalizeWorkId(model.ForeignBookId);
             var openLibraryWorkId = OpenLibraryIdNormalizer.NormalizeWorkId(model.OpenLibraryWorkId);
             var bookAuthor = model.Author?.Value;
@@ -163,6 +163,7 @@ namespace Bibliophilarr.Api.V1.Books
                 OpenLibraryWorkId = IsOpenLibraryWorkId(openLibraryWorkId) ? openLibraryWorkId : IsOpenLibraryWorkId(canonicalOpenLibraryId) ? canonicalOpenLibraryId : null,
                 MetadataSourceLabel = GetMetadataSourceLabel(model.ForeignBookId, canonicalOpenLibraryId),
                 TitleSlug = model.TitleSlug,
+                CanonicalId = model.CanonicalId,
                 Monitored = model.Monitored,
                 AnyEditionOk = model.AnyEditionOk,
                 ReleaseDate = model.ReleaseDate,
@@ -172,7 +173,8 @@ namespace Bibliophilarr.Api.V1.Books
                 AuthorTitle = authorTitle,
                 SeriesTitle = seriesTitle,
                 Disambiguation = selectedEdition?.Disambiguation,
-                Images = selectedEdition?.Images ?? new List<MediaCover>(),
+                Overview = editionsValue.GetBookOverview(),
+                Images = editionsValue.GetBookImages().JsonClone(),
                 Links = model.Links.Concat(selectedEdition?.Links ?? new List<Links>()).GroupBy(l => l.Url).Select(g => g.First()).ToList(),
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,

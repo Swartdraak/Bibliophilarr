@@ -4,6 +4,8 @@ using System.Net;
 using FluentAssertions;
 using Moq;
 using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
@@ -34,15 +36,26 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         [TestCase("Test Book", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
         [TestCase("Test Author", true, HttpStatusCode.OK, 1, 0)]
         [TestCase("Test Author", true, HttpStatusCode.ServiceUnavailable, 0, 1)]
-        [TestCase("isbn:9780140328720", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("isbn:9780140328720", false, HttpStatusCode.OK, 0, 0)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.NotFound, 1, 0)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
+        [TestCase("isbn:9780140328721", false, HttpStatusCode.TooManyRequests, 0, 1)]
         [TestCase("asin:B000000001", false, HttpStatusCode.ServiceUnavailable, 0, 1)]
-        public void text_search_telemetry_should_distinguish_empty_results_from_http_failures(
+        public void search_telemetry_should_distinguish_no_results_from_http_failures(
             string term, bool searchAuthors, HttpStatusCode status, int expectedSuccesses, int expectedFailures)
         {
             var config = Mocker.GetMock<IConfigService>();
             config.SetupGet(provider => provider.EnableOpenLibraryProvider).Returns(true);
-            var request = new HttpRequest("https://openlibrary.org/search.json");
-            var response = new HttpResponse(request, new HttpHeader(), "{\"docs\":[]}", status);
+            var isIsbn = term.StartsWith("isbn:", StringComparison.Ordinal);
+            var path = isIsbn ? $"/isbn/{term[5..]}.json" : "/search.json";
+            var request = new HttpRequest($"https://openlibrary.org{path}");
+            var headers = new HttpHeader();
+            if (status == HttpStatusCode.TooManyRequests)
+            {
+                headers.Add("Retry-After", "0");
+            }
+
+            var response = new HttpResponse(request, headers, "{\"docs\":[]}", status);
             Mocker.GetMock<IHttpClient>().Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns(response);
 
             var logger = LogManager.GetCurrentClassLogger();
@@ -59,27 +72,129 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 orchestrator.SearchForNewBook(term, null);
             }
 
+            if (expectedSuccesses + expectedFailures == 0)
+            {
+                telemetry.GetOperationSnapshots().Should().BeEmpty();
+                Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Never());
+                return;
+            }
+
             var entry = telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
             entry.ProviderName.Should().Be("OpenLibrary");
-            entry.OperationName.Should().Be(searchAuthors ? "search-for-new-author" : "search-for-new-book");
+            var expectedOperation = isIsbn ? "search-by-isbn" : searchAuthors ? "search-for-new-author" : "search-for-new-book";
+            entry.OperationName.Should().Be(expectedOperation);
             entry.Calls.Should().Be(1);
             entry.Successes.Should().Be(expectedSuccesses);
             entry.Failures.Should().Be(expectedFailures);
             entry.NullResults.Should().Be(0);
             entry.TotalResultCount.Should().Be(0);
-            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
-            if (status == HttpStatusCode.ServiceUnavailable)
+            var expectedRequests = status == HttpStatusCode.TooManyRequests ? 2 : 1;
+            Mocker.GetMock<IHttpClient>().Verify(client => client.Get(It.Is<HttpRequest>(value => value.Url.Path == path)), Times.Exactly(expectedRequests));
+            if (status is HttpStatusCode.ServiceUnavailable or HttpStatusCode.TooManyRequests)
             {
-                var operation = searchAuthors ? "search-for-new-author" : "search-for-new-book";
+                var providerWarning = status == HttpStatusCode.TooManyRequests
+                    ? "OpenLibrary rate-limit (429) exceeded retry budget"
+                    : "OpenLibrary returned HTTP 503";
                 ExceptionVerification.ExpectedWarns(
-                    "OpenLibrary returned HTTP 503",
-                    $"Metadata provider 'OpenLibrary' failed during {operation}",
-                    $"All providers failed for operation {operation}");
+                    providerWarning,
+                    $"Metadata provider 'OpenLibrary' failed during {expectedOperation}",
+                    $"All providers failed for operation {expectedOperation}");
             }
             else
             {
                 ExceptionVerification.ExpectedWarns(0);
             }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_normalize_query_formatting_only_in_the_debug_message(bool supplemental)
+        {
+            const string query = "Fixture\tBook";
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(settings => settings.EnableOpenLibraryProvider).Returns(true);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                new HttpResponse(request, new HttpHeader(), """{"docs":[]}"""));
+            var messages = new MemoryTarget { Layout = "${message}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = logging };
+            var client = new OpenLibraryClient(http.Object, config.Object, logFactory.GetLogger(nameof(OpenLibraryClient)));
+
+            var result = supplemental ? client.SearchOnePageWithoutRetry(query, 1) : client.Search(query, 1);
+
+            result.Docs.Should().BeEmpty();
+            var originalParameter = $"q={Uri.EscapeDataString(query)}";
+            http.Verify(transport => transport.Get(It.Is<HttpRequest>(request =>
+                request.Url.Query.StartsWith(originalParameter + "&", StringComparison.Ordinal))), Times.Once());
+            messages.Logs.Should().ContainSingle(entry => entry == "OpenLibrary search: Fixture Book");
+        }
+
+        [Test]
+        public void supplemental_author_search_honors_retry_after_without_retrying_or_following_redirects()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.OpenLibrarySearchRetryBudget).Returns(3);
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.MetadataProviderCircuitBreakerThreshold).Returns(5);
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableOpenLibraryProvider).Returns(true);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(
+                    request, new HttpHeader { { "Retry-After", "120" } }, Array.Empty<byte>(), HttpStatusCode.TooManyRequests));
+
+            Subject.SearchOnePageWithoutRetry("Fixture Author", 10).RequestUnavailable.Should().BeTrue();
+            Subject.SearchOnePageWithoutRetry("Different Fixture Author", 10).RequestUnavailable.Should().BeTrue();
+
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request =>
+                request.Url.Path == "/search.json" && !request.AllowAutoRedirect)), Times.Once());
+            http.VerifyNoOtherCalls();
+            ExceptionVerification.ExpectedWarns("OpenLibrary rate-limit (429) exceeded retry budget");
+        }
+
+        [Test]
+        public void should_stop_bounded_author_profiles_after_the_first_rate_limit_response()
+        {
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(settings => settings.EnableOpenLibraryProvider).Returns(true);
+            config.SetupGet(settings => settings.OpenLibraryWorkRetryBudget).Returns(1);
+            config.SetupGet(settings => settings.OpenLibraryWorkTimeoutSeconds).Returns(45);
+            var http = Mocker.GetMock<IHttpClient>();
+            var requests = new List<HttpRequest>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    requests.Add(request);
+                    return requests.Count == 1
+                        ? new HttpResponse(request, new HttpHeader { ["Retry-After"] = "0" }, Array.Empty<byte>(), HttpStatusCode.TooManyRequests)
+                        : new HttpResponse(request, new HttpHeader(), """{"key":"/authors/OL42A","name":"Fixture Author"}""");
+                });
+
+            var provider = new OpenLibraryProvider(Subject, config.Object, TestLogger);
+            provider.GetAuthorProfileMetadata("OL42A").Should().BeNull();
+            provider.GetAuthorProfileMetadata("OL84A").Should().BeNull();
+
+            var sent = requests.Should().ContainSingle().Which;
+            sent.Url.Path.Should().Be("/authors/OL42A.json");
+            sent.AllowAutoRedirect.Should().BeFalse();
+            sent.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
+            sent.RateLimitKey.Should().Be("OpenLibrary");
+            sent.RequestTimeout.Should().Be(TimeSpan.FromSeconds(10));
+            ExceptionVerification.ExpectedWarns("OpenLibrary rate-limit (429) exceeded retry budget for openlibrary.author-profile");
+        }
+
+        [Test]
+        public void should_keep_the_configured_retry_for_the_normal_author_fetch()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(settings => settings.OpenLibraryWorkRetryBudget).Returns(1);
+            var endpoint = new HttpRequest("https://openlibrary.org/authors/OL42A.json");
+            var http = Mocker.GetMock<IHttpClient>();
+            http.SetupSequence(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns(new HttpResponse(endpoint, new HttpHeader { ["Retry-After"] = "0" }, Array.Empty<byte>(), HttpStatusCode.TooManyRequests))
+                .Returns(new HttpResponse(endpoint, new HttpHeader(), """{"key":"/authors/OL42A","name":"Fixture Author"}"""));
+
+            Subject.GetAuthor("OL42A", confirmNotFound: true).Key.Should().Be("/authors/OL42A");
+
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Url.Path == "/authors/OL42A.json")), Times.Exactly(2));
         }
 
         [Test]
@@ -98,6 +213,29 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             result.Should().NotBeNull();
             result.Docs.Should().HaveCount(1);
             Mocker.GetMock<IHttpClient>().Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void isbn_diagnostic_should_report_operation_without_the_lookup_value(bool exact)
+        {
+            const string isbn = "9781442482890";
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                new HttpResponse(request, new HttpHeader(), string.Empty, HttpStatusCode.ServiceUnavailable));
+            var messages = new MemoryTarget { Layout = "${message} ${exception}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var provider = new OpenLibraryClient(http.Object, Mocker.GetMock<IConfigService>().Object, logFactory.GetLogger(nameof(OpenLibraryClient)));
+
+            var result = exact ? provider.GetExactEditionByIsbn(isbn) : provider.GetEditionByIsbn(isbn);
+
+            result.RequestUnavailable.Should().BeTrue();
+            messages.Logs.Should().Contain(message => message.Contains("ISBN lookup"));
+            messages.Logs.Should().Contain(message => message.Contains("HTTP 503") && message.Contains("openlibrary.isbn"));
+            messages.Logs.Should().NotContain(message => message.Contains(isbn));
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Url.Path == $"/isbn/{isbn}.json")), Times.Once());
         }
 
         [TestCase("/books/OL33516062M.json")]
@@ -125,6 +263,36 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             edition.Key.Should().Be("/books/OL33516062M");
             urls.Should().Equal(isbnUrl, editionUrl);
             redirects.Should().Equal(false, false);
+        }
+
+        [TestCase(true, true, true)]
+        [TestCase(true, false, false)]
+        [TestCase(false, false, true)]
+        public void isbn_corroboration_requires_the_body_to_match_the_redirected_edition(
+            bool corroboration, bool matchingBody, bool accepted)
+        {
+            const string isbn = "9781442482890";
+            const string redirectedEdition = "/books/OL33516062M";
+            var bodyEdition = matchingBody ? redirectedEdition : "/books/OL2M";
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(http => http.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                request.Url.ToString().Contains("/isbn/")
+                    ? new HttpResponse(request, new HttpHeader { { "Location", redirectedEdition + ".json" } }, string.Empty, HttpStatusCode.Found)
+                    : new HttpResponse(request, new HttpHeader(), $$"""{"key":"{{bodyEdition}}","isbn_13":["{{isbn}}"]}"""));
+
+            var edition = corroboration ? Subject.GetExactEditionByIsbn(isbn) : Subject.GetEditionByIsbn(isbn);
+
+            if (accepted)
+            {
+                edition.Should().NotBeNull();
+                edition.Key.Should().Be(bodyEdition);
+            }
+            else
+            {
+                edition.Should().BeNull();
+            }
+
+            client.Verify(http => http.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
         }
 
         [TestCase("https://example.invalid/books/OL33516062M.json")]

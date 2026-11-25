@@ -19,8 +19,10 @@ namespace NzbDrone.Core.Books
         void PublishAuthorAdded(int authorId, bool doRefresh);
         List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh);
         Author FindById(string foreignAuthorId);
+        Author FindByRetiredId(int authorId);
         Author FindByTitleSlug(string titleSlug);
         Author FindByName(string title);
+        List<Author> GetAuthorsByCleanName(string cleanName);
         Author FindByNameInexact(string title);
         List<Author> GetCandidates(string title);
         List<Author> GetReportCandidates(string reportTitle);
@@ -36,6 +38,7 @@ namespace NzbDrone.Core.Books
         Dictionary<int, string> AllAuthorPaths();
         bool AuthorPathExists(string folder);
         void RemoveAddOptions(Author author);
+        void ClearAuthorCache();
     }
 
     public class AuthorService : IAuthorService
@@ -100,6 +103,16 @@ namespace NzbDrone.Core.Books
             return _authorRepository.FindById(foreignAuthorId);
         }
 
+        public Author FindByRetiredId(int authorId)
+        {
+            return _authorRepository.FindByRetiredId(authorId);
+        }
+
+        public void ClearAuthorCache()
+        {
+            _cache.Clear();
+        }
+
         public Author FindByTitleSlug(string titleSlug)
         {
             return _authorRepository.FindByTitleSlug(titleSlug);
@@ -108,6 +121,11 @@ namespace NzbDrone.Core.Books
         public Author FindByName(string title)
         {
             return _authorRepository.FindByName(title.CleanAuthorName());
+        }
+
+        public List<Author> GetAuthorsByCleanName(string cleanName)
+        {
+            return _authorRepository.GetByCleanName(cleanName);
         }
 
         public List<Tuple<Func<Author, string, double>, string>> AuthorScoringFunctions(string title, string cleanTitle)

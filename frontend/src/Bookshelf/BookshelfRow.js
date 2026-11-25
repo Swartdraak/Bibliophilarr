@@ -18,6 +18,7 @@ class BookshelfRow extends Component {
     const {
       authorId,
       status,
+      canonicalId,
       titleSlug,
       authorName,
       monitored,
@@ -60,6 +61,7 @@ class BookshelfRow extends Component {
 
         <VirtualTableRowCell className={styles.title}>
           <AuthorNameLink
+            canonicalId={canonicalId}
             titleSlug={titleSlug}
             authorName={authorName}
           />
@@ -86,6 +88,7 @@ class BookshelfRow extends Component {
 BookshelfRow.propTypes = {
   authorId: PropTypes.number.isRequired,
   status: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   authorName: PropTypes.string.isRequired,
   monitored: PropTypes.bool.isRequired,

@@ -7,6 +7,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
@@ -24,6 +25,7 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
         private const string DistinctSelectedEdition = "openlibrary:edition:OL4013M";
         private BookRepository _books;
         private EditionRepository _editions;
+        private CatalogueIdentityRepository _identity;
 
         [SetUp]
         public void Setup()
@@ -31,6 +33,7 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
             _editions = Mocker.Resolve<EditionRepository>();
             Mocker.SetConstant<IEditionRepository>(_editions);
             _books = Mocker.Resolve<BookRepository>();
+            _identity = Mocker.Resolve<CatalogueIdentityRepository>();
             Mocker.SetConstant<IBookRepository>(_books);
             Mocker.SetConstant<IEditionService>(Mocker.Resolve<EditionService>());
         }
@@ -54,16 +57,28 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
             selected.TitleSlug = "fixture-conflicting-claim";
             var freshWork = NewWork(freshOwner, "OL402W");
             freshWork.Editions = new List<Edition> { first, selected };
+            freshWork.PendingSourceAssociations.Add(new CatalogueSourceAssociation
+            {
+                Provider = "Hardcover",
+                ProviderId = "7391",
+                Evidence = "fixture-verified-source"
+            });
+            freshWork.TitleSlug = "atomic-fresh-work-rollback-fixture";
 
             // Give the first valid edition a chance to insert before the conflicting selected row.
-            var failure = Assert.Throws<NzbDroneClientException>(() => Subject.AddBook(freshWork, doRefresh: false));
-            failure.StatusCode.Should().Be(HttpStatusCode.Conflict);
-            failure.Message.Should().Be("A provider edition is already present in the catalogue.");
+            var failure = Assert.Catch(() => Subject.AddBook(freshWork, doRefresh: false));
 
             using (new AssertionScope())
             {
+                failure.Should().BeOfType<NzbDroneClientException>().Which.StatusCode.Should().Be(HttpStatusCode.Conflict);
+                failure.Message.Should().Be("A provider edition is already present in the catalogue.");
                 _books.All().Select(book => book.Id).Should().Equal(incumbentWork.Id);
                 _books.FindById(freshWork.ForeignBookId).Should().BeNull();
+                _identity.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL402W").Should().BeNull();
+                _identity.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "7391").Should().BeNull();
+                _identity.FindByRoute(CatalogueEntityKind.Work, "atomic-fresh-work-rollback-fixture").Should().BeNull();
+                _identity.FindByRoute(CatalogueEntityKind.Work, incumbentWork.CanonicalId).Should().Be(incumbentWork.Id);
+                freshWork.CanonicalId.Should().BeNull();
                 _editions.All().Select(edition => edition.Id).Should().Equal(incumbent.Id);
                 _editions.FindByForeignEditionId(FirstFreshEdition).Should().BeNull();
                 var retained = _editions.FindByForeignEditionId(ClaimedEdition);
@@ -99,6 +114,9 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
             Subject.AddBook(work, doRefresh: false);
 
             work.Id.Should().BeGreaterThan(0);
+            work.CanonicalId.Should().NotBeNullOrWhiteSpace();
+            _identity.FindByRoute(CatalogueEntityKind.Work, work.CanonicalId).Should().Be(work.Id);
+            _identity.FindByProviderId(CatalogueEntityKind.Work, "OpenLibrary", "OL402W").Should().Be(work.Id);
             _books.All().Should().ContainSingle(book => book.Id == work.Id && book.AuthorMetadataId == author.Id);
             var saved = _editions.FindByBook(new[] { work.Id });
             saved.Should().HaveCount(2);
@@ -108,13 +126,17 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
                 It.Is<BookAddedEvent>(message => message.Book.Id == work.Id && !message.DoRefresh)), Times.Once());
         }
 
-        [Test]
-        public void should_keep_existing_work_editions_and_selection_on_the_existing_add_path()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_existing_work_editions_and_selection_on_the_existing_add_path(bool dualFormat)
         {
+            Mocker.GetMock<IConfigService>().SetupGet(settings => settings.EnableDualFormatTracking).Returns(dualFormat);
             var owner = InsertAuthorMetadata("OL403A");
             var work = _books.Insert(NewWork(owner, "OL403W"));
             var incumbent = _editions.Insert(NewEdition(ClaimedEdition, work.Id, monitored: true));
             var selected = NewEdition(FirstFreshEdition, 0, monitored: true);
+            selected.IsEbook = false;
+            selected.Format = "Audiobook";
             selected.ManualAdd = true;
             incumbent.Monitored = false;
             work.Editions = new List<Edition> { incumbent, selected };
@@ -123,7 +145,7 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
 
             var saved = _editions.FindByBook(new[] { work.Id });
             saved.Should().HaveCount(2);
-            saved.Should().ContainSingle(edition => edition.Id == incumbent.Id && !edition.Monitored);
+            saved.Should().ContainSingle(edition => edition.Id == incumbent.Id && edition.Monitored == dualFormat);
             saved.Should().ContainSingle(edition => edition.Id == selected.Id && edition.Monitored && edition.ManualAdd);
             _books.Count().Should().Be(1);
         }

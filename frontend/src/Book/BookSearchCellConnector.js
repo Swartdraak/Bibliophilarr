@@ -52,7 +52,7 @@ function createMapDispatchToProps(dispatch, props) {
       dispatch(executeCommand({
         name: cutoffFormat ? commandNames.CUTOFF_UNMET_BOOK_SEARCH : commandNames.BOOK_SEARCH,
         bookIds: [props.bookId],
-        ...(cutoffFormat && { formatType: cutoffFormat })
+        ...(cutoffFormat ? { formatType: cutoffFormat } : props.formatType && { missingFormat: props.formatType })
       }));
     }
   };

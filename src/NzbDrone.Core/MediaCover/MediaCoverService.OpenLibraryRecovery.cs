@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Books;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 
@@ -21,7 +24,13 @@ namespace NzbDrone.Core.MediaCover
     {
         bool IsCoolingDown { get; }
         bool IsMissing(int bookId, string retrySuffix);
-        OpenLibraryCoverRecovery TryRecover(int bookId, string coverUrl, string retrySuffix, Func<bool> isStillSelected, TimeSpan timeout);
+        OpenLibraryCoverRecovery TryRecover(int bookId, string coverUrl, string retrySuffix, Func<bool> isStillSelected, TimeSpan timeout, Func<bool> reserveRedirect = null);
+    }
+
+    public interface IOpenLibraryAuthorPortraitCache
+    {
+        bool IsMissing(int authorId, string retrySuffix);
+        OpenLibraryCoverRecovery TryRecover(int authorId, string portraitUrl, string retrySuffix, Func<bool> isStillSelected, TimeSpan timeout, Func<bool> reserveRedirect = null);
     }
 
     public partial class MediaCoverService
@@ -52,27 +61,70 @@ namespace NzbDrone.Core.MediaCover
             string coverUrl,
             string retrySuffix,
             Func<bool> isStillSelected,
-            TimeSpan timeout)
+            TimeSpan timeout,
+            Func<bool> reserveRedirect)
         {
-            if (!OpenLibraryMissingBookCover.IsValidCoverUrl(coverUrl) || !IsMissingOpenLibraryCover(bookId, retrySuffix) || !isStillSelected())
+            return OpenLibraryMissingBookCover.IsValidCoverUrl(coverUrl) && OpenLibraryMissingBookCover.IsValidRetryFileSuffix(retrySuffix)
+                ? TryRecoverOpenLibraryImage(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, coverUrl, retrySuffix, isStillSelected, timeout, reserveRedirect)
+                : OpenLibraryCoverRecovery.Skipped;
+        }
+
+        bool IOpenLibraryAuthorPortraitCache.IsMissing(int authorId, string retrySuffix) =>
+            OpenLibraryMissingAuthorPortrait.IsValidRetryFileSuffix(retrySuffix) &&
+            IsMissingOpenLibraryImage(authorId, MediaCoverEntity.Author, MediaCoverTypes.Poster, retrySuffix);
+
+        OpenLibraryCoverRecovery IOpenLibraryAuthorPortraitCache.TryRecover(
+            int authorId, string portraitUrl, string retrySuffix, Func<bool> isStillSelected, TimeSpan timeout, Func<bool> reserveRedirect)
+        {
+            return OpenLibraryMissingAuthorPortrait.IsValidPortraitUrl(portraitUrl) && OpenLibraryMissingAuthorPortrait.IsValidRetryFileSuffix(retrySuffix)
+                ? TryRecoverOpenLibraryImage(authorId, MediaCoverEntity.Author, MediaCoverTypes.Poster, portraitUrl, retrySuffix, isStillSelected, timeout, reserveRedirect)
+                : OpenLibraryCoverRecovery.Skipped;
+        }
+
+        private OpenLibraryCoverRecovery TryRecoverOpenLibraryImage(
+            int id, MediaCoverEntity entity, MediaCoverTypes type, string coverUrl, string retrySuffix, Func<bool> isStillSelected, TimeSpan timeout, Func<bool> reserveRedirect)
+        {
+            bool IsMissing() => IsMissingOpenLibraryImage(id, entity, type, retrySuffix);
+
+            if (!IsMissing() || !isStillSelected())
             {
                 return OpenLibraryCoverRecovery.Skipped;
             }
 
+            var started = _timeProvider.GetTimestamp();
             try
             {
                 EnforceCoverRateLimit(coverUrl);
 
                 using var imageBytes = new MemoryStream(new byte[MaxRecoveredCoverBytes], writable: true);
                 imageBytes.SetLength(0);
-                var request = new HttpRequest(coverUrl)
+                var response = GetOpenLibraryArtwork(coverUrl, imageBytes, timeout);
+                if (response.HasHttpRedirect && GetArchiveArtworkRedirect(coverUrl, response) is { } archiveUrl)
                 {
-                    AllowAutoRedirect = false,
-                    RequestTimeout = timeout,
-                    ResponseStream = imageBytes
-                };
-                request.Headers["User-Agent"] = USER_AGENT;
-                var response = _httpClient.Get(request);
+                    if (!isStillSelected() || !IsMissing())
+                    {
+                        return OpenLibraryCoverRecovery.Skipped;
+                    }
+
+                    if (reserveRedirect?.Invoke() == false)
+                    {
+                        // Keep this work at the cursor for the next tick.
+                        return OpenLibraryCoverRecovery.Deferred;
+                    }
+
+                    // Both hops consume the original provider's artwork budget.
+                    EnforceCoverRateLimit(coverUrl);
+                    var remaining = timeout - _timeProvider.GetElapsedTime(started);
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        return OpenLibraryCoverRecovery.DeferredAfterRequest;
+                    }
+
+                    imageBytes.SetLength(0);
+                    imageBytes.Position = 0;
+                    response = GetOpenLibraryArtwork(archiveUrl, imageBytes, remaining);
+                }
+
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     return OpenLibraryCoverRecovery.Unavailable;
@@ -84,7 +136,8 @@ namespace NzbDrone.Core.MediaCover
                     return OpenLibraryCoverRecovery.Unavailable;
                 }
 
-                return PublishRecoveredCover(bookId, retrySuffix, imageBytes, isStillSelected);
+                var destination = GetCoverPath(id, entity, type, retrySuffix);
+                return PublishRecoveredCover(destination, imageBytes, () => isStillSelected() && IsMissing());
             }
             catch (CoverRequestSuppressedException)
             {
@@ -100,33 +153,83 @@ namespace NzbDrone.Core.MediaCover
             catch (WebException e) when (e.Status == WebExceptionStatus.Timeout ||
                 e is { Status: WebExceptionStatus.ReceiveFailure, InnerException: OperationCanceledException })
             {
-                _logger.Debug("Open Library cover recovery timed out for book {0} ({1}).", bookId, e.Status);
+                _logger.Debug("Open Library cover recovery timed out for {0} {1} ({2}).", entity, id, e.Status);
                 return OpenLibraryCoverRecovery.DeferredAfterRequest;
             }
             catch (Exception e) when (e is WebException or IOException or ImageFormatException)
             {
-                _logger.Debug("Open Library cover recovery did not complete for book {0} ({1}).", bookId, e.GetType().Name);
+                _logger.Debug("Open Library cover recovery did not complete for {0} {1} ({2}).", entity, id, e.GetType().Name);
                 return OpenLibraryCoverRecovery.Unavailable;
             }
         }
 
-        public void MapRecoveredBookCover(int bookId, string workId, string editionId, IEnumerable<MediaCover> images)
+        private HttpResponse GetOpenLibraryArtwork(string url, Stream imageBytes, TimeSpan timeout)
         {
-            // The standard mapping has already retained the exact stored URL as RemoteUrl.
-            var image = OpenLibraryMissingBookCover.GetSingleCover(images);
-            var suffix = OpenLibraryMissingBookCover.GetRetryFileSuffix(workId, editionId, image?.RemoteUrl);
-            if (bookId <= 0 || suffix == null || HasCachedCover(GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg")))
+            var request = new HttpRequest(url)
+            {
+                AllowAutoRedirect = false,
+                IgnoreStoredOriginCredentials = true,
+                OmitSensitiveDiagnostics = true,
+                RequestTimeout = timeout,
+                ResponseStream = imageBytes
+            };
+            request.Headers["User-Agent"] = USER_AGENT;
+            return _httpClient.Get(request);
+        }
+
+        private static string GetArchiveArtworkRedirect(string source, HttpResponse response)
+        {
+            var locations = response.Headers.GetValues("Location");
+            if (locations is not { Length: 1 })
+            {
+                return null;
+            }
+
+            // Both strict source selectors already require a positive decimal ID and a large JPEG.
+            var path = new Uri(source).AbsolutePath;
+            var digits = path.AsSpan("/b/id/".Length, path.Length - "/b/id/".Length - "-L.jpg".Length);
+            if (!ulong.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var id))
+            {
+                return null;
+            }
+
+            var modernShard = id / 10_000;
+            var group = id / 1_000_000;
+            var legacyShard = modernShard % 100;
+            var modern = FormattableString.Invariant($"https://archive.org/download/olcovers{modernShard}/olcovers{modernShard}-L.zip/{id}-L.jpg");
+            var legacy = FormattableString.Invariant($"https://archive.org/download/l_covers_{group:D4}/l_covers_{group:D4}_{legacyShard:D2}.zip/{id:D10}-L.jpg");
+            if (locations[0] == modern)
+            {
+                return modern;
+            }
+
+            return locations[0] == legacy ? legacy : null;
+        }
+
+        public void MapRecoveredBookCover(Book book, IEnumerable<MediaCover> images)
+        {
+            MapRecoveredBookCover(book, images, book.Editions?.Value);
+        }
+
+        private void MapRecoveredBookCover(Book book, IEnumerable<MediaCover> images, IList<Edition> artworkEditions)
+        {
+            // The normal mapper has already kept the stored URL as RemoteUrl.
+            var image = images?.FirstOrDefault(cover => cover?.CoverType == MediaCoverTypes.Cover);
+            if (book.Id <= 0 || OpenLibraryMissingBookCover.SelectArtwork(book, artworkEditions) is not { } artwork ||
+                image?.RemoteUrl != artwork.CoverUrl ||
+                (artwork.WorkSourceId != null && (image.SourceProvider != "OpenLibrary" || image.SourceId != artwork.WorkSourceId)) ||
+                HasCachedCover(GetCoverPath(book.Id, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg")))
             {
                 return;
             }
 
-            var recovered = GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, suffix);
+            var recovered = GetCoverPath(book.Id, MediaCoverEntity.Book, MediaCoverTypes.Cover, artwork.FileSuffix);
             try
             {
-                if (HasCachedCover(recovered))
+                if (HasCachedCover(recovered) && OpenLibraryMissingBookCover.HasVerifiedOwner(artwork.WorkSourceId, book.Id, _catalogueIdentity))
                 {
                     var lastWrite = _diskProvider.FileGetLastWrite(recovered);
-                    image.Url = $"{_configFileProvider.UrlBase}/MediaCover/Books/{bookId}/cover{suffix}?lastWrite={lastWrite.Ticks}";
+                    image.Url = $"{_configFileProvider.UrlBase}/MediaCover/Books/{book.Id}/cover{artwork.FileSuffix}?lastWrite={lastWrite.Ticks}";
                 }
             }
             catch (IOException e) when (e is FileNotFoundException or DirectoryNotFoundException)
@@ -135,12 +238,33 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
+        public void MapRecoveredAuthorPortrait(Author author, IEnumerable<MediaCover> images)
+        {
+            if (OpenLibraryMissingAuthorPortrait.SelectArtwork(author) is not { } artwork ||
+                images?.FirstOrDefault(image => image?.CoverType == MediaCoverTypes.Poster) is not { } mapped ||
+                mapped.RemoteUrl != artwork.Url || mapped.SourceProvider != "OpenLibrary" ||
+                OpenLibraryMissingAuthorPortrait.NormalizeSourceId(mapped.SourceId) != artwork.SourceId ||
+                HasCachedCover(GetCoverPath(author.Id, MediaCoverEntity.Author, MediaCoverTypes.Poster, ".jpg")))
+            {
+                return;
+            }
+
+            var path = GetCoverPath(author.Id, MediaCoverEntity.Author, MediaCoverTypes.Poster, artwork.FileSuffix);
+            if (GetCachedCoverLastWrite(path) is { } lastWrite &&
+                OpenLibraryMissingAuthorPortrait.HasVerifiedOwner(_catalogueIdentity, artwork.MetadataId, artwork.SourceId))
+            {
+                mapped.Url = LocalCoverUrl(author.Id, MediaCoverEntity.Author, MediaCoverTypes.Poster, artwork.FileSuffix, lastWrite);
+            }
+        }
+
         private bool IsMissingOpenLibraryCover(int bookId, string retrySuffix)
         {
-            return bookId > 0 && OpenLibraryMissingBookCover.IsValidRetryFileSuffix(retrySuffix) &&
-                !HasCachedCover(GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg")) &&
-                !HasCachedCover(GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, retrySuffix));
+            return OpenLibraryMissingBookCover.IsValidRetryFileSuffix(retrySuffix) &&
+                IsMissingOpenLibraryImage(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, retrySuffix);
         }
+
+        private bool IsMissingOpenLibraryImage(int id, MediaCoverEntity entity, MediaCoverTypes type, string suffix) =>
+            id > 0 && !HasCachedCover(GetCoverPath(id, entity, type, ".jpg")) && !HasCachedCover(GetCoverPath(id, entity, type, suffix));
 
         private bool HasCachedCover(string path)
         {
@@ -175,7 +299,7 @@ namespace NzbDrone.Core.MediaCover
             return true;
         }
 
-        private OpenLibraryCoverRecovery PublishRecoveredCover(int bookId, string retrySuffix, MemoryStream imageBytes, Func<bool> isStillSelected)
+        private OpenLibraryCoverRecovery PublishRecoveredCover(string destination, MemoryStream imageBytes, Func<bool> canPublish)
         {
             _diskProvider.CreateFolder(_coverRetryStagingFolder);
             var staged = Path.Combine(_coverRetryStagingFolder, $"{Guid.NewGuid():N}.tmp");
@@ -188,13 +312,13 @@ namespace NzbDrone.Core.MediaCover
                     imageBytes.CopyTo(file);
                 }
 
-                if (!isStillSelected() || !IsMissingOpenLibraryCover(bookId, retrySuffix))
+                if (!canPublish())
                 {
                     return OpenLibraryCoverRecovery.Skipped;
                 }
 
-                _diskProvider.CreateFolder(GetBookCoverPath(bookId));
-                _diskProvider.MoveFile(staged, GetCoverPath(bookId, MediaCoverEntity.Book, MediaCoverTypes.Cover, retrySuffix));
+                _diskProvider.CreateFolder(Path.GetDirectoryName(destination));
+                _diskProvider.MoveFile(staged, destination);
                 return OpenLibraryCoverRecovery.Recovered;
             }
             finally

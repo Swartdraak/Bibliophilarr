@@ -14,6 +14,24 @@ import translate from 'Utilities/String/translate';
 import { getUnmappedFileFormat } from './filterUnmappedFiles';
 import styles from './UnmappedFilesTableRow.css';
 
+const unmappedReasonLabels = {
+  reviewRequired: 'UnmappedReasonReviewRequired',
+  noAcceptedWork: 'UnmappedReasonNoAcceptedWork',
+  lowConfidence: 'UnmappedReasonLowConfidence',
+  existingFilePreferred: 'UnmappedReasonExistingFilePreferred',
+  sameSizeAsExisting: 'UnmappedReasonSameSizeAsExisting',
+  competingEditions: 'UnmappedReasonCompetingEditions',
+  readError: 'UnmappedReasonReadError',
+  duplicateInScan: 'UnmappedReasonDuplicateInScan',
+  conflictingIdentity: 'UnmappedReasonConflictingIdentity',
+  providerIdentityConflict: 'UnmappedReasonProviderIdentityConflict',
+  audiobookPartOmitted: 'UnmappedReasonAudiobookPartOmitted',
+  unverifiedEditionIdentifier: 'UnmappedReasonUnverifiedEditionIdentifier',
+  authorBibliographyUnavailable: 'UnmappedReasonAuthorBibliographyUnavailable',
+  authorIdentityConfirmationRequired: 'UnmappedReasonAuthorIdentityConfirmationRequired',
+  importFailed: 'UnmappedReasonImportFailed'
+};
+
 class UnmappedFilesTableRow extends Component {
 
   //
@@ -71,6 +89,7 @@ class UnmappedFilesTableRow extends Component {
       size,
       dateAdded,
       quality,
+      unmappedReason,
       columns,
       isSelected,
       onSelectedChange
@@ -79,6 +98,7 @@ class UnmappedFilesTableRow extends Component {
     const separatorIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
     const folder = path.substring(0, separatorIndex);
     const fileName = path.slice(separatorIndex + 1);
+    const reasonLabel = translate(unmappedReasonLabels[unmappedReason] ?? 'UnmappedReasonNotRecorded');
 
     const {
       isInteractiveImportModalOpen,
@@ -122,6 +142,7 @@ class UnmappedFilesTableRow extends Component {
                     <div className={styles.fileName}>{fileName}</div>
                     <div className={styles.folder}>{folder}</div>
                   </div>
+                  <div className={styles.folder} title={reasonLabel}>{reasonLabel}</div>
                 </VirtualTableRowCell>
               );
             }
@@ -181,16 +202,19 @@ class UnmappedFilesTableRow extends Component {
                 >
                   <IconButton
                     name={icons.INFO}
+                    title={translate('FileDetails')}
                     onPress={this.onDetailsPress}
                   />
 
                   <IconButton
                     name={icons.INTERACTIVE}
+                    title={translate('ManualImport')}
                     onPress={this.onInteractiveImportPress}
                   />
 
                   <IconButton
                     name={icons.DELETE}
+                    title={translate('DeleteBookFile')}
                     onPress={this.onDeleteFilePress}
                   />
 
@@ -240,6 +264,7 @@ UnmappedFilesTableRow.propTypes = {
   path: PropTypes.string.isRequired,
   size: PropTypes.number.isRequired,
   quality: PropTypes.object,
+  unmappedReason: PropTypes.string,
   dateAdded: PropTypes.string.isRequired,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   isSelected: PropTypes.bool,

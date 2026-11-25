@@ -68,6 +68,7 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             capturedRequest.Should().NotBeNull();
             capturedRequest.RateLimitKey.Should().Be("Inventaire");
+            capturedRequest.DiscardNonOkResponseBody.Should().BeTrue();
         }
 
         [TestCase("picture", null)]

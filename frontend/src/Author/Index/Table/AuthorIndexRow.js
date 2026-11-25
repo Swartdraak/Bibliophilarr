@@ -17,6 +17,7 @@ import VirtualTableSelectCell from 'Components/Table/Cells/VirtualTableSelectCel
 import TagListConnector from 'Components/TagListConnector';
 import { icons } from 'Helpers/Props';
 import getProgressBarKind from 'Utilities/Author/getProgressBarKind';
+import cataloguePath from 'Utilities/cataloguePath';
 import formatBytes from 'Utilities/Number/formatBytes';
 import translate from 'Utilities/String/translate';
 import AuthorStatusCell from './AuthorStatusCell';
@@ -84,6 +85,7 @@ class AuthorIndexRow extends Component {
       status,
       authorName,
       authorNameLastFirst,
+      canonicalId,
       titleSlug,
       qualityProfile,
       metadataProfile,
@@ -178,7 +180,7 @@ class AuthorIndexRow extends Component {
                     showBanners ?
                       <Link
                         className={styles.link}
-                        to={`/author/${titleSlug}`}
+                        to={cataloguePath('author', { canonicalId, titleSlug })}
                       >
                         <AuthorBanner
                           className={styles.bannerImage}
@@ -198,6 +200,7 @@ class AuthorIndexRow extends Component {
                       </Link> :
 
                       <AuthorNameLink
+                        canonicalId={canonicalId}
                         titleSlug={titleSlug}
                         authorName={showTitle === 'firstLast' ? authorName : authorNameLastFirst}
                       />
@@ -262,6 +265,7 @@ class AuthorIndexRow extends Component {
                     <BookTitleLink
                       title={nextBook.title}
                       disambiguation={nextBook.disambiguation}
+                      canonicalId={nextBook.canonicalId}
                       titleSlug={nextBook.titleSlug}
                     />
                   </VirtualTableRowCell>
@@ -287,6 +291,7 @@ class AuthorIndexRow extends Component {
                     <BookTitleLink
                       title={lastBook.title}
                       disambiguation={lastBook.disambiguation}
+                      canonicalId={lastBook.canonicalId}
                       titleSlug={lastBook.titleSlug}
                     />
                   </VirtualTableRowCell>
@@ -456,6 +461,7 @@ AuthorIndexRow.propTypes = {
   status: PropTypes.string.isRequired,
   authorName: PropTypes.string.isRequired,
   authorNameLastFirst: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   qualityProfile: PropTypes.object.isRequired,
   metadataProfile: PropTypes.object.isRequired,

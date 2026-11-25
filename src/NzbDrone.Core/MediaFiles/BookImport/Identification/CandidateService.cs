@@ -2,12 +2,14 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
@@ -17,7 +19,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
     public interface ICandidateService
     {
         List<CandidateEdition> GetDbCandidatesFromTags(LocalEdition localEdition, IdentificationOverrides idOverrides, bool includeExisting);
-        IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides);
+        IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides, Func<Edition, bool> allowsEdition = null, bool forLibraryScan = false);
     }
 
     public class CandidateService : ICandidateService
@@ -40,6 +42,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private readonly IMetadataProviderOrchestrator _metadataOrchestrator;
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly IEditionService _editionService;
         private readonly IMediaFileService _mediaFileService;
         private readonly IMetadataQueryNormalizationService _queryNormalizationService;
@@ -54,6 +57,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         public CandidateService(IMetadataProviderOrchestrator metadataOrchestrator,
                                 IAuthorService authorService,
                                 IBookService bookService,
+                                ICatalogueIdentityRepository catalogueIdentity,
                                 IEditionService editionService,
                                 IMediaFileService mediaFileService,
                                 IMetadataQueryNormalizationService queryNormalizationService,
@@ -65,6 +69,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             _metadataOrchestrator = metadataOrchestrator;
             _authorService = authorService;
             _bookService = bookService;
+            _catalogueIdentity = catalogueIdentity;
             _editionService = editionService;
             _mediaFileService = mediaFileService;
             _queryNormalizationService = queryNormalizationService;
@@ -278,7 +283,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return candidateReleases;
         }
 
-        public IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides)
+        public IEnumerable<CandidateEdition> GetRemoteCandidates(LocalEdition localEdition, IdentificationOverrides idOverrides, Func<Edition, bool> allowsEdition = null, bool forLibraryScan = false)
         {
             // NOTE handle edition override
 
@@ -314,7 +319,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // an empty result instead of NRE-ing in ToCandidates.
                 remoteBooks ??= new List<Book>();
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -324,7 +329,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     var preContextCount = seenCandidates.Count;
 
-                    foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides))
+                    foreach (var candidate in TryIsbnContextFallback(localEdition, seenCandidates, idOverrides, allowsEdition))
                     {
                         yield return candidate;
                     }
@@ -339,7 +344,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                 try
                 {
-                    remoteBooks = _metadataOrchestrator.SearchByAsin(asin);
+                    remoteBooks = forLibraryScan
+                        ? _metadataOrchestrator.SearchForLibraryImportByAsin(asin, GetExactAudiobookEligibility(localEdition, idOverrides, asin, allowsEdition))
+                        : _metadataOrchestrator.SearchByAsin(asin);
                 }
                 catch (OpenLibraryException e)
                 {
@@ -350,7 +357,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // Issue #340: no-provider-configured state -> orchestrator returns null.
                 remoteBooks ??= new List<Book>();
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -374,7 +381,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // Issue #340: no-provider-configured state -> orchestrator returns null.
                 remoteBooks ??= new List<Book>();
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -392,7 +399,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             // Always attempt author / book name search even when ID-based results
             // were found — embedded ISBNs/ASINs can be incorrect, and the
             // author+title search may find the correct book. seenCandidates
-            // prevents duplicate editions from being yielded.
+            // tracks only editions that fit the release and pass identification checks.
             var authorTags = new List<string>();
 
             if (TrackGroupingService.IsVariousAuthors(localEdition.LocalBooks))
@@ -456,9 +463,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     }
                 }
 
-                remoteBooks = SearchPrimaryWithFanOut(authorTitleQueries, _configService.RemoteCandidateSearchWorkerCount);
+                var candidates = forLibraryScan && seenCandidates.Count == 0
+                    ? SearchLibraryAuthorTitle(authorTitleQueries, seenCandidates, idOverrides, localEdition, allowsEdition)
+                    : ToCandidates(SearchPrimaryWithFanOut(authorTitleQueries, SearchPrimary), seenCandidates, idOverrides, localEdition, allowsEdition);
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in candidates)
                 {
                     yield return candidate;
                 }
@@ -474,7 +483,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 remoteBooks = SearchPrimary(swappedPair.Title, swappedPair.Author, "swapped author/title search");
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -489,9 +498,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (titleVariants.Any())
             {
                 var titleOnlyQueries = titleVariants.Select(titleVariant => (titleVariant, (string)null, "book title search")).ToList();
-                remoteBooks = SearchPrimaryWithFanOut(titleOnlyQueries, _configService.RemoteCandidateSearchWorkerCount);
+                remoteBooks = SearchPrimaryWithFanOut(titleOnlyQueries, SearchPrimary);
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -501,9 +510,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (authorVariants.Any())
             {
                 var authorOnlyQueries = authorVariants.Select(author => (author, (string)null, "author search")).ToList();
-                remoteBooks = SearchPrimaryWithFanOut(authorOnlyQueries, _configService.RemoteCandidateSearchWorkerCount);
+                remoteBooks = SearchPrimaryWithFanOut(authorOnlyQueries, SearchPrimary);
 
-                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                 {
                     yield return candidate;
                 }
@@ -518,13 +527,58 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 _logger.Debug("Trying tertiary fallback provider {0}", provider.ProviderName);
 
+                (string Title, string Author, List<Book> Results) checkedInventaire = default;
+                if (forLibraryScan && provider.ProviderName == "Inventaire" && provider.IsFallbackEnabled &&
+                    idOverrides is null or { Author: null, Book: null, Edition: null })
+                {
+                    const string fileConflict = "Reliable file tags or the filename disagree on the work identity.";
+                    var evidence = ReadInventaireLibraryEvidence(localEdition);
+                    if (evidence.Conflict)
+                    {
+                        HoldInventaireIdentityConflict(localEdition, fileConflict);
+                        yield break;
+                    }
+
+                    if (evidence.Format.HasValue)
+                    {
+                        var results = SearchFallback(provider, evidence.Title, evidence.Author);
+                        checkedInventaire = (evidence.Title, evidence.Author, results);
+                        var selected = SelectInventaireLibrarySummary(results, evidence.Title, evidence.Author);
+                        if (selected.Conflict != null)
+                        {
+                            HoldInventaireIdentityConflict(localEdition, selected.Conflict);
+                            yield break;
+                        }
+
+                        if (selected.Summary != null)
+                        {
+                            if (allowsEdition?.Invoke(selected.Summary) != false)
+                            {
+                                yield return new CandidateEdition { Edition = selected.Summary, ExistingFiles = new List<BookFile>() };
+                            }
+
+                            yield break;
+                        }
+
+                        if (evidence.Format != FormatType.Ebook)
+                        {
+                            // Work summaries without a verified owner cannot identify an audiobook.
+                            continue;
+                        }
+                    }
+                }
+
                 if (titleVariants.Any() && authorVariants.Any())
                 {
                     foreach (var titleVariant in titleVariants)
                     {
                         foreach (var authorVariant in authorVariants)
                         {
-                            foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, authorVariant), seenCandidates, idOverrides, localEdition))
+                            // Keep the existing ebook fallback order. Reuse an exact response already fetched above.
+                            var books = checkedInventaire.Title == titleVariant && checkedInventaire.Author == authorVariant
+                                ? checkedInventaire.Results
+                                : SearchFallback(provider, titleVariant, authorVariant);
+                            foreach (var candidate in ToCandidates(books, seenCandidates, idOverrides, localEdition, allowsEdition))
                             {
                                 yield return candidate;
                             }
@@ -536,7 +590,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     foreach (var titleVariant in titleVariants)
                     {
-                        foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, null), seenCandidates, idOverrides, localEdition))
+                        foreach (var candidate in ToCandidates(SearchFallback(provider, titleVariant, null), seenCandidates, idOverrides, localEdition, allowsEdition))
                         {
                             yield return candidate;
                         }
@@ -547,7 +601,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     foreach (var authorVariant in authorVariants)
                     {
-                        foreach (var candidate in ToCandidates(SearchFallback(provider, null, authorVariant), seenCandidates, idOverrides, localEdition))
+                        foreach (var candidate in ToCandidates(SearchFallback(provider, null, authorVariant), seenCandidates, idOverrides, localEdition, allowsEdition))
                         {
                             yield return candidate;
                         }
@@ -564,7 +618,102 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             LogCandidateRejectionTelemetry(localEdition, "all-search-paths-exhausted", 0, 0, seenCandidates.Count);
         }
 
-        private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides)
+        private static (string Title, string Author, FormatType? Format, bool Conflict) ReadInventaireLibraryEvidence(LocalEdition release)
+        {
+            var files = release.LocalBooks;
+            var formats = files.Select(file => ImportFormat.ForPath(file.Path)).Distinct().Take(2).ToList();
+            if (formats.Count != 1 || !formats[0].HasValue || files.Any(file =>
+                file.FileTrackInfo is not { BookTitleConfidence: >= 0.9, AuthorConfidence: >= 0.9 } ||
+                file.ReliableTaggedBookTitle == null || file.FileTrackInfo.Authors?.Count != 1))
+            {
+                return default;
+            }
+
+            var first = files[0].FileTrackInfo;
+            var author = ImportDecisionMaker.NormalizeLibraryAuthor(first.Authors[0]);
+            var title = ImportDecisionMaker.NormalizeLibraryIdentity(first.BookTitle);
+            if (author == null || title == null)
+            {
+                return default;
+            }
+
+            var conflict = files.Any(file =>
+                ImportDecisionMaker.NormalizeLibraryAuthor(file.FileTrackInfo.Authors[0]) != author ||
+                file.ReliableTaggedBookTitle != title ||
+                IdentificationService.HasConflictingInventaireFilename(file, title)) ||
+                files.Where(file => file.FileTrackInfo.IsbnConfidence >= 0.9)
+                    .Select(file => Isbn.AsIsbn13(file.FileTrackInfo.Isbn)).Where(isbn => isbn != null).Distinct().Take(2).Count() > 1 ||
+                files.Where(file => file.FileTrackInfo.AsinConfidence >= 0.9)
+                    .Select(file => ImportDecisionMaker.NormalizeLibraryAsin(file.FileTrackInfo.Asin)).Where(asin => asin != null).Distinct().Take(2).Count() > 1;
+            return (first.BookTitle.Trim(), first.Authors[0].Trim(), formats[0], conflict);
+        }
+
+        private (Edition Summary, string Conflict) SelectInventaireLibrarySummary(List<Book> results, string title, string author)
+        {
+            const CatalogueEntityKind kind = CatalogueEntityKind.Work;
+            const string provider = "Inventaire";
+            const string ownerConflict = "The Inventaire work disagrees with the recorded canonical author or title.";
+            if (results.Count > 10)
+            {
+                return (null, "Inventaire returned more than the requested work results. Select the intended work manually.");
+            }
+
+            var exactTitle = ImportDecisionMaker.NormalizeLibraryIdentity(title);
+            var exactAuthor = ImportDecisionMaker.NormalizeLibraryAuthor(author);
+            var claims = results.Where(book => book != null)
+                .Select(book => (
+                    Source: CatalogueIdentityRepository.ParseLegacySource(kind, book.ForeignBookId, null),
+                    Title: ImportDecisionMaker.NormalizeLibraryIdentity(book.Title),
+                    Author: ImportDecisionMaker.NormalizeLibraryAuthor(book.AuthorMetadata?.Value?.Name)))
+                .Where(claim => claim.Source?.Provider == provider)
+                .ToList();
+            var exact = claims.Where(claim => claim.Title == exactTitle && claim.Author == exactAuthor)
+                .Select(claim => claim.Source.ProviderId).Distinct(StringComparer.Ordinal).Take(2).ToList();
+
+            if (exact.Count > 1)
+            {
+                return (null, "More than one Inventaire work matches the exact title and author.");
+            }
+
+            if (exact.Count == 0)
+            {
+                return claims.Any(claim => claim.Title == exactTitle &&
+                    _catalogueIdentity.FindByProviderId(kind, provider, claim.Source.ProviderId).HasValue)
+                    ? (null, ownerConflict)
+                    : default;
+            }
+
+            var sourceId = exact[0];
+            if (claims.Any(claim => claim.Source.ProviderId == sourceId &&
+                (claim.Title != exactTitle || claim.Author != exactAuthor)))
+            {
+                return (null, ownerConflict);
+            }
+
+            var work = InventaireLibraryWorkSummary.FindOwner(_bookService, _catalogueIdentity, sourceId, out var claimed);
+            if (!claimed)
+            {
+                return default;
+            }
+
+            if (work == null || ImportDecisionMaker.NormalizeLibraryIdentity(work.Title) != exactTitle ||
+                ImportDecisionMaker.NormalizeLibraryAuthor(work.Author.Value.Name) != exactAuthor)
+            {
+                return (null, ownerConflict);
+            }
+
+            // The provider supplied work evidence only. In particular its ISBN is not an
+            // edition identifier and must not participate in matching or persistence.
+            return (InventaireLibraryWorkSummary.Create(sourceId, work), null);
+        }
+
+        private static void HoldInventaireIdentityConflict(LocalEdition release, string detail)
+        {
+            release.IdentificationHoldReason = LibraryImportHoldReason.ConflictingIdentity;
+            release.ProviderIdentityConflictDetail = detail;
+        }
+
+        private IEnumerable<CandidateEdition> TryIsbnContextFallback(LocalEdition localEdition, HashSet<string> seenCandidates, IdentificationOverrides idOverrides, Func<Edition, bool> allowsEdition)
         {
             var attemptLimit = _configService.IsbnContextFallbackLimit;
             var attempts = 0;
@@ -596,7 +745,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     {
                         cacheHits++;
                         _logger.Debug("ISBN contextual fallback cache hit for title='{0}', author='{1}'", title, author ?? "<none>");
-                        foreach (var candidate in ToCandidates(cached, seenCandidates, idOverrides, localEdition))
+                        foreach (var candidate in ToCandidates(cached, seenCandidates, idOverrides, localEdition, allowsEdition))
                         {
                             yield return candidate;
                         }
@@ -645,7 +794,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                     _isbnFallbackCache[cacheKey] = remoteBooks.AsReadOnly();
 
-                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition))
+                    foreach (var candidate in ToCandidates(remoteBooks, seenCandidates, idOverrides, localEdition, allowsEdition))
                     {
                         yield return candidate;
                     }
@@ -698,14 +847,61 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
         }
 
-        private List<Book> SearchPrimaryWithFanOut(List<(string Title, string Author, string Mode)> queries, int configuredWorkers)
+        private List<CandidateEdition> SearchLibraryAuthorTitle(List<(string Title, string Author, string Mode)> queries,
+                                                               HashSet<string> seenCandidates,
+                                                               IdentificationOverrides idOverrides,
+                                                               LocalEdition localEdition,
+                                                               Func<Edition, bool> allowsEdition)
+        {
+            var eligibilityGate = new object();
+            var candidates = SearchPrimaryWithFanOut(queries, Search);
+            return candidates.Where(candidate => seenCandidates.Add(candidate.Edition.ForeignEditionId)).ToList();
+
+            List<CandidateEdition> Search(string title, string author, string mode)
+            {
+                var matches = new List<CandidateEdition>();
+                ExceptionDispatchInfo eligibilityError = null;
+
+                try
+                {
+                    _metadataOrchestrator.SearchForLibraryImport(title, author, books =>
+                    {
+                        // Queries can run in parallel. The identification callback records
+                        // rejection reasons for this release, so serialize only that evaluation.
+                        lock (eligibilityGate)
+                        {
+                            try
+                            {
+                                matches = ToCandidates(books, new HashSet<string>(), idOverrides, localEdition, allowsEdition);
+                                return matches.Count > 0;
+                            }
+                            catch (Exception ex)
+                            {
+                                // Stop this query and propagate the local failure outside the provider loop.
+                                eligibilityError = ExceptionDispatchInfo.Capture(ex);
+                                return true;
+                            }
+                        }
+                    });
+                }
+                catch (OpenLibraryException ex)
+                {
+                    _logger.Info(ex, "Skipping {0} due to OpenLibrary Error", mode);
+                }
+
+                eligibilityError?.Throw();
+                return matches;
+            }
+        }
+
+        private List<T> SearchPrimaryWithFanOut<T>(List<(string Title, string Author, string Mode)> queries, Func<string, string, string, List<T>> search)
         {
             if (queries == null || queries.Count == 0)
             {
-                return new List<Book>();
+                return new List<T>();
             }
 
-            var maxWorkers = Math.Max(1, Math.Min(configuredWorkers, queries.Count));
+            var maxWorkers = Math.Max(1, Math.Min(_configService.RemoteCandidateSearchWorkerCount, queries.Count));
 
             _logger.Debug(
                 "Running {0} primary candidate search query(ies) with up to {1} worker(s)",
@@ -714,22 +910,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             if (maxWorkers == 1)
             {
-                var sequentialResults = new List<Book>();
+                var sequentialResults = new List<T>();
 
                 foreach (var query in queries)
                 {
-                    sequentialResults.AddRange(SearchPrimary(query.Title, query.Author, query.Mode));
+                    sequentialResults.AddRange(search(query.Title, query.Author, query.Mode));
                 }
 
                 return sequentialResults;
             }
 
-            var allResults = new ConcurrentBag<Book>();
+            var allResults = new ConcurrentBag<T>();
             var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
 
             Parallel.ForEach(queries, options, query =>
             {
-                var results = SearchPrimary(query.Title, query.Author, query.Mode);
+                var results = search(query.Title, query.Author, query.Mode);
 
                 foreach (var result in results)
                 {
@@ -884,6 +1080,59 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return extracted.Count == 1 ? extracted[0] : null;
         }
 
+        private static Func<Book, bool> GetExactAudiobookEligibility(LocalEdition release, IdentificationOverrides overrides, string asin, Func<Edition, bool> allowsEdition)
+        {
+            if (overrides?.Author != null || overrides?.Book != null || overrides?.Edition != null ||
+                !asin.StartsWith("B0", StringComparison.Ordinal) || !asin.All(char.IsAsciiLetterOrDigit) ||
+                release.LocalBooks.Any(file => ImportFormat.ForPath(file.Path) != FormatType.Audiobook))
+            {
+                return null;
+            }
+
+            var files = release.LocalBooks;
+            var trustedAsins = files.Select(file => file.FileTrackInfo)
+                .Where(tags => tags.AsinConfidence >= 0.9 && tags.Asin.IsNotNullOrWhiteSpace())
+                .Select(tags => tags.Asin.Trim().ToUpperInvariant())
+                .Distinct()
+                .Take(2)
+                .ToList();
+            var title = ImportDecisionMaker.NormalizeLibraryIdentity(IdentificationService.GetReliableTaggedBookTitle(release));
+            var authors = files.Select(file => file.FileTrackInfo)
+                .Where(tags => tags.AuthorConfidence >= 0.9)
+                .SelectMany(tags => tags.Authors ?? Enumerable.Empty<string>())
+                .Select(ImportDecisionMaker.NormalizeLibraryIdentity)
+                .Where(name => name != null)
+                .Distinct()
+                .Take(2)
+                .ToList();
+            if (trustedAsins.Count != 1 || trustedAsins[0] != asin || title == null || authors.Count != 1)
+            {
+                return null;
+            }
+
+            return book =>
+            {
+                if (book.Editions?.Value is not { Count: 1 } editions)
+                {
+                    return false;
+                }
+
+                var edition = editions[0];
+                var matchesFile = ImportDecisionMaker.NormalizeLibraryIdentity(book.Title) == title &&
+                    ImportDecisionMaker.NormalizeLibraryIdentity(book.AuthorMetadata?.Value?.Name ?? book.Author?.Value?.Name) == authors[0] &&
+                    ImportFormat.ForEdition(edition) == FormatType.Audiobook &&
+                    string.Equals(edition.Asin, asin, StringComparison.OrdinalIgnoreCase) &&
+                    !ImportDecisionMaker.HasConflictingFileIdentifiers(edition, files);
+                if (!matchesFile)
+                {
+                    return false;
+                }
+
+                edition.Book = book;
+                return allowsEdition?.Invoke(edition) != false;
+            };
+        }
+
         private string SelectSingleAsin(List<string> parsedAsins, LocalEdition localEdition)
         {
             var normalizedParsed = parsedAsins
@@ -957,7 +1206,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             return null;
         }
 
-        private List<CandidateEdition> ToCandidates(IEnumerable<Book> books, HashSet<string> seenCandidates, IdentificationOverrides idOverrides, LocalEdition localEdition)
+        private List<CandidateEdition> ToCandidates(IEnumerable<Book> books, HashSet<string> seenCandidates, IdentificationOverrides idOverrides, LocalEdition localEdition, Func<Edition, bool> allowsEdition)
         {
             var candidates = new List<CandidateEdition>();
 
@@ -971,7 +1220,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
                     if (!seenCandidates.Contains(edition.ForeignEditionId) &&
                         SatisfiesOverride(edition, idOverrides) &&
-                        localEdition.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, edition)))
+                        localEdition.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, edition)) &&
+                        allowsEdition?.Invoke(edition) != false)
                     {
                         seenCandidates.Add(edition.ForeignEditionId);
                         candidates.Add(new CandidateEdition

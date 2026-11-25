@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import React, { Suspense } from 'react';
 import { Redirect, Route } from 'react-router-dom';
+import CatalogueSeriesPage from 'Author/Details/CatalogueSeriesPage';
 import AuthorIndexConnector from 'Author/Index/AuthorIndexConnector';
 import BookIndexConnector from 'Book/Index/BookIndexConnector';
 import BookshelfConnector from 'Bookshelf/BookshelfConnector';
@@ -124,6 +125,11 @@ function AppRoutes(props) {
         <Route
           path="/book/:titleSlug"
           component={BookDetailsPageConnector}
+        />
+
+        <Route
+          path="/series/:identifier"
+          component={CatalogueSeriesPage}
         />
 
         {/*

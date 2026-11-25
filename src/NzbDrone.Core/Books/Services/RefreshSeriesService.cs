@@ -4,16 +4,20 @@ using System.Linq;
 using System.Threading;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Parser;
 
 namespace NzbDrone.Core.Books
 {
     public interface IRefreshSeriesService
     {
         bool RefreshSeriesInfo(int authorMetadataId, List<Series> remoteBooks, Author remoteData, bool forceBookRefresh, bool forceUpdateFileTags, DateTime? lastUpdate);
+        void FillMissingHardcoverDescriptions(Author author, IReadOnlyDictionary<string, string> descriptions);
     }
 
     public class RefreshSeriesService : RefreshEntityServiceBase<Series, SeriesBookLink>, IRefreshSeriesService
     {
+        private const int AliasDiscoveryAttempts = 4;
+
         private static readonly Dictionary<string, RefreshGate> RefreshGates = new Dictionary<string, RefreshGate>(StringComparer.Ordinal);
 
         private readonly IBookService _bookService;
@@ -50,16 +54,20 @@ namespace NzbDrone.Core.Books
             return local.ForeignSeriesId != remote.ForeignSeriesId;
         }
 
+        protected override bool ShouldDelete(Series local)
+        {
+            return false;
+        }
+
         protected override UpdateResult UpdateEntity(Series local, Series remote)
         {
-            if (local.Equals(remote))
+            var changed = !local.Equals(remote);
+            if (changed || remote.PendingAliases.Count > 0 || remote.PendingSourceAssociations.Count > 0)
             {
-                return UpdateResult.None;
+                local.UseMetadataFrom(remote);
             }
 
-            local.UseMetadataFrom(remote);
-
-            return UpdateResult.UpdateTags;
+            return changed ? UpdateResult.UpdateTags : UpdateResult.None;
         }
 
         protected override Series GetEntityByForeignId(Series local)
@@ -127,22 +135,98 @@ namespace NzbDrone.Core.Books
 
         protected override bool RefreshChildren(SortedChildren localChildren, List<SeriesBookLink> remoteChildren, Author remoteData, bool forceChildRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
+            // Positive membership hints can add or update links. Only a complete series
+            // membership snapshot provides evidence that an omitted link was removed.
+            if (remoteData.RemoteSeriesComplete != true)
+            {
+                localChildren.Deleted.Clear();
+            }
+
             return _refreshLinkService.RefreshSeriesBookLinkInfo(localChildren.Added, localChildren.Updated, localChildren.Merged, localChildren.Deleted, localChildren.UpToDate, remoteChildren, forceUpdateFileTags);
         }
 
         public bool RefreshSeriesInfo(int authorMetadataId, List<Series> remoteSeries, Author remoteData, bool forceBookRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
-            // Stabilize the author's link set while identifying shared series that this refresh might write.
             return WithRefreshGates(new[] { $"author:{authorMetadataId}" }, () =>
             {
+                var incoming = remoteData.Series.Value;
                 var existingByAuthor = _seriesService.GetByAuthorMetadataId(authorMetadataId);
-                var foreignIds = remoteSeries.Concat(remoteData.Series.Value).Concat(existingByAuthor)
+                var foreignIds = remoteSeries.Concat(incoming).Concat(existingByAuthor)
                     .Select(series => series.ForeignSeriesId).Distinct(StringComparer.Ordinal).ToList();
+                var seriesGates = foreignIds.Select(GetSeriesGateKey).ToHashSet(StringComparer.Ordinal);
 
-                // All refreshes acquire the author gate first and shared series gates in the same order.
-                return WithRefreshGates(foreignIds.Select(id => $"series:{id}"),
-                    () => ReconcileSeries(authorMetadataId, foreignIds, remoteData, forceUpdateFileTags));
+                for (var attempt = 0; attempt < AliasDiscoveryAttempts; attempt++)
+                {
+                    var discoveredOwner = false;
+                    var updated = WithRefreshGates(seriesGates, () =>
+                    {
+                        var existing = _seriesService.FindById(foreignIds);
+                        var aliases = ResolveKnownAliases(incoming, existing);
+                        foreach (var owner in aliases.Values)
+                        {
+                            discoveredOwner |= seriesGates.Add(GetSeriesGateKey(owner.ForeignSeriesId));
+                        }
+
+                        // Release the whole set before acquiring newly discovered keys. Reread owners
+                        // on the next attempt, in case ownership changed while the gates were released.
+                        return !discoveredOwner && ReconcileSeries(authorMetadataId, existing, aliases, remoteData, forceUpdateFileTags);
+                    });
+
+                    if (!discoveredOwner)
+                    {
+                        return updated;
+                    }
+                }
+
+                throw new InvalidOperationException("Series alias ownership changed repeatedly during refresh.");
             });
+        }
+
+        public void FillMissingHardcoverDescriptions(Author author, IReadOnlyDictionary<string, string> descriptions)
+        {
+            WithRefreshGates(new[] { $"author:{author.AuthorMetadataId}" }, () =>
+                WithRefreshGates(descriptions.Keys.Select(GetSeriesGateKey), () =>
+                {
+                    var updated = false;
+                    foreach (var series in _seriesService.GetByAuthorMetadataId(author.AuthorMetadataId))
+                    {
+                        if (series.Description.IsNullOrWhiteSpace() &&
+                            descriptions.TryGetValue(series.ForeignSeriesId, out var description))
+                        {
+                            updated |= _seriesService.TryFillHardcoverDescription(author, series, description);
+                        }
+                    }
+
+                    return updated;
+                }));
+        }
+
+        private static string GetSeriesGateKey(string id)
+        {
+            if (Guid.TryParseExact(id, "N", out var canonical))
+            {
+                return $"series:{canonical:N}";
+            }
+
+            var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Series, id, null);
+            return source == null ? $"series:{id}" : $"series:{source.Provider.ToLowerInvariant()}:series:{source.ProviderId}";
+        }
+
+        private Dictionary<string, Series> ResolveKnownAliases(List<Series> incoming, List<Series> existing)
+        {
+            var aliases = new Dictionary<string, Series>(StringComparer.Ordinal);
+            var existingIds = existing.Select(series => series.ForeignSeriesId).ToHashSet(StringComparer.Ordinal);
+            var unmatchedIds = incoming.Select(series => series.ForeignSeriesId).Except(existingIds, StringComparer.Ordinal);
+            foreach (var id in unmatchedIds)
+            {
+                var owner = _seriesService.FindById(id);
+                if (owner != null)
+                {
+                    aliases.Add(id, owner);
+                }
+            }
+
+            return aliases;
         }
 
         private static bool WithRefreshGates(IEnumerable<string> keys, Func<bool> action)
@@ -200,12 +284,9 @@ namespace NzbDrone.Core.Books
             public int Users { get; set; }
         }
 
-        private bool ReconcileSeries(int authorMetadataId, List<string> foreignIds, Author remoteData, bool forceUpdateFileTags)
+        private bool ReconcileSeries(int authorMetadataId, List<Series> existing, IReadOnlyDictionary<string, Series> aliases, Author remoteData, bool forceUpdateFileTags)
         {
             var updated = false;
-
-            // Discovery above identifies keys only. Reread the rows after all their gates are owned.
-            var existing = _seriesService.FindById(foreignIds);
 
             var books = _bookService.GetBooksByAuthorMetadataId(authorMetadataId);
             var bookDict = books.ToDictionary(x => x.ForeignBookId);
@@ -231,7 +312,8 @@ namespace NzbDrone.Core.Books
                 s.LinkItems = matchedLinks;
             }
 
-            var remoteSeries = remoteData.Series.Value;
+            var remoteSeries = ReconcileSeriesSources(remoteData.Series.Value, existing, aliases, books.Select(book => book.Id).ToHashSet());
+            remoteData.Series = remoteSeries;
 
             var toAdd = remoteSeries.ExceptBy(x => x.ForeignSeriesId, existing, x => x.ForeignSeriesId, StringComparer.Ordinal).ToList();
             var all = toAdd.Union(existing).ToList();
@@ -245,6 +327,97 @@ namespace NzbDrone.Core.Books
             }
 
             return updated;
+        }
+
+        private static List<Series> ReconcileSeriesSources(List<Series> incoming, List<Series> existing, IReadOnlyDictionary<string, Series> aliases, HashSet<int> authorBookIds)
+        {
+            var reconciled = new Dictionary<string, Series>(StringComparer.Ordinal);
+            var incomingIds = incoming.Select(series => series.ForeignSeriesId).ToHashSet(StringComparer.Ordinal);
+            var existingIds = existing.Select(series => series.ForeignSeriesId).ToHashSet(StringComparer.Ordinal);
+            foreach (var candidate in incoming.OrderByDescending(series => existingIds.Contains(series.ForeignSeriesId)))
+            {
+                var alias = candidate.ForeignSeriesId;
+                if (!existingIds.Contains(alias))
+                {
+                    aliases.TryGetValue(alias, out var canonical);
+                    if (canonical == null)
+                    {
+                        var equivalent = existing.Where(series => !incomingIds.Contains(series.ForeignSeriesId) &&
+                                                                  SeriesIdentityMatches(series, candidate)).Take(2).ToList();
+                        if (equivalent.Count == 1)
+                        {
+                            canonical = equivalent[0];
+                        }
+                    }
+
+                    if (canonical != null)
+                    {
+                        if (reconciled.ContainsKey(canonical.ForeignSeriesId))
+                        {
+                            continue;
+                        }
+
+                        if (existingIds.Add(canonical.ForeignSeriesId))
+                        {
+                            existing.Add(canonical);
+                        }
+
+                        ReuseCatalogueSeries(candidate, canonical, authorBookIds);
+                    }
+                }
+
+                reconciled.TryAdd(candidate.ForeignSeriesId, candidate);
+            }
+
+            return reconciled.Values.ToList();
+        }
+
+        private static void ReuseCatalogueSeries(Series candidate, Series canonical, HashSet<int> authorBookIds)
+        {
+            var alias = candidate.ForeignSeriesId;
+            if (alias != canonical.ForeignSeriesId)
+            {
+                candidate.PendingAliases.Add(alias);
+                var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Series, alias, "corroborated-series-membership");
+                if (source != null)
+                {
+                    candidate.PendingSourceAssociations.Add(source);
+                }
+            }
+
+            candidate.UseDbFieldsFrom(canonical);
+            candidate.ForeignSeriesId = canonical.ForeignSeriesId;
+            var retainedLinks = canonical.LinkItems.Value.Where(link => authorBookIds.Contains(link.BookId)).ToList();
+            candidate.LinkItems = retainedLinks.Concat(candidate.LinkItems.Value)
+                .GroupBy(link => link.Book.Value.Id)
+                .Select(group => group.FirstOrDefault(link => link.Position.IsNotNullOrWhiteSpace()) ?? group.First())
+                .ToList();
+        }
+
+        internal static bool SeriesIdentityMatches(Series existing, Series incoming)
+        {
+            var existingProvider = existing.ForeignSeriesId?.Split(':', 2)[0];
+            var incomingProvider = incoming.ForeignSeriesId?.Split(':', 2)[0];
+            var title = existing.Title.CleanAuthorName();
+            if (existingProvider.IsNullOrWhiteSpace() || incomingProvider.IsNullOrWhiteSpace() ||
+                existingProvider.Equals(incomingProvider, StringComparison.OrdinalIgnoreCase) ||
+                title.Length == 0 || title != incoming.Title.CleanAuthorName())
+            {
+                return false;
+            }
+
+            var existingLinks = existing.LinkItems?.Value ?? new List<SeriesBookLink>();
+            var incomingLinks = incoming.LinkItems?.Value ?? new List<SeriesBookLink>();
+            var comparisons = existingLinks.Where(link => link.IsPrimary && link.BookId > 0)
+                .Join(incomingLinks.Where(link => link.IsPrimary && link.Book?.Value?.Id > 0),
+                    link => link.BookId,
+                    link => link.Book.Value.Id,
+                    (left, right) => (Id: left.BookId, Left: left.Position, Right: right.Position))
+                .Where(match => match.Left.IsNotNullOrWhiteSpace() && match.Right.IsNotNullOrWhiteSpace())
+                .ToList();
+
+            return comparisons.Select(match => match.Id).Distinct().Count() >= 2 &&
+                   comparisons.All(match => match.Left == match.Right);
         }
     }
 }

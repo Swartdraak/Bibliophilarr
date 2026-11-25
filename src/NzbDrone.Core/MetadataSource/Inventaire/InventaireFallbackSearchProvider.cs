@@ -63,6 +63,7 @@ namespace NzbDrone.Core.MetadataSource.Inventaire
 
             request.RateLimitKey = ProviderName;
             request.RequestTimeout = TimeSpan.FromSeconds(Math.Max(5, _configService.MetadataProviderTimeoutSeconds));
+            request.DiscardNonOkResponseBody = true;
 
             var response = _httpClient.Get<InventaireSearchResponse>(request);
             var results = response.Resource?.Results ?? new List<InventaireSearchResult>();

@@ -31,6 +31,7 @@ namespace NzbDrone.Core.Books
         private readonly IBookService _bookService;
         private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IImportListExclusionService _importListExclusionService;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly Logger _logger;
 
         public AddBookService(IAuthorService authorService,
@@ -38,6 +39,7 @@ namespace NzbDrone.Core.Books
                                IBookService bookService,
                                IMetadataProviderOrchestrator orchestrator,
                                IImportListExclusionService importListExclusionService,
+                               ICatalogueIdentityRepository catalogueIdentity,
                                Logger logger)
         {
             _authorService = authorService;
@@ -45,6 +47,7 @@ namespace NzbDrone.Core.Books
             _bookService = bookService;
             _orchestrator = orchestrator;
             _importListExclusionService = importListExclusionService;
+            _catalogueIdentity = catalogueIdentity;
             _logger = logger;
         }
 
@@ -110,7 +113,7 @@ namespace NzbDrone.Core.Books
                 }
             }
             else if (owner is not { Id: > 0, AuthorMetadataId: > 0 } ||
-                     owner.Metadata?.Value?.ForeignAuthorId != providerAuthor.ForeignAuthorId)
+                     !MatchesExactEditionOwner(owner, providerBook.ForeignBookId, authorSourceId))
             {
                 throw InvalidExactEditionAuthor();
             }
@@ -131,7 +134,7 @@ namespace NzbDrone.Core.Books
             if (owner != null)
             {
                 book.AuthorMetadata = owner.Metadata.Value;
-                return SaveBook(book, owner, doRefresh: true);
+                return SaveBook(book, owner, true, providerBook.ForeignBookId, providerAuthor.ForeignAuthorId);
             }
 
             var newAuthor = new Author
@@ -150,6 +153,25 @@ namespace NzbDrone.Core.Books
             book.Author = newAuthor;
             book.AuthorMetadata = providerAuthor;
             return _addAuthorService.AddNewAuthorWithBook(newAuthor, book, doRefresh: true);
+        }
+
+        private bool MatchesExactEditionOwner(Author owner, string workId, string authorSourceId)
+        {
+            var primary = owner.Metadata?.Value?.ForeignAuthorId;
+            if (primary == authorSourceId)
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(primary) || !IsSourceAuthor(workId, authorSourceId))
+            {
+                return false;
+            }
+
+            var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, authorSourceId, null);
+            return source != null && _catalogueIdentity.GetSources(CatalogueEntityKind.Author, owner.AuthorMetadataId)
+                .Any(candidate => candidate.Provider == source.Provider && candidate.ProviderId == source.ProviderId &&
+                                  candidate.Evidence == AuthorCanonicalizationService.BibliographyEvidence);
         }
 
         private static ValidationException InvalidExactEditionAuthor()
@@ -191,15 +213,30 @@ namespace NzbDrone.Core.Books
             _logger.Debug("Adding book {0} - {1}", LogSanitizer.Sanitize(book?.ForeignBookId), LogSanitizer.Sanitize(book?.Title));
 
             book = AddSkyhookData(book, requireSelectedEdition, out var confirmedNewAuthorSelection);
+            var sourceWorkId = book.ForeignBookId;
+            var sourceAuthorId = book.AuthorMetadata.Value.ForeignAuthorId;
+            var dbAuthor = _authorService.FindById(sourceAuthorId);
 
             // we allow adding extra editions, so check if the book already exists
-            var dbBook = _bookService.FindById(book.ForeignBookId);
+            var dbBook = _bookService.FindById(sourceWorkId);
+            book.Id = 0;
             if (dbBook != null)
             {
+                if (dbBook.AuthorMetadataId > 0 && dbAuthor?.AuthorMetadataId != dbBook.AuthorMetadataId)
+                {
+                    throw new ValidationException(new List<ValidationFailure>
+                    {
+                        new ("ForeignAuthorId", "The matched work belongs to a different catalogue author")
+                    });
+                }
+
                 book.UseDbFieldsFrom(dbBook);
+                book.ForeignBookId = dbBook.ForeignBookId;
+                book.TitleSlug = dbBook.TitleSlug;
             }
 
             // Note it's a manual addition so it's not deleted on next refresh
+            book.AddOptions ??= new AddBookOptions();
             book.AddOptions.AddType = BookAddType.Manual;
             var selectedEdition = book.GetPreferredEdition();
 
@@ -214,23 +251,21 @@ namespace NzbDrone.Core.Books
             selectedEdition.ManualAdd = true;
 
             // Add the author if necessary
-            var dbAuthor = _authorService.FindById(book.AuthorMetadata.Value.ForeignAuthorId);
             if (dbAuthor == null)
             {
                 var author = book.Author?.Value;
                 ValidateNewAuthor(author);
 
-                var metadata = book.AuthorMetadata.Value;
                 if (confirmedNewAuthorSelection && book.Id == 0 && author.Id == 0)
                 {
                     return _addAuthorService.AddNewAuthorWithBook(author, book, doRefresh);
                 }
 
-                // Preserve the compatibility path for bulk and legacy catalogue requests.
-                dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, metadata, false);
+                // Legacy selected-edition and bulk requests keep the established catalogue intake.
+                dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, book.AuthorMetadata.Value, false);
             }
 
-            return SaveBook(book, dbAuthor, doRefresh);
+            return SaveBook(book, dbAuthor, doRefresh, sourceWorkId, sourceAuthorId);
         }
 
         private static void ValidateNewAuthor(Author author)
@@ -260,14 +295,19 @@ namespace NzbDrone.Core.Books
             }
         }
 
-        private Book SaveBook(Book book, Author author, bool doRefresh)
+        private Book SaveBook(Book book, Author author, bool doRefresh, string sourceWorkId, string sourceAuthorId)
         {
             book.Author = author;
             book.AuthorMetadataId = author.AuthorMetadataId;
             _bookService.AddBook(book, doRefresh);
 
             _importListExclusionService.Delete(book.ForeignBookId);
-            _importListExclusionService.Delete(book.AuthorMetadata.Value.ForeignAuthorId);
+            if (sourceWorkId != book.ForeignBookId)
+            {
+                _importListExclusionService.Delete(sourceWorkId);
+            }
+
+            _importListExclusionService.Delete(sourceAuthorId);
 
             return book;
         }

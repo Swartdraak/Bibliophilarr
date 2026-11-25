@@ -1,9 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using Dapper;
+using FluentValidation;
+using FluentValidation.Results;
 using NLog;
 using NzbDrone.Common.EnsureThat;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
 
@@ -19,6 +23,7 @@ namespace NzbDrone.Core.Books
         List<Edition> FindByAuthorMetadataId(int id, bool onlyMonitored);
         Edition FindByTitle(int authorMetadataId, string title);
         List<Edition> GetEditionsForRefresh(int bookId, List<string> foreignEditionIds);
+        List<Edition> AddEditionsForExistingBook(Book book, Edition selected, bool dualFormat);
         List<Edition> SetMonitored(Edition edition);
         List<Edition> SetMonitoredByFormat(Edition edition);
     }
@@ -113,6 +118,99 @@ namespace NzbDrone.Core.Books
                 .Where<Edition>(e => e.Title == title))
                 .FirstOrDefault();
         }
+
+        public List<Edition> AddEditionsForExistingBook(Book book, Edition selected, bool dualFormat)
+        {
+            using var connection = _database.OpenConnection();
+            using var transaction = connection.BeginTransaction(IsolationLevel.Serializable);
+            var lockRow = _database.DatabaseType == DatabaseType.PostgreSQL ? " FOR UPDATE" : string.Empty;
+            var storedBook = connection.QuerySingleOrDefault<Book>(
+                """SELECT "Id", "AuthorMetadataId", "ForeignBookId", "AddOptions" FROM "Books" WHERE "Id" = @Id""" + lockRow,
+                new { book.Id },
+                transaction);
+            if (storedBook == null || storedBook.AuthorMetadataId != book.AuthorMetadataId || storedBook.ForeignBookId != book.ForeignBookId)
+            {
+                throw BookEditionValidationError("The selected work changed before its editions could be added.");
+            }
+
+            var incoming = book.Editions.Value.Where(edition => edition.ForeignEditionId.IsNotNullOrWhiteSpace())
+                .DistinctBy(edition => edition.ForeignEditionId, StringComparer.Ordinal).ToList();
+            if (!incoming.Any(edition => edition.ForeignEditionId == selected.ForeignEditionId))
+            {
+                throw BookEditionValidationError("The selected edition does not have a source identity.");
+            }
+
+            var foreignIds = incoming.Select(edition => edition.ForeignEditionId).ToArray();
+            var foreignIdPredicate = _database.DatabaseType == DatabaseType.PostgreSQL
+                ? "\"ForeignEditionId\" = ANY(@foreignIds)"
+                : "\"ForeignEditionId\" IN @foreignIds";
+            var saved = connection.Query<Edition>(
+                """SELECT * FROM "Editions" WHERE "BookId" = @Id OR """ + $" {foreignIdPredicate}",
+                new { book.Id, foreignIds },
+                transaction).ToList();
+
+            if (saved.Any(edition => edition.BookId != book.Id))
+            {
+                throw BookEditionValidationError("A provider edition belongs to a different work.");
+            }
+
+            var byForeignId = saved.Where(edition => edition.ForeignEditionId.IsNotNullOrWhiteSpace())
+                .ToDictionary(edition => edition.ForeignEditionId, StringComparer.Ordinal);
+            if (byForeignId.TryGetValue(selected.ForeignEditionId, out var selectedEdition) &&
+                (selectedEdition.IsEbook != selected.IsEbook || selectedEdition.HasUntrackedFormat() != selected.HasUntrackedFormat()))
+            {
+                throw BookEditionValidationError("The selected edition has a different format in the catalogue.");
+            }
+
+            foreach (var edition in incoming.Where(edition => !byForeignId.ContainsKey(edition.ForeignEditionId)))
+            {
+                edition.Id = 0;
+                edition.BookId = book.Id;
+                edition.ManualAdd = edition.ForeignEditionId == selected.ForeignEditionId;
+                edition.Monitored = edition.ManualAdd;
+                Insert(connection, transaction, edition);
+                byForeignId.Add(edition.ForeignEditionId, edition);
+                saved.Add(edition);
+            }
+
+            selectedEdition = byForeignId[selected.ForeignEditionId];
+            var format = selectedEdition.IsEbook ? FormatType.Ebook : FormatType.Audiobook;
+            var changed = new List<Edition>();
+            foreach (var edition in saved)
+            {
+                var isSelected = edition.Id == selectedEdition.Id;
+                var inScope = !dualFormat || (selectedEdition.HasUntrackedFormat() ? edition.HasUntrackedFormat() : edition.MatchesFormat(format));
+                if (!inScope || (edition.Monitored == isSelected && (!isSelected || edition.ManualAdd)))
+                {
+                    continue;
+                }
+
+                edition.Monitored = isSelected;
+                edition.ManualAdd |= isSelected;
+                changed.Add(edition);
+            }
+
+            connection.Execute(
+                """UPDATE "Editions" SET "Monitored" = @Monitored, "ManualAdd" = @ManualAdd WHERE "Id" = @Id""",
+                changed,
+                transaction);
+
+            if (storedBook.AddOptions?.AddType != BookAddType.Manual)
+            {
+                storedBook.AddOptions ??= new AddBookOptions();
+                storedBook.AddOptions.AddType = BookAddType.Manual;
+                connection.Execute(
+                    """UPDATE "Books" SET "AddOptions" = @AddOptions WHERE "Id" = @Id""",
+                    new { book.Id, storedBook.AddOptions },
+                    transaction);
+            }
+
+            transaction.Commit();
+            return saved.OrderByDescending(edition => edition.Id == selectedEdition.Id).ThenBy(edition => edition.Id).ToList();
+        }
+
+        private static ValidationException BookEditionValidationError(string message) =>
+            new ValidationException(new[] { new ValidationFailure("Editions", message) });
 
         public List<Edition> SetMonitored(Edition edition)
         {

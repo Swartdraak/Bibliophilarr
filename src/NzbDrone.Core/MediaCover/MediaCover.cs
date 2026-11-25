@@ -38,11 +38,7 @@ namespace NzbDrone.Core.MediaCover
 
                 if (Extension.IsNullOrWhiteSpace())
                 {
-                    var path = Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
-                        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
-                        ? uri.AbsolutePath
-                        : value;
-                    Extension = Path.GetExtension(path);
+                    Extension = GetImageExtension(value);
                 }
             }
         }
@@ -50,6 +46,8 @@ namespace NzbDrone.Core.MediaCover
         public MediaCoverTypes CoverType { get; set; }
         public string Extension { get; private set; }
         public string RemoteUrl { get; set; }
+        public string SourceProvider { get; set; }
+        public string SourceId { get; set; }
 
         public MediaCover()
         {
@@ -59,6 +57,22 @@ namespace NzbDrone.Core.MediaCover
         {
             CoverType = coverType;
             Url = url;
+        }
+
+        internal static string GetImageExtension(string url)
+        {
+            if (url.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var path = Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                ? uri.AbsolutePath
+                : url;
+            var extension = Path.GetExtension(path);
+
+            return extension.ToLowerInvariant() is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" ? extension : ".jpg";
         }
     }
 }

@@ -10,6 +10,7 @@ import Link from 'Components/Link/Link';
 import { icons, sizes } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
 import fonts from 'Styles/Variables/fonts';
+import cataloguePath from 'Utilities/cataloguePath';
 import stripHtml from 'Utilities/String/stripHtml';
 import translate from 'Utilities/String/translate';
 import AddNewBookModal from './AddNewBookModal';
@@ -53,7 +54,7 @@ class AddNewBookSearchResult extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (!prevProps.isExistingBook && this.props.isExistingBook) {
+    if (!prevProps.existingBook && this.props.existingBook) {
       this.onAddBookModalClose();
     }
   }
@@ -69,17 +70,12 @@ class AddNewBookSearchResult extends Component {
     this.setState({ isNewAddBookModalOpen: false });
   };
 
-  onMBLinkPress = (event) => {
-    event.stopPropagation();
-  };
-
   //
   // Render
 
   render() {
     const {
       foreignBookId,
-      titleSlug,
       title,
       seriesTitle,
       releaseDate,
@@ -88,7 +84,7 @@ class AddNewBookSearchResult extends Component {
       ratings,
       images,
       author,
-      isExistingBook,
+      existingBook,
       isExistingAuthor,
       isSmallScreen
     } = this.props;
@@ -97,7 +93,7 @@ class AddNewBookSearchResult extends Component {
       isNewAddBookModalOpen
     } = this.state;
 
-    const linkProps = isExistingBook ? { to: `/book/${titleSlug}` } : { onPress: this.onPress };
+    const linkProps = existingBook ? { to: cataloguePath('book', existingBook) } : { onPress: this.onPress };
     const safeAuthor = getSafeBookAuthor(author);
 
     const height = calculateHeight(230, isSmallScreen);
@@ -106,19 +102,17 @@ class AddNewBookSearchResult extends Component {
       <div className={styles.searchResult}>
         <Link
           className={styles.underlay}
+          aria-label={title?.trim() || translate('Book')}
           {...linkProps}
         />
 
         <div className={styles.overlay}>
-          {
-            !isSmallScreen &&
-              <BookCover
-                className={styles.poster}
-                images={images}
-                size={250}
-                lazy={false}
-              />
-          }
+          <BookCover
+            className={styles.poster}
+            images={images}
+            size={250}
+            lazy={false}
+          />
 
           <div className={styles.content}>
             <div className={styles.titleRow}>
@@ -135,7 +129,7 @@ class AddNewBookSearchResult extends Component {
 
               <div className={styles.icons}>
                 {
-                  isExistingBook ?
+                  existingBook ?
                     <Icon
                       className={styles.alreadyExistsIcon}
                       name={icons.CHECK_CIRCLE}
@@ -188,7 +182,7 @@ class AddNewBookSearchResult extends Component {
         </div>
 
         <AddNewBookModal
-          isOpen={isNewAddBookModalOpen && !isExistingBook}
+          isOpen={isNewAddBookModalOpen && !existingBook}
           isExistingAuthor={isExistingAuthor}
           foreignBookId={foreignBookId}
           bookTitle={title}
@@ -207,7 +201,6 @@ class AddNewBookSearchResult extends Component {
 
 AddNewBookSearchResult.propTypes = {
   foreignBookId: PropTypes.string.isRequired,
-  titleSlug: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   seriesTitle: PropTypes.string,
   releaseDate: PropTypes.string,
@@ -217,7 +210,7 @@ AddNewBookSearchResult.propTypes = {
   author: PropTypes.object,
   editions: PropTypes.arrayOf(PropTypes.object),
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
-  isExistingBook: PropTypes.bool.isRequired,
+  existingBook: PropTypes.object,
   isExistingAuthor: PropTypes.bool.isRequired,
   isSmallScreen: PropTypes.bool.isRequired
 };

@@ -1,10 +1,13 @@
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using Dapper;
 using NzbDrone.Common;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Messaging.Events;
 
 namespace NzbDrone.Core.MediaFiles
@@ -19,6 +22,10 @@ namespace NzbDrone.Core.MediaFiles
         List<BookFile> GetFilesWithBasePath(string path);
         List<BookFile> GetFileWithPath(List<string> paths);
         BookFile GetFileWithPath(string path);
+        bool TryLinkUnmappedFile(BookFile file, Edition edition);
+        bool TryLinkUnmappedAudiobookPart(BookFile file, Edition edition);
+        void SetUnmappedReasons(List<BookFile> files);
+        bool TryRepairUnsupportedEditionLink(BookFile file, Edition previous, Edition edition);
         void DeleteFilesByBook(int bookId);
         bool DeleteMatchingFile(BookFile file);
         void UnlinkFilesByBook(int bookId);
@@ -112,8 +119,12 @@ namespace NzbDrone.Core.MediaFiles
         public void UnlinkFilesByBook(int bookId)
         {
             var files = GetFilesByBook(bookId);
-            files.ForEach(x => x.EditionId = 0);
-            SetFields(files, f => f.EditionId);
+            files.ForEach(file =>
+            {
+                file.EditionId = 0;
+                file.UnmappedReason = null;
+            });
+            SetFields(files, f => f.EditionId, f => f.UnmappedReason);
         }
 
         public List<BookFile> GetFilesWithBasePath(string path)
@@ -126,6 +137,120 @@ namespace NzbDrone.Core.MediaFiles
         public BookFile GetFileWithPath(string path)
         {
             return Query(x => x.Path == path).SingleOrDefault();
+        }
+
+        public bool TryLinkUnmappedFile(BookFile file, Edition edition)
+        {
+            using var connection = _database.OpenConnection();
+            return connection.Execute("""
+                UPDATE "BookFiles"
+                SET "EditionId" = @EditionId, "UnmappedReason" = NULL
+                WHERE "Id" = @FileId AND "Path" = @Path AND "EditionId" = 0
+                  AND EXISTS (SELECT 1 FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId)
+                """, new { FileId = file.Id, file.Path, EditionId = edition.Id, edition.BookId }) == 1;
+        }
+
+        public bool TryLinkUnmappedAudiobookPart(BookFile file, Edition edition)
+        {
+            if (file.Part <= 0 || file.UnmappedReason != LibraryImportHoldReason.DuplicateInScan ||
+                ImportFormat.ForPath(file.Path) != FormatType.Audiobook || ImportFormat.ForEdition(edition) != FormatType.Audiobook)
+            {
+                return false;
+            }
+
+            const string linkSql = """
+                UPDATE "BookFiles"
+                SET "EditionId" = @EditionId, "UnmappedReason" = NULL
+                WHERE "Id" = @FileId AND "Path" = @Path AND "EditionId" = 0
+                  AND "UnmappedReason" = @Reason AND "Part" = @Part
+                  AND EXISTS (
+                      SELECT 1 FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId
+                      AND "Format" = @Format AND "IsEbook" = @IsEbook)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM "BookFiles" WHERE "EditionId" = @EditionId AND "Part" = @Part)
+                """;
+            var parameters = new
+            {
+                FileId = file.Id,
+                file.Path,
+                file.Part,
+                Reason = (int)LibraryImportHoldReason.DuplicateInScan,
+                EditionId = edition.Id,
+                edition.BookId,
+                edition.Format,
+                edition.IsEbook
+            };
+
+            using var connection = _database.OpenConnection();
+            if (_database.DatabaseType != DatabaseType.PostgreSQL)
+            {
+                return connection.Execute(linkSql, parameters) == 1;
+            }
+
+            // Different held rows can compete for the same part. Lock the edition
+            // before the next READ COMMITTED statement checks its occupied parts.
+            using var transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
+            const string lockEditionSql = """
+                SELECT "Id" FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId
+                  AND "Format" = @Format AND "IsEbook" = @IsEbook FOR UPDATE
+                """;
+            if (!connection.ExecuteScalar<int?>(lockEditionSql, parameters, transaction).HasValue)
+            {
+                return false;
+            }
+
+            var linked = connection.Execute(linkSql, parameters, transaction) == 1;
+            transaction.Commit();
+            return linked;
+        }
+
+        public void SetUnmappedReasons(List<BookFile> files)
+        {
+            if (files.Count == 0)
+            {
+                return;
+            }
+
+            using var connection = _database.OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            connection.Execute(
+                """
+                UPDATE "BookFiles" SET "UnmappedReason" = @Reason
+                WHERE "Id" = @Id AND "Path" = @Path AND "EditionId" = 0
+                """,
+                files.Select(file => new { file.Id, file.Path, Reason = (int?)file.UnmappedReason }),
+                transaction);
+            transaction.Commit();
+        }
+
+        public bool TryRepairUnsupportedEditionLink(BookFile file, Edition previous, Edition edition)
+        {
+            using var connection = _database.OpenConnection();
+            return connection.Execute(
+                """
+                UPDATE "BookFiles" SET "EditionId" = @EditionId
+                WHERE "Id" = @FileId AND "Path" = @Path AND "EditionId" = @PreviousId
+                  AND EXISTS (
+                      SELECT 1 FROM "Editions" WHERE "Id" = @PreviousId AND "BookId" = @BookId
+                      AND ("Format" = @PreviousFormat OR ("Format" IS NULL AND @PreviousFormat IS NULL))
+                      AND "IsEbook" = @PreviousEbook)
+                  AND EXISTS (
+                      SELECT 1 FROM "Editions" WHERE "Id" = @EditionId AND "BookId" = @BookId
+                      AND ("Format" = @Format OR ("Format" IS NULL AND @Format IS NULL))
+                      AND "IsEbook" = @IsEbook)
+                """,
+                new
+                {
+                    FileId = file.Id,
+                    file.Path,
+                    PreviousId = previous.Id,
+                    PreviousFormat = previous.Format,
+                    PreviousEbook = previous.IsEbook,
+                    EditionId = edition.Id,
+                    edition.BookId,
+                    edition.Format,
+                    edition.IsEbook
+                }) == 1;
         }
 
         public List<BookFile> GetFileWithPath(List<string> paths)

@@ -23,6 +23,7 @@ namespace NzbDrone.Core.Books
         Edition FindByTitle(int authorMetadataId, string title);
         Edition FindByTitleInexact(int authorMetadataId, string title);
         List<Edition> GetCandidates(int authorMetadataId, string title);
+        List<Edition> AddEditionsForExistingBook(Book book, Edition selected, bool dualFormat);
         List<Edition> SetMonitored(Edition edition);
         List<Edition> SetMonitoredByFormat(Edition edition);
     }
@@ -126,6 +127,11 @@ namespace NzbDrone.Core.Books
             }
 
             return output.DistinctBy(x => x.Id).ToList();
+        }
+
+        public List<Edition> AddEditionsForExistingBook(Book book, Edition selected, bool dualFormat)
+        {
+            return _editionRepository.AddEditionsForExistingBook(book, selected, dualFormat);
         }
 
         public List<Edition> SetMonitored(Edition edition)

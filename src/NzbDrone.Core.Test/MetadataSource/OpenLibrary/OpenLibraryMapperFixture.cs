@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using FluentAssertions;
 using NUnit.Framework;
@@ -30,6 +31,22 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         // ── MapSearchDocToBook ────────────────────────────────────────────────
+        [Test]
+        public void should_map_distinct_author_photo_candidates_and_expose_missing_images_as_failures()
+        {
+            var profile = OpenLibraryMapper.MapAuthorToMetadata(new OlAuthorResource
+            {
+                Key = "/authors/OL1A",
+                Name = "Fixture Author",
+                Photos = new List<long> { -1, 12, 12, 34 }
+            });
+
+            profile.Images.Should().HaveCount(2).And.OnlyContain(image =>
+                image.SourceProvider == "OpenLibrary" && image.SourceId == "OL1A");
+            profile.Images[0].Url.Should().Be("https://covers.openlibrary.org/a/id/12-L.jpg");
+            profile.Images[1].Url.Should().Be("https://covers.openlibrary.org/a/id/34-L.jpg");
+        }
+
         [Test]
         public void map_search_doc_produces_valid_book()
         {
@@ -180,8 +197,11 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             book.ReleaseDate!.Value.Year.Should().Be(1954);
             book.Editions.Value.Should().HaveCount(1);
             book.Editions.Value[0].Overview.Should().Contain("epic");
-            book.Editions.Value[0].Images.Should().ContainSingle().Which.Url
-                .Should().Be("https://covers.openlibrary.org/b/id/8739161-L.jpg?default=false");
+            var artwork = book.Editions.Value[0].Images;
+            artwork.Select(cover => cover.Url).Should().Equal(
+                "https://covers.openlibrary.org/b/id/8739161-L.jpg?default=false",
+                "https://covers.openlibrary.org/b/id/12345-L.jpg?default=false");
+            artwork.Should().OnlyContain(cover => cover.SourceProvider == "OpenLibrary" && cover.SourceId == "OL45883W");
         }
 
         [Test]

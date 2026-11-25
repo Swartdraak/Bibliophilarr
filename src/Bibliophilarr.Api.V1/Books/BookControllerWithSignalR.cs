@@ -68,12 +68,13 @@ namespace Bibliophilarr.Api.V1.Books
             var profiles = _formatProfileService.GetByAuthorId(resource.AuthorId);
             EnrichFormatStatuses(book, resource, profiles, new Dictionary<int, string>());
             FetchAndLinkBookStatistics(resource);
-            MapCoversToLocal(resource);
+            MapCoversToLocal(book, resource);
+            MapEmbeddedBookCover(resource);
 
             return resource;
         }
 
-        protected List<BookResource> MapToResource(List<Book> books, bool includeAuthor)
+        protected List<BookResource> MapToResource(List<Book> books, bool includeAuthor, ILookup<int, Edition> artworkEditions = null)
         {
             var seriesLinks = _seriesBookLinkService.GetLinksByBook(books.Select(x => x.Id).ToList())
                 .GroupBy(x => x.BookId)
@@ -115,11 +116,19 @@ namespace Bibliophilarr.Api.V1.Books
             {
                 var resource = result[i];
                 EnrichFormatStatuses(books[i], resource, profilesByAuthor[resource.AuthorId], profileNames);
+
+                MapCoversToLocal(books[i], resource);
+                if (artworkEditions?.Contains(resource.Id) == true &&
+                    _coverMapper.GetCachedBookCover(books[i], artworkEditions[resource.Id].ToList()) is { } cover)
+                {
+                    resource.Images.Add(cover);
+                }
+
+                MapEmbeddedBookCover(resource);
             }
 
             var authorStats = _authorStatisticsService.AuthorStatistics();
             LinkAuthorStatistics(result, authorStats);
-            MapCoversToLocal(result.ToArray());
 
             return result;
         }
@@ -178,13 +187,19 @@ namespace Bibliophilarr.Api.V1.Books
             }
         }
 
-        private void MapCoversToLocal(params BookResource[] books)
+        private void MapEmbeddedBookCover(BookResource resource)
         {
-            foreach (var bookResource in books)
+            if (!resource.Images.Any(image => image.CoverType == MediaCoverTypes.Cover && !string.IsNullOrWhiteSpace(image.Url)) &&
+                _coverMapper.GetEmbeddedBookCover(resource.Id) is { } cover)
             {
-                _coverMapper.ConvertToLocalUrls(bookResource.Id, MediaCoverEntity.Book, bookResource.Images);
-                _coverMapper.MapRecoveredBookCover(bookResource.Id, bookResource.ForeignBookId, bookResource.ForeignEditionId, bookResource.Images);
+                resource.Images.Add(cover);
             }
+        }
+
+        private void MapCoversToLocal(Book book, BookResource resource)
+        {
+            _coverMapper.ConvertToLocalUrls(resource.Id, MediaCoverEntity.Book, resource.Images);
+            _coverMapper.MapRecoveredBookCover(book, resource.Images);
         }
     }
 }

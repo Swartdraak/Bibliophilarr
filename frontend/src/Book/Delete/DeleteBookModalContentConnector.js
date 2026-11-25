@@ -5,6 +5,7 @@ import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import { deleteBook } from 'Store/Actions/bookActions';
 import createBookSelector from 'Store/Selectors/createBookSelector';
+import getPathWithUrlBase from 'Utilities/getPathWithUrlBase';
 import DeleteBookModalContent from './DeleteBookModalContent';
 
 function createMapStateToProps() {
@@ -35,7 +36,7 @@ class DeleteBookModalContentConnector extends Component {
 
     this.props.onModalClose(true);
 
-    this.props.push(`${window.Bibliophilarr.urlBase}/author/${this.props.authorSlug}`);
+    this.props.push(getPathWithUrlBase(this.props.authorPath));
   };
 
   //
@@ -53,7 +54,7 @@ class DeleteBookModalContentConnector extends Component {
 
 DeleteBookModalContentConnector.propTypes = {
   bookId: PropTypes.number.isRequired,
-  authorSlug: PropTypes.string.isRequired,
+  authorPath: PropTypes.string.isRequired,
   push: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired,
   deleteBook: PropTypes.func.isRequired

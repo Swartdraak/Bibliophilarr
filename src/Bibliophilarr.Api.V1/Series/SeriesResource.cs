@@ -7,6 +7,7 @@ namespace Bibliophilarr.Api.V1.Series
     public class SeriesResource : RestResource
     {
         public string Title { get; set; }
+        public string CanonicalId { get; set; }
         public string Description { get; set; }
         public List<SeriesBookLinkResource> Links { get; set; }
     }
@@ -24,6 +25,7 @@ namespace Bibliophilarr.Api.V1.Series
             {
                 Id = model.Id,
                 Title = model.Title,
+                CanonicalId = model.CanonicalId,
                 Description = model.Description,
                 Links = model.LinkItems.Value.ToResource()
             };

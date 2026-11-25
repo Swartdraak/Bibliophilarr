@@ -70,6 +70,7 @@ namespace NzbDrone.Core.MetadataSource
         private readonly ConcurrentDictionary<string, RateLimitWindowState> _rateLimitWindowStore;
         private readonly ConcurrentDictionary<string, ResiliencePipeline<List<Book>>> _circuitBreakers;
         private readonly HardcoverRateLimitGate _hardcoverRateLimitGate;
+        private readonly InventaireRateLimitGate _inventaireRateLimitGate;
         private readonly Logger _logger;
 
         public BookSearchFallbackExecutionService(IRateLimitService rateLimitService,
@@ -85,6 +86,7 @@ namespace NzbDrone.Core.MetadataSource
             _operationTelemetry = operationTelemetry;
             _providerRegistry = providerRegistry;
             _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager, appFolderInfo, logger);
+            _inventaireRateLimitGate = InventaireRateLimitGate.Get(cacheManager);
             _cooldownStore = cacheManager.GetCache<ConcurrentDictionary<string, DateTime>>(GetType(), "fallbackProviderCooldowns")
                 .Get("fallbackProviderCooldowns", () => new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase));
             _rateLimitWindowStore = cacheManager.GetCache<ConcurrentDictionary<string, RateLimitWindowState>>(GetType(), "fallbackProviderRateLimitWindows")
@@ -434,6 +436,12 @@ namespace NzbDrone.Core.MetadataSource
                 _hardcoverRateLimitGate.CooldownUntilUtc is { } hardcoverDeadline && hardcoverDeadline > until)
             {
                 until = hardcoverDeadline;
+            }
+
+            if (string.Equals(provider.ProviderName, InventaireRateLimitGate.ProviderName, StringComparison.OrdinalIgnoreCase) &&
+                _inventaireRateLimitGate.CooldownUntilUtc is { } inventaireDeadline && inventaireDeadline > until)
+            {
+                until = inventaireDeadline;
             }
 
             remaining = until > now ? until - now : TimeSpan.Zero;

@@ -7,6 +7,7 @@ using NLog;
 using NzbDrone.Common;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Commands;
@@ -33,16 +34,19 @@ namespace NzbDrone.Core.RootFolders
     public class RootFolderService : IRootFolderService, IHandle<ModelEvent<RemotePathMapping>>
     {
         private readonly IRootFolderRepository _rootFolderRepository;
+        private readonly IAuthorFormatDefaultService _formatDefaults;
         private readonly IDiskProvider _diskProvider;
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly Logger _logger;
 
         public RootFolderService(IRootFolderRepository rootFolderRepository,
+                                 IAuthorFormatDefaultService formatDefaults,
                                  IDiskProvider diskProvider,
                                  IManageCommandQueue commandQueueManager,
                                  Logger logger)
         {
             _rootFolderRepository = rootFolderRepository;
+            _formatDefaults = formatDefaults;
             _diskProvider = diskProvider;
             _commandQueueManager = commandQueueManager;
             _logger = logger;
@@ -107,6 +111,7 @@ namespace NzbDrone.Core.RootFolders
             }
 
             _rootFolderRepository.Insert(rootFolder);
+            _formatDefaults.ResolvePending();
 
             _commandQueueManager.Push(new RescanFoldersCommand(new List<string> { rootFolder.Path }, FilterFilesType.None, true, null));
 

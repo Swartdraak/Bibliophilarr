@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
@@ -7,6 +8,9 @@ using System.Threading;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -178,6 +182,40 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
                   });
         }
 
+        [TestCase("2", 0, 0, 2)]
+        [TestCase("2,2", 1, 1, 2)]
+        [TestCase("", 0, 0, null)]
+        [TestCase("1,2", 0, 0, null)]
+        [TestCase("2", 2, 0, null)]
+        [TestCase("2", 1, 2, null)]
+        public void should_capture_only_an_unambiguous_original_audiobook_track_number_before_augmentation(
+            string originalTrackNumbers, int discNumber, int discCount, int? expected)
+        {
+            var path = @"C:\Test\Unsorted\Fixture Audio.m4b".AsOsAgnostic();
+            GivenAudioFiles(new[] { path });
+            var original = new ParsedTrackInfo
+            {
+                TrackNumbers = originalTrackNumbers.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToArray(),
+                DiscNumber = discNumber,
+                DiscCount = discCount
+            };
+            Mocker.GetMock<IMetadataTagService>()
+                .Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(original);
+            Mocker.GetMock<IAugmentingService>()
+                .Setup(service => service.Augment(It.IsAny<LocalBook>(), It.IsAny<bool>()))
+                .Callback<LocalBook, bool>((track, _) =>
+                {
+                    track.FileTrackInfo.TrackNumbers = new[] { 1 };
+                    track.Book = _localTrack.Book;
+                });
+
+            var decision = Subject.GetImportDecisions(_fileInfos, _idOverrides, null, _idConfig).Should().ContainSingle().Which;
+
+            decision.Item.FileTrackInfo.TrackNumbers.Should().Equal(1);
+            decision.Item.RawTaggedPart.Should().Be(expected);
+        }
+
         [Test]
         public void should_call_all_book_specifications()
         {
@@ -245,6 +283,39 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             var result = Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
 
             result.Single().Approved.Should().BeFalse();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_hold_an_unreadable_file_and_continue_identifying_other_formats(bool audioReadFails)
+        {
+            var audiobook = @"C:\Test\Unsorted\Fixture Audio.m4b".AsOsAgnostic();
+            var ebook = @"C:\Test\Unsorted\Fixture Ebook.epub".AsOsAgnostic();
+            var unreadable = audioReadFails ? audiobook : ebook;
+            var readable = audioReadFails ? ebook : audiobook;
+            FileSystem.AddFile(unreadable, new MockFileData("fixture bytes"));
+            FileSystem.AddFile(readable, new MockFileData("other format"));
+            _fileInfos = new[] { audiobook, ebook }.Select(path => DiskProvider.GetFileInfo(path)).ToList();
+            GivenAugmentationSuccess();
+            GivenSpecifications(_pass1);
+
+            Mocker.GetMock<IMetadataTagService>()
+                .Setup(service => service.ReadTags(It.Is<IFileInfo>(file => file.FullName == unreadable)))
+                .Throws(audioReadFails ? new IOException("Fixture read error") : new UnauthorizedAccessException("Fixture access error"));
+
+            var decisions = Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            decisions.Should().HaveCount(2);
+            var held = decisions.Single(decision => decision.Item.Path == unreadable);
+            held.Approved.Should().BeFalse();
+            held.Item.Size.Should().Be("fixture bytes".Length);
+            held.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ReadError);
+            decisions.Single(decision => decision.Item.Path == readable).Approved.Should().BeTrue();
+
+            var downloaded = new ImportDecisionMakerConfig { NewDownload = true };
+            var decideDownload = () => Subject.GetImportDecisions(_fileInfos, null, null, downloaded);
+            decideDownload.Should().Throw<AggregateException>();
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -390,6 +461,41 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             Subject.GetImportDecisions(_fileInfos, _idOverrides, null, _idConfig).Should().HaveCount(1);
 
             ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_report_metadata_checks_only_after_reads_finish_and_before_matching()
+        {
+            GivenAudioFiles(new[]
+            {
+                @"C:\Test\Unsorted\Fixture Audio.m4b".AsOsAgnostic(),
+                @"C:\Test\Unsorted\Fixture Ebook.epub".AsOsAgnostic()
+            });
+            GivenAugmentationSuccess();
+
+            var progress = new MemoryTarget { Layout = "${message}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Info, LogLevel.Info, progress);
+            using var logFactory = new LogFactory { Configuration = logging };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(ImportDecisionMaker)));
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(config => config.ImportTagReadWorkerCount)
+                .Returns(1);
+            Mocker.GetMock<IMetadataTagService>()
+                .Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(() =>
+                {
+                    progress.Logs.Should().NotContain("Checked metadata for 2 of 2 files.");
+                    return new ParsedTrackInfo();
+                });
+
+            Subject.GetImportDecisions(_fileInfos, null, null, _idConfig);
+
+            progress.Logs.Should().ContainInOrder(
+                "Reading metadata for 2 files.",
+                "Checked metadata for 2 of 2 files.",
+                "Matching 2 files to the catalogue.");
         }
 
         [Test]

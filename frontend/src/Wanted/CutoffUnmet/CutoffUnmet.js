@@ -170,6 +170,7 @@ class CutoffUnmet extends Component {
               label={isShowingMonitored ? translate('IsShowingMonitoredUnmonitorSelected') : translate('IsShowingMonitoredMonitorSelected')}
               iconName={isShowingMonitored ? icons.UNMONITORED : icons.MONITORED}
               isDisabled={!itemsSelected || !canToggleMonitoring}
+              title={formatType && dualFormatTracking === false ? translate('MissingFormatMonitorRequiresDualTracking') : undefined}
               isSpinning={isSaving}
               onPress={this.onToggleSelectedPress}
             />

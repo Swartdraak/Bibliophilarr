@@ -33,7 +33,7 @@ namespace NzbDrone.Host.Test
                     new XElement("AuthenticationMethod", "Forms"),
                     new XElement("ApiKey", apiKey)).Save(Path.Combine(appData, "config.xml"));
 
-                using var host = BuildHost(appData, includeAudioEdition: true);
+                using var host = BuildHost(appData, offeredAudiobook: () => AudioForeignEditionId, emptyAuthorBibliography: true);
                 await host.StartAsync(token);
                 try
                 {

@@ -84,6 +84,7 @@ namespace NzbDrone.Core.Books
                                     _repository.Get(profile.Id).Monitored != profile.Monitored;
 
             _logger.Info("Updating {0} format profile for author '{1}' (id: {2})", profile.FormatType, ResolveAuthorName(profile.AuthorId), profile.AuthorId);
+            profile.PendingTypedDefault = false;
             var result = _repository.Update(profile);
 
             if (monitoringChanged)

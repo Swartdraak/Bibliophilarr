@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using Dapper;
@@ -20,11 +21,14 @@ namespace NzbDrone.Core.Books
         void DeleteKeepingFiles(IEnumerable<int> bookIds);
         bool DeleteIfNoLinkedFiles(int bookId);
         List<Book> GetBooks(int authorId);
-        List<Book> GetArtworkRetryPage(int afterId, int pageSize);
+        List<Book> GetArtworkRetryPage(int afterId, int pageSize, bool fileAttached);
         List<Book> GetLastBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetNextBooks(IEnumerable<int> authorMetadataIds);
         List<Book> GetBooksByAuthorMetadataId(int authorMetadataId);
+        List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId);
+        void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds);
         List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds);
+        List<Book> InsertBibliographyWorks(List<Book> books);
         List<Book> GetBooksByFileIds(IEnumerable<int> fileIds);
         Book FindByTitle(int authorMetadataId, string title);
         Book FindById(string foreignBookId);
@@ -87,7 +91,9 @@ namespace NzbDrone.Core.Books
             try
             {
                 using var connection = _database.OpenConnection();
-                using var transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
+                using var transaction = connection.BeginTransaction(_database.DatabaseType == DatabaseType.SQLite
+                    ? IsolationLevel.Serializable
+                    : IsolationLevel.ReadCommitted);
                 if (author == null)
                 {
                     Insert(connection, transaction, book);
@@ -124,7 +130,7 @@ namespace NzbDrone.Core.Books
             }
             catch
             {
-                book.Id = 0;
+                ResetCatalogueInsertion(book);
                 book.AuthorMetadataId = originalAuthorMetadataId;
                 foreach (var (edition, bookId, monitored) in original)
                 {
@@ -138,6 +144,7 @@ namespace NzbDrone.Core.Books
                     author.Id = 0;
                     author.AuthorMetadataId = 0;
                     metadata.Id = 0;
+                    metadata.CanonicalId = null;
                     foreach (var profile in profiles)
                     {
                         profile.Id = 0;
@@ -160,14 +167,17 @@ namespace NzbDrone.Core.Books
             if (!_newAuthorMetadata.TryInsertFresh(connection, transaction, metadata))
             {
                 // Metadata can outlive its local author. Reuse only its exact provider identity.
-                metadata.Id = connection.QuerySingleOrDefault<int>(
-                    "SELECT \"Id\" FROM \"AuthorMetadata\" WHERE \"ForeignAuthorId\" = @ForeignAuthorId",
+                var existing = connection.QuerySingleOrDefault<(int Id, string CanonicalId)>(
+                    "SELECT \"Id\", \"CanonicalId\" FROM \"AuthorMetadata\" WHERE \"ForeignAuthorId\" = @ForeignAuthorId",
                     new { metadata.ForeignAuthorId },
                     transaction);
-                if (metadata.Id == 0)
+                if (existing.Id == 0 || string.IsNullOrWhiteSpace(existing.CanonicalId))
                 {
                     throw new NzbDroneClientException(HttpStatusCode.Conflict, "The selected author metadata conflicts with an existing record.");
                 }
+
+                metadata.Id = existing.Id;
+                metadata.CanonicalId = existing.CanonicalId;
             }
 
             author.AuthorMetadataId = metadata.Id;
@@ -228,7 +238,7 @@ namespace NzbDrone.Core.Books
             transaction.Commit();
         }
 
-        public List<Book> GetArtworkRetryPage(int afterId, int pageSize)
+        public List<Book> GetArtworkRetryPage(int afterId, int pageSize, bool fileAttached)
         {
             var page = new PagingSpec<Book>
             {
@@ -238,7 +248,13 @@ namespace NzbDrone.Core.Books
                 SortDirection = SortDirection.Ascending
             };
             page.FilterExpressions.Add(book => book.Id > afterId);
-            return GetPagedRecords(Builder(), page, PagedQuery);
+            const string linkedFile = """
+                EXISTS (SELECT 1 FROM "Editions" book_edition
+                    INNER JOIN "BookFiles" tracked_file ON tracked_file."EditionId" = book_edition."Id"
+                    WHERE book_edition."BookId" = "Books"."Id")
+                """;
+            var builder = Builder().Where(fileAttached ? linkedFile : $"NOT {linkedFile}");
+            return GetPagedRecords(builder, page, PagedQuery);
         }
 
         public List<Book> GetBooks(int authorId)
@@ -285,9 +301,84 @@ namespace NzbDrone.Core.Books
             return Query(s => s.AuthorMetadataId == authorMetadataId);
         }
 
+        public List<Book> GetSharedBooksByAuthorMetadataId(int authorMetadataId)
+        {
+            return Query(Builder().Where(
+                """
+                "Books"."AuthorMetadataId" <> @AuthorMetadataId AND EXISTS (
+                    SELECT 1 FROM "BookAuthorCredits" credit
+                    WHERE credit."BookId" = "Books"."Id" AND credit."AuthorMetadataId" = @AuthorMetadataId
+                )
+                """,
+                new { AuthorMetadataId = authorMetadataId }));
+        }
+
+        public void RecordHardcoverAuthorCredits(int authorMetadataId, int providerAuthorId, List<string> foreignBookIds)
+        {
+            if (authorMetadataId <= 0 || providerAuthorId <= 0 || foreignBookIds.Count == 0)
+            {
+                return;
+            }
+
+            var authorKey = providerAuthorId.ToString(CultureInfo.InvariantCulture);
+            var source = foreignBookIds.Select(id => CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, id, null))
+                .Where(work => work?.Provider == "Hardcover")
+                .DistinctBy(work => work.ProviderId)
+                .Select(work => new
+                {
+                    AuthorMetadataId = authorMetadataId,
+                    ProviderAuthorId = authorKey,
+                    ProviderWorkId = work.ProviderId,
+                    ForeignAuthorId = $"hardcover:author:{authorKey}",
+                    ForeignWorkId = $"hardcover:work:{work.ProviderId}"
+                })
+                .ToList();
+            using var connection = _database.OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            connection.Execute(
+                """
+                INSERT INTO "BookAuthorCredits" ("BookId", "AuthorMetadataId", "Provider", "ProviderAuthorId", "ProviderWorkId")
+                SELECT b."Id", a."Id", 'Hardcover', @ProviderAuthorId, @ProviderWorkId
+                FROM "Books" b JOIN "WorkSourceAssociations" ws ON ws."BookId" = b."Id"
+                CROSS JOIN "AuthorMetadata" a
+                JOIN "AuthorSourceAssociations" aus ON aus."AuthorMetadataId" = a."Id"
+                WHERE b."ForeignBookId" = @ForeignWorkId AND b."AuthorMetadataId" <> a."Id"
+                    AND a."Id" = @AuthorMetadataId AND a."ForeignAuthorId" = @ForeignAuthorId
+                    AND ws."Provider" = 'Hardcover' AND ws."ProviderId" = @ProviderWorkId
+                    AND aus."Provider" = 'Hardcover' AND aus."ProviderId" = @ProviderAuthorId
+                ON CONFLICT ("BookId", "AuthorMetadataId", "Provider", "ProviderAuthorId", "ProviderWorkId") DO NOTHING
+                """,
+                source,
+                transaction);
+            transaction.Commit();
+        }
+
+        internal static void TransferAuthorCredits(IDbConnection connection, IDbTransaction transaction, int source, int target, bool transferWork)
+        {
+            var column = transferWork ? "\"BookId\"" : "\"AuthorMetadataId\"";
+            var book = transferWork ? "@Target" : "\"BookId\"";
+            var author = transferWork ? "\"AuthorMetadataId\"" : "@Target";
+            var ids = new { Source = source, Target = target };
+            connection.Execute(
+                $"""
+                INSERT INTO "BookAuthorCredits" ("BookId", "AuthorMetadataId", "Provider", "ProviderAuthorId", "ProviderWorkId")
+                SELECT {book}, {author}, "Provider", "ProviderAuthorId", "ProviderWorkId"
+                FROM "BookAuthorCredits" WHERE {column} = @Source
+                ON CONFLICT ("BookId", "AuthorMetadataId", "Provider", "ProviderAuthorId", "ProviderWorkId") DO NOTHING
+                """,
+                ids,
+                transaction);
+            connection.Execute($"DELETE FROM \"BookAuthorCredits\" WHERE {column} = @Source", ids, transaction);
+        }
+
         public List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds)
         {
             return Query(a => a.AuthorMetadataId == authorMetadataId || foreignIds.Contains(a.ForeignBookId));
+        }
+
+        public List<Book> InsertBibliographyWorks(List<Book> books)
+        {
+            return InsertManyHoldingCatalogueConflicts(books);
         }
 
         public List<Book> GetBooksByFileIds(IEnumerable<int> fileIds)
@@ -302,7 +393,14 @@ namespace NzbDrone.Core.Books
 
         public Book FindById(string foreignBookId)
         {
-            return Query(s => s.ForeignBookId == foreignBookId).SingleOrDefault();
+            var exact = Query(s => s.ForeignBookId == foreignBookId);
+            if (exact.Count == 1)
+            {
+                return exact[0];
+            }
+
+            var owner = CatalogueIdentityRepository.FindByLegacyProviderId(_database, CatalogueEntityKind.Work, foreignBookId);
+            return owner.HasValue ? Find(owner.Value) : null;
         }
 
         public Book FindBySlug(string titleSlug)

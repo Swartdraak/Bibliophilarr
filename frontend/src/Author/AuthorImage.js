@@ -2,8 +2,8 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import LazyLoad from 'react-lazyload';
 
-function findImage(images, coverType) {
-  return images.find((image) => image.coverType === coverType);
+function findImage(images, coverType, failedUrls = []) {
+  return images.find((image) => image.coverType === coverType && image.url && !failedUrls.includes(image.url));
 }
 
 function getUrl(image, coverType, size) {
@@ -35,8 +35,8 @@ class AuthorImage extends Component {
     this.state = {
       pixelRatio,
       image,
+      failedUrls: [],
       url: getUrl(image, coverType, pixelRatio * size),
-      isLoaded: false,
       hasError: false
     };
   }
@@ -51,31 +51,29 @@ class AuthorImage extends Component {
     const {
       images,
       coverType,
-      placeholder,
       size,
       onError
     } = this.props;
 
     const {
       image,
+      failedUrls,
       pixelRatio
     } = this.state;
 
-    const nextImage = findImage(images, coverType);
+    const nextImage = findImage(images, coverType, failedUrls);
 
     if (nextImage && (!image || nextImage.url !== image.url)) {
       this.setState({
         image: nextImage,
         url: getUrl(nextImage, coverType, pixelRatio * size),
         hasError: false
-        // Don't reset isLoaded, as we want to immediately try to
-        // show the new image, whether an image was shown previously
-        // or the placeholder was shown.
       });
-    } else if (!nextImage && image) {
+    } else if (!nextImage && image && !findImage(images, coverType)) {
       this.setState({
         image: nextImage,
-        url: placeholder,
+        url: null,
+        failedUrls: [],
         hasError: false
       });
 
@@ -88,21 +86,46 @@ class AuthorImage extends Component {
   //
   // Listeners
 
-  onError = () => {
+  onError = (event) => {
+    if (event.currentTarget.getAttribute('src') !== this.state.url) {
+      return;
+    }
+
+    const { images, coverType, size, onError } = this.props;
+    const { image, pixelRatio, failedUrls } = this.state;
+    const triedUrls = image ? [...failedUrls, image.url] : failedUrls;
+    const nextImage = findImage(images, coverType, triedUrls);
+
+    if (nextImage) {
+      this.setState({
+        image: nextImage,
+        url: getUrl(nextImage, coverType, pixelRatio * size),
+        failedUrls: triedUrls,
+        hasError: false
+      });
+      return;
+    }
+
     this.setState({
-      hasError: true
+      hasError: true,
+      failedUrls: triedUrls
     });
 
-    if (this.props.onError) {
-      this.props.onError();
+    if (onError) {
+      onError();
     }
   };
 
-  onLoad = () => {
-    this.setState({
-      isLoaded: true,
-      hasError: false
-    });
+  onLoad = (event) => {
+    if (event.currentTarget.getAttribute('src') !== this.state.url) {
+      return;
+    }
+
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    if (naturalWidth === 1 && naturalHeight === 1) {
+      this.onError(event);
+      return;
+    }
 
     if (this.props.onLoad) {
       this.props.onLoad();
@@ -132,8 +155,7 @@ class AuthorImage extends Component {
 
     const {
       url,
-      hasError,
-      isLoaded
+      hasError
     } = this.state;
 
     if (hasError || !url) {
@@ -181,10 +203,8 @@ class AuthorImage extends Component {
           blurBackground ?
             <img
               style={blurStyle}
-              src={isLoaded ? url : placeholder}
+              src={url}
               alt=""
-              onError={this.onError}
-              onLoad={this.onLoad}
             /> :
             null
         }
@@ -192,7 +212,7 @@ class AuthorImage extends Component {
         <img
           className={className}
           style={style}
-          src={isLoaded ? url : placeholder}
+          src={url}
           alt=""
           onError={this.onError}
           onLoad={this.onLoad}

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -25,9 +26,16 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.Options;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.Commands;
+using NzbDrone.Core.Messaging;
+using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Host.Test
 {
@@ -225,7 +233,199 @@ namespace NzbDrone.Host.Test
             }
         }
 
-        private static IHost BuildHost(string appData, bool useFixtureProvider = true, bool includeAudioEdition = false, IMetadataProvider fixtureProvider = null)
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task ShouldAddASelectedAudiobookToAnExistingEbookOrRejectAnEditionOwnedByAnotherWork(bool conflictingEditionOwner)
+        {
+            const string audiobookId = "hardcover:source-edition:92632";
+            var selectedId = conflictingEditionOwner ? OtherForeignEditionId : audiobookId;
+            var profile = Directory.CreateTempSubdirectory("bibliophilarr-existing-work-edition-");
+            var appData = profile.CreateSubdirectory("data").FullName;
+            var library = profile.CreateSubdirectory("library").FullName;
+            var key = Guid.NewGuid().ToString("N");
+            string offeredAudiobook = null;
+            var completedCommands = new CommandCompletionProbe();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            var token = timeout.Token;
+
+            try
+            {
+                new XElement("Config",
+                    new XElement("AuthenticationMethod", "Forms"),
+                    new XElement("ApiKey", key)).Save(Path.Combine(appData, "config.xml"));
+                using var host = BuildHost(appData, offeredAudiobook: () => offeredAudiobook, completedCommands: completedCommands);
+                await host.StartAsync(token);
+                try
+                {
+                    using var client = CreateClient(host, key);
+                    var commands = host.Services.GetRequiredService<ICommandRepository>();
+                    var quality = await FindProfile(client, "qualityprofile", "eBook", token);
+                    var metadata = await FindProfile(client, "metadataprofile", "None", token);
+                    var rootRequest = new
+                    {
+                        name = "Existing work",
+                        path = library,
+                        defaultQualityProfileId = quality,
+                        defaultMetadataProfileId = metadata,
+                        defaultMonitorOption = "none",
+                        defaultNewItemMonitorOption = "none",
+                        defaultTags = Array.Empty<int>()
+                    };
+                    var beforeRoot = commands.All().Select(command => command.Id).DefaultIfEmpty().Max();
+                    await Post(client, "rootfolder", rootRequest, HttpStatusCode.Created, token);
+                    var rootScan = commands.All().Single(command => command.Id > beforeRoot &&
+                        command.Body is RescanFoldersCommand { Filter: FilterFilesType.None, AddNewAuthors: true } scan &&
+                        scan.Folders?.SequenceEqual(new[] { library }) == true);
+                    await completedCommands.WaitForSuccess(commands, rootScan.Id, token);
+
+                    var first = BookRequest(ForeignBookId, ForeignEditionId, BookTitle);
+                    first["author"] = new
+                    {
+                        foreignAuthorId = ForeignAuthorId,
+                        rootFolderPath = library,
+                        qualityProfileId = quality,
+                        metadataProfileId = metadata,
+                        monitored = false,
+                        monitorNewItems = "none"
+                    };
+                    var beforeFirstBook = commands.All().ToList();
+                    var added = await Post(client, "book", first, HttpStatusCode.Created, token);
+                    var bookId = added.GetProperty("id").GetInt32();
+                    var authorId = added.GetProperty("authorId").GetInt32();
+                    await WaitForBookAddRefresh(commands, completedCommands, beforeFirstBook, library, authorId, token);
+                    var ebookId = AssertIdentity(added, bookId, authorId, ForeignBookId, ForeignEditionId);
+
+                    var filePath = Path.Combine(library, "fixture.epub");
+                    File.WriteAllText(filePath, "Existing test-owned file");
+                    var files = host.Services.GetRequiredService<IMediaFileService>();
+                    var ebookFile = files.Add(new BookFile { EditionId = ebookId, Path = filePath, Quality = new QualityModel(Quality.EPUB) });
+                    ebookFile.Id.Should().BePositive();
+
+                    var otherBookId = 0;
+                    var otherEditionId = 0;
+                    if (conflictingEditionOwner)
+                    {
+                        var beforeOtherBook = commands.All().ToList();
+                        var other = await Post(client, "book", BookRequest(OtherForeignBookId, OtherForeignEditionId, OtherBookTitle), HttpStatusCode.Created, token);
+                        otherBookId = other.GetProperty("id").GetInt32();
+                        await WaitForBookAddRefresh(commands, completedCommands, beforeOtherBook, library, authorId, token);
+                        otherEditionId = AssertIdentity(other, otherBookId, authorId, OtherForeignBookId, OtherForeignEditionId);
+                    }
+
+                    var exclusions = host.Services.GetRequiredService<IImportListExclusionService>();
+                    var exclusion = exclusions.Add(new ImportListExclusion { ForeignId = ForeignBookId, Name = BookTitle });
+                    offeredAudiobook = selectedId;
+                    var selection = BookRequest(ForeignBookId, selectedId, BookTitle);
+                    var beforeSelection = commands.All().ToList();
+                    var result = await Post(client, "book", selection, conflictingEditionOwner ? HttpStatusCode.BadRequest : HttpStatusCode.Created, token);
+                    if (!conflictingEditionOwner)
+                    {
+                        await WaitForBookAddRefresh(commands, completedCommands, beforeSelection, library, authorId, token);
+                    }
+
+                    var readback = await Get(client, $"book/{bookId}", token);
+                    readback.GetProperty("foreignBookId").GetString().Should().Be(ForeignBookId);
+                    readback.GetProperty("authorId").GetInt32().Should().Be(authorId);
+                    var editions = host.Services.GetRequiredService<IEditionService>().GetEditionsByBook(bookId);
+                    var ebook = editions.Single(edition => edition.ForeignEditionId == ForeignEditionId);
+                    ebook.Id.Should().Be(ebookId);
+                    ebook.ManualAdd.Should().BeTrue();
+                    ebook.Monitored.Should().BeTrue();
+                    files.Get(ebookFile.Id).EditionId.Should().Be(ebookId);
+                    files.Get(ebookFile.Id).Path.Should().Be(filePath);
+                    File.ReadAllText(filePath).Should().Be("Existing test-owned file");
+
+                    if (conflictingEditionOwner)
+                    {
+                        result.EnumerateArray().Should().Contain(error => error.GetProperty("propertyName").GetString() == "Editions");
+                        editions.Should().ContainSingle();
+                        AssertIdentity(await Get(client, $"book/{otherBookId}", token), otherBookId, authorId, OtherForeignBookId, OtherForeignEditionId)
+                            .Should().Be(otherEditionId);
+                        exclusions.FindByForeignId(ForeignBookId).Id.Should().Be(exclusion.Id);
+                    }
+                    else
+                    {
+                        result.GetProperty("id").GetInt32().Should().Be(bookId);
+                        editions.Should().HaveCount(2);
+                        var audiobook = editions.Single(edition => edition.ForeignEditionId == audiobookId);
+                        audiobook.Id.Should().BePositive().And.NotBe(ebookId);
+                        audiobook.Format.Should().Be("Audiobook");
+                        audiobook.ManualAdd.Should().BeTrue();
+                        audiobook.Monitored.Should().BeTrue();
+                        var overview = await Get(client, $"book/{bookId}/overview", token);
+                        overview.GetProperty("id").GetInt32().Should().Be(bookId);
+                        exclusions.FindByForeignId(ForeignBookId).Should().BeNull();
+                    }
+                }
+                finally
+                {
+                    await host.StopAsync(TimeSpan.FromSeconds(15));
+                }
+            }
+            finally
+            {
+                NLog.LogManager.Flush(TimeSpan.FromSeconds(5));
+                SQLiteConnection.ClearAllPools();
+                profile.Delete(recursive: true);
+            }
+        }
+
+        private static async Task WaitForBookAddRefresh(ICommandRepository commands,
+                                                        CommandCompletionProbe completedCommands,
+                                                        List<CommandModel> previousCommands,
+                                                        string library,
+                                                        int authorId,
+                                                        CancellationToken token)
+        {
+            var beforeAdd = previousCommands.Select(command => command.Id).DefaultIfEmpty().Max();
+            var refresh = commands.All().Single(command => command.Id > beforeAdd &&
+                command.Body is RefreshAuthorCommand { IsNewAuthor: false } body && body.AuthorId == authorId);
+            await completedCommands.WaitForSuccess(commands, refresh.Id, token);
+
+            var activeAtAdd = previousCommands.Where(command => command.Status is CommandStatus.Queued or CommandStatus.Started)
+                .Select(command => command.Id)
+                .ToHashSet();
+            var scans = commands.All().Where(command =>
+                (command.Id > beforeAdd || activeAtAdd.Contains(command.Id)) &&
+                command.Body is RescanFoldersCommand { Filter: FilterFilesType.Matched, AddNewAuthors: false } scan &&
+                scan.Folders?.SequenceEqual(new[] { library }) == true);
+            foreach (var scan in scans)
+            {
+                await completedCommands.WaitForSuccess(commands, scan.Id, token);
+            }
+        }
+
+        private sealed class CommandCompletionProbe : IHandle<CommandExecutedEvent>
+        {
+            private readonly ConcurrentDictionary<int, TaskCompletionSource> _completions = new ();
+
+            // TaskManager can write the scheduled task after the command's own terminal row is saved.
+            [EventHandleOrder(EventHandleOrder.Last)]
+            public void Handle(CommandExecutedEvent message)
+            {
+                CompletionFor(message.Command.Id).TrySetResult();
+            }
+
+            public async Task WaitForSuccess(ICommandRepository commands, int id, CancellationToken token)
+            {
+                await CompletionFor(id).Task.WaitAsync(token);
+                var stored = commands.Get(id);
+                stored.Status.Should().Be(CommandStatus.Completed, $"fixture command {id} must finish");
+                stored.Result.Should().Be(CommandResult.Successful, $"fixture command {id} must succeed");
+            }
+
+            private TaskCompletionSource CompletionFor(int id)
+            {
+                return _completions.GetOrAdd(id, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            }
+        }
+
+        private static IHost BuildHost(string appData,
+                                       bool useFixtureProvider = true,
+                                       Func<string> offeredAudiobook = null,
+                                       bool emptyAuthorBibliography = false,
+                                       IMetadataProvider fixtureProvider = null,
+                                       CommandCompletionProbe completedCommands = null)
         {
             var args = new[] { $"-data={appData}", "-nobrowser", "-nosingleinstancecheck" };
             return Bootstrap.CreateConsoleHostBuilder(args, new StartupContext(args))
@@ -241,6 +441,10 @@ namespace NzbDrone.Host.Test
                     var container = serviceProvider.Container;
                     var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
                     container.RegisterInstance(dispatcher.Object, ifAlreadyRegistered: IfAlreadyRegistered.Replace);
+                    if (completedCommands != null)
+                    {
+                        container.RegisterInstance<IHandle<CommandExecutedEvent>>(completedCommands, ifAlreadyRegistered: IfAlreadyRegistered.AppendNotKeyed);
+                    }
 
                     // Bootstrap may resolve the orchestrator before this callback.
                     // Update its existing registry so every consumer uses the same provider.
@@ -252,13 +456,13 @@ namespace NzbDrone.Host.Test
 
                     if (useFixtureProvider)
                     {
-                        registry.RegisterProvider(fixtureProvider ?? CreateMetadataProvider(includeAudioEdition));
+                        registry.RegisterProvider(fixtureProvider ?? CreateMetadataProvider(offeredAudiobook, emptyAuthorBibliography));
                     }
                 })
                 .Build();
         }
 
-        private static IMetadataProvider CreateMetadataProvider(bool includeAudioEdition)
+        private static IMetadataProvider CreateMetadataProvider(Func<string> offeredAudiobook, bool emptyAuthorBibliography)
         {
             var provider = new Mock<IMetadataProvider>();
             provider.SetupGet(p => p.ProviderName).Returns("Hardcover");
@@ -266,7 +470,23 @@ namespace NzbDrone.Host.Test
             provider.SetupGet(p => p.SupportsBookSearch).Returns(true);
             provider.SetupGet(p => p.SupportsAuthorSearch).Returns(true);
             var books = provider.As<IProvideBookInfo>();
-            books.Setup(p => p.GetBookInfo(ForeignBookId)).Returns(() => BookMetadata(ForeignBookId, ForeignEditionId, BookTitle, includeAudioEdition));
+            books.Setup(p => p.GetBookInfo(ForeignBookId)).Returns(() =>
+            {
+                var result = BookMetadata(ForeignBookId, ForeignEditionId, BookTitle);
+                if (offeredAudiobook?.Invoke() is { } editionId)
+                {
+                    result.Item2.Editions.Value.Add(new Edition
+                    {
+                        ForeignEditionId = editionId,
+                        Format = "Audiobook",
+                        Language = "en",
+                        Title = BookTitle,
+                        TitleSlug = "existing-work-audiobook"
+                    });
+                }
+
+                return result;
+            });
             books.Setup(p => p.GetBookInfo(OtherForeignBookId)).Returns(() => BookMetadata(OtherForeignBookId, OtherForeignEditionId, OtherBookTitle));
             books.Setup(p => p.GetBookInfo(ConflictingForeignBookId)).Returns(() =>
             {
@@ -283,7 +503,7 @@ namespace NzbDrone.Host.Test
             provider.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo(ForeignAuthorId, It.IsAny<bool>())).Returns(() =>
             {
                 var metadata = AuthorMetadata();
-                if (includeAudioEdition)
+                if (emptyAuthorBibliography)
                 {
                     return new Author
                     {
@@ -321,7 +541,7 @@ namespace NzbDrone.Host.Test
             };
         }
 
-        private static Tuple<string, Book, List<AuthorMetadata>> BookMetadata(string bookId, string editionId, string title, bool includeAudioEdition = false)
+        private static Tuple<string, Book, List<AuthorMetadata>> BookMetadata(string bookId, string editionId, string title)
         {
             var author = AuthorMetadata();
             var slug = title.ToLowerInvariant().Replace(' ', '-');
@@ -347,18 +567,6 @@ namespace NzbDrone.Host.Test
                     }
                 }
             };
-            if (includeAudioEdition)
-            {
-                book.Editions.Value.Add(new Edition
-                {
-                    ForeignEditionId = AudioForeignEditionId,
-                    Format = "Audiobook",
-                    Language = "en",
-                    Title = title,
-                    TitleSlug = slug + "-audiobook"
-                });
-            }
-
             return Tuple.Create(ForeignAuthorId, book, new List<AuthorMetadata> { author });
         }
 

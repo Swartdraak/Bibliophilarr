@@ -74,6 +74,7 @@ class BookDetailsHeader extends Component {
       shortDateFormat,
       author,
       isSmallScreen,
+      onCoverError,
       onMonitorTogglePress,
       onFormatMonitorTogglePress
     } = this.props;
@@ -101,6 +102,7 @@ class BookDetailsHeader extends Component {
 
         <div className={styles.headerContent}>
           <BookCover
+            onError={onCoverError}
             className={styles.cover}
             images={images}
             size={250}
@@ -138,6 +140,7 @@ class BookDetailsHeader extends Component {
               <div>
                 <AuthorNameLink
                   className={styles.authorLink}
+                  canonicalId={author.canonicalId}
                   titleSlug={author.titleSlug}
                   authorName={author.authorName}
                 />
@@ -321,6 +324,7 @@ BookDetailsHeader.propTypes = {
   isSaving: PropTypes.bool.isRequired,
   author: PropTypes.object,
   isSmallScreen: PropTypes.bool.isRequired,
+  onCoverError: PropTypes.func,
   onMonitorTogglePress: PropTypes.func.isRequired,
   onFormatMonitorTogglePress: PropTypes.func
 };

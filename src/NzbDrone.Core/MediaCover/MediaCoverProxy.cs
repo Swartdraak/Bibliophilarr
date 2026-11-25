@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
@@ -42,7 +41,7 @@ namespace NzbDrone.Core.MediaCover
 
             _cache.ClearExpired();
 
-            var fileName = Path.GetFileName(url);
+            var fileName = "image" + MediaCover.GetImageExtension(url).ToLowerInvariant();
             return _configFileProvider.UrlBase + @"/MediaCoverProxy/" + hash + "/" + fileName;
         }
 

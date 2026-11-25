@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
+import SeriesRepresentativeCover from 'Author/Details/SeriesRepresentativeCover';
 import Alert from 'Components/Alert';
 import TextInput from 'Components/Form/TextInput';
 import Icon from 'Components/Icon';
@@ -9,6 +10,7 @@ import LoadingIndicator from 'Components/Loading/LoadingIndicator';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import { icons, kinds } from 'Helpers/Props';
+import cataloguePath from 'Utilities/cataloguePath';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 import AddNewAuthorSearchResultConnector from './Author/AddNewAuthorSearchResultConnector';
@@ -25,7 +27,8 @@ class AddNewItem extends Component {
 
     this.state = {
       term: props.term || '',
-      isFetching: false
+      scope: 'all',
+      selectedSeries: null
     };
   }
 
@@ -33,26 +36,15 @@ class AddNewItem extends Component {
     const term = this.state.term;
 
     if (term) {
-      this.props.onSearchChange(term);
+      this.props.onSearchChange(term, this.state.scope);
     }
   }
 
   componentDidUpdate(prevProps) {
-    const {
-      term,
-      isFetching
-    } = this.props;
-
-    if (term && term !== prevProps.term) {
-      this.setState({
-        term,
-        isFetching: true
-      });
-      this.props.onSearchChange(term);
-    } else if (isFetching !== prevProps.isFetching) {
-      this.setState({
-        isFetching
-      });
+    if (this.props.term !== prevProps.term) {
+      const term = this.props.term || '';
+      this.setState({ term, selectedSeries: null });
+      this.props.onSearchChange(term, this.state.scope);
     }
   }
 
@@ -60,20 +52,34 @@ class AddNewItem extends Component {
   // Listeners
 
   onSearchInputChange = ({ value }) => {
-    const hasValue = !!value.trim();
+    this.setState({ term: value, selectedSeries: null });
 
-    this.setState({ term: value, isFetching: hasValue }, () => {
-      if (hasValue) {
-        this.props.onSearchChange(value);
-      } else {
-        this.props.onClearSearch();
-      }
-    });
+    if (value.trim()) {
+      this.props.onSearchChange(value, this.state.scope);
+    } else {
+      this.props.onClearSearch();
+    }
+  };
+
+  onSearchScopeChange = (event) => {
+    const scope = event.target.value;
+    this.setState({ scope, selectedSeries: null });
+    this.props.onSearchChange(this.state.term, scope);
   };
 
   onClearSearchPress = () => {
-    this.setState({ term: '' });
+    this.setState({ term: '', selectedSeries: null });
     this.props.onClearSearch();
+  };
+
+  onOpenSeries = (series) => {
+    this.setState({ selectedSeries: series });
+    this.props.onSearchChange(series.foreignSeriesId, 'series-books');
+  };
+
+  onBackToSeries = () => {
+    this.setState({ selectedSeries: null });
+    this.props.onSearchChange(this.state.term, 'series');
   };
 
   //
@@ -83,15 +89,24 @@ class AddNewItem extends Component {
     const {
       error,
       items,
+      isFetching,
       hasExistingAuthors
     } = this.props;
 
-    const term = this.state.term;
-    const isFetching = this.state.isFetching;
+    const { scope, selectedSeries, term } = this.state;
 
     return (
       <PageContent title={translate('AddNewItem')}>
         <PageContentBody>
+          <label className={styles.searchScope}>
+            {translate('SearchScope')}
+            <select value={scope} onChange={this.onSearchScopeChange}>
+              <option value="all">{translate('SearchAuthorsAndBooks')}</option>
+              <option value="author">{translate('Authors')}</option>
+              <option value="book">{translate('Books')}</option>
+              <option value="series">{translate('Series')}</option>
+            </select>
+          </label>
           <div className={styles.searchContainer}>
             <div className={styles.searchIconContainer}>
               <Icon
@@ -104,13 +119,14 @@ class AddNewItem extends Component {
               className={styles.searchInput}
               name="searchBox"
               value={term}
-              placeholder={translate('SearchBoxPlaceHolder')}
+              placeholder={translate(scope === 'series' ? 'SearchSeriesByName' : 'SearchBoxPlaceHolder')}
               autoFocus={true}
               onChange={this.onSearchInputChange}
             />
 
             <Button
               className={styles.clearLookupButton}
+              aria-label={translate('Clear')}
               onPress={this.onClearSearchPress}
             >
               <Icon
@@ -119,6 +135,14 @@ class AddNewItem extends Component {
               />
             </Button>
           </div>
+          {scope === 'series' && !selectedSeries && <p>{translate('SeriesDiscoveryHelp')}</p>}
+          {selectedSeries &&
+            <div>
+              <Button onPress={this.onBackToSeries}>{translate('BackToSeriesSearch')}</Button>
+              <h2>{translate('BooksInProviderSeries', [selectedSeries.title])}</h2>
+              <p>{translate(selectedSeries.sourceProvider === 'Inventaire' ? 'SeriesReadOnlyPreviewHelp' : 'SeriesBookPreviewHelp')}</p>
+            </div>
+          }
 
           {
             isFetching &&
@@ -147,9 +171,13 @@ class AddNewItem extends Component {
               <div className={styles.searchResults}>
                 {
                   [...items].sort((a, b) => {
+                    if (selectedSeries) {
+                      return 0;
+                    }
+
                     const termLower = term.toLowerCase();
-                    const nameA = (a.author?.authorName || a.book?.title || '').toLowerCase();
-                    const nameB = (b.author?.authorName || b.book?.title || '').toLowerCase();
+                    const nameA = (a.author?.authorName || a.book?.title || a.series?.title || '').toLowerCase();
+                    const nameB = (b.author?.authorName || b.book?.title || b.series?.title || '').toLowerCase();
                     const exactA = nameA === termLower ? 0 : 1;
                     const exactB = nameB === termLower ? 0 : 1;
 
@@ -175,6 +203,7 @@ class AddNewItem extends Component {
                         <AddNewAuthorSearchResultConnector
                           key={item.id}
                           {...author}
+                          catalogueOwnerId={item.catalogueOwnerId}
                         />
                       );
                     } else if (item.book) {
@@ -184,9 +213,88 @@ class AddNewItem extends Component {
                         <AddNewBookSearchResultConnector
                           key={item.id}
                           {...book}
+                          catalogueOwnerId={item.catalogueOwnerId}
                         />
                       );
                     }
+
+                    if (item.seriesMemberPreview) {
+                      const { foreignWorkId, title, position, sourceUrl } = item.seriesMemberPreview;
+
+                      return (
+                        <div key={foreignWorkId} className={styles.seriesResult}>
+                          <h3>{title}</h3>
+                          <p>{position ? translate('SeriesPreviewPosition', [position]) : translate('SeriesPreviewPositionUnknown')}</p>
+                          <a
+                            href={sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {translate('SeriesOpenInventaire')}
+                          </a>
+                        </div>
+                      );
+                    }
+
+                    if (item.series) {
+                      const { slug, title, sourceProvider, sourceUrl } = item.series;
+                      const canonicalId = item.catalogueSeriesCanonicalId;
+
+                      if (canonicalId) {
+                        return (
+                          <div key={canonicalId} className={styles.seriesResult}>
+                            <SeriesRepresentativeCover
+                              covers={item.seriesCovers}
+                              className={styles.seriesResultCover}
+                            />
+                            <h3>{title}</h3>
+                            <p>{translate('SavedSeriesSearchOnly')}</p>
+                            <Link to={cataloguePath('series', { canonicalId })}>
+                              {translate('OpenSavedSeriesBooks')}
+                            </Link>
+                          </div>
+                        );
+                      }
+
+                      const providerLabel = sourceProvider === 'Inventaire' ? 'SeriesSearchInventaireResult' : 'SeriesSearchHardcoverResult';
+                      const sourceLabel = translate(item.catalogueOwnerId ? 'SeriesSearchInLibrary' : providerLabel);
+
+                      return (
+                        <div key={item.series.foreignSeriesId} className={styles.seriesResult}>
+                          <SeriesRepresentativeCover
+                            covers={item.seriesCovers}
+                            className={styles.seriesResultCover}
+                          />
+                          <h3>{title}</h3>
+                          <p>{sourceLabel}</p>
+                          <Button
+                            aria-label={translate('SeriesViewBooksWithSource', [title, sourceLabel])}
+                            onPress={() => this.onOpenSeries(item.series)}
+                          >
+                            {translate('SeriesViewBooks')}
+                          </Button>
+                          {sourceProvider === 'Inventaire' && sourceUrl &&
+                            <a
+                              href={sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {translate('SeriesOpenInventaire')}
+                            </a>
+                          }
+                          {sourceProvider !== 'Inventaire' && slug &&
+                            <a
+                              href={`https://hardcover.app/series/${encodeURIComponent(slug)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {translate('SeriesOpenHardcover')}
+                            </a>
+                          }
+                        </div>
+                      );
+                    }
+
                     return null;
                   })
                 }
@@ -194,16 +302,18 @@ class AddNewItem extends Component {
           }
 
           {
-            !isFetching && !error && !items.length && !!term &&
+            !isFetching && !error && !items.length && term.trim().length >= 3 &&
               <div className={styles.message}>
                 <div className={styles.noResults}>
-                  {translate('CouldntFindAnyResultsForTerm', [term])}
+                  {selectedSeries ? translate('SeriesNoPreviewBooks') : translate('CouldntFindAnyResultsForTerm', [term])}
                 </div>
-                <div>
-                  You can also search using the
-                  <Link to="/settings/metadata"> external ID </Link>
-                  of a book (e.g. hardcover:work:the-shining), author (e.g. hardcover:author:Stephen%20King), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
-                </div>
+                {scope !== 'series' &&
+                  <div>
+                    You can also search using the
+                    <Link to="/settings/metadata"> external ID </Link>
+                    of a book (e.g. hardcover:work:the-shining), author (e.g. hardcover:author:Stephen%20King), isbn (e.g. isbn:067003469X), or asin (e.g. asin:B00JCDK5ME).
+                  </div>
+                }
               </div>
           }
 

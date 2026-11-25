@@ -4,6 +4,7 @@ using System.Linq;
 using Bibliophilarr.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.Inventaire;
 
 namespace Bibliophilarr.Api.V1.Metadata
 {
@@ -75,6 +76,7 @@ namespace Bibliophilarr.Api.V1.Metadata
                     IsEnabled = provider.IsFallbackEnabled,
                     IsFallbackOnly = true,
                     SupportsBookSearch = true,
+                    SupportsSeriesInfo = provider is InventaireFallbackSearchProvider,
                     Priority = 0,
                     Telemetry = LookupTelemetry(provider.ProviderName)
                 });

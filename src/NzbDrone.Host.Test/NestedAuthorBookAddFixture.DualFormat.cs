@@ -64,7 +64,7 @@ namespace NzbDrone.Host.Test
                 int bookId;
                 var unrelatedAuthorId = 0;
                 List<(int FileId, int EditionId, string Path, string Digest)> imported;
-                using (var host = BuildHost(appData, includeAudioEdition: true))
+                using (var host = BuildHost(appData, offeredAudiobook: () => AudioForeignEditionId, emptyAuthorBibliography: true))
                 {
                     await host.StartAsync(token);
                     try

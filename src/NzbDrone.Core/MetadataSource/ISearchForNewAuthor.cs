@@ -7,4 +7,9 @@ namespace NzbDrone.Core.MetadataSource
     {
         List<Author> SearchForNewAuthor(string title);
     }
+
+    public interface ISearchForSupplementalAuthor
+    {
+        List<Author> SearchForSupplementalAuthor(string title);
+    }
 }

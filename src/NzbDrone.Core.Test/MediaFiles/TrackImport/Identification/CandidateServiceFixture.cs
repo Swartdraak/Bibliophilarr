@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
+using NLog;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -10,6 +12,7 @@ using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
 {
@@ -35,6 +38,154 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             Mocker.GetMock<IBookSearchFallbackExecutionService>()
                 .Setup(x => x.Search(It.IsAny<IBookSearchFallbackProvider>(), It.IsAny<string>(), It.IsAny<string>()))
                 .Returns((IBookSearchFallbackProvider provider, string title, string author) => provider.Search(title, author));
+        }
+
+        [TestCase("Ebook", "River Chronicles: Book 7", true, true, 1)]
+        [TestCase("Audiobook", "River Chronicles: Book 3", true, true, 1)]
+        [TestCase("Audiobook", "River Chronicles: Book 7", true, false, 1)]
+        [TestCase("Audiobook", "River Chronicles: Book 3", false, false, 5)]
+        public void should_check_the_next_provider_for_an_eligible_author_and_title_match_in_library_scans(
+            string firstFormat, string firstTitle, bool forLibraryScan, bool expectSecond, int queriesWithoutResults)
+        {
+            const string title = "River Chronicles: Book 7";
+            const string author = "Casey Rivers";
+            var first = CreateSearchProvider("Hardcover", "hardcover:edition:1", firstTitle, firstFormat, out var firstSearch);
+            var second = CreateSearchProvider("OpenLibrary", "openlibrary:edition:OL2M", title, "Audiobook", out var secondSearch);
+            var third = CreateSearchProvider("GoogleBooks", "googlebooks:edition:3", title, "Audiobook", out var thirdSearch);
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(r => r.GetProviders()).Returns(new[] { first, second, third });
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(new MetadataProviderOrchestrator(
+                registry.Object, new MetadataProviderTelemetryService(), LogManager.GetCurrentClassLogger()));
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.RemoteCandidateSearchWorkerCount).Returns(1);
+
+            var local = new LocalEdition
+            {
+                LocalBooks = new List<LocalBook>
+                {
+                    new LocalBook
+                    {
+                        Path = "/library/Casey Rivers/River Chronicles 7.m4b",
+                        FileTrackInfo = new ParsedTrackInfo { Authors = new List<string> { author }, BookTitle = title }
+                    }
+                }
+            };
+
+            var candidates = Subject.GetRemoteCandidates(local, null, edition => edition.Title == title, forLibraryScan).ToList();
+
+            if (expectSecond || firstTitle == title)
+            {
+                candidates.Should().ContainSingle().Which.Edition.ForeignEditionId.Should().Be(
+                    expectSecond ? "openlibrary:edition:OL2M" : "hardcover:edition:1");
+            }
+            else
+            {
+                candidates.Should().BeEmpty();
+            }
+
+            firstSearch.Verify(search => search.SearchForNewBook(title, author, true), Times.Once());
+            secondSearch.Verify(search => search.SearchForNewBook(title, author, true), expectSecond ? Times.Once() : Times.Never());
+            thirdSearch.Verify(search => search.SearchForNewBook(title, author, true), Times.Never());
+
+            var emptyResultWarnings = new[] { first, second, third }.Select(provider =>
+                $"Metadata provider '{provider.ProviderName}' returned an empty result for operation 'search-for-new-book'.");
+            ExceptionVerification.ExpectedWarns(Enumerable.Repeat(emptyResultWarnings, queriesWithoutResults).SelectMany(warnings => warnings).ToArray());
+
+            IMetadataProvider CreateSearchProvider(string name, string editionId, string resultTitle, string format, out Mock<ISearchForNewBook> search)
+            {
+                var provider = new Mock<IMetadataProvider>();
+                provider.SetupGet(item => item.ProviderName).Returns(name);
+                provider.SetupGet(item => item.SupportsBookSearch).Returns(true);
+                search = provider.As<ISearchForNewBook>();
+                search.Setup(item => item.SearchForNewBook(title, author, true)).Returns(new List<Book>
+                {
+                    new Book
+                    {
+                        Title = resultTitle,
+                        Editions = new List<Edition> { new Edition { ForeignEditionId = editionId, Title = resultTitle, Format = format } }
+                    }
+                });
+                return provider.Object;
+            }
+        }
+
+        [TestCase(".m4b", 0.97, 0.97, true)]
+        [TestCase(".m4b", 0.5, 0.97, false)]
+        [TestCase(".m4b", 0.97, 0.5, false)]
+        [TestCase(".epub", 0.97, 0.97, false)]
+        public void should_supply_eligibility_only_for_a_trusted_library_audiobook_asin(string extension, double asinConfidence, double authorConfidence, bool expected)
+        {
+            const string asin = "B000000001";
+            const string title = "Book of Rivers";
+            const string author = "Casey Rivers";
+            var local = new LocalEdition(new List<LocalBook>
+            {
+                new LocalBook
+                {
+                    Path = "/library/Casey Rivers/Book of Rivers" + extension,
+                    ReliableTaggedBookTitle = title,
+                    FileTrackInfo = new ParsedTrackInfo
+                    {
+                        BookTitle = title,
+                        Authors = new List<string> { author },
+                        AuthorConfidence = authorConfidence,
+                        Asin = asin,
+                        AsinConfidence = asinConfidence,
+                        Isbn = "9781442482890",
+                        IsbnConfidence = 0.97
+                    }
+                }
+            });
+            var edition = new Edition
+            {
+                ForeignEditionId = "hardcover:source-edition:17",
+                Title = title,
+                Asin = asin,
+                Isbn13 = "9781442482890",
+                Format = "Audiobook"
+            };
+            var authorMetadata = new AuthorMetadata { Name = author };
+            var source = new Book
+            {
+                Title = title,
+                AuthorMetadata = authorMetadata,
+                Editions = new List<Edition> { edition }
+            };
+            Func<Book, bool> eligibility = null;
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(provider => provider.SearchForLibraryImportByAsin(asin, It.IsAny<Func<Book, bool>>()))
+                .Returns((string _, Func<Book, bool> predicate) =>
+                {
+                    eligibility = predicate;
+                    return new List<Book>();
+                });
+
+            var acceptCandidate = true;
+            Subject.GetRemoteCandidates(local, null, allowsEdition: _ => acceptCandidate, forLibraryScan: true).Should().BeEmpty();
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(provider => provider.SearchForLibraryImportByAsin(asin, It.IsAny<Func<Book, bool>>()), Times.Once());
+
+            if (!expected)
+            {
+                eligibility.Should().BeNull();
+                return;
+            }
+
+            eligibility.Should().NotBeNull();
+            eligibility(source).Should().BeTrue();
+            source.Title = "Different Book";
+            eligibility(source).Should().BeFalse();
+            source.Title = title;
+            authorMetadata.Name = "Different Author";
+            eligibility(source).Should().BeFalse();
+            authorMetadata.Name = author;
+            edition.Isbn13 = "9780261103573";
+            eligibility(source).Should().BeFalse();
+            edition.Isbn13 = "9781442482890";
+            edition.Format = "Ebook";
+            eligibility(source).Should().BeFalse();
+            edition.Format = "Audiobook";
+            acceptCandidate = false;
+            eligibility(source).Should().BeFalse();
         }
 
         [Test]

@@ -9,12 +9,20 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
     /// </summary>
     public class OlEditionResource
     {
+        internal bool RequestUnavailable { get; init; }
+
         /// <summary>/books/OL{n}M</summary>
         [JsonPropertyName("key")]
         public string Key { get; set; }
 
         [JsonPropertyName("title")]
         public string Title { get; set; }
+
+        [JsonPropertyName("subtitle")]
+        public string Subtitle { get; set; }
+
+        [JsonPropertyName("type")]
+        public OlKeyRef Type { get; set; }
 
         [JsonPropertyName("isbn_10")]
         public List<string> Isbn10 { get; set; }

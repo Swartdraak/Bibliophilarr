@@ -39,6 +39,8 @@ namespace NzbDrone.Core.MediaFiles
         public string ImageFile { get; set; }
         public long ImageSize { get; set; }
 
+        internal string Asin { get; private set; }
+
         public bool IsValid { get; private set; }
         public QualityModel Quality { get; set; }
         public MediaInfoModel MediaInfo { get; set; }
@@ -62,6 +64,7 @@ namespace NzbDrone.Core.MediaFiles
             Logger.Debug($"Starting tag read for {path}");
 
             IsValid = false;
+            Asin = null;
             TagLib.File file = null;
             try
             {
@@ -143,6 +146,9 @@ namespace NzbDrone.Core.MediaFiles
                 {
                     var appletag = (TagLib.Mpeg4.AppleTag)file.GetTag(TagTypes.Apple);
                     Media = appletag.GetDashBox("com.apple.iTunes", "MEDIA");
+                    var appleAsin = NormalizeAsin(appletag.GetDashBox("com.apple.iTunes", "ASIN"));
+                    var toneAsin = NormalizeAsin(appletag.GetDashBox("com.pilabor.tone", "AUDIBLE_ASIN"));
+                    Asin = appleAsin == null || toneAsin == null || appleAsin == toneAsin ? appleAsin ?? toneAsin : null;
                     Date = DateTime.TryParse(appletag.DataBoxes(FixAppleId("day")).FirstOrDefault()?.Text, out tempDate) ? tempDate : default(DateTime?);
                     OriginalReleaseDate = DateTime.TryParse(appletag.GetDashBox("com.apple.iTunes", "Original Date"), out tempDate) ? tempDate : default(DateTime?);
                 }
@@ -575,8 +581,11 @@ namespace NzbDrone.Core.MediaFiles
             {
                 BookTitle = tag.Book.IsNotNullOrWhiteSpace() ? tag.Book : tag.Title,
                 Authors = authors,
+                Asin = tag.Asin,
+                AsinConfidence = tag.Asin == null ? 0.0 : 0.9,
                 DiscNumber = (int)tag.Disc,
                 DiscCount = (int)tag.DiscCount,
+                AudioTrackCount = tag.TrackCount,
                 Year = tag.Year,
                 Label = tag.Publisher,
                 TrackNumbers = new[] { (int)tag.Track },
@@ -586,6 +595,12 @@ namespace NzbDrone.Core.MediaFiles
                 Quality = tag.Quality,
                 MediaInfo = tag.MediaInfo
             };
+        }
+
+        private static string NormalizeAsin(string value)
+        {
+            var identifier = value?.Trim();
+            return identifier?.Length == 10 && identifier.All(char.IsAsciiLetterOrDigit) ? identifier.ToUpperInvariant() : null;
         }
     }
 }

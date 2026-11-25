@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using FluentValidation;
 using FluentValidation.Results;
 using NLog;
@@ -23,6 +24,7 @@ namespace NzbDrone.Core.Books
     public interface IAddAuthorService
     {
         Author AddAuthor(Author newAuthor, bool doRefresh = true);
+        Author AddAuthorFromUnattendedLibraryImport(Author newAuthor);
         Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh);
         Book AddNewAuthorWithBook(Author author, Book book, bool doRefresh);
         List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh = true);
@@ -30,6 +32,7 @@ namespace NzbDrone.Core.Books
 
     public class AddAuthorService : IAddAuthorService
     {
+        private static readonly object[] AdditionLocks = Enumerable.Range(0, 64).Select(_ => new object()).ToArray();
         private readonly IAuthorService _authorService;
         private readonly IBookService _bookService;
         private readonly IAuthorMetadataService _authorMetadataService;
@@ -38,6 +41,7 @@ namespace NzbDrone.Core.Books
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IAddAuthorValidator _addAuthorValidator;
         private readonly IAuthorFormatProfileService _formatProfileService;
+        private readonly IAuthorFormatDefaultService _formatDefaults;
         private readonly IConfigService _configService;
         private readonly IQualityProfileService _qualityProfileService;
         private readonly IRootFolderService _rootFolderService;
@@ -51,6 +55,7 @@ namespace NzbDrone.Core.Books
                                 IBuildFileNames fileNameBuilder,
                                 IAddAuthorValidator addAuthorValidator,
                                 IAuthorFormatProfileService formatProfileService,
+                                IAuthorFormatDefaultService formatDefaults,
                                 IConfigService configService,
                                 IQualityProfileService qualityProfileService,
                                 IRootFolderService rootFolderService,
@@ -64,6 +69,7 @@ namespace NzbDrone.Core.Books
             _fileNameBuilder = fileNameBuilder;
             _addAuthorValidator = addAuthorValidator;
             _formatProfileService = formatProfileService;
+            _formatDefaults = formatDefaults;
             _configService = configService;
             _qualityProfileService = qualityProfileService;
             _rootFolderService = rootFolderService;
@@ -72,9 +78,20 @@ namespace NzbDrone.Core.Books
 
         public Author AddAuthor(Author newAuthor, bool doRefresh = true)
         {
+            return AddAuthor(newAuthor, doRefresh, unattendedLibraryImport: false);
+        }
+
+        public Author AddAuthorFromUnattendedLibraryImport(Author newAuthor)
+        {
+            return AddAuthor(newAuthor, doRefresh: false, unattendedLibraryImport: true);
+        }
+
+        private Author AddAuthor(Author newAuthor, bool doRefresh, bool unattendedLibraryImport)
+        {
             Ensure.That(newAuthor, () => newAuthor).IsNotNull();
 
-            return AddResolvedAuthor(AddSkyhookData(newAuthor), doRefresh);
+            var resolved = AddSkyhookData(newAuthor, unattendedLibraryImport, out var incompleteBibliography);
+            return AddResolvedAuthor(resolved.Author, resolved.Bibliography, doRefresh, incompleteBibliography, unattendedLibraryImport);
         }
 
         public Author AddAuthorWithMetadata(Author newAuthor, AuthorMetadata metadata, bool doRefresh)
@@ -91,7 +108,7 @@ namespace NzbDrone.Core.Books
 
             metadata.ForeignAuthorId = NormalizeForeignAuthorId(metadata.ForeignAuthorId);
             newAuthor.Metadata = metadata;
-            return AddResolvedAuthor(newAuthor, doRefresh);
+            return AddResolvedAuthor(newAuthor, null, doRefresh);
         }
 
         public Book AddNewAuthorWithBook(Author author, Book book, bool doRefresh)
@@ -104,77 +121,130 @@ namespace NzbDrone.Core.Books
             }
 
             author.Metadata = metadata;
-            author = SetPropertiesAndValidate(author);
-            var profiles = _configService.EnableDualFormatTracking
-                ? BuildFormatProfiles(author)
-                : Array.Empty<AuthorFormatProfile>();
-            return _bookService.AddBookWithNewAuthor(book, author, profiles, doRefresh);
+            lock (AdditionLocks[GetAdditionLockIndex(author)])
+            {
+                author = SetPropertiesAndValidate(author);
+                var profiles = _configService.EnableDualFormatTracking
+                    ? BuildFormatProfiles(author)
+                    : Array.Empty<AuthorFormatProfile>();
+                return _bookService.AddBookWithNewAuthor(book, author, profiles, doRefresh);
+            }
         }
 
-        private Author AddResolvedAuthor(Author newAuthor, bool doRefresh)
+        private Author AddResolvedAuthor(
+            Author newAuthor,
+            IReadOnlyList<Book> bibliography,
+            bool doRefresh,
+            MetadataProviderUnavailableException incompleteBibliography = null,
+            bool unattendedLibraryImport = false)
         {
-            newAuthor = SetPropertiesAndValidate(newAuthor);
-
-            var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(newAuthor, out var confidence, out var reason);
-            if (canonical != null)
+            lock (AdditionLocks[GetAdditionLockIndex(newAuthor)])
             {
-                _logger.Info("Reusing canonical author {0} for incoming {1} (confidence={2:0.000}, reason={3})", canonical, newAuthor, confidence, reason);
-                return canonical;
+                newAuthor = SetPropertiesAndValidate(newAuthor);
+
+                var canonical = _authorCanonicalizationService.TryReuseAuthorOnAdd(
+                    newAuthor, bibliography, Array.Empty<(Author, IReadOnlyList<Book>)>());
+                if (canonical != null)
+                {
+                    return canonical;
+                }
+
+                if (incompleteBibliography != null)
+                {
+                    // Corroboration can reuse an existing identity, but cannot make a new bibliography complete.
+                    ExceptionDispatchInfo.Throw(incompleteBibliography);
+                }
+
+                _logger.Info("Adding catalogue author");
+
+                _authorMetadataService.Upsert(newAuthor.Metadata.Value);
+                newAuthor.AuthorMetadataId = newAuthor.Metadata.Value.Id;
+
+                var existingAuthor = _authorService.GetAuthorByMetadataId(newAuthor.AuthorMetadataId);
+                if (existingAuthor != null)
+                {
+                    _logger.Info("Author already exists for metadata {0}; returning existing author {1}", newAuthor.AuthorMetadataId, existingAuthor.Id);
+                    return existingAuthor;
+                }
+
+                var addedAuthor = _authorService.AddAuthor(newAuthor, doRefresh);
+
+                EnsureFormatProfiles(addedAuthor, unattendedLibraryImport);
+
+                return addedAuthor;
             }
-
-            _logger.Info("Adding Author {0} Path: [{1}]", newAuthor, newAuthor.Path);
-
-            // add metadata
-            _authorMetadataService.Upsert(newAuthor.Metadata.Value);
-            newAuthor.AuthorMetadataId = newAuthor.Metadata.Value.Id;
-
-            // If metadata was reused (slug collision), an Author may already exist
-            var existingAuthor = _authorService.GetAuthorByMetadataId(newAuthor.AuthorMetadataId);
-            if (existingAuthor != null)
-            {
-                _logger.Info("Author already exists for metadata {0}; returning existing author {1}", newAuthor.AuthorMetadataId, existingAuthor);
-                return existingAuthor;
-            }
-
-            // add the author itself
-            var addedAuthor = _authorService.AddAuthor(newAuthor, doRefresh);
-
-            EnsureFormatProfiles(addedAuthor);
-
-            return addedAuthor;
         }
 
         public List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh = true)
         {
-            var added = DateTime.UtcNow;
-            var authorsToAdd = new List<Author>();
-            var existingMatches = new List<Author>();
-
+            var resolved = new List<(Author Author, IReadOnlyList<Book> Bibliography)>();
             foreach (var s in newAuthors)
             {
                 try
                 {
-                    var author = AddSkyhookData(s);
-                    author = SetPropertiesAndValidate(author);
-
-                    var canonical = _authorCanonicalizationService.TryFindCanonicalMatch(author, out var confidence, out var reason);
-                    if (canonical != null)
-                    {
-                        _logger.Info("Skipping duplicate author insert for {0}; using canonical {1} (confidence={2:0.000}, reason={3})", author, canonical, confidence, reason);
-                        existingMatches.Add(canonical);
-                        continue;
-                    }
-
-                    author.Added = added;
-                    authorsToAdd.Add(author);
+                    resolved.Add(AddSkyhookData(s, false, out _));
                 }
                 catch (Exception ex)
                 {
-                    // Catch Import Errors for now until we get things fixed up
                     _logger.Error(ex, "Failed to import id: {0} - {1}", s.Metadata.Value.ForeignAuthorId, s.Metadata.Value.Name);
                 }
             }
 
+            var lockIndexes = resolved.Select(candidate => GetAdditionLockIndex(candidate.Author)).Distinct().Order().ToArray();
+            return WithAdditionLocks(lockIndexes, 0, () => AddResolvedAuthors(resolved, doRefresh));
+        }
+
+        private static int GetAdditionLockIndex(Author author)
+        {
+            var name = AuthorCanonicalizationService.NormalizeName(author.Name) ?? author.ForeignAuthorId;
+            return (int)((uint)StringComparer.Ordinal.GetHashCode(name) % AdditionLocks.Length);
+        }
+
+        private static T WithAdditionLocks<T>(int[] lockIndexes, int index, Func<T> action)
+        {
+            if (index == lockIndexes.Length)
+            {
+                return action();
+            }
+
+            // Bulk adds acquire the same locks as single adds, in a consistent order.
+            lock (AdditionLocks[lockIndexes[index]])
+            {
+                return WithAdditionLocks(lockIndexes, index + 1, action);
+            }
+        }
+
+        private List<Author> AddResolvedAuthors(List<(Author Author, IReadOnlyList<Book> Bibliography)> resolved, bool doRefresh)
+        {
+            var added = DateTime.UtcNow;
+            var pending = new List<(Author Author, IReadOnlyList<Book> Bibliography)>();
+            var existingMatches = new List<Author>();
+            foreach (var (input, bibliography) in resolved)
+            {
+                try
+                {
+                    var author = SetPropertiesAndValidate(input);
+                    var canonical = _authorCanonicalizationService.TryReuseAuthorOnAdd(author, bibliography, pending);
+                    if (canonical != null)
+                    {
+                        if (canonical.Id > 0)
+                        {
+                            existingMatches.Add(canonical);
+                        }
+
+                        continue;
+                    }
+
+                    author.Added = added;
+                    pending.Add((author, bibliography));
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Failed to import id: {0} - {1}", input.ForeignAuthorId, input.Name);
+                }
+            }
+
+            var authorsToAdd = pending.Select(candidate => candidate.Author).ToList();
             if (!authorsToAdd.Any())
             {
                 return existingMatches.DistinctBy(x => x.Id).ToList();
@@ -210,9 +280,13 @@ namespace NzbDrone.Core.Books
             return inserted.Concat(existingMatches).DistinctBy(x => x.Id).ToList();
         }
 
-        private Author AddSkyhookData(Author newAuthor)
+        private (Author Author, IReadOnlyList<Book> Bibliography) AddSkyhookData(
+            Author newAuthor,
+            bool deferIncompleteBibliography,
+            out MetadataProviderUnavailableException incompleteBibliography)
         {
             Author author;
+            incompleteBibliography = null;
 
             var normalizedForeignAuthorId = NormalizeForeignAuthorId(newAuthor.Metadata.Value.ForeignAuthorId);
             newAuthor.Metadata.Value.ForeignAuthorId = normalizedForeignAuthorId;
@@ -239,15 +313,24 @@ namespace NzbDrone.Core.Books
                 _logger.Warn("Author metadata lookup returned no results for {0}; using request payload fallback", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
                 author = BuildFallbackAuthor(newAuthor);
             }
+            catch (MetadataProviderUnavailableException ex) when (
+                deferIncompleteBibliography && ex.AuthoritativeBibliographyIncomplete &&
+                ex.Operation == MetadataProviderOrchestrator.AuthorInfoOperation &&
+                ex.EntityId == normalizedForeignAuthorId)
+            {
+                incompleteBibliography = ex;
+                author = BuildFallbackAuthor(newAuthor);
+            }
             catch (Exception ex)
             {
                 _logger.Warn(ex, "Author metadata lookup failed for {0}; using request payload fallback", LogSanitizer.Sanitize(newAuthor.Metadata.Value.ForeignAuthorId));
                 author = BuildFallbackAuthor(newAuthor);
             }
 
+            var bibliography = author.Books?.Value;
             author.ApplyChanges(newAuthor);
 
-            return author;
+            return (author, bibliography);
         }
 
         private static string NormalizeForeignAuthorId(string foreignAuthorId)
@@ -350,7 +433,7 @@ namespace NzbDrone.Core.Books
             return newAuthor;
         }
 
-        private void EnsureFormatProfiles(Author author)
+        private void EnsureFormatProfiles(Author author, bool unattendedLibraryImport = false)
         {
             if (!_configService.EnableDualFormatTracking || author.Id <= 0)
             {
@@ -364,15 +447,22 @@ namespace NzbDrone.Core.Books
                 return;
             }
 
-            foreach (var profile in BuildFormatProfiles(author))
+            var profiles = BuildFormatProfiles(author, unattendedLibraryImport);
+            foreach (var profile in profiles)
             {
                 _formatProfileService.Add(profile);
+            }
+
+            if (profiles.Any(profile => profile.PendingTypedDefault))
+            {
+                // A compatible root may have been registered after the initial defaults were read.
+                _formatDefaults.ResolvePending(author.Id);
             }
 
             _logger.Debug("Created dual-format profiles for author {0}", author);
         }
 
-        private IReadOnlyList<AuthorFormatProfile> BuildFormatProfiles(Author author)
+        private IReadOnlyList<AuthorFormatProfile> BuildFormatProfiles(Author author, bool unattendedLibraryImport = false)
         {
             var addOptions = author.AddOptions;
 
@@ -380,6 +470,8 @@ namespace NzbDrone.Core.Books
             var audiobookQualityProfileId = addOptions?.AudiobookQualityProfileId ?? 0;
             var ebookRootFolderPath = addOptions?.EbookRootFolderPath ?? string.Empty;
             var audiobookRootFolderPath = addOptions?.AudiobookRootFolderPath ?? string.Empty;
+            var pendingEbookDefault = false;
+            var pendingAudiobookDefault = false;
 
             // When per-format QPs aren't explicitly set, infer the best QP for each format
             // by checking which root folders/QPs contain ebook vs audiobook qualities
@@ -427,6 +519,20 @@ namespace NzbDrone.Core.Books
                     }
                 }
 
+                if (unattendedLibraryImport)
+                {
+                    var sourceRoot = rootFolders.Find(root => !root.IsCalibreLibrary &&
+                        root.DefaultQualityProfileId == author.QualityProfileId && root.Path.PathEquals(author.RootFolderPath));
+                    var sourceFormat = sourceRoot == null
+                        ? null
+                        : AuthorFormatDefaultService.GetExclusiveFormat(allQualityProfiles.Find(profile => profile.Id == sourceRoot.DefaultQualityProfileId));
+
+                    pendingEbookDefault = sourceFormat == FormatType.Audiobook && bestEbookQpId == 0 &&
+                                          addOptions?.EbookQualityProfileId == null && ebookRootFolderPath.IsNullOrWhiteSpace();
+                    pendingAudiobookDefault = sourceFormat == FormatType.Ebook && bestAudiobookQpId == 0 &&
+                                              addOptions?.AudiobookQualityProfileId == null && audiobookRootFolderPath.IsNullOrWhiteSpace();
+                }
+
                 if (ebookQualityProfileId <= 0)
                 {
                     ebookQualityProfileId = bestEbookQpId > 0 ? bestEbookQpId : author.QualityProfileId;
@@ -455,6 +561,7 @@ namespace NzbDrone.Core.Books
                 FormatType = FormatType.Ebook,
                 QualityProfileId = ebookQualityProfileId,
                 RootFolderPath = ebookRootFolderPath,
+                PendingTypedDefault = pendingEbookDefault,
                 Tags = author.Tags ?? new HashSet<int>(),
                 Monitored = author.Monitored,
                 MonitorNewItems = author.MonitorNewItems,
@@ -467,6 +574,7 @@ namespace NzbDrone.Core.Books
                 FormatType = FormatType.Audiobook,
                 QualityProfileId = audiobookQualityProfileId,
                 RootFolderPath = audiobookRootFolderPath,
+                PendingTypedDefault = pendingAudiobookDefault,
                 Tags = author.Tags ?? new HashSet<int>(),
                 Monitored = author.Monitored,
                 MonitorNewItems = author.MonitorNewItems,

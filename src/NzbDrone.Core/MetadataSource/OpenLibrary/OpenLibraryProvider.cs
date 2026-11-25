@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Exceptions;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
@@ -16,10 +21,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     /// </summary>
     public class OpenLibraryProvider :
         IMetadataProvider,
+        IProvideAuthorProfileMetadata,
         IProvideAuthorInfo,
+        IVerifyAuthorWork,
+        IResolveAuthorWorkByIsbn,
         IProvideBookInfo,
         ISearchForNewBook,
         ISearchForNewAuthor,
+        ISearchForSupplementalAuthor,
         ISearchForNewEntity
     {
         // ── IMetadataProvider ────────────────────────────────────────────────
@@ -43,6 +52,23 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             _logger = logger;
         }
 
+        public AuthorMetadata GetAuthorProfileMetadata(string authorId)
+        {
+            const string authorPath = "/authors/";
+            var expectedId = OpenLibraryIdNormalizer.NormalizeAuthorId(authorId);
+            if (expectedId == null)
+            {
+                return null;
+            }
+
+            var resource = _client.GetAuthorProfile(expectedId);
+            var key = resource?.Key;
+            var returnedId = key?.StartsWith(authorPath, StringComparison.OrdinalIgnoreCase) == true ? key[authorPath.Length..] : key;
+            return OpenLibraryIdNormalizer.NormalizeAuthorId(returnedId) == expectedId
+                ? OpenLibraryMapper.MapAuthorToMetadata(resource)
+                : null;
+        }
+
         // ── IProvideAuthorInfo ───────────────────────────────────────────────
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
         {
@@ -63,8 +89,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 throw new NzbDrone.Core.Exceptions.AuthorNotFoundException(foreignAuthorId);
             }
 
-            var works = GetAuthorWorkEntries(normalizedAuthorId);
-            var workDocsById = GetAuthorWorkSearchDocs(normalizedAuthorId)
+            var (works, recoveryDocs) = GetAuthorWorkEntries(normalizedAuthorId, authorResource.Key == $"/authors/{normalizedAuthorId}");
+            var workDocsById = (recoveryDocs ?? GetAuthorWorkSearchDocs(normalizedAuthorId))
                 .Where(x => x?.Key.IsNotNullOrWhiteSpace() == true)
                 .GroupBy(x => NormalizeWorkId(x.Key))
                 .Where(x => x.Key.IsNotNullOrWhiteSpace())
@@ -150,16 +176,169 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return series.OrderBy(x => x.Title).ToList();
         }
 
-        private List<OlWorkResource> GetAuthorWorkEntries(string normalizedAuthorId)
+        private (List<OlWorkResource> Works, List<OlSearchDoc> RecoveryDocs) GetAuthorWorkEntries(string normalizedAuthorId, bool exactAuthor)
         {
-            return ReadAuthorPages(
+            int? initialTotal = null;
+            var stableTotal = true;
+            List<OlSearchDoc> recoveryDocs = null;
+            var works = ReadAuthorPages(
                 normalizedAuthorId,
                 offset =>
                 {
                     var response = _client.GetAuthorWorks(normalizedAuthorId, 100, offset);
+                    if (response != null)
+                    {
+                        initialTotal ??= response.Size;
+                        stableTotal &= initialTotal == response.Size;
+                    }
+
                     return (response?.Entries, response?.Size);
                 },
-                work => work?.Key);
+                work => work?.Key,
+                authoritative: exactAuthor,
+                recoverGap: (entries, total) =>
+                {
+                    var result = stableTotal
+                        ? RecoverAuthorWorkGap(normalizedAuthorId, entries, total, out recoveryDocs)
+                        : AuthorWorkGapRecovery.WorksTotalChanged;
+                    if (result != AuthorWorkGapRecovery.Recovered)
+                    {
+                        _logger.Info(
+                            "Open Library bibliography gap recovery stopped: {0} ({1} distinct works of {2} reported).",
+                            result,
+                            entries.Count,
+                            total);
+                    }
+
+                    return result == AuthorWorkGapRecovery.Recovered;
+                });
+
+            return (works, recoveryDocs);
+        }
+
+        private enum AuthorWorkGapRecovery
+        {
+            Recovered,
+            WorksTotalChanged,
+            OutsideRecoveryBounds,
+            InvalidKnownWorkSet,
+            SearchUnavailable,
+            SearchInexactTotal,
+            SearchTotalMismatch,
+            SearchPageMismatch,
+            InvalidSearchWorkSet,
+            KnownWorkMissingFromSearch,
+            SearchAuthorCreditMismatch,
+            DirectWorkRejected,
+            DirectWorkUnavailable
+        }
+
+        private AuthorWorkGapRecovery RecoverAuthorWorkGap(string authorId, List<OlWorkResource> works, int total, out List<OlSearchDoc> recoveryDocs)
+        {
+            const int pageSize = 100;
+            const int maxSearchPages = 3;
+            const int maxMissingWorks = 6;
+
+            recoveryDocs = null;
+            var missingCount = total - works.Count;
+            if (works.Count == 0 || total > pageSize * maxSearchPages || missingCount is < 1 or > maxMissingWorks ||
+                CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null)?.ProviderId != authorId)
+            {
+                return AuthorWorkGapRecovery.OutsideRecoveryBounds;
+            }
+
+            var known = works.Select(work => GetExactAuthorWorksKey(work.Key)).ToHashSet(StringComparer.Ordinal);
+            if (known.Contains(null) || known.Count != works.Count)
+            {
+                return AuthorWorkGapRecovery.InvalidKnownWorkSet;
+            }
+
+            var transportFailure = AuthorWorkGapRecovery.SearchUnavailable;
+            try
+            {
+                var searchDocs = new Dictionary<string, OlSearchDoc>(StringComparer.Ordinal);
+                for (var offset = 0; offset < total; offset += pageSize)
+                {
+                    var page = _client.Search($"author_key:{authorId}", pageSize, offset);
+                    if (page == null)
+                    {
+                        return AuthorWorkGapRecovery.SearchUnavailable;
+                    }
+
+                    if (page.NumFoundExact != true)
+                    {
+                        return AuthorWorkGapRecovery.SearchInexactTotal;
+                    }
+
+                    if (page.NumFound != total)
+                    {
+                        return AuthorWorkGapRecovery.SearchTotalMismatch;
+                    }
+
+                    if (page.Start != offset || page.Docs?.Count != Math.Min(pageSize, total - offset))
+                    {
+                        return AuthorWorkGapRecovery.SearchPageMismatch;
+                    }
+
+                    foreach (var doc in page.Docs)
+                    {
+                        var id = GetIsbnLookupWorkId(doc?.Key);
+                        if (id == null || (doc.Key != id && doc.Key != $"/works/{id}") || !searchDocs.TryAdd(id, doc))
+                        {
+                            return AuthorWorkGapRecovery.InvalidSearchWorkSet;
+                        }
+                    }
+                }
+
+                if (!known.IsSubsetOf(searchDocs.Keys))
+                {
+                    return AuthorWorkGapRecovery.KnownWorkMissingFromSearch;
+                }
+
+                var missing = searchDocs.Where(pair => !known.Contains(pair.Key)).ToList();
+                if (missing.Count != missingCount || missing.Any(pair =>
+                {
+                    var searchAuthor = pair.Value.AuthorKey?.FirstOrDefault();
+                    return searchAuthor != authorId && searchAuthor != $"/authors/{authorId}";
+                }))
+                {
+                    return AuthorWorkGapRecovery.SearchAuthorCreditMismatch;
+                }
+
+                transportFailure = AuthorWorkGapRecovery.DirectWorkUnavailable;
+                var recovered = new List<OlWorkResource>(missingCount);
+                foreach (var (workId, _) in missing)
+                {
+                    var work = _client.GetWork(workId);
+                    if (work == null)
+                    {
+                        return AuthorWorkGapRecovery.DirectWorkUnavailable;
+                    }
+
+                    if (work.Key != $"/works/{workId}" || work.Title.IsNullOrWhiteSpace() ||
+                        !HasExclusiveAuthorCredit(work, authorId))
+                    {
+                        return AuthorWorkGapRecovery.DirectWorkRejected;
+                    }
+
+                    recovered.Add(work);
+                }
+
+                works.AddRange(recovered);
+                recoveryDocs = searchDocs.Values.ToList();
+                _logger.Info("Verified {0} missing Open Library bibliography work IDs for author {1}. The bibliography now has {2} distinct works.", recovered.Count, authorId, total);
+                return AuthorWorkGapRecovery.Recovered;
+            }
+            catch (Exception ex) when (ex is OpenLibraryException or WebException or HttpRequestException)
+            {
+                return transportFailure;
+            }
+        }
+
+        private static string GetExactAuthorWorksKey(string key)
+        {
+            var workId = GetIsbnLookupWorkId(key);
+            return workId != null && key == $"/works/{workId}" ? workId : null;
         }
 
         private List<OlSearchDoc> GetAuthorWorkSearchDocs(string normalizedAuthorId)
@@ -175,12 +354,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 doc => doc?.Key);
         }
 
-        private static List<T> ReadAuthorPages<T>(string authorId, Func<int, (List<T> Entries, int? Total)> fetchPage, Func<T, string> getKey)
+        private static List<T> ReadAuthorPages<T>(string authorId,
+                                                  Func<int, (List<T> Entries, int? Total)> fetchPage,
+                                                  Func<T, string> getKey,
+                                                  bool authoritative = false,
+                                                  Func<List<T>, int, bool> recoverGap = null)
         {
             var results = new List<T>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var offset = 0;
             var total = 0;
+            var endedEarly = false;
             var confirmedEmptyPage = false;
 
             try
@@ -189,11 +373,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 {
                     var (page, reportedTotal) = fetchPage(offset);
                     total = Math.Max(total, reportedTotal ?? 0);
+                    var confirmedCurrentGap = false;
                     if (!confirmedEmptyPage && page?.Count == 0 && seen.Count < total)
                     {
                         // Confirm an unexpected gap once without discarding the earlier total.
                         confirmedEmptyPage = true;
                         (page, reportedTotal) = fetchPage(offset);
+                        confirmedCurrentGap = page?.Count == 0;
                         total = Math.Max(total, reportedTotal ?? 0);
                     }
 
@@ -206,6 +392,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     {
                         if (seen.Count < total)
                         {
+                            if (authoritative && confirmedCurrentGap && recoverGap?.Invoke(results, total) == true)
+                            {
+                                return results;
+                            }
+
+                            endedEarly = true;
                             throw new InvalidOperationException($"Open Library ended its bibliography at offset {offset} with {seen.Count} distinct works before the reported total {total}.");
                         }
 
@@ -236,7 +428,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
             catch (Exception ex)
             {
-                throw new MetadataProviderUnavailableException("get-author-info", $"openlibrary:author:{authorId}", ex);
+                throw new MetadataProviderUnavailableException(
+                    MetadataProviderOrchestrator.AuthorInfoOperation,
+                    $"openlibrary:author:{authorId}",
+                    ex,
+                    authoritative && endedEarly,
+                    endedEarly ? (offset, seen.Count, total) : null);
             }
         }
 
@@ -262,6 +459,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             // Contract: works feed is the identity source; search docs are enrichment.
             ApplyWorksIdentityContract(book, workBook);
             EnrichBookFromWork(book, workBook);
+            if (HasExclusiveAuthorCredit(work, metadata.OpenLibraryAuthorId))
+            {
+                book.VerifiedOpenLibraryAuthorId = metadata.OpenLibraryAuthorId;
+            }
 
             book.AuthorMetadata = metadata;
             if (book.Author?.Value != null)
@@ -464,7 +665,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 throw new NzbDrone.Core.Exceptions.BookNotFoundException(foreignBookId);
             }
 
-            var representativeEditions = GetRepresentativeEditions(normalizedWorkId);
+            var expectedWorkId = normalizedWorkId?.ToUpperInvariant();
+            var exactWork = expectedWorkId?.Length > 3 &&
+                            expectedWorkId.StartsWith("OL", StringComparison.Ordinal) &&
+                            expectedWorkId.EndsWith('W') &&
+                            expectedWorkId[2..^1].All(char.IsAsciiDigit) &&
+                            work.Key == "/works/" + expectedWorkId;
+            var workFallback = exactWork ? book.Editions.Value[0] : null;
+            var representativeEditions = GetRepresentativeEditions(normalizedWorkId, workFallback);
             if (representativeEditions.Any())
             {
                 representativeEditions[0].Monitored = true;
@@ -486,20 +694,48 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return Tuple.Create(authorId, book, authorMetaList);
         }
 
-        private List<Edition> GetRepresentativeEditions(string normalizedWorkId)
+        private List<Edition> GetRepresentativeEditions(string normalizedWorkId, Edition workFallback)
         {
             var response = _client.GetWorkEditions(normalizedWorkId, 20, 0);
-
-            return (response?.Entries ?? new List<OlEditionResource>())
-                .Select(OpenLibraryMapper.MapEdition)
-                .Where(x => x != null)
-                .OrderByDescending(IsPreferredEdition)
-                .ThenByDescending(x => x.Images.Any())
-                .ThenByDescending(x => x.PageCount)
-                .ThenByDescending(x => x.ReleaseDate)
-                .DistinctBy(x => x.ForeignEditionId)
+            var selected = (response?.Entries ?? new List<OlEditionResource>())
+                .Select(source => (Source: source, Edition: OpenLibraryMapper.MapEdition(source)))
+                .Where(x => x.Edition != null)
+                .OrderByDescending(x => IsPreferredEdition(x.Edition))
+                .ThenByDescending(x => x.Edition.Images.Any())
+                .ThenByDescending(x => x.Edition.PageCount)
+                .ThenByDescending(x => x.Edition.ReleaseDate)
+                .DistinctBy(x => x.Edition.ForeignEditionId)
                 .Take(5)
                 .ToList();
+            var editions = selected.Select(x => x.Edition).ToList();
+
+            if (workFallback != null && selected.Count > 0)
+            {
+                var source = selected[0].Source;
+                var editionId = OpenLibraryIdNormalizer.NormalizeEditionId(source.Key);
+                var workPath = "/works/" + normalizedWorkId.ToUpperInvariant();
+                if (editionId != null && source.Key == "/books/" + editionId &&
+                    source.Works?.Any(link => link?.Key != workPath) != true)
+                {
+                    ApplyWorkDetailFallback(editions, workFallback);
+                }
+            }
+
+            return editions;
+        }
+
+        private static void ApplyWorkDetailFallback(List<Edition> editions, Edition workFallback)
+        {
+            // Leave edition-specific metadata preferred even when it comes from another selected edition.
+            if (workFallback.Overview.IsNotNullOrWhiteSpace() && editions.GetBookOverview().IsNullOrWhiteSpace())
+            {
+                editions[0].Overview = workFallback.Overview;
+            }
+
+            if (!editions.SelectMany(edition => edition.Images).Any(image => image.CoverType == MediaCoverTypes.Cover))
+            {
+                editions[0].Images.AddRange(workFallback.Images);
+            }
         }
 
         private static bool IsPreferredEdition(Edition edition)
@@ -584,58 +820,161 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
         }
 
+        public string GetVerifiedAuthorWorkTitle(string authorId, string workId, string isbn)
+        {
+            var work = GetIsbnLookupWorkId(workId);
+            return work == null ? null : GetVerifiedAuthorWork(authorId, isbn, work)?.Title;
+        }
+
+        (string WorkId, string Title)? IResolveAuthorWorkByIsbn.GetVerifiedAuthorWorkByIsbn(string authorId, string isbn)
+        {
+            return GetVerifiedAuthorWork(authorId, isbn);
+        }
+
+        internal bool VerifyWorkForReconciliation(string authorId, string workId, string isbn, string title)
+        {
+            var work = GetIsbnLookupWorkId(workId);
+            return IsEnabled && work != null && IsSingleWorkTitle(title, null) &&
+                GetVerifiedAuthorWork(authorId, isbn, work, title) != null;
+        }
+
+        internal static bool SameReconciliationTitle(string left, string right)
+        {
+            return left.IsNotNullOrWhiteSpace() && right.IsNotNullOrWhiteSpace() &&
+                string.Equals(NormalizeReconciliationTitle(left), NormalizeReconciliationTitle(right), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeReconciliationTitle(string value)
+        {
+            return string.Join(" ", value.Normalize(NormalizationForm.FormKC).Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        private static bool IsSingleWorkTitle(string title, string subtitle)
+        {
+            const string compound = @"\b(?:omnibus|collection|box(?:ed)?\s+set|anthology|bundle|books\s+[0-9]+)\b";
+            return title.IsNotNullOrWhiteSpace() &&
+                   !Regex.IsMatch($"{title} {subtitle}", compound, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        private (string WorkId, string Title)? GetVerifiedAuthorWork(string authorId, string isbn, string expectedWork = null, string reconciliationTitle = null)
+        {
+            var author = CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null);
+            var canonicalIsbn = Isbn.AsIsbn13(isbn);
+            if (author == null || canonicalIsbn == null)
+            {
+                return null;
+            }
+
+            var reconciliation = reconciliationTitle != null;
+            var edition = reconciliation ? _client.GetExactEditionByIsbn(canonicalIsbn, verification: true)
+                : expectedWork == null ? _client.GetExactEditionByIsbn(canonicalIsbn) : _client.GetEditionByIsbn(canonicalIsbn);
+            var editionKey = OpenLibraryIdNormalizer.NormalizeWorkId(edition?.Key);
+            if (editionKey == null || !editionKey.EndsWith("M", StringComparison.Ordinal) ||
+                editionKey.Length <= 3 || !editionKey[2..^1].All(char.IsAsciiDigit) ||
+                (!ContainsExactIsbn(edition.Isbn13, canonicalIsbn) && !ContainsExactIsbn(edition.Isbn10, canonicalIsbn)) ||
+                edition.Works?.Count != 1)
+            {
+                return null;
+            }
+
+            var workKey = edition.Works[0]?.Key;
+            var work = GetIsbnLookupWorkId(workKey);
+            if (work == null || (expectedWork != null && work != expectedWork) ||
+                ((expectedWork == null || reconciliation) && (edition.Key != $"/books/{editionKey}" || workKey != $"/works/{work}")) ||
+                (reconciliation && (!SameReconciliationTitle(edition.Title, reconciliationTitle) ||
+                                    !IsSingleWorkTitle(edition.Title, edition.Subtitle) ||
+                                    (edition.Type != null && edition.Type.Key != "/type/edition") ||
+                                    (edition.Authors != null &&
+                                     (edition.Authors.Count != 1 || edition.Authors[0]?.Key != $"/authors/{author.ProviderId}")))))
+            {
+                return null;
+            }
+
+            var source = reconciliation ? _client.GetWork(work, verification: true) : _client.GetWork(work);
+            return GetIsbnLookupWorkId(source?.Key) == work &&
+                   ((expectedWork != null && !reconciliation) || source.Key == $"/works/{work}") &&
+                   HasExclusiveAuthorCredit(source, author.ProviderId) &&
+                   (!reconciliation || (source.Type?.Key == "/type/work" &&
+                    SameReconciliationTitle(source.Title, reconciliationTitle) && IsSingleWorkTitle(source.Title, source.Subtitle)))
+                ? ($"openlibrary:work:{work}", source.Title)
+                : null;
+        }
+
+        private static bool HasExclusiveAuthorCredit(OlWorkResource work, string authorId)
+        {
+            var credit = work?.Authors?.Count == 1 ? work.Authors[0] : null;
+            return authorId.IsNotNullOrWhiteSpace() &&
+                   credit?.Type?.Key == "/type/author_role" &&
+                   credit.Author?.Key == $"/authors/{authorId}";
+        }
+
         public List<Book> SearchByIsbn(string isbn)
         {
-            _logger.Debug("OpenLibraryProvider.SearchByIsbn: {0}", isbn);
+            _logger.Debug("OpenLibrary provider ISBN lookup.");
+
+            var canonicalIsbn = Isbn.AsIsbn13(isbn);
+            if (canonicalIsbn == null)
+            {
+                return new List<Book>();
+            }
 
             try
             {
                 var edition = _client.GetEditionByIsbn(isbn);
-                if (edition == null)
+                if (edition?.RequestUnavailable == true)
+                {
+                    throw new ServiceProviderException("Open Library did not return a usable ISBN response.");
+                }
+
+                var editionId = OpenLibraryIdNormalizer.NormalizeWorkId(edition?.Key);
+                if (editionId == null || !editionId.EndsWith("M", StringComparison.OrdinalIgnoreCase) ||
+                    editionId.Length <= 3 || !editionId[2..^1].All(char.IsAsciiDigit) ||
+                    (!ContainsExactIsbn(edition.Isbn13, canonicalIsbn) && !ContainsExactIsbn(edition.Isbn10, canonicalIsbn)))
                 {
                     return new List<Book>();
                 }
 
+                // The raw edition can list several valid ISBNs. Only this lookup has
+                // evidence for which one the caller requested.
                 var mappedEdition = OpenLibraryMapper.MapEdition(edition);
-                if (mappedEdition == null)
+                mappedEdition.Isbn13 = canonicalIsbn;
+
+                var workIds = (edition.Works ?? Enumerable.Empty<OlKeyRef>())
+                    .Select(reference => GetIsbnLookupWorkId(reference?.Key))
+                    .Where(id => id != null)
+                    .Distinct()
+                    .Take(2)
+                    .ToList();
+                if (workIds.Count == 1)
                 {
-                    return new List<Book>();
+                    var workId = workIds[0];
+                    var work = _client.GetWork(workId);
+                    if (GetIsbnLookupWorkId(work?.Key) == workId)
+                    {
+                        var authorKey = work.Authors?.FirstOrDefault()?.Author?.Key;
+                        var authorResource = authorKey != null ? _client.GetAuthor(authorKey) : null;
+                        var book = OpenLibraryMapper.MapWorkToBook(work, authorResource);
+                        AttachQueriedEdition(book, mappedEdition);
+                        return new List<Book> { book };
+                    }
+
+                    return new List<Book> { BuildBookFromEditionOnly(mappedEdition, edition, workId) };
                 }
 
-                // Try to get full work for title / author
-                var workKey = edition.Works?.FirstOrDefault()?.Key;
-                if (workKey != null)
+                if (edition.Works?.Count is null or 0)
                 {
-                    var work = _client.GetWork(workKey);
-                    var authorKey = work?.Authors?.FirstOrDefault()?.Author?.Key;
-                    var authorResource = authorKey != null ? _client.GetAuthor(authorKey) : null;
-
-                    var book = OpenLibraryMapper.MapWorkToBook(work, authorResource);
-                    if (book != null)
+                    var searchMatch = SearchWorkByIsbn(isbn, mappedEdition);
+                    if (searchMatch != null)
                     {
-                        // Prefer the edition we already fetched (has ISBN)
-                        if (!book.Editions.Value.Any(e => e.Isbn13 == isbn))
-                        {
-                            book.Editions.Value.Insert(0, mappedEdition);
-                        }
-
-                        return new List<Book> { book };
+                        return new List<Book> { searchMatch };
                     }
                 }
 
-                var isbnSearchResults = SearchEditionByIsbn(isbn, mappedEdition);
-                if (isbnSearchResults.Any())
-                {
-                    return isbnSearchResults;
-                }
-
-                // Fallback: build a minimal book from edition only
-                var fallback = BuildBookFromEditionOnly(mappedEdition, edition);
-                return fallback != null ? new List<Book> { fallback } : new List<Book>();
+                return new List<Book> { BuildBookFromEditionOnly(mappedEdition, edition, null) };
             }
-            catch (OpenLibraryException ex)
+            catch (OpenLibraryException)
             {
-                _logger.Warn(ex, "OpenLibrary ISBN lookup failed for '{0}'", isbn);
+                _logger.Warn("OpenLibrary provider ISBN lookup failed.");
                 return new List<Book>();
             }
         }
@@ -697,7 +1036,22 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             _logger.Debug("OpenLibraryProvider.SearchForNewAuthor: {0}", title);
 
-            var response = SearchText(title, 10);
+            return MapSearchAuthors(SearchText(title, 10));
+        }
+
+        public List<Author> SearchForSupplementalAuthor(string title)
+        {
+            var response = _client.SearchOnePageWithoutRetry(title, 10);
+            if (response?.RequestUnavailable == true)
+            {
+                throw new ServiceProviderException("Open Library did not return a usable supplemental author search response.");
+            }
+
+            return MapSearchAuthors(response);
+        }
+
+        private static List<Author> MapSearchAuthors(OlSearchResponse response)
+        {
             return (response?.Docs ?? new List<OlSearchDoc>())
                 .Select(d => OpenLibraryMapper.MapSearchDocToBook(d))
                 .Where(b => b?.Author?.Value != null)
@@ -756,8 +1110,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             foreach (var isbn in isbnCandidates)
             {
                 var candidate = SearchByIsbn(isbn)
-                    .FirstOrDefault(x => NormalizeWorkId(x.OpenLibraryWorkId).IsNotNullOrWhiteSpace() ||
-                                         NormalizeWorkId(x.ForeignBookId).IsNotNullOrWhiteSpace());
+                    .FirstOrDefault(x => GetIsbnLookupWorkId(x.OpenLibraryWorkId) != null || GetIsbnLookupWorkId(x.ForeignBookId) != null);
 
                 if (candidate?.AuthorMetadata?.Value == null)
                 {
@@ -773,65 +1126,52 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return null;
         }
 
-        private List<Book> SearchEditionByIsbn(string isbn, Edition mappedEdition)
+        private Book SearchWorkByIsbn(string isbn, Edition edition)
         {
             var response = _client.Search(isbn, limit: 5);
-            var books = MapSearchDocsToBooks(response?.Docs)
-                .Where(x => NormalizeWorkId(x.OpenLibraryWorkId).IsNotNullOrWhiteSpace() ||
-                            NormalizeWorkId(x.ForeignBookId).IsNotNullOrWhiteSpace())
+            var matches = (response?.Docs ?? Enumerable.Empty<OlSearchDoc>())
+                .Where(doc => ContainsExactIsbn(doc?.Isbn, edition.Isbn13) && doc.Title.IsNotNullOrWhiteSpace() &&
+                              string.Equals(doc.Title.Trim(), edition.Title?.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                              GetIsbnLookupWorkId(doc.Key) != null)
+                .DistinctBy(doc => GetIsbnLookupWorkId(doc.Key))
+                .Take(2)
                 .ToList();
-
-            if (!books.Any())
-            {
-                return books;
-            }
-
-            foreach (var book in books)
-            {
-                AddEditionIfMissing(book, mappedEdition, isbn);
-            }
-
-            return books;
-        }
-
-        private static void AddEditionIfMissing(Book book, Edition edition, string isbn)
-        {
-            if (book?.Editions?.Value == null || edition == null)
-            {
-                return;
-            }
-
-            if (book.Editions.Value.Any(x => string.Equals(x.Isbn13, isbn, StringComparison.OrdinalIgnoreCase)))
-            {
-                return;
-            }
-
-            var clone = new Edition
-            {
-                ForeignEditionId = edition.ForeignEditionId,
-                TitleSlug = edition.TitleSlug,
-                Title = edition.Title,
-                Isbn13 = edition.Isbn13,
-                Publisher = edition.Publisher,
-                PageCount = edition.PageCount,
-                ReleaseDate = edition.ReleaseDate,
-                IsEbook = edition.IsEbook,
-                Format = edition.Format,
-                Ratings = edition.Ratings,
-                Images = edition.Images,
-                Book = book
-            };
-
-            book.Editions.Value.Insert(0, clone);
-        }
-
-        private static Book BuildBookFromEditionOnly(Edition edition, OlEditionResource raw)
-        {
-            if (edition == null)
+            if (matches.Count != 1)
             {
                 return null;
             }
 
+            var book = OpenLibraryMapper.MapSearchDocToBook(matches[0]);
+            AttachQueriedEdition(book, edition);
+            return book;
+        }
+
+        private static bool ContainsExactIsbn(IEnumerable<string> identifiers, string isbn)
+        {
+            return identifiers?.Any(identifier => Isbn.AreEquivalent(identifier, isbn)) == true;
+        }
+
+        private static string GetIsbnLookupWorkId(string key)
+        {
+            var token = OpenLibraryIdNormalizer.NormalizeWorkId(key);
+            return CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Work, "OpenLibrary", token, null)?.ProviderId;
+        }
+
+        private static void AttachQueriedEdition(Book book, Edition edition)
+        {
+            // A work-level summary may repeat the ISBN. Preserve summary metadata
+            // while leaving only the edition response as proof of the ISBN match.
+            foreach (var summary in book.Editions.Value.Where(summary => Isbn.AreEquivalent(summary.Isbn13, edition.Isbn13)))
+            {
+                summary.Isbn13 = null;
+            }
+
+            edition.Book = book;
+            book.Editions.Value.Insert(0, edition);
+        }
+
+        private static Book BuildBookFromEditionOnly(Edition edition, OlEditionResource raw, string workId)
+        {
             var authorKey = raw.Authors?.FirstOrDefault()?.Key;
             var authorId = NormalizeAuthorId(authorKey?.TrimStart('/').Split('/').LastOrDefault());
             var foreignAuthorId = authorKey != null
@@ -852,8 +1192,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             metadata.NameLastFirst = metadata.Name.ToLastFirst();
             metadata.SortNameLastFirst = metadata.NameLastFirst.ToLower();
 
-            var workKey = raw.Works?.FirstOrDefault()?.Key;
-            var workId = NormalizeWorkId(workKey?.Split('/').Last());
             var book = new Book
             {
                 ForeignBookId = workId != null ? $"openlibrary:work:{workId}" : edition.ForeignEditionId,
@@ -866,6 +1204,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 AnyEditionOk = true
             };
 
+            edition.Book = book;
             book.Editions = new List<Edition> { edition };
             book.AuthorMetadata = metadata;
             book.Author = new Author { Metadata = metadata };

@@ -11,17 +11,20 @@ import TableRowCell from 'Components/Table/Cells/TableRowCell';
 import TableSelectCell from 'Components/Table/Cells/TableSelectCell';
 import TableRow from 'Components/Table/TableRow';
 import { icons, kinds, sizes } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 
 function MissingRow(props) {
   const {
     id,
     author,
     releaseDate,
+    canonicalId,
     titleSlug,
     title,
     lastSearchTime,
     disambiguation,
     formatStatuses,
+    formatType,
     isSelected,
     columns,
     onSelectedChange
@@ -54,6 +57,7 @@ function MissingRow(props) {
             return (
               <TableRowCell key={name}>
                 <AuthorNameLink
+                  canonicalId={author.canonicalId}
                   titleSlug={author.titleSlug}
                   authorName={author.authorName}
                 />
@@ -65,6 +69,7 @@ function MissingRow(props) {
             return (
               <TableRowCell key={name}>
                 <BookTitleLink
+                  canonicalId={canonicalId}
                   titleSlug={titleSlug}
                   title={title}
                   disambiguation={disambiguation}
@@ -77,19 +82,20 @@ function MissingRow(props) {
             return (
               <TableRowCell key={name}>
                 {
-                  (formatStatuses || []).filter((fs) => fs.monitored).map((fs) => {
+                  (formatStatuses || []).filter((fs) => fs.monitored && (!formatType || fs.formatType === formatType)).map((fs) => {
                     let label = '';
                     let fullLabel = '';
 
                     if (fs.formatType === 'ebook') {
                       label = 'E';
-                      fullLabel = 'Ebook';
+                      fullLabel = translate('Ebook');
                     } else if (fs.formatType === 'audiobook') {
                       label = 'A';
-                      fullLabel = 'Audiobook';
+                      fullLabel = translate('Audiobook');
                     }
 
                     const kind = fs.hasFile ? kinds.SUCCESS : kinds.DANGER;
+                    const status = fs.hasFile ? translate('MissingFormatOnDisk') : translate('Missing');
                     const qpLabel = fs.qualityProfileName ? ` [${fs.qualityProfileName}]` : '';
 
                     return (
@@ -97,7 +103,7 @@ function MissingRow(props) {
                         key={fs.formatType}
                         kind={kind}
                         size={sizes.SMALL}
-                        title={`${fullLabel}: Missing${qpLabel}`}
+                        title={`${fullLabel} · ${status}${qpLabel}`}
                       >
                         <Icon
                           name={fs.formatType === 'ebook' ? icons.BOOK : icons.TRACK_FILE}
@@ -139,6 +145,7 @@ function MissingRow(props) {
                 bookTitle={title}
                 authorName={author.authorName}
                 bookEntity={bookEntities.WANTED_MISSING}
+                formatType={formatType}
                 showOpenAuthorButton={true}
               />
             );
@@ -155,11 +162,13 @@ MissingRow.propTypes = {
   id: PropTypes.number.isRequired,
   author: PropTypes.object.isRequired,
   releaseDate: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   titleSlug: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   lastSearchTime: PropTypes.string,
   disambiguation: PropTypes.string,
   formatStatuses: PropTypes.arrayOf(PropTypes.object),
+  formatType: PropTypes.oneOf(['ebook', 'audiobook']),
   isSelected: PropTypes.bool,
   columns: PropTypes.arrayOf(PropTypes.object).isRequired,
   onSelectedChange: PropTypes.func.isRequired

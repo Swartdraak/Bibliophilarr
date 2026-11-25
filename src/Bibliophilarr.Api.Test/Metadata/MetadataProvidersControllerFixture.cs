@@ -189,7 +189,7 @@ namespace NzbDrone.Api.Test.Metadata
             fallback.SupportsBookSearch.Should().BeTrue();
             fallback.SupportsAuthorSearch.Should().BeFalse();
             fallback.SupportsIsbnLookup.Should().BeFalse();
-            fallback.SupportsSeriesInfo.Should().BeFalse();
+            fallback.SupportsSeriesInfo.Should().BeTrue();
             fallback.Telemetry.Calls.Should().Be(enabled ? 1 : 0);
             fallback.Telemetry.Operations.Should().HaveCount(enabled ? 1 : 0);
             http.VerifyNoOtherCalls();

@@ -11,6 +11,7 @@ namespace NzbDrone.Core.Books
         void Delete(int seriesId);
         void InsertMany(IList<Series> series);
         void UpdateMany(IList<Series> series);
+        bool TryFillHardcoverDescription(Author author, Series series, string description);
     }
 
     public class SeriesService : ISeriesService
@@ -55,6 +56,11 @@ namespace NzbDrone.Core.Books
         public void UpdateMany(IList<Series> series)
         {
             _seriesRepository.UpdateMany(series);
+        }
+
+        public bool TryFillHardcoverDescription(Author author, Series series, string description)
+        {
+            return _seriesRepository.TryFillHardcoverDescription(author, series, description);
         }
     }
 }

@@ -30,6 +30,7 @@ namespace NzbDrone.Common.Http.Dispatchers
         private readonly ICertificateValidationService _certificateValidationService;
         private readonly IUserAgentBuilder _userAgentBuilder;
         private readonly ICached<System.Net.Http.HttpClient> _httpClientCache;
+        private readonly ICached<System.Net.Http.HttpClient> _anonymousOriginClientCache;
         private readonly ICached<CredentialCache> _credentialCache;
 
         private readonly Logger _logger;
@@ -47,6 +48,7 @@ namespace NzbDrone.Common.Http.Dispatchers
             _userAgentBuilder = userAgentBuilder;
 
             _httpClientCache = cacheManager.GetCache<System.Net.Http.HttpClient>(typeof(ManagedHttpDispatcher), "httpclient");
+            _anonymousOriginClientCache = cacheManager.GetCache<System.Net.Http.HttpClient>(typeof(ManagedHttpDispatcher), "anonymous-origin-httpclient");
             _credentialCache = cacheManager.GetCache<CredentialCache>(typeof(ManagedHttpDispatcher), "credentialcache");
 
             _logger = logger;
@@ -88,7 +90,9 @@ namespace NzbDrone.Common.Http.Dispatchers
                 }
             }
 
-            using var cts = new CancellationTokenSource();
+            using var cts = request.CancellationToken.CanBeCanceled
+                ? CancellationTokenSource.CreateLinkedTokenSource(request.CancellationToken)
+                : new CancellationTokenSource();
             if (request.RequestTimeout != TimeSpan.Zero)
             {
                 cts.CancelAfter(request.RequestTimeout);
@@ -109,7 +113,9 @@ namespace NzbDrone.Common.Http.Dispatchers
                 AddRequestHeaders(requestMessage, request.Headers);
             }
 
-            var httpClient = GetClient(request.Url);
+            var httpClient = request.IgnoreStoredOriginCredentials
+                ? GetAnonymousOriginClient(request.Url)
+                : GetClient(request.Url);
 
             try
             {
@@ -123,9 +129,13 @@ namespace NzbDrone.Common.Http.Dispatchers
                         {
                             await responseMessage.Content.CopyToAsync(request.ResponseStream, null, cts.Token);
                         }
-                        else
+                        else if (!request.DiscardNonOkResponseBody || responseMessage.StatusCode == HttpStatusCode.OK)
                         {
                             data = await responseMessage.Content.ReadAsByteArrayAsync(cts.Token);
+                        }
+                        else
+                        {
+                            data = Array.Empty<byte>();
                         }
                     }
                     catch (Exception ex)
@@ -155,15 +165,25 @@ namespace NzbDrone.Common.Http.Dispatchers
             return _httpClientCache.Get(key, () => CreateHttpClient(proxySettings));
         }
 
-        protected virtual System.Net.Http.HttpClient CreateHttpClient(HttpProxySettings proxySettings)
+        private System.Net.Http.HttpClient GetAnonymousOriginClient(HttpUri uri)
+        {
+            var proxySettings = _proxySettingsProvider.GetProxySettings(uri);
+            var key = proxySettings?.Key ?? NO_PROXY_KEY;
+            return _anonymousOriginClientCache.Get(key, () => CreateHttpClient(proxySettings, useOriginCredentials: false));
+        }
+
+        protected virtual System.Net.Http.HttpClient CreateHttpClient(HttpProxySettings proxySettings) =>
+            CreateHttpClient(proxySettings, useOriginCredentials: true);
+
+        private System.Net.Http.HttpClient CreateHttpClient(HttpProxySettings proxySettings, bool useOriginCredentials)
         {
             var handler = new SocketsHttpHandler()
             {
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Brotli,
                 UseCookies = false, // sic - we don't want to use a shared cookie container
                 AllowAutoRedirect = false,
-                Credentials = GetCredentialCache(),
-                PreAuthenticate = true,
+                Credentials = useOriginCredentials ? GetCredentialCache() : null,
+                PreAuthenticate = useOriginCredentials,
                 MaxConnectionsPerServer = 12,
                 ConnectCallback = onConnect,
                 SslOptions = new SslClientAuthenticationOptions

@@ -329,6 +329,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
             var isBibliography = bibliographyAuthorId != null;
             var seenVolumeIds = new HashSet<string>(StringComparer.Ordinal);
             var highestReportedTotal = 0;
+            var retriedEmptyPage = false;
 
             while (isBibliography || allItems.Count < searchLimit)
             {
@@ -407,9 +408,21 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 {
                     if (isBibliography && seenVolumeIds.Count < highestReportedTotal)
                     {
+                        if (!retriedEmptyPage && seenVolumeIds.Count > 0)
+                        {
+                            retriedEmptyPage = true;
+                            _logger.Debug("Confirming an early empty Google Books bibliography page at index {0}.", pageStart);
+                            continue;
+                        }
+
                         var failure = new InvalidOperationException(
                             $"Google Books ended its bibliography at index {pageStart} with {seenVolumeIds.Count} distinct volumes, below its highest reported total {highestReportedTotal}.");
-                        throw new MetadataProviderUnavailableException("get-author-info", bibliographyAuthorId, failure);
+                        throw new MetadataProviderUnavailableException(
+                            "get-author-info",
+                            bibliographyAuthorId,
+                            failure,
+                            authoritativeBibliographyEndedEarly: false,
+                            authorBibliographyProgress: retriedEmptyPage ? (pageStart, seenVolumeIds.Count, highestReportedTotal) : null);
                     }
 
                     break;

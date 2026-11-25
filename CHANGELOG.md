@@ -9,26 +9,94 @@ process.
 
 ### Added
 
+- Recover a missing cover from a linked M4B, EPUB, or supported AZW3 on Linux
+  after a library scan confirms the match or when refreshing an individual book.
+- Search Add New by author, book, or series. Browse ordered Hardcover series
+  and choose a book to add. When Hardcover is unavailable, use verified saved
+  matches or preview members from Inventaire when it is enabled.
+
+- Give authors, works and series stable Bibliophilarr URLs. The catalogue
+  identity API exposes matched provider IDs. Existing author and book
+  bookmarks continue to resolve.
+
 - Show a notice on an author’s Books tab when no metadata refresh has been
   recorded.
 - Link to the stable release manifest and checksums from Updates when both are
   available for manual verification.
 - Filter Unmapped Files by path or media format and review matching and selected
   counts. A bulk action targets selected files in the current results.
+- See the last recorded import hold reason next to each unmapped file, such as
+  competing catalogue works, a preferred existing file, or a file of the same
+  size.
+- Show import execution failures separately from uncertain matches and
+  summarize unmapped reasons in scan progress.
+- Record available disc and track numbers and the assigned part in debug logs
+  when an audiobook import encounters an occupied part. The diagnostic uses
+  path fingerprints for the files involved.
+- Distinguish competing provider matches from conflicting stored identities in
+  import decisions. Debug logs record candidate format and trusted identifier
+  agreement for low-confidence new-author matches.
+- Show discovery, completed metadata checks and catalogue matching as
+  separate stages in library scan progress.
+- Open recent background tasks from the WebUI header and filter for tasks
+  that need attention. Screen readers can hear the attention notice with the
+  panel closed. The Auto theme updates when the system palette changes.
+- Show verified shared works in an author's bibliography while keeping each
+  work's catalogue owner, editions and format status.
+- Add missing works to an Open Library author's bibliography from a verified
+  Hardcover source with explicit author credits.
 - A book-search command can target a single monitored format that is still
   missing. Scoped searches skip releases with conflicting format information.
+- Monitor ebooks and audiobooks independently in the series views. Search for
+  missing files of one format while preserving the work-wide monitoring controls.
 
 ### Fixed
 
+- Show cover and portrait images that become available after a detail view has
+  loaded its placeholder.
 - Keep download decision diagnostics on one line and leave release URLs out of
   exception log data.
+- Load every verified Hardcover series member across provider pages. Report
+  an unavailable preview when a later page cannot be verified.
+- Open an exactly matched saved series from Add New during a series provider
+  outage. Label series result sources to distinguish same-title matches.
+- Retry missing Open Library artwork earlier for file-attached books, while
+  rotating through bibliography covers and author portraits.
 - Keep the author and its catalogue records when Delete Files cannot verify
   the library folder. Show the error in the author deletion dialog.
+- Recover Open Library artwork through a verified Internet Archive redirect.
+  Both requests count against the existing retry limit.
+- Keep existing series memberships when a provider returns optional series
+  hints without confirming a complete membership list.
+- Hold a standalone audiobook when its embedded titles and filename identify a
+  numbered part that the proposed work and edition both omit. Show this reason
+  in Unmapped Files.
+- Show already cached artwork in the main Books view when the only stored cover
+  belongs to another edition of the same work.
 - Keep Inventaire work covers out of author portraits when the source supplies
   no author image.
 - Honor Hardcover's recorded rate-limit deadline after restarting the same
   Bibliophilarr profile while other metadata providers remain available.
-
+- Reuse a verified work's existing audiobook edition during a full library scan
+  when it ties with an untyped edition and the file has no conflicting link.
+- Use verified Inventaire work matches for either local format. Keep the
+  existing ebook link and store a separate audiobook edition when appropriate.
+- Show the exact stored work's synopsis in Add New when the provider result
+  omits it.
+- Fill a blank stored Hardcover series description from agreeing book metadata
+  when the separate membership request is incomplete.
+- Give Add New author and book result controls accessible names so screen readers
+  can identify the title each control opens.
+- Retry saved, verified Open Library author portraits after the cover host
+  becomes available again, within the existing cover retry budget.
+- Fill a missing biography or portrait from a verified Open Library author
+  profile while Hardcover is rate limited. The full bibliography refresh
+  remains pending until its source is available.
+- Hold ambiguous M4B imports when the embedded track title and author-prefixed
+  filename agree but the album identifies a different work.
+- When a library scan generates a temporary opposite-format default for a new
+  author, use the compatible root and quality profile once that root is added.
+  Existing format settings and file links stay in place.
 - Give the Add Root Folder and individual root folder edit buttons accessible names.
 - Make the Theme setting announce its label and keep keyboard focus while
   selecting or dismissing its options.
@@ -70,15 +138,40 @@ process.
   when an ISBN lookup returns no match.
 - Honor the historical server bind-address environment variable while keeping
   the canonical setting and saved defaults in precedence order.
-- Save a new book and its editions together. If an edition already belongs to
-  another book, keep the existing data and import exclusions.
+- Save a new book, its catalogue identity and its editions together. If an
+  edition already belongs to another book, keep the existing data and import
+  exclusions.
 - Keep the first book, verified new author and format profiles in one save so
   an edition conflict leaves the catalogue unchanged.
 - Add a verified exact provider edition through the Add Book API when the
   request omits the edition list. For a verified new author, save the author,
-  format profiles, work, and edition together.
+  format profiles, work, and edition together. Reuse an existing author when
+  the selected source is a verified alternate for that author.
+- Cache a verified alternate Hardcover edition cover when the primary cover
+  is missing.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
   Library's works feed cannot verify the books shown in search.
+- When Open Library returns an incomplete bibliography, use stored Hardcover
+  works to suggest ISBNs if a connection failure interrupts the existing
+  author's live bibliography. Reuse that author only after both providers
+  verify two works.
+- Preserve stored titles and their matching keys when a verified refresh omits
+  the work or edition title. Avoid unnecessary file retagging for that omission.
+- Skip untitled Hardcover search results and defer importing a new author
+  when the provider returns an identified bibliography work without a title.
+- Verify a linked ebook's exact Open Library ISBN and author credit when
+  reviewing a split-format catalogue merge.
+- Include exact-name Open Library matches in Add New author search when the
+  configured search has already returned results and Open Library is eligible.
+  Keep distinct authors with the same name and group verified provider aliases.
+- Keep the synopsis and cover from a verified Open Library work when its
+  selected editions omit them.
+- Report saved unmapped-file reasons in the scan summary when a retry retains
+  an earlier hold.
+- Hold an automatic library match when a corroborated title ends in an
+  explicit book or volume number and the proposed work drops that number
+  without a matching edition identifier. Explain the numbered-volume conflict
+  if no exact match is found.
 - Resolve Open Library title results to a verified ebook or audiobook edition
   when adding them to the library.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked
@@ -87,14 +180,65 @@ process.
   Keep current portraits and skip refresh events for removed authors.
 - Add a selected book to an existing author without resubmitting the author's
   root and monitoring settings.
+- Recognize verified alternate provider IDs for existing authors in Add New.
+- Keep provider-specific lookups with the provider that owns the ID.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art.
+  Recover covers for verified Open Library works with generated audiobook
+  editions while retaining their existing edition and file links.
 - Request a missing response for unavailable Open Library book covers so
   blank placeholder images are not saved as artwork.
 - Report Hardcover's shared request cooldown in provider health and distinguish
   requests held locally from upstream rate limits.
 - Honor longer Open Library artwork cooldowns specified by Retry-After on rate
   limits and temporary outages.
+- Retain the recorded low-confidence or incomplete-bibliography reason when a
+  matched-only scan finds no work for the same unchanged file.
+- Recover up to six missing Open Library bibliography works when exact search
+  agrees with the available list and every direct record verifies author credit.
+- Report an incomplete Google Books bibliography with the local author ID,
+  provider, page offset, and verified response counts in System Events.
+- Report the failing provider and page counts when a library import is held
+  because a provider's author bibliography ended early.
+- Hold files for a new author when an unattended scan confirms that the
+  authoritative bibliography is incomplete. Keep verified existing authors
+  available for import and retry held files after a complete lookup.
+- Avoid repeated lookups for the same incomplete author bibliography within a
+  library scan. A later scan can retry, and logs report where Open Library
+  pagination stopped.
+- Import the verified Hardcover audiobook edition and its available synopsis
+  and cover when a trusted ASIN, title and credited author agree.
+- Keep Hardcover series descriptions from verified book metadata when the
+  complete series membership response has no description for the same series.
+- Add a selected audiobook to an existing work while retaining its ebook
+  edition, monitoring, and files. Reject editions owned by another work.
+- Keep works with conflicting stored Open Library IDs separate during
+  reconciliation, even when their editions share an ISBN.
+- Look up verified Hardcover work aliases on PostgreSQL during reconciliation.
+- Show one search result for each verified author, book, or series. Keep distinct
+  authors who share a name, and open the existing catalogue page for verified
+  provider aliases.
+- Use available verified artwork on author and book search results, including
+  on small screens. Series results can show a cover from a verified catalogue
+  member.
+- Use persisted verified Hardcover remaps when reconciling a single legacy
+  work into its confirmed owner. Hold ambiguous legacy owners for review.
+- Use available cached member covers for series artwork before trying remote
+  cover references.
+- Cache one verified alternate cover or portrait after a definitive missing
+  primary image. Preserve cached images when a refresh returns no references.
+- Report a media file read failure as an import hold and continue scanning
+  the other files.
+- Preserve occupied audiobook parts through automatic retries. Link a held file
+  only when its original tag confirms the part and the selected edition has a free slot.
+- Preserve edition monitoring when a part retry uses a linked audiobook for comparison.
+- Skip Google Books free-text lookups for Amazon ASINs during automatic library
+  identification. Continue using configured providers and structured title searches.
+- Retry a trusted EPUB ISBN after an initial identity rejection when a verified
+  provider edition belongs to the same stored author and work. Keep competing
+  editions and unresolved author identities held for review.
+- Allow two equal-size ebook files to link to distinct verified ISBN editions
+  of the same work during a library scan.
 - Clarify built-in backup contents and external PostgreSQL recovery on the
   Backups page, restore dialog, and in-app guides.
 - Align configuration, logging, dependency injection, and Windows service
@@ -124,8 +268,17 @@ process.
   ranges fall back to filename metadata.
 - Continue reading and matching audio files when the optional ffprobe utility
   is unavailable.
+- Resolve once-encoded provider bookmarks to canonical author, book, and
+  series pages.
+- During library import, check a trusted ebook ISBN across providers for a
+  matching release before falling back to title and author search.
+- Report unverified ebook edition identifiers even when competing files have
+  the same size. Explain when another file already occupies the same edition
+  and part.
 - Keep Cutoff Unmet searches and monitoring scoped to the selected ebook or
   audiobook format. Skip upgrades when that format already meets its cutoff.
+- Confirm an early empty Google Books bibliography page once. Keep the
+  saved catalogue when the verified bibliography remains incomplete.
 - Recheck provider cooldowns before dispatching fallback requests that waited
   for the rate limiter.
 - Honor longer provider Retry-After values during fallback searches and report
@@ -149,6 +302,54 @@ process.
   overlapping pages cannot hide missing works.
 - Make the Inventaire setting control its actual fallback searches during
   automatic library import.
+- Resolve once-encoded legacy Hardcover series bookmarks to their stable
+  Bibliophilarr URLs.
+- Show whether an unmapped file is waiting for the author's bibliography or
+  needs manual confirmation of a same-name author.
+- Allow a single same-name author candidate to be corroborated by two
+  independently verified works if Open Library's bibliography ends early.
+- Return HTTP 503 and keep the Add Author dialog open with retry guidance
+  when the configured providers cannot verify the bibliography.
+- Recover author and book artwork when the cached file is empty or disappears
+  while the app checks it.
+- Keep verified same-work artwork and synopsis in Add New search results when
+  the preferred edition has incomplete metadata.
+- Reuse each provider's ISBN lookup across equivalent editions during one
+  book enrichment operation.
+- Keep a verified Hardcover bibliography when the separate series request
+  fails or is incomplete. Preserve existing series links until verification.
+- Cancel superseded Add New searches so cleared or shortened terms cannot
+  trigger extra provider queries or display stale results.
+- Preserve the Hardcover author, work, or edition that supplied an artwork
+  reference, including when an edition displays the work's cover.
+- Explain when a different ebook has an unverified ISBN for an occupied
+  edition and needs review before import.
+- Refresh a book's cached cover after saving its updated edition metadata.
+- Use a trusted embedded ASIN to select a unique same-work edition for an
+  unmapped EPUB when an eligible local edition is available.
+- Keep task notification links clickable when resizing from desktop to
+  mobile by starting with the navigation drawer closed.
+- Close task notifications when keyboard focus moves out of the panel,
+  preserving normal tab order.
+- Add distinct works from a verified Open Library bibliography for Hardcover
+  authors. Keep existing work ownership and hold conflicting works and editions.
+- Fill missing author biographies and portraits from a verified Open Library
+  author profile without changing the primary identity or bibliography.
+- Fill missing biographies and portraits for Open Library authors from a
+  verified Hardcover profile while keeping the primary identity and bibliography.
+- Library scans try the next enabled provider when an author-and-title search
+  returns only incompatible formats or conflicts with the file's title, series
+  volume, or author.
+- Explain in Unmapped Files when provider results conflict with the book's
+  identity or identify multiple works for the same file. A later valid match
+  clears the reason.
+- Wanted searches with an ebook or audiobook filter target only that format.
+  A queued copy of the other format no longer blocks a wanted release when
+  independent format tracking is enabled.
+- Batch author canonicalization previews duplicate candidates. Apply a
+  confirmed merge through the reviewed reconciliation command.
+- Distinguish failed Open Library text and ISBN lookups from successful searches
+  with no matches in provider telemetry.
 - Clarify the label for Bibliophilarr's connector in Prowlarr and simplify the
   dual-format monitoring answer in the in-app help.
 - Update the in-app introduction to describe Bibliophilarr's library workflow.
@@ -174,8 +375,6 @@ process.
   before saving the book or author.
 - Label the backup upload field and show restore errors in the dialog. Choosing
   another file clears the previous error.
-- Provider telemetry distinguishes failed Open Library text searches from
-  successful searches with no matches.
 - Coordinate overlapping author refreshes so they share the stored series and
   keep its book links.
 - Preserve completed task results in command history after restart.
@@ -197,13 +396,94 @@ process.
   before submitting credentials. Browser first-account setup continues through
   the setup form.
 
+- Continue scanning accessible folders when another root is unavailable.
+  Preserve existing file records for unreadable folders and report the scan
+  as unsuccessful when a folder is skipped or an import execution fails.
+- Keep tracked file records when a nested library folder or its parent cannot
+  be read.
+- Show the full Hardcover retry window in provider health. Keep existing
+  author metadata and series when Hardcover limits the bibliography refresh.
+- Reject a different numbered volume of the same series when either the
+  audiobook's reliable tags or the candidate title explicitly names its volume.
+
+- Reconcile reviewed duplicate works without changing edition or file IDs.
+  Preserve both formats, their monitoring settings, series membership and
+  links to the retired work.
+- Read explicitly tagged Audible identifiers from audiobooks. A successful
+  import retry can attach an existing unmapped library file to its edition
+  while preserving the file record. Scan logs record why evaluated files remain
+  unmapped.
+- Use validated ISBNs embedded in AZW3 and MOBI ebooks when identifying a
+  work and edition during import.
+- Use an ebook or audiobook edition for a confirmed work when a provider only
+  supplies a print or unclassified edition. An approved full rescan can
+  repair an old link to an unclassified edition on the same work without
+  replacing the file record or touching the file. The rescan no longer
+  treats the tracked file as its own duplicate.
+- Recognize matching book and volume suffixes when both work records share the
+  same author, series and primary position. Keep works with other subtitles
+  separate.
+- Fetch edition publisher and publication dates from Hardcover. A unique
+  ISBN match can fill missing edition details, and verified Open Library
+  author records can supply missing biographies and portraits.
+- Keep the requested ISBN when Open Library confirms it on an edition with
+  multiple identifiers. Follow its verified edition redirect once, and ignore
+  ambiguous fallback work matches.
+- An explicit `isbn:` search returns verified editions for that ISBN, using
+  the configured provider order.
+- Require corroboration before matching authors across providers or adding
+  Open Library work and author links. Keep two people with the same name
+  distinct.
+- During a background scan, require a unique matching title and author for a
+  fallback work. Use edition identity and file format to select an edition
+  within that work. A scan that disables new authors requires a verified
+  local author or work. Try another enabled provider when no result qualifies,
+  and hold genuinely ambiguous matches for review.
+- On the initial library scan and automatic retries, skip a candidate when
+  reliable file evidence contradicts its title or identifies a different volume.
+- Distinguish numbered works from guidebooks, excerpts, and omnibus editions.
+  When a filename and reliable embedded title name different volumes of the
+  same series, hold the file for review. Treat equivalent dash spacing in an
+  explicit omnibus book range as the same range.
+- Prefer the matching ebook file format when verified editions of the same
+  work share the file's trusted ISBN. Keep equally supported editions
+  available for manual selection.
+- Reuse an author across Hardcover and Open Library after both sources verify
+  two distinct works. Hold ambiguous Google Books name matches during
+  unattended imports, and allow reviewed reconciliation of existing authors
+  with compatible library paths and format settings.
+- Honor Hardcover's retry window across search, lookup, and author bibliography
+  requests within the same app session.
+- Keep a novel's file away from a companion guide when its embedded title
+  identifies the original work. Explicit edition selections still apply.
+- Save the unaffected works in an author's bibliography when one incoming
+  work or source identity is already owned by another catalogue record.
+  Hold the conflicting work for review and preserve the existing owner.
+- Reuse verified author metadata already returned by a work lookup. A partial
+  or unavailable provider response leaves stored metadata intact and lets the
+  rest of a bulk book refresh continue.
+- Acquire SQLite catalogue write locks before reading identity state so
+  simultaneous library scans and refreshes can commit safely.
+- Keep rejected media in Unmapped Files with the recorded reason. Live updates
+  only show linked files in their book and author Files tabs.
+- Keep the low-confidence reason when an initial scan cannot reliably select a
+  new author and the fallback finds no verified match.
+
 - A fresh installation opens first-account setup in the browser when opened
   directly on localhost. Create an account and sign in without a terminal command.
 
 - Book and author lookups respect the enabled metadata providers and their
   configured order. They return an empty list when no provider returns a match.
+- Reuse saved book covers and author portraits in Add New when an exact
+  provider identity matches the library and the search result has no artwork.
+- Explain import holds caused by a guide, a different series volume, or a
+  mismatch with the embedded title and filename in the library import log.
+- Summarize bulk author refresh outcomes, including unavailable providers and
+  incomplete bibliographies, in the task message and logs.
 - Google Books author refresh keeps existing catalogue entries when overlapping
   pages or a shrinking result count leave the bibliography incomplete.
+  System Events reports the page offset, received count and reported total
+  after a confirmed early end.
 - Name, URL, credentials, and tags in connection forms have associated labels.
 - Size autocomplete menus to the available space on the side where they open.
 - Label the quality profile name and release restriction fields. Release
@@ -227,8 +507,25 @@ process.
   existing migration history and PostgreSQL dialect.
 - Hardcover now reads every page of an author's bibliography before applying
   the refresh, including later pages when the provider returns fewer rows than
-  requested. Distinct provider work IDs retain separate catalogue records.
+  requested. Distinct works retain separate catalogue records.
   Complete Bibliography is available as an unfiltered metadata profile.
+- Reconcile corroborated provider work aliases within an author's catalogue and
+  preserve separate ebook and audiobook editions under the same work. Ambiguous
+  import matches stay available for review.
+- Preserve linked edition formats and independent monitoring selections when
+  refreshing metadata.
+- Read correctly labeled ASINs from EPUB metadata and avoid using folder names
+  as ebook identifiers during import.
+- Use verified alternate sources for missing edition details and author
+  portraits. Display an available cover from the same work, and show a
+  representative member cover alongside a series when available.
+- Display the canonical work title and show a synopsis from another edition
+  when the preferred edition has none. Try distinct same-work artwork if the
+  preferred cover fails.
+- Try the next verified Open Library portrait or cover when the first image
+  is missing. Series artwork can fall back to another member's cover.
+- Keep verified alternate source identifiers and series descriptions when
+  the primary provider returns an incomplete refresh.
 - Open Library and Google Books read all available author pages and preserve
   the current catalogue when a later provider page fails.
 - Hardcover tracks representative ebook and audiobook editions where available.
@@ -327,19 +624,24 @@ process.
 - Normalize request method and client information before writing HTTP logs.
 
 - Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
-
+- Require an API credential for versioned API writes and protect Forms
+  sign-in and sign-out with browser verification tokens.
+- Keep library file discovery paths on one line and omit Calibre connection
+  settings and library lookup terms from scan logs.
+- Log operation and status for Hardcover book and series searches and Open
+  Library ISBN lookups without recording raw queries or provider errors.
 - Sanitize book identifiers and titles in Add Book and import-list logs.
+- Normalize Open Library search text in debug logs while preserving the query
+  sent to the provider.
 - Use normalized titles, status and client information in torrent and Usenet
   download-client messages. Omit raw download URLs from those messages and from
   their HTTP transport and manual Grab failure logs.
 - Report HTTP streamed file downloads using status, byte count and time without
   logging the source URL or destination path.
-- Keep library file discovery paths on one line and omit Calibre connection
-  settings from scan logs.
-
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.
-
+- Patch glob and minimatch in frontend tooling. Restore the authentic
+  js-tokens archive and verify package identity before CI installs.
 - Database migration startup logs identify the database type and role without
   exposing connection details.
 - New and changed account passwords use salted PBKDF2. Existing accounts
@@ -356,6 +658,9 @@ process.
 - Honor Basic authentication on the WebUI when authentication is required and return HTTP 401 for anonymous API calls.
 
 ### Operations
+
+- Fail build smoke checks when a settings update is rejected or a telemetry
+  response has the wrong shape. Fail branding audits when the search fails.
 
 - Release workflows verify the SemVer tag and promotion branch before
   publishing a GitHub release, npm package, or container image.

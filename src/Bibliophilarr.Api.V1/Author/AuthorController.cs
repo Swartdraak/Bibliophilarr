@@ -1,15 +1,19 @@
 using System.Collections.Generic;
 using System.Linq;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.ErrorManagement;
 using Bibliophilarr.Http.REST;
 using FluentValidation;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.AuthorStats;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Books.Events;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Events;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
@@ -113,7 +117,20 @@ namespace Bibliophilarr.Api.V1.Author
 
         protected override AuthorResource GetResourceById(int id)
         {
-            var author = _authorService.GetAuthor(id);
+            NzbDrone.Core.Books.Author author;
+            try
+            {
+                author = _authorService.GetAuthor(id);
+            }
+            catch (ModelNotFoundException)
+            {
+                author = _authorService.FindByRetiredId(id);
+                if (author == null)
+                {
+                    throw;
+                }
+            }
+
             return GetAuthorResource(author);
         }
 
@@ -125,7 +142,6 @@ namespace Bibliophilarr.Api.V1.Author
             }
 
             var resource = MapStoredAuthor(author);
-            MapCoversToLocal(resource);
             FetchAndLinkAuthorStatistics(resource);
             LinkNextPreviousBooks(resource);
             LinkRootFolderPath(resource);
@@ -140,7 +156,6 @@ namespace Bibliophilarr.Api.V1.Author
             var authorStats = _authorStatisticsService.AuthorStatistics();
             var authorResources = _authorService.GetAllAuthors().Select(MapStoredAuthor).ToList();
 
-            MapCoversToLocal(authorResources.ToArray());
             LinkNextPreviousBooks(authorResources.ToArray());
             LinkAuthorStatistics(authorResources, authorStats.ToDictionary(x => x.AuthorId));
             LinkRootFolderPath(authorResources.ToArray());
@@ -152,7 +167,18 @@ namespace Bibliophilarr.Api.V1.Author
         [RestPostById]
         public ActionResult<AuthorResource> AddAuthor([FromBody] AuthorResource authorResource)
         {
-            var author = _addAuthorService.AddAuthor(authorResource.ToModel());
+            NzbDrone.Core.Books.Author author;
+            try
+            {
+                author = _addAuthorService.AddAuthor(authorResource.ToModel());
+            }
+            catch (MetadataProviderUnavailableException)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new ErrorModel
+                {
+                    Message = "Could not verify the author's bibliography with the configured metadata providers. Try adding the author again later."
+                });
+            }
 
             return Created(author.Id);
         }
@@ -197,19 +223,13 @@ namespace Bibliophilarr.Api.V1.Author
             _authorService.DeleteAuthor(id, deleteFiles, addImportListExclusion);
         }
 
-        private static AuthorResource MapStoredAuthor(NzbDrone.Core.Books.Author author)
+        private AuthorResource MapStoredAuthor(NzbDrone.Core.Books.Author author)
         {
             var resource = author.ToResource();
             resource.HasMetadataRefresh = author.LastInfoSync.HasValue;
+            _coverMapper.ConvertToLocalUrls(resource.Id, MediaCoverEntity.Author, resource.Images);
+            _coverMapper.MapRecoveredAuthorPortrait(author, resource.Images);
             return resource;
-        }
-
-        private void MapCoversToLocal(params AuthorResource[] authors)
-        {
-            foreach (var authorResource in authors)
-            {
-                _coverMapper.ConvertToLocalUrls(authorResource.Id, MediaCoverEntity.Author, authorResource.Images);
-            }
         }
 
         private void LinkNextPreviousBooks(params AuthorResource[] authors)

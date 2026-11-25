@@ -19,6 +19,11 @@ namespace Bibliophilarr.Http.Middleware
                 return false;
             }
 
+            if (request.Path.StartsWithSegments("/api/v1/embeddedbookcover", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
             if (request.Query.ContainsKey("h"))
             {
                 return true;

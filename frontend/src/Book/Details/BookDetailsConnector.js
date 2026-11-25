@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
+import isBookFileFor from 'BookFile/isBookFileFor';
 import * as commandNames from 'Commands/commandNames';
 import { toggleBooksMonitored } from 'Store/Actions/bookActions';
 import { clearBookFiles, fetchBookFiles } from 'Store/Actions/bookFileActions';
@@ -28,20 +29,18 @@ const selectBookFiles = createSelector(
       error
     } = bookFiles;
 
-    const hasBookFiles = !!items.length;
-
     return {
       isBookFilesFetching: isFetching,
       isBookFilesPopulated: isPopulated,
       bookFilesError: error,
-      hasBookFiles
+      items
     };
   }
 );
 
 function createMapStateToProps() {
   return createSelector(
-    (state, { titleSlug }) => titleSlug,
+    (state, { bookId }) => bookId,
     selectBookFiles,
     (state) => state.books,
     (state) => state.editions,
@@ -49,23 +48,24 @@ function createMapStateToProps() {
     createCommandsSelector(),
     createUISettingsSelector(),
     createDimensionsSelector(),
-    (titleSlug, bookFiles, books, editions, authors, commands, uiSettings, dimensions) => {
-      const book = books.items.find((b) => b.titleSlug === titleSlug);
+    (bookId, bookFiles, books, editions, authors, commands, uiSettings, dimensions) => {
+      const book = books.items.find((b) => b.id === bookId);
+      if (!book) {
+        return {};
+      }
+
       const author = authors.find((a) => a.id === book.authorId);
       const sortedBooks = books.items.filter((b) => b.authorId === book.authorId);
       sortedBooks.sort((a, b) => ((a.releaseDate > b.releaseDate) ? 1 : -1));
       const bookIndex = sortedBooks.findIndex((b) => b.id === book.id);
 
-      if (!book) {
-        return {};
-      }
-
       const {
         isBookFilesFetching,
         isBookFilesPopulated,
         bookFilesError,
-        hasBookFiles
+        items
       } = bookFiles;
+      const hasBookFiles = items.some((file) => isBookFileFor(file, book.id, book.authorId));
 
       const previousBook = sortedBooks[bookIndex - 1] || _.last(sortedBooks);
       const nextBook = sortedBooks[bookIndex + 1] || _.first(sortedBooks);
@@ -226,7 +226,7 @@ BookDetailsConnector.propTypes = {
   isRenamingAuthor: PropTypes.bool.isRequired,
   isBookFetching: PropTypes.bool,
   isBookPopulated: PropTypes.bool,
-  titleSlug: PropTypes.string.isRequired,
+  bookId: PropTypes.number.isRequired,
   fetchBookFiles: PropTypes.func.isRequired,
   clearBookFiles: PropTypes.func.isRequired,
   fetchEditions: PropTypes.func.isRequired,

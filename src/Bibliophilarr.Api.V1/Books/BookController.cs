@@ -43,6 +43,7 @@ namespace Bibliophilarr.Api.V1.Books
         private const int DefaultPageSize = 100;
         private const int MaxPageSize = 1000;
         private const int LargeLibraryWarningThreshold = 5000;
+        private const int ArtworkEditionBatchSize = 400;
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
         protected readonly IAuthorService _authorService;
@@ -93,7 +94,8 @@ namespace Bibliophilarr.Api.V1.Books
             [FromQuery] string titleSlug,
             [FromQuery] bool includeAllAuthorBooks = false,
             [FromQuery] int? page = null,
-            [FromQuery] int? pageSize = null)
+            [FromQuery] int? pageSize = null,
+            [FromQuery] bool includeShared = false)
         {
             if (!authorId.HasValue && !bookIds.Any() && titleSlug.IsNullOrWhiteSpace())
             {
@@ -131,7 +133,10 @@ namespace Bibliophilarr.Api.V1.Books
                     books = books.Skip(skip).Take(effectivePageSize).ToList();
                 }
 
-                return MapToResource(books, false);
+                // The list tracks monitored editions only. Artwork can also be
+                // stored on a different edition belonging to the same work.
+                var artworkEditions = GetArtworkEditionsForBooksWithoutCovers(books);
+                return MapToResource(books, false, artworkEditions);
             }
 
             if (authorId.HasValue)
@@ -154,6 +159,12 @@ namespace Bibliophilarr.Api.V1.Books
                     {
                         book.Editions = new List<Edition>();
                     }
+                }
+
+                if (includeShared)
+                {
+                    // Credited works retain their owning Author, Editions, and monitoring policy.
+                    books = books.Concat(_bookService.GetSharedBooksByAuthorMetadataId(author.AuthorMetadataId)).ToList();
                 }
 
                 return MapToResource(books, false);
@@ -181,10 +192,20 @@ namespace Bibliophilarr.Api.V1.Books
             return MapToResource(_bookService.GetBooks(bookIds), false);
         }
 
+        private ILookup<int, Edition> GetArtworkEditionsForBooksWithoutCovers(List<Book> books)
+        {
+            return books.Where(book => !book.Editions.Value.GetBookImages().Any(image => image.CoverType == MediaCoverTypes.Cover) &&
+                    _coverMapper.HasBookCoverFolder(book.Id))
+                .Select(book => book.Id)
+                .Chunk(ArtworkEditionBatchSize)
+                .SelectMany(ids => _editionService.GetEditionsByBook(ids))
+                .ToLookup(edition => edition.BookId);
+        }
+
         [HttpGet("{id:int}/overview")]
         public object Overview(int id)
         {
-            var overview = _editionService.GetEditionsByBook(id).Single(x => x.Monitored).Overview;
+            var overview = _editionService.GetEditionsByBook(id).GetBookOverview();
             return new
             {
                 id,

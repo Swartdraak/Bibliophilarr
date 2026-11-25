@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
@@ -9,6 +10,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -68,6 +70,31 @@ namespace NzbDrone.Core.Test.MediaFiles.MediaFileServiceTests
                 }).ToList());
 
             Subject.FilterUnchangedFiles(files, filter).Should().BeEmpty();
+        }
+
+        [TestCase(FilterFilesType.Known)]
+        [TestCase(FilterFilesType.Matched)]
+        public void filter_should_reconsider_read_holds_and_stat_failures(FilterFilesType filter)
+        {
+            var files = GivenFiles(new[]
+            {
+                @"C:\held.epub".AsOsAgnostic(),
+                @"C:\unchanged.m4b".AsOsAgnostic()
+            });
+            var unavailable = new Mock<IFileInfo>();
+            unavailable.SetupGet(file => file.FullName).Returns(@"C:\unavailable.m4b".AsOsAgnostic());
+            unavailable.SetupGet(file => file.Length).Throws<IOException>();
+            files.Add(unavailable.Object);
+            Mocker.GetMock<IMediaFileRepository>()
+                .Setup(repository => repository.GetFileWithPath(It.IsAny<List<string>>()))
+                .Returns(new List<BookFile>
+                {
+                    new BookFile { Path = files[0].FullName, Modified = _lastWrite, UnmappedReason = LibraryImportHoldReason.ReadError },
+                    new BookFile { Path = files[1].FullName, Modified = _lastWrite },
+                    new BookFile { Path = files[2].FullName, Modified = _lastWrite }
+                });
+
+            Subject.FilterUnchangedFiles(files, filter).Should().BeEquivalentTo(new[] { files[0], files[2] });
         }
 
         [TestCase(FilterFilesType.Known)]

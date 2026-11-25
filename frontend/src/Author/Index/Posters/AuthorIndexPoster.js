@@ -10,6 +10,7 @@ import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
 import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
 import { icons } from 'Helpers/Props';
+import cataloguePath from 'Utilities/cataloguePath';
 import getRelativeDate from 'Utilities/Date/getRelativeDate';
 import translate from 'Utilities/String/translate';
 import AuthorIndexPosterInfo from './AuthorIndexPosterInfo';
@@ -83,6 +84,7 @@ class AuthorIndexPoster extends Component {
       authorNameLastFirst,
       monitored,
       titleSlug,
+      canonicalId,
       status,
       nextAiring,
       statistics = {},
@@ -124,7 +126,7 @@ class AuthorIndexPoster extends Component {
       isDeleteAuthorModalOpen
     } = this.state;
 
-    const link = `/author/${titleSlug}`;
+    const link = cataloguePath('author', { canonicalId, titleSlug });
 
     const elementStyle = {
       width: `${posterWidth}px`,
@@ -302,6 +304,7 @@ AuthorIndexPoster.propTypes = {
   monitored: PropTypes.bool.isRequired,
   status: PropTypes.string.isRequired,
   titleSlug: PropTypes.string.isRequired,
+  canonicalId: PropTypes.string,
   nextAiring: PropTypes.string,
   statistics: PropTypes.object.isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,

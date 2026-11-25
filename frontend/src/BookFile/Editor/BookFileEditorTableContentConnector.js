@@ -6,9 +6,9 @@ import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import { deleteBookFile, deleteBookFiles, setBookFilesSort, updateBookFiles } from 'Store/Actions/bookFileActions';
 import { fetchQualityProfileSchema } from 'Store/Actions/settingsActions';
-import createAuthorSelector from 'Store/Selectors/createAuthorSelector';
 import createClientSideCollectionSelector from 'Store/Selectors/createClientSideCollectionSelector';
 import getQualities from 'Utilities/Quality/getQualities';
+import isBookFileFor from '../isBookFileFor';
 import BookFileEditorTableContent from './BookFileEditorTableContent';
 
 function createSchemaSelector() {
@@ -36,14 +36,14 @@ function createSchemaSelector() {
 function createMapStateToProps() {
   return createSelector(
     (state, { bookId }) => bookId,
+    (state, { authorId }) => authorId,
     createClientSideCollectionSelector('bookFiles'),
     createSchemaSelector(),
-    createAuthorSelector(),
     (
       bookId,
+      authorId,
       bookFiles,
-      schema,
-      author
+      schema
     ) => {
       const {
         items,
@@ -51,7 +51,7 @@ function createMapStateToProps() {
       } = bookFiles;
       return {
         ...schema,
-        items,
+        items: items.filter((file) => isBookFileFor(file, bookId, authorId)),
         ...otherProps,
         isDeleting: bookFiles.isDeleting,
         isSaving: bookFiles.isSaving

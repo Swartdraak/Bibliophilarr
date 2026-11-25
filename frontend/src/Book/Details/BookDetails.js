@@ -20,6 +20,7 @@ import InteractiveSearchFilterMenuConnector from 'InteractiveSearch/InteractiveS
 import InteractiveSearchTable from 'InteractiveSearch/InteractiveSearchTable';
 import OrganizePreviewModalConnector from 'Organize/OrganizePreviewModalConnector';
 import RetagPreviewModalConnector from 'Retag/RetagPreviewModalConnector';
+import cataloguePath from 'Utilities/cataloguePath';
 import translate from 'Utilities/String/translate';
 import BookDetailsHeaderConnector from './BookDetailsHeaderConnector';
 import styles from './BookDetails.css';
@@ -178,7 +179,7 @@ class BookDetails extends Component {
         <PageContentBody innerClassName={styles.innerContentBody}>
           <SwipeHeaderConnector
             className={styles.header}
-            nextLink={`/book/${nextBook.titleSlug}`}
+            nextLink={cataloguePath('book', nextBook)}
             nextComponent={(width) => (
               <BookDetailsHeaderConnector
                 bookId={nextBook.id}
@@ -186,7 +187,7 @@ class BookDetails extends Component {
                 width={width}
               />
             )}
-            prevLink={`/book/${previousBook.titleSlug}`}
+            prevLink={cataloguePath('book', previousBook)}
             prevComponent={(width) => (
               <BookDetailsHeaderConnector
                 bookId={previousBook.id}
@@ -208,7 +209,7 @@ class BookDetails extends Component {
                 name={icons.ARROW_LEFT}
                 size={30}
                 title={translate('GoToInterp', [previousBook.title])}
-                to={`/book/${previousBook.titleSlug}`}
+                to={cataloguePath('book', previousBook)}
               />
 
               <IconButton
@@ -216,7 +217,7 @@ class BookDetails extends Component {
                 name={icons.ARROW_UP}
                 size={30}
                 title={translate('GoToInterp', [author.authorName])}
-                to={`/author/${author.titleSlug}`}
+                to={cataloguePath('author', author)}
               />
 
               <IconButton
@@ -224,7 +225,7 @@ class BookDetails extends Component {
                 name={icons.ARROW_RIGHT}
                 size={30}
                 title={translate('GoToInterp', [nextBook.title])}
-                to={`/book/${nextBook.titleSlug}`}
+                to={cataloguePath('book', nextBook)}
               />
             </div>
           </SwipeHeaderConnector>
@@ -340,7 +341,7 @@ class BookDetails extends Component {
           <DeleteBookModal
             isOpen={isDeleteBookModalOpen}
             bookId={id}
-            authorSlug={author.titleSlug}
+            authorPath={cataloguePath('author', author)}
             onModalClose={this.onDeleteBookModalClose}
           />
 

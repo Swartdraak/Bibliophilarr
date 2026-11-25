@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using NzbDrone.Core.Datastore;
 
 namespace NzbDrone.Core.Books
@@ -13,6 +14,9 @@ namespace NzbDrone.Core.Books
         public bool Monitored { get; set; }
         public NewItemMonitorTypes MonitorNewItems { get; set; }
         public string Path { get; set; }
+
+        [JsonIgnore]
+        public bool PendingTypedDefault { get; set; }
 
         public AuthorFormatProfile()
         {

@@ -46,6 +46,7 @@ namespace NzbDrone.Common.Http
         private readonly IRateLimitService _rateLimitService;
         private readonly ICached<CookieContainer> _cookieContainerCache;
         private readonly HardcoverRateLimitGate _hardcoverRateLimitGate;
+        private readonly InventaireRateLimitGate _inventaireRateLimitGate;
         private readonly List<IHttpRequestInterceptor> _requestInterceptors;
         private readonly IHttpDispatcher _httpDispatcher;
 
@@ -66,11 +67,12 @@ namespace NzbDrone.Common.Http
 #pragma warning restore SYSLIB0014
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
             _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager, appFolderInfo, _logger);
+            _inventaireRateLimitGate = InventaireRateLimitGate.Get(cacheManager);
         }
 
         public virtual async Task<HttpResponse> ExecuteAsync(HttpRequest request)
         {
-            var cookieContainer = InitializeRequestCookies(request);
+            var cookieContainer = request.IgnoreStoredOriginCredentials ? new CookieContainer() : InitializeRequestCookies(request);
 
             var response = await ExecuteRequestAsync(request, cookieContainer);
 
@@ -184,15 +186,27 @@ namespace NzbDrone.Common.Http
             }
 
             var hardcoverGate = HardcoverRateLimitGate.AppliesTo(request) ? _hardcoverRateLimitGate : null;
-            var held = hardcoverGate?.GetHeldResponse(request);
+            var inventaireGate = InventaireRateLimitGate.AppliesTo(request) ? _inventaireRateLimitGate : null;
+            var held = hardcoverGate?.GetHeldResponse(request) ?? inventaireGate?.GetHeldResponse(request);
             if (held != null)
             {
                 return held;
             }
 
-            var response = hardcoverGate == null
-                ? await DispatchRateLimitedRequestAsync(request, cookieContainer)
-                : await hardcoverGate.DispatchAsync(request, () => DispatchRateLimitedRequestAsync(request, cookieContainer));
+            HttpResponse response;
+            if (inventaireGate != null)
+            {
+                var interval = request.RateLimit > TimeSpan.FromSeconds(1) ? request.RateLimit : TimeSpan.FromSeconds(1);
+                response = await inventaireGate.DispatchAsync(request,
+                    () => _rateLimitService.WaitAndPulseAsync(request.Url.Host, InventaireRateLimitGate.ProviderName, interval),
+                    () => DispatchRequestAsync(request, cookieContainer));
+            }
+            else
+            {
+                response = hardcoverGate == null
+                    ? await DispatchRateLimitedRequestAsync(request, cookieContainer)
+                    : await hardcoverGate.DispatchAsync(request, () => DispatchRateLimitedRequestAsync(request, cookieContainer));
+            }
 
             foreach (var interceptor in _requestInterceptors)
             {
@@ -214,6 +228,11 @@ namespace NzbDrone.Common.Http
                 await _rateLimitService.WaitAndPulseAsync(request.Url.Host, request.RateLimitKey, request.RateLimit);
             }
 
+            return await DispatchRequestAsync(request, cookieContainer);
+        }
+
+        private async Task<HttpResponse> DispatchRequestAsync(HttpRequest request, CookieContainer cookieContainer)
+        {
             if (request.OmitSensitiveDiagnostics)
             {
                 _logger.Trace("Sending HTTP {0} request.", request.Method);
@@ -225,12 +244,16 @@ namespace NzbDrone.Common.Http
 
             var stopWatch = Stopwatch.StartNew();
             var response = await _httpDispatcher.GetResponseAsync(request, cookieContainer);
-            if (response.StatusCode == HttpStatusCode.TooManyRequests && HardcoverRateLimitGate.AppliesTo(request))
+            if (response.StatusCode == HttpStatusCode.TooManyRequests &&
+                (HardcoverRateLimitGate.AppliesTo(request) || InventaireRateLimitGate.AppliesTo(request)))
             {
                 response.OmitContentFromDiagnostics = true;
             }
 
-            HandleResponseCookies(response, cookieContainer);
+            if (!request.IgnoreStoredOriginCredentials)
+            {
+                HandleResponseCookies(response, cookieContainer);
+            }
 
             stopWatch.Stop();
             if (request.OmitSensitiveDiagnostics)

@@ -58,6 +58,8 @@ namespace NzbDrone.Core.Parser.Model
         public double PublisherConfidence { get; set; }
         public double LanguageConfidence { get; set; }
 
+        internal uint AudioTrackCount { get; set; }
+
         public ParsedTrackInfo()
         {
             Authors = new List<string>();

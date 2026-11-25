@@ -120,10 +120,15 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Verify(x => x.WaitAndPulse("metadata-fallback", "GoogleBooks", It.IsAny<TimeSpan>()), Times.Once());
             Mocker.GetMock<IHttpClient>()
                 .Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
+            var telemetry = _telemetry.GetOperationSnapshots().Should().ContainSingle().Which;
+            telemetry.Successes.Should().Be(1);
+            telemetry.Failures.Should().Be(0);
         }
 
         [TestCase(false, "180", 180)]
         [TestCase(true, "180", 180)]
+        [TestCase(false, "3600", 3600)]
+        [TestCase(true, "3600", 3600)]
         [TestCase(false, null, 300)]
         [TestCase(true, null, 300)]
         public void should_enforce_google_fallback_rate_limit_before_decoding_the_response(bool html, string retryAfter, int cooldownSeconds)

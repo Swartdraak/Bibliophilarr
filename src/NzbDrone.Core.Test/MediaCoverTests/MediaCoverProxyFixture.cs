@@ -24,11 +24,11 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
         }
 
-        [TestCase("https://covers.openlibrary.org/b/id/42-L.jpg?default=false", "42-L.jpg?default=false")]
-        [TestCase("https://images.hardcover.app/fixture.jpg", "fixture.jpg")]
-        [TestCase("http://books.google.com/fixture.png", "fixture.png")]
-        [TestCase("https://inventaire.io/fixture.webp", "fixture.webp")]
-        public void should_preserve_provider_artwork_mapping_and_http_fetch(string url, string fileName)
+        [TestCase("https://covers.openlibrary.org/b/id/42-L.jpg?default=false", "image.jpg")]
+        [TestCase("https://images.hardcover.app/fixture.jpg", "image.jpg")]
+        [TestCase("http://books.google.com/fixture.png", "image.png")]
+        [TestCase("https://inventaire.io/fixture.webp", "image.webp")]
+        public void should_map_to_a_neutral_artwork_name_and_fetch_the_original_url(string url, string fileName)
         {
             Mocker.GetMock<IConfigFileProvider>().SetupGet(config => config.UrlBase).Returns("/library");
             var bytes = new byte[] { 1, 2, 3 };

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
 
 namespace NzbDrone.Core.Parser.Model
@@ -33,6 +34,10 @@ namespace NzbDrone.Core.Parser.Model
         public Edition Edition { get; set; }
         public List<LocalBook> ExistingTracks { get; set; }
         public bool NewDownload { get; set; }
+
+        internal LibraryImportHoldReason? IdentificationHoldReason { get; set; }
+        internal string ProviderIdentityConflictDetail { get; set; }
+        internal bool RejectedProviderCandidates { get; set; }
 
         public void PopulateMatch(bool keepAllEditions)
         {

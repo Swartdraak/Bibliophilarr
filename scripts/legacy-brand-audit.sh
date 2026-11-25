@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+script_dir="$(dirname "${BASH_SOURCE[0]}")"
+repo_root="$(cd "$script_dir/.." && pwd)"
 initial_pwd="$(pwd)"
 output_dir="${repo_root}/_artifacts/legacy-brand-audit"
 enforce_zero="false"
@@ -37,19 +38,28 @@ legacy_regex="${legacy_title}|${legacy_lower}|${legacy_upper}"
 content_matches_file="$output_dir/content-matches.txt"
 path_matches_file="$output_dir/path-matches.txt"
 
+allow_no_matches() {
+  local status=0
+  "$@" || status=$?
+  if [[ "$status" -gt 1 ]]; then
+    echo "Legacy brand scan failed: $1 exited with status $status." >&2
+    return "$status"
+  fi
+}
+
 if command -v rg >/dev/null 2>&1; then
 
   (
     cd "$repo_root"
 
-    rg -n --hidden \
+    allow_no_matches rg -n --hidden \
       --glob '!**/bin/**' \
       --glob '!**/obj/**' \
       --glob '!**/node_modules/**' \
       --glob '!.git/**' \
-      "$legacy_regex" . > "$content_matches_file" || true
+      "$legacy_regex" . > "$content_matches_file"
 
-    rg --files . | rg -n "$legacy_regex" > "$path_matches_file" || true
+    allow_no_matches rg --files . | allow_no_matches rg -n "$legacy_regex" > "$path_matches_file"
   )
 else
   (
@@ -60,11 +70,12 @@ else
       ! -path './node_modules/*' \
       ! -path '*/bin/*' \
       ! -path '*/obj/*' \
-      -print0 | xargs -0 grep -nE "$legacy_regex" > "$content_matches_file" || true
+      -exec bash -c 'pattern=$1; shift; grep -nHE "$pattern" "$@" || [ "$?" -eq 1 ]' bash "$legacy_regex" {} + \
+      > "$content_matches_file"
 
     find . -type f \
       ! -path './.git/*' \
-      -print | sed 's|^./||' | grep -nE "$legacy_regex" > "$path_matches_file" || true
+      -print | sed 's|^./||' | allow_no_matches grep -nE "$legacy_regex" > "$path_matches_file"
   )
 fi
 

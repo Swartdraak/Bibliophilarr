@@ -1,6 +1,6 @@
 # Project status summary
 
-**Last verified**: 2026-11-25
+**Last verified**: 2026-11-26
 **Verification scope**: branch protection, issue and pull request state, native acceptance, and published release channels
 **Current phase**: Phase 5 consolidation with Phase 6 hardening
 
@@ -75,10 +75,17 @@ recovery issue is closed.
   audited catalogue identities. Bibliography, artwork, unresolved matches, and
   a separate fresh replay of the newer draft remain open.
   [Completed replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
-- The closed `7dfd3367` replay accounted for all 533 source files. After the
-  matched-only follow-up, 54 of 75 ebooks and 405 of 458 audiobooks linked to
-  the expected format. Signed offline restart preserved the audited catalogue.
-  [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7153619701)
+- The earlier closed fresh replay ran draft build `7dfd3367` with all
+  four metadata providers configured. Both full scans and the scheduled follow-up accounted
+  for all 533 files. The final state linked 54 of 75 ebooks and 405 of 458
+  audiobooks. Eighteen works have separate typed editions for both formats, and
+  74 files have recorded hold reasons. An independent signed offline restart
+  preserved file ownership and canonical identities. The browser verified an
+  author portrait, a member book cover and a representative series cover.
+  Of 421 works with a linked file, 242 had a stored synopsis and 360 had a
+  cover reference. Twelve of 726 series had a description. Provider
+  bibliography, remaining artwork and title gaps stay open.
+  [Closed replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7153619701)
 - The 2026-11-25 fresh `f2fe9c81` replay tracked the same 533 paths and linked
   55 ebooks and 316 audiobooks. Twenty-one works had separately typed file
   and edition links. The remaining 162 files have recorded hold reasons.
@@ -97,6 +104,13 @@ recovery issue is closed.
   author refreshes and one bulk book refresh finished unsuccessfully, and no
   series was populated.
   [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7164621758)
+- A subsequent read-only inventory confirmed the same 533 paths, sizes and
+  modification times. The catalogue draft has independently verified local
+  M4B, EPUB and supported AZW3 artwork, Open Library retry recovery, and
+  retention of existing series links after incomplete provider updates. The
+  latest candidate still needs a fresh real-provider replay. Author
+  bibliographies, series coverage, artwork and unresolved files remain release
+  gates. [Catalogue draft](https://github.com/Swartdraak/Bibliophilarr/pull/485)
 - An earlier browser review verified the legacy Terry Mancour URL, stable
   author and catalogue routes, separate EPUB and M4B file links, and rendered
   author, series, and book artwork. The sampled series lacked a description.

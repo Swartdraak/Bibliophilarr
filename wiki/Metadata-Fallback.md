@@ -16,8 +16,9 @@ order (lower number = higher priority):
 | 3 | **Google Books** | ISBN / title-based | No (`EnableGoogleBooksProvider`) |
 
 **Inventaire** provides a separate title and author search fallback for automatic
-library import when `EnableInventaireFallback` is enabled. It does not participate
-in primary provider ordering or scoped book and author lookups.
+library import and a read-only series fallback in Add New when
+`EnableInventaireFallback` is enabled. The primary provider order and scoped book
+and author lookups use the providers in the table above.
 
 The orchestrator selects the provider that matches the ID scope when the
 configured provider supports the requested lookup.
@@ -38,11 +39,39 @@ An author lookup that fails reports provider unavailability. A provider can also
 report confirmed missing, or return no matching metadata without confirming
 removal. A book lookup that encounters a transport outage reports unavailability.
 
+When Hardcover is unavailable, Add New checks for an exactly matched saved
+series with existing members first. If there is no saved match, it can display
+results from enabled Inventaire and preview works with an explicit membership
+claim. Positions absent from those claims display as unknown. The preview is
+limited to 40 verified works and leaves the catalogue unchanged. A short shared
+request deadline bounds each preview, and an Inventaire rate-limit response pauses
+both preview and background Inventaire lookups. Other providers keep operating.
+An unavailable search without fallback results reports the outage. A successful
+Hardcover search with no matches returns an empty result.
+
+Hardcover series preview checks the reported count of active memberships and
+loads subsequent pages until it reaches that count. If a later page fails or
+the reported membership changes during the lookup, the preview reports failure
+and leaves stored series and files unchanged.
+
+Open Library artwork retries give earlier opportunities to books with tracked
+files and reserve opportunities for bibliography-only books and author
+portraits. A verified redirect for the same artwork uses one additional request
+within the existing limit. On supported Linux systems, a confirmed import or
+individual book refresh can recover a declared M4B, EPUB, or supported AZW3 cover
+when provider artwork is missing.
+
 ## Data-loss risk (issue #204 / #209)
 
 Author refresh keeps the local author, bibliography, and existing metadata
 when the provider is unavailable or has no matching author. Confirmed missing
 also keeps the author, including when the author has no files.
+
+If Open Library ends an author works feed before its reported total, the bounded
+recovery checks matching counts and offsets, exact work IDs, and author credits.
+When recovery stops, the event log records the failed check and the distinct and
+reported work counts. The incomplete response leaves existing catalogue data
+intact and may leave a new unattended import in Unmapped Files.
 
 Book refresh suppresses automatic cleanup during a degraded provider window.
 Under healthy conditions, the separate cleanup path for existing provider-backed

@@ -166,8 +166,13 @@ export const reducers = createHandleActions({
     } = payload;
 
     const dimensions = getDimensions(width, height);
+    const enteringSmallScreen = dimensions.isSmallScreen && !state.dimensions.isSmallScreen;
 
-    return { ...state, dimensions };
+    return {
+      ...state,
+      dimensions,
+      isSidebarVisible: enteringSmallScreen ? false : state.isSidebarVisible
+    };
   },
 
   [SHOW_MESSAGE]: function(state, { payload }) {

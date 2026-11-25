@@ -1,6 +1,5 @@
 .message {
   display: flex;
-  border-left: 3px solid var(--infoColor);
 }
 
 .iconContainer,
@@ -25,18 +24,18 @@
 
 /* Types */
 
-.error {
-  border-left-color: var(--dangerColor);
+.error .iconContainer {
+  color: var(--dangerColor);
 }
 
-.info {
-  border-left-color: var(--infoColor);
+.info .iconContainer {
+  color: var(--infoColor);
 }
 
-.success {
-  border-left-color: var(--successColor);
+.success .iconContainer {
+  color: var(--successColor);
 }
 
-.warning {
-  border-left-color: var(--warningColor);
+.warning .iconContainer {
+  color: var(--warningColor);
 }

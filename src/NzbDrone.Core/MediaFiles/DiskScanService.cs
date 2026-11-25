@@ -13,12 +13,15 @@ using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
-using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Datastore;
+using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.MediaFiles
@@ -39,31 +42,36 @@ namespace NzbDrone.Core.MediaFiles
         public static readonly Regex ExcludedSubFoldersRegex = new Regex(@"(?:\\|\/|^)(?:extras|@eadir|extrafanart|plex versions|\.[^\\/]+)(?:\\|\/)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         public static readonly Regex ExcludedFilesRegex = new Regex(@"^\._|^Thumbs\.db$|^\.DS_store$|\.partial~$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        private readonly IConfigService _configService;
+        private static readonly DateTime PostgresTimestampEpoch = new (2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         private readonly IDiskProvider _diskProvider;
         private readonly ICalibreProxy _calibre;
         private readonly IMediaFileService _mediaFileService;
         private readonly IMakeImportDecision _importDecisionMaker;
         private readonly IImportApprovedBooks _importApprovedTracks;
         private readonly IAuthorService _authorService;
+        private readonly IAuthorFormatDefaultService _formatDefaults;
         private readonly IMediaFileTableCleanupService _mediaFileTableCleanupService;
         private readonly IRootFolderService _rootFolderService;
         private readonly IEventAggregator _eventAggregator;
+        private readonly ICommandResultReporter _commandResultReporter;
+        private readonly IConnectionStringFactory _connectionStringFactory;
         private readonly Logger _logger;
 
-        public DiskScanService(IConfigService configService,
-                               IDiskProvider diskProvider,
+        public DiskScanService(IDiskProvider diskProvider,
                                ICalibreProxy calibre,
                                IMediaFileService mediaFileService,
                                IMakeImportDecision importDecisionMaker,
                                IImportApprovedBooks importApprovedTracks,
                                IAuthorService authorService,
+                               IAuthorFormatDefaultService formatDefaults,
                                IRootFolderService rootFolderService,
                                IMediaFileTableCleanupService mediaFileTableCleanupService,
                                IEventAggregator eventAggregator,
+                               ICommandResultReporter commandResultReporter,
+                               IConnectionStringFactory connectionStringFactory,
                                Logger logger)
         {
-            _configService = configService;
             _diskProvider = diskProvider;
             _calibre = calibre;
 
@@ -71,9 +79,12 @@ namespace NzbDrone.Core.MediaFiles
             _importDecisionMaker = importDecisionMaker;
             _importApprovedTracks = importApprovedTracks;
             _authorService = authorService;
+            _formatDefaults = formatDefaults;
             _mediaFileTableCleanupService = mediaFileTableCleanupService;
             _rootFolderService = rootFolderService;
             _eventAggregator = eventAggregator;
+            _commandResultReporter = commandResultReporter;
+            _connectionStringFactory = connectionStringFactory;
             _logger = logger;
         }
 
@@ -90,19 +101,22 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             var mediaFileList = new List<IFileInfo>();
+            var scannedFolders = new List<string>();
 
             var musicFilesStopwatch = Stopwatch.StartNew();
 
             foreach (var folder in folders)
             {
+                var loggedFolder = LogSanitizer.Sanitize(folder);
+
                 // We could be scanning a root folder or a subset of a root folder.  If it's a subset,
                 // check if the root folder exists before cleaning.
                 var rootFolder = _rootFolderService.GetBestRootFolder(folder);
 
                 if (rootFolder == null)
                 {
-                    _logger.Error("Not scanning {0}, it's not a subdirectory of a defined root folder", folder);
-                    return;
+                    _logger.Error("Not scanning {0}, it's not a subdirectory of a defined root folder", loggedFolder);
+                    continue;
                 }
 
                 var folderExists = _diskProvider.FolderExists(folder);
@@ -111,36 +125,49 @@ namespace NzbDrone.Core.MediaFiles
                 {
                     if (!_diskProvider.FolderExists(rootFolder.Path))
                     {
-                        _logger.Warn("Authors' root folder ({0}) doesn't exist.", rootFolder.Path);
+                        _logger.Warn("Authors' root folder ({0}) doesn't exist.", LogSanitizer.Sanitize(rootFolder.Path));
                         var skippedAuthors = _authorService.GetAuthors(authorIds);
                         skippedAuthors.ForEach(x => _eventAggregator.PublishEvent(new AuthorScanSkippedEvent(x, AuthorScanSkippedReason.RootFolderDoesNotExist)));
-                        return;
+                        continue;
                     }
 
                     if (_diskProvider.FolderEmpty(rootFolder.Path))
                     {
-                        _logger.Warn("Authors' root folder ({0}) is empty.", rootFolder.Path);
+                        _logger.Warn("Authors' root folder ({0}) is empty.", LogSanitizer.Sanitize(rootFolder.Path));
                         var skippedAuthors = _authorService.GetAuthors(authorIds);
                         skippedAuthors.ForEach(x => _eventAggregator.PublishEvent(new AuthorScanSkippedEvent(x, AuthorScanSkippedReason.RootFolderIsEmpty)));
-                        return;
+                        continue;
                     }
                 }
 
-                if (!folderExists)
-                {
-                    _logger.Debug("Specified scan folder ({0}) doesn't exist.", folder);
+                _logger.ProgressInfo("Discovering media files in {0}", loggedFolder);
 
+                List<IFileInfo> files;
+                try
+                {
+                    // Cleanup needs a complete view of this scope, including nested folders.
+                    files = FilterFiles(folder, GetBookFiles(folder, allDirectories: true, ignoreInaccessible: false));
+                }
+                catch (DirectoryNotFoundException) when (!folderExists)
+                {
+                    // FolderExists also returns false for permission failures.
+                    _logger.Debug("Specified scan folder ({0}) doesn't exist.", loggedFolder);
                     CleanMediaFiles(folder, new List<string>());
+                    scannedFolders.Add(folder);
+                    continue;
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    _logger.Warn("Could not enumerate scan folder {0}: {1}. Its existing file records were kept.",
+                        loggedFolder,
+                        error.GetType().Name);
                     continue;
                 }
 
-                _logger.ProgressInfo("Scanning {0}", folder);
-
-                var files = FilterFiles(folder, GetBookFiles(folder));
-
+                scannedFolders.Add(folder);
                 if (!files.Any())
                 {
-                    _logger.Warn("Scan folder {0} is empty.", folder);
+                    _logger.Warn("Scan folder {0} is empty.", loggedFolder);
                     continue;
                 }
 
@@ -148,8 +175,24 @@ namespace NzbDrone.Core.MediaFiles
                 mediaFileList.AddRange(files);
             }
 
+            var incompleteScan = scannedFolders.Count != folders.Count;
+            if (incompleteScan)
+            {
+                _commandResultReporter.Report(CommandResult.Unsuccessful);
+                if (scannedFolders.Count == 0)
+                {
+                    _logger.ProgressInfo("Library scan skipped all {0} requested folders. See System Events for details.", folders.Count);
+                    return;
+                }
+            }
+
             musicFilesStopwatch.Stop();
-            _logger.Trace("Finished getting track files for:\n{0} [{1}]", folders.ConcatToString("\n"), musicFilesStopwatch.Elapsed);
+            _logger.ProgressInfo("Discovered {0} media files across {1} scan folders in {2}.",
+                mediaFileList.Count,
+                scannedFolders.Count,
+                musicFilesStopwatch.Elapsed);
+
+            _formatDefaults.ResolvePending();
 
             var decisionsStopwatch = Stopwatch.StartNew();
 
@@ -161,6 +204,11 @@ namespace NzbDrone.Core.MediaFiles
             };
 
             var decisions = _importDecisionMaker.GetImportDecisions(mediaFileList, null, null, config);
+            foreach (var decision in decisions)
+            {
+                decision.Item.IsLibraryScan = true;
+                decision.Item.IsUnattendedLibraryImport = addNewAuthors;
+            }
 
             decisionsStopwatch.Stop();
             _logger.Debug("Import decisions complete [{0}]", decisionsStopwatch.Elapsed);
@@ -171,13 +219,38 @@ namespace NzbDrone.Core.MediaFiles
                 _logger.ProgressInfo("Saving library scan results.");
             }
 
-            _importApprovedTracks.Import(decisions, false);
+            var importResults = _importApprovedTracks.Import(decisions, false);
 
             // decisions may have been filtered to just new files.  Anything new and approved will have been inserted.
             // Now we need to make sure anything new but not approved gets inserted
             // Note that knownFiles will include anything imported just now
             var knownFiles = new List<BookFile>();
-            folders.ForEach(x => knownFiles.AddRange(_mediaFileService.GetFilesWithBasePath(x)));
+            scannedFolders.ForEach(x => knownFiles.AddRange(_mediaFileService.GetFilesWithBasePath(x)));
+
+            // Never assign refreshed metadata or a hold reason to an arbitrary row for a held audio path.
+            var ambiguousHeldAudiobookPaths = knownFiles
+                .GroupBy(file => file.Path, PathEqualityComparer.Instance)
+                .Where(group => group.Any(IsPriorOccupiedAudiobookPart) &&
+                                group.Select(file => file.Id).Distinct().Take(2).Count() == 2)
+                .Select(group => group.Key)
+                .ToHashSet(PathEqualityComparer.Instance);
+
+            knownFiles = knownFiles.DistinctBy(file => file.Path, PathEqualityComparer.Instance).ToList();
+            var unreadablePaths = decisions
+                .Where(decision => decision.Rejections.Any(rejection => rejection.HoldReason == LibraryImportHoldReason.ReadError))
+                .Select(decision => decision.Item.Path)
+                .ToHashSet(PathEqualityComparer.Instance);
+            var unlinkedDecisions = decisions.ExceptBy(
+                decision => decision.Item.Path,
+                knownFiles.Where(file => file.EditionId > 0),
+                file => file.Path,
+                PathEqualityComparer.Instance);
+            var unmappedReasons = GetUnmappedReasons(unlinkedDecisions, importResults);
+            if (!incompleteScan && (unreadablePaths.Count > 0 ||
+                unmappedReasons.Values.Any(reason => reason is LibraryImportHoldReason.ImportFailed or LibraryImportHoldReason.ReadError)))
+            {
+                _commandResultReporter.Report(CommandResult.Unsuccessful);
+            }
 
             var newFiles = decisions
                 .ExceptBy(x => x.Item.Path, knownFiles, x => x.Path, PathEqualityComparer.Instance)
@@ -192,16 +265,42 @@ namespace NzbDrone.Core.MediaFiles
                     Modified = decision.Item.Modified,
                     DateAdded = DateTime.UtcNow,
                     Quality = decision.Item.Quality,
-                    MediaInfo = decision.Item.FileTrackInfo.MediaInfo,
-                    Edition = decision.Item.Edition
+                    MediaInfo = decision.Item.FileTrackInfo?.MediaInfo,
+                    UnmappedReason = unmappedReasons[decision.Item.Path]
                 })
                 .ToList();
             _mediaFileService.AddMany(newFiles);
 
             _logger.Debug($"Inserted {newFiles.Count} new unmatched trackfiles");
 
+            // A later unapproved scan could otherwise remove the evidence that this slot needs a guarded retry.
+            var retainReasonPaths = importResults?.Where(result => result.PreserveExistingUnmappedReason)
+                .Select(result => result.ImportDecision.Item.Path)
+                .ToHashSet(PathEqualityComparer.Instance);
+
+            var changedReasons = knownFiles.Where(file => file.EditionId == 0 &&
+                !IsPriorOccupiedAudiobookPart(file) &&
+                !ambiguousHeldAudiobookPaths.Contains(file.Path) &&
+                retainReasonPaths?.Contains(file.Path) != true &&
+                unmappedReasons.TryGetValue(file.Path, out var reason) && file.UnmappedReason != reason).ToList();
+
+            // A matched-only rescan cannot retest an earlier author-add failure.
+            if (filter == FilterFilesType.Matched && !addNewAuthors)
+            {
+                var scannedFiles = decisions.ToLookup(decision => decision.Item.Path, PathEqualityComparer.Instance);
+                var retainedReasonCount = changedReasons.RemoveAll(file =>
+                    (file.UnmappedReason is LibraryImportHoldReason.LowConfidence or LibraryImportHoldReason.AuthorBibliographyUnavailable) &&
+                    unmappedReasons[file.Path] == LibraryImportHoldReason.NoAcceptedWork &&
+                    scannedFiles[file.Path].All(decision => IsSameScannedFile(file, decision.Item)));
+                if (retainedReasonCount > 0)
+                {
+                    _logger.Debug("Retained an earlier import hold for {0} unchanged files after the matched-only scan found no accepted work.", retainedReasonCount);
+                }
+            }
+
             // finally update info on size/modified for existing files
             var updatedFiles = knownFiles
+                .Where(file => !ambiguousHeldAudiobookPaths.Contains(file.Path))
                 .Join(decisions,
                       x => x.Path,
                       x => x.Item.Path,
@@ -211,26 +310,50 @@ namespace NzbDrone.Core.MediaFiles
                           Item = decision.Item
                       },
                       PathEqualityComparer.Instance)
-                .Where(x => x.File.Size != x.Item.Size ||
-                       Math.Abs((x.File.Modified - x.Item.Modified).TotalSeconds) > 1)
+                .Where(x => !unreadablePaths.Contains(x.File.Path) &&
+                            (x.File.Size != x.Item.Size || Math.Abs((x.File.Modified - x.Item.Modified).TotalSeconds) > 1))
                 .Select(x =>
                 {
                     x.File.Size = x.Item.Size;
                     x.File.Modified = x.Item.Modified;
-                    x.File.MediaInfo = x.Item.FileTrackInfo.MediaInfo;
+                    x.File.MediaInfo = x.Item.FileTrackInfo?.MediaInfo;
                     x.File.Quality = x.Item.Quality;
                     return x.File;
                 })
                 .ToList();
 
-            _mediaFileService.Update(updatedFiles);
+            _mediaFileService.UpdateScannedFileInfo(updatedFiles);
+
+            changedReasons.ForEach(file => file.UnmappedReason = unmappedReasons[file.Path]);
+            _mediaFileService.SetUnmappedReasons(changedReasons);
+            QueueNewEmbeddedCovers(importResults, knownFiles);
+
+            // Report the retained reasons for evaluated paths rather than just this attempt's decisions.
+            foreach (var file in knownFiles.Where(file => file.EditionId == 0 &&
+                         file.UnmappedReason.HasValue && !ambiguousHeldAudiobookPaths.Contains(file.Path) &&
+                         unmappedReasons.ContainsKey(file.Path)))
+            {
+                unmappedReasons[file.Path] = file.UnmappedReason.Value;
+            }
+
+            if (unmappedReasons.Count > 0)
+            {
+                var counts = unmappedReasons.Values.GroupBy(reason => reason).OrderBy(group => group.Key)
+                    .Select(group => $"{group.Key}={group.Count()}");
+                _logger.ProgressInfo("Library scan left {0} evaluated files unmapped. {1}", unmappedReasons.Count, string.Join(", ", counts));
+            }
 
             _logger.Debug($"Updated info for {updatedFiles.Count} known files");
 
-            var authors = _authorService.GetAuthors(authorIds);
-            foreach (var author in authors)
+            if (!incompleteScan)
             {
-                CompletedScanning(author);
+                _authorService.GetAuthors(authorIds).ForEach(CompletedScanning);
+            }
+            else
+            {
+                _logger.ProgressInfo("Library scan skipped {0} folders. {1} evaluated files remain unmapped. See System Events for details.",
+                    folders.Count - scannedFolders.Count,
+                    unmappedReasons.Count);
             }
 
             importStopwatch.Stop();
@@ -239,12 +362,114 @@ namespace NzbDrone.Core.MediaFiles
                 _logger.ProgressInfo("Library scan results saved.");
             }
 
-            _logger.Debug("Book import complete for:\n{0} [{1}]", folders.ConcatToString("\n"), importStopwatch.Elapsed);
+            _logger.Debug("Library import finished for {0} scan folders in {1}.", scannedFolders.Count, importStopwatch.Elapsed);
+        }
+
+        private void QueueNewEmbeddedCovers(List<ImportResult> results, List<BookFile> files)
+        {
+            if (results == null || results.Count == 0)
+            {
+                return;
+            }
+
+            var commands = results.Where(result => result.Result == ImportResultType.Imported)
+                .Select(result => result.ImportDecision.Item)
+                .Where(item => item.Book?.Id > 0 && Guid.TryParseExact(item.Book.CanonicalId, "N", out var canonical) && canonical != Guid.Empty &&
+                    item.Edition?.Id > 0 && item.Edition.BookId == item.Book.Id)
+                .Select(item => (Item: item, Kind: EmbeddedBookCoverService.SupportedSourceKind(item.Path, item.Edition)))
+                .Where(item => item.Kind.HasValue)
+                .Join(
+                    files.Where(file => file.Id > 0 && file.CalibreId == 0 && file.Size > 0 && file.Modified != default && !file.UnmappedReason.HasValue),
+                    item => item.Item.Path,
+                    file => file.Path,
+                    (item, file) => (item.Item, item.Kind, File: file),
+                    PathEqualityComparer.Instance)
+                .Where(match => match.Item.Edition.Id == match.File.EditionId)
+                .DistinctBy(match => (match.Item.Book.Id, match.File.Id, match.File.EditionId, match.File.Size, match.File.Modified))
+                .GroupBy(match => (match.Item.Book.Id, match.Kind))
+                .Where(group => group.Count() == 1)
+                .Select(group => group.Single())
+                .OrderBy(match => match.Kind)
+                .Select(match => new RecoverImportedBookCoverCommand
+                {
+                    BookId = match.Item.Book.Id,
+                    CanonicalId = match.Item.Book.CanonicalId,
+                    FileId = match.File.Id,
+                    EditionId = match.File.EditionId,
+                    Size = match.File.Size,
+                    ModifiedTicks = _connectionStringFactory.MainDbConnection.DatabaseType == DatabaseType.PostgreSQL
+                        ? PostgresTimestampTicks(match.File.Modified)
+                        : match.File.Modified.Ticks,
+                    Trigger = CommandTrigger.Scheduled
+                })
+                .ToList();
+
+            if (commands.Count > 0)
+            {
+                _eventAggregator.PublishEvent(new EmbeddedBookCoversImportedEvent(commands));
+            }
+        }
+
+        private bool IsSameScannedFile(BookFile stored, LocalBook scanned)
+        {
+            if (stored.Size != scanned.Size || stored.Modified == default || scanned.Modified == default ||
+                stored.Modified.Kind != DateTimeKind.Utc || scanned.Modified.Kind != DateTimeKind.Utc)
+            {
+                return false;
+            }
+
+            if (stored.Modified == scanned.Modified)
+            {
+                return true;
+            }
+
+            if (_connectionStringFactory.MainDbConnection.DatabaseType != DatabaseType.PostgreSQL)
+            {
+                return false;
+            }
+
+            return stored.Modified.Ticks == PostgresTimestampTicks(scanned.Modified);
+        }
+
+        private static long PostgresTimestampTicks(DateTime modified)
+        {
+            // Npgsql truncates fractional microseconds toward the PostgreSQL epoch.
+            var sinceEpoch = modified - PostgresTimestampEpoch;
+            return modified.Ticks - (sinceEpoch.Ticks % TimeSpan.TicksPerMicrosecond);
+        }
+
+        private static bool IsPriorOccupiedAudiobookPart(BookFile file)
+        {
+            return file.EditionId == 0 && file.UnmappedReason == LibraryImportHoldReason.DuplicateInScan &&
+                   ImportFormat.ForPath(file.Path) == FormatType.Audiobook;
+        }
+
+        private Dictionary<string, LibraryImportHoldReason> GetUnmappedReasons(IEnumerable<ImportDecision<LocalBook>> decisions, List<ImportResult> importResults)
+        {
+            var reasons = new Dictionary<string, LibraryImportHoldReason>(PathEqualityComparer.Instance);
+            var importErrors = (importResults ?? new List<ImportResult>())
+                .ToLookup(result => result.ImportDecision.Item.Path, PathEqualityComparer.Instance);
+            foreach (var decision in decisions.DistinctBy(decision => decision.Item.Path, PathEqualityComparer.Instance))
+            {
+                var results = importErrors[decision.Item.Path];
+                var reason = decision.Approved
+                    ? string.Join(", ", results.SelectMany(result => result.Errors).Distinct())
+                    : string.Join(", ", decision.Rejections);
+                reasons.Add(decision.Item.Path, decision.Rejections.Select(rejection => rejection.HoldReason)
+                    .Concat(results.Select(result => result.HoldReason))
+                    .FirstOrDefault(code => code.HasValue) ?? LibraryImportHoldReason.ReviewRequired);
+                _logger.Debug(
+                    "Unmapped library file {0}: {1}",
+                    LogSanitizer.Sanitize(decision.Item.Path),
+                    reason.IsNullOrWhiteSpace() ? "import did not persist an edition link" : LogSanitizer.Sanitize(reason));
+            }
+
+            return reasons;
         }
 
         private void CleanMediaFiles(string folder, List<string> mediaFileList)
         {
-            _logger.Debug($"Cleaning up media files in DB [{folder}]");
+            _logger.Debug("Checking tracked files under {0}", LogSanitizer.Sanitize(folder));
             _mediaFileTableCleanupService.Clean(folder, mediaFileList);
         }
 
@@ -256,6 +481,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public IFileInfo[] GetBookFiles(string path, bool allDirectories = true)
         {
+            return GetBookFiles(path, allDirectories, ignoreInaccessible: true);
+        }
+
+        private IFileInfo[] GetBookFiles(string path, bool allDirectories, bool ignoreInaccessible)
+        {
             IEnumerable<IFileInfo> filesOnDisk;
 
             var rootFolder = _rootFolderService.GetBestRootFolder(path);
@@ -263,7 +493,7 @@ namespace NzbDrone.Core.MediaFiles
 
             if (rootFolder != null && rootFolder.IsCalibreLibrary && rootFolder.CalibreSettings != null)
             {
-                _logger.Info("Getting book list from calibre for {0}", logPath);
+                _logger.Info("Getting book list from Calibre for {0}", logPath);
                 var paths = _calibre.GetAllBookFilePaths(rootFolder.CalibreSettings);
                 var folderPaths = paths.Where(x => path.IsParentPath(x));
 
@@ -271,9 +501,9 @@ namespace NzbDrone.Core.MediaFiles
             }
             else
             {
-                _logger.Debug("Scanning '{0}' for ebook files", logPath);
+                _logger.Debug("Scanning '{0}' for supported media files", logPath);
 
-                filesOnDisk = _diskProvider.GetFileInfos(path, allDirectories);
+                filesOnDisk = _diskProvider.GetFileInfos(path, allDirectories, ignoreInaccessible);
 
                 _logger.Trace("{0} files were found in {1}", filesOnDisk.Count(), logPath);
             }

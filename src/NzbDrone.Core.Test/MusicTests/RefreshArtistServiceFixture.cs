@@ -11,9 +11,11 @@ using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.History;
 using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.RootFolders;
@@ -54,6 +56,7 @@ namespace NzbDrone.Core.Test.MusicTests
             _author = Builder<Author>.CreateNew()
                 .With(a => a.Metadata = metadata)
                 .With(a => a.Series = series)
+                .With(a => a.RemoteSeriesComplete = null)
                 .With(a => a.MetadataProfile = profile)
                 .Build();
 
@@ -62,7 +65,8 @@ namespace NzbDrone.Core.Test.MusicTests
                   .Returns(new List<Author> { _author });
 
             Mocker.GetMock<IBookService>(MockBehavior.Strict)
-                .Setup(s => s.InsertMany(It.IsAny<List<Book>>()));
+                .Setup(s => s.InsertBibliographyWorks(It.IsAny<List<Book>>()))
+                .Returns((List<Book> books) => books);
 
             Mocker.GetMock<IMetadataProfileService>()
                 .Setup(s => s.FilterBooks(It.IsAny<Author>(), It.IsAny<int>()))
@@ -122,6 +126,159 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_record_a_verified_shared_credit_without_refreshing_another_authors_work()
+        {
+            _author.ForeignAuthorId = "hardcover:author:99";
+            _book1.ForeignBookId = "hardcover:work:456";
+            _book1.AuthorMetadataId = _author.AuthorMetadataId + 1;
+            _book2.ForeignBookId = "hardcover:work:789";
+            _book2.AuthorMetadataId = _author.AuthorMetadataId + 2;
+            _remoteBooks[0].ForeignBookId = _book1.ForeignBookId;
+            _remoteBooks[0].CreditedHardcoverAuthorId = 99;
+            _remoteBooks[1].ForeignBookId = _book2.ForeignBookId;
+            var metadata = _author.JsonClone();
+            metadata.Metadata = _author.Metadata.Value.JsonClone();
+            metadata.Books = _remoteBooks;
+            GivenNewAuthorInfo(metadata);
+            GivenBooksForRefresh(new List<Book> { _book1, _book2 });
+            AllowAuthorUpdate();
+            var books = Mocker.GetMock<IBookService>();
+            books.Setup(service => service.RecordHardcoverAuthorCredits(_author.AuthorMetadataId, 99, It.IsAny<List<string>>()));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            books.Verify(service => service.RecordHardcoverAuthorCredits(
+                _author.AuthorMetadataId,
+                99,
+                It.Is<List<string>>(ids => ids.Count == 1 && ids[0] == "hardcover:work:456")), Times.Once());
+            books.Verify(service => service.InsertBibliographyWorks(It.Is<List<Book>>(added => added.Count == 0)), Times.Once());
+            Mocker.GetMock<IRefreshBookService>().Verify(service => service.RefreshBookInfo(
+                It.Is<List<Book>>(list => list.Count == 0),
+                It.IsAny<List<Book>>(),
+                It.IsAny<Author>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<DateTime?>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(2);
+        }
+
+        [Test]
+        public void should_refresh_an_existing_work_with_editions_from_provider_aliases()
+        {
+            _book1.Title = "Example Work";
+            _book1.ReleaseDate = new DateTime(2022, 1, 25);
+            _book1.OpenLibraryWorkId = "OL4242W";
+            _book1.AuthorMetadataId = _author.AuthorMetadataId;
+            var ebook = new Edition { ForeignEditionId = "hardcover:edition:123", Format = "Ebook" };
+            var audiobook = new Edition { ForeignEditionId = "hardcover:edition:456", Format = "Audiobook" };
+            _remoteBooks.Clear();
+            _remoteBooks.Add(new Book
+            {
+                ForeignBookId = "hardcover:work:45",
+                Title = _book1.Title,
+                OpenLibraryWorkId = "OL4242W",
+                ReleaseDate = _book1.ReleaseDate,
+                Editions = new List<Edition> { ebook }
+            });
+            _remoteBooks.Add(new Book
+            {
+                ForeignBookId = "hardcover:work:54",
+                Title = _book1.Title,
+                OpenLibraryWorkId = "OL4242W",
+                ReleaseDate = _book1.ReleaseDate,
+                Editions = new List<Edition> { audiobook }
+            });
+
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Books = _remoteBooks;
+            var primary = new SeriesBookLink { Book = _remoteBooks[1], IsPrimary = true, Position = "2" };
+            var series = new Series
+            {
+                ForeignSeriesId = "hardcover:series:86",
+                LinkItems = new List<SeriesBookLink> { new SeriesBookLink { Book = _remoteBooks[0] }, primary }
+            };
+            newAuthorInfo.Series = new List<Series> { series };
+            GivenNewAuthorInfo(newAuthorInfo);
+            GivenBooksForRefresh(new List<Book> { _book1 });
+            AllowAuthorUpdate();
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IBookService>().Verify(s => s.InsertBibliographyWorks(It.Is<List<Book>>(books => books.Count == 0)), Times.Once());
+            Mocker.GetMock<IRefreshBookService>().Verify(s => s.RefreshBookInfo(
+                It.Is<List<Book>>(books => books.Count == 1 && books[0].Id == _book1.Id),
+                It.Is<List<Book>>(books => books.Count == 1 && books[0].ForeignBookId == _book1.ForeignBookId &&
+                    books[0].Editions.Value.Count == 2 && books[0].Editions.Value.Contains(ebook) &&
+                    books[0].Editions.Value.Contains(audiobook)),
+                It.IsAny<Author>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<DateTime?>()), Times.Once());
+            Assert.That(series.LinkItems.Value, Is.EqualTo(new[] { primary }));
+            Assert.That(primary.Book.Value.ForeignBookId, Is.EqualTo(_book1.ForeignBookId));
+        }
+
+        [Test]
+        public void should_preserve_exact_stored_works_with_the_same_title_and_release_date()
+        {
+            foreach (var book in _books)
+            {
+                book.Title = "A shared title";
+                book.ReleaseDate = new DateTime(2022, 1, 25);
+                book.AuthorMetadataId = _author.AuthorMetadataId;
+            }
+
+            _remoteBooks.Clear();
+            _remoteBooks.AddRange(_books.JsonClone());
+            _remoteBooks.ForEach(book => book.Id = 0);
+            _remoteBooks.Add(new Book
+            {
+                ForeignBookId = "hardcover:work:300",
+                Title = _book1.Title,
+                ReleaseDate = _book1.ReleaseDate
+            });
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Books = _remoteBooks;
+            GivenNewAuthorInfo(newAuthorInfo);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IRefreshBookService>().Verify(s => s.RefreshBookInfo(
+                It.Is<List<Book>>(books => books.Count == 3 && books.Contains(_book1) && books.Contains(_book2)),
+                It.Is<List<Book>>(books => books.Count == 3 && books.Exists(x => x.ForeignBookId == _book1.ForeignBookId) &&
+                    books.Exists(x => x.ForeignBookId == _book2.ForeignBookId) && books.Exists(x => x.ForeignBookId == "hardcover:work:300")),
+                It.IsAny<Author>(),
+                It.IsAny<bool>(),
+                It.IsAny<bool>(),
+                It.IsAny<DateTime?>()), Times.Once());
+            Mocker.GetMock<IBookService>().Verify(s => s.DeleteBook(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_a_work_omitted_by_the_provider_without_identity_evidence()
+        {
+            _remoteBooks.RemoveAt(1);
+            var newAuthorInfo = _author.JsonClone();
+            newAuthorInfo.Metadata = _author.Metadata.Value.JsonClone();
+            newAuthorInfo.Books = _remoteBooks;
+            GivenNewAuthorInfo(newAuthorInfo);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesByBook(_book2.Id)).Returns(new List<BookFile>());
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IBookService>().Verify(s => s.DeleteBook(_book2.Id, It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IEventAggregator>().Verify(
+                aggregator => aggregator.PublishEvent(It.Is<BookInfoRefreshedEvent>(message => message.Removed.Count == 0)),
+                Times.Once());
+        }
+
+        [Test]
         public void should_not_publish_author_updated_event_if_metadata_not_updated()
         {
             var newAuthorInfo = _author.JsonClone();
@@ -165,6 +322,7 @@ namespace NzbDrone.Core.Test.MusicTests
             var newBook = Builder<Book>.CreateNew()
                 .With(x => x.Id = 0)
                 .With(x => x.ForeignBookId = "3")
+                .With(x => x.Title = "A distinct new work")
                 .Build();
             _remoteBooks.Add(newBook);
 
@@ -342,6 +500,45 @@ namespace NzbDrone.Core.Test.MusicTests
             Mocker.GetMock<ICommandResultReporter>().Verify(x => x.Report(CommandResult.Unsuccessful), Times.Once());
             Mocker.GetMock<IAuthorService>().Verify(x => x.UpdateAuthor(It.Is<Author>(a => a.Id == other.Id)), Times.Once());
             Mocker.GetMock<IManageCommandQueue>().Verify(x => x.Push(It.IsAny<RescanFoldersCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Once());
+            ExceptionVerification.ExpectedWarns(1);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [TestCase(CatalogueIdentityRepository.LegacyLinkedEvidence)]
+        [TestCase("exact-isbn-and-title-and-author")]
+        public void should_keep_google_books_author_unchanged_when_outage_has_only_weaker_alternate_evidence(string evidence)
+        {
+            const string primaryId = "googlebooks:author:fixture-person";
+            const string alternateId = "OL42A";
+            _author.ForeignAuthorId = primaryId;
+            var incumbent = _author.Metadata.Value;
+            _author.AuthorMetadataId = incumbent.Id;
+            incumbent.OpenLibraryAuthorId = alternateId;
+            var previousSync = _author.LastInfoSync;
+            var storedSeries = _author.Series.Value;
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, incumbent.Id))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = alternateId, Evidence = evidence } });
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", alternateId))
+                .Returns(incumbent.Id);
+            var provider = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            provider.Setup(orchestrator => orchestrator.GetAuthorInfo(primaryId, true))
+                .Throws(new MetadataProviderUnavailableException("get-author-info", primaryId, new InvalidOperationException("Incomplete provider bibliography")));
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            provider.Verify(orchestrator => orchestrator.GetAuthorInfo(primaryId, true), Times.Once());
+            provider.VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorService>().Verify(service => service.UpdateAuthor(It.IsAny<Author>()), Times.Never());
+            Mocker.GetMock<IAuthorService>().Verify(service => service.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once());
+            Assert.That(_author.Metadata.Value, Is.SameAs(incumbent));
+            Assert.That(_author.Series.Value, Is.SameAs(storedSeries));
+            Assert.That(_author.LastInfoSync, Is.EqualTo(previousSync));
             ExceptionVerification.ExpectedWarns(1);
             ExceptionVerification.ExpectedErrors(1);
         }
@@ -551,6 +748,480 @@ namespace NzbDrone.Core.Test.MusicTests
                 .Verify(v => v.DeleteAuthor(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_preserve_the_canonical_author_when_an_alternate_source_is_verified()
+        {
+            _author.ForeignAuthorId = "hardcover:author:42";
+            _author.Metadata.Value.CanonicalId = Guid.NewGuid().ToString("N");
+            _author.AuthorMetadataId = _author.Metadata.Value.Id;
+            var incumbentKey = _author.Metadata.Value.CanonicalId;
+            var alternate = _author.JsonClone();
+            alternate.Metadata = _author.Metadata.Value.JsonClone();
+            alternate.ForeignAuthorId = "openlibrary:author:OL42A";
+            alternate.Metadata.Value.Id = 99;
+            alternate.Metadata.Value.Overview = "A verified biography";
+            alternate.Books = _remoteBooks;
+            GivenNewAuthorInfo(alternate);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+            Mocker.GetMock<ICatalogueIdentityRepository>()
+                .Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL42A"))
+                .Returns(_author.AuthorMetadataId);
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Assert.That(_author.Metadata.Value.CanonicalId, Is.EqualTo(incumbentKey));
+            Assert.That(_author.ForeignAuthorId, Is.EqualTo("hardcover:author:42"));
+            Assert.That(_author.Metadata.Value.PendingSourceAssociations, Has.Exactly(1).Matches<CatalogueSourceAssociation>(source => source.ProviderId == "OL42A"));
+            Assert.That(_author.Metadata.Value.Overview, Is.EqualTo("A verified biography"));
+        }
+
+        [TestCase("OL42A", "OL42A", true, false, false, false, true)]
+        [TestCase("OL42A", "OL42A", false, false, false, false, false)]
+        [TestCase("OL84A", "OL42A", true, false, false, false, false)]
+        [TestCase("OL42A", null, true, false, false, false, false)]
+        [TestCase("OL42A", "OL42A", true, true, false, false, false)]
+        [TestCase("OL42A", "OL42A", true, false, true, false, false)]
+        [TestCase("OL42A", "OL42A", true, false, false, true, false)]
+        public void should_add_only_an_unclaimed_work_from_a_verified_alternate_bibliography(
+            string returnedAuthor, string creditedAuthor, bool ownsSource, bool existingWork, bool existingEdition, bool ownerChangesAfterLookup, bool shouldAdd)
+        {
+            _author.ForeignAuthorId = "hardcover:author:42";
+            var metadata = _author.Metadata.Value;
+            metadata.Overview = "Primary profile";
+            metadata.OpenLibraryAuthorId = null;
+            metadata.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, "https://example.net/portrait.jpg") };
+            _author.AuthorMetadataId = metadata.Id;
+
+            var primary = _author.JsonClone();
+            primary.Metadata = metadata.JsonClone();
+            primary.Books = _remoteBooks;
+            GivenNewAuthorInfo(primary);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            const string alternateWorkId = "openlibrary:work:OL100W";
+            const string alternateEditionId = "openlibrary:edition:OL101M";
+            var alternate = new Author
+            {
+                Metadata = new AuthorMetadata { ForeignAuthorId = $"openlibrary:author:{returnedAuthor}", OpenLibraryAuthorId = returnedAuthor },
+                Books = new List<Book>
+                {
+                    new Book
+                    {
+                        ForeignBookId = alternateWorkId,
+                        Title = "A distinct work",
+                        VerifiedOpenLibraryAuthorId = creditedAuthor,
+                        Editions = new List<Edition> { new Edition { ForeignEditionId = alternateEditionId } }
+                    }
+                },
+                Series = new List<Series>()
+            };
+            var currentOwner = ownsSource ? metadata.Id : metadata.Id + 1;
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, metadata.Id))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL42A", Evidence = AuthorCanonicalizationService.BibliographyEvidence } });
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL42A"))
+                .Returns(() => currentOwner);
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()))
+                .Returns(() =>
+                {
+                    if (ownerChangesAfterLookup)
+                    {
+                        currentOwner = metadata.Id + 1;
+                    }
+
+                    return alternate;
+                });
+            Mocker.GetMock<IMetadataProfileService>()
+                .Setup(service => service.FilterBooks(alternate, _author.MetadataProfileId))
+                .Returns(alternate.Books.Value);
+            var service = Mocker.GetMock<IBookService>();
+            service.Setup(books => books.GetBooksByAuthorMetadataId(metadata.Id)).Returns(_books);
+            service.Setup(books => books.FindById(alternateWorkId))
+                .Returns(existingWork ? new Book { ForeignBookId = alternateWorkId, AuthorMetadataId = metadata.Id + 1 } : null);
+            Mocker.GetMock<IEditionService>()
+                .Setup(editions => editions.GetEditionsForRefresh(0, It.Is<List<string>>(ids => ids.Contains(alternateEditionId))))
+                .Returns(existingEdition ? new List<Edition> { new Edition { ForeignEditionId = alternateEditionId, BookId = 15 } } : new List<Edition>());
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Verify(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()), ownsSource ? Times.Once() : Times.Never());
+            service.Verify(books => books.InsertBibliographyWorks(It.Is<List<Book>>(items =>
+                items.Exists(book => book.ForeignBookId == alternateWorkId && book.AuthorMetadataId == metadata.Id))),
+                shouldAdd ? Times.Once() : Times.Never());
+            Assert.That(_author.ForeignAuthorId, Is.EqualTo("hardcover:author:42"));
+        }
+
+        [TestCase("novel work", true, true)]
+        [TestCase("legacy alias", false, false)]
+        [TestCase("multiple aliases", false, false)]
+        [TestCase("wrong source owner", false, false)]
+        [TestCase("owner changes during lookup", true, false)]
+        [TestCase("wrong returned author", true, false)]
+        [TestCase("provider unavailable", true, false)]
+        [TestCase("no author credit", true, false)]
+        [TestCase("foreign work scope", true, false)]
+        [TestCase("known work under a different title", true, false)]
+        [TestCase("claimed alternate work", true, false)]
+        [TestCase("claimed mapped work", true, false)]
+        [TestCase("work claimed during reconciliation", true, false)]
+        [TestCase("occupied edition", true, false)]
+        [TestCase("excluded work", true, false)]
+        public void should_only_add_novel_hardcover_works_from_a_verified_alternate_bibliography(
+            string scenario, bool lookup, bool shouldAdd)
+        {
+            const string primaryAuthorId = "openlibrary:author:OL42A";
+            const string alternateAuthorId = "hardcover:author:42";
+            const string alternateWorkId = "hardcover:work:100";
+            const string alternateEditionId = "hardcover:source-edition:101";
+            const string primarySeriesId = "local-primary-series";
+            _author.ForeignAuthorId = primaryAuthorId;
+            _author.AuthorMetadataId = _author.Metadata.Value.Id;
+            _author.Metadata.Value.Overview = "Primary biography";
+            _book1.AuthorMetadataId = _author.AuthorMetadataId;
+            _book2.AuthorMetadataId = _author.AuthorMetadataId;
+            _book1.ForeignBookId = _remoteBooks[0].ForeignBookId = "openlibrary:work:OL24W";
+            _book1.Title = _remoteBooks[0].Title = "An incumbent work";
+            var primary = _author.JsonClone();
+            primary.Series = new List<Series> { new Series { ForeignSeriesId = primarySeriesId } };
+            primary.Books = _remoteBooks;
+            GivenNewAuthorInfo(primary);
+            var booksForRefresh = new List<Book>(_books);
+            if (scenario == "work claimed during reconciliation")
+            {
+                booksForRefresh.Add(new Book { Id = 799, AuthorMetadataId = _author.AuthorMetadataId, ForeignBookId = alternateWorkId });
+            }
+
+            GivenBooksForRefresh(booksForRefresh);
+            AllowAuthorUpdate();
+
+            var alternateSeries = new Series { ForeignSeriesId = "hardcover:series:900" };
+            var novel = new Book
+            {
+                ForeignBookId = scenario == "foreign work scope" ? "openlibrary:work:OL100W" : alternateWorkId,
+                OpenLibraryWorkId = scenario == "known work under a different title" ? "OL24W" : null,
+                Title = "A novel alternate work",
+                CreditedHardcoverAuthorId = scenario == "no author credit" ? null : 42,
+                Editions = new List<Edition> { new Edition { ForeignEditionId = alternateEditionId } }
+            };
+            novel.SeriesLinks = new List<SeriesBookLink> { new SeriesBookLink { Book = novel, Series = alternateSeries } };
+            var alternate = new Author
+            {
+                Metadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = scenario == "wrong returned author" ? "hardcover:author:84" : alternateAuthorId,
+                    Overview = "Alternate biography"
+                },
+                Books = new List<Book> { novel, new Book { ForeignBookId = "hardcover:work:200", Title = "Narrated work" } },
+                Series = new List<Series> { alternateSeries }
+            };
+            var aliases = new List<CatalogueSourceAssociation>
+            {
+                new CatalogueSourceAssociation
+                {
+                    Provider = "Hardcover",
+                    ProviderId = "42",
+                    Evidence = scenario == "legacy alias" ? CatalogueIdentityRepository.LegacyLinkedEvidence : AuthorCanonicalizationService.BibliographyEvidence
+                }
+            };
+            if (scenario == "multiple aliases")
+            {
+                aliases.Add(new CatalogueSourceAssociation
+                {
+                    Provider = "Hardcover",
+                    ProviderId = "84",
+                    Evidence = AuthorCanonicalizationService.BibliographyEvidence
+                });
+            }
+
+            var owner = scenario == "wrong source owner" ? -1 : _author.AuthorMetadataId;
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, _author.AuthorMetadataId)).Returns(aliases);
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "42")).Returns(() => owner);
+            if (scenario == "claimed mapped work")
+            {
+                novel.PendingSourceAssociations.Add(new CatalogueSourceAssociation
+                {
+                    Provider = "Hardcover",
+                    ProviderId = "105",
+                    Evidence = CatalogueIdentityRepository.HardcoverWorkMappingEvidence
+                });
+                identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "105")).Returns(799);
+            }
+
+            var providers = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            providers.Setup(provider => provider.GetAuthorInfo(alternateAuthorId, It.IsAny<bool>()))
+                .Returns(() =>
+                {
+                    if (scenario == "provider unavailable")
+                    {
+                        throw new MetadataProviderUnavailableException(MetadataProviderOrchestrator.AuthorInfoOperation, alternateAuthorId, new TimeoutException());
+                    }
+
+                    if (scenario == "owner changes during lookup")
+                    {
+                        owner = -1;
+                    }
+
+                    return alternate;
+                });
+            Mocker.GetMock<IMetadataProfileService>()
+                .Setup(service => service.FilterBooks(alternate, _author.MetadataProfileId))
+                .Returns(alternate.Books.Value);
+            var books = Mocker.GetMock<IBookService>();
+            books.Setup(service => service.GetBooksByAuthorMetadataId(_author.AuthorMetadataId)).Returns(_books);
+            books.Setup(service => service.FindById(alternateWorkId))
+                .Returns(scenario == "claimed alternate work" ? new Book { ForeignBookId = alternateWorkId, AuthorMetadataId = 799 } : null);
+            Mocker.GetMock<IEditionService>()
+                .Setup(service => service.GetEditionsForRefresh(0, It.IsAny<List<string>>()))
+                .Returns(scenario == "occupied edition"
+                    ? new List<Edition> { new Edition { ForeignEditionId = alternateEditionId, BookId = 799 } }
+                    : new List<Edition>());
+            if (scenario == "excluded work")
+            {
+                Mocker.GetMock<IImportListExclusionService>()
+                    .Setup(service => service.FindByForeignId(It.IsAny<List<string>>()))
+                    .Returns(new List<ImportListExclusion> { new ImportListExclusion { ForeignId = alternateWorkId } });
+            }
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            providers.Verify(provider => provider.GetAuthorInfo(alternateAuthorId, It.IsAny<bool>()), lookup ? Times.Once() : Times.Never());
+            books.Verify(service => service.InsertBibliographyWorks(It.Is<List<Book>>(inserted =>
+                inserted.Count == 1 && inserted[0].ForeignBookId == alternateWorkId &&
+                inserted[0].AuthorMetadataId == _author.AuthorMetadataId &&
+                inserted[0].IsSupplementalBibliographyWork &&
+                inserted[0].SeriesLinks.Value.Count == 0 &&
+                inserted[0].Editions.Value[0].ForeignEditionId == alternateEditionId)), shouldAdd ? Times.Once() : Times.Never());
+            books.Verify(service => service.InsertBibliographyWorks(It.Is<List<Book>>(inserted => inserted.Count == 0)),
+                shouldAdd ? Times.Never() : Times.Once());
+            Mocker.GetMock<IRefreshBookService>()
+                .Verify(service => service.RefreshBookInfo(
+                    It.IsAny<List<Book>>(),
+                    It.Is<List<Book>>(remote => remote.Exists(book => book.ForeignBookId == alternateWorkId)),
+                    It.IsAny<Author>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<DateTime?>()), shouldAdd ? Times.Once() : Times.Never());
+            Mocker.GetMock<IRefreshSeriesService>()
+                .Verify(service => service.RefreshSeriesInfo(
+                    _author.AuthorMetadataId,
+                    It.Is<List<Series>>(series => series.Count == 1 && series[0].ForeignSeriesId == primarySeriesId),
+                    _author,
+                    false,
+                    false,
+                    null), Times.Once());
+            Assert.That(_author.ForeignAuthorId, Is.EqualTo(primaryAuthorId));
+            Assert.That(_author.Metadata.Value.Overview, Is.EqualTo("Primary biography"));
+            Assert.That(novel.SeriesLinks.Value, Has.Count.EqualTo(1));
+            if (scenario == "provider unavailable")
+            {
+                ExceptionVerification.ExpectedWarns(1);
+            }
+        }
+
+        [TestCase(AuthorCanonicalizationService.BibliographyEvidence, null, "OL42A", true, true, true)]
+        [TestCase(AuthorCanonicalizationService.BibliographyEvidence, "OL84A", "OL42A", false, false, true)]
+        [TestCase(AuthorCanonicalizationService.BibliographyEvidence, null, "OL84A", true, false, true)]
+        [TestCase(AuthorCanonicalizationService.BibliographyEvidence, null, "OL42A", true, false, false)]
+        [TestCase(CatalogueIdentityRepository.LegacyLinkedEvidence, null, "OL42A", false, false, true)]
+        public void should_fill_missing_author_profile_fields_only_from_one_corroborated_source(
+            string evidence, string linkedId, string returnedId, bool readsProfile, bool acceptsProfile, bool stillOwnsSource)
+        {
+            _author.ForeignAuthorId = "hardcover:author:42";
+            var incumbent = _author.Metadata.Value;
+            incumbent.CanonicalId = Guid.NewGuid().ToString("N");
+            incumbent.TitleSlug = "primary-author-slug";
+            incumbent.OpenLibraryAuthorId = linkedId;
+            incumbent.Overview = null;
+            incumbent.Images = new List<MediaCover.MediaCover>();
+            _author.AuthorMetadataId = incumbent.Id;
+            var canonicalId = incumbent.CanonicalId;
+            var authorName = incumbent.Name;
+
+            var primary = _author.JsonClone();
+            primary.Metadata = incumbent.JsonClone();
+            primary.Books = _remoteBooks;
+            GivenNewAuthorInfo(primary);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities
+                .Setup(repository => repository.GetSources(CatalogueEntityKind.Author, incumbent.Id))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL42A", Evidence = evidence } });
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL42A"))
+                .Returns(stillOwnsSource ? incumbent.Id : incumbent.Id + 1);
+
+            var portrait = new MediaCover.MediaCover(MediaCoverTypes.Poster, "https://covers.openlibrary.org/a/id/42-L.jpg")
+            {
+                SourceProvider = "OpenLibrary",
+                SourceId = returnedId
+            };
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(provider => provider.GetAuthorProfileMetadata("OpenLibrary", "OL42A"))
+                .Returns(new AuthorMetadata
+                {
+                    Name = "Alternate provider spelling",
+                    Overview = "The alternate author biography",
+                    OpenLibraryAuthorId = returnedId,
+                    Images = new List<MediaCover.MediaCover> { portrait }
+                });
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            var refreshed = _author.Metadata.Value;
+            Assert.That(refreshed.CanonicalId, Is.EqualTo(canonicalId));
+            Assert.That(refreshed.ForeignAuthorId, Is.EqualTo("hardcover:author:42"));
+            Assert.That(refreshed.TitleSlug, Is.EqualTo("primary-author-slug"));
+            Assert.That(refreshed.Name, Is.EqualTo(authorName));
+            Assert.That(refreshed.OpenLibraryAuthorId, Is.EqualTo(linkedId));
+            if (acceptsProfile)
+            {
+                Assert.That(refreshed.Overview, Is.EqualTo("The alternate author biography"));
+                Assert.That(refreshed.Images, Has.Exactly(1).Matches<MediaCover.MediaCover>(image =>
+                    image.SourceProvider == "OpenLibrary" && image.SourceId == "OL42A"));
+            }
+            else
+            {
+                Assert.That(refreshed.Overview, Is.Null);
+                Assert.That(refreshed.Images, Is.Empty);
+            }
+
+            orchestrator.Verify(provider => provider.GetAuthorProfileMetadata("OpenLibrary", "OL42A"), readsProfile ? Times.Once() : Times.Never());
+            orchestrator.Verify(provider => provider.GetAuthorInfo("openlibrary:author:OL42A", It.IsAny<bool>()),
+                readsProfile && stillOwnsSource ? Times.Once() : Times.Never());
+        }
+
+        [TestCase("verified", true, true, true)]
+        [TestCase("weak", false, false, false)]
+        [TestCase("ambiguous", false, false, false)]
+        [TestCase("other-owner", false, false, false)]
+        [TestCase("changed-owner", true, false, false)]
+        [TestCase("changed-evidence", true, false, false)]
+        [TestCase("wrong-profile", true, false, false)]
+        [TestCase("unavailable", true, false, false)]
+        [TestCase("preserve-biography", true, false, true)]
+        [TestCase("preserve-portrait", true, true, false)]
+        [TestCase("both-present", false, false, false)]
+        [TestCase("wrong-portrait", true, true, false)]
+        public void should_fill_missing_primary_openlibrary_profile_fields_from_verified_hardcover_source(
+            string scenario, bool readsProfile, bool acceptsBiography, bool acceptsPortrait)
+        {
+            const string primaryId = "openlibrary:author:OL42A";
+            const string profileId = "hardcover:author:84";
+            const string bio = "Verified Hardcover biography";
+            const string suppliedBio = "Stored primary biography";
+            const string suppliedPortrait = "https://covers.openlibrary.org/a/id/42-L.jpg";
+            const string hardcoverPortrait = "https://assets.example.invalid/portrait.jpg";
+            const string storedFanart = "https://assets.example.invalid/stored-fanart.jpg";
+            var preserveBio = scenario is "preserve-biography" or "both-present";
+            var preservePortrait = scenario is "preserve-portrait" or "both-present";
+            _author.ForeignAuthorId = primaryId;
+            var incumbent = _author.Metadata.Value;
+            incumbent.CanonicalId = Guid.NewGuid().ToString("N");
+            incumbent.TitleSlug = "primary-author-slug";
+            incumbent.OpenLibraryAuthorId = "OL42A";
+            incumbent.Overview = preserveBio ? suppliedBio : null;
+            incumbent.Images = new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Fanart, storedFanart) };
+            _author.AuthorMetadataId = incumbent.Id;
+            var canonicalId = incumbent.CanonicalId;
+            var authorName = incumbent.Name;
+
+            var primary = _author.JsonClone();
+            primary.Metadata = incumbent.JsonClone();
+            primary.Metadata.Value.Overview = null;
+            primary.Metadata.Value.Images = preservePortrait
+                ? new List<MediaCover.MediaCover> { new MediaCover.MediaCover(MediaCoverTypes.Poster, suppliedPortrait) }
+                : new List<MediaCover.MediaCover>();
+            primary.Books = _remoteBooks;
+            GivenNewAuthorInfo(primary);
+            GivenBooksForRefresh(_books);
+            AllowAuthorUpdate();
+
+            var aliases = new List<CatalogueSourceAssociation>
+            {
+                new CatalogueSourceAssociation
+                {
+                    Provider = "Hardcover",
+                    ProviderId = "84",
+                    Evidence = scenario == "weak" ? CatalogueIdentityRepository.LegacyLinkedEvidence : AuthorCanonicalizationService.BibliographyEvidence
+                }
+            };
+            if (scenario == "ambiguous")
+            {
+                aliases.Add(new CatalogueSourceAssociation { Provider = "Hardcover", ProviderId = "85", Evidence = AuthorCanonicalizationService.BibliographyEvidence });
+            }
+
+            var ownsSource = scenario != "other-owner";
+            var identities = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identities.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, incumbent.Id)).Returns(aliases);
+            identities.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "84"))
+                .Returns(() => ownsSource ? incumbent.Id : incumbent.Id + 1);
+
+            var alternate = new AuthorMetadata
+            {
+                Name = "Alternate provider spelling",
+                Overview = bio,
+                ForeignAuthorId = scenario == "wrong-profile" ? "hardcover:author:85" : profileId,
+                Images = new List<MediaCover.MediaCover>
+                {
+                    new MediaCover.MediaCover(MediaCoverTypes.Poster, hardcoverPortrait)
+                    {
+                        SourceProvider = "Hardcover",
+                        SourceId = scenario == "wrong-portrait" ? "hardcover:author:85" : profileId
+                    }
+                }
+            };
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(provider => provider.GetAuthorProfileMetadata("Hardcover", profileId))
+                .Returns(() =>
+                {
+                    if (scenario == "changed-owner")
+                    {
+                        ownsSource = false;
+                    }
+
+                    if (scenario == "changed-evidence")
+                    {
+                        aliases[0].Evidence = CatalogueIdentityRepository.LegacyLinkedEvidence;
+                    }
+
+                    return scenario == "unavailable" ? null : alternate;
+                });
+
+            Subject.Execute(new RefreshAuthorCommand(_author.Id));
+
+            var refreshed = _author.Metadata.Value;
+            Assert.That(refreshed.CanonicalId, Is.EqualTo(canonicalId));
+            Assert.That(refreshed.ForeignAuthorId, Is.EqualTo(primaryId));
+            Assert.That(refreshed.OpenLibraryAuthorId, Is.EqualTo("OL42A"));
+            Assert.That(refreshed.TitleSlug, Is.EqualTo("primary-author-slug"));
+            Assert.That(refreshed.Name, Is.EqualTo(authorName));
+            Assert.That(refreshed.Overview, Is.EqualTo(acceptsBiography ? bio : null));
+            Assert.That(incumbent.Overview, Is.EqualTo(preserveBio ? suppliedBio : null));
+            Assert.That(refreshed.Images, Has.Exactly(acceptsPortrait ? 1 : 0).Matches<MediaCover.MediaCover>(image =>
+                image.CoverType == MediaCoverTypes.Poster && image.Url == hardcoverPortrait &&
+                image.SourceProvider == "Hardcover" && image.SourceId == profileId));
+            if (preservePortrait)
+            {
+                Assert.That(refreshed.Images, Has.Exactly(1).Matches<MediaCover.MediaCover>(image => image.Url == suppliedPortrait));
+            }
+            else if (acceptsPortrait)
+            {
+                Assert.That(refreshed.Images, Has.Exactly(1).Matches<MediaCover.MediaCover>(image => image.Url == storedFanart));
+            }
+            else
+            {
+                Assert.That(refreshed.Images, Is.Empty);
+            }
+
+            orchestrator.Verify(provider => provider.GetAuthorProfileMetadata("Hardcover", profileId), readsProfile ? Times.Once() : Times.Never());
         }
 
         [Test]

@@ -745,6 +745,14 @@ endpoint for title and author searches, and `OpenLibraryMapper` maps the results
 The provider also supports exact work and edition lookups. Open Library search
 works without an API key.
 
+In the Add New **Author** scope, a name search may make one supplemental Open
+Library request when a different configured provider returned results. The
+supplement uses one page with zero retries, skips an unavailable provider, and
+adds only exact normalized name matches with valid Open Library author IDs.
+Results share a card only when the catalogue has verified their identity.
+Identifier, book, series and automatic import searches use their existing
+provider routing.
+
 ### Fallback providers
 
 The import-identification fallback chain includes provider-specific providers that implement `IBookSearchFallbackProvider`.

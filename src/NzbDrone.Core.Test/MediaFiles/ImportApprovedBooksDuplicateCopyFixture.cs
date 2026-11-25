@@ -62,6 +62,8 @@ namespace NzbDrone.Core.Test.MediaFiles
                 Book = new LazyLoaded<Book>(),
                 ForeignEditionId = "OL123M",
                 Title = "Test Book",
+                Format = "Ebook",
+                IsEbook = true,
                 Monitored = true
             };
 
@@ -135,7 +137,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         [TestCase(7, 1, nameof(Quality.AZW3), ImportResultType.Skipped)]
         [TestCase(8, 1, nameof(Quality.EPUB), ImportResultType.Imported)]
         [TestCase(7, 2, nameof(Quality.EPUB), ImportResultType.Imported)]
-        [TestCase(7, 1, nameof(Quality.M4B), ImportResultType.Imported)]
+        [TestCase(8, 1, nameof(Quality.M4B), ImportResultType.Imported)]
         public void should_only_skip_the_same_edition_part_and_format_in_the_batch(
             int editionId, int part, string qualityName, ImportResultType expected)
         {
@@ -158,7 +160,9 @@ namespace NzbDrone.Core.Test.MediaFiles
                     BookId = _book.Id,
                     Book = _book,
                     ForeignEditionId = "OL124M",
-                    Title = _book.Title
+                    Title = _book.Title,
+                    Format = qualityName == nameof(Quality.M4B) ? "Audiobook" : "Ebook",
+                    IsEbook = qualityName != nameof(Quality.M4B)
                 };
                 _book.Editions.Value.Add(second.Item.Edition);
             }

@@ -1,13 +1,13 @@
 .wrapper {
   display: flex;
   align-items: center;
-  flex: 1 1 340px;
+  flex: 1 1 420px;
   gap: 10px;
 
   margin-left: $pageContentBodyPadding;
   padding: 0 12px;
   min-width: 0;
-  max-width: 340px;
+  max-width: 420px;
   height: 38px;
   border: 1px solid var(--headerOutlineColor);
   border-radius: 7px;
@@ -40,7 +40,7 @@
   color: var(--white);
 
   &::placeholder {
-    color: var(--white);
+    color: var(--headerPlaceholderColor);
   }
 
   &:focus {

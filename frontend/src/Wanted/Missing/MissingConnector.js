@@ -6,8 +6,10 @@ import * as commandNames from 'Commands/commandNames';
 import withCurrentPage from 'Components/withCurrentPage';
 import { executeCommand } from 'Store/Actions/commandActions';
 import { clearQueueDetails, fetchQueueDetails } from 'Store/Actions/queueActions';
+import { fetchMediaManagementSettings } from 'Store/Actions/settingsActions';
 import * as wantedActions from 'Store/Actions/wantedActions';
 import createCommandExecutingSelector from 'Store/Selectors/createCommandExecutingSelector';
+import getFilterValue from 'Utilities/Filter/getFilterValue';
 import hasDifferentItems from 'Utilities/Object/hasDifferentItems';
 import selectUniqueIds from 'Utilities/Object/selectUniqueIds';
 import { registerPagePopulator, unregisterPagePopulator } from 'Utilities/pagePopulator';
@@ -18,13 +20,16 @@ function createMapStateToProps() {
     (state) => state.wanted.missing,
     (state) => state.authors,
     createCommandExecutingSelector(commandNames.MISSING_BOOK_SEARCH),
-    (missing, authors, isSearchingForMissingBooks) => {
+    (state) => state.settings.mediaManagement.item?.enableDualFormatTracking,
+    (missing, authors, isSearchingForMissingBooks, dualFormatTracking) => {
 
       return {
         isAuthorFetching: authors.isFetching,
         isAuthorPopulated: authors.isPopulated,
         isSearchingForMissingBooks,
-        isSaving: missing.items.filter((m) => m.isSaving).length > 1,
+        isSaving: missing.items.some((m) => m.isSaving),
+        formatType: getFilterValue(missing.filters, missing.selectedFilterKey, 'formatType'),
+        dualFormatTracking,
         ...missing
       };
     }
@@ -35,10 +40,11 @@ const mapDispatchToProps = {
   ...wantedActions,
   executeCommand,
   fetchQueueDetails,
-  clearQueueDetails
+  clearQueueDetails,
+  fetchMediaManagementSettings
 };
 
-class MissingConnector extends Component {
+export class MissingConnector extends Component {
 
   //
   // Lifecycle
@@ -51,6 +57,7 @@ class MissingConnector extends Component {
     } = this.props;
 
     registerPagePopulator(this.repopulate, ['bookFileUpdated', 'bookFileDeleted']);
+    this.props.fetchMediaManagementSettings();
 
     if (useCurrentPage) {
       fetchMissing();
@@ -122,6 +129,7 @@ class MissingConnector extends Component {
     this.props.executeCommand({
       name: commandNames.BOOK_SEARCH,
       bookIds: selected,
+      ...(this.props.formatType && { missingFormat: this.props.formatType }),
       commandFinished: this.repopulate
     });
   };
@@ -129,6 +137,7 @@ class MissingConnector extends Component {
   onSearchAllMissingPress = () => {
     this.props.executeCommand({
       name: commandNames.MISSING_BOOK_SEARCH,
+      ...(this.props.formatType && { missingFormat: this.props.formatType }),
       commandFinished: this.repopulate
     });
   };
@@ -148,7 +157,6 @@ class MissingConnector extends Component {
         onFilterSelect={this.onFilterSelect}
         onTableOptionChange={this.onTableOptionChange}
         onSearchSelectedPress={this.onSearchSelectedPress}
-        onToggleSelectedPress={this.onToggleSelectedPress}
         onSearchAllMissingPress={this.onSearchAllMissingPress}
         {...this.props}
       />
@@ -158,6 +166,8 @@ class MissingConnector extends Component {
 
 MissingConnector.propTypes = {
   useCurrentPage: PropTypes.bool.isRequired,
+  formatType: PropTypes.oneOf(['ebook', 'audiobook']),
+  fetchMediaManagementSettings: PropTypes.func.isRequired,
   items: PropTypes.arrayOf(PropTypes.object).isRequired,
   fetchMissing: PropTypes.func.isRequired,
   gotoMissingFirstPage: PropTypes.func.isRequired,

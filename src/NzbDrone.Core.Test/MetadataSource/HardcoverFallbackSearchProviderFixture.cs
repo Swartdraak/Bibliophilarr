@@ -1,18 +1,33 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using FluentAssertions;
 using Moq;
 using Newtonsoft.Json.Linq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
+using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.HealthCheck;
+using NzbDrone.Core.HealthCheck.Checks;
+using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.Localization;
+using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.Hardcover;
+using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 
@@ -37,6 +52,714 @@ namespace NzbDrone.Core.Test.MetadataSource
             Mocker.GetMock<IConfigService>()
                 .SetupGet(x => x.HardcoverRequestTimeoutSeconds)
                 .Returns(0);
+        }
+
+        [TestCase("valid")]
+        [TestCase("wrong-id")]
+        [TestCase("weak-id-type")]
+        [TestCase("multiple")]
+        [TestCase("partial-errors")]
+        [TestCase("invalid-portrait")]
+        public void should_fetch_only_the_exact_hardcover_author_profile(string scenario)
+        {
+            const string authorId = "hardcover:author:42";
+            const string url = "https://assets.example.invalid/portrait.jpg";
+            var profile = new JObject
+            {
+                ["id"] = 42,
+                ["bio"] = " Verified biography ",
+                ["image"] = new JObject { ["url"] = url }
+            };
+            var authors = new JArray(profile);
+            var payload = new JObject { ["data"] = new JObject { ["authors"] = authors } };
+
+            switch (scenario)
+            {
+                case "wrong-id":
+                    profile["id"] = 43;
+                    break;
+                case "weak-id-type":
+                    profile["id"] = "42";
+                    break;
+                case "multiple":
+                    authors.Add(profile.DeepClone());
+                    break;
+                case "partial-errors":
+                    payload["errors"] = new JArray(new JObject { ["message"] = "Fixture incomplete response" });
+                    break;
+                case "invalid-portrait":
+                    profile["image"]["url"] = "/relative/portrait.jpg";
+                    break;
+            }
+
+            HttpRequest sent = null;
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                sent = request;
+                return new HttpResponse<JObject>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+            });
+
+            var profiles = Subject.Should().BeAssignableTo<IProvideAuthorProfileMetadata>().Which;
+            var metadata = profiles.GetAuthorProfileMetadata(authorId);
+
+            if (scenario is "valid" or "invalid-portrait")
+            {
+                metadata.Should().NotBeNull();
+                metadata.ForeignAuthorId.Should().Be(authorId);
+                metadata.Overview.Should().Be("Verified biography");
+                if (scenario == "valid")
+                {
+                    var portrait = metadata.Images.Should().ContainSingle().Which;
+                    portrait.CoverType.Should().Be(MediaCoverTypes.Poster);
+                    portrait.Url.Should().Be(url);
+                    portrait.SourceProvider.Should().Be("Hardcover");
+                    portrait.SourceId.Should().Be(authorId);
+                }
+                else
+                {
+                    metadata.Images.Should().BeEmpty();
+                }
+            }
+            else
+            {
+                metadata.Should().BeNull();
+            }
+
+            sent.RateLimitKey.Should().Be("Hardcover");
+            var body = JObject.Parse(Encoding.UTF8.GetString(sent.ContentData));
+            body.SelectToken("variables.id").Value<int>().Should().Be(42);
+            body.Value<string>("query").Should().Contain("authors(where: {id: {_eq: $id}}, limit: 2)")
+                .And.NotContain("contributions").And.NotContain("books").And.NotContain("search(");
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("42")]
+        [TestCase("hardcover:work:42")]
+        [TestCase("hardcover:author:Namesake")]
+        public void should_not_query_a_hardcover_profile_without_an_exact_typed_id(string authorId)
+        {
+            var profiles = Subject.Should().BeAssignableTo<IProvideAuthorProfileMetadata>().Which;
+
+            profiles.GetAuthorProfileMetadata(authorId).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_leave_a_rate_limited_hardcover_profile_unavailable_without_retry()
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                var headers = new HttpHeader { ["Retry-After"] = "120" };
+                var response = new HttpResponse(request, headers, string.Empty, HttpStatusCode.TooManyRequests);
+                throw new TooManyRequestsException(request, response);
+            });
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(x => x.GetProviders()).Returns(new IMetadataProvider[] { Subject });
+            var telemetry = new Mock<IMetadataProviderTelemetryService>();
+            var orchestrator = new MetadataProviderOrchestrator(registry.Object, telemetry.Object, LogManager.GetCurrentClassLogger());
+
+            orchestrator.GetAuthorProfileMetadata("Hardcover", "hardcover:author:42").Should().BeNull();
+
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+            ExceptionVerification.ExpectedWarns(2);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_map_one_exact_source_audiobook_and_its_verified_work_author_in_one_request(bool hasEditionCover)
+        {
+            const string description = "A synopsis from the exact audio work.";
+            const string editionCover = "https://assets.example.invalid/audio-edition.jpg";
+            const string workCover = "https://assets.example.invalid/work-cover.jpg";
+            var payload = ExactAudiobookPayload();
+            var source = payload.SelectToken("data.editions[0]");
+            var work = source["book"];
+            work["description"] = description;
+            work["cached_image"] = new JObject { ["url"] = workCover };
+            if (hasEditionCover)
+            {
+                source["cached_image"] = new JObject { ["url"] = editionCover };
+            }
+
+            HttpRequest captured = null;
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    captured = request;
+                    return new HttpResponse<JObject>(
+                        new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+                });
+
+            var book = Subject.FindLibraryAudiobookByAsin(" b000123abc ");
+
+            book.Should().NotBeNull();
+            book.ForeignBookId.Should().Be("hardcover:work:250");
+            book.Title.Should().Be("Synthetic Audio Work");
+            book.AuthorMetadata.Value.ForeignAuthorId.Should().Be("hardcover:author:350");
+            book.AuthorMetadata.Value.Name.Should().Be("Verified Writer");
+            book.Author.Value.Metadata.Value.Should().BeSameAs(book.AuthorMetadata.Value);
+            var edition = book.Editions.Value.Should().ContainSingle().Which;
+            edition.Book.Value.Should().BeSameAs(book);
+            edition.ForeignEditionId.Should().Be("hardcover:source-edition:150");
+            edition.Asin.Should().Be("B000123ABC");
+            edition.Isbn13.Should().Be("9781442482890");
+            edition.Format.Should().Be("Audiobook");
+            edition.IsEbook.Should().BeFalse();
+            edition.Overview.Should().Be(description);
+            var cover = edition.Images.Should().ContainSingle().Which;
+            cover.CoverType.Should().Be(MediaCoverTypes.Cover);
+            cover.Url.Should().Be(hasEditionCover ? editionCover : workCover);
+            cover.SourceProvider.Should().Be("Hardcover");
+            cover.SourceId.Should().Be(hasEditionCover ? edition.ForeignEditionId : book.ForeignBookId);
+            captured.RateLimitKey.Should().Be("Hardcover");
+            captured.Method.Should().Be(HttpMethod.Post);
+            var requestBody = JObject.Parse(Encoding.UTF8.GetString(captured.ContentData));
+            var query = requestBody.Value<string>("query");
+            query.Should().Contain("asin: {_eq: $asin}")
+                .And.Contain("reading_format_id: {_eq: 2}")
+                .And.Contain("limit: 2")
+                .And.NotContain("search(");
+            var scopes = query.Split("book {", StringSplitOptions.None);
+            scopes.Should().HaveCount(2);
+            scopes[0].Should().Contain("cached_image");
+            scopes[1].Should().Contain("description").And.Contain("cached_image");
+            requestBody.SelectToken("variables.asin").Value<string>().Should().Be("B000123ABC");
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("missing")]
+        [TestCase("multiple-works")]
+        [TestCase("multiple-editions")]
+        [TestCase("wrong-asin")]
+        [TestCase("wrong-format")]
+        [TestCase("contradictory-format")]
+        [TestCase("malformed-edition")]
+        [TestCase("mismatched-parent")]
+        [TestCase("inactive-parent")]
+        [TestCase("missing-title")]
+        [TestCase("wrong-credit-work")]
+        [TestCase("wrong-credit-kind")]
+        [TestCase("unknown-author-role")]
+        [TestCase("malformed-author-role")]
+        [TestCase("mismatched-author")]
+        [TestCase("coauthors")]
+        [TestCase("incomplete-graphql")]
+        public void should_not_return_an_unproven_source_audiobook(string defect)
+        {
+            var payload = ExactAudiobookPayload();
+            var editions = (JArray)payload.SelectToken("data.editions");
+            var edition = (JObject)editions[0];
+            var book = (JObject)edition["book"];
+            var authorCredit = (JObject)book.SelectToken("contributions[1]");
+            switch (defect)
+            {
+                case "missing":
+                    editions.RemoveAll();
+                    break;
+                case "multiple-works":
+                    var other = (JObject)edition.DeepClone();
+                    other["id"] = 151;
+                    other["book_id"] = 251;
+                    other["book"]["id"] = 251;
+                    other.SelectToken("book.contributions[0]")["contributable_id"] = 251;
+                    other.SelectToken("book.contributions[1]")["contributable_id"] = 251;
+                    editions.Add(other);
+                    break;
+                case "multiple-editions":
+                    var alternate = (JObject)edition.DeepClone();
+                    alternate["id"] = 151;
+                    editions.Add(alternate);
+                    break;
+                case "wrong-asin":
+                    edition["asin"] = "B000999XYZ";
+                    break;
+                case "wrong-format":
+                    edition["reading_format_id"] = 4;
+                    break;
+                case "contradictory-format":
+                    edition["physical_format"] = "Paperback";
+                    break;
+                case "malformed-edition":
+                    edition["id"] = "150";
+                    break;
+                case "mismatched-parent":
+                    book["id"] = 251;
+                    break;
+                case "inactive-parent":
+                    book["book_status_id"] = 2;
+                    break;
+                case "missing-title":
+                    book["title"] = " ";
+                    break;
+                case "wrong-credit-work":
+                    authorCredit["contributable_id"] = 251;
+                    break;
+                case "wrong-credit-kind":
+                    authorCredit["contributable_type"] = "Edition";
+                    break;
+                case "unknown-author-role":
+                    authorCredit["contributor_role"]["name"] = "Narrator";
+                    break;
+                case "malformed-author-role":
+                    authorCredit["contributor_role"]["name"] = new JObject { ["value"] = "Author" };
+                    break;
+                case "mismatched-author":
+                    authorCredit["author"]["id"] = 351;
+                    break;
+                case "coauthors":
+                    book.SelectToken("contributions[0].contributor_role")["name"] = "Author";
+                    break;
+                case "incomplete-graphql":
+                    payload["errors"] = JArray.Parse("""[{"message":"partial response"}]""");
+                    break;
+            }
+
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<JObject>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString())));
+
+            Subject.FindLibraryAudiobookByAsin("B000123ABC").Should().BeNull();
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("B000123ABC", false)]
+        [TestCase("B0-invalid", true)]
+        [TestCase("1234567890", true)]
+        [TestCase(null, true)]
+        public void should_skip_exact_audiobook_lookup_when_disabled_or_given_an_unsupported_identifier(string asin, bool enabled)
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.EnableHardcoverFallback).Returns(enabled);
+
+            Subject.FindLibraryAudiobookByAsin(asin).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
+        private static JObject ExactAudiobookPayload()
+        {
+            return JObject.Parse("""
+                {"data":{"editions":[{
+                  "id":150,"book_id":250,"asin":"B000123ABC","reading_format_id":2,
+                  "edition_format":"Audiobook","physical_format":null,"isbn_13":"9781442482890",
+                  "book":{"id":250,"title":"Synthetic Audio Work","book_status_id":1,"contributions":[
+                    {"contributable_id":250,"contributable_type":"Book","author_id":449,
+                     "contributor_role":{"name":"Narrator"},"author":{"id":449,"name":"First Listed Narrator"}},
+                    {"contributable_id":250,"contributable_type":"Book","author_id":350,
+                     "contributor_role":{"name":"Author"},"author":{"id":350,"name":"Verified Writer"}}
+                  ]}
+                }]}}
+                """);
+        }
+
+        [TestCase("Author", "Narrator", true)]
+        [TestCase("Author", "Author", false)]
+        [TestCase("Narrator", "Author", false)]
+        public void author_work_witness_requires_the_expected_sole_author_role(string firstRole, string secondRole, bool expected)
+        {
+            var payload = JObject.Parse("""
+                {"data":{"books":[{"id":124036,"title":"Fixture","editions":[{"id":7287,"isbn_13":"9781442482890"}],
+                "contributions":[{"author_id":196108,"contributor_role":{"name":"first"}},{"author_id":22,"contributor_role":{"name":"second"}}]}]}}
+                """);
+            payload.SelectToken("data.books[0].contributions[0].contributor_role")["name"] = firstRole;
+            payload.SelectToken("data.books[0].contributions[1].contributor_role")["name"] = secondRole;
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<JObject>(new HttpResponse(
+                    request,
+                    new HttpHeader { ContentType = "application/json" },
+                    payload.ToString())));
+
+            Subject.GetVerifiedAuthorWorkTitle("hardcover:author:196108", "hardcover:work:124036", "9781442482890")
+                .Should().Be(expected ? "Fixture" : null);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_search_series_in_one_bounded_request(bool stringifiedResults)
+        {
+            var payload = JObject.Parse("""
+                {"data":{"search":{"ids":[10,11,12,13,999],"results":{"hits":[
+                    {"document":{"id":"10","name":" Fixture Series ","slug":"fixture-series","description":"Unspecified field","books":["30"]}},
+                    {"document":{"id":10,"name":"Duplicate series","slug":"duplicate"}},
+                    {"document":{"id":11,"name":"Other Series","slug":"https://example.invalid/series"}},
+                    {"document":{"id":12,"name":"  "}},
+                    {"document":{"id":"book-13","name":"Invalid ID"}},
+                    {"document":{"id":0,"name":"Invalid ID"}},
+                    {"document":{"name":"Missing ID"}},
+                    {"document":{"id":1.5,"name":"Invalid ID"}},
+                    {"document":{"id":{"value":14},"name":"Invalid ID"}},
+                    {"document":{"id":15,"title":"Wrong field"}},
+                    {"document":{"id":16,"name":["Wrong type"]}},
+                    {"document":false},
+                    false
+                ]}}}}
+                """);
+            var search = payload.SelectToken("data.search");
+            var results = search["results"];
+            var hits = (JArray)results["hits"];
+            for (var index = hits.Count; index < 20; index++)
+            {
+                hits.Add(new JObject());
+            }
+
+            hits.Add(JObject.Parse("""{"document":{"id":100,"name":"Outside requested page bound"}}"""));
+            if (stringifiedResults)
+            {
+                search["results"] = results.ToString(Newtonsoft.Json.Formatting.None);
+            }
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.HardcoverRequestTimeoutSeconds)
+                .Returns(9);
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                request.Method.Should().Be(HttpMethod.Post);
+                request.RateLimitKey.Should().Be("Hardcover");
+                request.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
+                request.RequestTimeout.Should().Be(TimeSpan.FromSeconds(9));
+                var requestBody = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                requestBody.Value<string>("query").Should().Contain("query_type: \"series\"");
+                requestBody.Value<string>("query").Should().NotContain("series_by_pk");
+                requestBody.Value<string>("query").Should().Contain("page: 1");
+                requestBody.SelectToken("variables.query").Value<string>().Should().Be("Fixture Series");
+                requestBody.SelectToken("variables.perPage").Value<int>().Should().Be(20);
+
+                return new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+            });
+
+            var series = ((ISearchForNewSeries)Subject).SearchForNewSeries(" Fixture Series ");
+
+            series.Select(result => result.ForeignSeriesId).Should().Equal("hardcover:series:10", "hardcover:series:11");
+            series[0].Title.Should().Be("Fixture Series");
+            series[0].Slug.Should().Be("fixture-series");
+            series[1].Title.Should().Be("Other Series");
+            series[1].Slug.Should().BeNull();
+            client.Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("", true)]
+        [TestCase(" ", true)]
+        [TestCase("Fixture Series", false)]
+        public void should_skip_series_request_for_blank_input_or_disabled_provider(string title, bool enabled)
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(x => x.EnableHardcoverFallback)
+                .Returns(enabled);
+
+            Subject.SearchForNewSeries(title).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
+        [TestCase("""{"errors":[{"message":"Unsupported search type"}]}""", 1)]
+        [TestCase("""{"data":{"search":{"error":"Search unavailable","results":{"hits":[{"document":{"id":10,"name":"Fixture"}}]}}}}""", 0)]
+        [TestCase("""{"data":{"search":{"results":"invalid json"}}}""", 1)]
+        [TestCase("""{"data":{"search":{"ids":[10,11],"results":[]}}}""", 0)]
+        public void should_return_no_series_when_search_payload_is_unusable(string payload, int expectedWarnings)
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            Subject.SearchForNewSeries("Fixture").Should().BeNull();
+
+            ExceptionVerification.ExpectedWarns(expectedWarnings);
+            client.Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void should_log_search_failure_without_caller_or_provider_text(bool seriesSearch, bool graphQlError)
+        {
+            var searchTerm = seriesSearch ? "Fixture series search text" : "9781442482890";
+            const string providerText = "Fixture provider detail";
+            var payload = graphQlError
+                ? new JObject { ["errors"] = new JArray(new JObject { ["message"] = providerText }) }
+                : new JObject { ["data"] = new JObject { ["search"] = new JObject { ["error"] = providerText } } };
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<HardcoverGraphQlResponse>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString())));
+            var messages = new MemoryTarget { Layout = "${message}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var provider = new HardcoverFallbackSearchProvider(
+                Mocker.GetMock<IConfigService>().Object,
+                http.Object,
+                logFactory.GetLogger(nameof(HardcoverFallbackSearchProvider)));
+
+            if (seriesSearch)
+            {
+                provider.SearchForNewSeries(searchTerm).Should().BeNull();
+            }
+            else
+            {
+                provider.SearchByIsbn(searchTerm).Should().BeEmpty();
+            }
+
+            var operation = seriesSearch ? "series search" : "book search";
+            messages.Logs.Should().Contain(message => message.Contains(operation) && message.Contains("error"));
+            messages.Logs.Should().NotContain(message => message.Contains(searchTerm) || message.Contains(providerText));
+            http.Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
+        [Test]
+        public void should_read_all_memberships_in_provider_order_and_deduplicate_works_across_pages()
+        {
+            var firstPage = Enumerable.Range(1, 50).Select(id => SeriesMembership(id, id)).ToArray();
+            var lastPage = new[] { SeriesMembership(51, 42), SeriesMembership(52, 75) };
+            var offsets = new List<int>();
+            var queries = new List<string>();
+            GivenSeriesPages(
+                offsets,
+                offset => offset switch
+                {
+                    0 => SeriesPage(52, firstPage),
+                    50 => SeriesPage(52, lastPage),
+                    _ => throw new AssertionException("Unexpected page offset")
+                },
+                queries);
+
+            var books = ((IProvideSeriesBooks)Subject).GetSeriesBooks("hardcover:series:1033");
+
+            offsets.Should().Equal(0, 50);
+            queries.Should().OnlyContain(query => query.Contains("book_series_aggregate"));
+            books.Select(book => book.ForeignBookId)
+                .Should().Equal(Enumerable.Range(1, 50).Append(75).Select(id => $"hardcover:work:{id}"));
+            books[0].Title.Should().Be("Fixture work 1");
+            books[0].AuthorMetadata.Value.ForeignAuthorId.Should().Be("hardcover:author:9");
+            var edition = books[0].Editions.Value.Should().ContainSingle().Which;
+            edition.Format.Should().Be(Edition.UnclassifiedFormat);
+            edition.Images.Should().ContainSingle().Which.SourceId.Should().Be("hardcover:work:1");
+        }
+
+        [Test]
+        public void should_continue_on_a_provider_capped_short_page_until_the_count_is_satisfied()
+        {
+            var rows = Enumerable.Range(1, 55).Select(id => SeriesMembership(id, id)).ToArray();
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, offset => SeriesPage(55, rows.Skip(offset).Take(23).ToArray()));
+
+            var books = Subject.GetSeriesBooks("hardcover:series:1033");
+
+            offsets.Should().Equal(0, 23, 46);
+            books.Select(book => book.ForeignBookId)
+                .Should().Equal(Enumerable.Range(1, 55).Select(id => $"hardcover:work:{id}"));
+        }
+
+        [TestCase(2)]
+        [TestCase(50)]
+        public void should_stop_at_the_exact_count_when_one_complete_page_is_authoritatively_confirmed(int count)
+        {
+            var rows = Enumerable.Range(1, count).Select(id => SeriesMembership(id, id)).ToArray();
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, _ => SeriesPage(count, rows));
+
+            Subject.GetSeriesBooks("hardcover:series:1033").Select(book => book.ForeignBookId)
+                .Should().Equal(Enumerable.Range(1, count).Select(id => $"hardcover:work:{id}"));
+            offsets.Should().Equal(0);
+        }
+
+        [TestCase("provider failure")]
+        [TestCase("rate limit")]
+        [TestCase("GraphQL errors")]
+        [TestCase("count changed")]
+        [TestCase("unexpected empty")]
+        [TestCase("repeated edge")]
+        [TestCase("wrong series")]
+        [TestCase("wrong book")]
+        [TestCase("inactive work")]
+        [TestCase("string work id")]
+        [TestCase("blank title")]
+        [TestCase("oversized later page")]
+        public void should_never_return_previously_read_members_when_a_later_page_is_untrustworthy(string failure)
+        {
+            var firstPage = Enumerable.Range(1, 50).Select(id => SeriesMembership(id, id)).ToArray();
+            var second = SeriesMembership(51, 51);
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, offset => offset == 0 ? SeriesPage(51, firstPage) : failure switch
+            {
+                "provider failure" => throw new HttpRequestException("Fixture provider unavailable"),
+                "rate limit" => throw new TooManyRequestsException("60"),
+                "GraphQL errors" => JObject.Parse("""{"errors":[{"message":"Fixture failure"}]}"""),
+                "count changed" => SeriesPage(50, second),
+                "unexpected empty" => SeriesPage(51),
+                "repeated edge" => SeriesPage(51, SeriesMembership(1, 51)),
+                "wrong series" => SeriesPage(51, SeriesMembership(51, 51, seriesId: 1044)),
+                "wrong book" => SeriesPage(51, ReplaceSeriesBookField(second, "id", new JValue(100))),
+                "inactive work" => SeriesPage(51, ReplaceSeriesBookField(second, "book_status_id", new JValue(2))),
+                "string work id" => SeriesPage(51, ReplaceSeriesBookField(second, "id", new JValue("51"))),
+                "blank title" => SeriesPage(51, ReplaceSeriesBookField(second, "title", new JValue(" "))),
+                "oversized later page" => SeriesPage(51, second, SeriesMembership(52, 52)),
+                _ => throw new AssertionException("Unexpected fixture")
+            });
+
+            if (failure == "rate limit")
+            {
+                Assert.Throws<TooManyRequestsException>(() => Subject.GetSeriesBooks("hardcover:series:1033"));
+            }
+            else
+            {
+                Subject.GetSeriesBooks("hardcover:series:1033").Should().BeNull();
+            }
+
+            offsets.Should().Equal(0, 50);
+        }
+
+        [Test]
+        public void should_bound_the_scan_even_when_the_provider_returns_one_new_membership_per_page()
+        {
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, offset => SeriesPage(30, SeriesMembership(offset + 1, offset + 1)));
+
+            Subject.GetSeriesBooks("hardcover:series:1033").Should().BeNull();
+            offsets.Should().Equal(Enumerable.Range(0, 20));
+        }
+
+        [Test]
+        public void should_decline_a_count_past_the_series_scan_budget_without_another_request()
+        {
+            var offsets = new List<int>();
+            GivenSeriesPages(offsets, _ => SeriesPage(1001, SeriesMembership(1, 1)));
+
+            Subject.GetSeriesBooks("hardcover:series:1033").Should().BeNull();
+            offsets.Should().Equal(0);
+        }
+
+        [TestCase(null)]
+        [TestCase("1033")]
+        [TestCase("hardcover:work:1033")]
+        [TestCase("openlibrary:series:1033")]
+        [TestCase("hardcover:series:0")]
+        [TestCase("hardcover:series:+1033")]
+        [TestCase("hardcover:series:1033 ")]
+        [TestCase("hardcover:series:2147483648")]
+        public void should_skip_series_books_request_with_invalid_series_id(string foreignSeriesId)
+        {
+            Subject.GetSeriesBooks(foreignSeriesId).Should().BeNull();
+
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
+        [TestCase("""{"data":{"book_series":[],"book_series_aggregate":{"aggregate":{"count":0}}}}""", true)]
+        [TestCase("""{"data":{"book_series":[]}}""", false)]
+        [TestCase("""{"data":{"book_series":[],"book_series_aggregate":{"aggregate":{"count":"0"}}}}""", false)]
+        [TestCase("""{"errors":[{"message":"Unavailable"}],"data":{"book_series":[]}}""", false)]
+        [TestCase("""{"data":{"book_series":null}}""", false)]
+        [TestCase("""{"data":{"book_series":[{"book":{"id":11,"title":"Unknown membership","book_status_id":1}}]}}""", false)]
+        public void should_distinguish_empty_series_page_from_unavailable_results(string payload, bool valid)
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse<JObject>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            var books = Subject.GetSeriesBooks("hardcover:series:1033");
+
+            if (valid)
+            {
+                books.Should().BeEmpty();
+            }
+            else
+            {
+                books.Should().BeNull();
+            }
+
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_keep_series_books_unavailable_after_one_failed_request()
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Throws(new HttpRequestException("Fixture provider unavailable"));
+
+            Subject.GetSeriesBooks("hardcover:series:1033").Should().BeNull();
+
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        private void GivenSeriesPages(List<int> offsets, Func<int, JObject> response, List<string> queries = null)
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(x => x.MetadataProviderTimeoutSeconds).Returns(7);
+            Mocker.GetMock<IHttpClient>().Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                request.Method.Should().Be(HttpMethod.Post);
+                request.RateLimitKey.Should().Be("Hardcover");
+                request.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
+                request.RequestTimeout.Should().Be(TimeSpan.FromSeconds(7));
+                var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                var query = body.Value<string>("query");
+                queries?.Add(query);
+                query.Should().Contain("where: { series_id: { _eq: $seriesId }, book: { book_status_id: { _eq: 1 } } }");
+                query.Should().Contain("order_by: [{ position: asc_nulls_last }, { book: { users_count: desc } }, { id: asc }]");
+                query.Should().NotContain("editions");
+                body.SelectToken("variables.seriesId").Value<int>().Should().Be(1033);
+                body.SelectToken("variables.limit").Value<int>().Should().Be(50);
+                var offset = body.SelectToken("variables.offset").Value<int>();
+                offsets.Add(offset);
+                var payload = response(offset);
+                return new HttpResponse<JObject>(
+                    new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload.ToString()));
+            });
+        }
+
+        private static JObject SeriesPage(int count, params JObject[] rows)
+        {
+            return new JObject
+            {
+                ["data"] = new JObject
+                {
+                    ["book_series"] = new JArray(rows),
+                    ["book_series_aggregate"] = new JObject
+                    {
+                        ["aggregate"] = new JObject { ["count"] = count }
+                    }
+                }
+            };
+        }
+
+        private static JObject SeriesMembership(long edgeId, int workId, int seriesId = 1033)
+        {
+            return new JObject
+            {
+                ["id"] = edgeId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["book_id"] = workId,
+                ["series_id"] = seriesId,
+                ["book"] = new JObject
+                {
+                    ["id"] = workId,
+                    ["title"] = $"Fixture work {workId}",
+                    ["book_status_id"] = 1,
+                    ["cached_contributors"] = JArray.Parse("""[{"author":{"id":9,"name":"Fixture Author"}}]"""),
+                    ["cached_image"] = new JObject { ["url"] = "https://covers.example/first.jpg" }
+                }
+            };
+        }
+
+        private static JObject ReplaceSeriesBookField(JObject row, string field, JValue value)
+        {
+            row["book"][field] = value;
+            return row;
         }
 
         [Test]
@@ -84,6 +807,45 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             Mocker.GetMock<IHttpClient>()
                 .Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_numeric_namesakes_and_skip_ambiguous_name_only_author_hits()
+        {
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(x => x.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                var query = JObject.Parse(Encoding.UTF8.GetString(request.ContentData)).Value<string>("query");
+                if (query.StartsWith("query SearchAuthors", StringComparison.Ordinal))
+                {
+                    return CreateJsonResponse(request, JObject.Parse("""{"data":{"search":{"ids":[41]}}}"""));
+                }
+
+                query.Should().StartWith("query GetAuthors");
+                return CreateJsonResponse(request, JObject.Parse("""
+                    {"data":{"authors":[{"id":41,"name":"Jeff Example","image":{"url":"https://covers.example/41.jpg"}}]}}
+                    """));
+            });
+
+            client.Setup(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, """
+                    {"data":{"search":{"results":{"hits":[
+                        {"document":{"id":"1","title":"Ambiguous","author_names":["Jeff Example"]}},
+                        {"document":{"id":"2","title":"Known","contributions":[{"author":{"id":41,"name":"Jeff Example"}}]}},
+                        {"document":{"id":"3","title":"Namesake","contributions":[{"author":{"id":42,"name":"Jeff Example"}}]}},
+                        {"document":{"id":"4","title":"Another ambiguous work","author_names":["Jeff Novel"]}},
+                        {"document":{"id":"5","title":"Later identified","contributions":[{"author":{"id":43,"name":"Jeff Novel"}}]}}
+                    ]}}}}
+                    """)));
+
+            var results = Subject.SearchForNewEntity("Jeff");
+            var authors = results.OfType<Author>().ToList();
+
+            authors.Select(author => author.ForeignAuthorId).Should().Equal("hardcover:author:41", "hardcover:author:42", "hardcover:author:43");
+            authors[0].Metadata.Value.Images.Should().ContainSingle().Which.RemoteUrl.Should().Be("https://covers.example/41.jpg");
+            results.OfType<Book>().Should().HaveCount(5);
+            client.Verify(x => x.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(2));
+            client.Verify(x => x.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
         }
 
         [Test]
@@ -259,6 +1021,86 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_skip_untitled_ranked_hits_and_keep_the_valid_sibling()
+        {
+            const string payload = """
+                {"data":{"search":{"results":{"hits":[
+                    {"document":{"id":"1","title":null}},
+                    {"document":{"id":"2","title":" "}},
+                    {"document":{"id":"3","title":1984}},
+                    {"document":{"id":"4","title":"1984","author_names":["Fixture author"]}}
+                ]}}}}
+                """;
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                    new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            var book = Subject.SearchForNewBook("Fixture title", null).Should().ContainSingle().Which;
+
+            book.ForeignBookId.Should().Be("hardcover:work:4");
+            book.Title.Should().Be("1984");
+            book.Editions.Value.Should().ContainSingle().Which.Title.Should().Be("1984");
+            client.Verify(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("null", false)]
+        [TestCase("\"  \"", false)]
+        [TestCase("1984", false)]
+        [TestCase("\" Exact Fixture Title \"", true)]
+        public void should_distinguish_an_untitled_exact_work_from_no_result(string titleToken, bool validTitle)
+        {
+            const string workId = "hardcover:work:543";
+            var response = JObject.Parse("""
+                {"data":{"books":[{"id":543,"title":"Fixture Title","cached_contributors":[{"author":{"id":123,"name":"Fixture Author"}}]}]}}
+                """);
+            response.SelectToken("data.books[0]")["title"] = JToken.Parse(titleToken);
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(service => service.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => CreateJsonResponse(request, response));
+
+            if (validTitle)
+            {
+                var book = Subject.GetBookInfo(workId).Item2;
+                book.ForeignBookId.Should().Be(workId);
+                book.Title.Should().Be("Exact Fixture Title");
+                var edition = book.Editions.Value.Should().ContainSingle().Which;
+                edition.ForeignEditionId.Should().Be("hardcover:edition:543");
+                edition.Title.Should().Be(book.Title);
+            }
+            else
+            {
+                var error = Assert.Throws<MetadataProviderUnavailableException>(() => Subject.GetBookInfo(workId));
+                error.Operation.Should().Be("get-book-info");
+                error.EntityId.Should().Be(workId);
+            }
+
+            client.Verify(service => service.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_not_report_an_untitled_exact_search_fallback_as_missing()
+        {
+            const string workId = "hardcover:work:book-1";
+            const string payload = """
+                {"data":{"search":{"results":{"hits":[{"document":{"id":"book-1","title":" "}}]}}}}
+                """;
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                    new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            var error = Assert.Throws<MetadataProviderUnavailableException>(() => Subject.GetBookInfo(workId));
+
+            error.Operation.Should().Be("get-book-info");
+            error.EntityId.Should().Be(workId);
+            client.Verify(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [Test]
         public void get_book_info_should_hydrate_author_book_edition_and_series_fields()
         {
             Mocker.GetMock<IHttpClient>()
@@ -317,6 +1159,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             edition.Ratings.Value.Should().Be(4.5m);
             edition.Images.Should().ContainSingle();
             edition.Images[0].Url.Should().Be("https://covers.example/stand.jpg");
+            edition.Images[0].SourceProvider.Should().Be("Hardcover");
+            edition.Images[0].SourceId.Should().Be("hardcover:work:book-1");
         }
 
         [TestCase("\"1978-10-03T01:00:00+02:00\"", 10, 2, 23)]
@@ -506,6 +1350,271 @@ namespace NzbDrone.Core.Test.MetadataSource
                 .Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_require_titles_for_every_identified_work_in_an_authoritative_bibliography(bool complete)
+        {
+            const string authorId = "hardcover:author:123";
+            var calls = new List<string>();
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(service => service.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    if (body.Value<string>("query").StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        calls.Add("series");
+                        return CreateJsonResponse(request, BuildAuthorSeriesResponse(new JArray(), 0));
+                    }
+
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    calls.Add($"works:{offset}");
+                    var response = BuildAuthorPage(offset < 2 ? new[] { offset + 1 } : Array.Empty<int>());
+                    if (offset == 1 && !complete)
+                    {
+                        response.SelectToken("data.authors[0].contributions[0].book")["title"] = " ";
+                    }
+
+                    return CreateJsonResponse(request, response);
+                });
+
+            if (complete)
+            {
+                var author = Subject.GetAuthorInfo(authorId);
+                var books = author.Books.Value;
+                books.Select(book => book.ForeignBookId).Should().Equal("hardcover:work:1", "hardcover:work:2");
+                books.Select(book => book.Editions.Value.Single().ForeignEditionId).Should().Equal("hardcover:edition:1", "hardcover:edition:2");
+                books.Select(book => book.Title).Should().Equal("Book Collection: Volume 1", "Book Collection: Volume 2");
+                calls.Should().Equal("works:0", "works:1", "works:2", "series");
+            }
+            else
+            {
+                var error = Assert.Throws<MetadataProviderUnavailableException>(() => Subject.GetAuthorInfo(authorId));
+                error.Operation.Should().Be(MetadataProviderOrchestrator.AuthorInfoOperation);
+                error.EntityId.Should().Be(authorId);
+                error.InnerException.Message.Should().Contain("without a usable title");
+                error.AuthorBibliographyProgress.Should().BeNull();
+                error.AuthoritativeBibliographyEndedEarly.Should().BeFalse();
+                error.AuthoritativeBibliographyMissingWorkTitle.Should().BeTrue();
+                calls.Should().Equal("works:0", "works:1");
+            }
+
+            client.Verify(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_existing_author_when_bibliography_transport_fails()
+        {
+            const string authorId = "hardcover:author:123";
+            const string biography = "Existing biography";
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Throws(new HttpRequestException("No route to host."));
+            Mocker.GetMock<IMetadataProviderRegistry>()
+                .Setup(registry => registry.GetProviders()).Returns(new IMetadataProvider[] { Subject });
+
+            var telemetry = new MetadataProviderTelemetryService();
+            Mocker.SetConstant<IMetadataProviderTelemetryService>(telemetry);
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(Mocker.Resolve<MetadataProviderOrchestrator>());
+
+            var stored = new Author { Id = 12, Metadata = new AuthorMetadata { ForeignAuthorId = authorId, Overview = biography } };
+            var authors = Mocker.GetMock<IAuthorService>();
+            authors.Setup(service => service.GetAuthors(new[] { stored.Id })).Returns(new List<Author> { stored });
+
+            Mocker.Resolve<RefreshAuthorService>().Execute(new RefreshAuthorCommand(stored.Id));
+
+            http.Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(2));
+            http.VerifyNoOtherCalls();
+            authors.Verify(service => service.GetAuthors(new[] { stored.Id }), Times.Once);
+            authors.VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
+            stored.Metadata.Value.Overview.Should().Be(biography);
+            Mocker.GetMock<ICommandResultReporter>()
+                .Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
+
+            var localization = Mock.Of<ILocalizationService>(service =>
+                service.GetLocalizedString("MetadataProviderUnreachableHealthCheckMessage") == "Metadata provider unreachable");
+            var result = new MetadataProviderConnectivityCheck(telemetry, localization).Check();
+            result.Type.Should().Be(HealthCheckResult.Warning);
+            result.Message.Should().Be("Metadata provider unreachable");
+            ExceptionVerification.ExpectedWarns(3);
+            ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [TestCase("429")]
+        [TestCase("partial-errors")]
+        [TestCase("short-count")]
+        [TestCase("invalid-row")]
+        [TestCase("missing-known-link")]
+        [TestCase("short-count-description")]
+        public void should_refresh_verified_works_without_writing_incomplete_series(string failure)
+        {
+            const string authorId = "hardcover:author:123";
+            const string bookId = "hardcover:work:1";
+            var requests = new List<string>();
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    if (body.Value<string>("query").StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        requests.Add("series");
+                        if (failure == "429")
+                        {
+                            var headers = new HttpHeader { ["Retry-After"] = "72096" };
+                            var response = new HttpResponse(request, headers, string.Empty, HttpStatusCode.TooManyRequests);
+                            throw new TooManyRequestsException(request, response);
+                        }
+
+                        var row = JObject.Parse("""
+                            {"book_id":1,"series_id":789,"position":1,"series":{"id":789,"name":"Complete Series"}}
+                            """);
+                        if (failure == "invalid-row")
+                        {
+                            row["series_id"] = 111;
+                        }
+                        else if (failure == "missing-known-link")
+                        {
+                            row["book_id"] = 2;
+                        }
+
+                        var memberships = new JArray(row);
+                        var payload = BuildAuthorSeriesResponse(memberships, failure is "short-count" or "short-count-description" ? 2 : 1);
+                        if (failure == "partial-errors")
+                        {
+                            payload["errors"] = JArray.Parse("""[{"message":"Partial series query"}]""");
+                        }
+
+                        return CreateJsonResponse(request, payload);
+                    }
+
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    requests.Add($"works:{offset}");
+                    var page = BuildAuthorPage(offset == 0 ? new[] { 1 } : Array.Empty<int>());
+                    if (offset == 0 && failure == "short-count-description")
+                    {
+                        page.SelectToken("data.authors[0].contributions[0].book.book_series[0].series")["description"] = "Exact series description";
+                    }
+
+                    return CreateJsonResponse(request, page);
+                });
+
+            Mocker.GetMock<IMetadataProviderRegistry>()
+                .Setup(registry => registry.GetProviders()).Returns(new IMetadataProvider[] { Subject });
+            var orchestrator = Mocker.Resolve<MetadataProviderOrchestrator>();
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(orchestrator);
+
+            var incoming = orchestrator.GetAuthorInfo(authorId);
+            incoming.Books.Value.Should().ContainSingle().Which.ForeignBookId.Should().Be(bookId);
+            incoming.RemoteSeriesComplete.Should().BeFalse();
+            incoming.Series.Value.Should().ContainSingle().Which.ForeignSeriesId.Should().Be("hardcover:series:789");
+            requests.Should().Equal("works:0", "works:1", "series");
+            requests.Clear();
+
+            var unavailableLink = new SeriesBookLink { BookId = 9, Position = "3", SeriesId = 2 };
+            var existingSeries = new Series
+            {
+                Id = 2,
+                ForeignSeriesId = "hardcover:series:789",
+                WorkCount = 12,
+                LinkItems = new List<SeriesBookLink> { unavailableLink }
+            };
+            var stored = new Author
+            {
+                Id = 12,
+                AuthorMetadataId = 6,
+                Path = Path.GetTempPath(),
+                Metadata = new AuthorMetadata { Id = 6, Name = "Stored author", ForeignAuthorId = authorId },
+                Series = new List<Series> { existingSeries }
+            };
+            Mocker.GetMock<IConfigService>().SetupGet(settings => settings.RescanAfterRefresh).Returns(RescanAfterRefreshType.Never);
+            Mocker.GetMock<IAuthorService>().Setup(service => service.GetAuthors(new[] { stored.Id })).Returns(new List<Author> { stored });
+            Mocker.GetMock<IAuthorMetadataService>()
+                .Setup(service => service.UpsertMany(It.IsAny<List<AuthorMetadata>>()))
+                .Callback<List<AuthorMetadata>>(authors => authors.ForEach(metadata => metadata.Id = stored.AuthorMetadataId))
+                .Returns(true);
+            Mocker.GetMock<IMetadataProfileService>()
+                .Setup(service => service.FilterBooks(It.IsAny<Author>(), It.IsAny<int>()))
+                .Returns<Author, int>((remote, _) => remote.Books.Value);
+            Mocker.GetMock<IImportListExclusionService>()
+                .Setup(service => service.FindByForeignId(It.IsAny<List<string>>())).Returns(new List<ImportListExclusion>());
+            var books = Mocker.GetMock<IBookService>();
+            books.Setup(service => service.GetBooksForRefresh(stored.AuthorMetadataId, It.IsAny<List<string>>())).Returns(new List<Book>());
+            books.Setup(service => service.InsertBibliographyWorks(It.IsAny<List<Book>>())).Returns<List<Book>>(works => works);
+
+            Mocker.Resolve<RefreshAuthorService>().Execute(new RefreshAuthorCommand(stored.Id));
+
+            requests.Should().Equal("works:0", "works:1", "series");
+            books.Verify(service => service.InsertBibliographyWorks(It.Is<List<Book>>(works =>
+                works.Count == 1 && works[0].ForeignBookId == bookId)), Times.Once);
+            var seriesRefresh = Mocker.GetMock<IRefreshSeriesService>();
+            if (failure == "short-count-description")
+            {
+                seriesRefresh.Verify(service => service.FillMissingHardcoverDescriptions(stored, It.Is<IReadOnlyDictionary<string, string>>(descriptions =>
+                    descriptions.Count == 1 && descriptions["hardcover:series:789"] == "Exact series description")), Times.Once());
+            }
+
+            seriesRefresh.VerifyNoOtherCalls();
+            Mocker.GetMock<ICommandResultReporter>()
+                .Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Never);
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(events => events.PublishEvent(It.Is<AuthorRefreshCompleteEvent>(completed => completed.Author.Id == stored.Id)), Times.Once);
+            stored.Series.Value.Should().ContainSingle().Which.Should().BeSameAs(existingSeries);
+            existingSeries.LinkItems.Value.Should().ContainSingle().Which.Should().BeSameAs(unavailableLink);
+            existingSeries.WorkCount.Should().Be(12);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_accept_verified_nonempty_and_empty_series_snapshots(bool hasSeries)
+        {
+            Mocker.GetMock<IHttpClient>()
+                .Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        query.Should().Contain("book_series_aggregate").And.Contain("aggregate { count }");
+                        body.SelectToken("variables.limit").Value<int>().Should().Be(500);
+                        var memberships = hasSeries
+                            ? JArray.Parse("""[{"book_id":1,"series_id":789,"position":1,"series":{"id":789,"name":"Complete Series"}}]""")
+                            : new JArray();
+                        return CreateJsonResponse(request, BuildAuthorSeriesResponse(memberships, memberships.Count));
+                    }
+
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    var payload = BuildAuthorPage(offset == 0 ? new[] { 1 } : Array.Empty<int>());
+                    if (!hasSeries && payload.SelectToken("data.authors[0].contributions[0].book") is JObject book)
+                    {
+                        book.Remove("book_series");
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var author = Subject.GetAuthorInfo("hardcover:author:123");
+
+            author.Books.Value.Should().ContainSingle();
+            author.RemoteSeriesComplete.Should().BeTrue();
+            author.Series.Value.Should().HaveCount(hasSeries ? 1 : 0);
+        }
+
+        private static JObject BuildAuthorSeriesResponse(JArray memberships, int count)
+        {
+            return new JObject
+            {
+                ["data"] = new JObject
+                {
+                    ["book_series"] = memberships,
+                    ["book_series_aggregate"] = new JObject { ["aggregate"] = new JObject { ["count"] = count } }
+                }
+            };
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void should_keep_the_legacy_edition_and_add_typed_provider_editions(bool authorHydration)
@@ -530,6 +1639,109 @@ namespace NzbDrone.Core.Test.MetadataSource
             source.SelectToken("ebooks[0].id").Value<int>().Should().Be(60);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_prefer_edition_artwork_and_keep_work_artwork_as_fallback(bool authorHydration)
+        {
+            var legacyEditions = JArray.Parse("""[{"id":50,"reading_format_id":1}]""");
+            var authorSeries = JArray.Parse("""
+                [{"book_id":543,"series_id":789,"position":1,"series":{"id":789,"name":"Variant Series","description":"Full series description"}}]
+                """);
+            var source = InstallEditionResponse(legacyEditions, authorSeries);
+            source["cached_image"] = new JObject { ["url"] = "https://covers.example/work.jpg" };
+            ((JObject)source.SelectToken("editions[0]"))["cached_image"] = new JObject { ["url"] = "https://covers.example/print.jpg" };
+            ((JObject)source.SelectToken("ebooks[0]"))["cached_image"] = new JObject { ["url"] = "https://covers.example/ebook.jpg" };
+            ((JObject)source.SelectToken("book_series[0].series"))["description"] = "Published series description";
+
+            var author = authorHydration ? Subject.GetAuthorInfo("hardcover:author:123") : null;
+            var book = author?.Books.Value.Single() ?? Subject.GetBookInfo("hardcover:work:543").Item2;
+
+            var ebookCover = book.GetPreferredEdition(FormatType.Ebook).Images.Should().ContainSingle().Which;
+            ebookCover.Url.Should().Be("https://covers.example/ebook.jpg");
+            ebookCover.SourceProvider.Should().Be("Hardcover");
+            ebookCover.SourceId.Should().Be("hardcover:source-edition:60");
+            var audioCover = book.GetPreferredEdition(FormatType.Audiobook).Images.Should().ContainSingle().Which;
+            audioCover.Url.Should().Be("https://covers.example/work.jpg");
+            audioCover.SourceProvider.Should().Be("Hardcover");
+            audioCover.SourceId.Should().Be("hardcover:work:543");
+            var projectedCover = book.Editions.Value[0].Images.Should().ContainSingle().Which;
+            projectedCover.Url.Should().Be("https://covers.example/print.jpg");
+            projectedCover.SourceProvider.Should().Be("Hardcover");
+            projectedCover.SourceId.Should().Be("hardcover:source-edition:50");
+            book.SeriesLinks.Value.Single().Series.Value.Description.Should().Be("Published series description");
+
+            if (authorHydration)
+            {
+                author.Series.Value.Single().Description.Should().Be("Full series description");
+                var portrait = author.Metadata.Value.Images.Should().ContainSingle().Which;
+                portrait.Url.Should().Be("https://covers.example/author.jpg");
+                portrait.SourceProvider.Should().Be("Hardcover");
+                portrait.SourceId.Should().Be("hardcover:author:123");
+            }
+        }
+
+        [TestCase(null)]
+        [TestCase("   ")]
+        public void author_hydration_should_fill_a_missing_series_description_only_from_the_same_source_id(string missingDescription)
+        {
+            var memberships = JArray.Parse("""
+                [
+                  {"book_id":543,"series_id":789,"position":1,"series":{"id":789,"name":"Variant Series"}},
+                  {"book_id":543,"series_id":790,"position":1,"series":{"id":790,"name":"Variant Series"}}
+                ]
+                """);
+            memberships[0]["series"]["description"] = missingDescription;
+            var source = InstallEditionResponse(JArray.Parse("""[{"id":50,"reading_format_id":1}]"""), memberships);
+            source.SelectToken("book_series[0].series")["description"] = "  Published series description  ";
+
+            var author = Subject.GetAuthorInfo("hardcover:author:123");
+
+            author.RemoteSeriesComplete.Should().BeTrue();
+            var series = author.Series.Value.ToDictionary(item => item.ForeignSeriesId);
+            series.Keys.Should().BeEquivalentTo(new[] { "hardcover:series:789", "hardcover:series:790" });
+            series["hardcover:series:789"].Description.Should().Be("Published series description");
+            series["hardcover:series:790"].Description.Should().BeNullOrWhiteSpace();
+            series.Values.Should().OnlyContain(item => item.LinkItems.Value.Count == 1 &&
+                item.LinkItems.Value[0].Book.Value.ForeignBookId == "hardcover:work:543");
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(3));
+            http.VerifyNoOtherCalls();
+        }
+
+        [TestCase(null, "Unique description")]
+        [TestCase("   ", "Unique description")]
+        [TestCase("Conflicting description", null)]
+        public void should_keep_only_one_agreed_description_for_an_incomplete_hardcover_series(string firstDescription, string expected)
+        {
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                if (body.Value<string>("query").StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                {
+                    return CreateJsonResponse(request, BuildAuthorSeriesResponse(new JArray(), 2));
+                }
+
+                var offset = body.SelectToken("variables.offset").Value<int>();
+                var page = BuildAuthorPage(offset == 0 ? new[] { 1, 2 } : Array.Empty<int>());
+                if (offset == 0)
+                {
+                    page.SelectToken("data.authors[0].contributions[0].book.book_series[0].series")["description"] = firstDescription;
+                    page.SelectToken("data.authors[0].contributions[1].book.book_series[0].series")["description"] = "  Unique description  ";
+                }
+
+                return CreateJsonResponse(request, page);
+            });
+
+            var incoming = Subject.GetAuthorInfo("hardcover:author:123");
+
+            incoming.RemoteSeriesComplete.Should().BeFalse();
+            incoming.Series.Value.Should().ContainSingle().Which.Description.Should().Be(expected);
+            incoming.Books.Value.Should().HaveCount(2);
+            http.Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(3));
+            http.VerifyNoOtherCalls();
+        }
+
         [Test]
         public void should_not_duplicate_the_legacy_edition_if_it_is_the_preferred_source_edition()
         {
@@ -540,6 +1752,30 @@ namespace NzbDrone.Core.Test.MetadataSource
             editions.Select(edition => edition.ForeignEditionId)
                 .Should().Equal("hardcover:edition:543", "hardcover:source-edition:80");
             editions[0].IsEbook.Should().BeTrue();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_map_edition_publisher_and_publication_date_without_changing_work_release_date(bool authorHydration)
+        {
+            var legacyEditions = JArray.Parse("""[{"id":50,"reading_format_id":1}]""");
+            var source = InstallEditionResponse(legacyEditions);
+            source["release_date"] = "1990-05-04";
+            var ebook = (JObject)source.SelectToken("ebooks[0]");
+            ebook["publisher"] = new JObject { ["name"] = "Fixture Ebook Publisher" };
+            ebook["release_date"] = "2001-02-03";
+            var audiobook = (JObject)source.SelectToken("audiobooks[0]");
+            audiobook["publisher"] = new JObject { ["name"] = "Fixture Audiobook Publisher" };
+            audiobook["release_date"] = "2003-11-12";
+
+            var author = authorHydration ? Subject.GetAuthorInfo("hardcover:author:123") : null;
+            var book = author?.Books.Value.Single() ?? Subject.GetBookInfo("hardcover:work:543").Item2;
+
+            book.ReleaseDate.Should().Be(new DateTime(1990, 5, 4));
+            book.GetPreferredEdition(FormatType.Ebook).Publisher.Should().Be("Fixture Ebook Publisher");
+            book.GetPreferredEdition(FormatType.Ebook).ReleaseDate.Should().Be(new DateTime(2001, 2, 3));
+            book.GetPreferredEdition(FormatType.Audiobook).Publisher.Should().Be("Fixture Audiobook Publisher");
+            book.GetPreferredEdition(FormatType.Audiobook).ReleaseDate.Should().Be(new DateTime(2003, 11, 12));
         }
 
         [Test]
@@ -573,7 +1809,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             book.GetPreferredEdition(FormatType.Audiobook).Should().BeNull();
         }
 
-        private JObject InstallEditionResponse(JArray legacyEditions)
+        private JObject InstallEditionResponse(JArray legacyEditions, JArray authorSeries = null)
         {
             var book = JObject.Parse("""
                 {
@@ -596,7 +1832,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                     var query = body.Value<string>("query");
                     if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
                     {
-                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                        var rows = authorSeries ?? new JArray();
+                        return CreateJsonResponse(request, BuildAuthorSeriesResponse(rows, rows.Count));
                     }
 
                     query.Should().Contain("ebooks: editions(where: {reading_format_id: {_eq: 4}}");
@@ -608,6 +1845,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                     }
 
                     var payload = BuildAuthorPage(body.SelectToken("variables.offset").Value<int>() == 0 ? new[] { 1 } : Array.Empty<int>());
+                    ((JObject)payload.SelectToken("data.authors[0]"))["image"] = new JObject { ["url"] = "https://covers.example/author.jpg" };
                     if (payload.SelectToken("data.authors[0].contributions[0]") is JObject contribution)
                     {
                         contribution["book"] = book;
@@ -660,10 +1898,130 @@ namespace NzbDrone.Core.Test.MetadataSource
             book.Ratings.Votes.Should().Be(71);
         }
 
+        [TestCase(123, "Author", true)]
+        [TestCase(123, "Narrator", false)]
+        [TestCase(456, "Author", false)]
+        public void author_bibliography_should_project_only_positive_author_credit(int creditedAuthor, string role, bool creditExpected)
+        {
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                    }
+
+                    query.Should().Contain("author_id").And.Contain("contributor_role");
+                    var payload = BuildAuthorPage(body.SelectToken("variables.offset").Value<int>() == 0 ? new[] { 1 } : Array.Empty<int>());
+                    if (payload.SelectToken("data.authors[0].contributions[0]") is JObject credit)
+                    {
+                        credit["author_id"] = creditedAuthor;
+                        credit["contributor_role"] = new JObject { ["name"] = role };
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var work = Subject.GetAuthorInfo("hardcover:author:123").Books.Value.Single();
+
+            work.CreditedHardcoverAuthorId.Should().Be(creditExpected ? 123 : null);
+        }
+
         private static HttpResponse<JObject> CreateJsonResponse(HttpRequest request, JObject body)
         {
             return new HttpResponse<JObject>(
                 new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, body.ToString()));
+        }
+
+        [TestCase("supported", true)]
+        [TestCase("competing-owner", false)]
+        [TestCase("wrong-edition-owner", false)]
+        [TestCase("missing-edition-owner", false)]
+        [TestCase("wrong-original-author", false)]
+        [TestCase("different-title", false)]
+        [TestCase("unsupported", false)]
+        [TestCase("truncated", false)]
+        public void author_bibliography_should_only_stage_supported_original_work_mappings(string scenario, bool expectMapping)
+        {
+            var original = JObject.Parse("""
+                {"id":101,"title":"Fixture Work","canonical_id":444,"cached_contributors":[{"author":{"id":123}}]}
+                """);
+            var target = JObject.Parse("""
+                {"id":202,"title":"Fixture Work","cached_contributors":[{"author":{"id":123}}],
+                 "book_mappings":[
+                    {"original_book_id":101,"book_id":202,"edition_id":987,"edition":{"id":987,"book_id":202},"state":"normalized"},
+                    {"original_book_id":101,"book_id":202,"edition_id":987,"edition":{"id":987,"book_id":202},"state":"cannot_load"},
+                    {"original_book_id":202,"book_id":202,"state":"normalized"}]}
+                """);
+            var mapping = (JObject)target.SelectToken("book_mappings[0]");
+            var competitor = JObject.Parse("""{"id":303,"title":"Fixture Work"}""");
+
+            switch (scenario)
+            {
+                case "competing-owner":
+                    competitor["book_mappings"] = JArray.Parse("""[{"original_book_id":101,"book_id":303,"state":"normalized"}]""");
+                    break;
+                case "wrong-edition-owner":
+                    ((JObject)mapping["edition"])["book_id"] = 303;
+                    break;
+                case "missing-edition-owner":
+                    mapping["edition"] = JValue.CreateNull();
+                    break;
+                case "wrong-original-author":
+                    original["cached_contributors"] = JArray.Parse("""[{"author":{"id":456}}]""");
+                    break;
+                case "different-title":
+                    original["title"] = "Different work";
+                    break;
+                case "unsupported":
+                    mapping["state"] = "cannot_load";
+                    break;
+                case "truncated":
+                    target["book_mappings"] = new JArray(Enumerable.Range(0, 21).Select(_ => mapping.DeepClone()));
+                    break;
+            }
+
+            var pages = new[] { target, original, competitor };
+            Mocker.GetMock<IHttpClient>().Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    var query = body.Value<string>("query");
+                    if (query.StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        return CreateJsonResponse(request, JObject.Parse("""{"data":{"book_series":[]}}"""));
+                    }
+
+                    query.Should().Contain("book_mappings").And.Contain("edition { id book_id }");
+                    body.SelectToken("variables.mappingLimit").Value<int>().Should().Be(21);
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    var payload = BuildAuthorPage(offset < pages.Length ? new[] { offset + 1 } : Array.Empty<int>());
+                    if (payload.SelectToken("data.authors[0].contributions[0]") is JObject contribution)
+                    {
+                        contribution["book"] = pages[offset];
+                    }
+
+                    return CreateJsonResponse(request, payload);
+                });
+
+            var books = Subject.GetAuthorInfo("hardcover:author:123").Books.Value;
+
+            books.Select(book => book.ForeignBookId).Should().Equal("hardcover:work:202", "hardcover:work:101", "hardcover:work:303");
+            var pending = books.SelectMany(book => book.PendingSourceAssociations).ToList();
+            if (expectMapping)
+            {
+                var alias = books.First().PendingSourceAssociations.Should().ContainSingle().Which;
+                alias.Provider.Should().Be("Hardcover");
+                alias.ProviderId.Should().Be("101");
+                alias.Evidence.Should().Be(CatalogueIdentityRepository.HardcoverWorkMappingEvidence);
+                pending.Should().ContainSingle();
+            }
+            else
+            {
+                pending.Should().BeEmpty();
+            }
         }
 
         private static JObject BuildAuthorPage(IEnumerable<int> contributionIds)

@@ -2,6 +2,7 @@ using System;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 
@@ -21,6 +22,7 @@ namespace NzbDrone.Core.MediaFiles
         public IndexerFlags IndexerFlags { get; set; }
         public MediaInfoModel MediaInfo { get; set; }
         public int EditionId { get; set; }
+        public LibraryImportHoldReason? UnmappedReason { get; set; }
         public int CalibreId { get; set; }
         public int Part { get; set; }
 

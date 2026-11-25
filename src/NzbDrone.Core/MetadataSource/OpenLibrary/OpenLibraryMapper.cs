@@ -52,14 +52,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Ratings = BuildRatingsFromSearchDoc(doc)
             };
 
-            if (doc.CoverId.GetValueOrDefault() > 0)
-            {
-                edition.Images.Add(new MediaCover.MediaCover
-                {
-                    Url = string.Format(OlCoverTemplate, doc.CoverId.Value),
-                    CoverType = MediaCoverTypes.Cover
-                });
-            }
+            edition.Images.AddRange(MapArtwork(doc.CoverId.HasValue ? new[] { doc.CoverId.Value } : null, workId, MediaCoverTypes.Cover));
 
             edition.Links.Add(new Links { Url = $"{OlWorkBaseUrl}{doc.Key}", Name = "Open Library" });
 
@@ -163,15 +156,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             metadata.NameLastFirst = metadata.Name.ToLastFirst();
             metadata.SortNameLastFirst = metadata.NameLastFirst.ToLower();
 
-            var authorPhotoId = author.Photos?.FirstOrDefault(x => x > 0);
-            if (authorPhotoId.GetValueOrDefault() > 0)
-            {
-                metadata.Images.Add(new MediaCover.MediaCover
-                {
-                    Url = string.Format(OlAuthorPhotoTemplate, authorPhotoId.Value),
-                    CoverType = MediaCoverTypes.Poster
-                });
-            }
+            metadata.Images.AddRange(MapArtwork(author.Photos, authorId, MediaCoverTypes.Poster));
 
             metadata.Links.Add(new Links { Url = $"{OlWorkBaseUrl}{author.Key}", Name = "Open Library" });
 
@@ -211,15 +196,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
-            var editionCoverId = edition.Covers?.FirstOrDefault(x => x > 0);
-            if (editionCoverId.GetValueOrDefault() > 0)
-            {
-                result.Images.Add(new MediaCover.MediaCover
-                {
-                    Url = string.Format(OlCoverTemplate, editionCoverId.Value),
-                    CoverType = MediaCoverTypes.Cover
-                });
-            }
+            result.Images.AddRange(MapArtwork(edition.Covers, editionId, MediaCoverTypes.Cover));
 
             result.Links.Add(new Links { Url = $"{OlWorkBaseUrl}{edition.Key}", Name = "Open Library Edition" });
 
@@ -268,19 +245,22 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 Ratings = new Ratings { Votes = 0, Value = 0 }
             };
 
-            var workCoverId = work.Covers?.FirstOrDefault(x => x > 0);
-            if (workCoverId.GetValueOrDefault() > 0)
-            {
-                edition.Images.Add(new MediaCover.MediaCover
-                {
-                    Url = string.Format(OlCoverTemplate, workCoverId.Value),
-                    CoverType = MediaCoverTypes.Cover
-                });
-            }
+            edition.Images.AddRange(MapArtwork(work.Covers, workOlid, MediaCoverTypes.Cover));
 
             edition.Links.Add(new Links { Url = $"{OlWorkBaseUrl}{work.Key}", Name = "Open Library" });
 
             return edition;
+        }
+
+        private static IEnumerable<MediaCover.MediaCover> MapArtwork(IEnumerable<long> ids, string sourceId, MediaCoverTypes type)
+        {
+            var template = type == MediaCoverTypes.Poster ? OlAuthorPhotoTemplate : OlCoverTemplate;
+            return (ids ?? Enumerable.Empty<long>()).Where(id => id > 0).Distinct().Take(3)
+                .Select(id => new MediaCover.MediaCover(type, string.Format(template, id))
+                {
+                    SourceProvider = "OpenLibrary",
+                    SourceId = sourceId
+                });
         }
 
         private static List<string> CombineSubjects(OlWorkResource work)

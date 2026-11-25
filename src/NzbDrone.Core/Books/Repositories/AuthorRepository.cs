@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.Linq;
 using Dapper;
 using NzbDrone.Common.Extensions;
@@ -13,12 +15,15 @@ namespace NzbDrone.Core.Books
         void DeleteWithFormatProfiles(int authorId);
         bool AuthorPathExists(string path);
         Author FindByName(string cleanName);
+        List<Author> GetByCleanName(string cleanName);
         Author FindById(string foreignAuthorId);
+        Author FindByRetiredId(int authorId);
         Author FindByTitleSlug(string titleSlug);
         Dictionary<int, string> AllAuthorPaths();
         Dictionary<int, List<int>> AllAuthorTags();
         Author GetAuthorByMetadataId(int authorMetadataId);
         List<Author> GetAuthorsByMetadataId(IEnumerable<int> authorMetadataId);
+        List<Author> GetArtworkRetryPage(int afterId, int pageSize);
         bool AuthorExistsWithMetadataProfile(int metadataProfileId);
         List<Author> GetAuthorsByMetadataProfile(int metadataProfileId);
         bool AuthorExistsWithQualityProfile(int qualityProfileId);
@@ -63,7 +68,25 @@ namespace NzbDrone.Core.Books
 
         public Author FindById(string foreignAuthorId)
         {
-            return Query(Builder().Where<AuthorMetadata>(m => m.ForeignAuthorId == foreignAuthorId)).SingleOrDefault();
+            var exact = Query(Builder().Where<AuthorMetadata>(m => m.ForeignAuthorId == foreignAuthorId)).SingleOrDefault();
+            if (exact != null)
+            {
+                return exact;
+            }
+
+            var owner = CatalogueIdentityRepository.FindByLegacyProviderId(_database, CatalogueEntityKind.Author, foreignAuthorId);
+            return owner.HasValue ? GetAuthorByMetadataId(owner.Value) : null;
+        }
+
+        public Author FindByRetiredId(int authorId)
+        {
+            var owner = CatalogueIdentityRepository.FindByRoute(_database, CatalogueEntityKind.Author, RetiredRoute(authorId));
+            return owner.HasValue ? GetAuthorByMetadataId(owner.Value) : null;
+        }
+
+        internal static string RetiredRoute(int authorId)
+        {
+            return $"author-id:{authorId.ToString(CultureInfo.InvariantCulture)}";
         }
 
         public Author FindByTitleSlug(string titleSlug)
@@ -73,9 +96,13 @@ namespace NzbDrone.Core.Books
 
         public Author FindByName(string cleanName)
         {
-            cleanName = cleanName.ToLowerInvariant();
+            return GetByCleanName(cleanName).ExclusiveOrDefault();
+        }
 
-            return Query(s => s.CleanName == cleanName).ExclusiveOrDefault();
+        public List<Author> GetByCleanName(string cleanName)
+        {
+            cleanName = cleanName.ToLowerInvariant();
+            return Query(s => s.CleanName == cleanName);
         }
 
         public Dictionary<int, string> AllAuthorPaths()
@@ -104,6 +131,19 @@ namespace NzbDrone.Core.Books
         public List<Author> GetAuthorsByMetadataId(IEnumerable<int> authorMetadataIds)
         {
             return Query(s => authorMetadataIds.Contains(s.AuthorMetadataId));
+        }
+
+        public List<Author> GetArtworkRetryPage(int afterId, int pageSize)
+        {
+            var page = new PagingSpec<Author>
+            {
+                Page = 1,
+                PageSize = Math.Clamp(pageSize, 1, 128),
+                SortKey = "Authors.Id",
+                SortDirection = SortDirection.Ascending
+            };
+            page.FilterExpressions.Add(author => author.Id > afterId);
+            return GetPagedRecords(Builder(), page, PagedQuery);
         }
 
         public bool AuthorExistsWithMetadataProfile(int metadataProfileId)
