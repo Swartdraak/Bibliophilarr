@@ -16,6 +16,7 @@ process.
 
 ### Fixed
 
+- Show kept ebooks and audiobooks in Unmapped Files after deleting their book or author.
 - Remove an author's format profiles when deleting that author.
 - Open System Events details from the keyboard and return focus after closing.
 - Recognize editions labeled Audio as audiobooks when matching library files.
