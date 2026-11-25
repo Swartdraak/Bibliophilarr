@@ -3,6 +3,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.MediaCover;
 
 namespace Bibliophilarr.Http.Frontend.Mappers
@@ -42,7 +43,15 @@ namespace Bibliophilarr.Http.Frontend.Mappers
             var hash = match.Groups["hash"].Value;
             var filename = match.Groups["filename"].Value;
 
-            var imageData = _mediaCoverProxy.GetImage(hash);
+            byte[] imageData;
+            try
+            {
+                imageData = _mediaCoverProxy.GetImage(hash);
+            }
+            catch (HttpException ex) when (ex.Response?.StatusCode == HttpStatusCode.NotFound)
+            {
+                return new StatusCodeResult((int)HttpStatusCode.NotFound);
+            }
 
             if (!_mimeTypeProvider.TryGetContentType(filename, out var contentType))
             {
