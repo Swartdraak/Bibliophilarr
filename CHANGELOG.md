@@ -20,6 +20,8 @@ process.
 
 ### Fixed
 
+- Keep filesystem and validation diagnostics on one line while preserving the
+  original errors returned to callers.
 - Keep download decision diagnostics on one line and leave release URLs out of
   exception log data.
 - Keep the author and its catalogue records when Delete Files cannot verify
