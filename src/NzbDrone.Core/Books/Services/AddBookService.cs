@@ -1,14 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Net;
 using FluentValidation;
 using FluentValidation.Results;
 using NLog;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.Hardcover;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.Books
@@ -16,6 +20,7 @@ namespace NzbDrone.Core.Books
     public interface IAddBookService
     {
         Book AddBook(Book book, bool doRefresh = true);
+        Book AddBookByExactEdition(Book book, int claimedAuthorId);
         List<Book> AddBooks(List<Book> books, bool doRefresh = true);
     }
 
@@ -46,6 +51,84 @@ namespace NzbDrone.Core.Books
         public Book AddBook(Book book, bool doRefresh = true)
         {
             return AddBook(book, doRefresh, requireSelectedEdition: true);
+        }
+
+        public Book AddBookByExactEdition(Book book, int claimedAuthorId)
+        {
+            var lookupId = OpenLibraryIdNormalizer.NormalizeWorkId(book.ForeignBookId) ?? book.ForeignBookId;
+            var provider = GetBookMetadata(book.ForeignBookId, lookupId);
+            var providerBook = provider?.Item2;
+            if (providerBook == null || providerBook.ForeignBookId != book.ForeignBookId ||
+                providerBook.TitleSlug != providerBook.ForeignBookId.ToUrlSlug())
+            {
+                throw new ValidationException(new[]
+                {
+                    new ValidationFailure("ForeignBookId", "The book provider did not return the selected work")
+                });
+            }
+
+            var editions = providerBook.Editions?.Value
+                ?.Where(edition => edition?.ForeignEditionId == book.ForeignEditionId)
+                .Take(2)
+                .ToList();
+            if (editions?.Count != 1 || editions[0] is not { Id: 0, BookId: 0 } selectedEdition ||
+                !IsSourceEdition(book.ForeignBookId, selectedEdition.ForeignEditionId) ||
+                ImportFormat.ForEdition(selectedEdition, requireExplicitFormat: true) is not { } format ||
+                selectedEdition.IsEbook != (format == FormatType.Ebook))
+            {
+                throw new ValidationException(new[]
+                {
+                    new ValidationFailure("ForeignEditionId", "The selected edition could not be verified for this work")
+                });
+            }
+
+            var authorSourceId = provider.Item1;
+            var authorClaim = book.Author?.Value;
+            var providerOwners = provider.Item3?.Count(author => author?.ForeignAuthorId == authorSourceId);
+            var owner = !string.IsNullOrWhiteSpace(authorSourceId) &&
+                        providerOwners == 1 && providerBook.AuthorMetadata?.Value?.ForeignAuthorId == authorSourceId &&
+                        authorClaim?.Metadata?.Value?.ForeignAuthorId == authorSourceId
+                ? _authorService.FindById(authorSourceId)
+                : null;
+            if (owner is not { Id: > 0, AuthorMetadataId: > 0 } || owner.Metadata?.Value?.ForeignAuthorId != authorSourceId ||
+                (authorClaim.Id != 0 && authorClaim.Id != owner.Id) ||
+                (claimedAuthorId != 0 && claimedAuthorId != owner.Id))
+            {
+                throw new ValidationException(new[]
+                {
+                    new ValidationFailure("Author.ForeignAuthorId", "The selected work must belong to the specified existing author")
+                });
+            }
+
+            if (book.Id != 0 || _bookService.FindById(book.ForeignBookId) != null)
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "The selected work already exists. Open its editions to change your selection.");
+            }
+
+            book.UseMetadataFrom(providerBook);
+            book.ForeignEditionId = selectedEdition.ForeignEditionId;
+            book.Added = DateTime.UtcNow;
+            book.Editions = new List<Edition> { selectedEdition };
+            book.AuthorMetadata = owner.Metadata.Value;
+            book.AddOptions.AddType = BookAddType.Manual;
+            selectedEdition.Monitored = true;
+            selectedEdition.ManualAdd = true;
+
+            return SaveBook(book, owner, doRefresh: true);
+        }
+
+        private static bool IsSourceEdition(string workId, string editionId)
+        {
+            if (workId.StartsWith("hardcover:work:", StringComparison.Ordinal))
+            {
+                const string prefix = HardcoverFallbackSearchProvider.ProviderEditionIdPrefix;
+                return editionId.StartsWith(prefix, StringComparison.Ordinal) &&
+                       int.TryParse(editionId.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id > 0;
+            }
+
+            return workId.StartsWith("openlibrary:work:", StringComparison.Ordinal) &&
+                   IsOpenLibraryToken(OpenLibraryIdNormalizer.NormalizeWorkId(workId), 'W') &&
+                   OpenLibraryIdNormalizer.NormalizeEditionId(editionId) != null;
         }
 
         private Book AddBook(Book book, bool doRefresh, bool requireSelectedEdition)
@@ -114,8 +197,13 @@ namespace NzbDrone.Core.Books
                 dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, metadata, false);
             }
 
-            book.Author = dbAuthor;
-            book.AuthorMetadataId = dbAuthor.AuthorMetadataId;
+            return SaveBook(book, dbAuthor, doRefresh);
+        }
+
+        private Book SaveBook(Book book, Author author, bool doRefresh)
+        {
+            book.Author = author;
+            book.AuthorMetadataId = author.AuthorMetadataId;
             _bookService.AddBook(book, doRefresh);
 
             _importListExclusionService.Delete(book.ForeignBookId);
@@ -169,20 +257,7 @@ namespace NzbDrone.Core.Books
                                      string.Equals(newBook.ForeignEditionId, editionId, StringComparison.OrdinalIgnoreCase) &&
                                      newBook.Editions.Value.Count == 1;
 
-            Tuple<string, Book, List<AuthorMetadata>> tuple = null;
-            try
-            {
-                tuple = _orchestrator.GetBookInfo(normalizedBookId ?? newBook.ForeignBookId);
-            }
-            catch (BookNotFoundException)
-            {
-                _logger.Error("Book with Foreign Id {0} was not found, it may have been removed from OpenLibrary.", LogSanitizer.Sanitize(newBook.ForeignBookId));
-
-                throw new ValidationException(new List<ValidationFailure>
-                                              {
-                                                  new ValidationFailure("OpenLibraryId", "A book with this ID was not found", newBook.ForeignBookId)
-                                              });
-            }
+            var tuple = GetBookMetadata(newBook.ForeignBookId, normalizedBookId ?? newBook.ForeignBookId);
 
             var providerEditions = tuple.Item2.Editions?.Value?.Where(edition => edition != null).ToList() ?? new List<Edition>();
 
@@ -279,6 +354,23 @@ namespace NzbDrone.Core.Books
                    IsOpenLibraryToken(ownerId, 'A') &&
                    ownerId == OpenLibraryIdNormalizer.NormalizeAuthorId(requestedOwner) &&
                    ownerId == OpenLibraryIdNormalizer.NormalizeAuthorId(workOwner);
+        }
+
+        private Tuple<string, Book, List<AuthorMetadata>> GetBookMetadata(string foreignBookId, string lookupId)
+        {
+            try
+            {
+                return _orchestrator.GetBookInfo(lookupId);
+            }
+            catch (BookNotFoundException)
+            {
+                _logger.Error("Book with provider ID {0} was not found by the metadata provider.", LogSanitizer.Sanitize(foreignBookId));
+
+                throw new ValidationException(new List<ValidationFailure>
+                                              {
+                                                  new ValidationFailure(nameof(Book.ForeignBookId), "A book with this provider ID was not found", foreignBookId)
+                                              });
+            }
         }
 
         private static Edition ResolveOpenLibraryWorkEdition(Book request, Tuple<string, Book, List<AuthorMetadata>> response, List<Edition> editions)
