@@ -9,6 +9,7 @@ process.
 
 ### Added
 
+- Recover a missing cover from a linked M4B in a single-book refresh on Linux.
 - Search Add New by author, book, or Hardcover series. Browse ordered series
   books and choose one to add through the existing book workflow.
 

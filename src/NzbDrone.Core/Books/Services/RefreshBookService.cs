@@ -588,6 +588,11 @@ namespace NzbDrone.Core.Books
             if (message.BookId.HasValue)
             {
                 var book = _bookService.GetBook(message.BookId.Value);
+                if (message.Trigger == CommandTrigger.Manual && _mediaCoverService.RecoverEmbeddedBookCover(book.Id))
+                {
+                    _logger.Info("Recovered artwork from an imported audiobook for book {0}", book.Id);
+                    _eventAggregator.PublishEvent(new BookUpdatedEvent(book));
+                }
 
                 RefreshBookInfo(book);
             }

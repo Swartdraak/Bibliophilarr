@@ -69,6 +69,7 @@ namespace Bibliophilarr.Api.V1.Books
             EnrichFormatStatuses(book, resource, profiles, new Dictionary<int, string>());
             FetchAndLinkBookStatistics(resource);
             MapCoversToLocal(book, resource);
+            MapEmbeddedBookCover(resource);
 
             return resource;
         }
@@ -122,6 +123,8 @@ namespace Bibliophilarr.Api.V1.Books
                 {
                     resource.Images.Add(cover);
                 }
+
+                MapEmbeddedBookCover(resource);
             }
 
             var authorStats = _authorStatisticsService.AuthorStatistics();
@@ -181,6 +184,15 @@ namespace Bibliophilarr.Api.V1.Books
                 var dictBookStats = authorStatistics.BookStatistics.ToDictionary(v => v.BookId);
 
                 resource.Statistics = dictBookStats.GetValueOrDefault(resource.Id).ToResource();
+            }
+        }
+
+        private void MapEmbeddedBookCover(BookResource resource)
+        {
+            if (!resource.Images.Any(image => image.CoverType == MediaCoverTypes.Cover && !string.IsNullOrWhiteSpace(image.Url)) &&
+                _coverMapper.GetEmbeddedBookCover(resource.Id) is { } cover)
+            {
+                resource.Images.Add(cover);
             }
         }
 

@@ -28,6 +28,8 @@ namespace NzbDrone.Core.MediaCover
         void MapRecoveredAuthorPortrait(Author author, IEnumerable<MediaCover> images);
         bool HasBookCoverFolder(int bookId);
         MediaCover GetCachedBookCover(Book book, IList<Edition> editions);
+        MediaCover GetEmbeddedBookCover(int bookId);
+        bool RecoverEmbeddedBookCover(int bookId);
     }
 
     public partial class MediaCoverService :
@@ -60,6 +62,7 @@ namespace NzbDrone.Core.MediaCover
         private readonly Logger _logger;
         private readonly TimeProvider _timeProvider;
         private readonly ICatalogueIdentityRepository _catalogueIdentity;
+        private readonly IEmbeddedBookCoverService _embeddedBookCovers;
 
         private readonly string _coverRootFolder;
         private readonly string _coverRetryStagingFolder;
@@ -98,8 +101,9 @@ namespace NzbDrone.Core.MediaCover
                                  IConfigFileProvider configFileProvider,
                                  IEventAggregator eventAggregator,
                                  Logger logger,
-                                 ICatalogueIdentityRepository catalogueIdentity)
-            : this(mediaCoverProxy, resizer, bookService, authorRepository, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System, catalogueIdentity)
+                                 ICatalogueIdentityRepository catalogueIdentity,
+                                 IEmbeddedBookCoverService embeddedBookCovers)
+            : this(mediaCoverProxy, resizer, bookService, authorRepository, httpClient, diskProvider, appFolderInfo, coverExistsSpecification, configFileProvider, eventAggregator, logger, TimeProvider.System, catalogueIdentity, embeddedBookCovers)
         {
         }
 
@@ -115,7 +119,8 @@ namespace NzbDrone.Core.MediaCover
                                    IEventAggregator eventAggregator,
                                    Logger logger,
                                    TimeProvider timeProvider,
-                                   ICatalogueIdentityRepository catalogueIdentity = null)
+                                   ICatalogueIdentityRepository catalogueIdentity = null,
+                                   IEmbeddedBookCoverService embeddedBookCovers = null)
         {
             _mediaCoverProxy = mediaCoverProxy;
             _resizer = resizer;
@@ -129,6 +134,7 @@ namespace NzbDrone.Core.MediaCover
             _logger = logger;
             _timeProvider = timeProvider;
             _catalogueIdentity = catalogueIdentity;
+            _embeddedBookCovers = embeddedBookCovers;
 
             _coverRootFolder = appFolderInfo.GetMediaCoverPath();
             _coverRetryStagingFolder = Path.Combine(appFolderInfo.GetAppDataPath(), "MediaCoverRetry");
@@ -147,6 +153,14 @@ namespace NzbDrone.Core.MediaCover
         }
 
         public bool HasBookCoverFolder(int bookId) => bookId > 0 && _diskProvider.FolderExists(GetBookCoverPath(bookId));
+
+        public MediaCover GetEmbeddedBookCover(int bookId)
+        {
+            var url = _embeddedBookCovers?.GetUrl(bookId);
+            return url == null ? null : new MediaCover(MediaCoverTypes.Cover, url) { SourceProvider = "EmbeddedFile" };
+        }
+
+        public bool RecoverEmbeddedBookCover(int bookId) => _embeddedBookCovers?.Recover(bookId) == true;
 
         public MediaCover GetCachedBookCover(Book book, IList<Edition> editions)
         {

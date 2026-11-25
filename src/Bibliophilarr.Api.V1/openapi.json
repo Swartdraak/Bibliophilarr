@@ -4797,6 +4797,57 @@
         }
       }
     },
+    "/api/v1/embeddedbookcover/{bookId}/{fileId}/{token}": {
+      "get": {
+        "tags": [
+          "EmbeddedBookCover"
+        ],
+        "parameters": [
+          {
+            "name": "bookId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cached artwork for the authorized current book file",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The current book file or its cached artwork was not found"
+          }
+        }
+      }
+    },
     "/api/v1/config/mediamanagement": {
       "get": {
         "tags": [
