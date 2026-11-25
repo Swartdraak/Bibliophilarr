@@ -283,7 +283,8 @@ namespace NzbDrone.Core.Books
 
             remote.UseDbFieldsFrom(local);
 
-            if (local.Title != (remote.Title ?? "Unknown") ||
+            var effectiveTitle = local.ShouldPreserveTitle(remote) ? local.Title : (remote.Title ?? "Unknown");
+            if (local.Title != effectiveTitle ||
                 local.ForeignBookId != remote.ForeignBookId ||
                 local.AuthorMetadata.Value.ForeignAuthorId != remote.AuthorMetadata.Value.ForeignAuthorId)
             {
@@ -415,6 +416,11 @@ namespace NzbDrone.Core.Books
 
         protected override void PrepareExistingChild(Edition local, Edition remote, Book entity)
         {
+            if (local.ShouldPreserveTitle(remote))
+            {
+                remote.Title = local.Title;
+            }
+
             remote.UseDbFieldsFrom(local);
             remote.BookId = entity.Id;
             remote.Book = entity;

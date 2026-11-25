@@ -74,6 +74,8 @@ process.
   is missing.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
   Library's works feed cannot verify the books shown in search.
+- Preserve stored titles and their matching keys when a verified refresh omits
+  the work or edition title. Avoid unnecessary file retagging for that omission.
 - Resolve Open Library title results to a verified ebook or audiobook edition
   when adding them to the library.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked

@@ -272,6 +272,75 @@ namespace NzbDrone.Core.Test.MusicTests
             editions.Count(edition => edition.Monitored).Should().Be(expectedCount);
         }
 
+        [TestCase(null, "Stored Work", "storedwork", false)]
+        [TestCase("", "Stored Work", "storedwork", false)]
+        [TestCase("  ", "Stored Work", "storedwork", false)]
+        [TestCase("Updated Work", "Updated Work", "updatedwork", true)]
+        public void should_keep_same_work_titles_and_not_force_tags_if_the_refresh_omits_the_title(
+            string incoming, string expectedTitle, string expectedCleanTitle, bool expectedTagUpdate)
+        {
+            _book.ForeignBookId = "hardcover:work:7";
+            _book.Title = "Stored Work";
+            _book.CleanTitle = "storedwork";
+            var author = new Author { Metadata = _book.AuthorMetadata };
+            _book.Author = author;
+            var edition = new Edition
+            {
+                Id = 8,
+                BookId = _book.Id,
+                ForeignEditionId = "hardcover:edition:7",
+                Title = _book.Title,
+                Format = "Ebook",
+                IsEbook = true,
+                Monitored = true
+            };
+            var remote = new Book
+            {
+                ForeignBookId = _book.ForeignBookId,
+                Title = incoming,
+                CleanTitle = expectedTagUpdate ? expectedCleanTitle : incoming,
+                AuthorMetadata = _book.AuthorMetadata,
+                Editions = new List<Edition>
+                {
+                    new Edition
+                    {
+                        ForeignEditionId = edition.ForeignEditionId,
+                        Title = incoming,
+                        Format = edition.Format,
+                        IsEbook = edition.IsEbook
+                    }
+                }
+            };
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(author.ForeignAuthorId)).Returns(author);
+            Mocker.GetMock<IBookService>().Setup(service => service.GetBook(_book.Id)).Returns(_book);
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsForRefresh(_book.Id, It.IsAny<List<string>>()))
+                .Returns(new List<Edition> { edition });
+
+            Subject.RefreshBookInfo(_book, new List<Book> { remote }, author, false);
+
+            _book.Title.Should().Be(expectedTitle);
+            _book.CleanTitle.Should().Be(expectedCleanTitle);
+            Mocker.GetMock<IRefreshEditionService>().Verify(service => service.RefreshEditionInfo(
+                It.Is<List<Edition>>(editions => editions.Count == 0),
+                It.Is<List<Edition>>(editions => editions.Count == (expectedTagUpdate ? 1 : 0)),
+                It.Is<List<Tuple<Edition, Edition>>>(editions => editions.Count == 0),
+                It.Is<List<Edition>>(editions => editions.Count == 0),
+                It.Is<List<Edition>>(editions => editions.Count == (expectedTagUpdate ? 0 : 1)),
+                It.IsAny<List<Edition>>(),
+                expectedTagUpdate), Times.Once);
+        }
+
+        [Test]
+        public void should_not_copy_a_previous_title_into_metadata_for_a_different_work()
+        {
+            _book.CleanTitle = "guardeddelete";
+
+            _book.UseMetadataFrom(new Book { ForeignBookId = "openlibrary:work:OL8W", Title = "  ", CleanTitle = "" });
+
+            _book.Title.Should().Be("  ");
+            _book.CleanTitle.Should().BeEmpty();
+        }
+
         [Test]
         public void should_schedule_reparenting_when_an_identical_edition_has_a_different_persisted_owner()
         {

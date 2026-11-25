@@ -105,17 +105,28 @@ namespace NzbDrone.Core.Books
             }
 
             var sameWork = ForeignBookId.IsNotNullOrWhiteSpace() && ForeignBookId == other.ForeignBookId;
+            var preserveTitle = ShouldPreserveTitle(other);
             ForeignBookId = other.ForeignBookId;
             ForeignEditionId = other.ForeignEditionId;
             OpenLibraryWorkId = sameWork && other.OpenLibraryWorkId.IsNullOrWhiteSpace() ? OpenLibraryWorkId : other.OpenLibraryWorkId;
             TitleSlug = other.TitleSlug;
-            Title = other.Title;
+            if (!preserveTitle)
+            {
+                Title = other.Title;
+                CleanTitle = other.CleanTitle;
+            }
+
             ReleaseDate = sameWork ? other.ReleaseDate ?? ReleaseDate : other.ReleaseDate;
             Links = other.Links;
             Genres = other.Genres;
             RelatedBooks = other.RelatedBooks;
             Ratings = other.Ratings;
-            CleanTitle = other.CleanTitle;
+        }
+
+        internal bool ShouldPreserveTitle(Book incoming)
+        {
+            return ForeignBookId.IsNotNullOrWhiteSpace() && ForeignBookId == incoming.ForeignBookId &&
+                   Title.IsNotNullOrWhiteSpace() && incoming.Title.IsNullOrWhiteSpace();
         }
 
         public override void UseDbFieldsFrom(Book other)

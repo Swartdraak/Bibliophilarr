@@ -72,6 +72,30 @@ namespace NzbDrone.Core.Test.MusicTests
             existing.Asin.Should().Be("UPDATED");
         }
 
+        [TestCase(null, "Stored Edition")]
+        [TestCase("", "Stored Edition")]
+        [TestCase("  ", "Stored Edition")]
+        [TestCase("Verified replacement", "Verified replacement")]
+        public void should_update_the_exact_edition_without_erasing_its_title(string incoming, string expectedTitle)
+        {
+            var existing = new Edition { Id = 10, BookId = 20, ForeignEditionId = "hardcover:source-edition:30", Title = "Stored Edition" };
+            var remote = new Edition { ForeignEditionId = existing.ForeignEditionId, Title = incoming };
+
+            Refresh(existing, remote);
+
+            existing.Title.Should().Be(expectedTitle);
+        }
+
+        [Test]
+        public void should_not_copy_a_previous_title_into_metadata_for_a_different_edition()
+        {
+            var existing = new Edition { Id = 10, BookId = 20, ForeignEditionId = "hardcover:source-edition:30", Title = "Stored Edition" };
+
+            existing.UseMetadataFrom(new Edition { ForeignEditionId = "hardcover:source-edition:31", Title = "  " });
+
+            existing.Title.Should().Be("  ");
+        }
+
         [Test]
         public void should_persist_canonical_owner_on_the_existing_edition()
         {
