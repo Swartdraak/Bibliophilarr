@@ -92,9 +92,9 @@ namespace NzbDrone.Core.Books
 
         public void DeleteAuthor(int authorId, bool deleteFiles, bool addImportListExclusion = false)
         {
-            _cache.Clear();
             var author = _authorRepository.Get(authorId);
-            _authorRepository.Delete(authorId);
+            _authorRepository.DeleteWithFormatProfiles(authorId);
+            _cache.Clear();
             _eventAggregator.PublishEvent(new AuthorDeletedEvent(author, deleteFiles, addImportListExclusion));
         }
 

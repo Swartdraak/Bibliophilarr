@@ -1259,6 +1259,7 @@
   "Username": "Username",
   "UsernameHelpText": "Calibre content server username",
   "Version": "Version",
+  "ViewEventDetails": "View event details",
   "Wanted": "Wanted",
   "WatchLibraryForChangesHelpText": "Rescan automatically when files change in a root folder",
   "WatchRootFoldersForFileChanges": "Watch Root Folders for file changes",
