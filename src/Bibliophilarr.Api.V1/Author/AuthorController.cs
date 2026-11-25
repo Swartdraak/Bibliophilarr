@@ -141,7 +141,7 @@ namespace Bibliophilarr.Api.V1.Author
                 return null;
             }
 
-            var resource = author.ToResource();
+            var resource = MapStoredAuthor(author);
             MapCoversToLocal(resource);
             FetchAndLinkAuthorStatistics(resource);
             LinkNextPreviousBooks(resource);
@@ -155,7 +155,7 @@ namespace Bibliophilarr.Api.V1.Author
         public List<AuthorResource> AllAuthors()
         {
             var authorStats = _authorStatisticsService.AuthorStatistics();
-            var authorResources = _authorService.GetAllAuthors().ToResource();
+            var authorResources = _authorService.GetAllAuthors().Select(MapStoredAuthor).ToList();
 
             MapCoversToLocal(authorResources.ToArray());
             LinkNextPreviousBooks(authorResources.ToArray());
@@ -206,7 +206,8 @@ namespace Bibliophilarr.Api.V1.Author
 
             var model = authorResource.ToModel(author);
 
-            _authorService.UpdateAuthor(model);
+            var updated = _authorService.UpdateAuthor(model);
+            authorResource.HasMetadataRefresh = updated.LastInfoSync.HasValue;
 
             BroadcastResourceChange(ModelAction.Updated, authorResource);
 
@@ -217,6 +218,13 @@ namespace Bibliophilarr.Api.V1.Author
         public void DeleteAuthor(int id, bool deleteFiles = false, bool addImportListExclusion = false)
         {
             _authorService.DeleteAuthor(id, deleteFiles, addImportListExclusion);
+        }
+
+        private static AuthorResource MapStoredAuthor(NzbDrone.Core.Books.Author author)
+        {
+            var resource = author.ToResource();
+            resource.HasMetadataRefresh = author.LastInfoSync.HasValue;
+            return resource;
         }
 
         private void MapCoversToLocal(params AuthorResource[] authors)

@@ -8820,6 +8820,11 @@
             "type": "boolean",
             "readOnly": true
           },
+          "hasMetadataRefresh": {
+            "type": "boolean",
+            "nullable": true,
+            "readOnly": true
+          },
           "authorName": {
             "type": "string",
             "nullable": true

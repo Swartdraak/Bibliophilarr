@@ -229,6 +229,7 @@ class AuthorDetails extends Component {
       booksError,
       bookFilesError,
       hasBooks,
+      hasMetadataRefresh,
       hasMonitoredBooks,
       hasSeries,
       series,
@@ -489,6 +490,12 @@ class AuthorDetails extends Component {
                   </TabList>
 
                   <TabPanel>
+                    {
+                      id > 0 && hasMetadataRefresh === false &&
+                        <Alert kind={kinds.INFO} role="status">
+                          {translate('AuthorMetadataRefreshPending')}
+                        </Alert>
+                    }
                     <SharedBibliography books={sharedBooks} />
                     <AuthorDetailsSeasonConnector
                       authorId={id}
@@ -633,6 +640,7 @@ AuthorDetails.propTypes = {
   booksError: PropTypes.object,
   bookFilesError: PropTypes.object,
   hasBooks: PropTypes.bool.isRequired,
+  hasMetadataRefresh: PropTypes.bool,
   hasMonitoredBooks: PropTypes.bool.isRequired,
   hasSeries: PropTypes.bool.isRequired,
   series: PropTypes.arrayOf(PropTypes.object).isRequired,

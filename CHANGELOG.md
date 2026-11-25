@@ -16,6 +16,8 @@ process.
   identity API exposes matched provider IDs. Existing author and book
   bookmarks continue to resolve.
 
+- Show a notice on an author’s Books tab when no metadata refresh has been
+  recorded.
 - Link to the stable release manifest and checksums from Updates when both are
   available for manual verification.
 - Filter Unmapped Files by path or media format and review matching and selected
@@ -46,6 +48,11 @@ process.
   missing files of one format while preserving the work-wide monitoring controls.
 
 ### Fixed
+
+- Preserve existing audiobook artwork when Update Covers is unchecked in
+  Retag. This skips stripping existing audiobook tags before writing the new
+  metadata. Existing API clients can opt into this behavior with
+  `updateAudioCovers: false`. Embed Metadata applies to Calibre files.
 
 - Give each cover link in Books Posters and Overview an accessible name,
   including when artwork is available or a legacy title is blank.

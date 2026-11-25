@@ -54,6 +54,7 @@ class RetagPreviewModalContentConnector extends Component {
       name: commandNames.RETAG_FILES,
       authorId: this.props.authorId,
       updateCovers,
+      updateAudioCovers: updateCovers,
       embedMetadata,
       files
     });
