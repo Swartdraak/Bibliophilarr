@@ -11,6 +11,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Messaging.Commands;
 
 namespace NzbDrone.Host.Test
 {
@@ -73,10 +74,15 @@ namespace NzbDrone.Host.Test
 
                     const string removedSource = "hardcover:author:741101";
                     const string retainedSource = "hardcover:author:741102";
+                    var commands = host.Services.GetRequiredService<ICommandRepository>();
+                    var previousCommands = commands.All().ToList();
                     var removedAuthor = await AddAuthor(removedSource, "Removed Fixture Author");
-                    var retainedAuthor = await AddAuthor(retainedSource, "Retained Fixture Author");
                     var removedId = removedAuthor.GetProperty("id").GetInt32();
+                    await WaitForAuthorAddScan(client, commands, previousCommands, library, removedId, token);
+                    previousCommands = commands.All().ToList();
+                    var retainedAuthor = await AddAuthor(retainedSource, "Retained Fixture Author");
                     var retainedId = retainedAuthor.GetProperty("id").GetInt32();
+                    await WaitForAuthorAddScan(client, commands, previousCommands, library, retainedId, token);
                     var profiles = host.Services.GetRequiredService<IAuthorFormatProfileRepository>();
                     var metadata = host.Services.GetRequiredService<IAuthorMetadataRepository>();
                     var removedProfiles = profiles.GetByAuthorId(removedId).Select(profile => profile.Id).OrderBy(id => id).ToArray();
