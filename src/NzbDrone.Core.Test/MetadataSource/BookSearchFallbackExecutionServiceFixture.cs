@@ -393,6 +393,7 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             var provider = Mocker.Resolve<GoogleBooksFallbackSearchProvider>();
             var registry = Mocker.Resolve<IMetadataProviderRegistry>();
+            registry.RegisterProvider(provider);
             var started = DateTime.UtcNow;
             Subject.Search(provider, firstTitle, "First fixture").Should().BeEmpty();
             var deadline = registry.GetProvidersHealthStatus()[providerName].CooldownUntilUtc;
@@ -415,9 +416,52 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             http.Setup(x => x.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request => new HttpResponse(request, headers, "{}", HttpStatusCode.NotFound));
-            Action genuineMissingVolume = () => provider.GetBookInfo("googlebooks:work:missing-volume");
-            genuineMissingVolume.Should().Throw<BookNotFoundException>();
-            http.Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+            Action heldVolume = () => provider.GetBookInfo("googlebooks:work:held-volume");
+            heldVolume.Should().Throw<MetadataProviderUnavailableException>().WithInnerException<GoogleBooksRequestOnCooldownException>();
+            http.Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
+        [Test]
+        public void should_share_google_fallback_server_error_hold_without_counting_skips_or_holding_alternatives()
+        {
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(x => x.EnableGoogleBooksProvider).Returns(true);
+            config.SetupGet(x => x.EnableGoogleBooksFallback).Returns(true);
+            var google = Mocker.Resolve<GoogleBooksFallbackSearchProvider>();
+            var alternative = new Mock<IMetadataProvider>();
+            alternative.SetupGet(x => x.ProviderName).Returns("FixtureAlternative");
+            alternative.SetupGet(x => x.Priority).Returns(99);
+            alternative.SetupGet(x => x.IsEnabled).Returns(true);
+            alternative.SetupGet(x => x.SupportsBookSearch).Returns(true);
+            var result = new List<Book> { new Book { Title = "Alternative result" } };
+            alternative.As<ISearchForNewBook>().Setup(x => x.SearchForNewBook("interactive fixture", null, true)).Returns(result);
+
+            var registry = Mocker.Resolve<IMetadataProviderRegistry>();
+            registry.RegisterProvider(google);
+            registry.RegisterProvider(alternative.Object);
+            var http = Mocker.GetMock<IHttpClient>();
+            var headers = new HttpHeader { ContentType = "TeXt/HtMl" };
+            http.Setup(x => x.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(request, headers, "<html>fixture error</html>", HttpStatusCode.ServiceUnavailable));
+
+            Subject.Search(google, "initial fallback", "Fixture Author").Should().BeEmpty();
+            var deadline = registry.GetProvidersHealthStatus()[google.ProviderName].CooldownUntilUtc;
+            var orchestrator = Mocker.Resolve<MetadataProviderOrchestrator>();
+            orchestrator.SearchForNewBook("interactive fixture", null).Should().BeSameAs(result);
+            Action book = () => orchestrator.GetBookInfo("googlebooks:work:held-volume");
+            Action author = () => orchestrator.GetAuthorInfo("googlebooks:author:Held%20Author");
+            book.Should().Throw<MetadataProviderUnavailableException>();
+            author.Should().Throw<MetadataProviderUnavailableException>();
+            Subject.Search(google, "second fallback", "Fixture Author").Should().BeEmpty();
+
+            http.Verify(x => x.Get(It.IsAny<HttpRequest>()), Times.Once());
+            var snapshot = _telemetry.GetOperationSnapshots().Should().ContainSingle(x => x.ProviderName == google.ProviderName).Which;
+            snapshot.OperationName.Should().Be("fallback-search");
+            snapshot.Calls.Should().Be(1);
+            snapshot.Failures.Should().Be(1);
+            snapshot.Successes.Should().Be(0);
+            deadline.Should().Be(google.RequestCooldownUntilUtc);
+            registry.GetProvidersHealthStatus()[google.ProviderName].CooldownUntilUtc.Should().Be(deadline);
         }
 
         [Test]
@@ -444,6 +488,7 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             var orchestrator = Mocker.Resolve<MetadataProviderOrchestrator>();
             orchestrator.SearchForNewBook("fixture", null).Should().BeSameAs(result);
+            google.RequestCooldownUntilUtc.Should().Be(DateTime.MinValue);
 
             var failure = _telemetry.GetOperationSnapshots().Should().ContainSingle(x => x.ProviderName == google.ProviderName).Which;
             failure.OperationName.Should().Be("search-for-new-book");
