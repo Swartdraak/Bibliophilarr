@@ -36,8 +36,9 @@ process.
   another book, keep the existing data and import exclusions.
 - Keep the first book, verified new author and format profiles in one save so
   an edition conflict leaves the catalogue unchanged.
-- Add an exact provider edition through the Add Book API for an existing author
-  when the request omits the edition list.
+- Add a verified exact provider edition through the Add Book API when the
+  request omits the edition list. For a verified new author, save the author,
+  format profiles, work, and edition together.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
   Library's works feed cannot verify the books shown in search.
 - Resolve Open Library title results to a verified ebook or audiobook edition
