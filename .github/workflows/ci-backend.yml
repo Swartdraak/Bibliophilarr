@@ -131,13 +131,22 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install pinned browser smoke Python dependencies
+        working-directory: .
+        run: |
+          python -m venv "$RUNNER_TEMP/browser-smoke-venv"
+          "$RUNNER_TEMP/browser-smoke-venv/bin/python" -m pip install -r tests/browser/requirements.txt
+
+      - name: Verify live browser evidence guards without provider calls
+        working-directory: .
+        run: |
+          "$RUNNER_TEMP/browser-smoke-venv/bin/python" -B -m unittest discover -s tests/browser -p test_live_evidence.py
+
       - name: Install pinned Playwright Chromium
         working-directory: .
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/browser-smoke-chromium
         run: |
-          python -m venv "$RUNNER_TEMP/browser-smoke-venv"
-          "$RUNNER_TEMP/browser-smoke-venv/bin/python" -m pip install -r tests/browser/requirements.txt
           "$RUNNER_TEMP/browser-smoke-venv/bin/python" -m playwright install --with-deps --only-shell chromium
 
       - name: Smoke-test the WebUI with loopback-only Chromium and app
