@@ -114,6 +114,46 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Mocker.GetMock<IAuthorMetadataService>().Verify(x => x.UpsertMany(It.IsAny<List<AuthorMetadata>>()), Times.Never);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void execute_should_continue_after_null_or_empty_lookup_and_update_remaining_items(bool missingResult)
+        {
+            const string firstIsbn = "9780141439518";
+            const string secondIsbn = "9780140328721";
+            var firstOwner = new AuthorMetadata { Id = 10, Name = "First Author", ForeignAuthorId = "hardcover:author:9" };
+            var secondOwner = new AuthorMetadata { Id = 11, Name = "Second Author", ForeignAuthorId = "hardcover:author:10" };
+            var first = new Book { Id = 20, AuthorMetadataId = firstOwner.Id, Title = "First Work", ForeignBookId = "hardcover:work:19" };
+            var second = new Book { Id = 21, AuthorMetadataId = secondOwner.Id, Title = "Second Work", ForeignBookId = "hardcover:work:20" };
+            Mocker.GetMock<IBookService>().Setup(x => x.GetAllBooks()).Returns(new List<Book> { first, second });
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author>
+            {
+                new Author { Id = 1, AuthorMetadataId = firstOwner.Id, Metadata = firstOwner },
+                new Author { Id = 2, AuthorMetadataId = secondOwner.Id, Metadata = secondOwner },
+            });
+            Mocker.GetMock<IAuthorMetadataService>().Setup(x => x.Get(It.IsAny<IEnumerable<int>>()))
+                .Returns(new List<AuthorMetadata> { firstOwner, secondOwner });
+            Mocker.GetMock<IEditionService>().Setup(x => x.GetEditionsByBook(It.IsAny<List<int>>()))
+                .Returns(new List<Edition>
+                {
+                    new Edition { BookId = first.Id, Isbn13 = firstIsbn },
+                    new Edition { BookId = second.Id, Isbn13 = secondIsbn },
+                });
+            _provider.Setup(x => x.SearchByIsbn(firstIsbn)).Returns(missingResult ? null : new List<Book>());
+            _provider.Setup(x => x.SearchByIsbn(secondIsbn))
+                .Returns(new List<Book> { SearchResult(second.Title, secondOwner.Name, secondIsbn, "OL200W", "OL400A") });
+
+            Subject.Execute(new BackfillOpenLibraryIdsCommand());
+
+            first.OpenLibraryWorkId.Should().BeNull();
+            firstOwner.OpenLibraryAuthorId.Should().BeNull();
+            second.OpenLibraryWorkId.Should().Be("OL200W");
+            secondOwner.OpenLibraryAuthorId.Should().Be("OL400A");
+            _provider.Verify(x => x.SearchByIsbn(firstIsbn), Times.Once);
+            _provider.Verify(x => x.SearchByIsbn(secondIsbn), Times.Once);
+            Mocker.GetMock<IBookService>().Verify(x => x.UpdateMany(It.Is<List<Book>>(books => books.Count == 1 && books[0] == second)), Times.Once);
+            Mocker.GetMock<IAuthorMetadataService>().Verify(x => x.UpsertMany(It.Is<List<AuthorMetadata>>(owners => owners.Count == 1 && owners[0] == secondOwner)), Times.Once);
+        }
+
         [TestCase("Correct Work", "Correct Author", "9780141439518", "OL200W", "OL400A", true)]
         [TestCase("Other Work", "Correct Author", "9780141439518", "OL200W", "OL400A", false)]
         [TestCase("Correct Work", "Other Author", "9780141439518", "OL200W", "OL400A", false)]

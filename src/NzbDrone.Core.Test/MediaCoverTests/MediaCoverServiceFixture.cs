@@ -60,6 +60,41 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IHttpClient>().Setup(c => c.Get(It.IsAny<HttpRequest>())).Returns(_httpResponse);
         }
 
+        [TestCase("https://covers.example/b/id/42-L.jpg?default=false", ".jpg")]
+        [TestCase("http://covers.example/artwork.png?filename=other.gif#thumbnail.webp", ".png")]
+        public void should_download_and_serve_a_book_cover_using_the_extension_from_the_url_path(string url, string extension)
+        {
+            var image = new MediaCover.MediaCover(MediaCoverTypes.Cover, url);
+            _edition.Images = new List<MediaCover.MediaCover> { image };
+            var path = Subject.GetCoverPath(_book.Id, MediaCoverEntity.Book, MediaCoverTypes.Cover, extension);
+            var http = Mocker.GetMock<IHttpClient>();
+
+            Subject.EnsureBookCovers(_book);
+
+            http.Verify(client => client.DownloadFile(url, path, It.IsAny<string>()), Times.Once());
+
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(provider => provider.FileExists(path)).Returns(true);
+            disk.Setup(provider => provider.GetFileSize(path)).Returns(512);
+            disk.Setup(provider => provider.FileGetLastWrite(path)).Returns(new DateTime(1234));
+
+            Subject.ConvertToLocalUrls(_book.Id, MediaCoverEntity.Book, _edition.Images);
+
+            image.Extension.Should().Be(extension);
+            image.RemoteUrl.Should().Be(url);
+            image.Url.Should().Be($"/MediaCover/Books/{_book.Id}/cover{extension}?lastWrite=1234");
+        }
+
+        [Test]
+        public void should_keep_the_original_extension_when_replacing_a_relative_image_path()
+        {
+            var image = new MediaCover.MediaCover(MediaCoverTypes.Cover, Path.Combine("images", "fixture.jpg"));
+
+            image.Url = "/MediaCover/Books/4/cover.png?lastWrite=1234";
+
+            image.Extension.Should().Be(".jpg");
+        }
+
         [TestCase(HttpStatusCode.TooManyRequests, false)]
         [TestCase(HttpStatusCode.ServiceUnavailable, true)]
         public void should_honor_a_longer_retry_after_without_adding_an_artwork_request(HttpStatusCode status, bool bodyFailure)

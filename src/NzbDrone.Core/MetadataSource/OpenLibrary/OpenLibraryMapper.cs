@@ -17,6 +17,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     public static class OpenLibraryMapper
     {
         private const string OlCoverTemplate = "https://covers.openlibrary.org/b/id/{0}-L.jpg?default=false";
+        private const string OlAuthorPhotoTemplate = "https://covers.openlibrary.org/a/id/{0}-L.jpg";
         private const string OlWorkBaseUrl = "https://openlibrary.org";
         private static readonly Regex SeriesWithNumberRegex = new Regex(@"^(?<title>.+?)\s*#(?<position>[0-9]+(?:\.[0-9]+)?)$", RegexOptions.Compiled);
         private static readonly Regex InvalidSeriesIdCharsRegex = new Regex(@"[^a-z0-9]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -253,7 +254,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         private static IEnumerable<MediaCover.MediaCover> MapArtwork(IEnumerable<long> ids, string sourceId, MediaCoverTypes type)
         {
-            var template = type == MediaCoverTypes.Poster ? OlCoverTemplate.Replace("/b/", "/a/") : OlCoverTemplate;
+            var template = type == MediaCoverTypes.Poster ? OlAuthorPhotoTemplate : OlCoverTemplate;
             return (ids ?? Enumerable.Empty<long>()).Where(id => id > 0).Distinct().Take(3)
                 .Select(id => new MediaCover.MediaCover(type, string.Format(template, id))
                 {

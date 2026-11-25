@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using FluentAssertions;
 using NUnit.Framework;
@@ -42,8 +43,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             profile.Images.Should().HaveCount(2).And.OnlyContain(image =>
                 image.SourceProvider == "OpenLibrary" && image.SourceId == "OL1A");
-            profile.Images[0].Url.Should().Be("https://covers.openlibrary.org/a/id/12-L.jpg?default=false");
-            profile.Images[1].Url.Should().Be("https://covers.openlibrary.org/a/id/34-L.jpg?default=false");
+            profile.Images[0].Url.Should().Be("https://covers.openlibrary.org/a/id/12-L.jpg");
+            profile.Images[1].Url.Should().Be("https://covers.openlibrary.org/a/id/34-L.jpg");
         }
 
         [Test]
@@ -62,6 +63,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             book.ReleaseDate.Should().NotBeNull();
             book.ReleaseDate!.Value.Year.Should().Be(1954);
             book.Editions.Value.Should().HaveCount(1);
+            book.Editions.Value[0].Images.Should().ContainSingle().Which.Url
+                .Should().Be("https://covers.openlibrary.org/b/id/8739161-L.jpg?default=false");
             book.Author.Value.Should().NotBeNull();
             book.AuthorMetadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL26320A");
             book.AuthorMetadata.Value.OpenLibraryAuthorId.Should().Be("OL26320A");
@@ -194,6 +197,11 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             book.ReleaseDate!.Value.Year.Should().Be(1954);
             book.Editions.Value.Should().HaveCount(1);
             book.Editions.Value[0].Overview.Should().Contain("epic");
+            var artwork = book.Editions.Value[0].Images;
+            artwork.Select(cover => cover.Url).Should().Equal(
+                "https://covers.openlibrary.org/b/id/8739161-L.jpg?default=false",
+                "https://covers.openlibrary.org/b/id/12345-L.jpg?default=false");
+            artwork.Should().OnlyContain(cover => cover.SourceProvider == "OpenLibrary" && cover.SourceId == "OL45883W");
         }
 
         [Test]
@@ -240,6 +248,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             metadata.Died.Should().NotBeNull();
             metadata.Died!.Value.Year.Should().Be(1973);
             metadata.Links.Should().Contain(l => l.Name == "Wikipedia");
+            metadata.Images.Should().ContainSingle().Which.Url
+                .Should().Be("https://covers.openlibrary.org/a/id/9765709-L.jpg");
         }
 
         [Test]
@@ -279,6 +289,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             result.Publisher.Should().Be("Houghton Mifflin");
             result.PageCount.Should().Be(398);
             result.Format.Should().Be("Hardcover");
+            result.Images.Should().ContainSingle().Which.Url
+                .Should().Be("https://covers.openlibrary.org/b/id/240726-L.jpg?default=false");
         }
 
         [Test]

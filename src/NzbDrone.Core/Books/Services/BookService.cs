@@ -24,6 +24,7 @@ namespace NzbDrone.Core.Books
         List<Book> GetBooksForRefresh(int authorMetadataId, List<string> foreignIds);
         List<Book> GetBooksByFileIds(IEnumerable<int> fileIds);
         Book AddBook(Book newBook, bool doRefresh = true);
+        Book AddBookWithNewAuthor(Book book, Author author, IReadOnlyList<AuthorFormatProfile> profiles, bool doRefresh);
         Book FindById(string foreignId);
         Book FindBySlug(string titleSlug);
         Book FindByTitle(int authorMetadataId, string title);
@@ -54,18 +55,21 @@ namespace NzbDrone.Core.Books
     {
         private readonly IBookRepository _bookRepository;
         private readonly IEditionService _editionService;
+        private readonly IAuthorService _authorService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public BookService(IBookRepository bookRepository,
                            IEditionService editionService,
+                           IAuthorService authorService,
                            IEventAggregator eventAggregator,
                            IConfigService configService,
                            Logger logger)
         {
             _bookRepository = bookRepository;
             _editionService = editionService;
+            _authorService = authorService;
             _eventAggregator = eventAggregator;
             _configService = configService;
             _logger = logger;
@@ -91,6 +95,15 @@ namespace NzbDrone.Core.Books
             _eventAggregator.PublishEvent(new BookAddedEvent(GetBook(newBook.Id), doRefresh));
 
             return newBook;
+        }
+
+        public Book AddBookWithNewAuthor(Book book, Author author, IReadOnlyList<AuthorFormatProfile> profiles, bool doRefresh)
+        {
+            book.Author = author;
+            _bookRepository.InsertWithNewAuthor(book, author, profiles);
+            _authorService.PublishAuthorAdded(author.Id, false);
+            _eventAggregator.PublishEvent(new BookAddedEvent(GetBook(book.Id), doRefresh));
+            return book;
         }
 
         public void DeleteBook(int bookId, bool deleteFiles, bool addImportListExclusion = false)

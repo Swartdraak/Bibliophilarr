@@ -16,6 +16,7 @@ namespace NzbDrone.Core.Books
         Author GetAuthorByMetadataId(int authorMetadataId);
         List<Author> GetAuthors(IEnumerable<int> authorIds);
         Author AddAuthor(Author newAuthor, bool doRefresh);
+        void PublishAuthorAdded(int authorId, bool doRefresh);
         List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh);
         Author FindById(string foreignAuthorId);
         Author FindByRetiredId(int authorId);
@@ -63,11 +64,16 @@ namespace NzbDrone.Core.Books
 
         public Author AddAuthor(Author newAuthor, bool doRefresh)
         {
-            _cache.Clear();
             _authorRepository.Insert(newAuthor);
-            _eventAggregator.PublishEvent(new AuthorAddedEvent(GetAuthor(newAuthor.Id), doRefresh));
+            PublishAuthorAdded(newAuthor.Id, doRefresh);
 
             return newAuthor;
+        }
+
+        public void PublishAuthorAdded(int authorId, bool doRefresh)
+        {
+            _cache.Clear();
+            _eventAggregator.PublishEvent(new AuthorAddedEvent(GetAuthor(authorId), doRefresh));
         }
 
         public List<Author> AddAuthors(List<Author> newAuthors, bool doRefresh)

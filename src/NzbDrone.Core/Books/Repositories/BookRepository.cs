@@ -17,6 +17,7 @@ namespace NzbDrone.Core.Books
     public interface IBookRepository : IBasicRepository<Book>
     {
         void InsertWithEditions(Book book);
+        void InsertWithNewAuthor(Book book, Author author, IReadOnlyList<AuthorFormatProfile> profiles);
         List<Book> GetBooks(int authorId);
         List<Book> GetArtworkRetryPage(int afterId, int pageSize);
         List<Book> GetLastBooks(IEnumerable<int> authorMetadataIds);
@@ -47,14 +48,27 @@ namespace NzbDrone.Core.Books
     public class BookRepository : BasicRepository<Book>, IBookRepository
     {
         private readonly IEditionRepository _editionRepository;
+        private readonly BasicRepository<Author> _newAuthors;
+        private readonly BasicRepository<AuthorMetadata> _newAuthorMetadata;
+        private readonly BasicRepository<AuthorFormatProfile> _newProfiles;
 
         public BookRepository(IMainDatabase database, IEventAggregator eventAggregator, IEditionRepository editionRepository)
             : base(database, eventAggregator)
         {
             _editionRepository = editionRepository;
+            _newAuthors = new BasicRepository<Author>(database, eventAggregator);
+            _newAuthorMetadata = new BasicRepository<AuthorMetadata>(database, eventAggregator);
+            _newProfiles = new BasicRepository<AuthorFormatProfile>(database, eventAggregator);
         }
 
-        public void InsertWithEditions(Book book)
+        public void InsertWithEditions(Book book) => InsertWithEditions(book, null, Array.Empty<AuthorFormatProfile>());
+
+        public void InsertWithNewAuthor(Book book, Author author, IReadOnlyList<AuthorFormatProfile> profiles)
+        {
+            InsertWithEditions(book, author, profiles);
+        }
+
+        private void InsertWithEditions(Book book, Author author, IReadOnlyList<AuthorFormatProfile> profiles)
         {
             var editions = book.Editions?.Value;
             if (book.Id != 0 || editions == null || editions.Count == 0 || editions.Any(edition => edition is not { Id: 0 }))
@@ -62,6 +76,14 @@ namespace NzbDrone.Core.Books
                 throw new InvalidOperationException("A new work requires a fresh list of editions.");
             }
 
+            var metadata = author?.Metadata?.Value;
+            if (author != null && (author.Id != 0 || metadata is not { Id: 0 } ||
+                                   profiles.Any(profile => profile.Id != 0 || profile.AuthorId != 0)))
+            {
+                throw new InvalidOperationException("The work's new author and profiles must have fresh identities.");
+            }
+
+            var originalAuthorMetadataId = book.AuthorMetadataId;
             var selected = editions.GetPreferredEdition();
             var original = editions.Select(edition => (Edition: edition, edition.BookId, edition.Monitored)).ToList();
             try
@@ -70,7 +92,19 @@ namespace NzbDrone.Core.Books
                 using var transaction = connection.BeginTransaction(_database.DatabaseType == DatabaseType.SQLite
                     ? IsolationLevel.Serializable
                     : IsolationLevel.ReadCommitted);
-                Insert(connection, transaction, book);
+                if (author == null)
+                {
+                    Insert(connection, transaction, book);
+                }
+                else
+                {
+                    InsertNewAuthor(connection, transaction, author, metadata, profiles);
+                    book.AuthorMetadataId = metadata.Id;
+                    if (!TryInsertFresh(connection, transaction, book))
+                    {
+                        throw new NzbDroneClientException(HttpStatusCode.Conflict, "The selected work is already present in the catalogue.");
+                    }
+                }
 
                 foreach (var edition in editions)
                 {
@@ -82,11 +116,20 @@ namespace NzbDrone.Core.Books
                     }
                 }
 
+                if (author != null)
+                {
+                    connection.Execute(
+                        "DELETE FROM \"ImportListExclusions\" WHERE \"ForeignId\" IN (@WorkId, @AuthorId)",
+                        new { WorkId = book.ForeignBookId, AuthorId = metadata.ForeignAuthorId },
+                        transaction);
+                }
+
                 transaction.Commit();
             }
             catch
             {
                 ResetCatalogueInsertion(book);
+                book.AuthorMetadataId = originalAuthorMetadataId;
                 foreach (var (edition, bookId, monitored) in original)
                 {
                     edition.Id = 0;
@@ -94,10 +137,61 @@ namespace NzbDrone.Core.Books
                     edition.Monitored = monitored;
                 }
 
+                if (author != null)
+                {
+                    author.Id = 0;
+                    author.AuthorMetadataId = 0;
+                    metadata.Id = 0;
+                    metadata.CanonicalId = null;
+                    foreach (var profile in profiles)
+                    {
+                        profile.Id = 0;
+                        profile.AuthorId = 0;
+                    }
+                }
+
                 throw;
             }
 
             ModelCreated(book);
+        }
+
+        private void InsertNewAuthor(IDbConnection connection,
+                                     IDbTransaction transaction,
+                                     Author author,
+                                     AuthorMetadata metadata,
+                                     IReadOnlyList<AuthorFormatProfile> profiles)
+        {
+            if (!_newAuthorMetadata.TryInsertFresh(connection, transaction, metadata))
+            {
+                // Metadata can outlive its local author. Reuse only its exact provider identity.
+                var existing = connection.QuerySingleOrDefault<(int Id, string CanonicalId)>(
+                    "SELECT \"Id\", \"CanonicalId\" FROM \"AuthorMetadata\" WHERE \"ForeignAuthorId\" = @ForeignAuthorId",
+                    new { metadata.ForeignAuthorId },
+                    transaction);
+                if (existing.Id == 0 || string.IsNullOrWhiteSpace(existing.CanonicalId))
+                {
+                    throw new NzbDroneClientException(HttpStatusCode.Conflict, "The selected author metadata conflicts with an existing record.");
+                }
+
+                metadata.Id = existing.Id;
+                metadata.CanonicalId = existing.CanonicalId;
+            }
+
+            author.AuthorMetadataId = metadata.Id;
+            if (!_newAuthors.TryInsertFresh(connection, transaction, author))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "The selected author is already present in the catalogue.");
+            }
+
+            foreach (var profile in profiles)
+            {
+                profile.AuthorId = author.Id;
+                if (!_newProfiles.TryInsertFresh(connection, transaction, profile))
+                {
+                    throw new InvalidOperationException("The new author's format profile conflicts with an existing row.");
+                }
+            }
         }
 
         public List<Book> GetArtworkRetryPage(int afterId, int pageSize)

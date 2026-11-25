@@ -66,7 +66,10 @@ namespace NzbDrone.Core.MediaCover
                 return null;
             }
 
-            var path = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.AbsolutePath : url;
+            var path = Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                ? uri.AbsolutePath
+                : url;
             var extension = Path.GetExtension(path);
 
             return extension.ToLowerInvariant() is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" ? extension : ".jpg";

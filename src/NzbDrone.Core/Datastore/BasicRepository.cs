@@ -177,7 +177,7 @@ namespace NzbDrone.Core.Datastore
             return model;
         }
 
-        private protected string GetInsertSql(string conflictColumn = null)
+        private protected string GetInsertSql(string conflictColumn = null, bool ignoreUniqueConflicts = false)
         {
             var sbColumnList = new StringBuilder(null);
             for (var i = 0; i < _properties.Count; i++)
@@ -201,6 +201,11 @@ namespace NzbDrone.Core.Datastore
                 }
             }
 
+            if (ignoreUniqueConflicts)
+            {
+                return $"INSERT INTO \"{_table}\" ({sbColumnList}) VALUES ({sbParameterList}) ON CONFLICT DO NOTHING RETURNING \"Id\"";
+            }
+
             if (conflictColumn != null)
             {
                 return $"INSERT INTO \"{_table}\" ({sbColumnList}) VALUES ({sbParameterList}) " +
@@ -213,6 +218,33 @@ namespace NzbDrone.Core.Datastore
             }
 
             return $"INSERT INTO {_table} ({sbColumnList.ToString()}) VALUES ({sbParameterList.ToString()}); SELECT last_insert_rowid() id";
+        }
+
+        internal bool TryInsertFresh(IDbConnection connection, IDbTransaction transaction, TModel model)
+        {
+            if (model.Id != 0)
+            {
+                throw new InvalidOperationException("Cannot claim a model that has already been persisted.");
+            }
+
+            if (model is ICatalogueIdentityModel identity)
+            {
+                identity.CanonicalId = Guid.NewGuid().ToString("N");
+            }
+
+            model.Id = connection.QuerySingleOrDefault<int>(GetInsertSql(ignoreUniqueConflicts: true), model, transaction);
+            if (model.Id == 0)
+            {
+                if (model is ICatalogueIdentityModel)
+                {
+                    ResetCatalogueInsertion(model);
+                }
+
+                return false;
+            }
+
+            StoreCatalogueIdentity(connection, transaction, model, true, null);
+            return true;
         }
 
         protected TModel Insert(IDbConnection connection, IDbTransaction transaction, TModel model)

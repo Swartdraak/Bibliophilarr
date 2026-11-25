@@ -712,6 +712,7 @@
         "tags": [
           "Book"
         ],
+        "description": "Submit an explicit editions array. For a work by an existing author, you may instead omit editions and send the exact provider work ID in foreignBookId and a typed source edition ID in foreignEditionId. Include the nested author with its provider ID, valid quality and metadata profiles, and a valid root folder path if author.path is absent. The edition ID must refer to a source edition of that work. Work-level placeholders cannot select an edition.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -752,8 +753,11 @@
               }
             }
           },
+          "400": {
+            "description": "The requested edition, work, or author could not be verified for this add."
+          },
           "409": {
-            "description": "A provider edition is already owned by another catalogue book.",
+            "description": "The provider edition is already owned by another book, or the requested scalar work already exists.",
             "content": {
               "application/json": {
                 "schema": {
